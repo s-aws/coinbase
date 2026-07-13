@@ -203,12 +203,28 @@ the backend RBAC role named `operator` can read checkpoint evidence but cannot
 record it. Recording requires `spot_pnl:record`, currently granted to `trader`
 and `admin`.
 
-Spot cancel identity is `client_order_id`. Backend cancellation first calls the
-project wrapper `cancel_order(client_order_id)`. Controlled-live backend cancel
-evidence may use `exchange_order_id` only as a recorded fallback exchange API
-parameter after client-id cancellation is rejected and exchange readback
-evidence exists. Do not make exchange-native `order_id` the operator identity,
-browser-supplied cancel key, or first cancel identity.
+Spot operator/local ownership, lineage, claim, and audit cancel identity is
+`client_order_id`. Older and generic backend cancellation retains the project
+wrapper's `cancel_order(client_order_id)` behavior and recorded exchange-id
+fallback. The narrow schema-24 controlled recovery exception may, only after
+authoritative exact readback binds `client_order_id` to `exchange_order_id`,
+have the canonical wrapper submit the verified `exchange_order_id` exactly
+once. It makes no client-ID exchange call and permits no fallback, retry, or
+second submission. Do not make exchange-native `order_id` the operator
+identity or browser-supplied cancel key.
+
+For that schema-24 recovery only, the transition rechecks the exact predecessor
+process, the 120-minute TTL, absence of all successor artifacts, and tracked-
+clean backend/frontend worktrees exactly synced with `origin/main` immediately
+before the single allowed `SIGTERM`. An immutable owner-only pre-signal attempt
+claim is written exclusively and permanently consumes an ambiguous attempt. Its
+sealed predecessor proof must match the two distinct service-disable record
+hashes (`service_disabled` and `parent_loss_service_disabled`, both
+approval-false with zero caps); completion freezes the hash of the terminal
+`runtime_exited` sentinel proving zero root/child placement SDK calls and no
+in-flight placement. Neither transition nor cleanup force-kills; an unproven
+shutdown fails closed without escalation and preserves any still-live runtime
+for reconciliation.
 
 ## Stealth Command Suite
 

@@ -2061,12 +2061,27 @@ The platform/module split is documented in
 - Manual order create may omit `client_order_id`; the backend route derives it
   before approval/admission evidence. Frontend and BFF code must display the
   returned id but must not generate or override it.
-- Preserve operator-facing cancellation through `client_order_id`. Backend
-  cancel paths first call the project wrapper `cancel_order(client_order_id)`
-  and accept only explicit Coinbase `success: true` cancel evidence as success.
-  If Coinbase rejects that identity, controlled-live backend cancel evidence may
-  read the order and use `exchange_order_id` only as a recorded fallback
-  exchange API parameter.
+- Preserve `client_order_id` as cancellation's operator/local ownership,
+  lineage, claim, and audit identity. Older and generic backend cancel paths
+  retain the project wrapper's `cancel_order(client_order_id)` behavior and
+  recorded exchange-id fallback. The narrow schema-24 controlled recovery
+  exception may, only after authoritative exact readback binds
+  `client_order_id` to `exchange_order_id`, have the canonical wrapper submit
+  the verified `exchange_order_id` exactly once. It makes no client-ID exchange
+  call and permits no fallback, retry, or second submission.
+- For that schema-24 recovery only, the transition rechecks the exact
+  predecessor process, the 120-minute TTL, absence of every successor
+  artifact, and tracked-clean backend/frontend worktrees exactly synced with
+  `origin/main` immediately before its one allowed `SIGTERM`. It exclusively
+  writes an immutable owner-only pre-signal attempt claim, so an ambiguous
+  signal outcome permanently consumes the attempt. The sealed predecessor
+  proof must match both distinct service-disable record hashes
+  (`service_disabled` and `parent_loss_service_disabled`, each approval-false
+  with zero caps), and completion freezes the hash of a terminal
+  `runtime_exited` sentinel with zero root/child placement SDK calls or
+  in-flight placement. Transition and cleanup never force-kill; an unproven
+  shutdown fails closed without escalating, preserving any still-live runtime
+  for reconciliation.
 - Treat exchange-native `order_id` as exchange evidence only. The order read
   model exposes it as `exchange_order_id`; it is not an operator identity or
   browser-supplied cancel key.
@@ -2080,7 +2095,9 @@ The platform/module split is documented in
   did not accept that identity, so backend read exchange evidence and used an
   `exchange_order_id` fallback while preserving
   `operator_identity_key=client_order_id` and
-  `exchange_order_id_evidence_only=true`.
+  `exchange_order_id_evidence_only=true`. This is historical evidence for the
+  older/generic behavior; it does not authorize schema-24 recovery to repeat
+  that two-submission sequence.
 - Order list/detail read rows may include `correlation_id` and `audit_id`
   when the backend row source has durable evidence for them. These fields are
   audit navigation evidence, not order identity.

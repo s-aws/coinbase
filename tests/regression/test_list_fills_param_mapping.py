@@ -184,6 +184,66 @@ def test_cancel_order_can_return_typed_evidence_from_same_wrapper():
 
 
 @pytest.mark.regression
+def test_cancel_order_uses_one_verified_exchange_id_submission():
+    from external.coinbase_client import CoinbaseRestClient
+
+    client = CoinbaseRestClient.__new__(CoinbaseRestClient)
+    client._client = MagicMock()
+    client._client.cancel_orders.return_value = {
+        "results": [
+            {
+                "success": True,
+                "order_id": "exchange-order-1",
+            }
+        ]
+    }
+
+    evidence = client.cancel_order(
+        "client-order-1",
+        verified_exchange_order_id="exchange-order-1",
+        return_evidence=True,
+    )
+
+    assert evidence["outcome"] == "succeeded"
+    assert evidence["operator_identity_key"] == "client_order_id"
+    assert evidence["operator_identity_value"] == "client-order-1"
+    assert evidence["exchange_order_id_evidence_only"] is True
+    assert evidence["exchange_order_id"] == "exchange-order-1"
+    assert evidence["submitted_identity_key"] == "exchange_order_id"
+    client._client.cancel_orders.assert_called_once_with(["exchange-order-1"])
+
+
+@pytest.mark.regression
+def test_verified_exchange_id_cancel_preserves_structured_rejection_evidence():
+    from external.coinbase_client import CoinbaseRestClient
+
+    client = CoinbaseRestClient.__new__(CoinbaseRestClient)
+    client._client = MagicMock()
+    client._client.cancel_orders.return_value = {
+        "results": [
+            {
+                "success": False,
+                "failure_reason": "UNKNOWN_CANCEL_ORDER",
+                "order_id": "exchange-order-1",
+            }
+        ]
+    }
+
+    evidence = client.cancel_order(
+        "client-order-1",
+        verified_exchange_order_id="exchange-order-1",
+        return_evidence=True,
+    )
+
+    assert evidence["outcome"] == "explicitly_rejected"
+    assert evidence["failure_reasons"] == ["UNKNOWN_CANCEL_ORDER"]
+    assert evidence["operator_identity_value"] == "client-order-1"
+    assert evidence["exchange_order_id"] == "exchange-order-1"
+    assert evidence["submitted_identity_key"] == "exchange_order_id"
+    client._client.cancel_orders.assert_called_once_with(["exchange-order-1"])
+
+
+@pytest.mark.regression
 def test_exchange_id_cancel_can_return_unknown_typed_evidence():
     from external.coinbase_client import CoinbaseRestClient
 

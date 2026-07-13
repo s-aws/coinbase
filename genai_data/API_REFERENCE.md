@@ -1511,12 +1511,15 @@ frontend request
 -> typed response
 ```
 
-Cancel remains `client_order_id` keyed for operators and local state. Backend
-controlled-live cancel first calls the project Coinbase wrapper
-`cancel_order(client_order_id)` rather than resolving to exchange `order_id`
-first. If Coinbase rejects that identity, the backend may read exchange
-evidence and use `exchange_order_id` only as a recorded fallback exchange API
-parameter while preserving `operator_identity_key=client_order_id` and
+Cancel remains `client_order_id` keyed for operator/local ownership, lineage,
+claims, and audit. Older and generic backend cancel paths retain the project
+Coinbase wrapper's `cancel_order(client_order_id)` behavior and recorded
+exchange-id fallback. The narrow schema-24 controlled recovery exception may,
+only after authoritative exact readback binds `client_order_id` to
+`exchange_order_id`, have the canonical wrapper submit the verified
+`exchange_order_id` exactly once. It makes no client-ID exchange call and
+permits no fallback, retry, or second submission, while preserving
+`operator_identity_key=client_order_id` and
 `exchange_order_id_evidence_only=true`.
 
 HTTP auth bootstrap mode:
@@ -1582,7 +1585,7 @@ building the currency-to-wallet map. Do not replace it with a single
 - `place_limit_order(product_id, side, limit_price, base_size|quote_size, client_order_id, post_only, time_in_force)`
 - `create_order(...)` (pass-through/flexible order configuration)
 - `list_orders(order_status=None)`
-- `cancel_order(client_order_id)`
+- `cancel_order(client_order_id, *, verified_exchange_order_id=None)`
 - `cancel_orders(order_ids)`
 - `limit_order_gtc(...)`
 
@@ -1597,13 +1600,18 @@ building the currency-to-wallet map. Do not replace it with a single
 ### Notes
 - `place_limit_order` returns raw SDK response dict (do not coerce to `Order`).
 - `list_fills` maps user-facing params to SDK keys (`order_ids`, `product_ids`, `start_sequence_timestamp`, `end_sequence_timestamp`).
-- `cancel_order(client_order_id)` calls the Coinbase cancel wrapper with the
-  project `client_order_id` and treats only explicit `success: true` cancel
-  evidence as success. Non-empty failure payloads such as `success: false` are
-  rejected. Controlled-live cancel evidence may fall back to a readback
-  `exchange_order_id` only after the client-id cancel is not accepted, and must
-  record the initial identity, fallback reason, fallback identity, and
-  exchange-id-evidence-only fields.
+- `cancel_order(client_order_id)` retains the older/generic behavior: it calls
+  Coinbase with the project `client_order_id`, treats only explicit
+  `success: true` cancel evidence as success, and may use the existing recorded
+  exchange-id fallback only through its established caller path. Non-empty
+  failure payloads such as `success: false` are rejected.
+- The narrow schema-24 controlled recovery caller may provide
+  `verified_exchange_order_id` only after authoritative exact readback binds
+  `client_order_id` to `exchange_order_id`. The same canonical wrapper then
+  submits that verified exchange id exactly once and records both operator and
+  exchange identities. It makes no client-ID exchange call and permits no
+  fallback, retry, or second submission; `client_order_id` remains the
+  ownership, lineage, claim, and audit identity.
 
 ## Spot Sweep And Campaign CLI Outputs
 
@@ -1708,7 +1716,10 @@ lifecycle and reconciliation own later local evidence rows.
 `params.client_order_id`, rejects requests that provide only `order_id`, and
 calls `REST_CLIENT.cancel_order(client_order_id)`. Do not add an exchange-id
 resolver to this dashboard path. Raw batch `cancel_orders(order_ids=[...])`
-remains exchange-id oriented for paths that explicitly use the batch API.
+remains exchange-id oriented for paths that explicitly use the batch API. The
+schema-24 verified-exchange-id exception is confined to its sealed
+backend-controlled recovery path and does not change this generic dashboard
+behavior.
 
 Stealth views/actions:
 - `request_stealth_orders`

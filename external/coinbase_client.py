@@ -400,21 +400,27 @@ class CoinbaseRestClient:
         self,
         client_order_id: str,
         *,
+        verified_exchange_order_id: str | None = None,
         return_evidence: bool = False,
     ) -> bool | Dict[str, Any]:
-        """Cancel a single order by client order ID.
+        """Cancel one operator-selected order through the canonical wrapper.
 
         The wrapper is intentionally called with client_order_id first because:
         - We always have it (we generate it for every order)
         - It is the operator-facing identity
         - Exchange-assigned order_id remains evidence, not the local identity
 
-        Controlled-live backend cancel evidence may fall back to exchange_order_id
-        after Coinbase rejects client_order_id cancellation and readback evidence
-        proves the exchange id.
+        Coinbase's batch-cancel boundary accepts exchange ``order_id`` values.
+        A controlled-live caller that has already proved the exact exchange
+        identity through authoritative readback can supply it here so this
+        wrapper makes one exchange-id submission without changing the operator
+        identity or adding a fallback attempt. Calls without that evidence keep
+        the existing client-id behavior.
 
         Args:
             client_order_id: The client order ID we generated for this order
+            verified_exchange_order_id: Exact exchange ID proved by the caller's
+                authoritative order readback.
         
         Returns:
             True if cancel successful, False if order not found
@@ -427,11 +433,25 @@ class CoinbaseRestClient:
             >>> if success:
             ...     print("Order cancelled")
         """
-        result = self._client.cancel_orders([client_order_id])
+        submitted_order_id = client_order_id
+        if verified_exchange_order_id is not None:
+            submitted_order_id = str(verified_exchange_order_id).strip()
+            if not submitted_order_id:
+                raise ValueError("verified_exchange_order_id cannot be empty")
+        result = self._client.cancel_orders([submitted_order_id])
         evidence = coinbase_cancel_response_evidence(
             result,
-            expected_order_id=client_order_id,
+            expected_order_id=submitted_order_id,
         )
+        if verified_exchange_order_id is not None:
+            evidence = {
+                **evidence,
+                "operator_identity_key": "client_order_id",
+                "operator_identity_value": client_order_id,
+                "exchange_order_id_evidence_only": True,
+                "exchange_order_id": submitted_order_id,
+                "submitted_identity_key": "exchange_order_id",
+            }
         return evidence if return_evidence else evidence["succeeded"] is True
 
     def cancel_order_by_exchange_order_id(

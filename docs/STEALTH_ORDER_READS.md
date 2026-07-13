@@ -153,11 +153,23 @@ evidence:
   Coinbase orders, perform cancel/replace, or mutate lifecycle state.
 - `POST /api/v1/stealth/orders/{stealth_order_id}/cancel` remains live-disabled
   for generic/UI requests. The same controlled first-child batch may cancel
-  only its proven active placement. Cancellation starts with canonical
-  `cancel_order(client_order_id)`; the exchange id is a recorded fallback only
-  after explicit identity rejection. Exact zero-fill `CANCELLED` state is
-  required before the next root; any filled, partial, uncertain, or
-  persistence-mismatched result stops the batch.
+  only its proven active placement. Its narrow schema-24 controlled recovery
+  exception authoritatively reads the exact binding from `client_order_id` to
+  `exchange_order_id`, then has the canonical wrapper submit that verified
+  `exchange_order_id` exactly once, with no client-ID exchange call, fallback,
+  retry, or second submission.
+  `client_order_id` remains the operator/local ownership, lineage, claim, and
+  audit identity, and older/generic cancel behavior is unchanged. Exact
+  zero-fill `CANCELLED` state is required before the next root; any filled,
+  partial, uncertain, or persistence-mismatched result stops the batch.
+  Schema-24 transition safety additionally requires immediate pre-signal
+  process/TTL/successor-path and tracked-clean origin-sync gates, then an
+  exclusive immutable owner-only pre-signal claim that permanently consumes
+  its single `SIGTERM` attempt even if delivery is ambiguous. It matches
+  exactly the two bound service-disable hashes (`service_disabled` and
+  `parent_loss_service_disabled`, both approval-false with zero caps), freezes
+  the terminal `runtime_exited` zero-root/child-placement-SDK sentinel hash,
+  and never force-kills during transition or cleanup.
 - `POST /api/v1/stealth/orders/{stealth_order_id}/recovery` is linked as a
   live-disabled recovery command contract and does not execute recovery
   repair, rollback, proof writing, Coinbase reads, Coinbase orders,

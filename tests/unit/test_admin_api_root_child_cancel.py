@@ -1409,6 +1409,10 @@ def test_root_child_cancel_claims_once_then_delegates_canonical_service(
     assert delegated.request.controlled_batch_id == BATCH_ID
     assert delegated.request.controlled_batch_slot == 1
     assert delegated.request.controlled_plan_sha256 == PLAN_SHA256
+    assert canonical.call_args.kwargs["sealed_cancel_plan_sha256"] == PLAN_SHA256
+    assert canonical.call_args.kwargs[
+        "v15r6_verified_exchange_submission_required"
+    ] is False
     assert len(claims.read_recent(limit=20)) == 3
     rest_client.cancel_order.assert_not_called()
 

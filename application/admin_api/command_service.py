@@ -113,6 +113,7 @@ from .root_child_cancel import (
     controlled_child_cancel_root_scope,
     is_controlled_v15_cancel_only_recovery_plan,
     is_controlled_v15r2_recovery_plan,
+    is_controlled_v15r6_recovery_plan,
     load_controlled_v15_plan_authority,
     root_child_cancel_semantic_key,
     validate_controlled_child_cancel_plan_scope,
@@ -507,6 +508,104 @@ def _root_child_cancel_delegate_lineage(
         "controlled_plan_sha256": command_plan_sha256,
         "controlled_batch_id": command_batch_id,
     }
+
+
+def _root_child_cancel_v15r6_exchange_submission_context(
+    dependencies: Any,
+    command: StealthCancelCommand,
+    *,
+    submission_required: bool,
+    sealed_cancel_plan_sha256: str | None,
+    exchange_order_id: str,
+) -> tuple[bool, bool]:
+    """Return whether schema 24 is present and exactly authorizes its ID use."""
+
+    if not submission_required:
+        return False, False
+    if not sealed_cancel_plan_sha256:
+        return True, False
+    try:
+        raw_authority = dependencies.controlled_v15_plan_authority_getter()
+        raw_plan = (
+            raw_authority.get("plan")
+            if isinstance(raw_authority, Mapping)
+            else None
+        )
+        plan = raw_plan if isinstance(raw_plan, Mapping) else {}
+        schema_24_present = is_controlled_v15r6_recovery_plan(plan)
+    except Exception:
+        return True, False
+    if not schema_24_present:
+        return True, False
+    try:
+        validate_controlled_child_cancel_plan_scope(plan)
+    except Exception:
+        return True, False
+
+    cancel = plan.get("cancel_command")
+    cancel = cancel if isinstance(cancel, Mapping) else {}
+    child = plan.get("child")
+    child = child if isinstance(child, Mapping) else {}
+    binding = plan.get("v15r2_active_child_binding")
+    binding = binding if isinstance(binding, Mapping) else {}
+    local = plan.get("local_active_child_binding")
+    local = local if isinstance(local, Mapping) else {}
+    actor_roles = plan.get("actor_roles")
+    actor_roles = actor_roles if isinstance(actor_roles, list) else []
+    command_roles = [
+        str(getattr(role, "value", role))
+        for role in command.envelope.actor.roles
+    ]
+    authorized = bool(
+        plan.get("plan_sha256") == sealed_cancel_plan_sha256
+        and plan.get("exchange_cancel_submission_identity")
+        == "authoritative_exchange_order_id_resolved_from_client_order_id"
+        and cancel.get("root_client_order_id")
+        == command.request.expected_root_client_order_id
+        and cancel.get("child_client_order_id") == command.stealth_order_id
+        and cancel.get("active_exchange_order_id_evidence")
+        == exchange_order_id
+        and child.get("client_order_id") == command.stealth_order_id
+        and child.get("parent_client_order_id")
+        == command.request.expected_root_client_order_id
+        and child.get("active_exchange_order_id") == exchange_order_id
+        and binding.get("r2_plan_sha256")
+        == command.request.controlled_plan_sha256
+        and binding.get("r2_batch_id") == command.request.controlled_batch_id
+        and child.get("origin_controlled_plan_sha256")
+        == binding.get("r2_plan_sha256")
+        and child.get("origin_controlled_batch_id")
+        == binding.get("r2_batch_id")
+        and local.get("controlled_plan_sha256")
+        == binding.get("r2_plan_sha256")
+        and local.get("controlled_batch_id") == binding.get("r2_batch_id")
+        and binding.get("root_client_order_id")
+        == command.request.expected_root_client_order_id
+        and binding.get("child_client_order_id") == command.stealth_order_id
+        and binding.get("child_exchange_order_id") == exchange_order_id
+        and local.get("root_client_order_id")
+        == command.request.expected_root_client_order_id
+        and local.get("child_client_order_id") == command.stealth_order_id
+        and local.get("child_exchange_order_id") == exchange_order_id
+        and local.get("active_placement_client_order_id")
+        == command.stealth_order_id
+        and local.get("active_exchange_order_id") == exchange_order_id
+        and cancel.get("operator_intent")
+        == command.envelope.operator_intent
+        and cancel.get("idempotency_key")
+        == command.envelope.idempotency_key
+        and cancel.get("correlation_id") == command.envelope.correlation_id
+        and cancel.get("approval_snapshot_id")
+        == command.admin_approval_snapshot_id
+        and cancel.get("cap_guard_decision_id")
+        == command.admin_cap_guard_decision_id
+        and cancel.get("reconciliation_plan_id")
+        == command.admin_reconciliation_plan_id
+        and plan.get("actor_id") == command.envelope.actor.actor_id
+        and sorted(str(role) for role in actor_roles)
+        == sorted(command_roles)
+    )
+    return True, authorized
 
 
 def _root_child_cancel_plan_expired_for_new_claim(
@@ -6472,6 +6571,12 @@ class AdminApiCommandService:
                     else mark_semantic_exchange_boundary
                 ),
                 reconciliation_only=reconciliation_only,
+                sealed_cancel_plan_sha256=str(
+                    command.request.controlled_plan_sha256
+                ),
+                v15r6_verified_exchange_submission_required=(
+                    is_controlled_v15r6_recovery_plan(delegate_plan)
+                ),
             )
         except Exception as exc:
             canonical_response = AdminApiCommandResponse(
@@ -6567,6 +6672,8 @@ class AdminApiCommandService:
         *,
         semantic_boundary_callback: Callable[[], None] | None = None,
         reconciliation_only: bool = False,
+        sealed_cancel_plan_sha256: str | None = None,
+        v15r6_verified_exchange_submission_required: bool = False,
     ) -> AdminApiCommandResponse:
         """Cancel and reconcile only an admitted controlled first child."""
 
@@ -6719,6 +6826,30 @@ class AdminApiCommandService:
                 data={"portfolio_scope": portfolio_scope, "child_state": child},
             )
 
+        (
+            v15r6_schema_present,
+            v15r6_verified_exchange_submission,
+        ) = _root_child_cancel_v15r6_exchange_submission_context(
+            deps,
+            command,
+            submission_required=(
+                v15r6_verified_exchange_submission_required
+                and not reconciliation_only
+            ),
+            sealed_cancel_plan_sha256=sealed_cancel_plan_sha256,
+            exchange_order_id=exchange_order_id,
+        )
+        if v15r6_schema_present and not v15r6_verified_exchange_submission:
+            return self._stealth_cancel_rejected(
+                command=command,
+                message=(
+                    "Schema-24 verified exchange-order-id cancellation context "
+                    "does not match the sealed plan and exact child tuple."
+                ),
+                failure_stage="controlled_child_context",
+                data={"portfolio_scope": portfolio_scope, "child_state": child},
+            )
+
         cancel_by_client_order_id = getattr(
             deps.rest_client,
             "cancel_order",
@@ -6731,13 +6862,21 @@ class AdminApiCommandService:
         )
         if not reconciliation_only and (
             not callable(cancel_by_client_order_id)
-            or not callable(cancel_exchange)
+            or (
+                not v15r6_verified_exchange_submission
+                and not callable(cancel_exchange)
+            )
         ):
             return self._stealth_cancel_rejected(
                 command=command,
                 message=(
-                    "Canonical client-order-id cancellation and the recorded "
-                    "exchange-id fallback must both be available."
+                    "Canonical verified exchange-order-id cancellation must "
+                    "be available."
+                    if v15r6_verified_exchange_submission
+                    else (
+                        "Canonical client-order-id cancellation and the "
+                        "recorded exchange-id fallback must both be available."
+                    )
                 ),
                 failure_stage="cancellation_boundary",
                 data={"portfolio_scope": portfolio_scope, "child_state": child},
@@ -6809,6 +6948,7 @@ class AdminApiCommandService:
                         "cancellation_readback": initial_readback,
                     },
                 )
+            v15r6_cancellation_identity: dict[str, Any] | None = None
             if initial_status == OrderStatus.CANCELLED.value:
                 terminal_readback = initial_readback
                 cancel_submitted = False
@@ -6822,6 +6962,19 @@ class AdminApiCommandService:
                     "outcome": "not_attempted_already_cancelled",
                     "explicit_rejection": False,
                 }
+                if v15r6_verified_exchange_submission:
+                    v15r6_cancellation_identity = {
+                        "operator_identity_key": "client_order_id",
+                        "operator_identity_value": command.stealth_order_id,
+                        "exchange_order_id_evidence_only": True,
+                        "exchange_order_id": exchange_order_id,
+                        "canonical_cancel_attempted": False,
+                        "canonical_client_order_id_cancel_attempted": False,
+                        "verified_exchange_order_id_cancel_attempted": False,
+                        "canonical_cancel_evidence": canonical_cancel_evidence,
+                        "fallback_cancel_evidence": fallback_cancel_evidence,
+                        "exchange_id_fallback_used": False,
+                    }
             elif initial_status in {
                 OrderStatus.OPEN.value,
                 OrderStatus.PENDING.value,
@@ -6855,6 +7008,7 @@ class AdminApiCommandService:
                     "outcome": "not_attempted",
                     "explicit_rejection": False,
                 }
+                canonical_cancel_response_received = False
                 try:
                     with controller.track_inflight(INFLIGHT_REST_CANCEL):
                         if semantic_boundary_callback is not None:
@@ -6878,13 +7032,21 @@ class AdminApiCommandService:
                                     },
                                 )
                         canonical_cancel_attempted = True
-                        canonical_cancel_evidence = cancel_by_client_order_id(
+                        canonical_cancel_kwargs: dict[str, Any] = {
+                            "return_evidence": True,
+                        }
+                        if v15r6_verified_exchange_submission:
+                            canonical_cancel_kwargs[
+                                "verified_exchange_order_id"
+                            ] = exchange_order_id
+                        canonical_cancel_response = cancel_by_client_order_id(
                             command.stealth_order_id,
-                            return_evidence=True,
+                            **canonical_cancel_kwargs,
                         )
+                        canonical_cancel_response_received = True
                         canonical_cancel_evidence = (
-                            dict(canonical_cancel_evidence)
-                            if isinstance(canonical_cancel_evidence, Mapping)
+                            dict(canonical_cancel_response)
+                            if isinstance(canonical_cancel_response, Mapping)
                             else {}
                         )
                         canonical_cancel_outcome = str(
@@ -6949,10 +7111,25 @@ class AdminApiCommandService:
                                 "canonical_client_order_id_cancel_outcome_unknown"
                             )
                 except Exception as exc:
+                    if (
+                        v15r6_verified_exchange_submission
+                        and canonical_cancel_attempted
+                        and not canonical_cancel_response_received
+                    ):
+                        canonical_cancel_evidence = {
+                            "outcome": "unknown",
+                            "attempted": True,
+                            "explicit_rejection": False,
+                            "exception_type": type(exc).__name__,
+                        }
                     unknown_boundary = (
                         "exchange_id_fallback"
                         if exchange_id_fallback_used
-                        else "canonical_client_order_id"
+                        else (
+                            "verified_exchange_order_id"
+                            if v15r6_verified_exchange_submission
+                            else "canonical_client_order_id"
+                        )
                     )
                     deps.spot_order_admission_coordinator.record_uncertainty(
                         retail_portfolio_id=profile_id,
@@ -6982,6 +7159,7 @@ class AdminApiCommandService:
                                 "unknown_boundary": unknown_boundary,
                                 "canonical_client_order_id_cancel_attempted": (
                                     canonical_cancel_attempted
+                                    and not v15r6_verified_exchange_submission
                                 ),
                                 "canonical_cancel_evidence": (
                                     canonical_cancel_evidence
@@ -6992,21 +7170,89 @@ class AdminApiCommandService:
                                 "fallback_cancel_evidence": (
                                     fallback_cancel_evidence
                                 ),
+                                **(
+                                    {
+                                        "canonical_cancel_attempted": (
+                                            canonical_cancel_attempted
+                                        ),
+                                        "verified_exchange_order_id_cancel_attempted": (
+                                            canonical_cancel_attempted
+                                        ),
+                                        **(
+                                            {
+                                                "submitted_identity_key": (
+                                                    "exchange_order_id"
+                                                )
+                                            }
+                                            if canonical_cancel_attempted
+                                            else {}
+                                        ),
+                                    }
+                                    if v15r6_verified_exchange_submission
+                                    else {}
+                                ),
                             },
                         },
-                        live_exchange_submitted=True,
-                        live_coinbase_orders_ran=True,
+                        coinbase_order_id=(
+                            exchange_order_id
+                            if v15r6_verified_exchange_submission
+                            and canonical_cancel_attempted
+                            else None
+                        ),
+                        live_exchange_submitted=(
+                            canonical_cancel_attempted
+                            if v15r6_verified_exchange_submission
+                            else True
+                        ),
+                        live_coinbase_orders_ran=(
+                            canonical_cancel_attempted
+                            if v15r6_verified_exchange_submission
+                            else True
+                        ),
                     )
                 cancel_submitted = True
+                if v15r6_verified_exchange_submission:
+                    v15r6_cancellation_identity = {
+                        "operator_identity_key": "client_order_id",
+                        "operator_identity_value": command.stealth_order_id,
+                        "exchange_order_id_evidence_only": True,
+                        "exchange_order_id": exchange_order_id,
+                        "canonical_cancel_attempted": canonical_cancel_attempted,
+                        "canonical_client_order_id_cancel_attempted": False,
+                        "verified_exchange_order_id_cancel_attempted": True,
+                        "canonical_cancel_evidence": canonical_cancel_evidence,
+                        "fallback_cancel_evidence": fallback_cancel_evidence,
+                        "exchange_id_fallback_used": False,
+                        "submitted_identity_key": "exchange_order_id",
+                    }
                 if cancel_result is not True:
                     return self._stealth_cancel_rejected(
                         command=command,
-                        message="Exact exchange-id cancellation was not accepted.",
+                        message=(
+                            "Verified exchange-order-id cancellation was "
+                            "explicitly rejected by Coinbase."
+                            if v15r6_verified_exchange_submission
+                            else "Exact exchange-id cancellation was not accepted."
+                        ),
                         failure_stage="cancellation_rejected",
                         data={
                             "portfolio_scope": portfolio_scope,
                             "cancellation_readback": initial_readback,
+                            **(
+                                {
+                                    "cancellation_identity": (
+                                        v15r6_cancellation_identity
+                                    )
+                                }
+                                if v15r6_verified_exchange_submission
+                                else {}
+                            ),
                         },
+                        coinbase_order_id=(
+                            exchange_order_id
+                            if v15r6_verified_exchange_submission
+                            else None
+                        ),
                         live_exchange_submitted=True,
                         live_coinbase_orders_ran=True,
                     )
@@ -7061,7 +7307,21 @@ class AdminApiCommandService:
                             data={
                                 "portfolio_scope": portfolio_scope,
                                 "cancellation_readback": terminal_readback,
+                                **(
+                                    {
+                                        "cancellation_identity": (
+                                            v15r6_cancellation_identity
+                                        )
+                                    }
+                                    if v15r6_cancellation_identity is not None
+                                    else {}
+                                ),
                             },
+                            coinbase_order_id=(
+                                exchange_order_id
+                                if v15r6_cancellation_identity is not None
+                                else None
+                            ),
                             live_exchange_submitted=True,
                             live_coinbase_orders_ran=True,
                         )
@@ -7101,6 +7361,15 @@ class AdminApiCommandService:
                     data={
                         "portfolio_scope": portfolio_scope,
                         "cancellation_readback": terminal_readback,
+                        **(
+                            {
+                                "cancellation_identity": (
+                                    v15r6_cancellation_identity
+                                )
+                            }
+                            if v15r6_cancellation_identity is not None
+                            else {}
+                        ),
                     },
                     coinbase_order_id=exchange_order_id,
                     live_exchange_submitted=cancel_submitted,
@@ -7144,6 +7413,15 @@ class AdminApiCommandService:
                     data={
                         "portfolio_scope": portfolio_scope,
                         "cancellation_readback": terminal_readback,
+                        **(
+                            {
+                                "cancellation_identity": (
+                                    v15r6_cancellation_identity
+                                )
+                            }
+                            if v15r6_cancellation_identity is not None
+                            else {}
+                        ),
                     },
                     coinbase_order_id=exchange_order_id,
                     live_exchange_submitted=cancel_submitted,
@@ -7160,6 +7438,15 @@ class AdminApiCommandService:
                     data={
                         "portfolio_scope": portfolio_scope,
                         "cancellation_readback": terminal_readback,
+                        **(
+                            {
+                                "cancellation_identity": (
+                                    v15r6_cancellation_identity
+                                )
+                            }
+                            if v15r6_cancellation_identity is not None
+                            else {}
+                        ),
                     },
                     coinbase_order_id=exchange_order_id,
                     live_exchange_submitted=cancel_submitted,
@@ -7181,6 +7468,15 @@ class AdminApiCommandService:
                         "portfolio_scope": portfolio_scope,
                         "cancellation_readback": terminal_readback,
                         "terminal_zero_fill": terminal_zero_fill,
+                        **(
+                            {
+                                "cancellation_identity": (
+                                    v15r6_cancellation_identity
+                                )
+                            }
+                            if v15r6_cancellation_identity is not None
+                            else {}
+                        ),
                     },
                     coinbase_order_id=exchange_order_id,
                     live_exchange_submitted=cancel_submitted,
@@ -7210,6 +7506,15 @@ class AdminApiCommandService:
                     data={
                         "portfolio_scope": portfolio_scope,
                         "cancellation_readback": terminal_readback,
+                        **(
+                            {
+                                "cancellation_identity": (
+                                    v15r6_cancellation_identity
+                                )
+                            }
+                            if v15r6_cancellation_identity is not None
+                            else {}
+                        ),
                     },
                     coinbase_order_id=exchange_order_id,
                     live_exchange_submitted=cancel_submitted,
@@ -7235,6 +7540,15 @@ class AdminApiCommandService:
                         "portfolio_scope": portfolio_scope,
                         "cancellation_readback": terminal_readback,
                         "local_reconciliation": reconciliation,
+                        **(
+                            {
+                                "cancellation_identity": (
+                                    v15r6_cancellation_identity
+                                )
+                            }
+                            if v15r6_cancellation_identity is not None
+                            else {}
+                        ),
                     },
                     coinbase_order_id=exchange_order_id,
                     live_exchange_submitted=cancel_submitted,
@@ -7252,6 +7566,15 @@ class AdminApiCommandService:
                         "portfolio_scope": portfolio_scope,
                         "cancellation_readback": terminal_readback,
                         "local_reconciliation": reconciliation,
+                        **(
+                            {
+                                "cancellation_identity": (
+                                    v15r6_cancellation_identity
+                                )
+                            }
+                            if v15r6_cancellation_identity is not None
+                            else {}
+                        ),
                     },
                     coinbase_order_id=exchange_order_id,
                     live_exchange_submitted=cancel_submitted,
@@ -7272,6 +7595,15 @@ class AdminApiCommandService:
                         "portfolio_scope": portfolio_scope,
                         "cancellation_readback": terminal_readback,
                         "local_reconciliation": reconciliation,
+                        **(
+                            {
+                                "cancellation_identity": (
+                                    v15r6_cancellation_identity
+                                )
+                            }
+                            if v15r6_cancellation_identity is not None
+                            else {}
+                        ),
                     },
                     coinbase_order_id=exchange_order_id,
                     live_exchange_submitted=cancel_submitted,
@@ -7296,22 +7628,30 @@ class AdminApiCommandService:
                         "cancellation_readback": terminal_readback,
                         "local_reconciliation": reconciliation,
                         "executed_size": executed_size,
-                        "cancellation_identity": {
-                            "operator_identity_key": "client_order_id",
-                            "operator_identity_value": command.stealth_order_id,
-                            "exchange_order_id_evidence_only": True,
-                            "exchange_order_id": exchange_order_id,
-                            "canonical_client_order_id_cancel_attempted": (
-                                canonical_cancel_attempted
-                            ),
-                            "canonical_cancel_evidence": (
-                                canonical_cancel_evidence
-                            ),
-                            "fallback_cancel_evidence": fallback_cancel_evidence,
-                            "exchange_id_fallback_used": (
-                                exchange_id_fallback_used
-                            ),
-                        },
+                        "cancellation_identity": (
+                            v15r6_cancellation_identity
+                            if v15r6_cancellation_identity is not None
+                            else {
+                                "operator_identity_key": "client_order_id",
+                                "operator_identity_value": (
+                                    command.stealth_order_id
+                                ),
+                                "exchange_order_id_evidence_only": True,
+                                "exchange_order_id": exchange_order_id,
+                                "canonical_client_order_id_cancel_attempted": (
+                                    canonical_cancel_attempted
+                                ),
+                                "canonical_cancel_evidence": (
+                                    canonical_cancel_evidence
+                                ),
+                                "fallback_cancel_evidence": (
+                                    fallback_cancel_evidence
+                                ),
+                                "exchange_id_fallback_used": (
+                                    exchange_id_fallback_used
+                                ),
+                            }
+                        ),
                     },
                     coinbase_order_id=exchange_order_id,
                     live_exchange_submitted=cancel_submitted,
@@ -7350,18 +7690,28 @@ class AdminApiCommandService:
                         if v15_context
                         else {}
                     ),
-                    "cancellation_identity": {
-                        "operator_identity_key": "client_order_id",
-                        "operator_identity_value": command.stealth_order_id,
-                        "exchange_order_id_evidence_only": True,
-                        "exchange_order_id": exchange_order_id,
-                        "canonical_client_order_id_cancel_attempted": (
-                            canonical_cancel_attempted
-                        ),
-                        "canonical_cancel_evidence": canonical_cancel_evidence,
-                        "fallback_cancel_evidence": fallback_cancel_evidence,
-                        "exchange_id_fallback_used": exchange_id_fallback_used,
-                    },
+                    "cancellation_identity": (
+                        v15r6_cancellation_identity
+                        if v15r6_cancellation_identity is not None
+                        else {
+                            "operator_identity_key": "client_order_id",
+                            "operator_identity_value": command.stealth_order_id,
+                            "exchange_order_id_evidence_only": True,
+                            "exchange_order_id": exchange_order_id,
+                            "canonical_client_order_id_cancel_attempted": (
+                                canonical_cancel_attempted
+                            ),
+                            "canonical_cancel_evidence": (
+                                canonical_cancel_evidence
+                            ),
+                            "fallback_cancel_evidence": (
+                                fallback_cancel_evidence
+                            ),
+                            "exchange_id_fallback_used": (
+                                exchange_id_fallback_used
+                            ),
+                        }
+                    ),
                 },
                 **self._command_runtime_evidence(),
             )

@@ -36,12 +36,26 @@ not run with notional `0`.
   acknowledgement, route-bound approval/audit/cap/reconciliation records, a
   fresh zero-active-order read, a limit at least 150% of bid, notional below the
   2 USDC hard cap, and the manager's one-use authority. Cancel is keyed by the
-  same `stealth_order_id`, proves its exact Coinbase identity, calls canonical
-  `cancel_order(client_order_id)` first, and may use the exchange order id only
-  as a recorded fallback after explicit identity rejection. It requires
-  zero-fill `CANCELLED` readback before a batch may advance. This exception
-  grants no browser authority and cannot reveal an ordinary or
+  same `stealth_order_id` and keeps `client_order_id` as operator/local
+  ownership, lineage, claim, and audit identity. Its narrow schema-24
+  controlled recovery exception first proves the exact readback binding
+  `client_order_id` to `exchange_order_id`, then has the canonical wrapper
+  submit the verified `exchange_order_id` exactly once. It makes no client-ID
+  exchange call and permits no fallback, retry, or second submission; older
+  and generic cancel behavior remains unchanged. Exact
+  zero-fill `CANCELLED` readback is required before a batch may advance. This
+  exception grants no browser authority and cannot reveal an ordinary or
   later-generation Admin child.
+  Before schema-24 sends its one `SIGTERM`, it rechecks the exact predecessor
+  process, 120-minute TTL, successor-path absence, and tracked-clean,
+  `origin/main`-synced backend/frontend worktrees, then exclusively writes an
+  immutable owner-only pre-signal claim that permanently consumes an ambiguous
+  signal. The predecessor gate matches exactly the two service-disable record
+  hashes (`service_disabled` and `parent_loss_service_disabled`, each
+  approval-false with zero caps), and closeout freezes the terminal
+  `runtime_exited` zero-root/child-placement-SDK sentinel hash. There is no
+  forced-kill transition or cleanup; an unproven shutdown remains
+  reconciliation-only without escalation.
 
 ## Backend-Only Controlled-Live Tools
 

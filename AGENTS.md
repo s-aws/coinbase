@@ -14,12 +14,16 @@ some operator/deployment references and must not replace the EC2 paths below.
 
 ## Hard Constraints (non-negotiable)
 
-- Use `client_order_id` for all internal and operator-facing tracking; use
-  `order_id` only for exchange-native evidence and exchange API calls that
-  require it. Coinbase cancellation starts with the project wrapper
-  `cancel_order(client_order_id)`. If Coinbase rejects that identity, a
-  backend-owned controlled-live cancel path may read exchange evidence and use
-  `exchange_order_id` only as a recorded fallback API parameter; it must keep
+- Use `client_order_id` for all internal and operator-facing tracking,
+  ownership, lineage, claims, and audit; use `order_id` only for
+  exchange-native evidence and exchange API calls that require it. Older and
+  generic Coinbase cancellation behavior remains
+  `cancel_order(client_order_id)` with its recorded exchange-id fallback. The
+  narrow schema-24 controlled recovery exception may, only after authoritative
+  exact readback binds `client_order_id` to `exchange_order_id`, have that
+  canonical wrapper submit the verified `exchange_order_id` exactly once. It
+  makes no client-ID exchange call and permits no fallback, retry, or second
+  submission. The operator and local identity remains `client_order_id`, with
   `operator_identity_key=client_order_id` and
   `exchange_order_id_evidence_only=true`.
   Public rules: `docs/agents/INVARIANTS.md`. Expanded local rules: `genai_data/ORDER_ID_HANDLING.md` when present.

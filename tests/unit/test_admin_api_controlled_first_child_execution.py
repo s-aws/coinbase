@@ -46,6 +46,7 @@ CHILD_ID = str(
 EXCHANGE_ID = "33333333-3333-4333-8333-333333333333"
 BATCH_ID = "test-profile-root-child-repeatability-20260711"
 PLAN_SHA256 = "a" * 64
+SEALED_PLAN_SHA256 = "b" * 64
 
 
 class _ClaimTrackingCoordinator:
@@ -159,13 +160,18 @@ def _cancel_command(
     )
 
 
-def _deps(runtime: MagicMock, rest_client: MagicMock | None = None):
+def _deps(
+    runtime: MagicMock,
+    rest_client: MagicMock | None = None,
+    *,
+    controlled_cancel_plan: dict | None = None,
+):
     rest_client = rest_client or MagicMock()
     rest_client.list_orders.return_value = {
         "orders": [],
         "has_next": False,
     }
-    return AdminApiCommandDependencies(
+    dependencies = AdminApiCommandDependencies(
         rest_client=rest_client,
         rest_client_available=True,
         live_runtime_enabled=True,
@@ -181,6 +187,168 @@ def _deps(runtime: MagicMock, rest_client: MagicMock | None = None):
             mark_submission_status=MagicMock(return_value=1),
         ),
     )
+    if controlled_cancel_plan is not None:
+        dependencies.controlled_v15_plan_authority_getter = lambda: {
+            "plan": controlled_cancel_plan,
+        }
+    return dependencies
+
+
+def _controlled_cancel_recovery_plan(schema_version: str) -> dict:
+    authority_kind = {
+        "23": "selected_chain_child_cancel_recovery_v15r5",
+        "24": "selected_chain_child_cancel_recovery_v15r6",
+    }[schema_version]
+    cancel_command = {
+        "root_client_order_id": ROOT_ID,
+        "child_client_order_id": CHILD_ID,
+        "active_exchange_order_id_evidence": EXCHANGE_ID,
+        "operator_intent": CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT,
+        "idempotency_key": (
+            f"idem-{CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT}"
+        ),
+        "correlation_id": (
+            f"corr-{CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT}"
+        ),
+        "approval_snapshot_id": "approval-cancel-1",
+        "cap_guard_decision_id": "cap-cancel-1",
+        "reconciliation_plan_id": "recon-cancel-1",
+    }
+    return {
+        "schema_version": schema_version,
+        "authority_kind": authority_kind,
+        "plan_sha256": SEALED_PLAN_SHA256,
+        "batch_id": f"sealed-v15r{schema_version}-batch",
+        "actor_id": "operator@example.com",
+        "actor_roles": ["trader"],
+        "exchange_cancel_submission_identity": (
+            "authoritative_exchange_order_id_resolved_from_client_order_id"
+        ),
+        "cancel_command": cancel_command,
+        "child": {
+            "client_order_id": CHILD_ID,
+            "parent_client_order_id": ROOT_ID,
+            "active_exchange_order_id": EXCHANGE_ID,
+            "origin_controlled_plan_sha256": PLAN_SHA256,
+            "origin_controlled_batch_id": BATCH_ID,
+        },
+        "v15r2_active_child_binding": {
+            "r2_plan_sha256": PLAN_SHA256,
+            "r2_batch_id": BATCH_ID,
+            "root_client_order_id": ROOT_ID,
+            "child_client_order_id": CHILD_ID,
+            "child_exchange_order_id": EXCHANGE_ID,
+        },
+        "local_active_child_binding": {
+            "root_client_order_id": ROOT_ID,
+            "child_client_order_id": CHILD_ID,
+            "child_exchange_order_id": EXCHANGE_ID,
+            "active_placement_client_order_id": CHILD_ID,
+            "active_exchange_order_id": EXCHANGE_ID,
+            "controlled_plan_sha256": PLAN_SHA256,
+            "controlled_batch_id": BATCH_ID,
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    "lineage_drift",
+    [
+        "child_origin_plan",
+        "child_origin_batch",
+        "local_runtime_plan",
+        "local_runtime_batch",
+    ],
+)
+def test_v15r6_verified_exchange_submission_rejects_runtime_lineage_drift(
+    monkeypatch,
+    lineage_drift,
+):
+    from application.admin_api import command_service as command_service_module
+
+    plan = _controlled_cancel_recovery_plan("24")
+    if lineage_drift == "child_origin_plan":
+        plan["child"]["origin_controlled_plan_sha256"] = "c" * 64
+    elif lineage_drift == "child_origin_batch":
+        plan["child"]["origin_controlled_batch_id"] = "other-batch"
+    elif lineage_drift == "local_runtime_plan":
+        plan["local_active_child_binding"]["controlled_plan_sha256"] = "c" * 64
+    else:
+        plan["local_active_child_binding"]["controlled_batch_id"] = "other-batch"
+    monkeypatch.setattr(
+        command_service_module,
+        "validate_controlled_child_cancel_plan_scope",
+        lambda _plan: None,
+    )
+    dependencies = SimpleNamespace(
+        controlled_v15_plan_authority_getter=lambda: {"plan": plan},
+    )
+
+    assert command_service_module._root_child_cancel_v15r6_exchange_submission_context(
+        dependencies,
+        _cancel_command(
+            operator_intent=CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT,
+            controlled_plan_sha256=PLAN_SHA256,
+        ),
+        submission_required=True,
+        sealed_cancel_plan_sha256=SEALED_PLAN_SHA256,
+        exchange_order_id=EXCHANGE_ID,
+    ) == (True, False)
+
+
+def test_v15r6_real_plan_shape_authorizes_its_delegated_r2_child_lineage():
+    from application.admin_api import command_service as command_service_module
+    from tests.unit.test_admin_api_root_child_cancel_v15r3 import _v15r6_plan
+
+    plan = _v15r6_plan()
+    cancel = dict(plan["cancel_command"])
+    lineage = command_service_module._root_child_cancel_delegate_lineage(
+        plan,
+        command_plan_sha256=str(plan["plan_sha256"]),
+        command_batch_id=str(plan["batch_id"]),
+    )
+    command = StealthCancelCommand(
+        envelope=AdminApiCommandEnvelope(
+            idempotency_key=str(cancel["idempotency_key"]),
+            correlation_id=str(cancel["correlation_id"]),
+            operator_intent=str(cancel["operator_intent"]),
+            actor=AdminApiActor(
+                actor_id=str(plan["actor_id"]),
+                roles=list(plan["actor_roles"]),
+            ),
+        ),
+        stealth_order_id=str(plan["child"]["client_order_id"]),
+        request=StealthCancelRequest(
+            reason="cancel exact sealed V15R6 child",
+            manual_live_acknowledgement=True,
+            expected_root_client_order_id=str(
+                plan["root_evidence"]["client_order_id"]
+            ),
+            controlled_batch_id=str(lineage["controlled_batch_id"]),
+            controlled_batch_slot=1,
+            controlled_plan_sha256=str(lineage["controlled_plan_sha256"]),
+        ),
+        allow_live_execution=True,
+        admin_approval_snapshot_id=str(cancel["approval_snapshot_id"]),
+        admission_audit_id="route-bound-audit",
+        admin_cap_guard_decision_id=str(cancel["cap_guard_decision_id"]),
+        admin_reconciliation_plan_id=str(cancel["reconciliation_plan_id"]),
+    )
+    dependencies = SimpleNamespace(
+        controlled_v15_plan_authority_getter=lambda: {"plan": plan},
+    )
+
+    assert lineage["controlled_plan_sha256"] == (
+        plan["v15r2_active_child_binding"]["r2_plan_sha256"]
+    )
+    assert lineage["controlled_plan_sha256"] != plan["plan_sha256"]
+    assert command_service_module._root_child_cancel_v15r6_exchange_submission_context(
+        dependencies,
+        command,
+        submission_required=True,
+        sealed_cancel_plan_sha256=str(plan["plan_sha256"]),
+        exchange_order_id=str(plan["child"]["active_exchange_order_id"]),
+    ) == (True, True)
 
 
 def _runtime_adapter_success_evidence():
@@ -857,7 +1025,11 @@ def test_controlled_child_cancel_stays_disabled_without_route_admission():
 
 
 @pytest.mark.parametrize(
-    ("canonical_cancel_result", "exchange_id_fallback_used"),
+    (
+        "canonical_cancel_result",
+        "exchange_id_fallback_used",
+        "canonical_cancel_unknown",
+    ),
     [
         (
             {
@@ -866,6 +1038,7 @@ def test_controlled_child_cancel_stays_disabled_without_route_admission():
                 "identity_rejection": False,
                 "identity_match": True,
             },
+            False,
             False,
         ),
         (
@@ -876,26 +1049,87 @@ def test_controlled_child_cancel_stays_disabled_without_route_admission():
                 "identity_match": True,
             },
             True,
+            False,
+        ),
+        (
+            {
+                "outcome": "unknown",
+                "explicit_rejection": False,
+                "identity_rejection": False,
+                "identity_match": True,
+                "failure_reasons": ["RATE_LIMITED"],
+            },
+            False,
+            True,
+        ),
+        (
+            RuntimeError("cancel transport outcome unknown"),
+            False,
+            True,
         ),
     ],
 )
 @pytest.mark.parametrize(
-    ("operator_intent", "controlled_plan_sha256"),
+    (
+        "operator_intent",
+        "controlled_plan_sha256",
+        "sealed_schema_version",
+        "sealed_tuple_matches",
+    ),
     [
-        (CONTROLLED_FIRST_CHILD_CANCEL_OPERATOR_INTENT, None),
-        (CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT, PLAN_SHA256),
+        (CONTROLLED_FIRST_CHILD_CANCEL_OPERATOR_INTENT, None, None, True),
+        (
+            CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT,
+            PLAN_SHA256,
+            None,
+            True,
+        ),
+        (
+            CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT,
+            PLAN_SHA256,
+            "23",
+            True,
+        ),
+        (
+            CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT,
+            PLAN_SHA256,
+            "24",
+            True,
+        ),
+        (
+            CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT,
+            PLAN_SHA256,
+            "24",
+            False,
+        ),
     ],
 )
 def test_controlled_child_cancel_uses_canonical_identity_then_reconciles(
     monkeypatch,
     canonical_cancel_result,
     exchange_id_fallback_used,
+    canonical_cancel_unknown,
     operator_intent,
     controlled_plan_sha256,
+    sealed_schema_version,
+    sealed_tuple_matches,
 ):
+    from application.admin_api import command_service as command_service_module
+
     monkeypatch.setattr(
         "application.admin_api.command_service.evaluate_spot_test_portfolio_binding",
         lambda **_kwargs: _portfolio_binding(),
+    )
+    monkeypatch.setattr(
+        command_service_module,
+        "validate_controlled_child_cancel_plan_scope",
+        lambda _plan: None,
+    )
+    monkeypatch.setattr(
+        command_service_module,
+        "is_controlled_v15r6_recovery_plan",
+        lambda plan: plan.get("schema_version") == "24",
+        raising=False,
     )
     readbacks = iter(
         [
@@ -948,6 +1182,8 @@ def test_controlled_child_cancel_uses_canonical_identity_then_reconciles(
 
     def _canonical_cancel(*_args, **_kwargs):
         cancel_events.append("coinbase_client_order_id_cancel")
+        if isinstance(canonical_cancel_result, BaseException):
+            raise canonical_cancel_result
         return canonical_cancel_result
 
     rest_client.cancel_order.side_effect = _canonical_cancel
@@ -974,7 +1210,26 @@ def test_controlled_child_cancel_uses_canonical_identity_then_reconciles(
         "local_status": "CANCELLED",
         "active_placement_cleared": True,
     }
-    service = AdminApiCommandService(_deps(runtime, rest_client))
+    fallback_cancel = rest_client.cancel_order_by_exchange_order_id
+    controlled_cancel_plan = (
+        _controlled_cancel_recovery_plan(sealed_schema_version)
+        if sealed_schema_version is not None
+        else None
+    )
+    if controlled_cancel_plan is not None and not sealed_tuple_matches:
+        controlled_cancel_plan["cancel_command"] = {
+            **controlled_cancel_plan["cancel_command"],
+            "active_exchange_order_id_evidence": "different-exchange-order-id",
+        }
+    if sealed_schema_version == "24" and sealed_tuple_matches:
+        rest_client.cancel_order_by_exchange_order_id = None
+    service = AdminApiCommandService(
+        _deps(
+            runtime,
+            rest_client,
+            controlled_cancel_plan=controlled_cancel_plan,
+        )
+    )
 
     response = service.cancel_stealth_order_by_stealth_order_id(
         _cancel_command(
@@ -984,27 +1239,90 @@ def test_controlled_child_cancel_uses_canonical_identity_then_reconciles(
         semantic_boundary_callback=lambda: cancel_events.append(
             "durable_exchange_boundary"
         ),
+        sealed_cancel_plan_sha256=(
+            SEALED_PLAN_SHA256
+            if sealed_schema_version is not None
+            else None
+        ),
+        v15r6_verified_exchange_submission_required=(
+            sealed_schema_version == "24"
+        ),
     )
 
-    v15_fallback_blocked = bool(
-        controlled_plan_sha256 is not None and exchange_id_fallback_used
-    )
-    assert response.status == (
-        AdminApiCommandStatus.REJECTED
-        if v15_fallback_blocked
-        else AdminApiCommandStatus.ACCEPTED
-    )
+    if sealed_schema_version == "24" and not sealed_tuple_matches:
+        assert response.status == AdminApiCommandStatus.REJECTED
+        assert response.failure_stage == "controlled_child_context"
+        assert response.live_exchange_submitted is False
+        assert cancel_events == []
+        rest_client.cancel_order.assert_not_called()
+        fallback_cancel.assert_not_called()
+        return
+
+    verified_exchange_submission = sealed_schema_version == "24"
+    expected_cancel_kwargs = {"return_evidence": True}
+    if verified_exchange_submission:
+        expected_cancel_kwargs["verified_exchange_order_id"] = EXCHANGE_ID
     rest_client.cancel_order.assert_called_once_with(
         CHILD_ID,
-        return_evidence=True,
+        **expected_cancel_kwargs,
     )
     assert cancel_events[:2] == [
         "durable_exchange_boundary",
         "coinbase_client_order_id_cancel",
     ]
-    if v15_fallback_blocked:
+    if canonical_cancel_unknown:
+        assert response.status == AdminApiCommandStatus.REJECTED
+        assert response.failure_stage == "cancellation_unknown"
+        assert response.live_exchange_submitted is True
+        fallback_cancel.assert_not_called()
+        if verified_exchange_submission:
+            identity = response.data["cancellation_identity"]
+            assert identity["unknown_boundary"] == "verified_exchange_order_id"
+            assert response.coinbase_order_id == EXCHANGE_ID
+            if isinstance(canonical_cancel_result, BaseException):
+                assert identity["canonical_cancel_evidence"] == {
+                    "outcome": "unknown",
+                    "attempted": True,
+                    "explicit_rejection": False,
+                    "exception_type": "RuntimeError",
+                }
+            else:
+                assert identity[
+                    "canonical_cancel_evidence"
+                ] == canonical_cancel_result
+            assert identity["submitted_identity_key"] == "exchange_order_id"
+            assert identity["exchange_id_fallback_used"] is False
+        return
+
+    v15_cancel_rejected = bool(
+        controlled_plan_sha256 is not None and exchange_id_fallback_used
+    )
+    assert response.status == (
+        AdminApiCommandStatus.REJECTED
+        if v15_cancel_rejected
+        else AdminApiCommandStatus.ACCEPTED
+    )
+    if v15_cancel_rejected:
         assert response.failure_stage == "cancellation_rejected"
-        rest_client.cancel_order_by_exchange_order_id.assert_not_called()
+        if verified_exchange_submission:
+            assert response.message == (
+                "Verified exchange-order-id cancellation was explicitly "
+                "rejected by Coinbase."
+            )
+            identity = response.data["cancellation_identity"]
+            assert identity["operator_identity_key"] == "client_order_id"
+            assert identity["operator_identity_value"] == CHILD_ID
+            assert identity["exchange_order_id_evidence_only"] is True
+            assert identity["exchange_order_id"] == EXCHANGE_ID
+            assert identity["canonical_cancel_evidence"] == canonical_cancel_result
+            assert identity["submitted_identity_key"] == "exchange_order_id"
+            assert identity["exchange_id_fallback_used"] is False
+        else:
+            assert response.message == (
+                "Exact exchange-id cancellation was not accepted."
+            )
+            assert "cancellation_identity" not in response.data
+        fallback_cancel.assert_not_called()
         return
     assert response.coinbase_order_id == EXCHANGE_ID
     assert response.data["cancellation_readback"]["authoritative_status"] == "CANCELLED"
@@ -1014,7 +1332,7 @@ def test_controlled_child_cancel_uses_canonical_identity_then_reconciles(
             return_evidence=True,
         )
     else:
-        rest_client.cancel_order_by_exchange_order_id.assert_not_called()
+        fallback_cancel.assert_not_called()
     assert response.data["cancellation_identity"]["operator_identity_key"] == (
         "client_order_id"
     )
@@ -1024,6 +1342,23 @@ def test_controlled_child_cancel_uses_canonical_identity_then_reconciles(
     assert response.data["cancellation_identity"][
         "exchange_id_fallback_used"
     ] is exchange_id_fallback_used
+    if verified_exchange_submission:
+        assert response.data["cancellation_identity"][
+            "submitted_identity_key"
+        ] == "exchange_order_id"
+        assert response.data["cancellation_identity"][
+            "verified_exchange_order_id_cancel_attempted"
+        ] is True
+        assert response.data["cancellation_identity"][
+            "canonical_client_order_id_cancel_attempted"
+        ] is False
+    else:
+        assert "submitted_identity_key" not in response.data[
+            "cancellation_identity"
+        ]
+        assert response.data["cancellation_identity"][
+            "canonical_client_order_id_cancel_attempted"
+        ] is True
     if controlled_plan_sha256 is None:
         assert "controlled_plan_sha256" not in response.data
     else:
@@ -1040,20 +1375,268 @@ def test_controlled_child_cancel_uses_canonical_identity_then_reconciles(
 
 
 @pytest.mark.parametrize(
+    ("post_submit_status", "expected_failure_stage"),
+    [
+        ("OPEN", "cancellation_readback"),
+        ("FAILED", "cancellation_terminal_status"),
+        ("CANCELLED", "cancellation_status_persistence"),
+    ],
+)
+def test_v15r6_post_submit_readback_rejection_keeps_exchange_cancel_evidence(
+    monkeypatch,
+    post_submit_status,
+    expected_failure_stage,
+):
+    from application.admin_api import command_service as command_service_module
+
+    monkeypatch.setattr(
+        command_service_module,
+        "evaluate_spot_test_portfolio_binding",
+        lambda **_kwargs: _portfolio_binding(),
+    )
+    monkeypatch.setattr(
+        command_service_module,
+        "validate_controlled_child_cancel_plan_scope",
+        lambda _plan: None,
+    )
+    monkeypatch.setattr(
+        command_service_module,
+        "is_controlled_v15r6_recovery_plan",
+        lambda plan: plan.get("schema_version") == "24",
+        raising=False,
+    )
+
+    def _readback(status):
+        return {
+            "authoritative": True,
+            "exact_identity_match": True,
+            "authoritative_status": status,
+            "exchange_order_id": EXCHANGE_ID,
+            "matched_order": {
+                "client_order_id": CHILD_ID,
+                "order_id": EXCHANGE_ID,
+                "product_id": "BTC-USDC",
+                "product_type": "SPOT",
+                "side": "SELL",
+                "status": status,
+                "retail_portfolio_id": TEST_PORTFOLIO_ID,
+                "filled_size": "0",
+                "filled_value": "0",
+                "total_fees": "0",
+                "number_of_fills": 0,
+            },
+        }
+
+    readbacks = iter([_readback("OPEN"), _readback(post_submit_status)])
+    monkeypatch.setattr(
+        command_service_module,
+        "exact_coinbase_order_readback",
+        lambda *_args, **_kwargs: next(readbacks),
+    )
+    if post_submit_status == "OPEN":
+        monotonic_values = iter([0.0, 10_000.0])
+        monkeypatch.setattr(
+            command_service_module.time,
+            "monotonic",
+            lambda: next(monotonic_values),
+        )
+
+    canonical_evidence = {
+        "outcome": "succeeded",
+        "explicit_rejection": False,
+        "identity_rejection": False,
+        "identity_match": True,
+        "operator_identity_key": "client_order_id",
+        "operator_identity_value": CHILD_ID,
+        "exchange_order_id_evidence_only": True,
+        "exchange_order_id": EXCHANGE_ID,
+        "submitted_identity_key": "exchange_order_id",
+    }
+    rest_client = MagicMock()
+    rest_client.cancel_order.return_value = canonical_evidence
+    rest_client.cancel_order_by_exchange_order_id = None
+    runtime = MagicMock()
+    runtime.read_controlled_first_child.return_value = {
+        "stealth_order_id": CHILD_ID,
+        "root_client_order_id": ROOT_ID,
+        "product_id": "BTC-USDC",
+        "side": "SELL",
+        "retail_portfolio_id": TEST_PORTFOLIO_ID,
+        "status": "REVEALED",
+        "active_placement_client_order_id": CHILD_ID,
+        "active_exchange_order_id": EXCHANGE_ID,
+        "executed_size": "0",
+        "controlled_plan_sha256": PLAN_SHA256,
+    }
+    service = AdminApiCommandService(
+        _deps(
+            runtime,
+            rest_client,
+            controlled_cancel_plan=_controlled_cancel_recovery_plan("24"),
+        )
+    )
+
+    response = service.cancel_stealth_order_by_stealth_order_id(
+        _cancel_command(
+            operator_intent=CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT,
+            controlled_plan_sha256=PLAN_SHA256,
+        ),
+        sealed_cancel_plan_sha256=SEALED_PLAN_SHA256,
+        v15r6_verified_exchange_submission_required=True,
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == expected_failure_stage
+    assert response.live_exchange_submitted is True
+    assert response.coinbase_order_id == EXCHANGE_ID
+    identity = response.data["cancellation_identity"]
+    assert identity == {
+        "operator_identity_key": "client_order_id",
+        "operator_identity_value": CHILD_ID,
+        "exchange_order_id_evidence_only": True,
+        "exchange_order_id": EXCHANGE_ID,
+        "canonical_client_order_id_cancel_attempted": False,
+        "canonical_cancel_evidence": canonical_evidence,
+        "fallback_cancel_evidence": {
+            "outcome": "not_attempted",
+            "explicit_rejection": False,
+        },
+        "exchange_id_fallback_used": False,
+        "canonical_cancel_attempted": True,
+        "verified_exchange_order_id_cancel_attempted": True,
+        "submitted_identity_key": "exchange_order_id",
+    }
+    rest_client.cancel_order.assert_called_once_with(
+        CHILD_ID,
+        return_evidence=True,
+        verified_exchange_order_id=EXCHANGE_ID,
+    )
+
+
+def test_v15r6_pre_wrapper_inflight_failure_reports_zero_exchange_attempts(
+    monkeypatch,
+):
+    from application.admin_api import command_service as command_service_module
+
+    monkeypatch.setattr(
+        command_service_module,
+        "evaluate_spot_test_portfolio_binding",
+        lambda **_kwargs: _portfolio_binding(),
+    )
+    monkeypatch.setattr(
+        command_service_module,
+        "validate_controlled_child_cancel_plan_scope",
+        lambda _plan: None,
+    )
+    monkeypatch.setattr(
+        command_service_module,
+        "is_controlled_v15r6_recovery_plan",
+        lambda plan: plan.get("schema_version") == "24",
+        raising=False,
+    )
+    monkeypatch.setattr(
+        command_service_module,
+        "exact_coinbase_order_readback",
+        lambda *_args, **_kwargs: {
+            "authoritative": True,
+            "exact_identity_match": True,
+            "authoritative_status": "OPEN",
+            "exchange_order_id": EXCHANGE_ID,
+            "matched_order": {
+                "client_order_id": CHILD_ID,
+                "order_id": EXCHANGE_ID,
+                "product_id": "BTC-USDC",
+                "product_type": "SPOT",
+                "side": "SELL",
+                "status": "OPEN",
+                "retail_portfolio_id": TEST_PORTFOLIO_ID,
+                "filled_size": "0",
+                "filled_value": "0",
+                "total_fees": "0",
+                "number_of_fills": 0,
+            },
+        },
+    )
+    runtime = MagicMock()
+    runtime.read_controlled_first_child.return_value = {
+        "stealth_order_id": CHILD_ID,
+        "root_client_order_id": ROOT_ID,
+        "product_id": "BTC-USDC",
+        "side": "SELL",
+        "retail_portfolio_id": TEST_PORTFOLIO_ID,
+        "status": "REVEALED",
+        "active_placement_client_order_id": CHILD_ID,
+        "active_exchange_order_id": EXCHANGE_ID,
+        "executed_size": "0",
+        "controlled_plan_sha256": PLAN_SHA256,
+    }
+    rest_client = MagicMock()
+    dependencies = _deps(
+        runtime,
+        rest_client,
+        controlled_cancel_plan=_controlled_cancel_recovery_plan("24"),
+    )
+
+    class BrokenInflightController:
+        @contextmanager
+        def track_inflight(self, _operation):
+            raise RuntimeError("inflight tracking unavailable")
+            yield
+
+    dependencies.runtime_controller_factory = BrokenInflightController
+    service = AdminApiCommandService(dependencies)
+
+    response = service.cancel_stealth_order_by_stealth_order_id(
+        _cancel_command(
+            operator_intent=CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT,
+            controlled_plan_sha256=PLAN_SHA256,
+        ),
+        sealed_cancel_plan_sha256=SEALED_PLAN_SHA256,
+        v15r6_verified_exchange_submission_required=True,
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "cancellation_unknown"
+    assert response.live_exchange_submitted is False
+    assert response.live_coinbase_orders_ran is False
+    assert response.coinbase_order_id is None
+    identity = response.data["cancellation_identity"]
+    assert identity["canonical_cancel_attempted"] is False
+    assert identity["verified_exchange_order_id_cancel_attempted"] is False
+    assert identity["canonical_client_order_id_cancel_attempted"] is False
+    assert "submitted_identity_key" not in identity
+    rest_client.cancel_order.assert_not_called()
+    rest_client.cancel_order_by_exchange_order_id.assert_not_called()
+
+
+@pytest.mark.parametrize(
     ("exchange_status", "expected_status"),
     [
         ("OPEN", AdminApiCommandStatus.REJECTED),
         ("CANCELLED", AdminApiCommandStatus.ACCEPTED),
     ],
 )
-def test_v15_child_cancel_reconciliation_only_never_submits_second_cancel(
+def test_v15_child_cancel_reconciliation_or_already_cancelled_never_resubmits(
     monkeypatch,
     exchange_status,
     expected_status,
 ):
+    from application.admin_api import command_service as command_service_module
+
     monkeypatch.setattr(
         "application.admin_api.command_service.evaluate_spot_test_portfolio_binding",
         lambda **_kwargs: _portfolio_binding(),
+    )
+    monkeypatch.setattr(
+        command_service_module,
+        "validate_controlled_child_cancel_plan_scope",
+        lambda _plan: None,
+    )
+    monkeypatch.setattr(
+        command_service_module,
+        "is_controlled_v15r6_recovery_plan",
+        lambda plan: plan.get("schema_version") == "24",
+        raising=False,
     )
     monkeypatch.setattr(
         "application.admin_api.command_service.exact_coinbase_order_readback",
@@ -1096,14 +1679,22 @@ def test_v15_child_cancel_reconciliation_only_never_submits_second_cancel(
         "active_placement_cleared": True,
     }
     rest_client = MagicMock()
-    service = AdminApiCommandService(_deps(runtime, rest_client))
+    service = AdminApiCommandService(
+        _deps(
+            runtime,
+            rest_client,
+            controlled_cancel_plan=_controlled_cancel_recovery_plan("24"),
+        )
+    )
 
     response = service.cancel_stealth_order_by_stealth_order_id(
         _cancel_command(
             operator_intent=CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT,
             controlled_plan_sha256=PLAN_SHA256,
         ),
-        reconciliation_only=True,
+        reconciliation_only=exchange_status == "OPEN",
+        sealed_cancel_plan_sha256=SEALED_PLAN_SHA256,
+        v15r6_verified_exchange_submission_required=True,
     )
 
     assert response.status == expected_status
@@ -1111,6 +1702,11 @@ def test_v15_child_cancel_reconciliation_only_never_submits_second_cancel(
     rest_client.cancel_order_by_exchange_order_id.assert_not_called()
     if exchange_status == "CANCELLED":
         assert response.data["terminal_zero_fill"]["proven"] is True
+        identity = response.data["cancellation_identity"]
+        assert identity["canonical_cancel_attempted"] is False
+        assert identity["verified_exchange_order_id_cancel_attempted"] is False
+        assert identity["canonical_client_order_id_cancel_attempted"] is False
+        assert "submitted_identity_key" not in identity
         assert response.data["local_reconciliation"] == {
             "local_status": "CANCELLED",
             "active_placement_cleared": True,

@@ -2344,6 +2344,7 @@ def is_v15_cancel_only_recovery_plan(plan: Mapping[str, Any]) -> bool:
         ("21", "selected_chain_child_cancel_recovery_v15r3"),
         ("22", "selected_chain_child_cancel_recovery_v15r4"),
         ("23", "selected_chain_child_cancel_recovery_v15r5"),
+        ("24", "selected_chain_child_cancel_recovery_v15r6"),
     }
 
 
@@ -15818,6 +15819,50 @@ def _validate_authority_plan_structure(
                 confirmed_plan.get("failed_v15r4_execution_binding")
                 == CONTROLLED_V15R5_FAILED_EXECUTION_BINDING,
                 "runtime_child_v15r5_failed_v15r4_execution_binding_mismatch",
+            )
+        elif schema_version == "24":
+            from application.admin_api.root_child_cancel import (
+                CONTROLLED_V15R4_FAILED_EXECUTION_BINDING,
+                CONTROLLED_V15R5_FAILED_EXECUTION_BINDING,
+                CONTROLLED_V15R6_REJECTED_EXECUTION_BINDING,
+            )
+
+            require(
+                confirmed_plan.get("failed_v15r3_execution_binding")
+                == CONTROLLED_V15R4_FAILED_EXECUTION_BINDING,
+                "runtime_child_v15r6_failed_v15r3_execution_binding_mismatch",
+            )
+            require(
+                confirmed_plan.get("failed_v15r4_execution_binding")
+                == CONTROLLED_V15R5_FAILED_EXECUTION_BINDING,
+                "runtime_child_v15r6_failed_v15r4_execution_binding_mismatch",
+            )
+            require(
+                confirmed_plan.get("rejected_v15r5_execution_binding")
+                == CONTROLLED_V15R6_REJECTED_EXECUTION_BINDING,
+                (
+                    "runtime_child_v15r6_rejected_v15r5_execution_"
+                    "binding_mismatch"
+                ),
+            )
+            require(
+                confirmed_plan.get("exchange_cancel_submission_identity")
+                == (
+                    "authoritative_exchange_order_id_resolved_from_"
+                    "client_order_id"
+                )
+                and confirmed_plan.get(
+                    "predecessor_runtime_signal_attempt_maximum"
+                )
+                == 1
+                and confirmed_plan.get(
+                    "predecessor_runtime_restart_attempt_maximum"
+                )
+                == 0
+                and confirmed_plan.get("predecessor_runtime_signal")
+                == "SIGTERM"
+                and confirmed_plan.get("runtime_no_overlap_required") is True,
+                "runtime_child_v15r6_transition_scope_mismatch",
             )
         root = object_record(confirmed_plan.get("root_evidence"))
         child = object_record(confirmed_plan.get("child"))

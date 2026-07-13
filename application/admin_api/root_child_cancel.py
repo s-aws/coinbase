@@ -93,6 +93,9 @@ CONTROLLED_V15R4_AUTHORITY_KIND = (
 CONTROLLED_V15R5_AUTHORITY_KIND = (
     "selected_chain_child_cancel_recovery_v15r5"
 )
+CONTROLLED_V15R6_AUTHORITY_KIND = (
+    "selected_chain_child_cancel_recovery_v15r6"
+)
 CONTROLLED_V15R2_PLAN_FIELDS = frozenset(
     {
         "schema_version",
@@ -335,6 +338,14 @@ CONTROLLED_V15R4_PLAN_FIELDS = CONTROLLED_V15R3_PLAN_FIELDS | {
 }
 CONTROLLED_V15R5_PLAN_FIELDS = CONTROLLED_V15R4_PLAN_FIELDS | {
     "failed_v15r4_execution_binding"
+}
+CONTROLLED_V15R6_PLAN_FIELDS = CONTROLLED_V15R5_PLAN_FIELDS | {
+    "rejected_v15r5_execution_binding",
+    "exchange_cancel_submission_identity",
+    "predecessor_runtime_signal_attempt_maximum",
+    "predecessor_runtime_restart_attempt_maximum",
+    "predecessor_runtime_signal",
+    "runtime_no_overlap_required",
 }
 CONTROLLED_V15R2_PLAN_SHA256 = (
     "0b9ab483459a986ad05200a6740a0de6dca63b6c5da197572c952ce8aef524c2"
@@ -847,6 +858,174 @@ CONTROLLED_V15R5_FAILED_EXECUTION_BINDING = {
         "reference_notional_usdc": "1.7049248762",
     },
 }
+_CONTROLLED_V15R5_REJECTED_STATE_DIR = (
+    "/home/ec2-user/coinbase/artifacts/"
+    "controlled-root-child-batch-20260713T080455Z-42756f48"
+)
+_CONTROLLED_V15R5_REJECTED_REGISTRY_PREFIX = (
+    "/var/tmp/coinbase-admin-controlled-spot-root-child-batches/"
+    "test-profile-btc-usdc-selected-child-cancel-v15r5-20260713"
+)
+CONTROLLED_V15R6_REJECTED_EXECUTION_BINDING = {
+    "schema_version": "1",
+    "status": (
+        "rejected_v15r5_client_order_id_cancel_bound_"
+        "reconciliation_required"
+    ),
+    "plan_sha256": (
+        "1c13edfe55637ea48862a76f71fc49f7f3d3c60b95d6ae0ce4f73f87975a5da3"
+    ),
+    "plan_bytes_sha256": (
+        "0a308e5e5bdd9111247d27d60c79cdd73e2128f82060fe1c63f56d9f960c14be"
+    ),
+    "approval_id": (
+        "controlled-child-cancel-v15r5-9b1da994-2821-48bb-a6a3-6df9af86b483"
+    ),
+    "batch_id": "f4663682-eccd-5389-ab58-e50b37eeedb7",
+    "backend_commit": "f4ed4841d3384cf82aaed10c9014ee409229bd8c",
+    "runner_sha256": (
+        "89263d50858367ac035359047484db86df35a435e6e2683781210ae4a8b79aae"
+    ),
+    "root_client_order_id": CONTROLLED_V15R2_ROOT_CLIENT_ORDER_ID,
+    "child_client_order_id": CONTROLLED_V15R2_CHILD_CLIENT_ORDER_ID,
+    "child_exchange_order_id": CONTROLLED_V15R2_CHILD_EXCHANGE_ORDER_ID,
+    "cancel_command_ids": {
+        "idempotency_key": "e07b2023-8ec5-5a22-9a82-13f80999bac7",
+        "correlation_id": "bc14cfaa-9ba9-55b4-91a1-01aacbdf0ab4",
+        "claim_id": "b1f74a6d-4df4-58da-8c69-6ce4bbf64ea1",
+        "approval_snapshot_id": "1c159ea8-82ab-5db1-8753-05a82af61926",
+        "cap_guard_decision_id": "345b40e5-6022-541d-ae9a-b78cb1c8f7c2",
+        "reconciliation_plan_id": "de838e35-080b-5e22-8182-1301bf9b8e18",
+    },
+    "artifact_paths": {
+        "plan": (
+            "/home/ec2-user/.local/state/"
+            "coinbase-controlled-spot-child-cancel-v15r5-20260713.plan.json"
+        ),
+        "marker": f"{_CONTROLLED_V15R5_REJECTED_REGISTRY_PREFIX}.authority.json",
+        "placement_ledger": (
+            f"{_CONTROLLED_V15R5_REJECTED_REGISTRY_PREFIX}.placements.jsonl"
+        ),
+        "cancel_ledger": (
+            f"{_CONTROLLED_V15R5_REJECTED_REGISTRY_PREFIX}.cancel-command.jsonl"
+        ),
+        "backend_claim_log": (
+            f"{_CONTROLLED_V15R5_REJECTED_REGISTRY_PREFIX}.backend-claims.jsonl"
+        ),
+        "runtime_transition": (
+            f"{_CONTROLLED_V15R5_REJECTED_REGISTRY_PREFIX}.runtime.json"
+        ),
+        "handoff": f"{_CONTROLLED_V15R5_REJECTED_REGISTRY_PREFIX}.handoff.json",
+        "runtime_authority": (
+            f"{_CONTROLLED_V15R5_REJECTED_STATE_DIR}/runtime-child-authority.json"
+        ),
+        "runtime_authority_used": (
+            f"{_CONTROLLED_V15R5_REJECTED_STATE_DIR}/"
+            "runtime-child-authority.used.json"
+        ),
+        "sentinel": (
+            f"{_CONTROLLED_V15R5_REJECTED_STATE_DIR}/sdk-boundary-sentinel.json"
+        ),
+        "operator_progress": (
+            f"{_CONTROLLED_V15R5_REJECTED_STATE_DIR}/"
+            "v15r5-operator-ui-cancel-handoff.json"
+        ),
+        "parent_authority_loss": (
+            f"{_CONTROLLED_V15R5_REJECTED_STATE_DIR}/parent-authority-loss.json"
+        ),
+        "runtime_pid": (
+            f"{_CONTROLLED_V15R5_REJECTED_STATE_DIR}/embedded-runtime.pid"
+        ),
+    },
+    "artifact_hashes": {
+        "plan": "0a308e5e5bdd9111247d27d60c79cdd73e2128f82060fe1c63f56d9f960c14be",
+        "marker": "0b431dd0c757eab9e3c41b85eb344f0348e5cbc67fdb570f47cb7e34f481777d",
+        "placement_ledger": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cancel_ledger": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "backend_claim_log": "0f45789f68d668b48b3b4c6ef9f8dc54a8da090e084c994964eecb4f3bbe4dc6",
+        "runtime_transition": "d7be44b34ba8eca099f3e1d6fea8d01a54aa3a41b1885e54b14aa3f5e6350284",
+        "handoff": "3bcf5a481b6cd8a30f3de437d537e0074cc0cee4a3e4df4cebae9b0209e996e0",
+        "runtime_authority": "f87948f5cf5884a1141a44e5dc8d6f0fa73e39f4a6dea2c54cbeba313be8c79f",
+        "runtime_authority_used": "fd7c33279cabf5f00be59a14a11df3c0e479165afbf50c1b0393de08c3c3f20f",
+        "sentinel": "22075e223eb14835fe8da13d04af543b33516707ee1ce6ab7ca02dd42c841e6c",
+        "operator_progress": "c47a685a2cac714c0838137428fa4c6d05da7411ed0bcd93b82557fa145a6e1e",
+        "runtime_pid": "7bcdfb2749d2ed2ad241ccf0dce86d71ab66a5c7b8146e262975651d53b0b69f",
+    },
+    "parent_authority_loss_semantic_projection": {
+        "status": "v15_parent_authority_lost_reconciliation_only",
+        "plan_sha256": (
+            "1c13edfe55637ea48862a76f71fc49f7f3d3c60b95d6ae0ce4f73f87975a5da3"
+        ),
+        "runtime_preserved": True,
+        "new_sdk_placements_denied": True,
+        "new_cancel_command_authorized": False,
+        "same_sealed_cancel_key_reconciliation_only": True,
+        "live_service_disable_http_status": 200,
+        "authoritative_active_read_stable": True,
+        "root_create_order_call_count": 0,
+        "child_place_limit_order_call_count": 0,
+        "root_sdk_inflight": False,
+        "child_sdk_inflight": False,
+    },
+    "record_counts": {
+        "approval": 3,
+        "audit": 10,
+        "cap_guard": 1,
+        "idempotency": 10,
+        "live_service": 4,
+        "reconciliation": 1,
+        "backend_claim": 2,
+    },
+    "record_hashes": {
+        "cancel_idempotency": "154013b18009bf2f3436f4d64eb231673cbabfbd1df9fdc99dc6dc15637bd451",
+        "cancel_response": "c91aa880c56d97ad81fa18f4b4d4e067f66e089bcf9ad55645233b4396873c42",
+        "cancel_audit": "59fd888e8c9174ef0d29bb8174ffa36c4670d90c432b81eaf1142cedf802a3d0",
+        "claim": "d241cc4d0f1211a9aff919ebf3394a2253a3bb3c898e946a631c330abc912777",
+        "exchange_boundary": "7f0e9fc6a94a1e1d918ef4db960a78bc632ed3856d7e5c5caf1f219cdb3b6a35",
+        "service_disabled": "70a9ce18e8d2a898e9b978a681599964a24e3811dbceb1e00bd9e18c1cde0592",
+        "parent_loss_service_disabled": "aa624d0c6c4c63cb543d9199019162d2886e9b3871107b58dbb5f1b500bfd097",
+    },
+    "placement_attempt_count": 0,
+    "root_sdk_call_count": 0,
+    "child_sdk_call_count": 0,
+    "cancel_route_call_count": 1,
+    "semantic_claim_count": 1,
+    "exchange_cancel_boundary_call_count": 1,
+    "submitted_identity_key": "client_order_id",
+    "submitted_identity_value": CONTROLLED_V15R2_CHILD_CLIENT_ORDER_ID,
+    "verified_exchange_order_id_cancel_attempt_count": 0,
+    "exchange_order_id_fallback_attempt_count": 0,
+    "failure_http_status": 400,
+    "failure_stage": "cancellation_rejected",
+    "failure_message": "Exact exchange-id cancellation was not accepted.",
+    "live_exchange_submitted": True,
+    "live_coinbase_orders_ran": True,
+    "reconciliation_required": True,
+    "same_sealed_key_reconciliation_only": True,
+    "live_service_enabled": False,
+    "parent_process_id": 695282,
+    "parent_process_absent": True,
+    "runtime_process_identity": {
+        "process_id": 695321,
+        "start_identity": "18918858",
+        "uid": 1000,
+        "cwd": "/home/ec2-user/coinbase",
+        "cwd_sha256": "8821a8c117a3e2d9fe297367217adcd83cf46c68c627d663385dafb4e8a14c62",
+        "cmdline_sha256": "3b1e5bcc10e26fa3c4d371cdf21c8d647e3e7ceb142e07c65e7162b6a8055de9",
+    },
+    "successor_binder_signal_attempt_count": 0,
+    "successor_binder_restart_attempt_count": 0,
+    "child_readback": {
+        "client_order_id": CONTROLLED_V15R2_CHILD_CLIENT_ORDER_ID,
+        "exchange_order_id": CONTROLLED_V15R2_CHILD_EXCHANGE_ORDER_ID,
+        "status": "OPEN",
+        "filled_size": "0",
+        "filled_value": "0",
+        "total_fees": "0",
+        "number_of_fills": 0,
+        "reference_notional_usdc": "1.7049248762",
+    },
+}
 CONTROLLED_V15R3_MARKER_FIELDS = CONTROLLED_V15R2_MARKER_FIELDS
 CONTROLLED_V15R3_HANDOFF_FIELDS = CONTROLLED_V15R2_HANDOFF_FIELDS | {
     "actor_roles"
@@ -855,6 +1034,8 @@ CONTROLLED_V15R4_MARKER_FIELDS = CONTROLLED_V15R3_MARKER_FIELDS
 CONTROLLED_V15R4_HANDOFF_FIELDS = CONTROLLED_V15R3_HANDOFF_FIELDS
 CONTROLLED_V15R5_MARKER_FIELDS = CONTROLLED_V15R4_MARKER_FIELDS
 CONTROLLED_V15R5_HANDOFF_FIELDS = CONTROLLED_V15R4_HANDOFF_FIELDS
+CONTROLLED_V15R6_MARKER_FIELDS = CONTROLLED_V15R5_MARKER_FIELDS
+CONTROLLED_V15R6_HANDOFF_FIELDS = CONTROLLED_V15R5_HANDOFF_FIELDS
 
 
 class AdminRootChildCancelAuthorityError(RuntimeError):
@@ -1119,6 +1300,15 @@ def is_controlled_v15r5_recovery_plan(plan: Mapping[str, Any]) -> bool:
     )
 
 
+def is_controlled_v15r6_recovery_plan(plan: Mapping[str, Any]) -> bool:
+    """Identify only the rejected-V15R5 direct-exchange-id successor."""
+
+    return bool(
+        plan.get("schema_version") == "24"
+        and plan.get("authority_kind") == CONTROLLED_V15R6_AUTHORITY_KIND
+    )
+
+
 def is_controlled_v15_cancel_only_recovery_plan(
     plan: Mapping[str, Any],
 ) -> bool:
@@ -1126,6 +1316,7 @@ def is_controlled_v15_cancel_only_recovery_plan(
         is_controlled_v15r3_recovery_plan(plan)
         or is_controlled_v15r4_recovery_plan(plan)
         or is_controlled_v15r5_recovery_plan(plan)
+        or is_controlled_v15r6_recovery_plan(plan)
     )
 
 
@@ -1172,6 +1363,16 @@ def _v15r5_proof_id(batch_id: str, purpose: str) -> str:
         uuid.uuid5(
             uuid.NAMESPACE_URL,
             "coinbase://selected-child-cancel-v15r5/"
+            f"{batch_id}/{purpose}",
+        )
+    )
+
+
+def _v15r6_proof_id(batch_id: str, purpose: str) -> str:
+    return str(
+        uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            "coinbase://selected-child-cancel-v15r6/"
             f"{batch_id}/{purpose}",
         )
     )
@@ -2029,6 +2230,57 @@ def validate_controlled_v15r5_recovery_plan_scope(
         ) from exc
 
 
+def validate_controlled_v15r6_recovery_plan_scope(
+    plan: Mapping[str, Any],
+    *,
+    now: datetime | None = None,
+) -> None:
+    try:
+        if (
+            plan.get("failed_v15r3_execution_binding")
+            != CONTROLLED_V15R4_FAILED_EXECUTION_BINDING
+        ):
+            raise ValueError("failed_v15r3_execution_binding")
+        if (
+            plan.get("failed_v15r4_execution_binding")
+            != CONTROLLED_V15R5_FAILED_EXECUTION_BINDING
+        ):
+            raise ValueError("failed_v15r4_execution_binding")
+        if (
+            plan.get("rejected_v15r5_execution_binding")
+            != CONTROLLED_V15R6_REJECTED_EXECUTION_BINDING
+        ):
+            raise ValueError("rejected_v15r5_execution_binding")
+        if not (
+            plan.get("exchange_cancel_submission_identity")
+            == (
+                "authoritative_exchange_order_id_resolved_from_"
+                "client_order_id"
+            )
+            and plan.get("predecessor_runtime_signal_attempt_maximum") == 1
+            and plan.get("predecessor_runtime_restart_attempt_maximum") == 0
+            and plan.get("predecessor_runtime_signal") == "SIGTERM"
+            and plan.get("runtime_no_overlap_required") is True
+        ):
+            raise ValueError("v15r6_transition_or_submission_identity")
+        _validate_controlled_cancel_only_recovery_plan_scope(
+            plan,
+            plan_fields=CONTROLLED_V15R6_PLAN_FIELDS,
+            schema_version="24",
+            authority_kind=CONTROLLED_V15R6_AUTHORITY_KIND,
+            approval_prefix="controlled-child-cancel-v15r6-",
+            batch_namespace="coinbase://selected-child-cancel-v15r6/",
+            proof_id=_v15r6_proof_id,
+            semantic_retry_policy="fresh_v15r6_idempotency_key_exactly_once",
+            error_code="controlled_v15r6_plan_schema_invalid",
+            now=now,
+        )
+    except (AdminRootChildCancelAuthorityError, TypeError, ValueError) as exc:
+        raise AdminRootChildCancelAuthorityError(
+            "controlled_v15r6_plan_schema_invalid"
+        ) from exc
+
+
 def validate_controlled_child_cancel_plan_scope(
     plan: Mapping[str, Any],
     *,
@@ -2036,6 +2288,9 @@ def validate_controlled_child_cancel_plan_scope(
 ) -> None:
     """Dispatch without broadening either sealed authority schema."""
 
+    if is_controlled_v15r6_recovery_plan(plan):
+        validate_controlled_v15r6_recovery_plan_scope(plan, now=now)
+        return
     if is_controlled_v15r5_recovery_plan(plan):
         validate_controlled_v15r5_recovery_plan_scope(plan, now=now)
         return
@@ -2164,6 +2419,7 @@ def load_controlled_v15_plan_authority() -> dict[str, Any]:
     recovery_v15r2 = is_controlled_v15r2_recovery_plan(plan)
     recovery_v15r4 = is_controlled_v15r4_recovery_plan(plan)
     recovery_v15r5 = is_controlled_v15r5_recovery_plan(plan)
+    recovery_v15r6 = is_controlled_v15r6_recovery_plan(plan)
     cancel_only_recovery = is_controlled_v15_cancel_only_recovery_plan(plan)
     recovery_plan = recovery_v15r2 or cancel_only_recovery
     root_scope = controlled_child_cancel_root_scope(plan)
@@ -2190,12 +2446,16 @@ def load_controlled_v15_plan_authority() -> dict[str, Any]:
             )
             expected_marker_fields = (
                 (
-                    CONTROLLED_V15R5_MARKER_FIELDS
-                    if recovery_v15r5
+                    CONTROLLED_V15R6_MARKER_FIELDS
+                    if recovery_v15r6
                     else (
-                        CONTROLLED_V15R4_MARKER_FIELDS
-                        if recovery_v15r4
-                        else CONTROLLED_V15R3_MARKER_FIELDS
+                        CONTROLLED_V15R5_MARKER_FIELDS
+                        if recovery_v15r5
+                        else (
+                            CONTROLLED_V15R4_MARKER_FIELDS
+                            if recovery_v15r4
+                            else CONTROLLED_V15R3_MARKER_FIELDS
+                        )
                     )
                 )
                 if cancel_only_recovery
@@ -2203,12 +2463,16 @@ def load_controlled_v15_plan_authority() -> dict[str, Any]:
             )
             expected_handoff_fields = (
                 (
-                    CONTROLLED_V15R5_HANDOFF_FIELDS
-                    if recovery_v15r5
+                    CONTROLLED_V15R6_HANDOFF_FIELDS
+                    if recovery_v15r6
                     else (
-                        CONTROLLED_V15R4_HANDOFF_FIELDS
-                        if recovery_v15r4
-                        else CONTROLLED_V15R3_HANDOFF_FIELDS
+                        CONTROLLED_V15R5_HANDOFF_FIELDS
+                        if recovery_v15r5
+                        else (
+                            CONTROLLED_V15R4_HANDOFF_FIELDS
+                            if recovery_v15r4
+                            else CONTROLLED_V15R3_HANDOFF_FIELDS
+                        )
                     )
                 )
                 if cancel_only_recovery
@@ -2216,12 +2480,16 @@ def load_controlled_v15_plan_authority() -> dict[str, Any]:
             )
             expected_authority_kind = (
                 (
-                    CONTROLLED_V15R5_AUTHORITY_KIND
-                    if recovery_v15r5
+                    CONTROLLED_V15R6_AUTHORITY_KIND
+                    if recovery_v15r6
                     else (
-                        CONTROLLED_V15R4_AUTHORITY_KIND
-                        if recovery_v15r4
-                        else CONTROLLED_V15R3_AUTHORITY_KIND
+                        CONTROLLED_V15R5_AUTHORITY_KIND
+                        if recovery_v15r5
+                        else (
+                            CONTROLLED_V15R4_AUTHORITY_KIND
+                            if recovery_v15r4
+                            else CONTROLLED_V15R3_AUTHORITY_KIND
+                        )
                     )
                 )
                 if cancel_only_recovery

@@ -10,6 +10,7 @@ import pytest
 from application.admin_api.root_child_cancel import (
     CONTROLLED_V15R4_FAILED_EXECUTION_BINDING,
     CONTROLLED_V15R5_FAILED_EXECUTION_BINDING,
+    CONTROLLED_V15R6_REJECTED_EXECUTION_BINDING,
 )
 from tools import run_controlled_admin_spot_root_child_batch as base
 
@@ -225,6 +226,56 @@ def test_v15r5_shared_runtime_preserves_zero_budget_and_exact_dual_lineage() -> 
                 malformed,
                 expected_plan_hash=str(malformed["plan_sha256"]),
             )
+
+
+def test_v15r6_shared_runtime_preserves_zero_budget_and_exact_rejected_lineage() -> None:
+    plan = _plan()
+    plan.update(
+        {
+            "schema_version": "24",
+            "authority_kind": "selected_chain_child_cancel_recovery_v15r6",
+            "failed_v15r3_execution_binding": dict(
+                CONTROLLED_V15R4_FAILED_EXECUTION_BINDING
+            ),
+            "failed_v15r4_execution_binding": dict(
+                CONTROLLED_V15R5_FAILED_EXECUTION_BINDING
+            ),
+            "rejected_v15r5_execution_binding": dict(
+                CONTROLLED_V15R6_REJECTED_EXECUTION_BINDING
+            ),
+            "exchange_cancel_submission_identity": (
+                "authoritative_exchange_order_id_resolved_from_client_order_id"
+            ),
+            "predecessor_runtime_signal_attempt_maximum": 1,
+            "predecessor_runtime_restart_attempt_maximum": 0,
+            "predecessor_runtime_signal": "SIGTERM",
+            "runtime_no_overlap_required": True,
+        }
+    )
+    plan["plan_sha256"] = base.plan_hash(plan)
+
+    assert base.is_v15_cancel_only_recovery_plan(plan) is True
+    assert base.is_v15_runtime_plan(plan) is True
+    assert base.current_attempt_schedule(plan) == []
+    assert base.current_generation_limits(plan) == (0, 0, 0)
+    base._validate_authority_plan_structure(
+        plan,
+        expected_plan_hash=str(plan["plan_sha256"]),
+    )
+
+    malformed = dict(plan)
+    rejected = dict(CONTROLLED_V15R6_REJECTED_EXECUTION_BINDING)
+    rejected["exchange_cancel_boundary_call_count"] = 0
+    malformed["rejected_v15r5_execution_binding"] = rejected
+    malformed["plan_sha256"] = base.plan_hash(malformed)
+    with pytest.raises(
+        base.ProofFailure,
+        match="runtime_child_v15r6_rejected_v15r5_execution_binding_mismatch",
+    ):
+        base._validate_authority_plan_structure(
+            malformed,
+            expected_plan_hash=str(malformed["plan_sha256"]),
+        )
 
 
 def test_v15r3_shared_ledger_accepts_only_empty_file(tmp_path) -> None:

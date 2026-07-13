@@ -29,9 +29,26 @@ deterministic first `ADMIN_FILL_FOLLOW_UP` child in an explicitly approved
 Test-profile batch. It requires exact root/slot identity, backend live service,
 approval/audit/cap/reconciliation records, a fresh zero-active-order read, the
 Spot standing-price and sub-2-USDC guards, the manager's one-use authority,
-authoritative exchange tuple readback, and canonical client-id-first cancel
-with recorded exchange-id fallback. It grants no browser/BFF authority and
-cannot submit an ordinary or later-generation child.
+and authoritative exact readback binding `client_order_id` to
+`exchange_order_id`. Its narrow schema-24 controlled recovery exception has
+the canonical wrapper submit that verified `exchange_order_id` exactly once,
+with no client-ID exchange call, fallback, retry, or second submission.
+Operator/local ownership, lineage, claim, and audit identity remains
+`client_order_id`; older and generic cancel behavior is unchanged. The
+exception grants no browser/BFF authority and cannot submit an ordinary or
+later-generation child.
+Schema-24 transition authority is narrower still: immediately before its one
+allowed `SIGTERM`, it revalidates the exact predecessor process, 120-minute
+TTL, absence of all successor artifacts, and tracked-clean backend/frontend
+worktrees exactly synced with `origin/main`. An exclusive immutable owner-only
+pre-signal attempt claim permanently consumes an ambiguous attempt. The
+predecessor binding must consume both distinct service-disable record hashes
+(`service_disabled` and `parent_loss_service_disabled`, both approval-false
+with zero caps), and transition evidence must freeze the terminal
+`runtime_exited` sentinel hash proving zero root/child placement SDK calls and
+no in-flight placement. Transition and cleanup do not force-kill; uncertain
+shutdown remains failed closed without escalation, preserving any still-live
+runtime for reconciliation.
 The guarded fill-follow-up trigger is a no-live local-state compatibility
 exception that can return accepted parent/child readback evidence after exact
 proof refs while Coinbase submit/cancel and live exchange mutation remain

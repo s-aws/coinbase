@@ -18,13 +18,26 @@ authoritative enough for fresh public clones.
   local rows.
 - Use `order_id` only for exchange-facing operations and exchange-native
   evidence.
-- Cancellation remains operator- and local-state keyed by `client_order_id`.
-  Backend cancel paths must first use this repo's `cancel_order(client_order_id)`
-  wrapper. If Coinbase rejects that identity, a controlled-live backend path may
-  use a readback `exchange_order_id` only as a recorded fallback exchange API
-  parameter, while preserving `operator_identity_key=client_order_id` and
+- Cancellation remains keyed by `client_order_id` for operator requests, local
+  state, ownership, lineage, claims, and audit. Older and generic cancel paths
+  retain this repo's `cancel_order(client_order_id)` behavior and recorded
+  exchange-id fallback. The narrow schema-24 controlled recovery exception
+  may, only after authoritative exact readback binds `client_order_id` to
+  `exchange_order_id`, have that canonical wrapper submit the verified
+  `exchange_order_id` exactly once. It makes no client-ID exchange call and
+  permits no fallback, retry, or second submission. It preserves
+  `operator_identity_key=client_order_id` and
   `exchange_order_id_evidence_only=true`. Raw batch
   `cancel_orders(order_ids=[...])` remains an exchange-id-oriented API.
+- The schema-24 exception's single predecessor `SIGTERM` is consumed by an
+  exclusive immutable owner-only pre-signal claim. Immediately before that
+  claim, exact process identity, plan TTL, successor-artifact absence, and
+  tracked-clean backend/frontend `origin/main` synchronization must pass. Its
+  predecessor proof consumes exactly the two distinct zero-cap
+  `service_disabled` and `parent_loss_service_disabled` record hashes;
+  its completed transition freezes the terminal `runtime_exited` sentinel hash
+  with zero root/child placement SDK calls or in-flight placement. Never use a
+  forced kill for this transition or its cleanup.
 - Do not use exchange `order_id` as proof of local ownership. Resolve ownership
   through local submission evidence.
 

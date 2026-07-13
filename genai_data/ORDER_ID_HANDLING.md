@@ -5,11 +5,15 @@
 Use `client_order_id` for internal tracking.
 Use `order_id` only when interacting with exchange APIs or exchange-origin identifiers.
 Cancellation remains operator- and local-state keyed by `client_order_id`.
-Backend cancel paths first use the project Coinbase wrapper
-`cancel_order(client_order_id)`. If Coinbase rejects that identity, a
-controlled-live backend path may read exchange evidence and use
-`exchange_order_id` only as a recorded fallback exchange API parameter while
-preserving `operator_identity_key=client_order_id` and
+Ownership, lineage, claims, and audit remain keyed by `client_order_id` too.
+Older and generic backend cancel paths retain the project Coinbase wrapper's
+`cancel_order(client_order_id)` behavior and recorded exchange-id fallback.
+The narrow schema-24 controlled recovery exception may, only after
+authoritative exact readback binds `client_order_id` to `exchange_order_id`,
+have that canonical wrapper submit the verified `exchange_order_id` exactly
+once. It makes no client-ID
+exchange call and permits no fallback, retry, or second submission. It
+preserves `operator_identity_key=client_order_id` and
 `exchange_order_id_evidence_only=true`. Raw batch
 `cancel_orders(order_ids=[...])` remains exchange-id oriented.
 
@@ -69,10 +73,12 @@ Reason:
   `cancel_orders(order_ids=[...])` use the tracked exchange identifier, usually
   `active_exchange_order_id`. Dashboard/manual single-order cancellation is
   still requested by `client_order_id` and first uses
-  `CoinbaseClient.cancel_order(client_order_id)`. Controlled-live backend
-  cancel evidence may fall back to a readback exchange id only after the
-  client-id cancel is not accepted. Local linkage, parent rows, dashboard
-  references, and follow-up ownership still use `client_order_id`.
+  `CoinbaseClient.cancel_order(client_order_id)` on older and generic paths.
+  The schema-24 controlled recovery exception instead authoritatively binds the
+  exact client and exchange identities, then has the same wrapper submit the
+  verified exchange id once, without a client-ID exchange call, fallback,
+  retry, or second submission. Local linkage, parent rows, claims, audit,
+  dashboard references, and follow-up ownership still use `client_order_id`.
 
 Related code:
 - `core/stealth_order_manager.py`
@@ -130,14 +136,18 @@ That would break idempotency and reprocessing safety.
 
 - Need to call exchange endpoint, cancel, or inspect exchange-native payload?
   - Use `order_id` (or whichever exchange field is explicitly required). For
-    dashboard/manual single-order cancel, call the project wrapper
-    `cancel_order(client_order_id)`.
+    dashboard/manual and other generic single-order cancel, call the project
+    wrapper `cancel_order(client_order_id)`. Only the sealed schema-24
+    controlled recovery exception may pass its authoritatively verified
+    exchange id to that wrapper for one exchange submission; it must not make
+    a client-ID exchange call or any fallback, retry, or second submission.
 
 - Need to mutate a revealed stealth placement locally after an exchange cancel/move?
   - Use `client_order_id` for local lookup and parent linkage. For raw batch
     cancel/move code paths use the tracked exchange order id when that is the
     API field being called; for the project single-order cancel wrapper, pass
-    `client_order_id`.
+    `client_order_id` except for the exact schema-24 controlled recovery
+    exception above.
 
 - Need to partition owned vs unowned exchange fills/orders?
   - Use `order_event_stream` submission evidence to resolve `order_id -> client_order_id` first.
@@ -155,4 +165,4 @@ That would break idempotency and reprocessing safety.
 
 ---
 
-Last updated: 2026-05-16
+Last updated: 2026-07-13
