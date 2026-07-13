@@ -1,177 +1,165 @@
 # Coinbase Admin MVP Goal
 
-Goal ID: `selected_chain_child_cancel_v15_slice`
+Goal ID: `futures_default_profile_readback_slice_1`
 
-Last reviewed: 2026-07-12 UTC.
+Last reviewed: 2026-07-13 UTC.
 
-Status: `in_progress`
+Status: `complete`
 
-The canonical cross-repository goal is
+The canonical cross-repository authority is
 `/home/ec2-user/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. This backend copy
-records the behavior-owner interpretation and must stay aligned with it.
+records the behavior-owner interpretation and must remain aligned with it.
 
-## Objective
+## Completed Slice
 
-Implement and seal the shortest operator-visible mutation adjacent to the
-restored fill/follow-up closeout through the current backend-owned Admin API
-and operator UI:
+`Default-profile Futures account -> authoritative US CFM position list -> exact portfolio-scoped position detail -> operator-visible no-live readback`
 
-`Selected Admin root with one active deterministic first child -> sealed-plan-bound backend cancel readiness -> exactly-once child cancel -> authoritative local/exchange terminal readback -> refreshed operator-visible closeout`
+The backend now selects the Futures portfolio exclusively from the API-key
+permissioned UUID and requires one matching catalog record named `Default`,
+typed `DEFAULT`, and `can_view=true`. It reads CFM positions and
+margin/collateral only after that binding succeeds. Raw `can_trade` is
+credential capability evidence, not Admin command authority.
 
-The Admin frontend is operator UI only. The backend owns validation,
-authorization, wallet and cap checks, fill handling, follow-up claims,
-Coinbase calls, reconciliation, rollback, and audit persistence.
+Position identity is
+`futures_position:{portfolio_uuid}:{product_id}`. Exact detail and close/reduce
+preflight must resolve that key from fresh authoritative positions; a product
+alias, stale key, caller-supplied product contradiction, oversized close, or
+wrong profile fails before any exchange call.
 
-The current authorization is implementation, independent audit, and
-preparation of one owner-only V15 Test-profile BTC-USDC plan. It binds exactly
-two future exchange-submission attempts (one intentional-fill root and one
-deterministic first child) plus exactly one `client_order_id`-bound child-cancel
-command, with root notional below `9.99 USDC`, child notional at or below
-`2.00 USDC`, aggregate reference notional below a new slice-local `12.00 USDC`
-cap, and a 120-minute plan lifetime. No marker, ledger, runtime, approval
-record, root, child, cancel command, or live Coinbase order is authorized until
-the resulting plan hash receives a separate exact operator approval.
+Spot and Futures authority are deliberately separate. A Default key and wallet
+balance cannot satisfy Spot admission. Spot requires the configured exact Test
+portfolio UUID, `Test`/`CONSUMER`, `can_view=true`, and `can_trade=true`.
 
-## Previous-Version Baseline
+Slice 1 made no order, cancel, close, reduce, marker, ledger, runtime, or local
+approval mutation. Live Coinbase execution is `not_run` and notional is
+`0 USDC`.
 
-Legacy source material is backend `origin/prod` commit
-`9bc7834584be9da4a7818acea0531dc220737378`, especially:
+## Ordered Successors — Not Execution Authority
 
-- `dashboard_server.py` for the old operator command surface;
-- `core/order_engine.py` for fill and flat parent/child follow-up behavior;
-- `integration/fill_event_hooks.py` and `business/post_fill_hook.py` for fill
-  lifecycle integration;
-- fill/follow-up claim, partial-fill, deduplication, and hierarchy tests; and
-- `order.py:create_limit_order_span`, `ui_order_span_builder.html`, and legacy
-  ladder-generation tests for the parked single-product order-set idea. The
-  random-ladder test imports an untracked `genai_tools` implementation, so it
-  is behavioral clue rather than recoverable source authority.
+Continue implementation and independent audit only in this order, stopping for
+explicit operator activation after every no-live acceptance boundary:
 
-The legacy dashboard WebSocket remains compatibility source material. It is
-not authority for new frontend product behavior.
+1. `futures_exact_no_live_preview_slice_2`: one backend-derived Default-profile
+   US CFM Coinbase Preview Order call for one configured product and one contract/order
+   candidate below the preferred `30.00 USDC` reference limit. Bind product
+   metadata, exact decimals, market freshness, fees, margin/collateral,
+   liquidation, caps, idempotency, and correlation. Zero create/cancel/close
+   submissions, marker, ledger, or runtime. Stop for operator activation before
+   implementation and again before Slice 3 preparation.
+2. `futures_terminal_order_roundtrip_slice_3`: separately implement, audit,
+   seal, and exactly approve one resting order, authoritative OPEN readback,
+   at most one exchange-ID cancel resolved from its `client_order_id`, and
+   terminal CANCELLED/zero-active readback. Zero retries and fallback calls.
+   The same sealed plan must include an independently audited risk-off close
+   primitive before placement: PARTIAL permits at most one residual cancel and
+   one exact-delta close, FILLED permits zero cancel and one exact-delta close,
+   and unknown outcomes consume the placement claim and permit read-only
+   reconciliation plus only the already-sealed close if a nonzero delta becomes
+   authoritative. Exact approval activates each separately claimed conditional
+   cancel or risk-off close. Exit restores the pre-order position baseline.
+   Opening reference is `<25.00 USDC`, maximum concurrent exposure is
+   `<30.00 USDC`, the fresh exact-position close reference times `1.20` is
+   `<30.00 USDC`, and opening-plus-conservative-close branch turnover is
+   `<55.00 USDC`; an ineligible branch prevents placement.
+3. `futures_intentional_fill_position_readback_slice_4`: implement and audit,
+   with zero live execution, one marketable contract plus authoritative
+   fill/fee/position-delta readback. The later live proof requires a Coinbase
+   Preview Order-accepted, exchange-auto-terminal FOK or IOC configuration; GTC
+   or any residual-active opening is ineligible. A create must bind Coinbase
+   `preview_id` to the identical payload. Marketable price needs explicit
+   concrete order authority; this is not a separate fill-testing permission.
+   Stop and activate Slice 5 implementation; the live Slice 4 checkpoint
+   remains pending.
+4. `futures_position_closeout_slice_5`: implement and audit, with zero live
+   execution, exact-position closeout derived from fresh authoritative
+   readback. After acceptance, stop. Only a later combined sealed plan may run
+   the Slice 4 opening/fill checkpoint followed immediately, without an
+   approval pause, by the Slice 5 one-attempt close. Exit requires flat/absent
+   position, zero active orders, refreshed margin/collateral, fees, notional,
+   audit, and reconciliation.
 
-## Current State
+The combined 4/5 plan uses exact numeric semantics: opening reference notional
+`<25.00 USDC`, maximum concurrent exposure `<30.00 USDC`, conservative unpriced
+close reference (`fresh exact-position reference * 1.20`) `<30.00 USDC`, and
+aggregate opening-plus-conservative-close turnover `<55.00 USDC`. The plan hash
+explicitly acknowledges the unpriced Coinbase Close Position policy. A proven
+price-protected replacement requires a revised seal. One opening and one
+conditional close are the maxima, with zero retries.
 
-The guarded no-live compatibility contract and injected operator path are
-implemented on `main`:
+## Shared Successor Safety
 
-- order and fill readback keyed by `client_order_id`;
-- fill-event replay and live-readiness evidence;
-- parent/child chain and flat-hierarchy readback;
-- trigger admission preview;
-- guarded no-live trigger execution with route-bound approval, wallet/cap,
-  reconciliation, duplicate-claim, and audit-correlation prerequisites; and
-- accepted child readback without Coinbase execution in focused injected
-  contract tests.
+Every live plan binds canonical JSON/SHA-256, a maximum 120-minute TTL or
+shorter evidence expiry, backend/OpenAPI revisions, exact
+`actor=operator-controlled-futures-proof`, and BFF role `trader`. It binds fresh
+unique permission-selected `Default`/`DEFAULT` portfolio evidence with
+`can_view=true`, `can_trade=true`, no request override, US CFM family and
+explicit INTX exclusion, including permission/catalog hashes and timestamps.
 
-The operator selected single-process embedding with the canonical live engine.
-`main.py` now has an opt-in embedded FastAPI server that validates exact
-engine/bridge/manager/orderbook identity, strictly hydrates before binding,
-serves reads while mutations remain gated, and starts bridge/engine producers
-only after the bind. Mutations open after an authenticated `user` subscription
-acknowledgement from the same retained WebSocket worker and reclose when that
-worker's actual socket or the user-event consumer is lost. Hidden SDK retries
-are disabled for this proof boundary; terminal loss synchronously closes
-runtime admission and starts the canonical drain. Bridge reveal, reprice, and
-reentry entry points honor that state so cached ticker data cannot originate a
-new placement during the drain handoff. Ingress stops before bridge and engine
-shutdown, and queued user events remain represented in drain accounting until
-the consumer exits.
+For every attempt it binds route, method, service method, permission, product,
+side, contracts, order configuration, identity, request payload hash, market
+timestamp, per-attempt submitted/executed caps, exposure/turnover caps,
+idempotency/correlation IDs, attempt maximum, branches, and stop conditions.
+Create Order binds an identical-payload Coinbase `preview_id`; cancel binds the
+authoritative exchange `order_id` resolved from sealed `client_order_id`; the
+unpriced close binds the exact position snapshot/hash, fresh mark/reference,
+and `1.20` buffer rather than inventing a preview ID. The seal also binds
+approval, admission, cap-guard, reconciliation, live-service, adapter,
+margin/collateral/liquidation and fee/funding evidence IDs/hashes and cannot
+inherit a `100.00 USDC` runner default.
 
-Focused synthetic coverage proves the production handler and real claim kernel
-create one hidden child for duplicate FILLED inputs. The child ID is
-restart-stable from the filled placement, its `order_parent` and `stealth_orders`
-rows commit atomically before in-memory publication, and chain readback requires
-both sources. Explicit no-child outcomes release the claim; ambiguous creation
-or persistence exceptions remain `processing` instead of being misreported as
-terminal success. Restart hydration rebuilds native JSONB placement lookup.
+Before each SDK call, a durable atomic one-use semantic claim binds plan hash,
+action index/kind, portfolio, product, and operator identity or position
+snapshot. A new idempotency key cannot repeat the same semantic action. Unknown
+outcomes leave the claim consumed and permit reads only, except for a separately
+claimed risk-off branch already in the seal. Preparation is read/preflight only
+and creates no marker, ledger, runtime, or exchange authority. Exact hash
+approval activates only named artifacts and actions.
 
-The embedded mode is disabled by default. The deployed
-`tools/run_admin_api.py` app-only runner intentionally remains fail-closed.
-Activating `COINBASE_ADMIN_API_EMBEDDED_ENABLED=true` necessarily runs inside
-the automatic/live fill-event engine. Activation does not create or grant a
-separate permission class: every order processed by that engine is governed by
-the canonical goal's explicit side, price, notional, rate, and cancellation
-limits plus backend authorization, wallet, cap, audit, reconciliation,
-rollback, and readback gates, whether the order ultimately fills or not.
+The browser remains operator UI only. It never selects a portfolio, calculates
+trading readiness, manufactures order identity, calls Coinbase, or grants
+authority. `client_order_id` is operator identity; `order_id` is exchange
+evidence or an exchange-required submission parameter.
 
-V14 completed automatic/live fill-event parity for ten Test-profile Spot roots
-and ten first-child submissions under the approved `30.00 USDC` reference cap.
-Every root was authoritatively FILLED, every child was authoritatively CANCELLED
-with zero child fill, every final chain was flat with active placement cleared,
-the final active-order count was zero, and shutdown was quiescent. The frontend
-then completed the read-only selected-root closeout against those backend-owned
-reads. The operator has now selected the sealed V15 deterministic-first-child
-cancel successor. A predicted fill, non-fill, or far-from-market outcome does
-not add or remove permission, and there is no separate no-fill, fill-testing,
-or live-fill approval category.
+## Legacy Translation
 
-V15 durable no-live validation passed after the final independent audit.
-Backend `python3.13 tools/run_parallel_regression.py --workers 4` passed
-`1461/1461` tests (`1005` parallel plus `456` serial), ownership, and diff
-checks with live Coinbase execution false and submitted/executed notional
-`0 USDC`; evidence is under
-`genai_tools/pytest-tmp/parallel-regression/b077499ed98d43f0a24316d18df7691d/`.
-The synchronized frontend baseline passed `563/563` unit tests and `8/8`
-Playwright tests with live execution `not_run` and notional `0 USDC`. The
-canonical release gate is rerun after the final backend/frontend commit
-association and before plan preparation.
+Slice 1 inspected backend `origin/prod` references
+`configuration.py::get_futures_positions`,
+`core/order_engine.py::refresh_positions_if_needed`, and
+`core/order_engine.py::process_user_snapshot`. They confirm historical
+position reads but lack safe profile binding. The current implementation keeps
+the behavior backend-owned and does not restore the dashboard WebSocket as
+frontend authority.
 
-## Closed Scope Rule
+## Predecessor Completion
 
-Default work must implement a missing step in the current vertical slice,
-remove a blocker demonstrated by a failing focused test or runtime observation
-on that slice, or prevent an immediate critical safety failure on that slice.
+The selected-chain V15 Spot goal is resolved. Plan
+`bbe5d85c38bbea42f4326c7a8d250d77c632875721d843aefd048a016b129559`
+used one authoritative exchange-ID cancel submission, zero client-ID exchange
+submissions, fallbacks, retries, or placements. Its child is CANCELLED with
+zero fill, active placement cleared, zero active Test Spot orders, and disabled
+service/runtime. Evidence:
+`artifacts/controlled-root-child-batch-20260713T101046Z-ed9b8bbd/v15r6-terminal-closeout-handoff.json`.
+
+## Scope And Validation
+
+Default work may implement only an explicitly active slice, remove a focused
+test/runtime blocker causally preventing it, or prevent an immediate
+authorization, duplicate-order, cap, wallet, data-loss, audit,
+reconciliation, rollback, or traceability failure on it.
 
 A candidate blocker cannot make itself in scope by generating evidence about the candidate blocker.
 
-Fan-out, scheduler, runtime-control, retry/recovery, wallet-ledger, unrelated
-futures evidence, broad stealth/repricing expansion, ladder/grid order sets,
-and phase-range tightening remain parked. Their unresolved blockers prevent
-those features from running; they do not make those features current work.
+Because Slice 1 is complete and no successor is active, stop and request
+operator activation of Slice 2. Fan-out, multi-product automation, schedulers,
+unattended loops, generic runtime/retry/recovery tightening, wallet-ledger
+expansion, ladders/grids, unrelated domain work, and broad cleanup remain
+parked.
 
-When the current slice is complete and no direct blocker is demonstrated,
-stop. Do not continue from the highest-rated parked blocker. A live order that
-is part of this slice remains governed by the canonical order-level limits and
-backend gates; do not invent an additional decision based on whether the order
-is expected to fill.
+Standing order-level limits constrain later approved plans but do not activate
+them. Fill status is an outcome, not a permission class. The same Default
+profile, margin, cap, authorization, audit, reconciliation, rollback, and
+readback gates apply whether an order rests, partially fills, or fills.
 
-## Safety And Validation
-
-- Preserve one behavior path. Admin routes must call existing backend domain
-  services and claim mechanisms rather than reimplementing fill/follow-up
-  logic.
-- Preserve `client_order_id` as operator and local identity. Exchange
-  `order_id` is evidence or an exchange-required parameter only.
-- Preserve the flat hierarchy: every child links to the original root parent.
-- Keep live execution fail-closed on authorization, idempotency, cap/wallet,
-  duplicate claims, audit, reconciliation, rollback, and readback evidence.
-- The canonical goal's explicit live-order side, price/distance, notional,
-  count/rate, and cancellation limits govern every order together with backend
-  authorization, wallet, cap, audit, reconciliation, rollback, and readback
-  gates. Fill status is an outcome, not a permission class; do not create a
-  separate no-fill, non-fill, fill-testing, or live-fill approval requirement.
-- Those order-level limits do not prioritize parked work or waive any backend
-  gate.
-- Use focused tests for ordinary changes. Run full backend/frontend suites only
-  for durable milestone, release/deployment or cross-repository association
-  closeout, broad cross-cutting changes, or explicit operator request.
-
-The current authorized milestone ends after the committed implementation is
-independently audited and an immutable V15 plan is prepared without creating a
-marker, ledger, runtime, approval record, or order. Stop there and request exact
-approval of the resulting plan hash. The frontend action must remain absent or
-disabled until that hash is active in the same embedded backend runtime.
-
-The live path must resolve the exact deterministic child from the selected root
-in the backend, bind the plan hash through durable preparation and one
-crash-safe cancel-command claim, call the existing controlled child-cancel
-service exactly once by `client_order_id`, prohibit the exchange-id fallback
-for V15, and require terminal zero-fill exchange/local readback. The 120-minute
-expiry closes new V15 execution starts; once the sealed marker proves the root
-and child slice started inside that window, the exact active-child cleanup and
-read-only reconciliation authority remains available so expiry or parent loss
-cannot strand the child. It never authorizes another placement or a second
-cancel boundary.
-Do not select a parked lane merely because it has a blocker or is next in a
-roadmap.
+Use focused tests for ordinary changes. Run full backend/frontend suites only
+at durable milestone, release/deployment, cross-repository closeout, after
+broad cross-cutting changes, or when explicitly requested.

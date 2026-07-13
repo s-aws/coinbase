@@ -5906,6 +5906,30 @@ paths:
         state.
       operationId: get_futures_account_api_v1_futures_account_get
       parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Operator-Intent
       - name: Authorization
         in: header
         required: true
@@ -6002,6 +6026,30 @@ paths:
           minimum: 0
           default: 0
           title: Offset
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Operator-Intent
       - name: Authorization
         in: header
         required: true
@@ -6073,6 +6121,30 @@ paths:
           type: string
           minLength: 1
           title: Position Key
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Operator-Intent
       - name: Authorization
         in: header
         required: true
@@ -13734,9 +13806,17 @@ components:
           type: boolean
           title: Spot Wallet Inventory Ready
           default: false
+        spot_test_profile_bound:
+          type: boolean
+          title: Spot Test Profile Bound
+          default: false
         futures_account_scope_ready:
           type: boolean
           title: Futures Account Scope Ready
+          default: false
+        futures_default_profile_bound:
+          type: boolean
+          title: Futures Default Profile Bound
           default: false
         futures_observed_position_scope_ready:
           type: boolean
@@ -17184,6 +17264,10 @@ components:
           $ref: '#/components/schemas/AdminAccountRealityEvidence'
         account_readiness:
           $ref: '#/components/schemas/AdminAccountReadinessEvidence'
+        portfolio_scope:
+          $ref: '#/components/schemas/AdminPortfolioScopeEvidence'
+        portfolio_binding:
+          $ref: '#/components/schemas/AdminFuturesPortfolioBindingEvidence'
         collateral:
           $ref: '#/components/schemas/AdminFuturesEvidenceItem'
         margin:
@@ -17208,6 +17292,31 @@ components:
           type: string
           title: Command Routes Mode
           default: not_modeled
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
         live_coinbase_orders_ran:
           type: boolean
           title: Live Coinbase Orders Ran
@@ -17217,6 +17326,8 @@ components:
       required:
       - account_reality
       - account_readiness
+      - portfolio_scope
+      - portfolio_binding
       - collateral
       - margin
       - funding
@@ -101046,6 +101157,7 @@ components:
     AdminFuturesEvidenceSource:
       type: string
       enum:
+      - backend_rest_client
       - runtime_orderbook
       - runtime_positions
       - dashboard_engine_state
@@ -101083,6 +101195,166 @@ components:
       - intx_applicability
       title: AdminFuturesFeeInputEvidence
       description: Futures/Perpetual fee input consumed by risk views.
+    AdminFuturesPortfolioBindingEvidence:
+      properties:
+        status:
+          type: string
+          enum:
+          - matched
+          - blocked
+          title: Status
+        ready:
+          type: boolean
+          title: Ready
+        blocker:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Blocker
+        expected_portfolio_label:
+          type: string
+          const: Default
+          title: Expected Portfolio Label
+        expected_portfolio_type:
+          type: string
+          const: DEFAULT
+          title: Expected Portfolio Type
+        observed_portfolio_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Observed Portfolio Id
+        observed_portfolio_label:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Observed Portfolio Label
+        observed_portfolio_type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Observed Portfolio Type
+        can_view:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Can View
+        can_trade:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Can Trade
+        read_authorized:
+          type: boolean
+          title: Read Authorized
+        selection_authority:
+          type: string
+          const: cdp_api_key_permissioned_portfolio
+          title: Selection Authority
+        request_portfolio_override_allowed:
+          type: boolean
+          const: false
+          title: Request Portfolio Override Allowed
+        source:
+          type: string
+          enum:
+          - coinbase_api_key_permissions_and_portfolio_catalog
+          - backend_rest_unavailable
+          - backend_admin_read_contract
+          title: Source
+        freshness_status:
+          type: string
+          enum:
+          - backend_rest_fresh
+          - backend_rest_blocked
+          - local_default_not_connected
+          - offline_fixture
+          title: Freshness Status
+        observed_at:
+          type: string
+          title: Observed At
+        permissions_read_ran:
+          type: boolean
+          title: Permissions Read Ran
+        portfolio_catalog_read_ran:
+          type: boolean
+          title: Portfolio Catalog Read Ran
+        permissions_error_present:
+          type: boolean
+          title: Permissions Error Present
+        portfolio_catalog_error_present:
+          type: boolean
+          title: Portfolio Catalog Error Present
+        account_family:
+          type: string
+          const: coinbase_futures_us_cfm
+          title: Account Family
+        product_family:
+          type: string
+          const: FUTURES_PERPETUALS
+          title: Product Family
+        profile_alias:
+          type: string
+          const: Default
+          title: Profile Alias
+        portfolio_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Portfolio Id
+        credential_trade_permission_present:
+          type: boolean
+          title: Credential Trade Permission Present
+        command_authority_granted:
+          type: boolean
+          const: false
+          title: Command Authority Granted
+        live_coinbase_execution_authorized:
+          type: boolean
+          const: false
+          title: Live Coinbase Execution Authorized
+        browser_authority:
+          type: string
+          const: display_only
+          title: Browser Authority
+        bff_authority:
+          type: string
+          const: forward_only_no_execution
+          title: Bff Authority
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - ready
+      - blocker
+      - expected_portfolio_label
+      - expected_portfolio_type
+      - observed_portfolio_id
+      - observed_portfolio_label
+      - observed_portfolio_type
+      - can_view
+      - can_trade
+      - read_authorized
+      - selection_authority
+      - request_portfolio_override_allowed
+      - source
+      - freshness_status
+      - observed_at
+      - permissions_read_ran
+      - portfolio_catalog_read_ran
+      - permissions_error_present
+      - portfolio_catalog_error_present
+      - account_family
+      - product_family
+      - profile_alias
+      - portfolio_id
+      - credential_trade_permission_present
+      - command_authority_granted
+      - live_coinbase_execution_authorized
+      - browser_authority
+      - bff_authority
+      title: AdminFuturesPortfolioBindingEvidence
+      description: Exact Coinbase Default-profile binding for US CFM Futures reads.
     AdminFuturesPositionDetailResponse:
       properties:
         type:
@@ -101099,6 +101371,12 @@ components:
           anyOf:
           - $ref: '#/components/schemas/AdminFuturesPositionReadItem'
           - type: 'null'
+        account_reality:
+          $ref: '#/components/schemas/AdminAccountRealityEvidence'
+        portfolio_scope:
+          $ref: '#/components/schemas/AdminPortfolioScopeEvidence'
+        portfolio_binding:
+          $ref: '#/components/schemas/AdminFuturesPortfolioBindingEvidence'
         read_only:
           type: boolean
           title: Read Only
@@ -101107,6 +101385,31 @@ components:
           type: string
           title: Command Routes Mode
           default: not_modeled
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
         live_coinbase_orders_ran:
           type: boolean
           title: Live Coinbase Orders Ran
@@ -101116,6 +101419,9 @@ components:
       required:
       - position_key
       - found
+      - account_reality
+      - portfolio_scope
+      - portfolio_binding
       title: AdminFuturesPositionDetailResponse
       description: Read-only futures/perpetual position detail response.
     AdminFuturesPositionListResponse:
@@ -101138,6 +101444,12 @@ components:
             $ref: '#/components/schemas/AdminFuturesPositionReadItem'
           type: array
           title: Items
+        account_reality:
+          $ref: '#/components/schemas/AdminAccountRealityEvidence'
+        portfolio_scope:
+          $ref: '#/components/schemas/AdminPortfolioScopeEvidence'
+        portfolio_binding:
+          $ref: '#/components/schemas/AdminFuturesPortfolioBindingEvidence'
         read_only:
           type: boolean
           title: Read Only
@@ -101146,6 +101458,31 @@ components:
           type: string
           title: Command Routes Mode
           default: not_modeled
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
         live_coinbase_orders_ran:
           type: boolean
           title: Live Coinbase Orders Ran
@@ -101155,6 +101492,9 @@ components:
       required:
       - count
       - pagination
+      - account_reality
+      - portfolio_scope
+      - portfolio_binding
       title: AdminFuturesPositionListResponse
       description: Read-only futures/perpetual position list response.
     AdminFuturesPositionReadItem:

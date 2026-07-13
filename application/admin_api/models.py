@@ -6,9 +6,9 @@ or mutate exchange state by themselves.
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from core.enums import (
     AdminApiActionClass,
@@ -4167,7 +4167,9 @@ class AdminAccountReadinessEvidence(BaseModel):
 
     usable_for_spot_admission: bool = False
     spot_wallet_inventory_ready: bool = False
+    spot_test_profile_bound: bool = False
     futures_account_scope_ready: bool = False
+    futures_default_profile_bound: bool = False
     futures_observed_position_scope_ready: bool = False
     usable_for_futures_risk: bool = False
     futures_margin_collateral_ready: bool = False
@@ -6331,6 +6333,81 @@ class AdminFuturesEvidenceItem(BaseModel):
     detail: str | None = None
 
 
+class AdminFuturesPortfolioBindingEvidence(BaseModel):
+    """Exact Coinbase Default-profile binding for US CFM Futures reads."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["matched", "blocked"]
+    ready: bool
+    blocker: str | None
+    expected_portfolio_label: Literal["Default"]
+    expected_portfolio_type: Literal["DEFAULT"]
+    observed_portfolio_id: str | None
+    observed_portfolio_label: str | None
+    observed_portfolio_type: str | None
+    can_view: bool | None
+    can_trade: bool | None
+    read_authorized: bool
+    selection_authority: Literal["cdp_api_key_permissioned_portfolio"]
+    request_portfolio_override_allowed: Literal[False]
+    source: Literal[
+        "coinbase_api_key_permissions_and_portfolio_catalog",
+        "backend_rest_unavailable",
+        "backend_admin_read_contract",
+    ]
+    freshness_status: Literal[
+        "backend_rest_fresh",
+        "backend_rest_blocked",
+        "local_default_not_connected",
+        "offline_fixture",
+    ]
+    observed_at: str
+    permissions_read_ran: bool
+    portfolio_catalog_read_ran: bool
+    permissions_error_present: bool
+    portfolio_catalog_error_present: bool
+    account_family: Literal["coinbase_futures_us_cfm"]
+    product_family: Literal["FUTURES_PERPETUALS"]
+    profile_alias: Literal["Default"]
+    portfolio_id: str | None
+    credential_trade_permission_present: bool
+    command_authority_granted: Literal[False]
+    live_coinbase_execution_authorized: Literal[False]
+    browser_authority: Literal["display_only"]
+    bff_authority: Literal["forward_only_no_execution"]
+
+    @model_validator(mode="after")
+    def validate_binding_state(self) -> Self:
+        """Reject contradictory or authority-expanding read evidence."""
+
+        matched = self.status == "matched"
+        if self.ready is not matched or self.read_authorized is not matched:
+            raise ValueError("futures_portfolio_binding_state_contradiction")
+        if matched:
+            if self.blocker is not None:
+                raise ValueError("matched_futures_portfolio_binding_has_blocker")
+            if (
+                self.observed_portfolio_id is None
+                or self.observed_portfolio_label != "Default"
+                or self.observed_portfolio_type != "DEFAULT"
+                or self.can_view is not True
+                or self.permissions_read_ran is not True
+                or self.portfolio_catalog_read_ran is not True
+                or self.permissions_error_present is True
+                or self.portfolio_catalog_error_present is True
+                or self.freshness_status != "backend_rest_fresh"
+            ):
+                raise ValueError("matched_futures_portfolio_binding_incomplete")
+        elif not self.blocker:
+            raise ValueError("blocked_futures_portfolio_binding_missing_blocker")
+        if self.portfolio_id != self.observed_portfolio_id:
+            raise ValueError("futures_portfolio_binding_identity_contradiction")
+        if self.credential_trade_permission_present is not (self.can_trade is True):
+            raise ValueError("futures_portfolio_trade_evidence_contradiction")
+        return self
+
+
 class AdminFuturesPositionReadItem(BaseModel):
     """Read-only futures/perpetual position evidence keyed by position identity."""
 
@@ -6372,8 +6449,16 @@ class AdminFuturesPositionListResponse(BaseModel):
     count: int
     pagination: AdminOrderPagination
     items: list[AdminFuturesPositionReadItem] = Field(default_factory=list)
+    account_reality: AdminAccountRealityEvidence
+    portfolio_scope: AdminPortfolioScopeEvidence
+    portfolio_binding: AdminFuturesPortfolioBindingEvidence
     read_only: bool = True
     command_routes_mode: str = "not_modeled"
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_coinbase_read_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
     live_coinbase_orders_ran: bool = False
 
 
@@ -6386,8 +6471,16 @@ class AdminFuturesPositionDetailResponse(BaseModel):
     position_key: str
     found: bool
     position: AdminFuturesPositionReadItem | None = None
+    account_reality: AdminAccountRealityEvidence
+    portfolio_scope: AdminPortfolioScopeEvidence
+    portfolio_binding: AdminFuturesPortfolioBindingEvidence
     read_only: bool = True
     command_routes_mode: str = "not_modeled"
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_coinbase_read_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
     live_coinbase_orders_ran: bool = False
 
 
@@ -6401,6 +6494,8 @@ class AdminFuturesAccountReadResponse(BaseModel):
     observed_position_scope: list[str] = Field(default_factory=list)
     account_reality: AdminAccountRealityEvidence
     account_readiness: AdminAccountReadinessEvidence
+    portfolio_scope: AdminPortfolioScopeEvidence
+    portfolio_binding: AdminFuturesPortfolioBindingEvidence
     collateral: AdminFuturesEvidenceItem
     margin: AdminFuturesEvidenceItem
     funding: AdminFuturesEvidenceItem
@@ -6410,6 +6505,11 @@ class AdminFuturesAccountReadResponse(BaseModel):
     position_count: int = 0
     read_only: bool = True
     command_routes_mode: str = "not_modeled"
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_coinbase_read_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
     live_coinbase_orders_ran: bool = False
 
 

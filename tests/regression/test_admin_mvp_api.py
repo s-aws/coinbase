@@ -9,7 +9,9 @@ import tomllib
 
 import pytest
 import yaml
+from pydantic import ValidationError
 
+from application.admin_api.models import AdminFuturesPortfolioBindingEvidence
 from application.admin_api.mvp_service import (
     AdminMvpDependencies,
     AdminMvpRequestContext,
@@ -147,6 +149,87 @@ def test_admin_products_openapi_exposes_product_refresh_path():
     )
 
 
+def test_admin_futures_openapi_exposes_authoritative_default_profile_read_evidence():
+    openapi = load_admin_openapi()
+    schemas = openapi["components"]["schemas"]
+    binding = schemas["AdminFuturesPortfolioBindingEvidence"]
+    binding_fields = {
+        "status",
+        "ready",
+        "blocker",
+        "expected_portfolio_label",
+        "expected_portfolio_type",
+        "observed_portfolio_id",
+        "observed_portfolio_label",
+        "observed_portfolio_type",
+        "can_view",
+        "can_trade",
+        "read_authorized",
+        "selection_authority",
+        "request_portfolio_override_allowed",
+        "source",
+        "freshness_status",
+        "observed_at",
+    }
+
+    assert binding_fields <= set(binding["properties"])
+    assert binding_fields <= set(binding["required"])
+    for schema_name in (
+        "AdminFuturesAccountReadResponse",
+        "AdminFuturesPositionListResponse",
+        "AdminFuturesPositionDetailResponse",
+    ):
+        properties = schemas[schema_name]["properties"]
+        assert "account_reality" in properties
+        assert "portfolio_scope" in properties
+        assert "portfolio_binding" in properties
+        assert "live_coinbase_read_ran" in properties
+        assert "live_coinbase_orders_ran" in properties
+
+
+def test_admin_futures_portfolio_binding_contract_rejects_extra_authority_and_contradiction():
+    matched = {
+        "status": "matched",
+        "ready": True,
+        "blocker": None,
+        "expected_portfolio_label": "Default",
+        "expected_portfolio_type": "DEFAULT",
+        "observed_portfolio_id": "default-portfolio",
+        "observed_portfolio_label": "Default",
+        "observed_portfolio_type": "DEFAULT",
+        "can_view": True,
+        "can_trade": True,
+        "read_authorized": True,
+        "selection_authority": "cdp_api_key_permissioned_portfolio",
+        "request_portfolio_override_allowed": False,
+        "source": "coinbase_api_key_permissions_and_portfolio_catalog",
+        "freshness_status": "backend_rest_fresh",
+        "observed_at": "2026-07-13T12:00:00Z",
+        "permissions_read_ran": True,
+        "portfolio_catalog_read_ran": True,
+        "permissions_error_present": False,
+        "portfolio_catalog_error_present": False,
+        "account_family": "coinbase_futures_us_cfm",
+        "product_family": "FUTURES_PERPETUALS",
+        "profile_alias": "Default",
+        "portfolio_id": "default-portfolio",
+        "credential_trade_permission_present": True,
+        "command_authority_granted": False,
+        "live_coinbase_execution_authorized": False,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+    }
+
+    with pytest.raises(ValidationError):
+        AdminFuturesPortfolioBindingEvidence.model_validate(
+            {**matched, "mutation_authorized": True}
+        )
+    with pytest.raises(ValidationError):
+        AdminFuturesPortfolioBindingEvidence.model_validate(
+            {**matched, "ready": False, "read_authorized": True}
+        )
+
+
 def test_admin_account_management_openapi_exposes_live_read_evidence_fields():
     openapi = load_admin_openapi()
     environment = openapi["components"]["schemas"]["AdminAccountManagementEnvironment"]
@@ -238,10 +321,19 @@ class FakeAccountRestClient(FakeRestClient):
         default_factory=lambda: [
             {
                 "uuid": "portfolio-real-1",
-                "name": "Real Backend Portfolio",
+                "name": "Default",
                 "type": "DEFAULT",
             },
         ],
+    )
+    api_key_permissions: dict[str, Any] = field(
+        default_factory=lambda: {
+            "portfolio_uuid": "portfolio-real-1",
+            "portfolio_type": "DEFAULT",
+            "can_view": True,
+            "can_trade": True,
+            "can_transfer": False,
+        },
     )
     futures_positions: dict[str, dict] = field(
         default_factory=lambda: {
@@ -332,6 +424,7 @@ class FakeAccountRestClient(FakeRestClient):
         },
     )
     get_account_wallets_calls: int = 0
+    get_api_key_permissions_calls: int = 0
     list_portfolios_calls: int = 0
     get_futures_positions_calls: int = 0
     get_futures_margin_collateral_snapshot_calls: int = 0
@@ -341,6 +434,10 @@ class FakeAccountRestClient(FakeRestClient):
     def get_account_wallets(self):
         self.get_account_wallets_calls += 1
         return self.account_wallets
+
+    def get_api_key_permissions(self):
+        self.get_api_key_permissions_calls += 1
+        return self.api_key_permissions
 
     def list_portfolios(self):
         self.list_portfolios_calls += 1
@@ -365,6 +462,25 @@ class FakeAccountRestClient(FakeRestClient):
         if self.transaction_summary_exception is not None:
             raise self.transaction_summary_exception
         return self.transaction_summary
+
+
+def bind_fake_account_rest_client_to_spot_test(
+    rest_client: FakeAccountRestClient,
+) -> None:
+    rest_client.api_key_permissions = {
+        "portfolio_uuid": "portfolio-test-1",
+        "portfolio_type": "CONSUMER",
+        "can_view": True,
+        "can_trade": True,
+        "can_transfer": False,
+    }
+    rest_client.portfolios = [
+        {
+            "uuid": "portfolio-test-1",
+            "name": "Test",
+            "type": "CONSUMER",
+        }
+    ]
 
 
 def context(
@@ -1228,24 +1344,27 @@ def test_admin_account_management_exposes_backend_owned_account_reality():
     assert body["account_scope"]["freshness_status"] == "backend_rest_fresh"
     assert body["account_scope"]["account_count"] == 1
     assert body["portfolio_scope"]["portfolio_id"] == "portfolio-real-1"
-    assert body["portfolio_scope"]["portfolio_name"] == "Real Backend Portfolio"
+    assert body["portfolio_scope"]["portfolio_name"] == "Default"
     assert body["wallet_inventory"]["source"] == "backend_rest_client"
     assert body["wallet_inventory"]["freshness_status"] == "backend_rest_fresh"
     assert body["wallet_inventory"]["status"] == "ready"
     assert body["wallet_inventory"]["available_notional_usdc"] == "12.34"
     assert body["wallet_inventory"]["hold_notional_usdc"] == "2.66"
     assert body["wallet_inventory"]["total_notional_usdc"] == "15.00"
-    assert body["readiness"]["spot_account_ready"] is True
+    assert body["readiness"]["spot_account_ready"] is False
     assert body["readiness"]["spot_wallet_inventory_ready"] is True
+    assert body["readiness"]["spot_test_profile_bound"] is False
     assert body["readiness"]["futures_account_scope_ready"] is True
+    assert body["readiness"]["futures_default_profile_bound"] is True
     assert body["readiness"]["futures_observed_position_scope_ready"] is True
     assert body["readiness"]["futures_margin_collateral_ready"] is True
-    assert body["readiness"]["usable_for_spot_admission"] is True
+    assert body["readiness"]["usable_for_spot_admission"] is False
     assert body["readiness"]["usable_for_futures_risk"] is True
     readiness = {item["name"]: item for item in body["command_readiness_prerequisites"]}
     assert readiness["backend_account_reality"]["status"] == "ready"
     assert readiness["wallet_inventory_evidence"]["status"] == "ready"
     assert rest_client.get_account_wallets_calls == 1
+    assert rest_client.get_api_key_permissions_calls == 1
     assert rest_client.list_portfolios_calls == 1
     assert rest_client.get_futures_positions_calls == 1
     assert rest_client.get_futures_margin_collateral_snapshot_calls == 1
@@ -1288,13 +1407,17 @@ def test_admin_wallet_read_exposes_backend_owned_wallet_reality():
     wallet_rows = {wallet["currency"]: wallet for wallet in body["wallets"]}
     assert wallet_rows["USDC"]["available_balance"] == "12.34"
     assert wallet_rows["USDC"]["admission_asset"] is True
-    assert wallet_rows["USDC"]["admission_ready"] is True
+    assert wallet_rows["USDC"]["admission_ready"] is False
     assert wallet_rows["BTC"]["admission_asset"] is False
     assert wallet_rows["BTC"]["admission_ready"] is False
     assert body["readiness"]["spot_wallet_inventory_ready"] is True
-    assert body["readiness"]["usable_for_spot_admission"] is True
+    assert body["readiness"]["spot_test_profile_bound"] is False
+    assert body["readiness"]["usable_for_spot_admission"] is False
     assert body["readiness"]["usable_for_futures_risk"] is True
-    assert body["spot_admission_input"]["status"] == "ready"
+    assert body["spot_admission_input"]["status"] == "blocked"
+    assert body["spot_admission_input"]["first_blocker"] == (
+        "spot_test_portfolio_id_missing"
+    )
     assert body["spot_admission_input"]["wallet_check_source"] == "account_management_snapshot"
     assert body["futures_risk_input"]["status"] == "ready"
     assert body["futures_risk_input"]["wallet_check_source"] == "account_management_snapshot"
@@ -1585,14 +1708,14 @@ def test_admin_wallet_read_blocks_futures_risk_when_cfm_margin_snapshot_fails():
     )
 
     assert futures.status_code == 200
-    assert futures.body["collateral"]["status"] == "blocked"
+    assert futures.body["collateral"]["status"] == "unavailable"
     assert futures.body["collateral"]["source"] == "backend_rest_client"
     assert futures.body["collateral"]["value"]["account_family"] == "coinbase_futures_us_cfm"
-    assert futures.body["margin"]["status"] == "blocked"
+    assert futures.body["margin"]["status"] == "unavailable"
     assert rest_client.get_futures_margin_collateral_snapshot_calls == 2
 
 
-def test_admin_wallet_read_accepts_usd_quote_wallet_when_usdc_wallet_is_missing():
+def test_admin_wallet_read_accepts_usd_quote_inventory_but_requires_test_profile():
     rest_client = FakeAccountRestClient()
     rest_client.account_wallets = {
         "USD": {
@@ -1623,16 +1746,25 @@ def test_admin_wallet_read_accepts_usd_quote_wallet_when_usdc_wallet_is_missing(
     assert body["wallet_inventory"]["freshness_status"] == "backend_rest_fresh"
     assert body["wallet_inventory"]["error"] == "none"
     assert body["readiness"]["spot_wallet_inventory_ready"] is True
-    assert body["spot_admission_input"]["status"] == "ready"
+    assert body["readiness"]["spot_test_profile_bound"] is False
+    assert body["readiness"]["usable_for_spot_admission"] is False
+    assert body["spot_admission_input"]["status"] == "blocked"
+    assert body["spot_admission_input"]["first_blocker"] == (
+        "spot_test_portfolio_id_missing"
+    )
     assert body["spot_admission_input"]["currency"] == "USD"
     wallet_rows = {wallet["currency"]: wallet for wallet in body["wallets"]}
     assert wallet_rows["USD"]["admission_asset"] is True
-    assert wallet_rows["USD"]["admission_ready"] is True
+    assert wallet_rows["USD"]["admission_ready"] is False
     assert body["live_coinbase_orders_ran"] is False
 
 
-def test_admin_wallet_read_keeps_inventory_live_when_quote_wallet_is_missing():
+def test_admin_wallet_read_keeps_inventory_live_when_quote_wallet_is_missing(
+    monkeypatch,
+):
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID", "portfolio-test-1")
     rest_client = FakeAccountRestClient()
+    bind_fake_account_rest_client_to_spot_test(rest_client)
     rest_client.account_wallets = {
         "BTC": {
             "currency": "BTC",
@@ -1706,11 +1838,16 @@ def test_cap_guard_uses_usd_quote_wallet_from_backend_snapshot():
     assert result.status_code == 200
     decision = result.body["decision"]
     assert decision["wallet_check_required"] is True
-    assert decision["wallet_check_status"] == "passed"
+    assert decision["wallet_check_status"] == "blocked"
     assert decision["wallet_available_notional_usdc"] == "9.25"
     assert decision["wallet_check_source"] == "account_management_snapshot"
     assert decision["account_snapshot_status"] == "ready"
     assert decision["account_snapshot_source"] == "backend_rest_client"
+    assert decision["spot_test_profile_bound"] is False
+    assert decision["spot_portfolio_binding_blocker"] == (
+        "spot_test_portfolio_id_missing"
+    )
+    assert decision["allowed"] is False
     assert result.body["live_coinbase_orders_ran"] is False
 
 
@@ -1786,7 +1923,8 @@ def test_admin_wallet_route_is_registered_as_account_management_capability():
     assert account_module["action_posture"]["browser_authority"] == "display_only"
 
 
-def test_spot_and_futures_reads_consume_backend_account_snapshot():
+def test_spot_and_futures_reads_consume_backend_account_snapshot(monkeypatch):
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID", "portfolio-test-1")
     rest_client = FakeAccountRestClient()
     rest_client.product_dicts["BTC-USDC"] = {
         "product_id": "BTC-USDC",
@@ -1812,7 +1950,7 @@ def test_spot_and_futures_reads_consume_backend_account_snapshot():
         context(),
     )
     assert spot.status_code == 200
-    assert spot.body["status"] == "ready"
+    assert spot.body["status"] == "warning"
     assert spot.body["account_reality"]["status"] == "ready"
     assert spot.body["account_reality"]["source"] == "backend_rest_client"
     assert spot.body["account_scope"]["scope_id"] == "portfolio-real-1"
@@ -1820,17 +1958,18 @@ def test_spot_and_futures_reads_consume_backend_account_snapshot():
     assert spot.body["wallet_snapshot"]["source"] == "backend_rest_client"
     assert spot.body["wallet_snapshot"]["status"] == "ready"
     assert spot.body["wallet_snapshot"]["available_notional_usdc"] == "12.34"
-    assert spot.body["wallet_snapshot"]["available"] is True
+    assert spot.body["wallet_snapshot"]["available"] is False
     assert spot.body["spot_admission_input"] == {
-        "status": "ready",
+        "status": "blocked",
         "wallet_check_source": "account_management_snapshot",
         "currency": "USDC",
         "available_notional_usdc": "12.34",
         "proof_id": spot.body["account_reality"]["proof_id"],
-        "first_blocker": "none",
+        "first_blocker": "spot_test_portfolio_mismatch",
     }
     assert spot.body["account_readiness"]["spot_wallet_inventory_ready"] is True
-    assert spot.body["account_readiness"]["usable_for_spot_admission"] is True
+    assert spot.body["account_readiness"]["spot_test_profile_bound"] is False
+    assert spot.body["account_readiness"]["usable_for_spot_admission"] is False
     [spot_product] = spot.body["products"]
     assert spot_product["product_id"] == "BTC-USDC"
     assert spot_product["product_type"] == "SPOT"
@@ -1841,6 +1980,7 @@ def test_spot_and_futures_reads_consume_backend_account_snapshot():
     assert spot_product["quote_min_size"] == "1"
     assert spot_product["trading_disabled"] is False
     assert spot_product["capabilities"]["wallet_inventory"]["mode"] == "enabled"
+    assert spot_product["capabilities"]["spot_admission_input"]["mode"] == "blocked"
     assert spot_product["capabilities"]["product_capability_contract"]["mode"] == "enabled"
     assert (
         spot_product["capabilities"]["product_capability_contract"]["source"]
@@ -1852,7 +1992,7 @@ def test_spot_and_futures_reads_consume_backend_account_snapshot():
     }
     assert guards["backend_account_reality"]["mode"] == "enabled"
     assert guards["spot_wallet_inventory"]["mode"] == "enabled"
-    assert guards["spot_admission_input"]["mode"] == "enabled"
+    assert guards["spot_admission_input"]["mode"] == "blocked"
     assert guards["product_capability_contract"]["mode"] == "enabled"
     assert guards["product_capability_contract"]["source"] == "backend_rest_client"
     assert spot.body["browser_authority"] == "display_only"
@@ -1870,23 +2010,23 @@ def test_spot_and_futures_reads_consume_backend_account_snapshot():
     assert futures.body["account_readiness"]["usable_for_futures_risk"] is True
     assert futures.body["observed_position_scope"] == ["BIP-20DEC30-CDE"]
     assert futures.body["position_count"] == 1
-    assert futures.body["collateral"]["status"] == "ready"
+    assert futures.body["collateral"]["status"] == "observed"
     assert futures.body["collateral"]["source"] == "backend_rest_client"
     assert futures.body["collateral"]["value"]["account_family"] == "coinbase_futures_us_cfm"
     assert futures.body["collateral"]["value"]["available_margin"]["value"] == "250.00"
     assert futures.body["collateral"]["value"]["intx_applicability"] == "not_applicable_us_account"
-    assert futures.body["margin"]["status"] == "ready"
+    assert futures.body["margin"]["status"] == "observed"
     assert futures.body["margin"]["value"]["margin_window_type"] == "FCM_MARGIN_WINDOW_TYPE_INTRADAY"
-    assert futures.body["funding"]["status"] == "ready"
+    assert futures.body["funding"]["status"] == "observed"
     assert futures.body["funding"]["source"] == "backend_rest_client"
     assert futures.body["funding"]["value"]["funding_applicability"] == "not_applicable_us_cfm"
     assert futures.body["funding"]["value"]["funding_required"] is False
     assert futures.body["funding"]["value"]["intx_applicability"] == "not_applicable_us_account"
-    assert futures.body["liquidation"]["status"] == "ready"
+    assert futures.body["liquidation"]["status"] == "observed"
     assert futures.body["liquidation"]["source"] == "backend_rest_client"
     assert futures.body["liquidation"]["value"]["liquidation_threshold_present"] is True
     assert futures.body["liquidation"]["value"]["liquidation_buffer_present"] is True
-    assert futures.body["reduce_only_close_only"]["status"] == "ready"
+    assert futures.body["reduce_only_close_only"]["status"] == "observed"
     assert futures.body["reduce_only_close_only"]["source"] == "runtime_positions"
     assert futures.body["reduce_only_close_only"]["value"]["position_side_observed_count"] == 1
     assert futures.body["reduce_only_close_only"]["value"]["backend_derives_close_reduce_side"] is True
@@ -1895,8 +2035,187 @@ def test_spot_and_futures_reads_consume_backend_account_snapshot():
     positions = service.get_read_response("/api/v1/futures/positions", {}, context())
     assert positions.status_code == 200
     assert positions.body["count"] == 1
-    assert positions.body["items"][0]["position_key"] == "futures_position:runtime:BIP-20DEC30-CDE"
+    assert positions.body["items"][0]["position_key"] == (
+        "futures_position:portfolio-real-1:BIP-20DEC30-CDE"
+    )
     assert positions.body["items"][0]["product_id"] == "BIP-20DEC30-CDE"
+
+
+def test_admin_futures_reads_bind_exact_permissioned_default_profile():
+    rest_client = FakeAccountRestClient()
+    rest_client.portfolios = [
+        {
+            "uuid": "portfolio-test-1",
+            "name": "Test",
+            "type": "CONSUMER",
+        },
+        {
+            "uuid": "portfolio-real-1",
+            "name": "Default",
+            "type": "DEFAULT",
+        },
+    ]
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
+    )
+
+    account = service.get_read_response("/api/v1/futures/account", {}, context())
+    positions = service.get_read_response(
+        "/api/v1/futures/positions",
+        {
+            "product_id": "BIP-20DEC30-CDE",
+            "position_side": "LONG",
+            "limit": "10",
+            "offset": "0",
+        },
+        context(),
+    )
+    position_key = "futures_position:portfolio-real-1:BIP-20DEC30-CDE"
+    detail = service.get_read_response(
+        f"/api/v1/futures/positions/{position_key}",
+        {},
+        context(),
+    )
+    product_alias = service.get_read_response(
+        "/api/v1/futures/positions/BIP-20DEC30-CDE",
+        {},
+        context(),
+    )
+
+    assert account.status_code == 200
+    assert account.body["portfolio_scope"]["portfolio_id"] == "portfolio-real-1"
+    assert account.body["portfolio_scope"]["portfolio_name"] == "Default"
+    binding = account.body["portfolio_binding"]
+    assert binding["status"] == "matched"
+    assert binding["ready"] is True
+    assert binding["blocker"] is None
+    assert binding["expected_portfolio_label"] == "Default"
+    assert binding["expected_portfolio_type"] == "DEFAULT"
+    assert binding["observed_portfolio_id"] == "portfolio-real-1"
+    assert binding["observed_portfolio_label"] == "Default"
+    assert binding["observed_portfolio_type"] == "DEFAULT"
+    assert binding["can_view"] is True
+    assert binding["can_trade"] is True
+    assert binding["read_authorized"] is True
+    assert binding["selection_authority"] == "cdp_api_key_permissioned_portfolio"
+    assert binding["request_portfolio_override_allowed"] is False
+    assert binding["source"] == "coinbase_api_key_permissions_and_portfolio_catalog"
+    assert binding["freshness_status"] == "backend_rest_fresh"
+    assert binding["observed_at"]
+    assert account.body["account_readiness"]["futures_default_profile_bound"] is True
+    assert account.body["account_readiness"]["futures_account_scope_ready"] is True
+    assert account.body["live_coinbase_read_ran"] is True
+    assert account.body["live_coinbase_orders_ran"] is False
+
+    assert positions.status_code == 200
+    assert positions.body["count"] == 1
+    assert positions.body["portfolio_binding"]["ready"] is True
+    assert positions.body["items"][0]["position_key"] == position_key
+    assert positions.body["items"][0]["portfolio_uuid"] == "portfolio-real-1"
+    assert positions.body["items"][0]["source"] == "backend_rest_client"
+    assert positions.body["pagination"]["total_matching_count"] == 1
+    assert detail.body["found"] is True
+    assert detail.body["position"]["position_key"] == position_key
+    assert product_alias.body["found"] is False
+    assert rest_client.create_order_calls == []
+    assert rest_client.cancel_order_calls == []
+    assert rest_client.close_position_calls == []
+
+
+def test_admin_futures_reads_fail_closed_before_cfm_reads_for_non_default_key(
+    monkeypatch,
+):
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID", "portfolio-test-1")
+    rest_client = FakeAccountRestClient(
+        api_key_permissions={
+            "portfolio_uuid": "portfolio-test-1",
+            "portfolio_type": "CONSUMER",
+            "can_view": True,
+            "can_trade": True,
+            "can_transfer": False,
+        },
+        portfolios=[
+            {
+                "uuid": "portfolio-test-1",
+                "name": "Test",
+                "type": "CONSUMER",
+            },
+            {
+                "uuid": "portfolio-real-1",
+                "name": "Default",
+                "type": "DEFAULT",
+            },
+        ],
+    )
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
+    )
+
+    account = service.get_read_response("/api/v1/futures/account", {}, context())
+    spot = service.get_read_response(
+        "/api/v1/spot/readiness",
+        {"product_id": ["BTC-USDC"]},
+        context(),
+    )
+
+    assert account.status_code == 200
+    assert account.body["portfolio_scope"]["portfolio_id"] == "portfolio-test-1"
+    assert account.body["portfolio_scope"]["portfolio_name"] == "Test"
+    binding = account.body["portfolio_binding"]
+    assert binding["status"] == "blocked"
+    assert binding["ready"] is False
+    assert binding["blocker"] == "futures_default_portfolio_type_mismatch"
+    assert binding["observed_portfolio_id"] == "portfolio-test-1"
+    assert binding["observed_portfolio_label"] == "Test"
+    assert binding["observed_portfolio_type"] == "CONSUMER"
+    assert account.body["account_readiness"]["futures_default_profile_bound"] is False
+    assert account.body["account_readiness"]["futures_account_scope_ready"] is False
+    assert account.body["account_readiness"]["futures_margin_collateral_ready"] is False
+    assert account.body["account_readiness"]["usable_for_futures_risk"] is False
+    assert account.body["position_count"] == 0
+    assert rest_client.get_api_key_permissions_calls == 2
+    assert rest_client.list_portfolios_calls == 2
+    assert rest_client.get_futures_positions_calls == 0
+    assert rest_client.get_futures_margin_collateral_snapshot_calls == 0
+    assert spot.body["account_readiness"]["spot_wallet_inventory_ready"] is True
+    assert spot.body["account_readiness"]["spot_test_profile_bound"] is True
+    assert spot.body["account_readiness"]["usable_for_spot_admission"] is True
+    assert spot.body["portfolio_scope"]["portfolio_id"] == "portfolio-test-1"
+    assert rest_client.create_order_calls == []
+    assert rest_client.cancel_order_calls == []
+    assert rest_client.close_position_calls == []
+
+
+def test_admin_futures_reads_reject_position_with_conflicting_portfolio_scope():
+    rest_client = FakeAccountRestClient()
+    rest_client.futures_positions["BIP-20DEC30-CDE"]["portfolio_uuid"] = (
+        "different-portfolio"
+    )
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
+    )
+
+    account = service.get_read_response("/api/v1/futures/account", {}, context())
+    positions = service.get_read_response(
+        "/api/v1/futures/positions",
+        {},
+        context(),
+    )
+
+    assert account.body["account_readiness"]["futures_default_profile_bound"] is True
+    assert account.body["account_readiness"]["futures_account_scope_ready"] is False
+    assert account.body["account_readiness"]["usable_for_futures_risk"] is False
+    assert account.body["position_count"] == 0
+    assert "futures_position_portfolio_scope_mismatch" in (
+        account.body["account_reality"]["read_error"]
+    )
+    assert positions.body["items"] == []
+    assert positions.body["count"] == 0
+    assert "different-portfolio" not in repr(account.body)
+    assert "different-portfolio" not in repr(positions.body)
+    assert rest_client.create_order_calls == []
+    assert rest_client.cancel_order_calls == []
+    assert rest_client.close_position_calls == []
 
 
 def test_cap_guard_can_use_backend_account_snapshot_for_wallet_evidence():
@@ -1926,11 +2245,16 @@ def test_cap_guard_can_use_backend_account_snapshot_for_wallet_evidence():
     assert result.status_code == 200
     decision = result.body["decision"]
     assert decision["wallet_check_required"] is True
-    assert decision["wallet_check_status"] == "passed"
+    assert decision["wallet_check_status"] == "blocked"
     assert decision["wallet_available_notional_usdc"] == "12.34"
     assert decision["wallet_check_source"] == "account_management_snapshot"
     assert decision["account_snapshot_status"] == "ready"
     assert decision["account_snapshot_source"] == "backend_rest_client"
+    assert decision["spot_test_profile_bound"] is False
+    assert decision["spot_portfolio_binding_blocker"] == (
+        "spot_test_portfolio_id_missing"
+    )
+    assert decision["allowed"] is False
     assert result.body["live_coinbase_orders_ran"] is False
 
 
@@ -1949,18 +2273,18 @@ def test_admin_futures_perpetuals_read_contract_exposes_blocked_contract_evidenc
     ]
     assert account_body["observed_position_scope"] == []
     assert account_body["position_count"] == 0
-    assert account_body["collateral"]["status"] == "blocked"
+    assert account_body["collateral"]["status"] == "unavailable"
     assert account_body["collateral"]["value"]["account_family"] == "coinbase_futures_us_cfm"
     assert account_body["collateral"]["value"]["intx_applicability"] == "not_applicable_us_account"
     assert account_body["margin"]["name"] == "margin"
-    assert account_body["margin"]["status"] == "blocked"
+    assert account_body["margin"]["status"] == "unavailable"
     assert account_body["funding"]["status"] == "unavailable"
     assert account_body["funding"]["value"]["funding_required"] is None
     assert account_body["liquidation"]["source"] == "runtime_unavailable"
     assert account_body["reduce_only_close_only"]["status"] == "unavailable"
     assert account_body["position_pnl"]["status"] == "unavailable"
     assert account_body["read_only"] is True
-    assert account_body["command_routes_mode"] == "backend_admin_api_blocked"
+    assert account_body["command_routes_mode"] == "backend_admin_api_read_only"
     assert account_body["live_coinbase_orders_ran"] is False
 
     positions = service.get_read_response(
@@ -2864,6 +3188,82 @@ def test_admin_futures_command_suite_exposes_confirmed_live_exchange_routes_when
         assert command["live_coinbase_orders_ran"] is False
         assert command["bff_authority"] == "forward_only_no_execution"
 
+
+def test_admin_futures_view_only_default_key_blocks_every_command_executor():
+    rest_client = FakeAccountRestClient()
+    rest_client.api_key_permissions["can_trade"] = False
+    service = AdminMvpService(
+        AdminMvpDependencies(
+            rest_client=rest_client,
+            rest_client_available=True,
+            live_coinbase_execution_enabled=True,
+        )
+    )
+    record_futures_live_service_decision(service)
+    record_all_futures_live_adapter_decisions(service)
+
+    account = service.get_read_response(
+        "/api/v1/futures/account",
+        {},
+        context(),
+    )
+    suite = service.get_read_response(
+        "/api/v1/futures/command-suite",
+        {},
+        context(),
+    ).body
+    result = service.submit_futures_command(
+        "/api/v1/futures/orders",
+        {
+            "product_id": "BIP-20DEC30-CDE",
+            "side": "BUY",
+            "order_type": "LIMIT",
+            "limit_price": "100",
+            "size": "1",
+            "dry_run": False,
+            "manual_live_acknowledgement": True,
+        },
+        context(idempotency_key="futures-view-only-key-live-blocked"),
+    )
+
+    assert account.body["portfolio_binding"]["read_authorized"] is True
+    assert account.body["portfolio_binding"]["can_trade"] is False
+    assert account.body["account_readiness"]["futures_account_scope_ready"] is True
+    assert suite["blocked_command_count"] == 3
+    assert suite["executable_command_count"] == 1
+    assert suite["futures_live_decision_evidence"]["execution_allowed"] is False
+    assert suite["futures_live_decision_evidence"]["first_blocker"] == (
+        "futures_credential_trade_capability_missing"
+    )
+    live_commands = [
+        command
+        for command in suite["commands"]
+        if command["command"] != "futures_reconcile"
+    ]
+    assert all(command["execution_allowed"] is False for command in live_commands)
+    assert all(
+        command["readiness_decision"]["first_blocker"]
+        == "futures_credential_trade_capability_missing"
+        for command in live_commands
+    )
+    reconcile = next(
+        command
+        for command in suite["commands"]
+        if command["command"] == "futures_reconcile"
+    )
+    assert reconcile["execution_allowed"] is True
+    assert result.status_code == 501
+    assert result.body["failure_stage"] == (
+        "futures_credential_trade_capability_missing"
+    )
+    assert result.body["execution_allowed"] is False
+    assert result.body["live_exchange_submitted"] is False
+    assert result.body["live_coinbase_orders_ran"] is False
+    assert rest_client.create_order_calls == []
+    assert rest_client.cancel_order_calls == []
+    assert rest_client.close_position_calls == []
+
+
 def test_admin_futures_reconciliation_route_records_local_execution_when_ready():
     rest_client = FakeAccountRestClient()
     service = AdminMvpService(
@@ -3416,6 +3816,13 @@ def test_admin_futures_place_live_execution_requires_runtime_enablement():
 
 def test_admin_futures_close_reduce_live_execution_uses_backend_rest_adapter_when_confirmed():
     rest_client = FakeAccountRestClient()
+    rest_client.futures_positions["AVP-20DEC30-CDE"] = {
+        "product_id": "AVP-20DEC30-CDE",
+        "side": "LONG",
+        "number_of_contracts": "1",
+        "current_price": "6.92",
+        "entry_price": "6.86",
+    }
     service = AdminMvpService(
         AdminMvpDependencies(
             rest_client=rest_client,
@@ -3427,7 +3834,7 @@ def test_admin_futures_close_reduce_live_execution_uses_backend_rest_adapter_whe
     record_all_futures_live_adapter_decisions(service)
 
     result = service.submit_futures_command(
-        "/api/v1/futures/positions/futures_position:runtime:AVP-20DEC30-CDE/close-reduce",
+        "/api/v1/futures/positions/futures_position:portfolio-real-1:AVP-20DEC30-CDE/close-reduce",
         {
             "limit_price": "6.92",
             "size": "1",
@@ -3444,7 +3851,9 @@ def test_admin_futures_close_reduce_live_execution_uses_backend_rest_adapter_whe
     assert result.body["command"] == "futures_close_reduce"
     assert result.body["mutation_family"] == "futures_live_close_reduce"
     assert result.body["identity_key"] == "position_key"
-    assert result.body["identity_value"] == "futures_position:runtime:AVP-20DEC30-CDE"
+    assert result.body["identity_value"] == (
+        "futures_position:portfolio-real-1:AVP-20DEC30-CDE"
+    )
     assert result.body["product_id"] == "AVP-20DEC30-CDE"
     assert result.body["client_order_id"] == "futures-close-reduce-live-submit"
     assert result.body["coinbase_order_id"] == "exchange-close-position-live-1"
@@ -3462,7 +3871,7 @@ def test_admin_futures_close_reduce_live_execution_uses_backend_rest_adapter_whe
         command="futures_close_reduce",
         route="/api/v1/futures/positions/{position_key}/close-reduce",
         identity_key="position_key",
-        identity_value="futures_position:runtime:AVP-20DEC30-CDE",
+        identity_value="futures_position:portfolio-real-1:AVP-20DEC30-CDE",
         client_order_id="futures-close-reduce-live-submit",
     )
     assert rest_client.close_position_calls == [
@@ -3496,6 +3905,60 @@ def test_admin_futures_close_reduce_live_execution_uses_backend_rest_adapter_whe
     assert event["exchange_order_id_evidence_only"] is True
     assert event["live_exchange_submitted"] is True
     assert event["live_coinbase_orders_ran"] is True
+
+
+@pytest.mark.parametrize(
+    ("position_key", "body_product_id", "expected_failure_stage"),
+    [
+        (
+            "futures_position:other-portfolio:BIP-20DEC30-CDE",
+            "BIP-20DEC30-CDE",
+            "futures_position_identity_not_authorized",
+        ),
+        (
+            "futures_position:portfolio-real-1:BIP-20DEC30-CDE",
+            "AVP-20DEC30-CDE",
+            "futures_position_product_mismatch",
+        ),
+    ],
+)
+def test_admin_futures_close_reduce_rejects_unbound_position_identity_before_rest(
+    position_key,
+    body_product_id,
+    expected_failure_stage,
+):
+    rest_client = FakeAccountRestClient()
+    service = AdminMvpService(
+        AdminMvpDependencies(
+            rest_client=rest_client,
+            rest_client_available=True,
+            live_coinbase_execution_enabled=True,
+        )
+    )
+    record_futures_live_service_decision(service)
+    record_all_futures_live_adapter_decisions(service)
+
+    result = service.submit_futures_command(
+        f"/api/v1/futures/positions/{position_key}/close-reduce",
+        {
+            "product_id": body_product_id,
+            "limit_price": "1.00",
+            "size": "1",
+            "dry_run": False,
+            "manual_live_acknowledgement": True,
+            "operator_reason": "prove exact position binding",
+        },
+        context(idempotency_key=f"close-reject-{expected_failure_stage}"),
+    )
+
+    assert result.status_code == 400
+    assert result.body["failure_stage"] == expected_failure_stage
+    assert result.body["execution_allowed"] is False
+    assert result.body["live_exchange_submitted"] is False
+    assert result.body["live_coinbase_orders_ran"] is False
+    assert rest_client.close_position_calls == []
+    assert rest_client.create_order_calls == []
+    assert rest_client.cancel_order_calls == []
 
 
 def test_admin_futures_cancel_live_execution_uses_backend_rest_adapter_when_confirmed():
@@ -4038,10 +4501,15 @@ def test_spot_command_suite_resolves_manual_order_proof_chain_from_backend_recor
     assert suite.body["live_coinbase_orders_ran"] is False
 
 
-def test_spot_command_suite_marks_manual_order_executable_after_backend_live_evidence():
+def test_spot_command_suite_marks_manual_order_executable_after_backend_live_evidence(
+    monkeypatch,
+):
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID", "portfolio-test-1")
+    rest_client = FakeAccountRestClient()
+    bind_fake_account_rest_client_to_spot_test(rest_client)
     service = AdminMvpService(
         AdminMvpDependencies(
-            rest_client=FakeAccountRestClient(),
+            rest_client=rest_client,
             rest_client_available=True,
             live_coinbase_execution_enabled=True,
         )
@@ -4085,8 +4553,12 @@ def test_spot_command_suite_marks_manual_order_executable_after_backend_live_evi
     assert suite.body["live_coinbase_orders_ran"] is False
 
 
-def test_spot_manual_order_proof_chain_route_records_backend_evidence_from_command_context():
+def test_spot_manual_order_proof_chain_route_records_backend_evidence_from_command_context(
+    monkeypatch,
+):
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID", "portfolio-test-1")
     rest_client = FakeAccountRestClient()
+    bind_fake_account_rest_client_to_spot_test(rest_client)
     service = AdminMvpService(
         AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
     )

@@ -244,28 +244,28 @@ def account_reality_checks(
         ),
         check(
             "futures_account_collateral_ready",
-            object_record(futures_account.get("collateral")).get("status") == "ready",
+            object_record(futures_account.get("collateral")).get("status") == "observed",
         ),
         check(
             "futures_account_margin_ready",
-            object_record(futures_account.get("margin")).get("status") == "ready",
+            object_record(futures_account.get("margin")).get("status") == "observed",
         ),
         check(
             "futures_account_funding_ready",
-            funding.get("status") == "ready"
+            funding.get("status") == "observed"
             and funding_value.get("funding_applicability") == "not_applicable_us_cfm"
             and funding_value.get("funding_required") is False
             and funding_value.get("intx_applicability") == "not_applicable_us_account",
         ),
         check(
             "futures_account_liquidation_ready",
-            liquidation.get("status") == "ready"
+            liquidation.get("status") == "observed"
             and liquidation_value.get("liquidation_threshold_present") is True
             and liquidation_value.get("liquidation_buffer_present") is True,
         ),
         check(
             "futures_account_reduce_close_ready",
-            reduce_close.get("status") == "ready"
+            reduce_close.get("status") == "observed"
             and reduce_close_value.get("backend_derives_close_reduce_side") is True
             and int(reduce_close_value.get("position_side_observed_count") or 0) > 0,
         ),

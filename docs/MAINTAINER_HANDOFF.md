@@ -130,13 +130,14 @@ create a separate approval class.
 
 ## Current Handoff State
 
-- Current goal id: `selected_chain_child_cancel_v15_slice`.
-- Current slice: Selected Admin root with one active deterministic first child
-  -> sealed-plan-bound backend cancel readiness -> exactly-once child cancel ->
-  authoritative local/exchange terminal readback -> refreshed operator-visible
-  closeout. Work stops after no-live audit and plan preparation for exact hash
-  approval.
-- Current state: V14 completed the predecessor automatic/live proof for ten
+- Current goal id: `futures_default_profile_readback_slice_1`.
+- Current slice: Default-profile Futures account -> authoritative US CFM
+  position list -> exact portfolio-scoped position detail -> operator-visible
+  no-live readback. Slice 1 is complete; stop for explicit Slice 2 activation.
+- Ordered successors: exact no-live preview (2), one terminal order roundtrip
+  (3), intentional fill/position readback (4), then exact closeout (5). The
+  plan is not execution authority.
+- Previous state: V14 completed the predecessor automatic/live proof for ten
   Test-profile roots and ten first-child submissions under the approved
   `30.00 USDC` reference cap. Every root was authoritatively FILLED, every child
   was authoritatively CANCELLED with zero child fill, every final chain was flat
@@ -151,21 +152,21 @@ create a separate approval class.
   `origin/prod:dashboard_server.py` for placement lookup, hidden-child creation,
   and historical operator authority. The legacy dashboard WebSocket was not
   reused as product authority.
-- Review sweep: the contextless runtime, backend safety, and focused-test
-  reviewers completed; all causal findings were consumed and no review agent
-  remains assigned to implementation work. The final milestone-closeout sweep
-  found no active validation or review subagent.
-- Final validation: focused backend tests and the final independent audit
-  passed without a new mutating/live action, then
-  `python3.13 tools/run_parallel_regression.py --workers 4` passed
-  `1461/1461` tests (`1005` parallel plus `456` serial), ownership, and diff
-  checks. The runner reported live Coinbase execution false and
-  submitted/executed notional `0 USDC`; evidence is under
-  `genai_tools/pytest-tmp/parallel-regression/b077499ed98d43f0a24316d18df7691d/`.
-  The synchronized frontend baseline passed `563/563` unit and `8/8`
-  Playwright tests with live execution `not_run` and notional `0 USDC`; the
-  canonical release gate is rerun after final cross-repository commit
-  association and before plan preparation.
+- Review sweep: independent backend binding, frontend identity, successor-plan
+  safety, smoke-artifact, and final cross-repository reviewers completed. All
+  causal findings were consumed: synthetic empty-list identity, stale Spot
+  Test-profile fixtures, legacy `ready` smoke consumers, and an
+  unauthoritative dashboard-fallback assertion. Re-review found no remaining
+  blocker or current live authority.
+- Final validation: focused backend/frontend gates and independent audit passed
+  without an order mutation. The canonical backend regression passed
+  `1471/1471` tests (`1015` parallel plus `456` serial), with runtime artifact
+  findings null, live execution false, and notional `0 USDC`; evidence is under
+  `genai_tools/pytest-tmp/parallel-regression/d1fa4eadc89449b6a2dca5eed51e193a/`.
+  The synchronized frontend passed `568/568` unit and `8/8` Playwright tests.
+  Its canonical release gate, authoritative Default-account read smoke,
+  deployment checks, and managed cleanup all passed with live execution
+  `not_run`/false and notional `0 USDC`.
 - Parked by default: M57 phase continuation, M58 fan-out/scheduler,
   runtime-control, retry/recovery, multi-product wallet-ledger work, and the
   single-product ladder/grid roadmap item.

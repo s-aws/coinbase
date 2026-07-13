@@ -1024,6 +1024,7 @@ class AdminFuturesEvidenceStatus(str, Enum):
 class AdminFuturesEvidenceSource(str, Enum):
     """Source labels for futures/perpetual admin evidence."""
 
+    BACKEND_REST_CLIENT = "backend_rest_client"
     RUNTIME_ORDERBOOK = "runtime_orderbook"
     RUNTIME_POSITIONS = "runtime_positions"
     DASHBOARD_ENGINE_STATE = "dashboard_engine_state"

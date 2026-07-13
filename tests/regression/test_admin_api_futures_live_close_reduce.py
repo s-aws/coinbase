@@ -20,16 +20,17 @@ from tools.run_admin_api_futures_live_close_reduce import (
 )
 
 
-def test_futures_live_close_reduce_body_defaults_to_avp_position():
+def test_futures_live_close_reduce_body_requires_authoritative_avp_position_key():
     body = build_futures_live_close_reduce_body(
         FuturesLiveCloseReduceConfig(
             confirm_live_close_reduce=True,
+            position_key="futures_position:portfolio-real-1:AVP-20DEC30-CDE",
             limit_price="6.93",
         )
     )
 
     assert body == {
-        "position_key": "futures_position:runtime:AVP-20DEC30-CDE",
+        "position_key": "futures_position:portfolio-real-1:AVP-20DEC30-CDE",
         "product_id": "AVP-20DEC30-CDE",
         "limit_price": "6.93",
         "size": "1",
@@ -99,7 +100,9 @@ def test_futures_live_close_reduce_records_backend_evidence_before_rest_submissi
     assert summary["final_status_code"] == 200
     assert summary["final_status"] == "accepted"
     assert summary["failure_stage"] is None
-    assert summary["position_key"] == "futures_position:runtime:AVP-20DEC30-CDE"
+    assert summary["position_key"] == (
+        "futures_position:portfolio-real-1:AVP-20DEC30-CDE"
+    )
     assert summary["product_id"] == "AVP-20DEC30-CDE"
     assert summary["client_order_id"] == "futures-live-close-reduce-test"
     assert summary["limit_price"] == "6.93"

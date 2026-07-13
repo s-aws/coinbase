@@ -19,6 +19,15 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 from urllib.parse import unquote
 import uuid
 
+from application.admin_api.futures_portfolio_binding import (
+    evaluate_futures_default_portfolio_binding,
+)
+from application.admin_api.spot_portfolio_binding import (
+    DEFAULT_SPOT_PORTFOLIO_LABEL,
+    SPOT_PORTFOLIO_ID_ENV,
+    SPOT_PORTFOLIO_LABEL_ENV,
+)
+
 
 class AdminMvpFuturesAccountFamily(str, Enum):
     US_CFM = "coinbase_futures_us_cfm"
@@ -1117,7 +1126,7 @@ class AdminMvpService:
 
         record_ids = self._spot_manual_order_proof_chain_record_ids(body, proof_context)
         snapshot = self._account_snapshot()
-        cap_guard_allowed = bool(snapshot["readiness"]["spot_wallet_inventory_ready"])
+        cap_guard_allowed = bool(snapshot["readiness"]["usable_for_spot_admission"])
         evidence = self._record_spot_manual_order_proof_chain_evidence(
             body=body,
             context=context,
@@ -1997,7 +2006,7 @@ class AdminMvpService:
 
         snapshot = self._account_snapshot()
         wallet = snapshot["wallet_inventory"]
-        ready = bool(snapshot["readiness"]["spot_wallet_inventory_ready"])
+        ready = bool(snapshot["readiness"]["usable_for_spot_admission"])
         return {
             "wallet_check_status": (
                 AdminMvpGateStatus.PASSED.value if ready else AdminMvpGateStatus.BLOCKED.value
@@ -2007,6 +2016,12 @@ class AdminMvpService:
             "account_snapshot_status": snapshot["account_reality"]["status"],
             "account_snapshot_source": snapshot["account_reality"]["source"],
             "account_snapshot_proof_id": snapshot["account_reality"]["proof_id"],
+            "spot_test_profile_bound": bool(
+                snapshot["readiness"].get("spot_test_profile_bound")
+            ),
+            "spot_portfolio_binding_blocker": snapshot[
+                "spot_portfolio_binding"
+            ].get("blocker"),
         }
 
     def record_reconciliation_plan(
@@ -3046,7 +3061,77 @@ class AdminMvpService:
     ) -> AdminMvpApiResult:
         """Execute a confirmed US CFM Futures close/reduce through backend REST."""
 
-        product_id = _futures_close_reduce_product_id(identity_value, body)
+        snapshot = self._account_snapshot()
+        authoritative_position = next(
+            (
+                position
+                for position in snapshot["futures_positions"]
+                if position.get("position_key") == identity_value
+            ),
+            None,
+        )
+        identity_failure_stage: str | None = None
+        identity_failure_message: str | None = None
+        if not snapshot["futures_portfolio_binding"].get("ready"):
+            identity_failure_stage = "futures_default_portfolio_binding_blocked"
+            identity_failure_message = (
+                "Futures close/reduce requires a fresh exact Default-profile "
+                "binding before any Coinbase submission."
+            )
+        elif authoritative_position is None:
+            identity_failure_stage = "futures_position_identity_not_authorized"
+            identity_failure_message = (
+                "Futures close/reduce position_key did not match an authoritative "
+                "position in the credential-bound Default portfolio."
+            )
+        else:
+            authoritative_product_id = str(
+                authoritative_position.get("product_id") or ""
+            )
+            requested_product_id = str(body.get("product_id") or "").strip()
+            if (
+                requested_product_id
+                and requested_product_id != authoritative_product_id
+            ):
+                identity_failure_stage = "futures_position_product_mismatch"
+                identity_failure_message = (
+                    "Futures close/reduce product_id disagreed with the exact "
+                    "authoritative position_key."
+                )
+            elif _decimal_value(body.get("size"), Decimal("0")) > _decimal_value(
+                authoritative_position.get("number_of_contracts"),
+                Decimal("0"),
+            ):
+                identity_failure_stage = "futures_position_size_exceeds_authoritative_position"
+                identity_failure_message = (
+                    "Futures close/reduce size exceeded the authoritative position "
+                    "contract count."
+                )
+        if identity_failure_stage is not None:
+            return self._futures_place_blocked_response(
+                status_code=400,
+                message=identity_failure_message or identity_failure_stage,
+                failure_stage=identity_failure_stage,
+                command=command,
+                action_class=action_class,
+                route=route,
+                service_method=service_method,
+                identity_key=identity_key,
+                identity_value=identity_value,
+                required_permission=required_permission,
+                payload_hash=payload_hash,
+                payload_validation=payload_validation,
+                readiness_decision=readiness_decision,
+                admission_decision=admission_decision,
+                risk_proof_id=risk_proof_id,
+                client_order_id=str(
+                    body.get("client_order_id") or context.idempotency_key
+                ),
+                notional=Decimal("0"),
+                context=context,
+            )
+
+        product_id = str(authoritative_position.get("product_id") or "")
         close_body = {**dict(body), "product_id": product_id}
         notional = futures_place_notional_usdc(close_body)
         client_order_id = _futures_client_order_id(body, context)
@@ -4772,32 +4857,105 @@ class AdminMvpService:
             rest_client,
             "get_account_wallets",
         )
+        permissions, permissions_read, permissions_error = _read_rest_object(
+            rest_client,
+            "get_api_key_permissions",
+        )
         portfolios, portfolios_read, portfolio_error = _read_rest_object(
             rest_client,
             "list_portfolios",
         )
-        positions, positions_read, positions_error = _read_rest_object(
-            rest_client,
-            "get_futures_positions",
+        portfolio_binding = evaluate_futures_default_portfolio_binding(
+            permissions=permissions,
+            portfolios=portfolios,
+            observed_at=generated_at,
+            permissions_read=permissions_read,
+            portfolio_catalog_read=portfolios_read,
+            permissions_error=permissions_error,
+            portfolio_catalog_error=portfolio_error,
         )
-        futures_margin_collateral, futures_margin_collateral_read, futures_margin_collateral_error = (
-            _read_rest_object(
+        portfolio_binding_evidence = portfolio_binding.to_dict()
+        spot_portfolio_binding = _spot_test_profile_binding_evidence(
+            permissions=permissions,
+            portfolios=portfolios,
+            expected_portfolio_id=os.environ.get(SPOT_PORTFOLIO_ID_ENV),
+            expected_portfolio_label=(
+                os.environ.get(SPOT_PORTFOLIO_LABEL_ENV, "").strip()
+                or DEFAULT_SPOT_PORTFOLIO_LABEL
+            ),
+            permissions_read=permissions_read,
+            portfolio_catalog_read=portfolios_read,
+            permissions_error=permissions_error,
+            portfolio_catalog_error=portfolio_error,
+        )
+
+        positions: Any = None
+        positions_read = False
+        positions_error: str | None = None
+        futures_margin_collateral: Any = None
+        futures_margin_collateral_read = False
+        futures_margin_collateral_error: str | None = None
+        if portfolio_binding.read_ready:
+            positions, positions_read, positions_error = _read_rest_object(
+                rest_client,
+                "get_futures_positions",
+            )
+            if (
+                positions_read
+                and positions_error is None
+                and _futures_position_portfolio_scope_conflicts(
+                    positions,
+                    expected_portfolio_uuid=(
+                        portfolio_binding.observed_portfolio_id or ""
+                    ),
+                )
+            ):
+                positions = None
+                positions_error = "futures_position_portfolio_scope_mismatch"
+            (
+                futures_margin_collateral,
+                futures_margin_collateral_read,
+                futures_margin_collateral_error,
+            ) = _read_rest_object(
                 rest_client,
                 "get_futures_margin_collateral_snapshot",
             )
-        )
-        if not any((wallets_read, portfolios_read, positions_read, futures_margin_collateral_read)):
+
+        if not any(
+            (
+                wallets_read,
+                permissions_read,
+                portfolios_read,
+                positions_read,
+                futures_margin_collateral_read,
+            )
+        ):
             return unavailable
 
         wallet_items = _normalize_wallets(wallets)
         portfolio_items = _normalize_portfolios(portfolios)
-        position_items = _normalize_futures_positions(positions)
-        wallet_inventory = _wallet_inventory_from_wallets(wallet_items)
-        futures_margin_inventory = _futures_margin_collateral_from_cfm_snapshot(
-            futures_margin_collateral,
-            futures_margin_collateral_error,
+        portfolio_scope = _portfolio_scope_from_binding(
+            portfolio_binding_evidence,
+            portfolio_items,
         )
-        portfolio_scope = _portfolio_scope_from_portfolios(portfolio_items)
+        position_items = _normalize_futures_positions(
+            positions,
+            portfolio_uuid=(
+                str(portfolio_binding_evidence.get("observed_portfolio_id") or "")
+                or None
+            ),
+        )
+        wallet_inventory = _wallet_inventory_from_wallets(wallet_items)
+        if portfolio_binding.read_ready:
+            futures_margin_inventory = _futures_margin_collateral_from_cfm_snapshot(
+                futures_margin_collateral,
+                futures_margin_collateral_error,
+            )
+        else:
+            futures_margin_inventory = _blocked_futures_margin_collateral(
+                portfolio_binding.blocker or "futures_default_portfolio_binding_blocked",
+                "US CFM reads require an exact Coinbase Default-profile credential binding.",
+            )
         futures_position_scope = [
             item["product_id"] for item in position_items if item.get("product_id")
         ]
@@ -4805,22 +4963,34 @@ class AdminMvpService:
             error
             for error in (
                 wallet_error,
+                permissions_error,
                 portfolio_error,
                 positions_error,
                 futures_margin_collateral_error,
             )
             if error is not None
         ]
+        if not portfolio_binding.read_ready and portfolio_binding.blocker:
+            read_errors.append(
+                f"futures_default_portfolio_binding:{portfolio_binding.blocker}"
+            )
         spot_wallet_ready = _spot_admission_quote_ready(wallet_inventory)
-        futures_scope_ready = positions_read and positions_error is None
+        spot_test_profile_bound = bool(spot_portfolio_binding["ready"])
+        futures_scope_ready = (
+            portfolio_binding.read_ready and positions_read and positions_error is None
+        )
         futures_margin_collateral_ready = futures_margin_inventory["status"] == "ready"
         readiness = {
-            "spot_account_ready": portfolios_read and portfolio_error is None and spot_wallet_ready,
+            "spot_account_ready": spot_test_profile_bound and spot_wallet_ready,
             "spot_wallet_inventory_ready": spot_wallet_ready,
+            "spot_test_profile_bound": spot_test_profile_bound,
             "futures_account_scope_ready": futures_scope_ready,
+            "futures_default_profile_bound": portfolio_binding.read_ready,
             "futures_observed_position_scope_ready": bool(position_items),
             "futures_margin_collateral_ready": futures_margin_collateral_ready,
-            "usable_for_spot_admission": spot_wallet_ready,
+            "usable_for_spot_admission": (
+                spot_test_profile_bound and spot_wallet_ready
+            ),
             "usable_for_futures_risk": futures_scope_ready and futures_margin_collateral_ready,
         }
         account_status = "ready" if any(readiness.values()) else "unavailable"
@@ -4851,6 +5021,8 @@ class AdminMvpService:
                 "observed_position_scope": futures_position_scope,
             },
             "portfolio_scope": portfolio_scope,
+            "futures_portfolio_binding": portfolio_binding_evidence,
+            "spot_portfolio_binding": spot_portfolio_binding,
             "wallet_inventory": wallet_inventory,
             "wallets": wallet_items,
             "readiness": readiness,
@@ -4901,14 +5073,21 @@ class AdminMvpService:
         live_service_decision: Mapping[str, Any] | None,
         live_adapter_decision: Mapping[str, Any] | None,
         live_runtime_ready: bool,
+        credential_trade_capability_ready: bool,
     ) -> dict[str, Any]:
         service_ready = live_service_decision is not None
         adapter_ready = live_adapter_decision is not None
         executor_boundary_ready = service_ready and adapter_ready
         live_exchange_command = _futures_live_exchange_command(command)
         local_reconciliation_command = command == "futures_reconcile"
+        credential_trade_capability_required = live_exchange_command
+        credential_trade_gate_ready = bool(
+            not credential_trade_capability_required
+            or credential_trade_capability_ready
+        )
         execution_allowed = bool(
             executor_boundary_ready
+            and credential_trade_gate_ready
             and (
                 (live_runtime_ready and live_exchange_command)
                 or local_reconciliation_command
@@ -4916,7 +5095,12 @@ class AdminMvpService:
         )
         executor_boundary_status = (
             AdminMvpFuturesExecutorStatus.LIVE_ENABLED.value
-            if executor_boundary_ready and live_runtime_ready and live_exchange_command
+            if (
+                executor_boundary_ready
+                and live_runtime_ready
+                and live_exchange_command
+                and credential_trade_capability_ready
+            )
             else AdminMvpFuturesExecutorStatus.OBSERVED_LIVE_DISABLED.value
             if executor_boundary_ready
             else AdminMvpFuturesExecutorStatus.PENDING_LIVE_DECISION.value
@@ -4924,6 +5108,11 @@ class AdminMvpService:
         first_blocker = (
             "none"
             if execution_allowed
+            else "futures_credential_trade_capability_missing"
+            if (
+                credential_trade_capability_required
+                and not credential_trade_capability_ready
+            )
             else "futures_reconciliation_execution_disabled"
             if executor_boundary_ready and not live_exchange_command
             else "futures_executor_live_disabled"
@@ -4957,6 +5146,18 @@ class AdminMvpService:
             ),
             "live_decision_scope_ready": service_ready and adapter_ready,
             "live_runtime_ready": live_runtime_ready,
+            "credential_trade_capability_ready": (
+                credential_trade_capability_ready
+            ),
+            "credential_trade_capability_required": (
+                credential_trade_capability_required
+            ),
+            "credential_trade_capability_source": (
+                "coinbase_api_key_permissions"
+            ),
+            "credential_trade_capability_evidence_ref": (
+                "/api/v1/futures/account#portfolio_binding.can_trade"
+            ),
             "live_exchange_command": live_exchange_command,
             "local_reconciliation_command": local_reconciliation_command,
             "executor_boundary_status": executor_boundary_status,
@@ -5270,7 +5471,12 @@ class AdminMvpService:
             "account_scope": snapshot["account_scope"],
             "portfolio_scope": snapshot["portfolio_scope"],
             "wallet_inventory": wallet_inventory,
-            "wallets": _wallet_rows_for_admin(snapshot["wallets"]),
+            "wallets": _wallet_rows_for_admin(
+                snapshot["wallets"],
+                spot_admission_authorized=bool(
+                    readiness["usable_for_spot_admission"]
+                ),
+            ),
             "wallet_count": len(snapshot["wallets"]),
             "readiness": readiness,
             "spot_admission_input": spot_admission_input,
@@ -6454,11 +6660,17 @@ class AdminMvpService:
             "observed_position_scope": position_scope,
             "account_reality": snapshot["account_reality"],
             "account_readiness": snapshot["readiness"],
-            "collateral": snapshot["futures_margin_collateral"]["collateral"],
-            "margin": snapshot["futures_margin_collateral"]["margin"],
-            "funding": funding,
-            "liquidation": liquidation,
-            "reduce_only_close_only": reduce_close,
+            "portfolio_scope": snapshot["portfolio_scope"],
+            "portfolio_binding": snapshot["futures_portfolio_binding"],
+            "collateral": _futures_api_evidence(
+                snapshot["futures_margin_collateral"]["collateral"]
+            ),
+            "margin": _futures_api_evidence(
+                snapshot["futures_margin_collateral"]["margin"]
+            ),
+            "funding": _futures_api_evidence(funding),
+            "liquidation": _futures_api_evidence(liquidation),
+            "reduce_only_close_only": _futures_api_evidence(reduce_close),
             "position_pnl": self._futures_evidence(
                 "position_pnl",
                 "unavailable",
@@ -6467,7 +6679,12 @@ class AdminMvpService:
             ),
             "position_count": len(snapshot["futures_positions"]),
             "read_only": True,
-            "command_routes_mode": "backend_admin_api_blocked",
+            "command_routes_mode": "backend_admin_api_read_only",
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "live_coinbase_read_ran": snapshot["coinbase_read_ran"],
+            "live_coinbase_execution": "not_run",
+            "notional_usdc": "0",
             "live_coinbase_orders_ran": False,
         }
 
@@ -6599,15 +6816,39 @@ class AdminMvpService:
         limit = _query_int(query, "limit", 10)
         offset = _query_int(query, "offset", 0)
         snapshot = self._account_snapshot()
-        items = snapshot["futures_positions"][offset : offset + limit]
+        product_id = _query_text(query, "product_id")
+        position_side = _query_text(query, "position_side").upper()
+        matching_items = [
+            item
+            for item in snapshot["futures_positions"]
+            if (not product_id or item.get("product_id") == product_id)
+            and (
+                not position_side
+                or str(item.get("position_side") or "").upper() == position_side
+            )
+        ]
+        items = matching_items[offset : offset + limit]
         return {
             "type": "admin_futures_positions",
             "filters": dict(query),
             "count": len(items),
             "items": items,
-            "pagination": _pagination(limit, len(snapshot["futures_positions"]), offset),
+            "pagination": _page_pagination(
+                limit=limit,
+                returned_count=len(items),
+                total_count=len(matching_items),
+                offset=offset,
+            ),
+            "account_reality": snapshot["account_reality"],
+            "portfolio_scope": snapshot["portfolio_scope"],
+            "portfolio_binding": snapshot["futures_portfolio_binding"],
             "read_only": True,
-            "command_routes_mode": "backend_admin_api_blocked",
+            "command_routes_mode": "backend_admin_api_read_only",
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "live_coinbase_read_ran": snapshot["coinbase_read_ran"],
+            "live_coinbase_execution": "not_run",
+            "notional_usdc": "0",
             "live_coinbase_orders_ran": False,
         }
 
@@ -6749,7 +6990,7 @@ class AdminMvpService:
             (
                 item
                 for item in snapshot["futures_positions"]
-                if item["position_key"] == position_key or item["product_id"] == position_key
+                if item["position_key"] == position_key
             ),
             None,
         )
@@ -6758,8 +6999,16 @@ class AdminMvpService:
             "position_key": position_key,
             "found": position is not None,
             "position": position,
+            "account_reality": snapshot["account_reality"],
+            "portfolio_scope": snapshot["portfolio_scope"],
+            "portfolio_binding": snapshot["futures_portfolio_binding"],
             "read_only": True,
-            "command_routes_mode": "backend_admin_api_blocked",
+            "command_routes_mode": "backend_admin_api_read_only",
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "live_coinbase_read_ran": snapshot["coinbase_read_ran"],
+            "live_coinbase_execution": "not_run",
+            "notional_usdc": "0",
             "live_coinbase_orders_ran": False,
         }
 
@@ -6953,6 +7202,9 @@ class AdminMvpService:
 
     def _futures_command_suite(self) -> dict[str, Any]:
         snapshot = self._account_snapshot()
+        credential_trade_capability_ready = (
+            snapshot["futures_portfolio_binding"].get("can_trade") is True
+        )
         fee_snapshot = self._read_admin_fee_snapshot()["snapshot"]
         futures_liquidation_evidence = self._futures_liquidation_evidence(
             snapshot["futures_margin_collateral"]["margin"]
@@ -6985,6 +7237,9 @@ class AdminMvpService:
                 live_service_decision=live_service_decision,
                 live_adapter_decision=live_adapter_decision,
                 live_runtime_ready=live_runtime_ready,
+                credential_trade_capability_ready=(
+                    credential_trade_capability_ready
+                ),
             )
             commands.append(
                 self._futures_command(
@@ -7459,6 +7714,8 @@ class AdminMvpService:
         blocker_detail = (
             "Latest Futures/Perpetual live submit was rejected before Coinbase order mutation by backend cap evidence."
             if latest_live_submit_failure
+            else "The credential-bound Default profile is view-only; Futures commands require explicit Coinbase trade capability in addition to Admin authorization."
+            if execution_blocker == "futures_credential_trade_capability_missing"
             else "Futures confirmed live exchange commands can reach the backend executor with explicit operator acknowledgement."
             if execution_blocker == "none"
             else "Futures US CFM live-service and live-adapter decisions are bound; the backend Futures executor boundary is present and live-disabled."
@@ -8802,7 +9059,9 @@ def _unavailable_account_snapshot(generated_at: str) -> dict[str, Any]:
     readiness = {
         "spot_account_ready": False,
         "spot_wallet_inventory_ready": False,
+        "spot_test_profile_bound": False,
         "futures_account_scope_ready": False,
+        "futures_default_profile_bound": False,
         "futures_observed_position_scope_ready": False,
         "futures_margin_collateral_ready": False,
         "usable_for_spot_admission": False,
@@ -8834,6 +9093,50 @@ def _unavailable_account_snapshot(generated_at: str) -> dict[str, Any]:
             "source": "backend_admin_mvp",
             "freshness_status": LOCAL_DEFAULT_FRESHNESS,
         },
+        "futures_portfolio_binding": {
+            "status": "blocked",
+            "ready": False,
+            "blocker": "futures_default_portfolio_rest_client_unavailable",
+            "expected_portfolio_label": "Default",
+            "expected_portfolio_type": "DEFAULT",
+            "observed_portfolio_id": None,
+            "observed_portfolio_label": None,
+            "observed_portfolio_type": None,
+            "can_view": None,
+            "can_trade": None,
+            "read_authorized": False,
+            "selection_authority": "cdp_api_key_permissioned_portfolio",
+            "request_portfolio_override_allowed": False,
+            "source": "backend_rest_unavailable",
+            "freshness_status": LOCAL_DEFAULT_FRESHNESS,
+            "observed_at": generated_at,
+            "permissions_read_ran": False,
+            "portfolio_catalog_read_ran": False,
+            "permissions_error_present": False,
+            "portfolio_catalog_error_present": False,
+            "account_family": FUTURES_ACCOUNT_FAMILY_US_CFM,
+            "product_family": "FUTURES_PERPETUALS",
+            "profile_alias": "Default",
+            "portfolio_id": None,
+            "credential_trade_permission_present": False,
+            "command_authority_granted": False,
+            "live_coinbase_execution_authorized": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+        },
+        "spot_portfolio_binding": {
+            "status": "blocked",
+            "ready": False,
+            "blocker": "spot_test_portfolio_rest_client_unavailable",
+            "observed_portfolio_id": None,
+            "observed_portfolio_label": None,
+            "observed_portfolio_type": None,
+            "can_view": None,
+            "can_trade": None,
+            "selection_authority": "cdp_api_key_permissioned_portfolio",
+            "request_portfolio_override_allowed": False,
+            "source": "backend_rest_unavailable",
+        },
         "wallet_inventory": {
             "currency": "USDC",
             "available_notional_usdc": "0",
@@ -8860,17 +9163,22 @@ def _spot_admission_input_from_snapshot(snapshot: Mapping[str, Any]) -> dict[str
     readiness = _mapping(snapshot.get("readiness"))
     wallet_inventory = _mapping(snapshot.get("wallet_inventory"))
     account_reality = _mapping(snapshot.get("account_reality"))
-    spot_wallet_ready = bool(readiness.get("spot_wallet_inventory_ready"))
+    spot_admission_ready = bool(readiness.get("usable_for_spot_admission"))
+    spot_portfolio_binding = _mapping(snapshot.get("spot_portfolio_binding"))
     return {
-        "status": "ready" if spot_wallet_ready else "blocked",
+        "status": "ready" if spot_admission_ready else "blocked",
         "wallet_check_source": ACCOUNT_SNAPSHOT_WALLET_SOURCE,
         "currency": str(wallet_inventory.get("currency") or "USDC"),
         "available_notional_usdc": str(wallet_inventory.get("available_notional_usdc") or "0"),
         "proof_id": str(account_reality.get("proof_id") or "account-reality-unavailable"),
         "first_blocker": (
             "none"
-            if spot_wallet_ready
-            else str(wallet_inventory.get("quote_wallet_error") or "spot_wallet_inventory_ready")
+            if spot_admission_ready
+            else str(
+                spot_portfolio_binding.get("blocker")
+                or wallet_inventory.get("quote_wallet_error")
+                or "spot_wallet_inventory_ready"
+            )
         ),
     }
 
@@ -9178,7 +9486,109 @@ def _normalize_portfolios(value: Any) -> list[dict[str, Any]]:
     return portfolios
 
 
-def _normalize_futures_positions(value: Any) -> list[dict[str, Any]]:
+def _spot_test_profile_binding_evidence(
+    *,
+    permissions: Any,
+    portfolios: Any,
+    expected_portfolio_id: str | None,
+    expected_portfolio_label: str,
+    permissions_read: bool,
+    portfolio_catalog_read: bool,
+    permissions_error: str | None,
+    portfolio_catalog_error: str | None,
+) -> dict[str, Any]:
+    """Project preloaded credential evidence onto the approved Spot Test profile."""
+
+    permission_record = _object_to_dict(permissions)
+    expected_id = str(expected_portfolio_id or "").strip()
+    expected_label = str(expected_portfolio_label or "").strip() or "Test"
+    observed_portfolio_id = str(
+        permission_record.get("portfolio_uuid")
+        or permission_record.get("portfolio_id")
+        or ""
+    ).strip()
+    observed_portfolio_type = str(
+        permission_record.get("portfolio_type")
+        or permission_record.get("type")
+        or ""
+    ).strip().upper()
+    can_view = permission_record.get("can_view")
+    can_view = can_view if isinstance(can_view, bool) else None
+    can_trade = permission_record.get("can_trade")
+    can_trade = can_trade if isinstance(can_trade, bool) else None
+
+    if isinstance(portfolios, Mapping):
+        raw_rows = portfolios.get("portfolios")
+        candidates = raw_rows if isinstance(raw_rows, list) else []
+    elif isinstance(portfolios, list):
+        candidates = portfolios
+    else:
+        candidates = []
+    matching_rows = []
+    for item in candidates:
+        row = _object_to_dict(item)
+        row_id = str(
+            row.get("uuid")
+            or row.get("portfolio_uuid")
+            or row.get("portfolio_id")
+            or ""
+        ).strip()
+        if observed_portfolio_id and row_id == observed_portfolio_id:
+            matching_rows.append(row)
+    matched = matching_rows[0] if len(matching_rows) == 1 else {}
+    observed_label = str(
+        matched.get("name") or matched.get("portfolio_name") or ""
+    ).strip()
+    catalog_type = str(
+        matched.get("type") or matched.get("portfolio_type") or ""
+    ).strip().upper()
+
+    blocker: str | None = None
+    if not expected_id:
+        blocker = "spot_test_portfolio_id_missing"
+    elif not permissions_read or permissions_error is not None:
+        blocker = "spot_test_portfolio_permissions_unavailable"
+    elif not observed_portfolio_id:
+        blocker = "spot_test_portfolio_id_missing"
+    elif observed_portfolio_id != expected_id:
+        blocker = "spot_test_portfolio_mismatch"
+    elif observed_portfolio_type != "CONSUMER":
+        blocker = "spot_test_portfolio_type_mismatch"
+    elif not portfolio_catalog_read or portfolio_catalog_error is not None:
+        blocker = "spot_test_portfolio_catalog_unavailable"
+    elif len(matching_rows) != 1:
+        blocker = "spot_test_portfolio_catalog_ambiguous"
+    elif catalog_type != "CONSUMER":
+        blocker = "spot_test_portfolio_type_mismatch"
+    elif observed_label != expected_label:
+        blocker = "spot_test_portfolio_label_mismatch"
+    elif can_view is not True:
+        blocker = "spot_test_portfolio_view_permission_missing"
+    elif can_trade is not True:
+        blocker = "spot_test_portfolio_trade_permission_missing"
+
+    return {
+        "status": "matched" if blocker is None else "blocked",
+        "ready": blocker is None,
+        "blocker": blocker,
+        "expected_portfolio_id": expected_id or None,
+        "expected_portfolio_label": expected_label,
+        "observed_portfolio_id": observed_portfolio_id or None,
+        "observed_portfolio_label": observed_label or None,
+        "observed_portfolio_type": observed_portfolio_type or None,
+        "can_view": can_view,
+        "can_trade": can_trade,
+        "selection_authority": "cdp_api_key_permissioned_portfolio",
+        "request_portfolio_override_allowed": False,
+        "source": "coinbase_api_key_permissions_and_portfolio_catalog",
+    }
+
+
+def _normalize_futures_positions(
+    value: Any,
+    *,
+    portfolio_uuid: str | None = None,
+) -> list[dict[str, Any]]:
     if isinstance(value, Mapping):
         candidates = value.values()
     elif isinstance(value, list):
@@ -9191,20 +9601,55 @@ def _normalize_futures_positions(value: Any) -> list[dict[str, Any]]:
         product_id = str(data.get("product_id") or "")
         if not product_id:
             continue
+        scoped_portfolio_uuid = str(portfolio_uuid or "").strip()
         positions.append(
             {
-                "position_key": f"futures_position:runtime:{product_id}",
+                "position_key": (
+                    f"futures_position:{scoped_portfolio_uuid}:{product_id}"
+                    if scoped_portfolio_uuid
+                    else f"futures_position:unbound:{product_id}"
+                ),
                 "product_id": product_id,
+                "portfolio_uuid": scoped_portfolio_uuid or None,
                 "position_side": str(data.get("position_side") or data.get("side") or "UNKNOWN"),
                 "number_of_contracts": str(data.get("number_of_contracts") or "0"),
                 "current_price": str(data.get("current_price") or ""),
                 "entry_price": str(data.get("entry_price") or ""),
                 "raw_position": data,
-                "source": "runtime_positions",
+                "source": BACKEND_REST_CLIENT_SOURCE,
                 "updated_at": data.get("updated_at"),
             }
         )
     return positions
+
+
+def _futures_position_portfolio_scope_conflicts(
+    value: Any,
+    *,
+    expected_portfolio_uuid: str,
+) -> bool:
+    """Reject an explicit position scope that disagrees with key permissions."""
+
+    expected = str(expected_portfolio_uuid or "").strip()
+    if not expected:
+        return True
+    if isinstance(value, Mapping):
+        candidates = value.values()
+    elif isinstance(value, list):
+        candidates = value
+    else:
+        candidates = []
+    for item in candidates:
+        data = _object_to_dict(item)
+        claimed = str(
+            data.get("portfolio_uuid")
+            or data.get("portfolio_id")
+            or data.get("retail_portfolio_id")
+            or ""
+        ).strip()
+        if claimed and claimed != expected:
+            return True
+    return False
 
 
 def _futures_margin_collateral_from_cfm_snapshot(
@@ -9374,6 +9819,17 @@ def _futures_evidence_item(
     }
     if value is not None:
         evidence["value"] = value
+    return evidence
+
+
+def _futures_api_evidence(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Normalize internal gate vocabulary to the typed read-model contract."""
+
+    evidence = dict(value)
+    evidence["status"] = {
+        "ready": "observed",
+        "blocked": "unavailable",
+    }.get(str(evidence.get("status") or ""), evidence.get("status"))
     return evidence
 
 
@@ -11292,14 +11748,23 @@ def _spot_admission_quote_wallet(
     return None
 
 
-def _wallet_rows_for_admin(wallets: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _wallet_rows_for_admin(
+    wallets: list[dict[str, Any]],
+    *,
+    spot_admission_authorized: bool,
+) -> list[dict[str, Any]]:
     rows = []
     for wallet in wallets:
         admission_asset = wallet["currency"] in SPOT_ADMISSION_QUOTE_CURRENCIES
-        admission_ready = admission_asset and _decimal_value(
-            wallet["available_balance"],
-            Decimal("0"),
-        ) > Decimal("0")
+        admission_ready = (
+            spot_admission_authorized
+            and admission_asset
+            and _decimal_value(
+                wallet["available_balance"],
+                Decimal("0"),
+            )
+            > Decimal("0")
+        )
         rows.append(
             {
                 **wallet,
@@ -11314,9 +11779,37 @@ def _wallet_rows_for_admin(wallets: list[dict[str, Any]]) -> list[dict[str, Any]
     return rows
 
 
-def _portfolio_scope_from_portfolios(portfolios: list[dict[str, Any]]) -> dict[str, Any]:
-    if portfolios:
-        return portfolios[0]
+def _portfolio_scope_from_binding(
+    binding: Mapping[str, Any],
+    portfolios: list[dict[str, Any]],
+) -> dict[str, Any]:
+    observed_portfolio_id = str(
+        binding.get("observed_portfolio_id")
+        or binding.get("portfolio_id")
+        or ""
+    ).strip()
+    if observed_portfolio_id:
+        matched = next(
+            (
+                portfolio
+                for portfolio in portfolios
+                if str(portfolio.get("portfolio_id") or "")
+                == observed_portfolio_id
+            ),
+            None,
+        )
+        if matched is not None:
+            return matched
+        return {
+            "portfolio_id": observed_portfolio_id,
+            "portfolio_name": str(
+                binding.get("observed_portfolio_label")
+                or binding.get("profile_alias")
+                or "Unknown Permissioned Portfolio"
+            ),
+            "source": BACKEND_REST_CLIENT_SOURCE,
+            "freshness_status": "backend_rest_missing_portfolio",
+        }
     return {
         "portfolio_id": "unknown",
         "portfolio_name": "Unknown Backend Portfolio",
@@ -11920,8 +12413,21 @@ def _futures_live_decision_summary(
     )
     missing_adapter_count = len(evidences) - ready_adapter_count
     first_evidence = evidences[0] if evidences else {}
+    live_exchange_evidences = [
+        evidence
+        for evidence in evidences
+        if evidence.get("live_exchange_command") is True
+    ]
+    credential_trade_capability_ready = bool(live_exchange_evidences) and all(
+        evidence.get("credential_trade_capability_ready") is True
+        for evidence in live_exchange_evidences
+    )
     executor_boundary_ready = service_ready and missing_adapter_count == 0
-    execution_allowed = bool(executor_boundary_ready and live_runtime_ready)
+    execution_allowed = bool(
+        executor_boundary_ready
+        and live_runtime_ready
+        and credential_trade_capability_ready
+    )
     executor_boundary_status = (
         AdminMvpFuturesExecutorStatus.LIVE_ENABLED.value
         if execution_allowed
@@ -11933,6 +12439,8 @@ def _futures_live_decision_summary(
     first_blocker = (
         "none"
         if execution_allowed
+        else "futures_credential_trade_capability_missing"
+        if not credential_trade_capability_ready
         else
         "futures_executor_live_disabled"
         if executor_boundary_ready
@@ -11957,6 +12465,15 @@ def _futures_live_decision_summary(
         "first_blocker": first_blocker,
         "required_evidence_refs": [LIVE_SERVICE_DECISION_ROUTE, LIVE_ADAPTER_DECISION_ROUTE],
         "execution_allowed": execution_allowed,
+        "credential_trade_capability_ready": (
+            credential_trade_capability_ready
+        ),
+        "credential_trade_capability_source": (
+            "coinbase_api_key_permissions"
+        ),
+        "credential_trade_capability_evidence_ref": (
+            "/api/v1/futures/account#portfolio_binding.can_trade"
+        ),
         "manual_live_acknowledgement_required": execution_allowed,
         "live_runtime_ready": live_runtime_ready,
         "spot_rule_authority": False,

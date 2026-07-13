@@ -4,9 +4,12 @@ This project has several operator and test surfaces. They do not have equal
 live authority, and a backend-only live runner is not proof that the matching
 HTTP or browser workflow is live-capable.
 
-Current goal id is `selected_order_execution_closeout_slice`. Default release
-and deployment checks are no-live and must report live Coinbase execution as
-not run with notional `0`.
+Current goal id is `futures_default_profile_readback_slice_1`. Slice 1 uses
+only authoritative GET account/position reads. Its ordered Slices 2-5 are
+planning records and do not activate a preview marker, attempt ledger,
+runtime, placement, cancel, fill, close, or reduce call. Default release and
+deployment checks are no-live and must report live Coinbase execution as not
+run with notional `0`.
 
 ## Admin HTTP Surfaces
 
@@ -25,9 +28,14 @@ not run with notional `0`.
   fill-follow-up executor after exact prerequisites and must prove one accepted
   child through parent/child readback. It does not submit or cancel Coinbase
   orders and is not automatic fill-event processing.
-- Futures place, close/reduce, and cancel HTTP routes remain no-live command
-  drafts. Their shared command-service methods return disabled evidence and do
-  not invoke the backend-only futures live executor.
+- The completed Futures Slice 1 HTTP path is `GET /api/v1/futures/account`,
+  `GET /api/v1/futures/positions`, and exact
+  `GET /api/v1/futures/positions/{position_key}`. It binds reads to the
+  API-key-permissioned Default/DEFAULT portfolio and authorizes no mutation.
+  Existing Futures place, close/reduce, and cancel surfaces are not activated
+  by that readback or by the ordered successor plan. A later live successor
+  requires its own implementation/audit/preparation authority and exact sealed
+  plan approval.
 - Generic stealth create/reveal/move/cancel/recovery/reconciliation, movement
   reprice, campaign, and sweep HTTP commands remain route-specific no-live or
   local-evidence surfaces. The only stealth exception is the backend-controlled

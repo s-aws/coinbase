@@ -4,13 +4,12 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current goal id: `selected_chain_child_cancel_v15_slice`. The current bounded
-slice adds a sealed root-scoped deterministic-first-child cancel to the
-completed selected-root readback evidence. V14 proved automatic/
-live fill-event processing under the same explicit
-order-level limits and backend authorization, wallet/cap, audit,
-reconciliation, rollback, and readback gates as every live order, without a
-separate fill-testing approval class. Fan-out, scheduler, runtime-control,
+Current goal id: `futures_default_profile_readback_slice_1`. The completed
+slice binds authoritative US CFM account, position, margin, and collateral
+reads to the API-key-permissioned exact Default/DEFAULT portfolio and exposes
+portfolio-scoped position identity without live execution. Slices 2-5 are
+ordered preview, terminal order roundtrip, intentional fill/position readback,
+and closeout successors; none is active. Fan-out, scheduler, runtime-control,
 retry/recovery, multi-product wallet-ledger work, and ladder/grid order sets
 are parked.
 

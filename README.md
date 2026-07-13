@@ -13,9 +13,10 @@ plans.
 
 ## Current MVP Goal
 
-Current goal id `selected_chain_child_cancel_v15_slice` records the bounded
-root-scoped deterministic-first-child cancel implementation and sealed-plan
-approval gate. No other work item is selected. See
+Current goal id `futures_default_profile_readback_slice_1` records the
+completed Default-profile US CFM account/position readback slice and the
+strictly ordered, non-authorizing Slice 2-5 continuation plan. No successor is
+active. See
 [Coinbase Admin MVP Goal](genai_data/AGENT_MVP_REBUILD_GOAL.md). Historical M57
 phase ranges and M58 fan-out/scheduler blockers do not select default work.
 

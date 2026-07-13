@@ -4,7 +4,7 @@
 
 `genai_data/` contains expanded engineering references and historical analyses.
 Current work authority is `AGENT_MVP_REBUILD_GOAL.md`, goal id
-`selected_chain_child_cancel_v15_slice`, paired with the frontend canonical goal
+`futures_default_profile_readback_slice_1`, paired with the frontend canonical goal
 at `/home/ec2-user/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. An individual
 analysis or implementation note does not become current work merely because it
 lives in this directory.

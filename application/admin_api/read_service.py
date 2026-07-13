@@ -4396,6 +4396,57 @@ def _futures_evidence(
     )
 
 
+def _offline_futures_account_reality() -> dict[str, Any]:
+    return {
+        "status": "offline_fixture",
+        "source": "backend_admin_read_contract",
+        "proof_id": "futures-account-read-offline-fixture",
+    }
+
+
+def _offline_futures_portfolio_scope() -> dict[str, Any]:
+    return {
+        "portfolio_id": "unknown",
+        "portfolio_name": "Unbound offline fixture",
+        "source": "backend_admin_read_contract",
+        "freshness_status": "offline_fixture",
+    }
+
+
+def _offline_futures_portfolio_binding() -> dict[str, Any]:
+    return {
+        "status": "blocked",
+        "ready": False,
+        "blocker": "futures_default_portfolio_live_read_required",
+        "expected_portfolio_label": "Default",
+        "expected_portfolio_type": "DEFAULT",
+        "observed_portfolio_id": None,
+        "observed_portfolio_label": None,
+        "observed_portfolio_type": None,
+        "can_view": None,
+        "can_trade": None,
+        "read_authorized": False,
+        "selection_authority": "cdp_api_key_permissioned_portfolio",
+        "request_portfolio_override_allowed": False,
+        "source": "backend_admin_read_contract",
+        "freshness_status": "offline_fixture",
+        "observed_at": "not_observed",
+        "permissions_read_ran": False,
+        "portfolio_catalog_read_ran": False,
+        "permissions_error_present": False,
+        "portfolio_catalog_error_present": False,
+        "account_family": "coinbase_futures_us_cfm",
+        "product_family": "FUTURES_PERPETUALS",
+        "profile_alias": "Default",
+        "portfolio_id": None,
+        "credential_trade_permission_present": False,
+        "command_authority_granted": False,
+        "live_coinbase_execution_authorized": False,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+    }
+
+
 def _risk_evidence(
     *,
     name: str,
@@ -23651,8 +23702,14 @@ class AdminApiReadService:
     def build_futures_command_suite(self) -> AdminFuturesCommandSuiteResponse:
         """Return read-only M57 futures/perpetual command contract evidence."""
 
-        account = self.build_futures_account()
-        positions = self.build_futures_positions(limit=500, offset=0)
+        account = self.build_futures_account(
+            _include_unbound_runtime_contract_evidence=True
+        )
+        positions = self.build_futures_positions(
+            limit=500,
+            offset=0,
+            _include_unbound_runtime_contract_evidence=True,
+        )
         futures_live_decision_context = self.build_futures_live_decision_context()
         observed_position_scope = bool(positions.items)
         observed_product_scope = bool(
@@ -52205,14 +52262,28 @@ class AdminApiReadService:
             ),
         )
 
-    def build_futures_account(self) -> AdminFuturesAccountReadResponse:
+    def build_futures_account(
+        self,
+        *,
+        _include_unbound_runtime_contract_evidence: bool = False,
+    ) -> AdminFuturesAccountReadResponse:
         """Return read-only futures/perpetual account and risk evidence."""
 
         products = _futures_product_metadata()
-        positions = _futures_position_items()
+        # Runtime/dashboard evidence is retained only for the parked command-
+        # contract inventory. Operator-facing offline fixtures stay fail-closed.
+        positions = (
+            _futures_position_items()
+            if _include_unbound_runtime_contract_evidence
+            else []
+        )
         configured_product_scope = sorted(products.keys())
         observed_position_scope = sorted({item.product_id for item in positions})
-        fee_info = _runtime_fee_info()
+        fee_info = (
+            _runtime_fee_info()
+            if _include_unbound_runtime_contract_evidence
+            else {}
+        )
 
         margin_value = {
             key: fee_info.get(key)
@@ -52366,16 +52437,17 @@ class AdminApiReadService:
             configured_product_scope=configured_product_scope,
             observed_position_scope=observed_position_scope,
             account_reality=AdminAccountRealityEvidence(
-                status="offline_fixture",
-                source="backend_admin_read_contract",
-                proof_id="futures-account-read-offline-fixture",
+                **_offline_futures_account_reality()
             ),
             account_readiness=AdminAccountReadinessEvidence(
-                futures_account_scope_ready=bool(configured_product_scope),
-                futures_observed_position_scope_ready=bool(observed_position_scope),
+                futures_account_scope_ready=False,
+                futures_default_profile_bound=False,
+                futures_observed_position_scope_ready=False,
                 usable_for_futures_risk=False,
-                futures_margin_collateral_ready=bool(margin_value),
+                futures_margin_collateral_ready=False,
             ),
+            portfolio_scope=_offline_futures_portfolio_scope(),
+            portfolio_binding=_offline_futures_portfolio_binding(),
             collateral=collateral,
             margin=margin,
             funding=funding,
@@ -52392,6 +52464,7 @@ class AdminApiReadService:
         position_side: str | None = None,
         limit: int = 100,
         offset: int = 0,
+        _include_unbound_runtime_contract_evidence: bool = False,
     ) -> AdminFuturesPositionListResponse:
         """Return read-only futures/perpetual positions from runtime evidence."""
 
@@ -52403,7 +52476,11 @@ class AdminApiReadService:
             "limit": normalized_limit,
             "offset": normalized_offset,
         }
-        items = _futures_position_items()
+        items = (
+            _futures_position_items()
+            if _include_unbound_runtime_contract_evidence
+            else []
+        )
         filtered: list[AdminFuturesPositionReadItem] = []
         for item in items:
             if product_id and item.product_id != product_id:
@@ -52429,6 +52506,9 @@ class AdminApiReadService:
                 "has_more": has_more,
             },
             items=page_items,
+            account_reality=_offline_futures_account_reality(),
+            portfolio_scope=_offline_futures_portfolio_scope(),
+            portfolio_binding=_offline_futures_portfolio_binding(),
         )
 
     def build_futures_position_detail(
@@ -52438,18 +52518,24 @@ class AdminApiReadService:
     ) -> AdminFuturesPositionDetailResponse:
         """Return one read-only futures/perpetual position by ``position_key``."""
 
-        positions = _futures_position_items()
+        positions: list[AdminFuturesPositionReadItem] = []
         for position in positions:
             if position.position_key == position_key:
                 return AdminFuturesPositionDetailResponse(
                     position_key=position_key,
                     found=True,
                     position=position,
+                    account_reality=_offline_futures_account_reality(),
+                    portfolio_scope=_offline_futures_portfolio_scope(),
+                    portfolio_binding=_offline_futures_portfolio_binding(),
                 )
         return AdminFuturesPositionDetailResponse(
             position_key=position_key,
             found=False,
             position=None,
+            account_reality=_offline_futures_account_reality(),
+            portfolio_scope=_offline_futures_portfolio_scope(),
+            portfolio_binding=_offline_futures_portfolio_binding(),
         )
 
     def build_release_gate(self) -> AdminGateReadResponse:

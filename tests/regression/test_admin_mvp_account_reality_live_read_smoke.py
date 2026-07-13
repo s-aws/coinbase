@@ -46,10 +46,10 @@ def ready_read_results() -> dict[str, SimpleNamespace]:
             {
                 "type": "admin_futures_account",
                 "account_readiness": readiness,
-                "collateral": {"status": "ready", "source": "backend_rest_client"},
-                "margin": {"status": "ready", "source": "backend_rest_client"},
+                "collateral": {"status": "observed", "source": "backend_rest_client"},
+                "margin": {"status": "observed", "source": "backend_rest_client"},
                 "funding": {
-                    "status": "ready",
+                    "status": "observed",
                     "source": "backend_rest_client",
                     "value": {
                         "funding_applicability": "not_applicable_us_cfm",
@@ -58,7 +58,7 @@ def ready_read_results() -> dict[str, SimpleNamespace]:
                     },
                 },
                 "liquidation": {
-                    "status": "ready",
+                    "status": "observed",
                     "source": "backend_rest_client",
                     "value": {
                         "liquidation_threshold_present": True,
@@ -66,7 +66,7 @@ def ready_read_results() -> dict[str, SimpleNamespace]:
                     },
                 },
                 "reduce_only_close_only": {
-                    "status": "ready",
+                    "status": "observed",
                     "source": "runtime_positions",
                     "value": {
                         "position_side_observed_count": 1,
@@ -191,13 +191,13 @@ def test_account_reality_live_read_smoke_writes_redacted_ready_summary(tmp_path)
     assert summary["live_coinbase_execution"] == "not_run"
     assert summary["notional_usdc"] == "0"
     assert summary["wallet"]["futures_available_notional_present"] is True
-    assert summary["futures_account"]["funding_status"] == "ready"
+    assert summary["futures_account"]["funding_status"] == "observed"
     assert summary["futures_account"]["funding_applicability"] == "not_applicable_us_cfm"
     assert summary["futures_account"]["funding_required"] is False
-    assert summary["futures_account"]["liquidation_status"] == "ready"
+    assert summary["futures_account"]["liquidation_status"] == "observed"
     assert summary["futures_account"]["liquidation_threshold_present"] is True
     assert summary["futures_account"]["liquidation_buffer_present"] is True
-    assert summary["futures_account"]["reduce_only_close_only_status"] == "ready"
+    assert summary["futures_account"]["reduce_only_close_only_status"] == "observed"
     assert summary["futures_account"]["position_side_observed_count"] == 1
     assert summary["futures_positions"]["count"] == 1
     assert summary["futures_positions"]["position_scope_present"] is True

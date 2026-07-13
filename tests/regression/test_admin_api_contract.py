@@ -84026,9 +84026,10 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
             },
             "items": [
                 {
-                    "position_key": "futures_position:runtime:BIP-20DEC30-CDE",
+                    "position_key": "futures_position:default-portfolio:BIP-20DEC30-CDE",
                     "product_id": "BIP-20DEC30-CDE",
                     "product_type": "FUTURE",
+                    "portfolio_uuid": "default-portfolio",
                     "position_side": "LONG",
                     "number_of_contracts": "2",
                     "open_order_side": "BUY",
@@ -84064,6 +84065,92 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
         },
     )
     client.app.dependency_overrides[futures_routes.get_read_service] = lambda: service
+    authoritative_calls: list[tuple[str, dict[str, object]]] = []
+
+    def authoritative_read(path, query, _context):
+        authoritative_calls.append((path, dict(query)))
+        binding = {
+            "status": "matched",
+            "ready": True,
+            "blocker": None,
+            "expected_portfolio_label": "Default",
+            "expected_portfolio_type": "DEFAULT",
+            "observed_portfolio_id": "default-portfolio",
+            "observed_portfolio_label": "Default",
+            "observed_portfolio_type": "DEFAULT",
+            "can_view": True,
+            "can_trade": True,
+            "read_authorized": True,
+            "selection_authority": "cdp_api_key_permissioned_portfolio",
+            "request_portfolio_override_allowed": False,
+            "source": "coinbase_api_key_permissions_and_portfolio_catalog",
+            "freshness_status": "backend_rest_fresh",
+            "observed_at": "2026-07-13T00:00:00+00:00",
+            "permissions_read_ran": True,
+            "portfolio_catalog_read_ran": True,
+            "permissions_error_present": False,
+            "portfolio_catalog_error_present": False,
+            "account_family": "coinbase_futures_us_cfm",
+            "product_family": "FUTURES_PERPETUALS",
+            "profile_alias": "Default",
+            "portfolio_id": "default-portfolio",
+            "credential_trade_permission_present": True,
+            "command_authority_granted": False,
+            "live_coinbase_execution_authorized": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+        }
+        shared = {
+            "account_reality": {
+                "status": "ready",
+                "source": "backend_rest_client",
+                "proof_id": "account-reality-route-test",
+            },
+            "portfolio_scope": {
+                "portfolio_id": "default-portfolio",
+                "portfolio_name": "Default",
+                "source": "backend_rest_client",
+                "freshness_status": "backend_rest_fresh",
+            },
+            "portfolio_binding": binding,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "live_coinbase_read_ran": True,
+            "live_coinbase_execution": "not_run",
+            "notional_usdc": "0",
+        }
+        if path == "/api/v1/futures/account":
+            payload = dict(service.build_futures_account())
+            payload.update(shared)
+            payload["account_readiness"] = {
+                "futures_account_scope_ready": True,
+                "futures_default_profile_bound": True,
+                "futures_observed_position_scope_ready": True,
+                "futures_margin_collateral_ready": True,
+                "usable_for_futures_risk": True,
+            }
+        elif path == "/api/v1/futures/positions":
+            payload = dict(
+                service.build_futures_positions(
+                    product_id=query.get("product_id"),
+                    position_side=query.get("position_side"),
+                    limit=int(query["limit"]),
+                    offset=int(query["offset"]),
+                )
+            )
+            payload.update(shared)
+        else:
+            payload = dict(
+                service.build_futures_position_detail(
+                    path.rsplit("/", 1)[-1]
+                )
+            )
+            payload.update(shared)
+        return SimpleNamespace(status_code=200, body=payload, headers={})
+
+    client.app.dependency_overrides[
+        futures_routes.get_authoritative_futures_read_service
+    ] = lambda: SimpleNamespace(get_read_response=authoritative_read)
 
     command_suite_response = client.get(
         "/api/v1/futures/command-suite",
@@ -84078,7 +84165,7 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
         headers=_headers(roles=AdminApiRole.VIEWER.value),
     )
     detail_response = client.get(
-        "/api/v1/futures/positions/futures_position%3Aruntime%3ABIP-20DEC30-CDE",
+        "/api/v1/futures/positions/futures_position%3Adefault-portfolio%3ABIP-20DEC30-CDE",
         headers=_headers(roles=AdminApiRole.VIEWER.value),
     )
 
@@ -84392,20 +84479,27 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
     assert "spot_no_shorting" in command_suite["forbidden_spot_assumptions"]
     assert positions_response.status_code == 200
     position = positions_response.json()["items"][0]
-    assert position["position_key"] == "futures_position:runtime:BIP-20DEC30-CDE"
+    assert position["position_key"] == (
+        "futures_position:default-portfolio:BIP-20DEC30-CDE"
+    )
     assert position["close_order_side"] == "SELL"
     assert "client_order_id" not in position
     assert "cost_basis" not in position
     assert detail_response.status_code == 200
     assert detail_response.json()["position_key"] == (
-        "futures_position:runtime:BIP-20DEC30-CDE"
+        "futures_position:default-portfolio:BIP-20DEC30-CDE"
     )
     assert detail_response.json()["live_coinbase_orders_ran"] is False
+    assert [path for path, _query in authoritative_calls] == [
+        "/api/v1/futures/account",
+        "/api/v1/futures/positions",
+        "/api/v1/futures/positions/futures_position:default-portfolio:BIP-20DEC30-CDE",
+    ]
 
 
 @pytest.mark.regression
 @pytest.mark.serial
-def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rules(
+def test_admin_api_offline_futures_read_service_does_not_promote_runtime_positions(
     monkeypatch,
 ):
     # Builds the full futures proof graph; keep serial to avoid parallel memory pressure.
@@ -84478,32 +84572,19 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
     assert account.command_routes_mode == "not_modeled"
     assert "BIP-20DEC30-CDE" in account.configured_product_scope
     assert "BTC-USDC" not in account.configured_product_scope
-    assert account.observed_position_scope == ["BIP-20DEC30-CDE"]
-    assert account.margin.status.value == "observed"
-    assert account.margin.value["margin_window_type"] == (
-        "FCM_MARGIN_WINDOW_TYPE_OVERNIGHT"
-    )
+    assert account.observed_position_scope == []
+    assert account.account_readiness.futures_default_profile_bound is False
+    assert account.account_readiness.futures_account_scope_ready is False
+    assert account.account_readiness.futures_observed_position_scope_ready is False
+    assert account.margin.status.value == "unavailable"
     assert account.collateral.status.value == "unavailable"
     assert account.funding.status.value == "not_modeled"
     assert account.live_coinbase_orders_ran is False
 
-    assert positions.count == 1
-    item = positions.items[0]
-    assert item.position_key == "futures_position:runtime:BIP-20DEC30-CDE"
-    assert item.product_id == "BIP-20DEC30-CDE"
-    assert item.product_type == "FUTURE"
-    assert item.position_side == "LONG"
-    assert item.open_order_side == "BUY"
-    assert item.close_order_side == "SELL"
-    assert item.reduce_only_order_side == "SELL"
-    assert item.close_only_order_side == "SELL"
-    assert item.position_pnl == {"unrealized_pnl": {"value": "5.00", "currency": "USD"}}
-    dumped = item.model_dump(mode="json")
-    assert "client_order_id" not in dumped
-    assert "cost_basis" not in dumped
-    assert detail.found is True
-    assert detail.position is not None
-    assert detail.position.position_key == item.position_key
+    assert positions.count == 0
+    assert positions.items == []
+    assert detail.found is False
+    assert detail.position is None
 
     assert command_suite.type == "admin_futures_command_suite"
     assert command_suite.approved_phase_range == "7961-7980"
@@ -91617,7 +91698,7 @@ def test_admin_api_futures_read_service_maps_runtime_positions_without_spot_rule
 
 
 @pytest.mark.regression
-def test_admin_api_futures_dashboard_fallback_does_not_promote_unknown_spot_rows(
+def test_admin_api_futures_dashboard_fallback_is_not_authoritative_without_default_binding(
     monkeypatch,
 ):
     from application.admin_api.read_service import AdminApiReadService
@@ -91650,11 +91731,19 @@ def test_admin_api_futures_dashboard_fallback_does_not_promote_unknown_spot_rows
             else:
                 dashboard_server.engine_state["positions"] = previous_positions
 
-    assert response.count == 1
-    assert response.items[0].product_id == "BIP-20DEC30-CDE"
-    assert response.items[0].product_type.value == "FUTURE"
+    assert response.count == 0
+    assert response.items == []
     dumped = response.model_dump(mode="json")
+    assert dumped["portfolio_binding"]["ready"] is False
+    assert dumped["portfolio_binding"]["read_authorized"] is False
+    assert dumped["portfolio_binding"]["blocker"] == (
+        "futures_default_portfolio_live_read_required"
+    )
+    assert dumped["portfolio_binding"]["command_authority_granted"] is False
+    assert dumped["portfolio_binding"]["live_coinbase_execution_authorized"] is False
+    assert dumped["live_coinbase_orders_ran"] is False
     assert "BTC-USDC" not in str(dumped)
+    assert "BIP-20DEC30-CDE" not in str(dumped)
 
 
 @pytest.mark.regression

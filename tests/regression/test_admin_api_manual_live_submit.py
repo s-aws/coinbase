@@ -8,7 +8,11 @@ from application.admin_api.mvp_service import (
     AdminMvpRequestContext,
     AdminMvpService,
 )
-from tests.regression.test_admin_mvp_api import FakeAccountRestClient, FakeRestClient
+from tests.regression.test_admin_mvp_api import (
+    FakeAccountRestClient,
+    FakeRestClient,
+    bind_fake_account_rest_client_to_spot_test,
+)
 import tools.run_admin_api_manual_order_live_submit as manual_live_submit
 from tools.run_admin_api_manual_order_live_submit import (
     LiveSubmitCapExceededError,
@@ -75,8 +79,12 @@ def test_manual_live_submit_requires_explicit_confirmation_before_service_calls(
     assert rest_client.create_order_calls == []
 
 
-def test_manual_live_submit_records_admin_proof_chain_before_backend_rest_submission():
+def test_manual_live_submit_records_admin_proof_chain_before_backend_rest_submission(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID", "portfolio-test-1")
     rest_client = FakeAccountRestClient()
+    bind_fake_account_rest_client_to_spot_test(rest_client)
     service = AdminMvpService(
         AdminMvpDependencies(
             rest_client=rest_client,
@@ -167,10 +175,15 @@ def test_manual_live_submit_blocks_when_state_would_exceed_submitted_cap(tmp_pat
     assert rest_client.create_order_calls == []
 
 
-def test_manual_live_submit_persists_local_admin_evidence_for_restart(tmp_path):
+def test_manual_live_submit_persists_local_admin_evidence_for_restart(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID", "portfolio-test-1")
     environ: dict[str, str] = {}
     applied_paths = apply_manual_live_submit_state_environment(tmp_path, environ)
     rest_client = FakeAccountRestClient()
+    bind_fake_account_rest_client_to_spot_test(rest_client)
     service = AdminMvpService(
         AdminMvpDependencies(
             rest_client=rest_client,

@@ -17,14 +17,13 @@ BACKEND_QUEUE_DOC = PROJECT_ROOT / "docs" / "plans" / "AUTONOMOUS_WORK_QUEUE.md"
 BACKEND_E2E_PLAN = PROJECT_ROOT / "docs" / "plans" / "ADMIN_API_E2E_PLAN.md"
 FRONTEND_QUEUE_DOC = FRONTEND_ROOT / "docs" / "plans" / "AUTONOMOUS_WORK_QUEUE.md"
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-GOAL_ID = "selected_chain_child_cancel_v15_slice"
+GOAL_ID = "futures_default_profile_readback_slice_1"
 HISTORICAL_PHASE_RANGE = "7961-7980"
 HISTORICAL_PHASES = tuple(range(7961, 7981))
 PHASE_RANGE_STATUS = "historical_not_work_authority"
 CURRENT_SLICE = (
-    "Selected Admin root with one active deterministic first child -> "
-    "sealed-plan-bound backend cancel readiness -> exactly-once child cancel -> "
-    "authoritative local/exchange terminal readback -> refreshed operator-visible closeout"
+    "Default-profile Futures account -> authoritative US CFM position list -> "
+    "exact portfolio-scoped position detail -> operator-visible no-live readback"
 )
 CLOSED_LOOPHOLE_RULE = (
     "A candidate blocker cannot make itself in scope by generating evidence "
@@ -42,7 +41,13 @@ MVP_SCOPE = {
         "current_priority": GOAL_ID,
         "approved_phase_range_status": PHASE_RANGE_STATUS,
         "phase_range_work_allowed": False,
-        "default_next_action": "prepare_and_request_exact_v15_plan_hash_approval",
+        "default_next_action": "request_operator_activation_of_futures_slice_2_preview",
+        "ordered_successors": [
+            "futures_exact_no_live_preview_slice_2",
+            "futures_terminal_order_roundtrip_slice_3",
+            "futures_intentional_fill_position_readback_slice_4",
+            "futures_position_closeout_slice_5",
+        ],
         "allow_only_when_directly_blocks": [
             "current vertical slice runtime behavior",
             "current vertical slice focused test",
@@ -170,10 +175,9 @@ def _previous_version_sources() -> QueueCheck:
             BACKEND_GOAL_DOC,
             (
                 "origin/prod",
-                "dashboard_server.py",
-                "core/order_engine.py",
-                "integration/fill_event_hooks.py",
-                "business/post_fill_hook.py",
+                "configuration.py::get_futures_positions",
+                "core/order_engine.py::refresh_positions_if_needed",
+                "core/order_engine.py::process_user_snapshot",
             ),
         ).passed,
         evidence={"path": str(BACKEND_GOAL_DOC)},

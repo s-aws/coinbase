@@ -1,13 +1,37 @@
 # Futures/Perpetuals Admin Reads
 
 The M57 phase statements in this document are a historical implementation
-snapshot. Current goal id is `selected_order_execution_closeout_slice`; M57
-expansion is parked unless explicitly reprioritized or directly blocks that
-slice.
+snapshot. Current goal id is `futures_default_profile_readback_slice_1`; Slice
+1 is complete and Slices 2-5 are ordered successors that remain inactive.
 
 This feature exposes read-only futures and perpetual account, risk, and
 position evidence through the enterprise Admin API. It is a separate module,
 not a Spot variant.
+
+## Current Slice 1 Authority
+
+Authoritative account and position reads now run through
+`AdminMvpService`, not the historical offline/runtime projection. The backend:
+
+- selects the exact portfolio UUID returned by API-key permissions;
+- requires one matching portfolio catalog row named `Default`, typed
+  `DEFAULT`, and `can_view=true`;
+- exposes raw `can_trade` only as credential evidence while keeping
+  `command_authority_granted=false` and
+  `live_coinbase_execution_authorized=false`;
+- makes CFM position and margin/collateral reads only after the binding is
+  ready;
+- normalizes identity as
+  `futures_position:{portfolio_uuid}:{product_id}`;
+- resolves detail and close/reduce preflight only from a fresh exact returned
+  key; and
+- explicitly validates response bodies against their Pydantic models before a
+  header-bearing JSON response is returned.
+
+Spot admission is a separate exact Test/`CONSUMER` portfolio binding. A
+Default-profile key and wallet evidence cannot satisfy it. Slice 1 makes zero
+create, cancel, close, reduce, marker, ledger, runtime, or approval mutations;
+live execution is not run and notional is zero.
 
 ## When To Use
 
@@ -60,8 +84,10 @@ Historical compatibility phrase: M57 `7961-7980` added futures risk-proof record
 
 ## Key Concepts
 
-- `position_key` is the read identity for positions. It is not
-  `client_order_id`, and it is not Coinbase `order_id`.
+- `position_key` is the exact
+  `futures_position:{portfolio_uuid}:{product_id}` read identity returned by
+  the authoritative list. It is not a product alias, `client_order_id`, or
+  Coinbase `order_id`.
 - `configured_product_scope` lists futures/perpetual products known from
   backend metadata.
 - `observed_position_scope` lists products with observed runtime position

@@ -182,7 +182,11 @@ def build_futures_live_close_reduce_body(
 
     if config.limit_price is None:
         raise ValueError("limit_price must be resolved before building the payload.")
-    position_key = config.position_key or position_key_for_product(config.product_id)
+    position_key = optional_text(config.position_key)
+    if position_key is None:
+        raise ValueError(
+            "position_key must be resolved from the authoritative Futures position list."
+        )
     return {
         "position_key": position_key,
         "product_id": config.product_id,
@@ -202,9 +206,15 @@ def run_futures_live_close_reduce(
 
     validate_futures_live_close_reduce_config(config)
     product_metadata = futures_live_submit_product_metadata(service, config.product_id)
+    position_list = service.get_read_response(
+        "/api/v1/futures/positions",
+        {"product_id": config.product_id, "limit": "10", "offset": "0"},
+        build_request_context(config, f"{config.idempotency_key}-position-list-read"),
+    )
     resolved_config = resolve_futures_live_close_reduce_config(
         config,
         product_metadata,
+        position_list.body,
     )
     body = build_futures_live_close_reduce_body(resolved_config)
     validate_futures_live_close_reduce_body(body)
@@ -335,10 +345,30 @@ def validate_futures_live_close_reduce_body(body: Mapping[str, Any]) -> None:
 def resolve_futures_live_close_reduce_config(
     config: FuturesLiveCloseReduceConfig,
     product_metadata: Mapping[str, Any],
+    position_list: Mapping[str, Any],
 ) -> FuturesLiveCloseReduceConfig:
     """Return config with route identity and metadata-derived price evidence."""
 
-    position_key = config.position_key or position_key_for_product(config.product_id)
+    matching_positions = [
+        object_record(item)
+        for item in position_list.get("items", [])
+        if isinstance(item, Mapping)
+        and str(item.get("product_id") or "") == config.product_id
+        and str(item.get("position_key") or "").strip()
+    ]
+    requested_position_key = optional_text(config.position_key)
+    if requested_position_key is not None:
+        matching_positions = [
+            item
+            for item in matching_positions
+            if str(item.get("position_key") or "") == requested_position_key
+        ]
+    if len(matching_positions) != 1:
+        raise ValueError(
+            "Exactly one authoritative Default-profile Futures position must "
+            "match product_id and position_key before close/reduce."
+        )
+    position_key = str(matching_positions[0]["position_key"])
     limit_price = config.limit_price or default_futures_limit_price(
         product_metadata,
         side="SELL",
@@ -576,12 +606,6 @@ def futures_notional_usdc(body: Mapping[str, Any]) -> Decimal:
     """Return the backend-owned Futures notional for close/reduce evidence."""
 
     return futures_place_notional_usdc(body)
-
-
-def position_key_for_product(product_id: str) -> str:
-    """Return the Admin position key for a configured product id."""
-
-    return f"futures_position:runtime:{product_id}"
 
 
 def optional_text(value: object) -> str | None:

@@ -8,7 +8,10 @@ from application.admin_api.mvp_service import (
     AdminMvpService,
     AdminMvpStore,
 )
-from tests.regression.test_admin_mvp_api import FakeAccountRestClient
+from tests.regression.test_admin_mvp_api import (
+    FakeAccountRestClient,
+    bind_fake_account_rest_client_to_spot_test,
+)
 from tools.run_admin_api_spot_live_cancel import (
     LiveCapExceededError,
     LiveCancelConfirmationError,
@@ -119,8 +122,12 @@ def test_spot_live_cancel_records_backend_evidence_before_rest_submission():
     assert rest_client.create_order_calls == []
 
 
-def test_spot_live_cancel_can_seed_resting_gtc_order_before_cancel():
+def test_spot_live_cancel_can_seed_resting_gtc_order_before_cancel(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID", "portfolio-test-1")
     rest_client = FakeAccountRestClient()
+    bind_fake_account_rest_client_to_spot_test(rest_client)
     rest_client.create_order_response = {
         "success": True,
         "success_response": {"order_id": "seed-exchange-order-1"},
@@ -225,8 +232,12 @@ def test_spot_live_cancel_blocks_seed_when_state_would_exceed_submitted_cap(tmp_
     assert rest_client.cancel_order_calls == []
 
 
-def test_spot_live_cancel_summary_records_exchange_id_fallback_when_needed():
+def test_spot_live_cancel_summary_records_exchange_id_fallback_when_needed(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID", "portfolio-test-1")
     rest_client = FakeAccountRestClient()
+    bind_fake_account_rest_client_to_spot_test(rest_client)
     rest_client.create_order_response = {
         "success": True,
         "success_response": {"order_id": "exchange-spot-live-cancel-seed"},

@@ -51,7 +51,11 @@ from application.admin_api.models import (
     FuturesRiskProofRecordItem,
     FuturesRiskProofRecordRequest,
 )
-from application.admin_api.mvp_service import AdminMvpRequestContext, get_admin_mvp_service
+from application.admin_api.mvp_service import (
+    AdminMvpRequestContext,
+    AdminMvpService,
+    get_admin_mvp_service,
+)
 from application.admin_api.read_service import (
     AdminApiReadService,
     futures_command_suite_api_payload,
@@ -139,6 +143,12 @@ def get_read_service(
     )
 
 
+def get_authoritative_futures_read_service() -> AdminMvpService:
+    """Return the existing backend-owned Coinbase Futures read service."""
+
+    return get_admin_mvp_service()
+
+
 TReadModel = TypeVar("TReadModel", bound=BaseModel)
 
 
@@ -146,34 +156,19 @@ def _read_model_response(model: type[TReadModel], payload: object) -> JSONRespon
     return JSONResponse(content=jsonable_encoder(model.model_validate(payload)))
 
 
-def _futures_account_payload(payload: object) -> object:
-    if isinstance(payload, BaseModel) or not isinstance(payload, dict):
-        return payload
-
-    normalized: dict[str, Any] = dict(payload)
-    margin = normalized.get("margin")
-    configured_product_scope = normalized.get("configured_product_scope") or []
-    observed_position_scope = normalized.get("observed_position_scope") or []
-    normalized.setdefault(
-        "account_reality",
-        {
-            "status": "offline_fixture",
-            "source": "backend_admin_read_contract",
-            "proof_id": "futures-account-read-route-default",
-        },
+def _authoritative_read_model_response(
+    model: type[TReadModel],
+    result: object,
+) -> JSONResponse:
+    status_code = int(getattr(result, "status_code"))
+    body = getattr(result, "body")
+    headers = dict(getattr(result, "headers", {}))
+    content = (
+        jsonable_encoder(model.model_validate(body))
+        if status_code == status.HTTP_200_OK
+        else jsonable_encoder(body)
     )
-    normalized.setdefault(
-        "account_readiness",
-        {
-            "futures_account_scope_ready": bool(configured_product_scope),
-            "futures_observed_position_scope_ready": bool(observed_position_scope),
-            "usable_for_futures_risk": False,
-            "futures_margin_collateral_ready": (
-                isinstance(margin, dict) and margin.get("status") == "observed"
-            ),
-        },
-    )
-    return normalized
+    return JSONResponse(status_code=status_code, content=content, headers=headers)
 
 
 def _admin_mvp_context(
@@ -727,14 +722,30 @@ def record_futures_risk_proof(
 )
 def get_futures_account(
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
-    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+    service: Annotated[
+        AdminMvpService,
+        Depends(get_authoritative_futures_read_service),
+    ],
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    correlation_id: Annotated[str | None, Header(alias="X-Correlation-Id")] = None,
+    operator_intent: Annotated[str | None, Header(alias="X-Operator-Intent")] = None,
 ) -> JSONResponse:
     """Read futures/perpetual account evidence without mutating exchange state."""
 
     require_permission(actor, AdminApiPermission.ANALYTICS_READ)
-    return _read_model_response(
+    result = service.get_read_response(
+        "/api/v1/futures/account",
+        {},
+        _admin_mvp_context(
+            actor,
+            idempotency_key=idempotency_key,
+            correlation_id=correlation_id,
+            operator_intent=operator_intent or "read_futures_account_reality",
+        ),
+    )
+    return _authoritative_read_model_response(
         AdminFuturesAccountReadResponse,
-        _futures_account_payload(service.build_futures_account()),
+        result,
     )
 
 
@@ -746,23 +757,42 @@ def get_futures_account(
 )
 def list_futures_positions(
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
-    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+    service: Annotated[
+        AdminMvpService,
+        Depends(get_authoritative_futures_read_service),
+    ],
     product_id: str | None = None,
     position_side: str | None = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    correlation_id: Annotated[str | None, Header(alias="X-Correlation-Id")] = None,
+    operator_intent: Annotated[str | None, Header(alias="X-Operator-Intent")] = None,
 ) -> JSONResponse:
     """Read futures/perpetual positions by position identity."""
 
     require_permission(actor, AdminApiPermission.ANALYTICS_READ)
-    return _read_model_response(
-        AdminFuturesPositionListResponse,
-        service.build_futures_positions(
-            product_id=product_id,
-            position_side=position_side,
-            limit=limit,
-            offset=offset,
+    query: dict[str, Any] = {
+        "limit": str(limit),
+        "offset": str(offset),
+    }
+    if product_id is not None:
+        query["product_id"] = product_id
+    if position_side is not None:
+        query["position_side"] = position_side
+    result = service.get_read_response(
+        "/api/v1/futures/positions",
+        query,
+        _admin_mvp_context(
+            actor,
+            idempotency_key=idempotency_key,
+            correlation_id=correlation_id,
+            operator_intent=operator_intent or "read_futures_positions",
         ),
+    )
+    return _authoritative_read_model_response(
+        AdminFuturesPositionListResponse,
+        result,
     )
 
 
@@ -775,12 +805,28 @@ def list_futures_positions(
 def get_futures_position_by_position_key(
     position_key: Annotated[str, Path(min_length=1)],
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
-    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+    service: Annotated[
+        AdminMvpService,
+        Depends(get_authoritative_futures_read_service),
+    ],
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    correlation_id: Annotated[str | None, Header(alias="X-Correlation-Id")] = None,
+    operator_intent: Annotated[str | None, Header(alias="X-Operator-Intent")] = None,
 ) -> JSONResponse:
     """Read one futures/perpetual position by backend-defined position key."""
 
     require_permission(actor, AdminApiPermission.ANALYTICS_READ)
-    return _read_model_response(
+    result = service.get_read_response(
+        f"/api/v1/futures/positions/{position_key}",
+        {},
+        _admin_mvp_context(
+            actor,
+            idempotency_key=idempotency_key,
+            correlation_id=correlation_id,
+            operator_intent=operator_intent or "read_futures_position_detail",
+        ),
+    )
+    return _authoritative_read_model_response(
         AdminFuturesPositionDetailResponse,
-        service.build_futures_position_detail(position_key=position_key),
+        result,
     )
