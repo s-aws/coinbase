@@ -1,10 +1,11 @@
 """Prepare or execute the sealed V15R3 cancel-only recovery authority.
 
-V15R3 cannot place a root or child.  Preparation validates immutable V15R2
-evidence and the existing local active-child identity, then creates only an
-owner-only schema-21 plan. Preparation exposes no runtime, marker, ledger,
-handoff, process signal, Coinbase read, or cancel POST. Execution is a separate
-hash-confirmed mode, and the runner itself never submits the operator cancel.
+V15R3 cannot place a root or child. Preparation binds the completed V15R2
+shutdown, validates the local active-child identity and authoritative Coinbase
+readback, then creates only an owner-only schema-21 plan. Preparation exposes
+no runtime, marker, ledger, handoff, process signal, or mutation request.
+Execution is a separate hash-confirmed mode, and the runner itself never
+submits the operator cancel.
 """
 
 from __future__ import annotations
@@ -69,6 +70,27 @@ R2_CANCEL_RECONCILIATION_ID = "f24753f6-eac6-5207-9806-1b5502c0d474"
 R2_PROOF_PAYLOAD_HASH = "47ea2b0bdec88367454689f1a287b28bc17a353e8362a71473a9e84da39ced05"
 R2_FAILED_CANCEL_PAYLOAD_HASH = "5875e395e1692d1c82c5fded7a3e80f75c568d449df9825a2593c1dfeb4769c6"
 R2_FAILED_CANCEL_AUDIT_ID = "60018f6a-745d-4a43-9990-82b29928bbe8"
+FAILED_V15R3_PLAN_SHA256 = (
+    "7309ca5552796a60e57c3abb0622e913da97ce5b6450dd7eb3633c4754e12b25"
+)
+FAILED_V15R3_PLAN_BYTES_SHA256 = (
+    "f9b7e51eed13dfd1f303322c451e9d89b40633cdef6080a7b251cf784854ea6b"
+)
+FAILED_V15R3_BATCH_ID = "ed13aab8-99aa-59c2-9104-b4f02cf66dc1"
+FAILED_V15R3_BACKEND_COMMIT = "677e96bbf6c375bc7f9f31ae94d043515189d1b3"
+FAILED_V15R3_RUNNER_SHA256 = (
+    "dab6f528f8d24052971c6376fcb2e3be9e3d410b384b165214b3112402beec83"
+)
+FAILED_V15R3_CANCEL_IDS = frozenset(
+    {
+        "fba7a3ed-420e-52b9-a4c4-e3a6bbc9d865",
+        "3512e3bd-5cb1-5442-8a01-4ebdc71a77a9",
+        "7bc45910-0144-59a4-a006-df23ee327ebc",
+        "ef26324a-c9fe-52d9-9f24-54d23fa943b7",
+        "8cc92c40-def3-5c34-80c0-b40345a5bdd2",
+        "30e91103-79dc-5b1c-9843-e4be3ccc2963",
+    }
+)
 R2_CONCRETE_CANCEL_ENDPOINT = (
     f"POST /api/v1/orders/{ROOT_CLIENT_ORDER_ID}/fill-follow-up/child-cancel"
 )
@@ -82,6 +104,7 @@ R2_USED_IDS = frozenset(
         R2_CANCEL_ADMISSION_AUDIT_ID,
         R2_CANCEL_CAP_ID,
         R2_CANCEL_RECONCILIATION_ID,
+        *FAILED_V15R3_CANCEL_IDS,
     }
 )
 
@@ -92,6 +115,11 @@ REGISTRY_DIR = Path("/var/tmp/coinbase-admin-controlled-spot-root-child-batches"
 PLAN_PATH = Path(
     "/home/ec2-user/.local/state/"
     "coinbase-controlled-spot-child-cancel-v15r3-20260713.plan.json"
+)
+FAILED_V15R3_PLAN_PATH = Path(
+    "/home/ec2-user/.local/state/"
+    "coinbase-controlled-spot-child-cancel-v15r3-20260713.plan."
+    f"{FAILED_V15R3_PLAN_SHA256}.failed-post-shutdown-port-proof.json"
 )
 MARKER_PATH = REGISTRY_DIR / (
     "test-profile-btc-usdc-selected-child-cancel-v15r3-20260713.authority.json"
@@ -164,6 +192,34 @@ R2_EXPECTED_HASHES: dict[str, str] = {
     "runtime_pid_bytes_sha256": "c518928a7dcb53c2686c6f3b6ac666e2de687e18e22e1e7d5d0c897d0c1297da",
 }
 
+COMPLETED_SHUTDOWN_ARTIFACT_PATHS: dict[str, Path] = {
+    "parent_loss": R2_STATE_DIR / "parent-authority-loss.json",
+    "sentinel": R2_STATE_DIR / "sdk-boundary-sentinel.json",
+    "progress": R2_STATE_DIR / "v15r2-operator-ui-cancel-handoff.json",
+    "live_service": R2_STATE_DIR / "live_service.jsonl",
+    "audit": R2_STATE_DIR / "audit.jsonl",
+    "idempotency": R2_STATE_DIR / "idempotency.jsonl",
+}
+COMPLETED_SHUTDOWN_ARTIFACT_HASHES: dict[str, str] = {
+    "parent_loss": "6e7a71090150bc87f6d38a4173404f1f74a66c509fa63b638ba6ae7239a7b241",
+    "sentinel": "4ee558ad45baca579307ed758d2d8f89878416c42e9ac789e4d0bff7315afe2c",
+    "progress": "0754ecb215423e169fedd3111a1598fd2ed3c54381d5c4754dbb2a0505280f0a",
+    "live_service": "8483b3b4ca9bf97bd3c9fdc93fe12e1ec9ebc2bc9fab8b9a48aa83a97d2e89df",
+    "audit": "09c135ce57f2dfb377bda4910224c5954fecde491297e89f4882a57596e29e16",
+    "idempotency": "be41c6b79b8e03661141c513219bc8945a86a0f3ef025abdf411980b6febb65c",
+}
+COMPLETED_SHUTDOWN_RECORD_HASHES = {
+    "transition_disable_decision": (
+        "42d61427795772ac24771b3a25a053b679fe3a54ae40767b21407e29073dbe2c"
+    ),
+    "transition_disable_idempotency": (
+        "3009d0625c92f89ceaad7b669b1357969ece4633c6e878b189e6376e113b61cc"
+    ),
+    "transition_disable_audit": (
+        "7fc777c09925fedfa108f00daf0560866c8470b6e74c8853cabc1ddcc0240137"
+    ),
+}
+
 V15R3_PLAN_FIELDS = frozenset(
     {
         "schema_version", "authority_kind", "approval_id", "batch_id",
@@ -183,6 +239,37 @@ V15R3_PLAN_FIELDS = frozenset(
         "substitution_authorized", "later_child_authorized",
         "browser_derives_child_identity", "exchange_order_id_evidence_only",
         "exchange_order_id_fallback_authorized", "plan_sha256",
+    }
+)
+V15R3_RECOVERED_TRANSITION_FIELDS = frozenset(
+    {
+        "schema_version",
+        "status",
+        "recovery_status",
+        "transition_mode",
+        "controlled_plan_sha256",
+        "failed_plan_sha256",
+        "failed_plan_bytes_sha256",
+        "failed_batch_id",
+        "failed_backend_commit",
+        "failed_runner_sha256",
+        "r2_plan_sha256",
+        "r2_parent_process_identity",
+        "r2_runtime_process_identity",
+        "predecessor_signal_attempt_count",
+        "predecessor_signal_authorized",
+        "predecessor_restart_authorized",
+        "both_predecessor_processes_absent",
+        "both_predecessor_exact_identities_absent",
+        "terminal_artifact_paths",
+        "terminal_artifact_hashes",
+        "transition_disable_record_hashes",
+        "admin_port_8787_free",
+        "competitor_pid",
+        "exact_child_open_zero_fill",
+        "child_readback",
+        "recorded_at",
+        "transition_sha256",
     }
 )
 
@@ -313,6 +400,22 @@ def _read_process_identity(process_id: int) -> dict[str, Any]:
         "cwd_sha256": hashlib.sha256(cwd.encode("utf-8")).hexdigest(),
         "cmdline_sha256": hashlib.sha256(raw_cmdline).hexdigest(),
     }
+
+
+def same_kernel_process_identity(
+    sealed: Mapping[str, Any], observed: Mapping[str, Any]
+) -> bool:
+    """Match the immutable Linux task identity, not mutable exec/cwd evidence."""
+
+    sealed_start = str(sealed.get("start_identity") or "")
+    observed_start = str(observed.get("start_identity") or "")
+    return (
+        int(sealed.get("process_id") or 0) > 1
+        and int(sealed.get("process_id") or 0)
+        == int(observed.get("process_id") or 0)
+        and bool(sealed_start)
+        and sealed_start == observed_start
+    )
 
 
 def load_v15r2_failed_cancel_binding() -> dict[str, Any]:
@@ -625,6 +728,256 @@ def load_v15r2_failed_cancel_binding() -> dict[str, Any]:
         "source_paths": dict(R2_ARTIFACT_PATHS),
         "source_hashes": dict(R2_EXPECTED_HASHES),
     }
+
+
+def _record_with_canonical_hash(
+    rows: list[Mapping[str, Any]], *, expected_hash: str, blocker: str
+) -> dict[str, Any]:
+    matches = [
+        dict(row)
+        for row in rows
+        if _canonical_json_sha256(dict(row)) == expected_hash
+    ]
+    _require(len(matches) == 1, blocker)
+    return matches[0]
+
+
+def load_v15r3_completed_shutdown_binding() -> dict[str, Any]:
+    """Bind the completed R2 shutdown without replaying either signal."""
+
+    _require(
+        _file_sha256(FAILED_V15R3_PLAN_PATH, "v15r3_failed_transition_plan")
+        == FAILED_V15R3_PLAN_BYTES_SHA256,
+        "v15r3_failed_transition_plan_hash_mismatch",
+    )
+    failed_plan = _json(
+        FAILED_V15R3_PLAN_PATH, "v15r3_failed_transition_plan"
+    )
+    _require(
+        set(failed_plan) == V15R3_PLAN_FIELDS
+        and failed_plan.get("plan_sha256") == FAILED_V15R3_PLAN_SHA256
+        and plan_hash(failed_plan) == FAILED_V15R3_PLAN_SHA256
+        and failed_plan.get("batch_id") == FAILED_V15R3_BATCH_ID
+        and failed_plan.get("backend_commit") == FAILED_V15R3_BACKEND_COMMIT
+        and failed_plan.get("runner_sha256") == FAILED_V15R3_RUNNER_SHA256
+        and set(cancel_command_ids(failed_plan)) == FAILED_V15R3_CANCEL_IDS,
+        "v15r3_failed_transition_plan_scope_mismatch",
+    )
+    r2_source = dict(failed_plan.get("v15r2_active_child_binding") or {})
+    _require(
+        r2_source.get("r2_plan_sha256") == R2_PLAN_SHA256
+        and r2_source.get("r2_batch_id") == R2_BATCH_ID
+        and r2_source.get("root_client_order_id") == ROOT_CLIENT_ORDER_ID
+        and r2_source.get("child_client_order_id") == CHILD_CLIENT_ORDER_ID
+        and r2_source.get("child_exchange_order_id") == CHILD_EXCHANGE_ORDER_ID
+        and r2_source.get("r2_root_sdk_call_count") == 0
+        and r2_source.get("r2_child_sdk_call_count") == 1
+        and r2_source.get("r2_cancel_command_count") == 0
+        and r2_source.get("cancel_ledgers_empty") is True
+        and r2_source.get("source_paths") == R2_ARTIFACT_PATHS
+        and r2_source.get("source_hashes") == R2_EXPECTED_HASHES,
+        "v15r3_failed_transition_r2_lineage_mismatch",
+    )
+
+    for name, path in COMPLETED_SHUTDOWN_ARTIFACT_PATHS.items():
+        _require(
+            _file_sha256(
+                path,
+                f"v15r3_completed_shutdown_{name}",
+                allow_public_read=name in {"live_service", "audit", "idempotency"},
+            )
+            == COMPLETED_SHUTDOWN_ARTIFACT_HASHES[name],
+            f"v15r3_completed_shutdown_{name}_hash_mismatch",
+        )
+
+    parent_loss = _json(
+        COMPLETED_SHUTDOWN_ARTIFACT_PATHS["parent_loss"],
+        "v15r3_completed_shutdown_parent_loss",
+    )
+    active = [
+        dict(row)
+        for row in list(parent_loss.get("authoritative_active_orders") or [])
+        if isinstance(row, Mapping)
+    ]
+    _require(
+        parent_loss.get("status")
+        == "v15_parent_authority_lost_reconciliation_only"
+        and parent_loss.get("plan_sha256") == R2_PLAN_SHA256
+        and parent_loss.get("new_sdk_placements_denied") is True
+        and parent_loss.get("new_cancel_command_authorized") is False
+        and parent_loss.get("root_create_order_call_count") == 0
+        and parent_loss.get("child_place_limit_order_call_count") == 1
+        and parent_loss.get("root_sdk_inflight") is False
+        and parent_loss.get("child_sdk_inflight") is False
+        and parent_loss.get("authoritative_active_read_stable") is True
+        and len(active) == 1
+        and active[0].get("client_order_id") == CHILD_CLIENT_ORDER_ID
+        and active[0].get("order_id") == CHILD_EXCHANGE_ORDER_ID
+        and str(active[0].get("status") or "").upper() in {"OPEN", "PENDING"}
+        and Decimal(str(active[0].get("filled_size") or "0")) == 0
+        and Decimal(str(active[0].get("filled_value") or "0")) == 0
+        and Decimal(str(active[0].get("total_fees") or "0")) == 0
+        and int(active[0].get("number_of_fills") or 0) == 0
+        and dict(parent_loss.get("sealed_cancel_reconciliation") or {}).get(
+            "cancel_post_submitted"
+        )
+        is False,
+        "v15r3_completed_shutdown_parent_loss_scope_mismatch",
+    )
+    sentinel = _json(
+        COMPLETED_SHUTDOWN_ARTIFACT_PATHS["sentinel"],
+        "v15r3_completed_shutdown_sentinel",
+    )
+    _require(
+        sentinel.get("phase") == "runtime_exited"
+        and sentinel.get("process_id")
+        == int(dict(r2_source["r2_runtime_process_identity"])["process_id"])
+        and sentinel.get("root_create_order_call_count") == 0
+        and sentinel.get("root_create_order_maximum") == 0
+        and sentinel.get("child_place_limit_order_call_count") == 1
+        and sentinel.get("child_place_limit_order_maximum") == 1
+        and sentinel.get("root_sdk_inflight") is False
+        and sentinel.get("child_sdk_inflight") is False
+        and sentinel.get("critical_failure") is False
+        and sentinel.get("denied_call_count") == 0
+        and sentinel.get("error") is None,
+        "v15r3_completed_shutdown_sentinel_scope_mismatch",
+    )
+
+    live_rows = _jsonl(
+        COMPLETED_SHUTDOWN_ARTIFACT_PATHS["live_service"],
+        "v15r3_completed_shutdown_live_service",
+        allow_public_read=True,
+    )
+    idempotency_rows = _jsonl(
+        COMPLETED_SHUTDOWN_ARTIFACT_PATHS["idempotency"],
+        "v15r3_completed_shutdown_idempotency",
+        allow_public_read=True,
+    )
+    audit_rows = _jsonl(
+        COMPLETED_SHUTDOWN_ARTIFACT_PATHS["audit"],
+        "v15r3_completed_shutdown_audit",
+        allow_public_read=True,
+    )
+    disable = _record_with_canonical_hash(
+        live_rows,
+        expected_hash=COMPLETED_SHUTDOWN_RECORD_HASHES[
+            "transition_disable_decision"
+        ],
+        blocker="v15r3_completed_shutdown_disable_decision_missing",
+    )
+    idempotency = _record_with_canonical_hash(
+        idempotency_rows,
+        expected_hash=COMPLETED_SHUTDOWN_RECORD_HASHES[
+            "transition_disable_idempotency"
+        ],
+        blocker="v15r3_completed_shutdown_disable_idempotency_missing",
+    )
+    audit = _record_with_canonical_hash(
+        audit_rows,
+        expected_hash=COMPLETED_SHUTDOWN_RECORD_HASHES[
+            "transition_disable_audit"
+        ],
+        blocker="v15r3_completed_shutdown_disable_audit_missing",
+    )
+    _require(
+        disable.get("status") == "blocked"
+        and disable.get("requested_service_status") == "live_disabled"
+        and disable.get("service_enabled") is False
+        and disable.get("live_coinbase_execution_approved") is False
+        and disable.get("max_submitted_notional_usdc") == "0"
+        and disable.get("max_executed_notional_usdc") == "0"
+        and disable.get("deployment_ref") == FAILED_V15R3_BACKEND_COMMIT
+        and idempotency.get("status") == "accepted"
+        and dict(idempotency.get("response") or {}).get(
+            "live_exchange_submitted"
+        )
+        is False
+        and dict(idempotency.get("response") or {}).get(
+            "live_coinbase_orders_ran"
+        )
+        is False
+        and audit.get("status") == "accepted"
+        and audit.get("live_exchange_submitted") is False
+        and audit.get("live_coinbase_orders_ran") is False,
+        "v15r3_completed_shutdown_disable_scope_mismatch",
+    )
+
+    _require(
+        _file_sha256(
+            Path(R2_ARTIFACT_PATHS["cancel_ledger_path"]),
+            "v15r3_completed_shutdown_r2_cancel_ledger",
+        )
+        == hashlib.sha256(b"").hexdigest()
+        and _file_sha256(
+            Path(R2_ARTIFACT_PATHS["backend_claim_log_path"]),
+            "v15r3_completed_shutdown_r2_backend_claim_log",
+        )
+        == hashlib.sha256(b"").hexdigest(),
+        "v15r3_completed_shutdown_r2_cancel_claim_present",
+    )
+    _require(
+        all(
+            not os.path.lexists(path)
+            for path in (
+                MARKER_PATH,
+                PLACEMENT_LEDGER_PATH,
+                CANCEL_LEDGER_PATH,
+                BACKEND_CLAIM_LOG_PATH,
+                HANDOFF_PATH,
+                RUNTIME_PATH,
+            )
+        ),
+        "v15r3_completed_shutdown_authority_artifact_present",
+    )
+    identities = (
+        dict(r2_source["r2_parent_process_identity"]),
+        dict(r2_source["r2_runtime_process_identity"]),
+    )
+    for identity in identities:
+        process_id = int(identity["process_id"])
+        if not Path(f"/proc/{process_id}").exists():
+            continue
+        _require(
+            not same_kernel_process_identity(
+                identity, _read_process_identity(process_id)
+            ),
+            "v15r3_completed_shutdown_predecessor_pid_present",
+        )
+    base.require_runtime_exclusivity(require_port_free=True)
+    local = read_local_active_child_binding()
+    child = read_exact_active_child_after_transition()
+    return {
+        "status": "v15r2_shutdown_bound_no_overlap_proven",
+        "failed_plan_sha256": FAILED_V15R3_PLAN_SHA256,
+        "failed_plan_bytes_sha256": FAILED_V15R3_PLAN_BYTES_SHA256,
+        "failed_batch_id": FAILED_V15R3_BATCH_ID,
+        "failed_backend_commit": FAILED_V15R3_BACKEND_COMMIT,
+        "failed_runner_sha256": FAILED_V15R3_RUNNER_SHA256,
+        "r2_source_binding": r2_source,
+        "local_active_child_binding": local,
+        "terminal_artifact_paths": {
+            key: str(value)
+            for key, value in COMPLETED_SHUTDOWN_ARTIFACT_PATHS.items()
+        },
+        "terminal_artifact_hashes": dict(
+            COMPLETED_SHUTDOWN_ARTIFACT_HASHES
+        ),
+        "transition_disable_record_hashes": dict(
+            COMPLETED_SHUTDOWN_RECORD_HASHES
+        ),
+        "both_predecessor_exact_identities_absent": True,
+        "admin_port_8787_free": True,
+        "child_readback": child,
+    }
+
+
+def load_current_v15r3_source_binding(
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Load the one completed-shutdown source accepted by this successor."""
+
+    completed = load_v15r3_completed_shutdown_binding()
+    return dict(completed["r2_source_binding"]), completed
 
 
 def validate_local_active_child_binding(value: Mapping[str, Any]) -> dict[str, Any]:
@@ -1029,13 +1382,14 @@ def validate_v15r3_plan(
         and plan.get("exchange_order_id_fallback_authorized") is False,
         "v15r3_broadening_boundary_mismatch",
     )
+    expected_source, completed_shutdown = load_current_v15r3_source_binding()
+    expected_local = dict(completed_shutdown["local_active_child_binding"])
     _require(
-        plan.get("v15r2_active_child_binding")
-        == load_v15r2_failed_cancel_binding()
+        plan.get("v15r2_active_child_binding") == expected_source
         and validate_local_active_child_binding(
             dict(plan.get("local_active_child_binding") or {})
         )
-        == plan.get("local_active_child_binding"),
+        == expected_local,
         "v15r3_recovery_binding_mismatch",
     )
     created = datetime.fromisoformat(str(plan.get("created_at") or ""))
@@ -1264,7 +1618,7 @@ def prove_admin_port_free() -> dict[str, Any]:
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
-        listener.bind((base.HOST, base.PORT))
+        listener.bind(("127.0.0.1", base.PORT))
     except OSError as exc:
         raise ProofFailure("v15r3_transition_admin_port_not_free") from exc
     finally:
@@ -1274,7 +1628,6 @@ def prove_admin_port_free() -> dict[str, Any]:
 
 def read_exact_active_child_after_transition() -> dict[str, Any]:
     rest_client = base.hydrate_test_credentials()
-    preflight = base.coinbase_preflight(rest_client)
     raw = base.exact_exchange_order(rest_client, CHILD_EXCHANGE_ORDER_ID)
     exact_tuple = {
         "client_order_id": CHILD_CLIENT_ORDER_ID,
@@ -1295,8 +1648,7 @@ def read_exact_active_child_after_transition() -> dict[str, Any]:
     )
     v15.validate_v15_explicit_zero_fill(validated)
     _require(
-        preflight.get("portfolio_id") == TEST_PORTFOLIO_ID
-        and str(validated.get("status") or "").upper() in {"OPEN", "PENDING"},
+        str(validated.get("status") or "").upper() in {"OPEN", "PENDING"},
         "v15r3_transition_child_not_active_zero_fill",
     )
     return {
@@ -1309,11 +1661,100 @@ def read_exact_active_child_after_transition() -> dict[str, Any]:
         "filled_value": base.decimal_text(
             Decimal(str(validated.get("filled_value") or "0"))
         ),
+        "total_fees": base.decimal_text(
+            Decimal(str(validated.get("total_fees") or "0"))
+        ),
         "number_of_fills": int(validated.get("number_of_fills") or 0),
         "reference_notional_usdc": base.decimal_text(
             ACTIVE_CHILD_REFERENCE_NOTIONAL
         ),
     }
+
+
+def bind_completed_v15r2_shutdown(
+    plan: Mapping[str, Any],
+    *,
+    confirmed_plan_sha256: str,
+    transition_path: Path,
+) -> dict[str, Any]:
+    """Write a no-signal receipt for the already completed R2 shutdown."""
+
+    _require(
+        str(plan.get("plan_sha256") or "") == confirmed_plan_sha256,
+        "v15r3_recovered_transition_plan_hash_mismatch",
+    )
+    completed = load_v15r3_completed_shutdown_binding()
+    _require(
+        plan.get("v15r2_active_child_binding")
+        == completed["r2_source_binding"]
+        and plan.get("local_active_child_binding")
+        == completed["local_active_child_binding"],
+        "v15r3_recovered_transition_binding_mismatch",
+    )
+    child = dict(completed["child_readback"])
+    proof: dict[str, Any] = {
+        "schema_version": "2",
+        "status": "v15r2_to_v15r3_no_overlap_proven",
+        "recovery_status": "v15r2_shutdown_bound_no_overlap_proven",
+        "transition_mode": (
+            "bind_completed_predecessor_shutdown_no_signals"
+        ),
+        "controlled_plan_sha256": confirmed_plan_sha256,
+        "failed_plan_sha256": completed["failed_plan_sha256"],
+        "failed_plan_bytes_sha256": completed[
+            "failed_plan_bytes_sha256"
+        ],
+        "failed_batch_id": completed["failed_batch_id"],
+        "failed_backend_commit": completed["failed_backend_commit"],
+        "failed_runner_sha256": completed["failed_runner_sha256"],
+        "r2_plan_sha256": R2_PLAN_SHA256,
+        "r2_parent_process_identity": dict(
+            completed["r2_source_binding"]["r2_parent_process_identity"]
+        ),
+        "r2_runtime_process_identity": dict(
+            completed["r2_source_binding"]["r2_runtime_process_identity"]
+        ),
+        "predecessor_signal_attempt_count": 0,
+        "predecessor_signal_authorized": False,
+        "predecessor_restart_authorized": False,
+        "both_predecessor_processes_absent": True,
+        "both_predecessor_exact_identities_absent": completed[
+            "both_predecessor_exact_identities_absent"
+        ],
+        "terminal_artifact_paths": completed["terminal_artifact_paths"],
+        "terminal_artifact_hashes": completed[
+            "terminal_artifact_hashes"
+        ],
+        "transition_disable_record_hashes": completed[
+            "transition_disable_record_hashes"
+        ],
+        "admin_port_8787_free": True,
+        "competitor_pid": None,
+        "exact_child_open_zero_fill": (
+            child.get("client_order_id") == CHILD_CLIENT_ORDER_ID
+            and child.get("exchange_order_id") == CHILD_EXCHANGE_ORDER_ID
+            and str(child.get("status") or "").upper()
+            in {"OPEN", "PENDING"}
+            and Decimal(str(child.get("filled_size") or "0")) == 0
+            and Decimal(str(child.get("filled_value") or "0")) == 0
+            and Decimal(str(child.get("total_fees") or "0")) == 0
+            and int(child.get("number_of_fills") or 0) == 0
+        ),
+        "child_readback": child,
+        "recorded_at": datetime.now(timezone.utc).isoformat(),
+    }
+    _require(
+        proof["exact_child_open_zero_fill"] is True,
+        "v15r3_recovered_transition_child_unproven",
+    )
+    proof["transition_sha256"] = transition_hash(proof)
+    transition_path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+    base._write_owner_only_exclusive_json(
+        transition_path,
+        proof,
+        exists_blocker="v15r3_recovered_transition_evidence_already_exists",
+    )
+    return proof
 
 
 def transition_v15r2_runtime(
@@ -1418,13 +1859,60 @@ def _validate_frozen_plan_after_transition(
         "v15r3_post_transition_plan_expired_or_ttl_invalid",
     )
     proof = dict(transition)
+    source = dict(plan.get("v15r2_active_child_binding") or {})
+    child = dict(proof.get("child_readback") or {})
+    try:
+        child_is_exact_zero_fill = (
+            child.get("client_order_id") == CHILD_CLIENT_ORDER_ID
+            and child.get("exchange_order_id") == CHILD_EXCHANGE_ORDER_ID
+            and str(child.get("status") or "").upper() in {"OPEN", "PENDING"}
+            and Decimal(str(child.get("filled_size") or "0")) == 0
+            and Decimal(str(child.get("filled_value") or "0")) == 0
+            and Decimal(str(child.get("total_fees") or "0")) == 0
+            and int(child.get("number_of_fills") or 0) == 0
+            and Decimal(str(child.get("reference_notional_usdc") or "0"))
+            == ACTIVE_CHILD_REFERENCE_NOTIONAL
+        )
+    except (ArithmeticError, TypeError, ValueError):
+        child_is_exact_zero_fill = False
     _require(
-        proof.get("status") == "v15r2_to_v15r3_no_overlap_proven"
+        set(proof) == V15R3_RECOVERED_TRANSITION_FIELDS
+        and proof.get("schema_version") == "2"
+        and proof.get("status") == "v15r2_to_v15r3_no_overlap_proven"
+        and proof.get("recovery_status")
+        == "v15r2_shutdown_bound_no_overlap_proven"
+        and proof.get("transition_mode")
+        == "bind_completed_predecessor_shutdown_no_signals"
         and proof.get("controlled_plan_sha256") == expected_hash
+        and proof.get("failed_plan_sha256") == FAILED_V15R3_PLAN_SHA256
+        and proof.get("failed_plan_bytes_sha256")
+        == FAILED_V15R3_PLAN_BYTES_SHA256
+        and proof.get("failed_batch_id") == FAILED_V15R3_BATCH_ID
+        and proof.get("failed_backend_commit") == FAILED_V15R3_BACKEND_COMMIT
+        and proof.get("failed_runner_sha256") == FAILED_V15R3_RUNNER_SHA256
+        and proof.get("r2_plan_sha256") == R2_PLAN_SHA256
+        and proof.get("r2_parent_process_identity")
+        == source.get("r2_parent_process_identity")
+        and proof.get("r2_runtime_process_identity")
+        == source.get("r2_runtime_process_identity")
+        and proof.get("predecessor_signal_attempt_count") == 0
+        and proof.get("predecessor_signal_authorized") is False
+        and proof.get("predecessor_restart_authorized") is False
         and proof.get("both_predecessor_processes_absent") is True
+        and proof.get("both_predecessor_exact_identities_absent") is True
+        and proof.get("terminal_artifact_paths")
+        == {
+            key: str(value)
+            for key, value in COMPLETED_SHUTDOWN_ARTIFACT_PATHS.items()
+        }
+        and proof.get("terminal_artifact_hashes")
+        == COMPLETED_SHUTDOWN_ARTIFACT_HASHES
+        and proof.get("transition_disable_record_hashes")
+        == COMPLETED_SHUTDOWN_RECORD_HASHES
         and proof.get("admin_port_8787_free") is True
         and proof.get("competitor_pid") is None
         and proof.get("exact_child_open_zero_fill") is True
+        and child_is_exact_zero_fill
         and secrets.compare_digest(
             str(proof.get("transition_sha256") or ""), transition_hash(proof)
         ),
@@ -1797,14 +2285,14 @@ def _with_controlled_execution_lease(function):
 def execute_v15r3_plan(
     *, plan_path: Path, confirmed_plan_sha256: str
 ) -> dict[str, Any]:
-    """Transition runtimes, expose one UI cancel, and monitor its claim ledger."""
+    """Bind the prior shutdown, expose one UI cancel, and monitor its claim."""
 
     _require(plan_path == PLAN_PATH, "v15r3_execute_plan_file_not_fixed")
     frozen_plan = _json(plan_path, "v15r3_execution_plan")
     validate_v15r3_plan(
         frozen_plan, expected_hash=confirmed_plan_sha256
     )
-    transition = transition_v15r2_runtime(
+    transition = bind_completed_v15r2_shutdown(
         frozen_plan,
         confirmed_plan_sha256=confirmed_plan_sha256,
         transition_path=RUNTIME_PATH,
@@ -2072,8 +2560,8 @@ def prepare_v15r3_plan(
         ),
         "v15r3_prepare_path_already_exists",
     )
-    source_binding = load_v15r2_failed_cancel_binding()
-    local_binding = read_local_active_child_binding()
+    source_binding, completed_shutdown = load_current_v15r3_source_binding()
+    local_binding = dict(completed_shutdown["local_active_child_binding"])
     plan = build_v15r3_plan(
         source_binding, local_active_child=local_binding, now=now
     )
@@ -2097,7 +2585,8 @@ def prepare_v15r3_plan(
             "aggregate_reference_notional_usdc"
         ],
         "live_coinbase_orders_ran": False,
-        "live_coinbase_read_ran": False,
+        "live_coinbase_read_ran": True,
+        "completed_predecessor_shutdown_bound": True,
         "marker_written": False,
         "ledger_written": False,
         "handoff_written": False,

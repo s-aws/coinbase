@@ -482,6 +482,12 @@ CONTROLLED_V15R2_USED_CANCEL_IDS = frozenset(
         "aef54633-6cd4-4ad9-892b-7740aa27b45a",
         "6e678aff-e044-5962-9895-720b5ec528dc",
         "f24753f6-eac6-5207-9806-1b5502c0d474",
+        "fba7a3ed-420e-52b9-a4c4-e3a6bbc9d865",
+        "3512e3bd-5cb1-5442-8a01-4ebdc71a77a9",
+        "7bc45910-0144-59a4-a006-df23ee327ebc",
+        "ef26324a-c9fe-52d9-9f24-54d23fa943b7",
+        "8cc92c40-def3-5c34-80c0-b40345a5bdd2",
+        "30e91103-79dc-5b1c-9843-e4be3ccc2963",
     }
 )
 CONTROLLED_V15R3_MARKER_FIELDS = CONTROLLED_V15R2_MARKER_FIELDS

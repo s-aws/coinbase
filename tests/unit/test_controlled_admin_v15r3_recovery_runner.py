@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+from application.admin_api import root_child_cancel as cancel_authority
 from tools import run_controlled_admin_spot_child_cancel_recovery_v15r3 as recovery
 
 
@@ -344,12 +345,72 @@ def _plan(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
     monkeypatch.setattr(recovery, "runner_sha256", lambda: "c" * 64)
     monkeypatch.setattr(recovery, "_read_process_identity", _fake_process_identity)
     binding = recovery.load_v15r2_failed_cancel_binding()
+    completed = {
+        "r2_source_binding": binding,
+        "local_active_child_binding": _active_binding(),
+    }
+    monkeypatch.setattr(
+        recovery,
+        "load_current_v15r3_source_binding",
+        lambda: (binding, completed),
+    )
     return recovery.build_v15r3_plan(
         binding,
         local_active_child=_active_binding(),
         now=datetime(2026, 7, 13, 3, 0, tzinfo=timezone.utc),
         approval_id="controlled-child-cancel-v15r3-11111111-1111-4111-8111-111111111111",
     )
+
+
+def _recovered_transition(plan: dict[str, object]) -> dict[str, object]:
+    source = dict(plan["v15r2_active_child_binding"])
+    child = {
+        "client_order_id": recovery.CHILD_CLIENT_ORDER_ID,
+        "exchange_order_id": recovery.CHILD_EXCHANGE_ORDER_ID,
+        "status": "OPEN",
+        "filled_size": "0",
+        "filled_value": "0",
+        "total_fees": "0",
+        "number_of_fills": 0,
+        "reference_notional_usdc": "1.7049248762",
+    }
+    transition: dict[str, object] = {
+        "schema_version": "2",
+        "status": "v15r2_to_v15r3_no_overlap_proven",
+        "recovery_status": "v15r2_shutdown_bound_no_overlap_proven",
+        "transition_mode": "bind_completed_predecessor_shutdown_no_signals",
+        "controlled_plan_sha256": plan["plan_sha256"],
+        "failed_plan_sha256": recovery.FAILED_V15R3_PLAN_SHA256,
+        "failed_plan_bytes_sha256": recovery.FAILED_V15R3_PLAN_BYTES_SHA256,
+        "failed_batch_id": recovery.FAILED_V15R3_BATCH_ID,
+        "failed_backend_commit": recovery.FAILED_V15R3_BACKEND_COMMIT,
+        "failed_runner_sha256": recovery.FAILED_V15R3_RUNNER_SHA256,
+        "r2_plan_sha256": recovery.R2_PLAN_SHA256,
+        "r2_parent_process_identity": dict(source["r2_parent_process_identity"]),
+        "r2_runtime_process_identity": dict(source["r2_runtime_process_identity"]),
+        "predecessor_signal_attempt_count": 0,
+        "predecessor_signal_authorized": False,
+        "predecessor_restart_authorized": False,
+        "both_predecessor_processes_absent": True,
+        "both_predecessor_exact_identities_absent": True,
+        "terminal_artifact_paths": {
+            key: str(value)
+            for key, value in recovery.COMPLETED_SHUTDOWN_ARTIFACT_PATHS.items()
+        },
+        "terminal_artifact_hashes": dict(
+            recovery.COMPLETED_SHUTDOWN_ARTIFACT_HASHES
+        ),
+        "transition_disable_record_hashes": dict(
+            recovery.COMPLETED_SHUTDOWN_RECORD_HASHES
+        ),
+        "admin_port_8787_free": True,
+        "competitor_pid": None,
+        "exact_child_open_zero_fill": True,
+        "child_readback": child,
+        "recorded_at": "2026-07-13T03:00:30+00:00",
+    }
+    transition["transition_sha256"] = recovery.transition_hash(transition)
+    return transition
 
 
 def test_v15r3_plan_is_cancel_only_exact_actor_fresh_and_120_minutes(
@@ -394,6 +455,10 @@ def test_v15r3_plan_is_cancel_only_exact_actor_fresh_and_120_minutes(
     assert plan["cancel_command"]["actor_roles"] == ["trader"]
     assert plan["cancel_command"]["admission_audit_id_source"] == (
         "route_bound_runtime_proof"
+    )
+    assert recovery.FAILED_V15R3_CANCEL_IDS <= recovery.R2_USED_IDS
+    assert recovery.FAILED_V15R3_CANCEL_IDS <= (
+        cancel_authority.CONTROLLED_V15R2_USED_CANCEL_IDS
     )
     assert set(recovery.cancel_command_ids(plan)).isdisjoint(recovery.R2_USED_IDS)
     assert plan["plan_sha256"] == recovery.plan_hash(plan)
@@ -491,7 +556,36 @@ def test_v15r3_prepare_creates_only_owner_only_plan_and_no_runtime_artifacts(
     monkeypatch.setattr(recovery, "frontend_commit", lambda: "b" * 40)
     monkeypatch.setattr(recovery, "runner_sha256", lambda: "c" * 64)
     monkeypatch.setattr(recovery, "_read_process_identity", _fake_process_identity)
-    monkeypatch.setattr(recovery, "read_local_active_child_binding", _active_binding)
+    binding = recovery.load_v15r2_failed_cancel_binding()
+    completed = {
+        "r2_source_binding": binding,
+        "local_active_child_binding": _active_binding(),
+    }
+    monkeypatch.setattr(
+        recovery,
+        "load_current_v15r3_source_binding",
+        lambda: (binding, completed),
+    )
+    for name in (
+        "signal_exact_process",
+        "post_v15r2_live_service_disabled",
+        "transition_v15r2_runtime",
+        "bind_completed_v15r2_shutdown",
+    ):
+        monkeypatch.setattr(
+            recovery,
+            name,
+            lambda *_args, _name=name, **_kwargs: pytest.fail(
+                f"preparation must not call {_name}"
+            ),
+        )
+    monkeypatch.setattr(
+        recovery.base,
+        "AdminRuntime",
+        lambda *_args, **_kwargs: pytest.fail(
+            "preparation must not construct a runtime"
+        ),
+    )
 
     output_dir = tmp_path / "output"
     plan_path = output_dir / "v15r3-plan.json"
@@ -520,7 +614,8 @@ def test_v15r3_prepare_creates_only_owner_only_plan_and_no_runtime_artifacts(
     assert result["child_placement_maximum"] == 0
     assert result["cancel_command_maximum"] == 1
     assert result["live_coinbase_orders_ran"] is False
-    assert result["live_coinbase_read_ran"] is False
+    assert result["live_coinbase_read_ran"] is True
+    assert result["completed_predecessor_shutdown_bound"] is True
     assert result["marker_written"] is False
     assert result["ledger_written"] is False
     assert result["runtime_started"] is False
@@ -538,6 +633,66 @@ def test_v15r3_prepare_creates_only_owner_only_plan_and_no_runtime_artifacts(
             runtime_path,
         )
     )
+
+
+def test_v15r3_completed_shutdown_binder_writes_strict_no_signal_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = _plan(tmp_path / "plan-source", monkeypatch)
+    expected = _recovered_transition(plan)
+    completed = {
+        "failed_plan_sha256": recovery.FAILED_V15R3_PLAN_SHA256,
+        "failed_plan_bytes_sha256": recovery.FAILED_V15R3_PLAN_BYTES_SHA256,
+        "failed_batch_id": recovery.FAILED_V15R3_BATCH_ID,
+        "failed_backend_commit": recovery.FAILED_V15R3_BACKEND_COMMIT,
+        "failed_runner_sha256": recovery.FAILED_V15R3_RUNNER_SHA256,
+        "r2_source_binding": plan["v15r2_active_child_binding"],
+        "local_active_child_binding": plan["local_active_child_binding"],
+        "terminal_artifact_paths": expected["terminal_artifact_paths"],
+        "terminal_artifact_hashes": expected["terminal_artifact_hashes"],
+        "transition_disable_record_hashes": expected[
+            "transition_disable_record_hashes"
+        ],
+        "both_predecessor_exact_identities_absent": True,
+        "child_readback": expected["child_readback"],
+    }
+    monkeypatch.setattr(
+        recovery,
+        "load_v15r3_completed_shutdown_binding",
+        lambda: completed,
+    )
+    for name in (
+        "signal_exact_process",
+        "post_v15r2_live_service_disabled",
+        "transition_v15r2_runtime",
+        "wait_exact_process_absent",
+    ):
+        monkeypatch.setattr(
+            recovery,
+            name,
+            lambda *_args, _name=name, **_kwargs: pytest.fail(
+                f"completed shutdown binding must not call {_name}"
+            ),
+        )
+
+    transition_path = tmp_path / "transition.json"
+    receipt = recovery.bind_completed_v15r2_shutdown(
+        plan,
+        confirmed_plan_sha256=plan["plan_sha256"],
+        transition_path=transition_path,
+    )
+
+    assert set(receipt) == recovery.V15R3_RECOVERED_TRANSITION_FIELDS
+    assert receipt["transition_mode"] == (
+        "bind_completed_predecessor_shutdown_no_signals"
+    )
+    assert receipt["predecessor_signal_attempt_count"] == 0
+    assert receipt["predecessor_signal_authorized"] is False
+    assert receipt["predecessor_restart_authorized"] is False
+    assert receipt["both_predecessor_exact_identities_absent"] is True
+    assert receipt["transition_sha256"] == recovery.transition_hash(receipt)
+    assert transition_path.stat().st_mode & 0o777 == 0o600
 
 
 def test_v15r3_transition_is_strictly_no_overlap_and_records_exact_child(
@@ -654,15 +809,7 @@ def test_v15r3_post_transition_authority_does_not_reload_mutated_r2_sources(
     plan = _plan(tmp_path / "plan-source", monkeypatch)
     plan_path = tmp_path / "plan.json"
     _write_json(plan_path, plan)
-    transition = {
-        "status": "v15r2_to_v15r3_no_overlap_proven",
-        "controlled_plan_sha256": plan["plan_sha256"],
-        "both_predecessor_processes_absent": True,
-        "admin_port_8787_free": True,
-        "competitor_pid": None,
-        "exact_child_open_zero_fill": True,
-    }
-    transition["transition_sha256"] = recovery.transition_hash(transition)
+    transition = _recovered_transition(plan)
     monkeypatch.setattr(
         recovery,
         "load_v15r2_failed_cancel_binding",
@@ -691,6 +838,95 @@ def test_v15r3_post_transition_authority_does_not_reload_mutated_r2_sources(
     assert (output / "cancel.jsonl").read_bytes() == b""
     assert (output / "claims.jsonl").read_bytes() == b""
     assert not (output / "handoff.json").exists()
+
+
+def test_v15r3_post_transition_requires_exact_no_signal_recovery_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = _plan(tmp_path / "plan-source", monkeypatch)
+    legacy = {
+        "status": "v15r2_to_v15r3_no_overlap_proven",
+        "controlled_plan_sha256": plan["plan_sha256"],
+        "both_predecessor_processes_absent": True,
+        "admin_port_8787_free": True,
+        "competitor_pid": None,
+        "exact_child_open_zero_fill": True,
+    }
+    legacy["transition_sha256"] = recovery.transition_hash(legacy)
+
+    with pytest.raises(
+        recovery.ProofFailure,
+        match="v15r3_post_transition_evidence_invalid",
+    ):
+        recovery._validate_frozen_plan_after_transition(
+            plan,
+            expected_hash=plan["plan_sha256"],
+            transition=legacy,
+            now=datetime(2026, 7, 13, 3, 1, tzinfo=timezone.utc),
+        )
+
+    recovered = _recovered_transition(plan)
+    recovery._validate_frozen_plan_after_transition(
+        plan,
+        expected_hash=plan["plan_sha256"],
+        transition=recovered,
+        now=datetime(2026, 7, 13, 3, 1, tzinfo=timezone.utc),
+    )
+
+    recovered["predecessor_signal_attempt_count"] = 1
+    recovered["transition_sha256"] = recovery.transition_hash(recovered)
+    with pytest.raises(
+        recovery.ProofFailure,
+        match="v15r3_post_transition_evidence_invalid",
+    ):
+        recovery._validate_frozen_plan_after_transition(
+            plan,
+            expected_hash=plan["plan_sha256"],
+            transition=recovered,
+            now=datetime(2026, 7, 13, 3, 1, tzinfo=timezone.utc),
+        )
+
+
+@pytest.mark.parametrize(
+    "mutator",
+    [
+        lambda receipt: receipt.update({"unexpected_authority": True}),
+        lambda receipt: receipt.update({"failed_plan_bytes_sha256": "0" * 64}),
+        lambda receipt: receipt["terminal_artifact_hashes"].update(
+            {"sentinel": "0" * 64}
+        ),
+        lambda receipt: receipt.update(
+            {"both_predecessor_exact_identities_absent": False}
+        ),
+        lambda receipt: receipt["child_readback"].update(
+            {"filled_size": "0.00000001"}
+        ),
+        lambda receipt: receipt["child_readback"].update(
+            {"total_fees": "0.01"}
+        ),
+    ],
+)
+def test_v15r3_post_transition_rejects_rehashed_semantic_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutator,
+) -> None:
+    plan = _plan(tmp_path / "plan-source", monkeypatch)
+    recovered = deepcopy(_recovered_transition(plan))
+    mutator(recovered)
+    recovered["transition_sha256"] = recovery.transition_hash(recovered)
+
+    with pytest.raises(
+        recovery.ProofFailure,
+        match="v15r3_post_transition_evidence_invalid",
+    ):
+        recovery._validate_frozen_plan_after_transition(
+            plan,
+            expected_hash=plan["plan_sha256"],
+            transition=recovered,
+            now=datetime(2026, 7, 13, 3, 1, tzinfo=timezone.utc),
+        )
 
 
 def test_v15r3_cancel_context_uses_exact_trader_and_runner_has_no_cancel_post(
