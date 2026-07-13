@@ -2304,8 +2304,8 @@ def is_v15_plan(plan: Mapping[str, Any]) -> bool:
     )
 
 
-def is_v15_recovery_plan(plan: Mapping[str, Any]) -> bool:
-    """Identify the sealed child-only V15R2 recovery without importing it."""
+def is_v15_child_placement_recovery_plan(plan: Mapping[str, Any]) -> bool:
+    """Identify the sealed child-placement V15R2 recovery."""
 
     root = object_record(plan.get("root_evidence"))
     child = object_record(plan.get("child"))
@@ -2333,12 +2333,53 @@ def is_v15_recovery_plan(plan: Mapping[str, Any]) -> bool:
     )
 
 
+def is_v15_cancel_only_recovery_plan(plan: Mapping[str, Any]) -> bool:
+    """Identify the sealed zero-placement V15R3 cancel recovery."""
+
+    root = object_record(plan.get("root_evidence"))
+    child = object_record(plan.get("child"))
+    root_id = str(root.get("client_order_id") or "")
+    child_id = str(child.get("client_order_id") or "")
+    return bool(
+        plan.get("schema_version") == "21"
+        and plan.get("authority_kind")
+        == "selected_chain_child_cancel_recovery_v15r3"
+        and plan.get("placement_attempt_count") == 0
+        and plan.get("placement_attempt_schedule") == []
+        and plan.get("root_placement_maximum") == 0
+        and plan.get("child_placement_maximum") == 0
+        and plan.get("cancel_command_maximum") == 1
+        and plan.get("root_placement_authorized") is False
+        and root.get("placement_authorized") is False
+        and root_id
+        and child.get("parent_client_order_id") == root_id
+        and child_id == deterministic_child_client_order_id(root_id)
+        and bool(str(child.get("active_exchange_order_id") or ""))
+        and isinstance(plan.get("v15r2_active_child_binding"), Mapping)
+        and plan.get("actor_id") == ACTOR_ID
+        and plan.get("actor_roles") == [COMMAND_ROLE]
+        and plan.get("retry_authorized") is False
+        and plan.get("substitution_authorized") is False
+        and plan.get("later_child_authorized") is False
+    )
+
+
+def is_v15_recovery_plan(plan: Mapping[str, Any]) -> bool:
+    """Identify either exact sealed V15 recovery generation."""
+
+    return is_v15_child_placement_recovery_plan(
+        plan
+    ) or is_v15_cancel_only_recovery_plan(plan)
+
+
 def is_v15_runtime_plan(plan: Mapping[str, Any]) -> bool:
     return is_v15_plan(plan) or is_v15_recovery_plan(plan)
 
 
 def current_attempt_schedule(plan: Mapping[str, Any]) -> list[tuple[int, str]]:
-    if is_v15_recovery_plan(plan):
+    if is_v15_cancel_only_recovery_plan(plan):
+        return []
+    if is_v15_child_placement_recovery_plan(plan):
         return [(1, "child")]
     if is_v15_plan(plan):
         return [(1, "root"), (1, "child")]
@@ -2346,7 +2387,9 @@ def current_attempt_schedule(plan: Mapping[str, Any]) -> list[tuple[int, str]]:
 
 
 def current_generation_limits(plan: Mapping[str, Any]) -> tuple[int, int, int]:
-    if is_v15_recovery_plan(plan):
+    if is_v15_cancel_only_recovery_plan(plan):
+        return 0, 0, 0
+    if is_v15_child_placement_recovery_plan(plan):
         return 0, 1, 1
     if is_v15_plan(plan):
         return 1, 1, 2
@@ -15326,13 +15369,18 @@ def _parse_and_validate_v15_recovery_attempt_ledger(
     confirmed_plan: Mapping[str, Any],
     confirmed_plan_hash: str,
 ) -> list[dict[str, Any]]:
-    """Validate the sole child row; recovery has no root-call capability."""
+    """Validate the exact recovery generation's placement ledger."""
 
     require(
         is_v15_recovery_plan(confirmed_plan)
         and confirmed_plan.get("plan_sha256") == confirmed_plan_hash,
         "v15r2_runtime_attempt_plan_mismatch",
     )
+    if is_v15_cancel_only_recovery_plan(confirmed_plan):
+        if raw and not raw.endswith(b"\n"):
+            raise ProofFailure("v15r3_runtime_attempt_ledger_truncated")
+        require(not raw, "v15r3_runtime_attempt_count_exceeded")
+        return []
     if raw and not raw.endswith(b"\n"):
         raise ProofFailure("v15r2_runtime_attempt_ledger_truncated")
     rows: list[dict[str, Any]] = []
@@ -15760,7 +15808,55 @@ def _validate_authority_plan_structure(
         == confirmed_plan.get("plan_sha256"),
         "runtime_child_authority_plan_hash_mismatch",
     )
-    if is_v15_recovery_plan(confirmed_plan):
+    if is_v15_cancel_only_recovery_plan(confirmed_plan):
+        root = object_record(confirmed_plan.get("root_evidence"))
+        child = object_record(confirmed_plan.get("child"))
+        plan_runner_sha256 = str(confirmed_plan.get("runner_sha256") or "")
+        require(
+            confirmed_plan.get("backend_commit")
+            == current_backend_commit(confirmed_plan)
+            and len(plan_runner_sha256) == 64
+            and all(
+                character in "0123456789abcdef"
+                for character in plan_runner_sha256
+            ),
+            "runtime_child_v15r3_code_binding_mismatch",
+        )
+        require(
+            confirmed_plan.get("profile_label") == PROFILE_LABEL
+            and confirmed_plan.get("portfolio_id") == TEST_PORTFOLIO_ID
+            and confirmed_plan.get("product_id") == PRODUCT_ID
+            and confirmed_plan.get("placement_attempt_count") == 0
+            and confirmed_plan.get("placement_attempt_schedule") == []
+            and confirmed_plan.get("root_placement_maximum") == 0
+            and confirmed_plan.get("child_placement_maximum") == 0
+            and confirmed_plan.get("cancel_command_maximum") == 1
+            and confirmed_plan.get("root_placement_authorized") is False
+            and root.get("placement_authorized") is False
+            and child.get("parent_client_order_id")
+            == root.get("client_order_id")
+            and child.get("client_order_id")
+            == deterministic_child_client_order_id(
+                str(root.get("client_order_id") or "")
+            )
+            and bool(str(child.get("active_exchange_order_id") or ""))
+            and confirmed_plan.get("actor_id") == ACTOR_ID
+            and confirmed_plan.get("actor_roles") == [COMMAND_ROLE]
+            and Decimal(
+                str(
+                    confirmed_plan.get(
+                        "planned_reference_notional_usdc"
+                    )
+                    or "0"
+                )
+            )
+            < Decimal(
+                str(confirmed_plan.get("slice_reference_cap_usdc") or "0")
+            ),
+            "runtime_child_v15r3_scope_mismatch",
+        )
+        return
+    if is_v15_child_placement_recovery_plan(confirmed_plan):
         root = object_record(confirmed_plan.get("root_evidence"))
         child = object_record(confirmed_plan.get("child"))
         plan_runner_sha256 = str(confirmed_plan.get("runner_sha256") or "")
@@ -16573,9 +16669,13 @@ def consume_runtime_child_authority(
         )
         child = object_record(confirmed_plan.get("child"))
         expected_authority = (
-            "selected_chain_child_cancel_recovery_v15r2"
-            if is_v15_recovery_plan(confirmed_plan)
-            else "selected_chain_child_cancel_v15"
+            "selected_chain_child_cancel_recovery_v15r3"
+            if is_v15_cancel_only_recovery_plan(confirmed_plan)
+            else (
+                "selected_chain_child_cancel_recovery_v15r2"
+                if is_v15_child_placement_recovery_plan(confirmed_plan)
+                else "selected_chain_child_cancel_v15"
+            )
         )
         root_maximum, child_maximum, attempt_maximum = current_generation_limits(
             confirmed_plan
@@ -17258,7 +17358,7 @@ def validate_controlled_child_preparation_scope(
 
     child_id = str(exact_tuple.get("client_order_id") or "")
     slot = int(exact_tuple.get("batch_slot") or 0)
-    if is_v15_recovery_plan(confirmed_plan):
+    if is_v15_child_placement_recovery_plan(confirmed_plan):
         root = object_record(confirmed_plan.get("root_evidence"))
         child = object_record(confirmed_plan.get("child"))
         anchor_state = object_record(state.get("anchor_repricing_state_json"))
@@ -19312,6 +19412,7 @@ def write_proof_chain(
     approval_id: str | None = None,
     cap_guard_decision_id: str | None = None,
     reconciliation_plan_id: str | None = None,
+    approval_expires_at: str | None = None,
 ) -> dict[str, str]:
     require(
         command_kind
@@ -19326,6 +19427,23 @@ def write_proof_chain(
     cap_ref = cap_guard_decision_id or f"cap-{label}-{uuid4()}"
     reconciliation_ref = (
         reconciliation_plan_id or f"reconciliation-{label}-{uuid4()}"
+    )
+    approval_now = datetime.now(timezone.utc)
+    approval_expiry = (
+        approval_expires_at
+        or (approval_now + PLAN_TTL).isoformat()
+    )
+    try:
+        parsed_approval_expiry = datetime.fromisoformat(approval_expiry)
+    except ValueError as exc:
+        raise ProofFailure(
+            f"proof_chain_approval_expiry_invalid:{label}"
+        ) from exc
+    require(
+        parsed_approval_expiry.tzinfo is not None
+        and parsed_approval_expiry.utcoffset() is not None
+        and approval_now < parsed_approval_expiry <= approval_now + PLAN_TTL,
+        f"proof_chain_approval_expiry_invalid:{label}",
     )
     approval_request_body = {
         key: value
@@ -19356,7 +19474,7 @@ def write_proof_chain(
         body={
             "decision": "approved",
             "decision_reason": f"Approve the exact controlled batch {label} tuple.",
-            "expires_at": (datetime.now(timezone.utc) + PLAN_TTL).isoformat(),
+            "expires_at": approval_expiry,
             "approval_id": approval_id,
             "cap_guard_decision_ref": cap_ref,
             "reconciliation_plan_ref": reconciliation_ref,

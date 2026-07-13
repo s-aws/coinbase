@@ -606,12 +606,16 @@ def test_v15r2_prepare_does_not_create_marker_ledger_runtime_or_handoff(
     plan_path = tmp_path / "v15r2-plan.json"
     marker = tmp_path / "v15r2-marker.json"
     ledger = tmp_path / "v15r2-ledger.jsonl"
+    cancel = tmp_path / "v15r2-cancel.jsonl"
+    backend = tmp_path / "v15r2-backend.jsonl"
     handoff = tmp_path / "v15r2-handoff.json"
 
     result = recovery.prepare_v15r2_plan(
         plan_path=plan_path,
         marker_path=marker,
         placement_ledger_path=ledger,
+        cancel_ledger_path=cancel,
+        backend_claim_log_path=backend,
         handoff_path=handoff,
         now=datetime(2026, 7, 13, 2, 0, tzinfo=timezone.utc),
         require_clean_environment=False,
@@ -622,6 +626,8 @@ def test_v15r2_prepare_does_not_create_marker_ledger_runtime_or_handoff(
     assert plan_path.stat().st_mode & 0o077 == 0
     assert not marker.exists()
     assert not ledger.exists()
+    assert not cancel.exists()
+    assert not backend.exists()
     assert not handoff.exists()
     assert result["live_coinbase_orders_ran"] is False
     assert result["live_coinbase_read_ran"] is False

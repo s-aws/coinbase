@@ -84,6 +84,9 @@ CONTROLLED_V15_PLAN_FIELDS = frozenset(
 CONTROLLED_V15R2_AUTHORITY_KIND = (
     "selected_chain_child_cancel_recovery_v15r2"
 )
+CONTROLLED_V15R3_AUTHORITY_KIND = (
+    "selected_chain_child_cancel_recovery_v15r3"
+)
 CONTROLLED_V15R2_PLAN_FIELDS = frozenset(
     {
         "schema_version",
@@ -275,6 +278,216 @@ CONTROLLED_V15R2_HANDOFF_FIELDS = frozenset(
         "recorded_at",
     }
 )
+CONTROLLED_V15R3_PLAN_FIELDS = frozenset(
+    {
+        "schema_version",
+        "authority_kind",
+        "approval_id",
+        "batch_id",
+        "created_at",
+        "expires_at",
+        "backend_commit",
+        "frontend_commit",
+        "runner_sha256",
+        "v15r2_active_child_binding",
+        "local_active_child_binding",
+        "profile_label",
+        "portfolio_id",
+        "product_id",
+        "placement_attempt_count",
+        "placement_attempt_schedule",
+        "root_placement_maximum",
+        "child_placement_maximum",
+        "cancel_command_maximum",
+        "root_placement_authorized",
+        "child_placement_authorized",
+        "root_reference_cap_usdc",
+        "child_reference_cap_usdc",
+        "slice_reference_cap_usdc",
+        "root_actual_reference_notional_usdc",
+        "active_child_reference_notional_usdc",
+        "aggregate_reference_notional_usdc",
+        "planned_reference_notional_usdc",
+        "root_evidence",
+        "child",
+        "child_evidence",
+        "actor_id",
+        "actor_roles",
+        "child_cancel_operator_intent",
+        "cancel_command",
+        "retry_authorized",
+        "substitution_authorized",
+        "later_child_authorized",
+        "browser_derives_child_identity",
+        "exchange_order_id_evidence_only",
+        "exchange_order_id_fallback_authorized",
+        "plan_sha256",
+    }
+)
+CONTROLLED_V15R2_PLAN_SHA256 = (
+    "0b9ab483459a986ad05200a6740a0de6dca63b6c5da197572c952ce8aef524c2"
+)
+CONTROLLED_V15R2_BATCH_ID = "bb88b375-66a3-5562-87bd-1e88ebceecda"
+CONTROLLED_V15R2_CHILD_EXCHANGE_ORDER_ID = (
+    "5bb903af-3c6e-4d0a-bd73-087f0dfead89"
+)
+CONTROLLED_V15R2_CHILD_LIMIT_PRICE = Decimal("107702.14")
+CONTROLLED_V15R2_CHILD_REFERENCE_NOTIONAL = Decimal("1.7049248762")
+CONTROLLED_V15R2_AGGREGATE_REFERENCE_NOTIONAL = Decimal("2.7125045345")
+CONTROLLED_V15R2_SOURCE_PATHS = {
+    "plan_path": (
+        "/home/ec2-user/.local/state/"
+        "coinbase-controlled-spot-child-cancel-v15r2-20260713.plan.json"
+    ),
+    "marker_path": (
+        "/var/tmp/coinbase-admin-controlled-spot-root-child-batches/"
+        "test-profile-btc-usdc-selected-child-cancel-v15r2-20260713."
+        "authority.json"
+    ),
+    "placement_ledger_path": (
+        "/var/tmp/coinbase-admin-controlled-spot-root-child-batches/"
+        "test-profile-btc-usdc-selected-child-cancel-v15r2-20260713."
+        "placements.jsonl"
+    ),
+    "cancel_ledger_path": (
+        "/var/tmp/coinbase-admin-controlled-spot-root-child-batches/"
+        "test-profile-btc-usdc-selected-child-cancel-v15r2-20260713."
+        "cancel-command.jsonl"
+    ),
+    "backend_claim_log_path": (
+        "/var/tmp/coinbase-admin-controlled-spot-root-child-batches/"
+        "test-profile-btc-usdc-selected-child-cancel-v15r2-20260713."
+        "backend-claims.jsonl"
+    ),
+    "handoff_path": (
+        "/var/tmp/coinbase-admin-controlled-spot-root-child-batches/"
+        "test-profile-btc-usdc-selected-child-cancel-v15r2-20260713."
+        "handoff.json"
+    ),
+    "sentinel_path": (
+        "/home/ec2-user/coinbase/artifacts/"
+        "controlled-root-child-batch-20260713T022339Z-301d5d02/"
+        "sdk-boundary-sentinel.json"
+    ),
+    "progress_path": (
+        "/home/ec2-user/coinbase/artifacts/"
+        "controlled-root-child-batch-20260713T022339Z-301d5d02/"
+        "v15r2-operator-ui-cancel-handoff.json"
+    ),
+    "idempotency_path": (
+        "/home/ec2-user/coinbase/artifacts/"
+        "controlled-root-child-batch-20260713T022339Z-301d5d02/"
+        "idempotency.jsonl"
+    ),
+    "audit_path": (
+        "/home/ec2-user/coinbase/artifacts/"
+        "controlled-root-child-batch-20260713T022339Z-301d5d02/"
+        "audit.jsonl"
+    ),
+    "runtime_authority_path": (
+        "/home/ec2-user/coinbase/artifacts/"
+        "controlled-root-child-batch-20260713T022339Z-301d5d02/"
+        "runtime-child-authority.json"
+    ),
+    "runtime_authority_used_path": (
+        "/home/ec2-user/coinbase/artifacts/"
+        "controlled-root-child-batch-20260713T022339Z-301d5d02/"
+        "runtime-child-authority.used.json"
+    ),
+    "runtime_pid_path": (
+        "/home/ec2-user/coinbase/artifacts/"
+        "controlled-root-child-batch-20260713T022339Z-301d5d02/"
+        "embedded-runtime.pid"
+    ),
+}
+CONTROLLED_V15R2_SOURCE_HASHES = {
+    "plan_bytes_sha256": (
+        "e4fd504a27eb999b42f0f5f7c2f4faa682dd75ac5c0811574d6e6937ca481c89"
+    ),
+    "marker_bytes_sha256": (
+        "a818a49d68ebf3908a1f7d08861b1afd82d12b18128e997bdbdeb8bd3e79af1f"
+    ),
+    "placement_ledger_bytes_sha256": (
+        "bf59dd45661d0e12c8cc3a0fda694e31b3f40a29dce05d123598d5178681ec13"
+    ),
+    "cancel_ledger_bytes_sha256": (
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    ),
+    "backend_claim_log_bytes_sha256": (
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    ),
+    "handoff_bytes_sha256": (
+        "d0b8c04bbf09baabba242fa4a605ff19a6786361955481ff1ff736da3a55c4af"
+    ),
+    "sentinel_bytes_sha256": (
+        "e93fe5902917f9765f6ab706cac400ad89807e3851cf465d24fe68c3595a9978"
+    ),
+    "progress_bytes_sha256": (
+        "8aec5d1b208df79231c14d32da034ec3bc3c4e96f34c7a72cc58186327fd8254"
+    ),
+    "successful_child_record_canonical_sha256": (
+        "63f586fedf05871a5476d0b4cf32e31a6298dde966730c45a2fc9d41f055b96d"
+    ),
+    "failed_cancel_record_canonical_sha256": (
+        "0c9b56e031b26c6d314c9a7335c49b68042137aff2ebcfa234665df18eb66773"
+    ),
+    "failed_cancel_audit_canonical_sha256": (
+        "645ad1950a300a8caf3ecd4110d95e6f201daff55716eda216141544e5eb1b2e"
+    ),
+    "runtime_authority_bytes_sha256": (
+        "169b4ca1489406351b1c3c51d68e11775fe49a0a6e53eb7f2b6470b9266aa4e5"
+    ),
+    "runtime_authority_used_bytes_sha256": (
+        "7a308f8ea028462f95304897fc210b2eae3d67770064bbfaf65a4f48d292f261"
+    ),
+    "runtime_pid_bytes_sha256": (
+        "c518928a7dcb53c2686c6f3b6ac666e2de687e18e22e1e7d5d0c897d0c1297da"
+    ),
+}
+CONTROLLED_V15R2_STATE_DIR = (
+    "/home/ec2-user/coinbase/artifacts/"
+    "controlled-root-child-batch-20260713T022339Z-301d5d02"
+)
+CONTROLLED_V15R2_PARENT_PROCESS_IDENTITY = {
+    "process_id": 637735,
+    "start_identity": "16869564",
+    "uid": 1000,
+    "cwd": "/home/ec2-user/coinbase",
+    "cwd_sha256": (
+        "8821a8c117a3e2d9fe297367217adcd83cf46c68c627d663385dafb4e8a14c62"
+    ),
+    "cmdline_sha256": (
+        "055683e470e85d76ef39227e019bc39d4b7fcca1135d0192055d90435f09e536"
+    ),
+}
+CONTROLLED_V15R2_RUNTIME_PROCESS_IDENTITY = {
+    "process_id": 637770,
+    "start_identity": "16871269",
+    "uid": 1000,
+    "cwd": "/home/ec2-user/coinbase",
+    "cwd_sha256": (
+        "8821a8c117a3e2d9fe297367217adcd83cf46c68c627d663385dafb4e8a14c62"
+    ),
+    "cmdline_sha256": (
+        "869aaf6d4029e6675d891c077930d18d37be251a271b2bedf7d62d2fbd280b61"
+    ),
+}
+CONTROLLED_V15R2_USED_CANCEL_IDS = frozenset(
+    {
+        CONTROLLED_V15R2_BATCH_ID,
+        "cd7713ea-5841-5c8a-9aea-161a2eb32e31",
+        "cd79b000-9c19-58dd-9ce0-537d4823bdec",
+        "46341b9c-efd0-5451-805d-efd2d1cd2709",
+        "6b7375fb-6d38-5164-90f0-ec81ec75c780",
+        "aef54633-6cd4-4ad9-892b-7740aa27b45a",
+        "6e678aff-e044-5962-9895-720b5ec528dc",
+        "f24753f6-eac6-5207-9806-1b5502c0d474",
+    }
+)
+CONTROLLED_V15R3_MARKER_FIELDS = CONTROLLED_V15R2_MARKER_FIELDS
+CONTROLLED_V15R3_HANDOFF_FIELDS = CONTROLLED_V15R2_HANDOFF_FIELDS | {
+    "actor_roles"
+}
 
 
 class AdminRootChildCancelAuthorityError(RuntimeError):
@@ -512,6 +725,15 @@ def is_controlled_v15r2_recovery_plan(plan: Mapping[str, Any]) -> bool:
     )
 
 
+def is_controlled_v15r3_recovery_plan(plan: Mapping[str, Any]) -> bool:
+    """Identify only the sealed zero-placement V15R3 cancel recovery."""
+
+    return bool(
+        plan.get("schema_version") == "21"
+        and plan.get("authority_kind") == CONTROLLED_V15R3_AUTHORITY_KIND
+    )
+
+
 def _lower_hex(value: Any, length: int) -> bool:
     text = str(value or "")
     return bool(
@@ -525,6 +747,16 @@ def _v15r2_proof_id(batch_id: str, purpose: str) -> str:
         uuid.uuid5(
             uuid.NAMESPACE_URL,
             "coinbase://selected-child-cancel-v15r2/"
+            f"{batch_id}/{purpose}",
+        )
+    )
+
+
+def _v15r3_proof_id(batch_id: str, purpose: str) -> str:
+    return str(
+        uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            "coinbase://selected-child-cancel-v15r3/"
             f"{batch_id}/{purpose}",
         )
     )
@@ -873,6 +1105,428 @@ def validate_controlled_v15r2_recovery_plan_scope(
         ) from exc
 
 
+def validate_controlled_v15r3_recovery_plan_scope(
+    plan: Mapping[str, Any],
+    *,
+    now: datetime | None = None,
+) -> None:
+    """Reject schema-21 authority outside the one existing active child."""
+
+    del now
+    try:
+        if set(plan) != CONTROLLED_V15R3_PLAN_FIELDS:
+            raise ValueError("fields")
+        root = dict(plan["root_evidence"])
+        child = dict(plan["child"])
+        child_evidence = dict(plan["child_evidence"])
+        source = dict(plan["v15r2_active_child_binding"])
+        local = dict(plan["local_active_child_binding"])
+        cancel = dict(plan["cancel_command"])
+        source_paths = dict(source["source_paths"])
+        source_hashes = dict(source["source_hashes"])
+        parent_process_identity = dict(source["r2_parent_process_identity"])
+        runtime_process_identity = dict(source["r2_runtime_process_identity"])
+        if set(root) != {
+            "client_order_id",
+            "exchange_order_id",
+            "status",
+            "filled_size",
+            "filled_value",
+            "placement_authorized",
+        }:
+            raise ValueError("root_fields")
+        if set(child) != {
+            "client_order_id",
+            "parent_client_order_id",
+            "active_exchange_order_id",
+            "origin_controlled_plan_sha256",
+            "origin_controlled_batch_id",
+        }:
+            raise ValueError("child_fields")
+        if set(child_evidence) != {
+            "client_order_id",
+            "parent_client_order_id",
+            "exchange_order_id",
+            "product_id",
+            "side",
+            "status",
+            "stealth_status",
+            "base_size",
+            "limit_price",
+            "filled_size",
+            "filled_value",
+            "total_fees",
+            "number_of_fills",
+            "reference_notional_usdc",
+            "origin_controlled_plan_sha256",
+            "origin_controlled_batch_id",
+            "placement_authorized",
+            "exchange_order_id_evidence_only",
+        }:
+            raise ValueError("child_evidence_fields")
+        if set(local) != {
+            "root_client_order_id",
+            "root_status",
+            "root_exchange_order_id",
+            "root_correlation_id",
+            "root_audit_id",
+            "child_client_order_id",
+            "child_parent_status",
+            "child_size",
+            "child_limit_price",
+            "child_exchange_order_id",
+            "child_correlation_id",
+            "child_audit_id",
+            "child_stealth_status",
+            "revealed_size",
+            "executed_size",
+            "remaining_size",
+            "active_placement_client_order_id",
+            "active_exchange_order_id",
+            "active_exchange_price",
+            "controlled_plan_sha256",
+            "controlled_batch_id",
+            "reference_notional_usdc",
+            "direct_child_client_order_ids",
+            "nested_child_client_order_ids",
+        }:
+            raise ValueError("local_fields")
+        if set(source) != {
+            "r2_plan_sha256",
+            "r2_batch_id",
+            "root_client_order_id",
+            "root_exchange_order_id",
+            "child_client_order_id",
+            "child_exchange_order_id",
+            "r2_placement_attempt_count",
+            "r2_root_sdk_call_count",
+            "r2_child_sdk_call_count",
+            "r2_cancel_command_count",
+            "child_status",
+            "child_zero_fill_proven",
+            "child_reference_notional_usdc",
+            "aggregate_reference_notional_usdc",
+            "r2_proof_payload_hash",
+            "failed_cancel_idempotency_key",
+            "failed_cancel_correlation_id",
+            "failed_cancel_payload_hash",
+            "failed_cancel_audit_id",
+            "failed_cancel_http_status",
+            "failed_cancel_status",
+            "failed_cancel_live_exchange_submitted",
+            "failed_cancel_live_coinbase_orders_ran",
+            "failed_cancel_semantic_claim_acquired",
+            "failed_cancel_exchange_boundary_called",
+            "cancel_ledgers_empty",
+            "r2_state_dir",
+            "r2_parent_process_identity",
+            "r2_runtime_process_identity",
+            "source_paths",
+            "source_hashes",
+        }:
+            raise ValueError("source_fields")
+        if source_paths != CONTROLLED_V15R2_SOURCE_PATHS:
+            raise ValueError("source_paths")
+        if source_hashes != CONTROLLED_V15R2_SOURCE_HASHES:
+            raise ValueError("source_hashes")
+        if (
+            parent_process_identity
+            != CONTROLLED_V15R2_PARENT_PROCESS_IDENTITY
+            or runtime_process_identity
+            != CONTROLLED_V15R2_RUNTIME_PROCESS_IDENTITY
+        ):
+            raise ValueError("process_identity")
+        if set(cancel) != {
+            "route",
+            "method",
+            "root_client_order_id",
+            "child_client_order_id",
+            "active_exchange_order_id_evidence",
+            "identity_key",
+            "identity_value",
+            "operator_intent",
+            "actor_roles",
+            "idempotency_key",
+            "correlation_id",
+            "claim_id",
+            "approval_snapshot_id",
+            "admission_audit_id_source",
+            "cap_guard_decision_id",
+            "reconciliation_plan_id",
+            "controlled_plan_sha256_source",
+            "semantic_retry_policy",
+            "exchange_order_id_fallback_authorized",
+        }:
+            raise ValueError("cancel_fields")
+
+        approval_id = str(plan["approval_id"])
+        approval_prefix = "controlled-child-cancel-v15r3-"
+        if not approval_id.startswith(approval_prefix):
+            raise ValueError("approval")
+        approval_uuid = uuid.UUID(approval_id.removeprefix(approval_prefix))
+        if approval_uuid.version != 4:
+            raise ValueError("approval_version")
+        backend_commit = str(plan["backend_commit"])
+        runner_sha256 = str(plan["runner_sha256"])
+        expected_batch_id = str(
+            uuid.uuid5(
+                uuid.NAMESPACE_URL,
+                "coinbase://selected-child-cancel-v15r3/"
+                f"{backend_commit}/{runner_sha256}/{approval_id}",
+            )
+        )
+        batch_id = str(plan["batch_id"])
+        created_at = datetime.fromisoformat(str(plan["created_at"]))
+        expires_at = datetime.fromisoformat(str(plan["expires_at"]))
+        root_cap = Decimal(str(plan["root_reference_cap_usdc"]))
+        child_cap = Decimal(str(plan["child_reference_cap_usdc"]))
+        slice_cap = Decimal(str(plan["slice_reference_cap_usdc"]))
+        root_actual = Decimal(
+            str(plan["root_actual_reference_notional_usdc"])
+        )
+        child_actual = Decimal(
+            str(plan["active_child_reference_notional_usdc"])
+        )
+        aggregate = Decimal(
+            str(plan["aggregate_reference_notional_usdc"])
+        )
+        planned = Decimal(str(plan["planned_reference_notional_usdc"]))
+        root_size = Decimal(str(root["filled_size"]))
+        child_size = Decimal(str(child_evidence["base_size"]))
+        child_price = Decimal(str(child_evidence["limit_price"]))
+        fresh_ids = {
+            str(cancel[field])
+            for field in (
+                "idempotency_key",
+                "correlation_id",
+                "claim_id",
+                "approval_snapshot_id",
+                "cap_guard_decision_id",
+                "reconciliation_plan_id",
+            )
+        }
+        if not (
+            is_controlled_v15r3_recovery_plan(plan)
+            and batch_id == expected_batch_id
+            and created_at.tzinfo is not None
+            and expires_at.tzinfo is not None
+            and expires_at - created_at == timedelta(minutes=120)
+            and _lower_hex(backend_commit, 40)
+            and _lower_hex(plan.get("frontend_commit"), 40)
+            and _lower_hex(runner_sha256, 64)
+            and _lower_hex(plan.get("plan_sha256"), 64)
+            and _canonical_plan_hash(plan) == plan.get("plan_sha256")
+            and plan.get("profile_label") == "Test"
+            and plan.get("portfolio_id")
+            == "62f28f44-8e72-4fe0-ace7-d71a01f54883"
+            and plan.get("product_id") == "BTC-USDC"
+            and plan.get("placement_attempt_count") == 0
+            and plan.get("placement_attempt_schedule") == []
+            and plan.get("root_placement_maximum") == 0
+            and plan.get("child_placement_maximum") == 0
+            and plan.get("cancel_command_maximum") == 1
+            and plan.get("root_placement_authorized") is False
+            and plan.get("child_placement_authorized") is False
+            and root_cap == Decimal("9.99")
+            and child_cap == Decimal("2.00")
+            and slice_cap == Decimal("12.00")
+            and root_actual == CONTROLLED_V15R2_ROOT_FILLED_VALUE
+            and child_actual == CONTROLLED_V15R2_CHILD_REFERENCE_NOTIONAL
+            and aggregate == CONTROLLED_V15R2_AGGREGATE_REFERENCE_NOTIONAL
+            and aggregate == root_actual + child_actual
+            and planned == aggregate
+            and aggregate < slice_cap
+            and root
+            == {
+                "client_order_id": CONTROLLED_V15R2_ROOT_CLIENT_ORDER_ID,
+                "exchange_order_id": CONTROLLED_V15R2_ROOT_EXCHANGE_ORDER_ID,
+                "status": "FILLED",
+                "filled_size": root.get("filled_size"),
+                "filled_value": root.get("filled_value"),
+                "placement_authorized": False,
+            }
+            and root_size == CONTROLLED_V15R2_ROOT_FILLED_SIZE
+            and Decimal(str(root["filled_value"])) == root_actual
+            and child
+            == {
+                "client_order_id": CONTROLLED_V15R2_CHILD_CLIENT_ORDER_ID,
+                "parent_client_order_id": CONTROLLED_V15R2_ROOT_CLIENT_ORDER_ID,
+                "active_exchange_order_id": (
+                    CONTROLLED_V15R2_CHILD_EXCHANGE_ORDER_ID
+                ),
+                "origin_controlled_plan_sha256": (
+                    CONTROLLED_V15R2_PLAN_SHA256
+                ),
+                "origin_controlled_batch_id": CONTROLLED_V15R2_BATCH_ID,
+            }
+            and child_evidence
+            == {
+                "client_order_id": CONTROLLED_V15R2_CHILD_CLIENT_ORDER_ID,
+                "parent_client_order_id": CONTROLLED_V15R2_ROOT_CLIENT_ORDER_ID,
+                "exchange_order_id": CONTROLLED_V15R2_CHILD_EXCHANGE_ORDER_ID,
+                "product_id": "BTC-USDC",
+                "side": "SELL",
+                "status": "OPEN",
+                "stealth_status": "REVEALED",
+                "base_size": child_evidence.get("base_size"),
+                "limit_price": child_evidence.get("limit_price"),
+                "filled_size": child_evidence.get("filled_size"),
+                "filled_value": child_evidence.get("filled_value"),
+                "total_fees": child_evidence.get("total_fees"),
+                "number_of_fills": child_evidence.get("number_of_fills"),
+                "reference_notional_usdc": child_evidence.get(
+                    "reference_notional_usdc"
+                ),
+                "origin_controlled_plan_sha256": (
+                    CONTROLLED_V15R2_PLAN_SHA256
+                ),
+                "origin_controlled_batch_id": CONTROLLED_V15R2_BATCH_ID,
+                "placement_authorized": False,
+                "exchange_order_id_evidence_only": True,
+            }
+            and child_size == CONTROLLED_V15R2_ROOT_FILLED_SIZE
+            and child_price == CONTROLLED_V15R2_CHILD_LIMIT_PRICE
+            and child_size * child_price == child_actual
+            and Decimal(str(child_evidence["filled_size"])) == 0
+            and Decimal(str(child_evidence["filled_value"])) == 0
+            and Decimal(str(child_evidence["total_fees"])) == 0
+            and int(child_evidence["number_of_fills"]) == 0
+            and Decimal(str(child_evidence["reference_notional_usdc"]))
+            == child_actual
+            and source.get("r2_plan_sha256")
+            == CONTROLLED_V15R2_PLAN_SHA256
+            and source.get("r2_batch_id") == CONTROLLED_V15R2_BATCH_ID
+            and source.get("root_client_order_id")
+            == CONTROLLED_V15R2_ROOT_CLIENT_ORDER_ID
+            and source.get("child_client_order_id")
+            == CONTROLLED_V15R2_CHILD_CLIENT_ORDER_ID
+            and source.get("root_exchange_order_id")
+            == CONTROLLED_V15R2_ROOT_EXCHANGE_ORDER_ID
+            and source.get("child_exchange_order_id")
+            == CONTROLLED_V15R2_CHILD_EXCHANGE_ORDER_ID
+            and source.get("r2_placement_attempt_count") == 1
+            and source.get("r2_root_sdk_call_count") == 0
+            and source.get("r2_child_sdk_call_count") == 1
+            and source.get("r2_cancel_command_count") == 0
+            and source.get("child_status") == "OPEN"
+            and source.get("child_zero_fill_proven") is True
+            and Decimal(str(source.get("child_reference_notional_usdc")))
+            == child_actual
+            and Decimal(str(source.get("aggregate_reference_notional_usdc")))
+            == aggregate
+            and source.get("r2_proof_payload_hash")
+            == "47ea2b0bdec88367454689f1a287b28bc17a353e8362a71473a9e84da39ced05"
+            and source.get("failed_cancel_idempotency_key")
+            == "cd7713ea-5841-5c8a-9aea-161a2eb32e31"
+            and source.get("failed_cancel_correlation_id")
+            == "cd79b000-9c19-58dd-9ce0-537d4823bdec"
+            and source.get("failed_cancel_payload_hash")
+            == "5875e395e1692d1c82c5fded7a3e80f75c568d449df9825a2593c1dfeb4769c6"
+            and source.get("failed_cancel_audit_id")
+            == "60018f6a-745d-4a43-9990-82b29928bbe8"
+            and source.get("failed_cancel_http_status") == 501
+            and source.get("failed_cancel_status") == "not_implemented"
+            and source.get("failed_cancel_live_exchange_submitted") is False
+            and source.get("failed_cancel_live_coinbase_orders_ran") is False
+            and source.get("failed_cancel_semantic_claim_acquired") is False
+            and source.get("failed_cancel_exchange_boundary_called") is False
+            and source.get("cancel_ledgers_empty") is True
+            and source.get("r2_state_dir") == CONTROLLED_V15R2_STATE_DIR
+            and local.get("root_client_order_id")
+            == CONTROLLED_V15R2_ROOT_CLIENT_ORDER_ID
+            and str(local.get("root_status") or "").upper() == "FILLED"
+            and local.get("root_exchange_order_id")
+            == CONTROLLED_V15R2_ROOT_EXCHANGE_ORDER_ID
+            and bool(str(local.get("root_correlation_id") or ""))
+            and bool(str(local.get("root_audit_id") or ""))
+            and local.get("child_client_order_id")
+            == CONTROLLED_V15R2_CHILD_CLIENT_ORDER_ID
+            and str(local.get("child_parent_status") or "").upper() == "OPEN"
+            and Decimal(str(local.get("child_size"))) == child_size
+            and Decimal(str(local.get("child_limit_price"))) == child_price
+            and local.get("child_exchange_order_id")
+            == CONTROLLED_V15R2_CHILD_EXCHANGE_ORDER_ID
+            and local.get("child_correlation_id")
+            == local.get("root_correlation_id")
+            and local.get("child_audit_id") == local.get("root_audit_id")
+            and str(local.get("child_stealth_status") or "").upper()
+            == "REVEALED"
+            and Decimal(str(local.get("revealed_size"))) == child_size
+            and Decimal(str(local.get("executed_size"))) == 0
+            and Decimal(str(local.get("remaining_size"))) == 0
+            and local.get("active_placement_client_order_id")
+            == CONTROLLED_V15R2_CHILD_CLIENT_ORDER_ID
+            and local.get("active_exchange_order_id")
+            == CONTROLLED_V15R2_CHILD_EXCHANGE_ORDER_ID
+            and Decimal(str(local.get("active_exchange_price")))
+            == child_price
+            and local.get("controlled_plan_sha256")
+            == CONTROLLED_V15R2_PLAN_SHA256
+            and local.get("controlled_batch_id") == CONTROLLED_V15R2_BATCH_ID
+            and Decimal(str(local.get("reference_notional_usdc")))
+            == child_actual
+            and local.get("direct_child_client_order_ids") == []
+            and local.get("nested_child_client_order_ids") == []
+            and plan.get("actor_id") == "operator-controlled-spot-proof"
+            and plan.get("actor_roles") == ["trader"]
+            and plan.get("child_cancel_operator_intent")
+            == "controlled_v15_test_profile_first_child_cancel"
+            and cancel
+            == {
+                "route": ROOT_CHILD_CANCEL_ROUTE,
+                "method": "POST",
+                "root_client_order_id": CONTROLLED_V15R2_ROOT_CLIENT_ORDER_ID,
+                "child_client_order_id": CONTROLLED_V15R2_CHILD_CLIENT_ORDER_ID,
+                "active_exchange_order_id_evidence": (
+                    CONTROLLED_V15R2_CHILD_EXCHANGE_ORDER_ID
+                ),
+                "identity_key": "client_order_id",
+                "identity_value": CONTROLLED_V15R2_ROOT_CLIENT_ORDER_ID,
+                "operator_intent": (
+                    "controlled_v15_test_profile_first_child_cancel"
+                ),
+                "actor_roles": ["trader"],
+                "idempotency_key": _v15r3_proof_id(
+                    batch_id, "child-cancel-idempotency"
+                ),
+                "correlation_id": _v15r3_proof_id(
+                    batch_id, "child-cancel-correlation"
+                ),
+                "claim_id": _v15r3_proof_id(
+                    batch_id, "child-cancel-claim"
+                ),
+                "approval_snapshot_id": _v15r3_proof_id(
+                    batch_id, "child-cancel-approval"
+                ),
+                "admission_audit_id_source": "route_bound_runtime_proof",
+                "cap_guard_decision_id": _v15r3_proof_id(
+                    batch_id, "child-cancel-cap"
+                ),
+                "reconciliation_plan_id": _v15r3_proof_id(
+                    batch_id, "child-cancel-reconciliation"
+                ),
+                "controlled_plan_sha256_source": "plan_sha256",
+                "semantic_retry_policy": (
+                    "fresh_v15r3_idempotency_key_exactly_once"
+                ),
+                "exchange_order_id_fallback_authorized": False,
+            }
+            and len(fresh_ids) == 6
+            and not fresh_ids.intersection(CONTROLLED_V15R2_USED_CANCEL_IDS)
+            and plan.get("retry_authorized") is False
+            and plan.get("substitution_authorized") is False
+            and plan.get("later_child_authorized") is False
+            and plan.get("browser_derives_child_identity") is False
+            and plan.get("exchange_order_id_evidence_only") is True
+            and plan.get("exchange_order_id_fallback_authorized") is False
+        ):
+            raise ValueError("scope")
+    except (KeyError, TypeError, ValueError, ArithmeticError) as exc:
+        raise AdminRootChildCancelAuthorityError(
+            "controlled_v15r3_plan_schema_invalid"
+        ) from exc
+
+
 def validate_controlled_child_cancel_plan_scope(
     plan: Mapping[str, Any],
     *,
@@ -880,6 +1534,9 @@ def validate_controlled_child_cancel_plan_scope(
 ) -> None:
     """Dispatch without broadening either sealed authority schema."""
 
+    if is_controlled_v15r3_recovery_plan(plan):
+        validate_controlled_v15r3_recovery_plan_scope(plan, now=now)
+        return
     if is_controlled_v15r2_recovery_plan(plan):
         validate_controlled_v15r2_recovery_plan_scope(plan, now=now)
         return
@@ -893,7 +1550,10 @@ def controlled_child_cancel_root_scope(
 
     value = (
         plan.get("root_evidence")
-        if is_controlled_v15r2_recovery_plan(plan)
+        if (
+            is_controlled_v15r2_recovery_plan(plan)
+            or is_controlled_v15r3_recovery_plan(plan)
+        )
         else plan.get("root")
     )
     return value if isinstance(value, Mapping) else {}
@@ -993,7 +1653,9 @@ def load_controlled_v15_plan_authority() -> dict[str, Any]:
         )
     observed_hash = str(plan.get("plan_sha256") or "")
     validate_controlled_child_cancel_plan_scope(plan)
-    recovery_plan = is_controlled_v15r2_recovery_plan(plan)
+    recovery_v15r2 = is_controlled_v15r2_recovery_plan(plan)
+    recovery_v15r3 = is_controlled_v15r3_recovery_plan(plan)
+    recovery_plan = recovery_v15r2 or recovery_v15r3
     root_scope = controlled_child_cancel_root_scope(plan)
     try:
         created_at = datetime.fromisoformat(str(plan.get("created_at") or ""))
@@ -1016,11 +1678,28 @@ def load_controlled_v15_plan_authority() -> dict[str, Any]:
             recorded_at = datetime.fromisoformat(
                 str(handoff.get("recorded_at") or "")
             )
+            expected_marker_fields = (
+                CONTROLLED_V15R3_MARKER_FIELDS
+                if recovery_v15r3
+                else CONTROLLED_V15R2_MARKER_FIELDS
+            )
+            expected_handoff_fields = (
+                CONTROLLED_V15R3_HANDOFF_FIELDS
+                if recovery_v15r3
+                else CONTROLLED_V15R2_HANDOFF_FIELDS
+            )
+            expected_authority_kind = (
+                CONTROLLED_V15R3_AUTHORITY_KIND
+                if recovery_v15r3
+                else CONTROLLED_V15R2_AUTHORITY_KIND
+            )
+            expected_placement_maximum = 0 if recovery_v15r3 else 1
+            expected_child_maximum = 0 if recovery_v15r3 else 1
             recovery_marker_binding = bool(
-                set(marker) == CONTROLLED_V15R2_MARKER_FIELDS
+                set(marker) == expected_marker_fields
                 and marker.get("schema_version") == "1"
                 and marker.get("authority")
-                == CONTROLLED_V15R2_AUTHORITY_KIND
+                == expected_authority_kind
                 and marker.get("approval_id") == plan.get("approval_id")
                 and marker.get("plan_file") == plan_path_text
                 and marker.get("backend_commit")
@@ -1030,9 +1709,11 @@ def load_controlled_v15_plan_authority() -> dict[str, Any]:
                 and marker.get("runner_sha256")
                 == plan.get("runner_sha256")
                 and marker.get("profile_label") == plan.get("profile_label")
-                and marker.get("placement_attempt_maximum") == 1
+                and marker.get("placement_attempt_maximum")
+                == expected_placement_maximum
                 and marker.get("root_placement_maximum") == 0
-                and marker.get("child_placement_maximum") == 1
+                and marker.get("child_placement_maximum")
+                == expected_child_maximum
                 and marker.get("cancel_command_maximum") == 1
                 and marker.get("handoff_path") == handoff_path_text
                 and all(
@@ -1049,10 +1730,14 @@ def load_controlled_v15_plan_authority() -> dict[str, Any]:
                 and int(marker["process_id"]) > 0
             )
             recovery_handoff_binding = bool(
-                set(handoff) == CONTROLLED_V15R2_HANDOFF_FIELDS
+                set(handoff) == expected_handoff_fields
                 and handoff.get("schema_version") == "1"
                 and handoff.get("authority")
-                == CONTROLLED_V15R2_AUTHORITY_KIND
+                == expected_authority_kind
+                and (
+                    not recovery_v15r3
+                    or handoff.get("actor_roles") == plan.get("actor_roles")
+                )
                 and recorded_at.tzinfo is not None
             )
         except (TypeError, ValueError):
@@ -1108,6 +1793,10 @@ def load_controlled_v15_plan_authority() -> dict[str, Any]:
         and handoff.get("operator_intent")
         == dict(plan.get("cancel_command") or {}).get("operator_intent")
         and str(handoff.get("actor_id") or "")
+        and (
+            not recovery_v15r3
+            or handoff.get("actor_id") == plan.get("actor_id")
+        )
         and len(str(handoff.get("payload_hash") or "")) == 64
         and all(
             character in "0123456789abcdef"

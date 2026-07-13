@@ -112,6 +112,7 @@ from .root_child_cancel import (
     FileAdminRootChildCancelClaimStore,
     controlled_child_cancel_root_scope,
     is_controlled_v15r2_recovery_plan,
+    is_controlled_v15r3_recovery_plan,
     load_controlled_v15_plan_authority,
     root_child_cancel_semantic_key,
     validate_controlled_child_cancel_plan_scope,
@@ -425,6 +426,120 @@ def _root_child_cancel_first_present(
         if name in value:
             return value[name]
     return None
+
+
+def _root_child_cancel_plan_lineage(
+    plan: Mapping[str, Any],
+    *,
+    observed_preparation_plan_sha256: str,
+    observed_preparation_batch_id: str,
+    requested_command_plan_sha256: str | None,
+) -> dict[str, Any]:
+    """Separate R3 cancel authority from the immutable R2 child origin."""
+
+    plan_sha256 = str(plan.get("plan_sha256") or "")
+    batch_id = str(plan.get("batch_id") or "")
+    if (
+        plan.get("schema_version") == "21"
+        and plan.get("authority_kind")
+        == "selected_chain_child_cancel_recovery_v15r3"
+    ):
+        binding = plan.get("v15r2_active_child_binding")
+        binding = binding if isinstance(binding, Mapping) else {}
+        runtime_plan_sha256 = str(binding.get("r2_plan_sha256") or "")
+        runtime_batch_id = str(binding.get("r2_batch_id") or "")
+        valid = bool(
+            len(plan_sha256) == 64
+            and batch_id
+            and observed_preparation_plan_sha256 == runtime_plan_sha256
+            and observed_preparation_batch_id == runtime_batch_id
+            and requested_command_plan_sha256 == plan_sha256
+        )
+        return {
+            "valid": valid,
+            "command_plan_sha256": plan_sha256,
+            "command_batch_id": batch_id,
+            "runtime_child_plan_sha256": runtime_plan_sha256,
+            "runtime_child_batch_id": runtime_batch_id,
+        }
+    valid = bool(
+        len(observed_preparation_plan_sha256) == 64
+        and observed_preparation_batch_id
+        and (
+            requested_command_plan_sha256 is None
+            or requested_command_plan_sha256
+            == observed_preparation_plan_sha256
+        )
+    )
+    return {
+        "valid": valid,
+        "command_plan_sha256": observed_preparation_plan_sha256,
+        "command_batch_id": observed_preparation_batch_id,
+        "runtime_child_plan_sha256": observed_preparation_plan_sha256,
+        "runtime_child_batch_id": observed_preparation_batch_id,
+    }
+
+
+def _root_child_cancel_delegate_lineage(
+    plan: Mapping[str, Any],
+    *,
+    command_plan_sha256: str,
+    command_batch_id: str,
+) -> dict[str, Any]:
+    """Return only the local R2 child lineage used by canonical R3 cancel."""
+
+    if (
+        plan.get("schema_version") == "21"
+        and plan.get("authority_kind")
+        == "selected_chain_child_cancel_recovery_v15r3"
+    ):
+        binding = plan.get("v15r2_active_child_binding")
+        binding = binding if isinstance(binding, Mapping) else {}
+        controlled_plan_sha256 = str(binding.get("r2_plan_sha256") or "")
+        controlled_batch_id = str(binding.get("r2_batch_id") or "")
+        return {
+            "valid": bool(
+                plan.get("plan_sha256") == command_plan_sha256
+                and plan.get("batch_id") == command_batch_id
+                and len(controlled_plan_sha256) == 64
+                and controlled_batch_id
+            ),
+            "controlled_plan_sha256": controlled_plan_sha256,
+            "controlled_batch_id": controlled_batch_id,
+        }
+    return {
+        "valid": bool(
+            plan.get("plan_sha256") == command_plan_sha256
+            and plan.get("batch_id") == command_batch_id
+        ),
+        "controlled_plan_sha256": command_plan_sha256,
+        "controlled_batch_id": command_batch_id,
+    }
+
+
+def _root_child_cancel_plan_expired_for_new_claim(
+    plan: Mapping[str, Any],
+    *,
+    now: datetime,
+    expires_at: datetime,
+    execution_started_within_plan: bool,
+) -> bool:
+    """Fail schema 21 closed at TTL; older cleanup semantics stay unchanged."""
+
+    if now < expires_at:
+        return False
+    return bool(
+        is_controlled_v15r3_recovery_plan(plan)
+        or not execution_started_within_plan
+    )
+
+
+def _root_child_cancel_post_expiry_cleanup_allowed(
+    plan: Mapping[str, Any],
+) -> bool:
+    """Schema 21 permits no fresh cancel admission after its sealed TTL."""
+
+    return not is_controlled_v15r3_recovery_plan(plan)
 
 
 def _root_child_cancel_route_proof_chain_matches(
@@ -5041,6 +5156,10 @@ class AdminApiCommandService:
         blockers: list[str] = []
         child_client_order_id: str | None = None
         controlled_batch_id: str | None = None
+        observed_preparation_batch_id: str | None = None
+        observed_preparation_plan_sha256: str | None = None
+        runtime_child_batch_id: str | None = None
+        runtime_child_plan_sha256: str | None = None
         controlled_batch_slot: int | None = None
         child_status: str | None = None
         exchange_status: str | None = None
@@ -5247,6 +5366,7 @@ class AdminApiCommandService:
                 if isinstance(raw_preparation, Mapping):
                     preparation = raw_preparation
             controlled_batch_id = str(preparation.get("batch_id") or "") or None
+            observed_preparation_batch_id = controlled_batch_id
             raw_slot = preparation.get("batch_slot")
             if isinstance(raw_slot, int) and not isinstance(raw_slot, bool):
                 controlled_batch_slot = raw_slot
@@ -5285,15 +5405,11 @@ class AdminApiCommandService:
             observed_preparation_hash = str(
                 preparation.get("controlled_plan_sha256") or ""
             )
+            observed_preparation_plan_sha256 = observed_preparation_hash or None
             if len(observed_preparation_hash) == 64:
                 resolved_plan_sha256 = observed_preparation_hash
             else:
                 blockers.append("controlled_plan_sha256_missing")
-            if (
-                controlled_plan_sha256 is not None
-                and observed_preparation_hash != controlled_plan_sha256
-            ):
-                blockers.append("controlled_plan_sha256_mismatch")
 
         authority: Mapping[str, Any] = {}
         plan: Mapping[str, Any] = {}
@@ -5332,7 +5448,38 @@ class AdminApiCommandService:
                 f"{type(exc).__name__}"
             )
         root_authority = controlled_child_cancel_root_scope(plan)
-        recovery_plan = is_controlled_v15r2_recovery_plan(plan)
+        recovery_plan = bool(
+            is_controlled_v15r2_recovery_plan(plan)
+            or (
+                plan.get("schema_version") == "21"
+                and plan.get("authority_kind")
+                == "selected_chain_child_cancel_recovery_v15r3"
+            )
+        )
+        lineage = _root_child_cancel_plan_lineage(
+            plan,
+            observed_preparation_plan_sha256=(
+                observed_preparation_plan_sha256 or ""
+            ),
+            observed_preparation_batch_id=(
+                observed_preparation_batch_id or ""
+            ),
+            requested_command_plan_sha256=controlled_plan_sha256,
+        )
+        if not lineage["valid"]:
+            blockers.append("controlled_plan_sha256_mismatch")
+        resolved_plan_sha256 = str(
+            lineage["command_plan_sha256"] or ""
+        ) or None
+        controlled_batch_id = str(
+            lineage["command_batch_id"] or ""
+        ) or None
+        runtime_child_plan_sha256 = str(
+            lineage["runtime_child_plan_sha256"] or ""
+        ) or None
+        runtime_child_batch_id = str(
+            lineage["runtime_child_batch_id"] or ""
+        ) or None
         child_authority = plan.get("child")
         child_authority = (
             child_authority if isinstance(child_authority, Mapping) else {}
@@ -5352,7 +5499,9 @@ class AdminApiCommandService:
             or ""
         ) or None
         child_reference_reserve_usdc = str(
-            plan.get(
+            plan.get("active_child_reference_notional_usdc")
+            if plan.get("schema_version") == "21"
+            else plan.get(
                 "child_submitted_cap_usdc"
                 if recovery_plan
                 else "child_reference_reserve_usdc"
@@ -5371,7 +5520,12 @@ class AdminApiCommandService:
             or ""
         ) or None
         child_notional_cap_usdc = str(
-            plan.get("child_submitted_cap_usdc") or ""
+            plan.get(
+                "child_reference_cap_usdc"
+                if plan.get("schema_version") == "21"
+                else "child_submitted_cap_usdc"
+            )
+            or ""
         ) or None
         aggregate_notional_cap_usdc = str(
             plan.get("slice_reference_cap_usdc") or ""
@@ -5516,9 +5670,13 @@ class AdminApiCommandService:
                 if (
                     expires_at.tzinfo is None
                     or expires_at.utcoffset() is None
-                    or (
-                        datetime.now(timezone.utc) >= expires_at
-                        and not execution_started_within_plan
+                    or _root_child_cancel_plan_expired_for_new_claim(
+                        plan,
+                        now=datetime.now(timezone.utc),
+                        expires_at=expires_at,
+                        execution_started_within_plan=(
+                            execution_started_within_plan
+                        ),
                     )
                 ):
                     blockers.append("controlled_v15_plan_expired")
@@ -5538,9 +5696,11 @@ class AdminApiCommandService:
                         stealth_order_id=child_client_order_id,
                         expected_root_client_order_id=root_client_order_id,
                         expected_portfolio_id=expected_portfolio_id,
-                        controlled_batch_id=str(controlled_batch_id),
+                        controlled_batch_id=str(runtime_child_batch_id),
                         controlled_batch_slot=int(controlled_batch_slot),
-                        controlled_plan_sha256=str(resolved_plan_sha256),
+                        controlled_plan_sha256=str(
+                            runtime_child_plan_sha256
+                        ),
                     )
                     if isinstance(raw_runtime_child, Mapping):
                         runtime_child = raw_runtime_child
@@ -5567,7 +5727,7 @@ class AdminApiCommandService:
                 == child_client_order_id
                 and active_exchange_order_id
                 and runtime_child.get("controlled_plan_sha256")
-                == resolved_plan_sha256
+                == runtime_child_plan_sha256
                 and _root_child_cancel_decimal_is_zero(
                     runtime_child.get("executed_size")
                 )
@@ -5701,7 +5861,7 @@ class AdminApiCommandService:
             )
             if child_client_order_id
             and preparation.get("controlled_plan_sha256")
-            == resolved_plan_sha256
+            == runtime_child_plan_sha256
             else None
         )
         semantic_claim_outcome = None
@@ -5824,6 +5984,8 @@ class AdminApiCommandService:
             marker = authority["marker"]
             handoff = authority["handoff"]
             validate_controlled_child_cancel_plan_scope(plan)
+            if not _root_child_cancel_post_expiry_cleanup_allowed(plan):
+                return admission
             expires_at = datetime.fromisoformat(str(plan["expires_at"]))
             registered_at = datetime.fromisoformat(
                 str(marker["registered_at"])
@@ -6240,6 +6402,50 @@ class AdminApiCommandService:
             )
             return blocked
 
+        delegate_lineage: dict[str, Any] = {"valid": False}
+        try:
+            raw_authority = (
+                self.dependencies.controlled_v15_plan_authority_getter()
+            )
+            raw_plan = (
+                raw_authority.get("plan")
+                if isinstance(raw_authority, Mapping)
+                else None
+            )
+            delegate_plan = raw_plan if isinstance(raw_plan, Mapping) else {}
+            validate_controlled_child_cancel_plan_scope(delegate_plan)
+            delegate_lineage = _root_child_cancel_delegate_lineage(
+                delegate_plan,
+                command_plan_sha256=str(
+                    command.request.controlled_plan_sha256
+                ),
+                command_batch_id=str(revalidated.controlled_batch_id or ""),
+            )
+        except Exception:
+            delegate_lineage = {"valid": False}
+        if not delegate_lineage.get("valid"):
+            return AdminApiCommandResponse(
+                status=AdminApiCommandStatus.REJECTED,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                required_permission=AdminApiPermission.ORDER_CANCEL,
+                service_method=(
+                    "cancel_order_fill_follow_up_child_by_root_client_order_id"
+                ),
+                message=(
+                    "Root-scoped child cancel lineage changed after its "
+                    "semantic claim."
+                ),
+                client_order_id=command.root_client_order_id,
+                stealth_order_id=readiness.child_client_order_id,
+                correlation_id=command.envelope.correlation_id,
+                idempotency_key=command.envelope.idempotency_key,
+                live_exchange_submitted=False,
+                live_coinbase_orders_ran=False,
+                failure_stage="root_child_cancel_lineage",
+                data={"semantic_claim": claim_evidence},
+                **self._command_runtime_evidence(),
+            )
+
         delegated = StealthCancelCommand(
             envelope=command.envelope,
             stealth_order_id=readiness.child_client_order_id,
@@ -6247,9 +6453,13 @@ class AdminApiCommandService:
                 reason=command.request.reason,
                 manual_live_acknowledgement=True,
                 expected_root_client_order_id=command.root_client_order_id,
-                controlled_batch_id=revalidated.controlled_batch_id,
+                controlled_batch_id=str(
+                    delegate_lineage["controlled_batch_id"]
+                ),
                 controlled_batch_slot=revalidated.controlled_batch_slot,
-                controlled_plan_sha256=command.request.controlled_plan_sha256,
+                controlled_plan_sha256=str(
+                    delegate_lineage["controlled_plan_sha256"]
+                ),
             ),
             allow_live_execution=True,
             admission_decision=admission,
