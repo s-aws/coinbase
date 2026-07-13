@@ -38,6 +38,16 @@ def _r4_plan() -> dict[str, object]:
     }
 
 
+def _r5_plan() -> dict[str, object]:
+    return {
+        **_r4_plan(),
+        "schema_version": "23",
+        "authority_kind": "selected_chain_child_cancel_recovery_v15r5",
+        "plan_sha256": "8" * 64,
+        "batch_id": "88888888-8888-5888-8888-888888888888",
+    }
+
+
 def test_v15r3_lineage_uses_new_hash_for_command_and_r2_hash_for_child_read() -> None:
     lineage = command_service._root_child_cancel_plan_lineage(
         _r3_plan(),
@@ -131,7 +141,31 @@ def test_v15r4_lineage_keeps_new_command_identity_and_original_r2_child() -> Non
     }
 
 
-@pytest.mark.parametrize("plan_factory", [_r3_plan, _r4_plan])
+def test_v15r5_lineage_keeps_new_command_identity_and_original_r2_child() -> None:
+    plan = _r5_plan()
+    lineage = command_service._root_child_cancel_plan_lineage(
+        plan,
+        observed_preparation_plan_sha256=R2_PLAN,
+        observed_preparation_batch_id=R2_BATCH,
+        requested_command_plan_sha256=plan["plan_sha256"],
+    )
+    delegated = command_service._root_child_cancel_delegate_lineage(
+        plan,
+        command_plan_sha256=plan["plan_sha256"],
+        command_batch_id=plan["batch_id"],
+    )
+
+    assert lineage["valid"] is True
+    assert lineage["command_plan_sha256"] == plan["plan_sha256"]
+    assert lineage["runtime_child_plan_sha256"] == R2_PLAN
+    assert delegated == {
+        "valid": True,
+        "controlled_plan_sha256": R2_PLAN,
+        "controlled_batch_id": R2_BATCH,
+    }
+
+
+@pytest.mark.parametrize("plan_factory", [_r3_plan, _r4_plan, _r5_plan])
 def test_cancel_only_expiry_blocks_new_claim_even_when_execution_registered(
     plan_factory,
 ) -> None:

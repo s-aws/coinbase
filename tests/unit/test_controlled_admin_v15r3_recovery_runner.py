@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from application.admin_api import root_child_cancel as cancel_authority
-from tools import run_controlled_admin_spot_child_cancel_recovery_v15r4 as recovery
+from tools import run_controlled_admin_spot_child_cancel_recovery_v15r5 as recovery
 
 
 def _write_json(path: Path, value: object) -> None:
@@ -351,6 +351,9 @@ def _plan(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
         "failed_v15r3_execution_binding": (
             recovery.expected_failed_v15r3_execution_binding()
         ),
+        "failed_v15r4_execution_binding": (
+            recovery.expected_failed_v15r4_execution_binding()
+        ),
     }
     monkeypatch.setattr(
         recovery,
@@ -361,7 +364,7 @@ def _plan(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
         binding,
         local_active_child=_active_binding(),
         now=datetime(2026, 7, 13, 3, 0, tzinfo=timezone.utc),
-        approval_id="controlled-child-cancel-v15r4-11111111-1111-4111-8111-111111111111",
+        approval_id="controlled-child-cancel-v15r5-11111111-1111-4111-8111-111111111111",
     )
 
 
@@ -380,14 +383,14 @@ def _recovered_transition(
         "reference_notional_usdc": "1.7049248762",
     }
     transition: dict[str, object] = {
-        "schema_version": "3" if successor else "2",
+        "schema_version": "4" if successor else "2",
         "status": (
-            "v15r3_to_v15r4_no_overlap_proven"
+            "v15r4_to_v15r5_no_overlap_proven"
             if successor
             else "v15r2_to_v15r3_no_overlap_proven"
         ),
         "recovery_status": (
-            "failed_v15r3_proof_runtime_bound_no_live_cancel"
+            "failed_v15r4_service_enable_bound_no_live_cancel"
             if successor
             else "v15r2_shutdown_bound_no_overlap_proven"
         ),
@@ -397,11 +400,31 @@ def _recovered_transition(
             else "bind_completed_predecessor_shutdown_no_signals"
         ),
         "controlled_plan_sha256": plan["plan_sha256"],
-        "failed_plan_sha256": recovery.FAILED_V15R3_PLAN_SHA256,
-        "failed_plan_bytes_sha256": recovery.FAILED_V15R3_PLAN_BYTES_SHA256,
-        "failed_batch_id": recovery.FAILED_V15R3_BATCH_ID,
-        "failed_backend_commit": recovery.FAILED_V15R3_BACKEND_COMMIT,
-        "failed_runner_sha256": recovery.FAILED_V15R3_RUNNER_SHA256,
+        "failed_plan_sha256": (
+            recovery.FAILED_V15R4_PLAN_SHA256
+            if successor
+            else recovery.FAILED_V15R3_PLAN_SHA256
+        ),
+        "failed_plan_bytes_sha256": (
+            recovery.FAILED_V15R4_PLAN_BYTES_SHA256
+            if successor
+            else recovery.FAILED_V15R3_PLAN_BYTES_SHA256
+        ),
+        "failed_batch_id": (
+            recovery.FAILED_V15R4_BATCH_ID
+            if successor
+            else recovery.FAILED_V15R3_BATCH_ID
+        ),
+        "failed_backend_commit": (
+            recovery.FAILED_V15R4_BACKEND_COMMIT
+            if successor
+            else recovery.FAILED_V15R3_BACKEND_COMMIT
+        ),
+        "failed_runner_sha256": (
+            recovery.FAILED_V15R4_RUNNER_SHA256
+            if successor
+            else recovery.FAILED_V15R3_RUNNER_SHA256
+        ),
         "r2_plan_sha256": recovery.R2_PLAN_SHA256,
         "r2_parent_process_identity": dict(source["r2_parent_process_identity"]),
         "r2_runtime_process_identity": dict(source["r2_runtime_process_identity"]),
@@ -430,6 +453,9 @@ def _recovered_transition(
         transition["failed_v15r3_execution_binding"] = (
             recovery.expected_failed_v15r3_execution_binding()
         )
+        transition["failed_v15r4_execution_binding"] = (
+            recovery.expected_failed_v15r4_execution_binding()
+        )
     transition["transition_sha256"] = recovery.transition_hash(transition)
     return transition
 
@@ -440,7 +466,7 @@ def test_v15r3_plan_is_cancel_only_exact_actor_fresh_and_120_minutes(
 ) -> None:
     plan = _plan(tmp_path, monkeypatch)
 
-    assert plan["schema_version"] == "22"
+    assert plan["schema_version"] == "23"
     assert plan["authority_kind"] == recovery.AUTHORITY_KIND
     assert plan["placement_attempt_count"] == 0
     assert plan["placement_attempt_schedule"] == []
@@ -495,7 +521,10 @@ def test_v15r3_successor_paths_and_ids_do_not_reuse_consumed_189c_authority() ->
         recovery.HANDOFF_PATH,
         recovery.RUNTIME_PATH,
     }
-    consumed_paths = set(recovery.FAILED_PROOF_ARTIFACT_PATHS.values())
+    consumed_paths = {
+        *recovery.FAILED_PROOF_ARTIFACT_PATHS.values(),
+        *recovery.FAILED_V15R4_ARTIFACT_PATHS.values(),
+    }
 
     assert recovery.FAILED_PROOF_PLAN_SHA256 == (
         "189c338ebd49afb1013a0c2e54e6a228dc6e4e57707b5f0ef7487f63b5cf2302"
@@ -512,25 +541,48 @@ def test_v15r3_successor_paths_and_ids_do_not_reuse_consumed_189c_authority() ->
     assert recovery.FAILED_PROOF_CANCEL_IDS <= (
         cancel_authority.CONTROLLED_V15R2_USED_CANCEL_IDS
     )
+    assert recovery.FAILED_V15R4_BATCH_ID in recovery.R2_USED_IDS
+    assert recovery.FAILED_V15R4_CANCEL_IDS <= recovery.R2_USED_IDS
+    assert recovery.FAILED_V15R4_BATCH_ID in (
+        cancel_authority.CONTROLLED_V15R2_USED_CANCEL_IDS
+    )
+    assert recovery.FAILED_V15R4_CANCEL_IDS <= (
+        cancel_authority.CONTROLLED_V15R2_USED_CANCEL_IDS
+    )
 
 
-def test_v15r4_plan_is_self_describing_about_the_failed_v15r3_execution(
+def test_v15r5_plan_is_self_describing_about_both_failed_executions(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     plan = _plan(tmp_path, monkeypatch)
 
-    assert plan["schema_version"] == "22"
+    assert plan["schema_version"] == "23"
     assert plan["authority_kind"] == (
-        "selected_chain_child_cancel_recovery_v15r4"
+        "selected_chain_child_cancel_recovery_v15r5"
     )
-    assert plan["approval_id"].startswith("controlled-child-cancel-v15r4-")
+    assert plan["approval_id"].startswith("controlled-child-cancel-v15r5-")
     assert plan["failed_v15r3_execution_binding"] == (
         recovery.expected_failed_v15r3_execution_binding()
     )
     assert plan["failed_v15r3_execution_binding"] == (
         cancel_authority.CONTROLLED_V15R4_FAILED_EXECUTION_BINDING
     )
+    assert plan["failed_v15r4_execution_binding"] == (
+        recovery.expected_failed_v15r4_execution_binding()
+    )
+    assert plan["failed_v15r4_execution_binding"] == (
+        cancel_authority.CONTROLLED_V15R5_FAILED_EXECUTION_BINDING
+    )
+    assert plan["failed_v15r4_execution_binding"]["failure_stage"] == (
+        "live_service_enable"
+    )
+    assert plan["failed_v15r4_execution_binding"]["failure_http_status"] == 400
+    assert plan["failed_v15r4_execution_binding"]["cancel_route_call_count"] == 0
+    assert plan["failed_v15r4_execution_binding"]["semantic_claim_count"] == 0
+    assert plan["failed_v15r4_execution_binding"][
+        "exchange_cancel_boundary_call_count"
+    ] == 0
     assert plan["failed_v15r3_execution_binding"]["plan_sha256"] == (
         recovery.FAILED_PROOF_PLAN_SHA256
     )
@@ -555,6 +607,7 @@ def test_v15r4_failed_v15r3_runtime_binding_proves_zero_command_boundary(
 ) -> None:
     failed_plan = deepcopy(_plan(tmp_path, monkeypatch))
     failed_plan.pop("failed_v15r3_execution_binding")
+    failed_plan.pop("failed_v15r4_execution_binding")
     failed_plan.update(
         {
             "schema_version": "21",
@@ -816,6 +869,25 @@ def test_v15r3_validation_rejects_any_broadened_or_reused_authority(
         )
 
 
+def test_v15r5_validation_rejects_rehashed_failed_v15r4_binding_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = _plan(tmp_path, monkeypatch)
+    plan["failed_v15r4_execution_binding"]["cancel_route_call_count"] = 1
+    plan["plan_sha256"] = recovery.plan_hash(plan)
+
+    with pytest.raises(
+        recovery.ProofFailure,
+        match="v15r5_failed_execution_binding_mismatch",
+    ):
+        recovery.validate_v15r3_plan(
+            plan,
+            expected_hash=plan["plan_sha256"],
+            now=datetime(2026, 7, 13, 3, 1, tzinfo=timezone.utc),
+        )
+
+
 def test_v15r3_active_binding_rejects_nonzero_fill_or_exchange_identity_drift() -> None:
     binding = _active_binding()
     assert recovery.validate_local_active_child_binding(binding) == binding
@@ -848,6 +920,9 @@ def test_v15r3_prepare_creates_only_owner_only_plan_and_no_runtime_artifacts(
         "local_active_child_binding": _active_binding(),
         "failed_v15r3_execution_binding": (
             recovery.expected_failed_v15r3_execution_binding()
+        ),
+        "failed_v15r4_execution_binding": (
+            recovery.expected_failed_v15r4_execution_binding()
         ),
     }
     monkeypatch.setattr(
@@ -905,6 +980,8 @@ def test_v15r3_prepare_creates_only_owner_only_plan_and_no_runtime_artifacts(
     assert result["live_coinbase_orders_ran"] is False
     assert result["live_coinbase_read_ran"] is True
     assert result["completed_predecessor_shutdown_bound"] is True
+    assert result["failed_v15r3_execution_bound"] is True
+    assert result["failed_v15r4_execution_bound"] is True
     assert result["marker_written"] is False
     assert result["ledger_written"] is False
     assert result["runtime_started"] is False
@@ -946,6 +1023,9 @@ def test_v15r3_completed_shutdown_binder_writes_strict_no_signal_receipt(
         "failed_v15r3_execution_binding": (
             recovery.expected_failed_v15r3_execution_binding()
         ),
+        "failed_v15r4_execution_binding": (
+            recovery.expected_failed_v15r4_execution_binding()
+        ),
         "both_predecessor_exact_identities_absent": True,
         "child_readback": expected["child_readback"],
     }
@@ -975,7 +1055,10 @@ def test_v15r3_completed_shutdown_binder_writes_strict_no_signal_receipt(
         transition_path=transition_path,
     )
 
-    assert set(receipt) == recovery.V15R4_RECOVERED_TRANSITION_FIELDS
+    assert set(receipt) == recovery.V15R5_RECOVERED_TRANSITION_FIELDS
+    assert receipt["schema_version"] == "4"
+    assert receipt["status"] == "v15r4_to_v15r5_no_overlap_proven"
+    assert receipt["failed_plan_sha256"] == recovery.FAILED_V15R4_PLAN_SHA256
     assert receipt["transition_mode"] == (
         "bind_completed_predecessor_shutdowns_no_signals"
     )

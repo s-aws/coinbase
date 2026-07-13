@@ -9,6 +9,7 @@ import pytest
 
 from application.admin_api.root_child_cancel import (
     CONTROLLED_V15R4_FAILED_EXECUTION_BINDING,
+    CONTROLLED_V15R5_FAILED_EXECUTION_BINDING,
 )
 from tools import run_controlled_admin_spot_root_child_batch as base
 
@@ -157,6 +158,72 @@ def test_v15r4_shared_runtime_preserves_the_zero_order_budget() -> None:
             base._validate_authority_plan_structure(
                 scope_tampered_plan,
                 expected_plan_hash=str(scope_tampered_plan["plan_sha256"]),
+            )
+
+
+def test_v15r5_shared_runtime_preserves_zero_budget_and_exact_dual_lineage() -> None:
+    plan = _plan()
+    plan.update(
+        {
+            "schema_version": "23",
+            "authority_kind": "selected_chain_child_cancel_recovery_v15r5",
+            "failed_v15r3_execution_binding": dict(
+                CONTROLLED_V15R4_FAILED_EXECUTION_BINDING
+            ),
+            "failed_v15r4_execution_binding": dict(
+                CONTROLLED_V15R5_FAILED_EXECUTION_BINDING
+            ),
+        }
+    )
+    plan["plan_sha256"] = base.plan_hash(plan)
+
+    assert base.is_v15_cancel_only_recovery_plan(plan) is True
+    assert base.is_v15_recovery_plan(plan) is True
+    assert base.is_v15_runtime_plan(plan) is True
+    assert base.current_attempt_schedule(plan) == []
+    assert base.current_generation_limits(plan) == (0, 0, 0)
+    base._validate_authority_plan_structure(
+        plan,
+        expected_plan_hash=str(plan["plan_sha256"]),
+    )
+
+    for attempt_kind in ("root", "child"):
+        with pytest.raises(
+            base.ProofFailure,
+            match=rf"{attempt_kind}_sdk_call_maximum_exceeded",
+        ):
+            base.authorized_sdk_tuple_for_call(
+                [],
+                attempt_kind=attempt_kind,
+                prior_call_count=0,
+                confirmed_plan=plan,
+            )
+
+    for field, exact_binding, blocker in (
+        (
+            "failed_v15r3_execution_binding",
+            CONTROLLED_V15R4_FAILED_EXECUTION_BINDING,
+            "runtime_child_v15r5_failed_v15r3_execution_binding_mismatch",
+        ),
+        (
+            "failed_v15r4_execution_binding",
+            CONTROLLED_V15R5_FAILED_EXECUTION_BINDING,
+            "runtime_child_v15r5_failed_v15r4_execution_binding_mismatch",
+        ),
+    ):
+        malformed = dict(plan)
+        tampered_binding = dict(exact_binding)
+        tampered_binding["semantic_claim_count"] = 1
+        malformed[field] = tampered_binding
+        malformed["plan_sha256"] = base.plan_hash(malformed)
+
+        assert base.is_v15_cancel_only_recovery_plan(malformed) is True
+        assert base.current_attempt_schedule(malformed) == []
+        assert base.current_generation_limits(malformed) == (0, 0, 0)
+        with pytest.raises(base.ProofFailure, match=blocker):
+            base._validate_authority_plan_structure(
+                malformed,
+                expected_plan_hash=str(malformed["plan_sha256"]),
             )
 
 

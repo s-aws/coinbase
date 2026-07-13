@@ -2334,7 +2334,7 @@ def is_v15_child_placement_recovery_plan(plan: Mapping[str, Any]) -> bool:
 
 
 def is_v15_cancel_only_recovery_plan(plan: Mapping[str, Any]) -> bool:
-    """Route both cancel-only schemas through their fail-closed zero budget."""
+    """Route every exact cancel-only schema through its zero-order budget."""
 
     schema_authority = (
         str(plan.get("schema_version") or ""),
@@ -2343,6 +2343,7 @@ def is_v15_cancel_only_recovery_plan(plan: Mapping[str, Any]) -> bool:
     return schema_authority in {
         ("21", "selected_chain_child_cancel_recovery_v15r3"),
         ("22", "selected_chain_child_cancel_recovery_v15r4"),
+        ("23", "selected_chain_child_cancel_recovery_v15r5"),
     }
 
 
@@ -15791,7 +15792,8 @@ def _validate_authority_plan_structure(
         "runtime_child_authority_plan_hash_mismatch",
     )
     if is_v15_cancel_only_recovery_plan(confirmed_plan):
-        if confirmed_plan.get("schema_version") == "22":
+        schema_version = str(confirmed_plan.get("schema_version") or "")
+        if schema_version == "22":
             from application.admin_api.root_child_cancel import (
                 CONTROLLED_V15R4_FAILED_EXECUTION_BINDING,
             )
@@ -15800,6 +15802,22 @@ def _validate_authority_plan_structure(
                 confirmed_plan.get("failed_v15r3_execution_binding")
                 == CONTROLLED_V15R4_FAILED_EXECUTION_BINDING,
                 "runtime_child_v15r4_failed_execution_binding_mismatch",
+            )
+        elif schema_version == "23":
+            from application.admin_api.root_child_cancel import (
+                CONTROLLED_V15R4_FAILED_EXECUTION_BINDING,
+                CONTROLLED_V15R5_FAILED_EXECUTION_BINDING,
+            )
+
+            require(
+                confirmed_plan.get("failed_v15r3_execution_binding")
+                == CONTROLLED_V15R4_FAILED_EXECUTION_BINDING,
+                "runtime_child_v15r5_failed_v15r3_execution_binding_mismatch",
+            )
+            require(
+                confirmed_plan.get("failed_v15r4_execution_binding")
+                == CONTROLLED_V15R5_FAILED_EXECUTION_BINDING,
+                "runtime_child_v15r5_failed_v15r4_execution_binding_mismatch",
             )
         root = object_record(confirmed_plan.get("root_evidence"))
         child = object_record(confirmed_plan.get("child"))

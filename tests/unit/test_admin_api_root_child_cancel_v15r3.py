@@ -271,6 +271,53 @@ def _v15r4_plan() -> dict[str, object]:
     return plan
 
 
+def _v15r5_plan() -> dict[str, object]:
+    plan = deepcopy(_v15r4_plan())
+    approval_id = (
+        "controlled-child-cancel-v15r5-"
+        "33333333-3333-4333-8333-333333333333"
+    )
+    batch_id = str(
+        uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            "coinbase://selected-child-cancel-v15r5/"
+            f"{plan['backend_commit']}/{plan['runner_sha256']}/{approval_id}",
+        )
+    )
+    plan.update(
+        {
+            "schema_version": "23",
+            "authority_kind": authority.CONTROLLED_V15R5_AUTHORITY_KIND,
+            "approval_id": approval_id,
+            "batch_id": batch_id,
+            "failed_v15r4_execution_binding": deepcopy(
+                authority.CONTROLLED_V15R5_FAILED_EXECUTION_BINDING
+            ),
+        }
+    )
+    cancel = dict(plan["cancel_command"])
+    for field, purpose in (
+        ("idempotency_key", "child-cancel-idempotency"),
+        ("correlation_id", "child-cancel-correlation"),
+        ("claim_id", "child-cancel-claim"),
+        ("approval_snapshot_id", "child-cancel-approval"),
+        ("cap_guard_decision_id", "child-cancel-cap"),
+        ("reconciliation_plan_id", "child-cancel-reconciliation"),
+    ):
+        cancel[field] = str(
+            uuid.uuid5(
+                uuid.NAMESPACE_URL,
+                f"coinbase://selected-child-cancel-v15r5/{batch_id}/{purpose}",
+            )
+        )
+    cancel["semantic_retry_policy"] = (
+        "fresh_v15r5_idempotency_key_exactly_once"
+    )
+    plan["cancel_command"] = cancel
+    plan["plan_sha256"] = authority._canonical_plan_hash(plan)
+    return plan
+
+
 def _write_owner_only(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, sort_keys=True) + "\n", encoding="utf-8")
     path.chmod(0o600)
@@ -368,6 +415,64 @@ def test_v15r4_exact_plan_requires_self_describing_failed_execution_lineage() ->
         authority.validate_controlled_child_cancel_plan_scope(plan)
 
 
+def test_v15r5_exact_plan_requires_both_predecessor_failure_bindings() -> None:
+    plan = _v15r5_plan()
+
+    assert authority.is_controlled_v15r5_recovery_plan(plan) is True
+    assert authority.is_controlled_v15_cancel_only_recovery_plan(plan) is True
+    authority.validate_controlled_v15r5_recovery_plan_scope(plan)
+    authority.validate_controlled_child_cancel_plan_scope(plan)
+    assert authority.controlled_child_cancel_root_scope(plan) == plan["root_evidence"]
+
+    for field, count_field in (
+        ("failed_v15r3_execution_binding", "semantic_claim_count"),
+        ("failed_v15r4_execution_binding", "cancel_readiness_get_count"),
+    ):
+        drifted = deepcopy(plan)
+        drifted[field][count_field] = 99
+        drifted["plan_sha256"] = authority._canonical_plan_hash(drifted)
+        with pytest.raises(
+            authority.AdminRootChildCancelAuthorityError,
+            match="controlled_v15r5_plan_schema_invalid",
+        ):
+            authority.validate_controlled_child_cancel_plan_scope(drifted)
+
+
+def test_v15r5_cancel_ids_use_fresh_generation_namespace() -> None:
+    plan = _v15r5_plan()
+    cancel = dict(plan["cancel_command"])
+    batch_id = str(plan["batch_id"])
+    ids = {
+        str(cancel[field])
+        for field in (
+            "idempotency_key",
+            "correlation_id",
+            "claim_id",
+            "approval_snapshot_id",
+            "cap_guard_decision_id",
+            "reconciliation_plan_id",
+        )
+    }
+
+    assert len(ids) == 6
+    assert batch_id not in authority.CONTROLLED_V15R2_USED_CANCEL_IDS
+    assert ids.isdisjoint(authority.CONTROLLED_V15R2_USED_CANCEL_IDS)
+    prior_cancel = dict(_v15r4_plan()["cancel_command"])
+    assert ids.isdisjoint(
+        {
+            str(prior_cancel[field])
+            for field in (
+                "idempotency_key",
+                "correlation_id",
+                "claim_id",
+                "approval_snapshot_id",
+                "cap_guard_decision_id",
+                "reconciliation_plan_id",
+            )
+        }
+    )
+
+
 @pytest.mark.parametrize(
     "mutator",
     [
@@ -402,7 +507,7 @@ def test_v15r3_rejects_scope_actor_zero_fill_source_or_fresh_id_drift(
         authority.validate_controlled_child_cancel_plan_scope(plan)
 
 
-@pytest.mark.parametrize("plan_factory", [_plan, _v15r4_plan])
+@pytest.mark.parametrize("plan_factory", [_plan, _v15r4_plan, _v15r5_plan])
 def test_cancel_only_loader_binds_zero_placement_marker_and_exact_actor_roles(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -3,15 +3,31 @@
 from __future__ import annotations
 
 from contextlib import nullcontext
+import hashlib
 import inspect
 import json
 import os
+from pathlib import Path
 import signal
 from types import SimpleNamespace
 
 import pytest
 
-from tools import run_controlled_admin_spot_child_cancel_recovery_v15r4 as recovery
+from application.admin_api.live_service_decision_service import (
+    AdminApiLiveServiceDecisionService,
+)
+from application.admin_api.models import AdminLiveServiceDecisionCreateRequest
+from tools import run_controlled_admin_spot_child_cancel_recovery_v15r5 as recovery
+
+
+def test_sealed_failed_v15r4_runner_is_preserved_byte_for_byte() -> None:
+    historical_runner = Path(recovery.__file__).with_name(
+        "run_controlled_admin_spot_child_cancel_recovery_v15r4.py"
+    )
+
+    assert hashlib.sha256(historical_runner.read_bytes()).hexdigest() == (
+        recovery.FAILED_V15R4_RUNNER_SHA256
+    )
 
 
 def test_v15r3_execution_transitions_before_authority_and_never_posts_cancel() -> None:
@@ -93,6 +109,87 @@ def test_v15r3_execution_helpers_exist_for_zero_budget_and_exact_monitoring() ->
         "v15r3_operator_monitor_decision",
     ):
         assert callable(getattr(recovery, name))
+
+
+def test_v15r5_cancel_only_service_uses_sealed_child_cap_only_when_enabled(
+    tmp_path,
+) -> None:
+    calls: list[dict[str, object]] = []
+
+    class Runtime:
+        confirmed_plan = {"backend_commit": "a" * 40}
+        state_dir = tmp_path
+        live_service_enable_attempted = False
+        live_service_may_be_enabled = False
+        live_service_disable_proven = True
+        live_service_disable_attempted = False
+
+        @staticmethod
+        def headers(**kwargs):
+            return kwargs
+
+        @staticmethod
+        def request(method, path, *, headers, body, expected):
+            request = AdminLiveServiceDecisionCreateRequest.model_validate(body)
+            AdminApiLiveServiceDecisionService._validate_decision_consistency(
+                request
+            )
+            calls.append(
+                {
+                    "method": method,
+                    "path": path,
+                    "headers": headers,
+                    "body": body,
+                    "expected": expected,
+                }
+            )
+            return None, {
+                "decision": {
+                    "resolver_eligible": bool(body["service_enabled"]),
+                    "max_submitted_notional_usdc": body[
+                        "max_submitted_notional_usdc"
+                    ],
+                    "max_executed_notional_usdc": body[
+                        "max_executed_notional_usdc"
+                    ],
+                }
+            }, None
+
+    runtime = Runtime()
+
+    enabled = recovery.set_v15r3_cancel_only_service(runtime, enabled=True)
+    disabled = recovery.set_v15r3_cancel_only_service(runtime, enabled=False)
+
+    assert recovery.ACTIVE_CHILD_REFERENCE_NOTIONAL <= recovery.CHILD_REFERENCE_CAP
+    assert recovery.CHILD_REFERENCE_CAP < recovery.SLICE_REFERENCE_CAP
+    assert enabled["resolver_eligible"] is True
+    assert disabled["resolver_eligible"] is False
+    assert len(calls) == 2
+    enabled_call, disabled_call = calls
+    assert enabled_call["method"] == disabled_call["method"] == "POST"
+    assert enabled_call["path"] == disabled_call["path"] == (
+        "/admin/live-execution/service-decisions"
+    )
+    assert enabled_call["headers"]["role"] == recovery.base.ADMIN_ROLE
+    assert disabled_call["headers"]["role"] == recovery.base.ADMIN_ROLE
+    assert enabled_call["expected"] == disabled_call["expected"] == {200}
+    assert enabled_call["body"]["service_enabled"] is True
+    assert enabled_call["body"]["live_coinbase_execution_approved"] is True
+    assert enabled_call["body"]["max_submitted_notional_usdc"] == "2.00"
+    assert enabled_call["body"]["max_executed_notional_usdc"] == "2.00"
+    assert enabled_call["body"]["decision_id"].startswith(
+        "v15r5-cancel-only-enabled-"
+    )
+    assert enabled_call["headers"]["idempotency_key"].startswith(
+        "idem-v15r5-cancel-service-enabled-"
+    )
+    assert enabled_call["headers"]["operator_intent"] == (
+        "record_v15r5_cancel_service_enabled"
+    )
+    assert disabled_call["body"]["service_enabled"] is False
+    assert disabled_call["body"]["live_coinbase_execution_approved"] is False
+    assert disabled_call["body"]["max_submitted_notional_usdc"] == "0"
+    assert disabled_call["body"]["max_executed_notional_usdc"] == "0"
 
 
 def test_signal_exact_process_uses_pidfd_open_identity_signal_close_order(
