@@ -45,23 +45,23 @@ ROOT = Path(__file__).resolve().parents[1]
 FRONTEND_ROOT = ROOT.parent / "coinbase-frontend"
 PLAN_PATH = Path(
     "/home/ec2-user/.local/state/"
-    "coinbase-controlled-spot-child-cancel-v15-20260712.plan.json"
+    "coinbase-controlled-spot-child-cancel-v15r1-20260713.plan.json"
 )
 REGISTRY_DIR = Path("/var/tmp/coinbase-admin-controlled-spot-root-child-batches")
 MARKER_PATH = REGISTRY_DIR / (
-    "test-profile-btc-usdc-selected-child-cancel-v15-20260712.authority.json"
+    "test-profile-btc-usdc-selected-child-cancel-v15r1-20260713.authority.json"
 )
 PLACEMENT_LEDGER_PATH = REGISTRY_DIR / (
-    "test-profile-btc-usdc-selected-child-cancel-v15-20260712.placements.jsonl"
+    "test-profile-btc-usdc-selected-child-cancel-v15r1-20260713.placements.jsonl"
 )
 CANCEL_LEDGER_PATH = REGISTRY_DIR / (
-    "test-profile-btc-usdc-selected-child-cancel-v15-20260712.cancel-command.jsonl"
+    "test-profile-btc-usdc-selected-child-cancel-v15r1-20260713.cancel-command.jsonl"
 )
 BACKEND_CLAIM_LOG_PATH = REGISTRY_DIR / (
-    "test-profile-btc-usdc-selected-child-cancel-v15-20260712.backend-claims.jsonl"
+    "test-profile-btc-usdc-selected-child-cancel-v15r1-20260713.backend-claims.jsonl"
 )
 HANDOFF_PATH = REGISTRY_DIR / (
-    "test-profile-btc-usdc-selected-child-cancel-v15-20260712.handoff.json"
+    "test-profile-btc-usdc-selected-child-cancel-v15r1-20260713.handoff.json"
 )
 
 V15_PLAN_FIELDS = frozenset(

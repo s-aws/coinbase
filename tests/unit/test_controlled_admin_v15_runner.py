@@ -60,6 +60,21 @@ def _write_plan(path, plan) -> None:
     os.chmod(path, 0o600)
 
 
+def test_replacement_namespace_does_not_reuse_burned_v15_authority() -> None:
+    assert v15.PLAN_PATH.name == (
+        "coinbase-controlled-spot-child-cancel-v15r1-20260713.plan.json"
+    )
+    for path in (
+        v15.MARKER_PATH,
+        v15.PLACEMENT_LEDGER_PATH,
+        v15.CANCEL_LEDGER_PATH,
+        v15.BACKEND_CLAIM_LOG_PATH,
+        v15.HANDOFF_PATH,
+    ):
+        assert "v15r1-20260713" in path.name
+        assert "v15-20260712" not in path.name
+
+
 _MONITOR_IDENTITY = {
     "schema_version": "1",
     "semantic_key": "1" * 64,
