@@ -41,6 +41,7 @@ V8_ROOT_EXCHANGE_ID = "2ed7d436-b16e-4a7e-b0af-cb8f8bb86e68"
 V8_PREPARATION_SHA256 = (
     "af16bf8f7867c3f8a385b0d0cef31371d4381289cc1fd7a58e81c29102d783a9"
 )
+CONTROLLED_PLAN_SHA256 = "b" * 64
 
 
 def _root_row(**overrides):
@@ -234,6 +235,61 @@ def test_atomic_prepare_rounds_sell_up_and_preserves_original_audit(monkeypatch)
         NOW - timedelta(seconds=2)
     ).isoformat()
     assert state["unrelated"] == "preserve"
+
+
+def test_atomic_prepare_persists_and_reads_back_exact_controlled_plan_hash(
+    monkeypatch,
+):
+    cursor = _Cursor()
+
+    result = _prepare(
+        cursor,
+        monkeypatch,
+        controlled_plan_sha256=CONTROLLED_PLAN_SHA256,
+    )
+
+    stealth_update = next(
+        item for item in cursor.statements if item[0].startswith("UPDATE stealth_orders")
+    )
+    state = json.loads(stealth_update[1][3])
+    preparation = state["controlled_admin_first_child_reveal_preparation"]
+    assert preparation["controlled_plan_sha256"] == CONTROLLED_PLAN_SHA256
+    assert result["controlled_plan_sha256"] == CONTROLLED_PLAN_SHA256
+    assert result["anchor_repricing_state_json"][
+        "controlled_admin_first_child_reveal_preparation"
+    ]["controlled_plan_sha256"] == CONTROLLED_PLAN_SHA256
+
+
+@pytest.mark.parametrize(
+    "controlled_plan_sha256",
+    ["b" * 63, "b" * 65, "B" * 64, f"{'b' * 64} ", 7],
+)
+def test_atomic_prepare_rejects_invalid_controlled_plan_hash_before_locking(
+    monkeypatch,
+    controlled_plan_sha256,
+):
+    cursor = _Cursor()
+
+    with pytest.raises(OrderPersistenceError, match="controlled_plan_sha256"):
+        _prepare(
+            cursor,
+            monkeypatch,
+            controlled_plan_sha256=controlled_plan_sha256,
+        )
+
+    assert cursor.statements == []
+
+
+def test_atomic_prepare_keeps_v14_plan_hash_optional(monkeypatch):
+    cursor = _Cursor()
+
+    result = _prepare(cursor, monkeypatch)
+
+    preparation = result["anchor_repricing_state_json"][
+        "controlled_admin_first_child_reveal_preparation"
+    ]
+    assert "controlled_plan_sha256" not in preparation
+    assert result["controlled_plan_sha256"] is None
 
 
 @pytest.mark.parametrize("alias_location", ["column", "condition"])
@@ -860,6 +916,52 @@ def test_manager_binds_prior_preparation_hash_into_atomic_supersession(
     ] == "a" * 64
 
 
+def test_manager_binds_v15_plan_hash_through_durable_active_child_readback(
+    monkeypatch,
+):
+    manager = _manager()
+    manager._get_price_increment = MagicMock(return_value="0.01")
+
+    def prepare_result(**kwargs):
+        plan_hash = kwargs["controlled_plan_sha256"]
+        return _prepare_result(
+            controlled_plan_sha256=plan_hash,
+            anchor_repricing_state_json={
+                "unrelated": "preserve",
+                "controlled_admin_first_child_reveal_preparation": {
+                    "authority_id": kwargs["authority_id"],
+                    "market_bid": str(kwargs["market_bid"]),
+                    "market_source": kwargs["market_source"],
+                    "market_observed_at": kwargs[
+                        "market_observed_at"
+                    ].isoformat(),
+                    "controlled_plan_sha256": plan_hash,
+                },
+            },
+        )
+
+    atomic = MagicMock(side_effect=prepare_result)
+    monkeypatch.setattr(
+        "core.stealth_order_manager.prepare_controlled_admin_first_child_reveal_atomic",
+        atomic,
+    )
+    kwargs = _manager_prepare_kwargs()
+    kwargs["controlled_plan_sha256"] = CONTROLLED_PLAN_SHA256
+
+    authority = manager.prepare_controlled_admin_first_child_reveal(**kwargs)
+
+    assert atomic.call_args.kwargs[
+        "controlled_plan_sha256"
+    ] == CONTROLLED_PLAN_SHA256
+    assert authority.controlled_plan_sha256 == CONTROLLED_PLAN_SHA256
+    active_child_preparation = manager.in_memory_orders[CHILD_ID][
+        "anchor_repricing_state_json"
+    ]["controlled_admin_first_child_reveal_preparation"]
+    assert active_child_preparation[
+        "controlled_plan_sha256"
+    ] == CONTROLLED_PLAN_SHA256
+
+
 def test_manager_prepare_normalizes_unsubmitted_triggered_child(monkeypatch):
     manager = _manager()
     manager.in_memory_orders[CHILD_ID]["status"] = "TRIGGERED"
@@ -897,6 +999,7 @@ def test_controlled_authority_is_exact_and_consumed_once():
         reconciliation_plan_id="reconcile-1",
         batch_id="batch-1",
         batch_slot=1,
+        controlled_plan_sha256=CONTROLLED_PLAN_SHA256,
     )
     manager._controlled_admin_child_reveal_authorities["authority-1"] = authority
     order = manager.in_memory_orders[CHILD_ID]
@@ -920,6 +1023,7 @@ def test_controlled_authority_is_exact_and_consumed_once():
         "market_bid": "100.0",
         "market_source": "coinbase_rest_best_bid",
         "market_observed_at": (NOW - timedelta(seconds=2)).isoformat(),
+        "controlled_plan_sha256": CONTROLLED_PLAN_SHA256,
     }
 
     allowed, reason = manager._consume_controlled_admin_child_reveal_authority(
@@ -937,7 +1041,7 @@ def test_controlled_authority_is_exact_and_consumed_once():
     drifted_authority = replace(
         authority,
         authority_id="authority-2",
-        market_bid="101.0",
+        controlled_plan_sha256="c" * 64,
     )
     manager._controlled_admin_child_reveal_authorities[
         "authority-2"
@@ -957,7 +1061,7 @@ def test_controlled_authority_is_exact_and_consumed_once():
     assert repeated is False
     assert repeated_reason == "controlled_admin_authority_not_issued"
     assert drifted is False
-    assert drifted_reason == "controlled_admin_authority_audit_mismatch"
+    assert drifted_reason == "controlled_admin_authority_plan_mismatch"
 
 
 def test_prepared_child_without_one_call_authority_stays_pre_exchange(monkeypatch):

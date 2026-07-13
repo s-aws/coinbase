@@ -2295,11 +2295,24 @@ def is_v14_plan(plan: Mapping[str, Any]) -> bool:
     return plan.get("schema_version") == V14_PLAN_SCHEMA_VERSION
 
 
+def is_v15_plan(plan: Mapping[str, Any]) -> bool:
+    """Identify the sealed selected-chain V15 plan without importing its runner."""
+
+    return (
+        plan.get("schema_version") == "19"
+        and plan.get("authority_kind") == "selected_chain_child_cancel_v15"
+    )
+
+
 def current_attempt_schedule(plan: Mapping[str, Any]) -> list[tuple[int, str]]:
+    if is_v15_plan(plan):
+        return [(1, "root"), (1, "child")]
     return v14_attempt_schedule() if is_v14_plan(plan) else successor_attempt_schedule()
 
 
 def current_generation_limits(plan: Mapping[str, Any]) -> tuple[int, int, int]:
+    if is_v15_plan(plan):
+        return 1, 1, 2
     if is_v14_plan(plan):
         return V14_ROOT_ORDER_MAXIMUM, V14_CHILD_ORDER_MAXIMUM, V14_ATTEMPT_COUNT
     return (
@@ -2318,6 +2331,8 @@ def current_reference_seed(plan: Mapping[str, Any]) -> Decimal:
 
 
 def current_backend_commit(plan: Mapping[str, Any]) -> str:
+    if is_v15_plan(plan):
+        return str(plan.get("backend_runner_commit") or "")
     return V14_EXPECTED_COMMIT if is_v14_plan(plan) else EXPECTED_COMMIT
 
 
@@ -15178,11 +15193,86 @@ def read_batch_attempt_ledger(
     finally:
         os.close(descriptor)
     require(len(raw) <= 100_000, "global_batch_attempt_ledger_too_large")
+    if is_v15_plan(confirmed_plan):
+        return _parse_and_validate_v15_attempt_ledger(
+            raw,
+            confirmed_plan=confirmed_plan,
+            confirmed_plan_hash=confirmed_plan_hash,
+        )
     return _parse_and_validate_attempt_ledger(
         raw,
         confirmed_plan=confirmed_plan,
         confirmed_plan_hash=confirmed_plan_hash,
     )
+
+
+def _parse_and_validate_v15_attempt_ledger(
+    raw: bytes,
+    *,
+    confirmed_plan: Mapping[str, Any],
+    confirmed_plan_hash: str,
+) -> list[dict[str, Any]]:
+    """Validate the two-row V15 ledger used by the shared SDK sentinels."""
+
+    require(
+        is_v15_plan(confirmed_plan)
+        and confirmed_plan.get("plan_sha256") == confirmed_plan_hash,
+        "v15_runtime_attempt_plan_mismatch",
+    )
+    if raw and not raw.endswith(b"\n"):
+        raise ProofFailure("v15_runtime_attempt_ledger_truncated")
+    rows: list[dict[str, Any]] = []
+    for line in raw.decode("utf-8").splitlines():
+        require(bool(line.strip()), "v15_runtime_attempt_ledger_blank_row")
+        value = json.loads(line)
+        require(isinstance(value, dict), "v15_runtime_attempt_ledger_row_invalid")
+        rows.append(dict(value))
+    require(len(rows) <= 2, "v15_runtime_attempt_count_exceeded")
+    root_id = str(object_record(confirmed_plan.get("root")).get("client_order_id") or "")
+    child_id = str(object_record(confirmed_plan.get("child")).get("client_order_id") or "")
+    aggregate = Decimal("0")
+    for index, record in enumerate(rows):
+        expected_kind = ("root", "child")[index]
+        exact_tuple = object_record(record.get("exact_order_tuple"))
+        expected_id = root_id if expected_kind == "root" else child_id
+        require(
+            record.get("schema_version") == "1"
+            and record.get("sequence") == index + 1
+            and record.get("attempt_kind") == expected_kind
+            and record.get("batch_id") == confirmed_plan.get("batch_id")
+            and record.get("root_client_order_id") == root_id
+            and record.get("client_order_id") == expected_id
+            and record.get("plan_sha256") == confirmed_plan_hash
+            and record.get("exact_order_tuple_sha256")
+            == _canonical_json_sha256(exact_tuple),
+            "v15_runtime_attempt_record_mismatch",
+        )
+        if expected_kind == "root":
+            require(
+                exact_tuple == object_record(object_record(confirmed_plan.get("root")).get("order")),
+                "v15_runtime_root_tuple_mismatch",
+            )
+        else:
+            require(
+                exact_tuple.get("batch_id") == confirmed_plan.get("batch_id")
+                and exact_tuple.get("batch_slot") == 1
+                and exact_tuple.get("root_client_order_id") == root_id
+                and exact_tuple.get("client_order_id") == child_id
+                and exact_tuple.get("product_id") == PRODUCT_ID
+                and str(exact_tuple.get("side") or "").upper() == "SELL"
+                and exact_tuple.get("post_only") is False,
+                "v15_runtime_child_tuple_mismatch",
+            )
+        notional = Decimal(str(exact_tuple.get("base_size") or "0")) * Decimal(
+            str(exact_tuple.get("limit_price") or "0")
+        )
+        require(notional.is_finite() and notional > 0, "v15_runtime_attempt_notional_invalid")
+        aggregate += notional
+        require(
+            aggregate < Decimal(str(confirmed_plan.get("slice_reference_cap_usdc") or "0")),
+            "v15_runtime_aggregate_reference_cap_exceeded",
+        )
+    return rows
 
 
 def require_next_batch_attempt(
@@ -15269,14 +15359,9 @@ def authorized_sdk_tuple_for_call(
     """Return only the next already-consumed root or child SDK tuple."""
 
     require(attempt_kind in {"root", "child"}, "sdk_attempt_kind_invalid")
-    v14_records = bool(confirmed_plan) and is_v14_plan(confirmed_plan)
-    maximum = (
-        V14_ROOT_ORDER_MAXIMUM if attempt_kind == "root" else V14_CHILD_ORDER_MAXIMUM
-    ) if v14_records else (
-        SUCCESSOR_ROOT_ORDER_MAXIMUM
-        if attempt_kind == "root"
-        else SUCCESSOR_CHILD_ORDER_MAXIMUM
-    )
+    plan = confirmed_plan or {}
+    root_maximum, child_maximum, _ = current_generation_limits(plan)
+    maximum = root_maximum if attempt_kind == "root" else child_maximum
     require(
         0 <= prior_call_count < maximum,
         f"{attempt_kind}_sdk_call_maximum_exceeded",
@@ -15507,7 +15592,7 @@ def build_runtime_child_authority_payload(
         "attempt_ledger_path": str(attempt_ledger_path),
         "approval_id": str(confirmed_plan.get("approval_id") or ""),
         "batch_id": str(confirmed_plan.get("batch_id") or ""),
-        "batch_size": BATCH_SIZE,
+        "batch_size": 1 if is_v15_plan(confirmed_plan) else BATCH_SIZE,
         "plan_sha256": confirmed_plan_hash,
         "runner_sha256": confirmed_runner_sha256,
         "backend_commit": current_backend_commit(confirmed_plan),
@@ -15529,6 +15614,47 @@ def _validate_authority_plan_structure(
         == confirmed_plan.get("plan_sha256"),
         "runtime_child_authority_plan_hash_mismatch",
     )
+    if is_v15_plan(confirmed_plan):
+        root = object_record(confirmed_plan.get("root"))
+        child = object_record(confirmed_plan.get("child"))
+        root_order = object_record(root.get("order"))
+        plan_runner_sha256 = str(confirmed_plan.get("runner_sha256") or "")
+        require(
+            confirmed_plan.get("backend_runner_commit")
+            == current_backend_commit(confirmed_plan)
+            and len(plan_runner_sha256) == 64
+            and all(
+                character in "0123456789abcdef"
+                for character in plan_runner_sha256
+            ),
+            "runtime_child_v15_code_binding_mismatch",
+        )
+        require(
+            confirmed_plan.get("profile_label") == PROFILE_LABEL
+            and confirmed_plan.get("portfolio_id") == TEST_PORTFOLIO_ID
+            and confirmed_plan.get("product_id") == PRODUCT_ID
+            and confirmed_plan.get("placement_attempt_count") == 2
+            and confirmed_plan.get("root_placement_maximum") == 1
+            and confirmed_plan.get("child_placement_maximum") == 1
+            and confirmed_plan.get("placement_attempt_schedule")
+            == ["root", "child"]
+            and root_order.get("client_order_id")
+            == root.get("client_order_id")
+            and child.get("parent_client_order_id")
+            == root.get("client_order_id")
+            and child.get("client_order_id")
+            == deterministic_child_client_order_id(
+                str(root.get("client_order_id") or "")
+            )
+            and Decimal(
+                str(confirmed_plan.get("planned_reference_notional_usdc") or "0")
+            )
+            < Decimal(
+                str(confirmed_plan.get("slice_reference_cap_usdc") or "0")
+            ),
+            "runtime_child_v15_scope_mismatch",
+        )
+        return
     require(
         confirmed_plan.get("backend_commit") == current_backend_commit(confirmed_plan),
         "runtime_child_authority_plan_commit_mismatch",
@@ -16018,18 +16144,29 @@ def validate_runtime_child_authority_payload(
         "runtime_child_authority_file_mismatch",
     )
     confirmed_plan = object_record(payload.get("confirmed_plan"))
-    registry_paths = (
-        v14_batch_registry_paths if is_v14_plan(confirmed_plan) else batch_registry_paths
-    )
-    marker_path, ledger_path = registry_paths(str(payload.get("batch_id") or ""))
-    require(
-        payload.get("global_batch_marker") == str(marker_path),
-        "runtime_child_authority_marker_path_mismatch",
-    )
-    require(
-        payload.get("attempt_ledger_path") == str(ledger_path),
-        "runtime_child_authority_ledger_path_mismatch",
-    )
+    if is_v15_plan(confirmed_plan):
+        require(
+            Path(str(payload.get("global_batch_marker") or "")).is_absolute()
+            and Path(str(payload.get("attempt_ledger_path") or "")).is_absolute(),
+            "runtime_child_v15_registry_path_not_absolute",
+        )
+    else:
+        registry_paths = (
+            v14_batch_registry_paths
+            if is_v14_plan(confirmed_plan)
+            else batch_registry_paths
+        )
+        marker_path, ledger_path = registry_paths(
+            str(payload.get("batch_id") or "")
+        )
+        require(
+            payload.get("global_batch_marker") == str(marker_path),
+            "runtime_child_authority_marker_path_mismatch",
+        )
+        require(
+            payload.get("attempt_ledger_path") == str(ledger_path),
+            "runtime_child_authority_ledger_path_mismatch",
+        )
     for field in (
         "global_batch_marker_sha256",
         "plan_sha256",
@@ -16050,7 +16187,8 @@ def validate_runtime_child_authority_payload(
         "runtime_child_authority_runner_mismatch",
     )
     require(
-        payload.get("batch_size") == BATCH_SIZE,
+        payload.get("batch_size")
+        == (1 if is_v15_plan(confirmed_plan) else BATCH_SIZE),
         "runtime_child_authority_batch_size_mismatch",
     )
     require(
@@ -16243,6 +16381,62 @@ def consume_runtime_child_authority(
         actual_parent_pid=parent_pid,
         actual_parent_start_identity=parent_start_identity,
     )
+    if is_v15_plan(confirmed_plan):
+        marker_path = Path(str(auth_payload["global_batch_marker"]))
+        marker_payload, marker_raw = _read_owner_only_json(
+            marker_path,
+            blocker_prefix="runtime_child_global_batch_marker",
+            maximum_size=150_000,
+        )
+        root = object_record(confirmed_plan.get("root"))
+        child = object_record(confirmed_plan.get("child"))
+        require(
+            hashlib.sha256(marker_raw).hexdigest()
+            == auth_payload["global_batch_marker_sha256"],
+            "runtime_child_global_batch_marker_hash_mismatch",
+        )
+        require(
+            marker_payload.get("authority")
+            == "selected_chain_child_cancel_v15"
+            and marker_payload.get("approval_id")
+            == confirmed_plan.get("approval_id")
+            and marker_payload.get("batch_id") == confirmed_plan.get("batch_id")
+            and marker_payload.get("plan_sha256")
+            == auth_payload.get("plan_sha256")
+            and marker_payload.get("root_client_order_id")
+            == root.get("client_order_id")
+            and marker_payload.get("child_client_order_id")
+            == child.get("client_order_id")
+            and marker_payload.get("placement_attempt_maximum") == 2
+            and marker_payload.get("root_placement_maximum") == 1
+            and marker_payload.get("child_placement_maximum") == 1,
+            "runtime_child_v15_marker_binding_mismatch",
+        )
+        ledger_path = Path(str(auth_payload["attempt_ledger_path"]))
+        read_batch_attempt_ledger(
+            ledger_path,
+            confirmed_plan=confirmed_plan,
+            confirmed_plan_hash=str(auth_payload["plan_sha256"]),
+        )
+        auth_sha256 = _canonical_json_sha256(auth_payload)
+        used_path = state_dir / RUNTIME_CHILD_AUTH_USED_FILENAME
+        _write_owner_only_exclusive_json(
+            used_path,
+            {
+                "authority_sha256": auth_sha256,
+                "approval_id": auth_payload["approval_id"],
+                "batch_id": auth_payload["batch_id"],
+                "plan_sha256": auth_payload["plan_sha256"],
+                "runner_sha256": auth_payload["runner_sha256"],
+                "global_batch_marker": str(marker_path),
+                "attempt_ledger_path": str(ledger_path),
+                "child_pid": os.getpid(),
+                "parent_pid": parent_pid,
+                "consumed_at": datetime.now(timezone.utc).isoformat(),
+            },
+            exists_blocker="runtime_child_authority_already_consumed",
+        )
+        return confirmed_plan, auth_sha256, ledger_path
     require(
         load_predecessor_binding()
         == object_record(confirmed_plan.get("predecessor_binding")),
@@ -16873,6 +17067,54 @@ def validate_controlled_child_preparation_scope(
 
     child_id = str(exact_tuple.get("client_order_id") or "")
     slot = int(exact_tuple.get("batch_slot") or 0)
+    if is_v15_plan(confirmed_plan):
+        root = object_record(confirmed_plan.get("root"))
+        child = object_record(confirmed_plan.get("child"))
+        anchor_state = object_record(state.get("anchor_repricing_state_json"))
+        preparation = object_record(
+            anchor_state.get("controlled_admin_first_child_reveal_preparation")
+        )
+        require(
+            slot == 1
+            and state.get("stealth_order_id") == child_id
+            and exact_tuple.get("batch_id") == confirmed_plan.get("batch_id")
+            and exact_tuple.get("root_client_order_id")
+            == root.get("client_order_id")
+            and child_id == child.get("client_order_id")
+            and preparation.get("batch_id") == confirmed_plan.get("batch_id")
+            and preparation.get("batch_slot") == 1
+            and preparation.get("root_client_order_id")
+            == root.get("client_order_id")
+            and preparation.get("stealth_order_id") == child_id
+            and preparation.get("portfolio_id")
+            == confirmed_plan.get("portfolio_id")
+            and preparation.get("approval_snapshot_id")
+            == child.get("approval_snapshot_id")
+            == exact_tuple.get("approval_snapshot_id")
+            and preparation.get("controlled_plan_sha256")
+            == confirmed_plan.get("plan_sha256")
+            and bool(preparation.get("admission_audit_id"))
+            and bool(preparation.get("cap_guard_decision_id"))
+            and bool(preparation.get("reconciliation_plan_id"))
+            and bool(preparation.get("authority_id"))
+            and str(state.get("status") or "").upper() == "HIDDEN"
+            and not list_value(state.get("revealed_orders"))
+            and Decimal(str(state.get("revealed_size") or "0")) == 0
+            and Decimal(str(state.get("executed_size") or "0")) == 0
+            and not anchor_state.get("active_placement_client_order_id")
+            and not anchor_state.get("active_exchange_order_id"),
+            "child_sdk_v15_controlled_preparation_mismatch",
+        )
+        return {
+            "slot": 1,
+            "root_client_order_id": str(root.get("client_order_id") or ""),
+            "child_client_order_id": child_id,
+            "preparation_mode": "selected_chain_child_cancel_v15",
+            "controlled_plan_sha256": confirmed_plan.get("plan_sha256"),
+            "supersession_present": False,
+            "preparation_history_count": 0,
+            "preexchange_state_proven": True,
+        }
     roots_by_slot = successor_plan_rows_by_slot(confirmed_plan)
     require(
         confirmed_plan.get("schema_version")
@@ -17020,7 +17262,21 @@ def run_embedded_runtime_child(*, state_dir: Path, auth_file: Path) -> int:
         == PROFILE_LABEL,
         "runtime_child_profile_label_environment_mismatch",
     )
-    if is_v14_plan(confirmed_plan):
+    if is_v15_plan(confirmed_plan):
+        runtime_head = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
+        ).strip()
+        runtime_dirty = subprocess.check_output(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            cwd=ROOT,
+            text=True,
+        ).strip()
+        require(
+            runtime_head == confirmed_plan.get("backend_runner_commit")
+            and not runtime_dirty,
+            "runtime_child_v15_commit_binding_mismatch",
+        )
+    elif is_v14_plan(confirmed_plan):
         require_v14_clean_commit()
     else:
         require_clean_commit()
@@ -17377,6 +17633,171 @@ def run_embedded_runtime_child(*, state_dir: Path, auth_file: Path) -> int:
 
         parent_authority_lost.set()
         report_path = state_dir / "parent-authority-loss.json"
+        if is_v15_plan(confirmed_plan):
+            alert_emitted = False
+            while True:
+                with sentinel_lock:
+                    report = {
+                        "status": (
+                            "v15_parent_authority_lost_reconciliation_only"
+                        ),
+                        "plan_sha256": confirmed_plan_hash,
+                        "root_sdk_inflight": root_sdk_inflight,
+                        "child_sdk_inflight": child_sdk_inflight,
+                        "root_create_order_call_count": root_create_order_calls,
+                        "child_place_limit_order_call_count": (
+                            child_place_limit_order_calls
+                        ),
+                        "new_sdk_placements_denied": True,
+                        "new_cancel_command_authorized": False,
+                        "same_sealed_cancel_key_reconciliation_only": True,
+                        "runtime_preserved": True,
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                try:
+                    first_active = read_authoritative_spot_nonterminal_orders(
+                        child_rest_client,
+                        expected_portfolio_id=str(
+                            confirmed_plan["portfolio_id"]
+                        ),
+                    )
+                    time.sleep(0.5)
+                    second_active = read_authoritative_spot_nonterminal_orders(
+                        child_rest_client,
+                        expected_portfolio_id=str(
+                            confirmed_plan["portfolio_id"]
+                        ),
+                    )
+                    report["authoritative_active_read_stable"] = [
+                        (row.get("client_order_id"), row.get("order_id"))
+                        for row in first_active
+                    ] == [
+                        (row.get("client_order_id"), row.get("order_id"))
+                        for row in second_active
+                    ]
+                    report["authoritative_active_orders"] = second_active
+                except Exception as exc:
+                    report["authoritative_active_read_stable"] = False
+                    report["authoritative_active_read_error"] = (
+                        f"{type(exc).__name__}:{exc}"
+                    )
+                try:
+                    cancel_authority = object_record(
+                        confirmed_plan.get("cancel_command")
+                    )
+                    reconciliation_session = requests.Session()
+                    reconciliation_session.trust_env = False
+                    readiness_response = reconciliation_session.get(
+                        (
+                            f"{BASE_URL}/orders/"
+                            f"{cancel_authority['root_client_order_id']}/"
+                            "fill-follow-up/child-cancel/readiness"
+                        ),
+                        headers=parent_loss_headers(
+                            idempotency_key=str(
+                                cancel_authority["idempotency_key"]
+                            ),
+                            operator_intent=str(
+                                cancel_authority["operator_intent"]
+                            ),
+                            correlation_id=str(
+                                cancel_authority["correlation_id"]
+                            ),
+                            role="auditor",
+                        ),
+                        params={
+                            "controlled_plan_sha256": confirmed_plan_hash
+                        },
+                        timeout=HTTP_TIMEOUT_SECONDS,
+                    )
+                    try:
+                        readiness_payload = readiness_response.json()
+                    except ValueError:
+                        readiness_payload = {
+                            "raw_text": readiness_response.text[:1000]
+                        }
+                    report["sealed_cancel_reconciliation"] = {
+                        "http_status": readiness_response.status_code,
+                        "idempotency_key": cancel_authority[
+                            "idempotency_key"
+                        ],
+                        "correlation_id": cancel_authority[
+                            "correlation_id"
+                        ],
+                        "readiness": object_record(readiness_payload),
+                        "cancel_post_submitted": False,
+                    }
+                except Exception as exc:
+                    report["sealed_cancel_reconciliation_error"] = (
+                        f"{type(exc).__name__}:{exc}"
+                    )
+                try:
+                    disable = post_parent_loss_admin_command(
+                        "/admin/live-execution/service-decisions",
+                        headers=parent_loss_headers(
+                            idempotency_key=(
+                                "v15-parent-loss-disable-live-service"
+                            ),
+                            operator_intent=(
+                                "disable_v15_service_after_parent_loss"
+                            ),
+                            correlation_id=(
+                                "corr-v15-parent-loss-disable-live-service"
+                            ),
+                            role=ADMIN_ROLE,
+                        ),
+                        body={
+                            "decision_id": (
+                                "v15-parent-loss-disabled-service"
+                            ),
+                            "status": "blocked",
+                            "requested_service_status": "live_disabled",
+                            "service_enabled": False,
+                            "target_module_id": "spot_operations",
+                            "account_family": "coinbase_retail_test",
+                            "venue_scope": "coinbase_advanced_trade",
+                            "intx_applicability": "not_applicable",
+                            "product_scope": [PRODUCT_ID],
+                            "deployment_ref": current_backend_commit(
+                                confirmed_plan
+                            ),
+                            "runtime_configuration_ref": str(state_dir),
+                            "decision_reason": (
+                                "Parent authority was lost; preserve V15 "
+                                "runtime for read-only reconciliation."
+                            ),
+                            "live_coinbase_execution_approved": False,
+                            "max_submitted_notional_usdc": "0",
+                            "max_executed_notional_usdc": "0",
+                        },
+                    )
+                    report["live_service_disable_http_status"] = disable[
+                        "http_status"
+                    ]
+                except Exception as exc:
+                    report["live_service_disable_error"] = (
+                        f"{type(exc).__name__}:{exc}"
+                    )
+                try:
+                    _replace_owner_only_json(report_path, report)
+                except Exception:
+                    pass
+                if not alert_emitted:
+                    print(
+                        json.dumps(
+                            {
+                                "status": report["status"],
+                                "state_dir": str(state_dir),
+                                "evidence_path": str(report_path),
+                                "runtime_preserved": True,
+                                "new_cancel_command_authorized": False,
+                            },
+                            sort_keys=True,
+                        ),
+                        flush=True,
+                    )
+                    alert_emitted = True
+                time.sleep(0.5)
         report: dict[str, Any] = {
             "status": "parent_authority_lost_reconciliation_only",
             "parent_pid": authority_parent_pid,
@@ -18126,6 +18547,9 @@ class AdminRuntime:
         confirmed_plan_hash: str,
         global_batch_marker: Path,
         attempt_ledger_path: Path,
+        controlled_v15_plan_path: Path | None = None,
+        controlled_v15_handoff_path: Path | None = None,
+        controlled_v15_claim_log_path: Path | None = None,
     ) -> None:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         self.state_dir = (
@@ -18134,28 +18558,45 @@ class AdminRuntime:
             / f"controlled-root-child-batch-{stamp}-{uuid4().hex[:8]}"
         )
         self.state_dir.mkdir(parents=True, mode=0o700)
-        registry_paths = (
-            v14_batch_registry_paths
-            if is_v14_plan(confirmed_plan)
-            else batch_registry_paths
-        )
-        expected_marker, expected_ledger = registry_paths(
-            str(confirmed_plan.get("batch_id") or "")
-        )
-        require(
-            global_batch_marker == expected_marker,
-            "runtime_global_batch_marker_path_mismatch",
-        )
-        require(
-            attempt_ledger_path == expected_ledger,
-            "runtime_attempt_ledger_path_mismatch",
-        )
+        if is_v15_plan(confirmed_plan):
+            require(
+                all(
+                    path is not None and path.is_absolute()
+                    for path in (
+                        controlled_v15_plan_path,
+                        controlled_v15_handoff_path,
+                        controlled_v15_claim_log_path,
+                    )
+                ),
+                "runtime_v15_authority_paths_missing",
+            )
+        else:
+            registry_paths = (
+                v14_batch_registry_paths
+                if is_v14_plan(confirmed_plan)
+                else batch_registry_paths
+            )
+            expected_marker, expected_ledger = registry_paths(
+                str(confirmed_plan.get("batch_id") or "")
+            )
+            require(
+                global_batch_marker == expected_marker,
+                "runtime_global_batch_marker_path_mismatch",
+            )
+            require(
+                attempt_ledger_path == expected_ledger,
+                "runtime_attempt_ledger_path_mismatch",
+            )
         marker_payload, marker_raw = _read_owner_only_json(
             global_batch_marker,
             blocker_prefix="runtime_global_batch_marker",
             maximum_size=100_000,
         )
-        confirmed_runner_sha256 = str(confirmed_plan.get("runner_sha256") or "")
+        confirmed_runner_sha256 = (
+            runner_sha256()
+            if is_v15_plan(confirmed_plan)
+            else str(confirmed_plan.get("runner_sha256") or "")
+        )
         require(
             marker_payload.get("approval_id") == confirmed_plan.get("approval_id"),
             "runtime_global_batch_marker_approval_mismatch",
@@ -18165,7 +18606,8 @@ class AdminRuntime:
             "runtime_global_batch_marker_plan_hash_mismatch",
         )
         require(
-            marker_payload.get("runner_sha256") == confirmed_runner_sha256,
+            is_v15_plan(confirmed_plan)
+            or marker_payload.get("runner_sha256") == confirmed_runner_sha256,
             "runtime_global_batch_marker_runner_hash_mismatch",
         )
         require(
@@ -18173,6 +18615,16 @@ class AdminRuntime:
             == str(attempt_ledger_path),
             "runtime_global_batch_marker_ledger_mismatch",
         )
+        if is_v15_plan(confirmed_plan):
+            require(
+                marker_payload.get("plan_file")
+                == str(controlled_v15_plan_path)
+                and marker_payload.get("handoff_path")
+                == str(controlled_v15_handoff_path)
+                and marker_payload.get("backend_claim_log_path")
+                == str(controlled_v15_claim_log_path),
+                "runtime_v15_marker_path_binding_mismatch",
+            )
         self.confirmed_plan = dict(confirmed_plan)
         (
             self.root_order_maximum,
@@ -18182,6 +18634,9 @@ class AdminRuntime:
         self.confirmed_plan_hash = confirmed_plan_hash
         self.global_batch_marker = global_batch_marker
         self.attempt_ledger_path = attempt_ledger_path
+        self.controlled_v15_plan_path = controlled_v15_plan_path
+        self.controlled_v15_handoff_path = controlled_v15_handoff_path
+        self.controlled_v15_claim_log_path = controlled_v15_claim_log_path
         self.child_nonce = secrets.token_urlsafe(48)
         self.child_auth_file = self.state_dir / RUNTIME_CHILD_AUTH_FILENAME
         parent_pid = os.getpid()
@@ -18389,6 +18844,26 @@ class AdminRuntime:
                 RUNTIME_CHILD_NONCE_ENV: self.child_nonce,
             }
         )
+        if is_v15_plan(self.confirmed_plan):
+            env.update(
+                {
+                    "COINBASE_ADMIN_API_CONTROLLED_V15_PLAN_PATH": str(
+                        self.controlled_v15_plan_path
+                    ),
+                    "COINBASE_ADMIN_API_CONTROLLED_V15_PLAN_SHA256": (
+                        self.confirmed_plan_hash
+                    ),
+                    "COINBASE_ADMIN_API_CONTROLLED_V15_MARKER_PATH": str(
+                        self.global_batch_marker
+                    ),
+                    "COINBASE_ADMIN_API_CONTROLLED_V15_HANDOFF_PATH": str(
+                        self.controlled_v15_handoff_path
+                    ),
+                    "COINBASE_ADMIN_API_ROOT_CHILD_CANCEL_CLAIM_LOG_PATH": str(
+                        self.controlled_v15_claim_log_path
+                    ),
+                }
+            )
         for key in (
             "DISABLE_RECONCILER",
             "COINBASE_ADMIN_API_ORDER_EVENT_STREAM_DISABLED",
@@ -18595,6 +19070,8 @@ def write_proof_chain(
     command_kind: str,
     cancel: bool,
     approval_id: str | None = None,
+    cap_guard_decision_id: str | None = None,
+    reconciliation_plan_id: str | None = None,
 ) -> dict[str, str]:
     require(
         command_kind
@@ -18606,8 +19083,10 @@ def write_proof_chain(
         f"proof_chain_cancel_kind_mismatch:{label}",
     )
     approval_id = approval_id or f"approval-{label}-{uuid4()}"
-    cap_ref = f"cap-{label}-{uuid4()}"
-    reconciliation_ref = f"reconciliation-{label}-{uuid4()}"
+    cap_ref = cap_guard_decision_id or f"cap-{label}-{uuid4()}"
+    reconciliation_ref = (
+        reconciliation_plan_id or f"reconciliation-{label}-{uuid4()}"
+    )
     approval_request_body = {
         key: value
         for key, value in context.items()
