@@ -126,21 +126,25 @@ readback returns HTTP `200` with live execution disabled. R2 is consumed and
 cannot be retried. Slice 2 is not accepted and Slice 3 remains inactive; a
 distinct attempt requires a new explicit operator decision.
 
-The operator has now authorized one distinct Slice 2R3 Preview-only attempt,
-effective only after implementation, focused validation, and independent audit
-pass. R3 uses a new fixed immutable claim/result artifact bound to the exact
-consumed R2 file and its R1/original chain. It permits only the fixed
-Default/DEFAULT permission, portfolio, AVAX product, market, position,
-balance, margin-setting/window, and sweep reads plus at most one Preview for
-exactly one contract under the strict `<100.00`, `<150.00`, and `<300.00 USDC`
-caps. Any stop after the aggregate reads but before Preview must carry the
-typed, sanitized, canonically hashed four-stage diagnostic; raw responses,
-external exception text, unknown identifiers, and malformed or undocumented
-margin values are withheld. Retry, fallback, Create, Cancel, Close, Reduce,
-marker, ledger, and runtime authority remain zero. R3 has not yet been claimed
-or run; no Coinbase call or new artifact exists at this checkpoint. R1 and R2
-remain consumed and immutable, R3 may not be retried after an unknown Preview
-outcome, and Slice 3 remains inactive unless R3 is terminally accepted.
+After implementation, focused validation, and independent audit passed, the
+authorized distinct R3 command ran exactly once on 2026-07-14. R3 stopped
+terminally before Preview at sanitized stage `remaining_margin_validation`
+with reason `futures_preview_margin_windows_ambiguous`. Its immutable artifact
+is `artifacts/futures_exact_no_live_preview_slice_2r3.jsonl`, file SHA-256
+`7ccd5411878842f883b78a99a4103b9b7b1f9aa000ebdde29cdecf2ac894b61c`,
+and evidence SHA-256
+`e79beb3d9f1324cf8f90ba78cd45869fec5b7963afe3745bd6e26617313718e8`.
+All six aggregate read counters are exactly `1`; Preview, retry, fallback,
+Create, Cancel, Close, and Reduce counters are `0`; exchange submissions and
+submitted/executed notional are `0`. The diagnostic is canonically hashed and
+records no raw response, external exception text, or identifiers. The exact
+margin-setting token remains documented and operationally accepted as
+`INTRADAY_MARGIN_SETTING_INTRADAY`; no candidate, Preview request, Preview
+response, or seal-ready plan was created. Admin API readback is HTTP `200`
+with live execution disabled. R1, R2, and R3 are consumed and immutable; there
+is no remaining Preview or exchange-call authority. Slice 2 is not accepted,
+Slice 3 remains inactive, and any distinct follow-up attempt or offline
+diagnosis requires a new explicit operator decision.
 
 `Default-profile Futures readback -> exact AVAX US CFM Coinbase Preview Order -> immutable operator-visible no-live preview readback`
 

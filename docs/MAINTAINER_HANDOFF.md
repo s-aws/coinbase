@@ -169,11 +169,21 @@ create a separate approval class.
   preserves exact readback of the consumed R2 evidence, while future evidence
   rejects reordered or authority-expanding diagnostics and diagnostics after a
   Preview attempt.
-- Proposed next authorization, prepared but not granted by this handoff:
-
-  ```text
-  AUTHORIZE implementation, focused validation, independent audit, and one fresh Slice 2R3 Preview-only evidence attempt using a new immutable claim/result artifact bound to the consumed Slice 2R2 artifact, while preserving and never modifying, deleting, reusing, or retrying the consumed Slice 2, Slice 2R1, and Slice 2R2 artifacts. Permit the fixed backend-owned permission, portfolio, product, market, position, balance, intraday-margin-setting/window, and sweep preflight reads, plus at most one Coinbase Preview Order call for the permission-selected Default/DEFAULT US CFM AVAX perp-style future AVP-20DEC30-CDE, exactly one contract, actor operator-controlled-futures-proof with BFF role trader, strict opening/reference below 100.00 USDC, maximum exposure and 1.20-buffered close each below 150.00 USDC, and branch turnover below 300.00 USDC. Require the fully typed, sanitized, canonically hashed pre-Preview stage diagnostic for any terminal stop after the fixed aggregate reads, with an exact ordered prefix across remaining-margin validation, candidate construction, Preview-request construction, and terminal-context sanitization; allow only exact stage-bound internal reason codes or fixed unclassified fallbacks, and withhold raw responses, external exception text, unknown identifiers, and malformed or undocumented margin-setting values. Zero retries, fallback calls, Create Order, Cancel Order, Close Position, Reduce, marker, ledger, replacement runtime, or other exchange-mutation attempts. If any predecessor, profile, product, contract, position, margin/collateral, liquidation, freshness, diagnostic, Preview, or cap evidence is ambiguous, do not create R3 or stop terminally before Preview as applicable. Any unknown Preview outcome consumes R3 and may not be retried.
-  ```
+- The operator granted the proposed R3 authorization. After focused validation,
+  synchronized `main` commits (`18f4b04b` backend and `33105b9a` frontend),
+  immutable-predecessor checks, and independent safety plus blind contextless
+  audits passed, the version-bound R3 command ran exactly once. It stopped
+  before Preview at sanitized stage
+  `remaining_margin_validation` with reason
+  `futures_preview_margin_windows_ambiguous`. The immutable R3 artifact file
+  SHA-256 is
+  `7ccd5411878842f883b78a99a4103b9b7b1f9aa000ebdde29cdecf2ac894b61c`;
+  evidence SHA-256 is
+  `e79beb3d9f1324cf8f90ba78cd45869fec5b7963afe3745bd6e26617313718e8`.
+  All six aggregate reads are `1`; Preview, retry, fallback, Create, Cancel,
+  Close, Reduce, exchange-submission, and notional counters are `0`. API
+  readback is HTTP `200` with live execution disabled. R3 is consumed and
+  cannot be retried; Slice 2 is not accepted and Slice 3 remains inactive.
 - Offline R3 diagnostic preparation validation: focused backend Preview and
   Admin API contract coverage passed (`165 passed`), ownership, Python compile,
   OpenAPI freshness, and diff checks passed; focused frontend rendering passed
