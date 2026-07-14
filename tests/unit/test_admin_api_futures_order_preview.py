@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from api.v1.app import create_app
+from application.admin_api import futures_order_preview as preview_module
 from application.admin_api.futures_order_preview import (
     DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH,
     FUTURES_PREVIEW_PREDECESSOR_ARTIFACT_PATH,
@@ -776,7 +777,10 @@ def test_non_operational_margin_settings_stop_before_preview(
     assert rest_client.preview_calls == []
     assert diagnostic["allowlist_match"] is expected_documented
     assert diagnostic["operationally_resolved"] is False
-    assert terminal["blocker"] == "preflight_or_preview_blocked:ValueError"
+    assert terminal["blocker"] == "preflight_or_preview_stage_blocked"
+    if not expected_documented:
+        assert diagnostic["observed_token"] is None
+        assert setting not in json.dumps(terminal)
 
 
 @pytest.mark.parametrize(
@@ -885,7 +889,7 @@ def test_margin_setting_shape_failures_are_controlled_and_never_echo_raw_values(
 
     terminal = store.read_completed()
     diagnostic = terminal["margin_setting_evidence"]
-    assert terminal["blocker"] == "preflight_or_preview_blocked:ValueError"
+    assert terminal["blocker"] == "preflight_or_preview_stage_blocked"
     assert terminal["attempt_counters"]["preview_order"] == 0
     assert rest_client.preview_calls == []
     assert diagnostic["container_type"] == container_type
@@ -921,6 +925,373 @@ def test_external_preflight_exception_text_is_never_persisted(
     assert "PRIVATE_HTTP_RESPONSE_BODY_MUST_NOT_PERSIST" not in path.read_text(
         encoding="utf-8"
     )
+
+
+def test_remaining_margin_stage_reports_only_allowlisted_sanitized_reason(
+    tmp_path: Path,
+):
+    rest_client = FakePreviewRestClient()
+    snapshot = rest_client.get_futures_margin_collateral_snapshot()
+    snapshot["balance_summary"]["available_margin"]["currency"] = (
+        "PRIVATE_CURRENCY_VALUE_MUST_NOT_PERSIST"
+    )
+    rest_client.read_calls.clear()
+    rest_client.get_futures_margin_collateral_snapshot = (  # type: ignore[method-assign]
+        lambda: snapshot
+    )
+    producer, store, path = _producer(tmp_path, rest_client)
+
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="blocked"):
+        producer.run()
+
+    terminal = store.read_completed()
+    diagnostic = terminal["pre_preview_stage_evidence"]
+    assert diagnostic == {
+        "schema_version": "1",
+        "source": "backend_futures_preview_producer",
+        "stages": [
+            {
+                "stage": "remaining_margin_validation",
+                "status": "blocked",
+                "reason_code": (
+                    "futures_preview_available_margin_currency_invalid"
+                ),
+            }
+        ],
+        "sanitized": True,
+        "raw_response_included": False,
+        "external_exception_text_included": False,
+        "identifier_values_included": False,
+    }
+    assert terminal["pre_preview_stage_evidence_sha256"] == canonical_sha256(
+        diagnostic
+    )
+    assert terminal["attempt_counters"] == {
+        "preview_order": 0,
+        "retry": 0,
+        "fallback": 0,
+        "create_order": 0,
+        "cancel_order": 0,
+        "close_position": 0,
+        "reduce_position": 0,
+    }
+    assert terminal["blocker"] == "preflight_or_preview_stage_blocked"
+    assert rest_client.preview_calls == []
+    assert "PRIVATE_CURRENCY_VALUE_MUST_NOT_PERSIST" not in path.read_text(
+        encoding="utf-8"
+    )
+    AdminFuturesOrderPreviewResponse.model_validate(terminal)
+
+
+def test_candidate_stage_reports_passed_margin_and_allowlisted_reason(
+    tmp_path: Path,
+):
+    rest_client = FakePreviewRestClient()
+    secret_product = _product(price="PRIVATE_PRODUCT_VALUE_MUST_NOT_PERSIST")
+    rest_client.get_product_dict = (  # type: ignore[method-assign]
+        lambda _product_id: secret_product
+    )
+    producer, store, path = _producer(tmp_path, rest_client)
+
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="blocked"):
+        producer.run()
+
+    terminal = store.read_completed()
+    diagnostic = terminal["pre_preview_stage_evidence"]
+    assert diagnostic["stages"] == [
+        {
+            "stage": "remaining_margin_validation",
+            "status": "passed",
+            "reason_code": None,
+        },
+        {
+            "stage": "candidate_construction",
+            "status": "blocked",
+            "reason_code": "futures_preview_product_price_invalid",
+        },
+    ]
+    assert terminal["pre_preview_stage_evidence_sha256"] == canonical_sha256(
+        diagnostic
+    )
+    assert terminal["attempt_counters"]["preview_order"] == 0
+    assert rest_client.preview_calls == []
+    assert "PRIVATE_PRODUCT_VALUE_MUST_NOT_PERSIST" not in path.read_text(
+        encoding="utf-8"
+    )
+    AdminFuturesOrderPreviewResponse.model_validate(terminal)
+
+
+@pytest.mark.parametrize(
+    ("attribute", "expected_stages", "fallback_reason"),
+    [
+        (
+            "_margin_setting_terminal_context",
+            [],
+            "futures_preview_remaining_margin_validation_unclassified",
+        ),
+        (
+            "validate_margin_collateral_evidence",
+            [],
+            "futures_preview_remaining_margin_validation_unclassified",
+        ),
+        (
+            "build_futures_order_preview_candidate",
+            ["remaining_margin_validation"],
+            "futures_preview_candidate_construction_unclassified",
+        ),
+        (
+            "_preview_request",
+            ["remaining_margin_validation", "candidate_construction"],
+            "futures_preview_request_construction_unclassified",
+        ),
+        (
+            "_terminal_attempt_context",
+            [
+                "remaining_margin_validation",
+                "candidate_construction",
+                "preview_request_construction",
+            ],
+            "futures_preview_terminal_context_sanitization_unclassified",
+        ),
+    ],
+    ids=("margin-context", "margin", "candidate", "request", "context"),
+)
+def test_each_pre_preview_stage_withholds_unexpected_exception_text(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    attribute: str,
+    expected_stages: list[str],
+    fallback_reason: str,
+):
+    secret = f"PRIVATE_{attribute.upper()}_EXCEPTION_MUST_NOT_PERSIST"
+
+    def fail(*_args, **_kwargs):
+        raise RuntimeError(secret)
+
+    monkeypatch.setattr(preview_module, attribute, fail)
+    rest_client = FakePreviewRestClient()
+    producer, store, path = _producer(tmp_path, rest_client)
+
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="blocked"):
+        producer.run()
+
+    terminal = store.read_completed()
+    rows = terminal["pre_preview_stage_evidence"]["stages"]
+    assert [row["stage"] for row in rows[:-1]] == expected_stages
+    assert all(
+        row == {"stage": stage, "status": "passed", "reason_code": None}
+        for row, stage in zip(rows[:-1], expected_stages, strict=True)
+    )
+    assert rows[-1]["status"] == "blocked"
+    assert rows[-1]["reason_code"] == fallback_reason
+    assert terminal["attempt_counters"]["preview_order"] == 0
+    assert terminal["exchange_submission_attempt_count"] == 0
+    assert terminal["submitted_notional_usdc"] == "0"
+    assert terminal["executed_notional_usdc"] == "0"
+    assert rest_client.preview_calls == []
+    assert terminal["blocker"] == "preflight_or_preview_stage_blocked"
+    serialized = path.read_text(encoding="utf-8")
+    assert secret not in serialized
+    assert "RuntimeError" not in serialized
+
+
+def test_safe_looking_unknown_value_error_is_not_promoted_to_diagnostic(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    secret = "SAFE_LOOKING_PRIVATE_VALIDATION_TOKEN"
+
+    def fail(_candidate):
+        raise ValueError(secret)
+
+    monkeypatch.setattr(preview_module, "_preview_request", fail)
+    rest_client = FakePreviewRestClient()
+    producer, store, path = _producer(tmp_path, rest_client)
+
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="blocked"):
+        producer.run()
+
+    terminal = store.read_completed()
+    assert terminal["pre_preview_stage_evidence"]["stages"][-1] == {
+        "stage": "preview_request_construction",
+        "status": "blocked",
+        "reason_code": "futures_preview_request_construction_unclassified",
+    }
+    assert secret not in path.read_text(encoding="utf-8")
+    assert rest_client.preview_calls == []
+
+
+def test_stage_diagnostic_readback_rejects_hash_order_and_authority_drift(
+    tmp_path: Path,
+):
+    rest_client = FakePreviewRestClient()
+    rest_client.get_product_dict = (  # type: ignore[method-assign]
+        lambda _product_id: _product(price="not-a-price")
+    )
+    producer, store, _path = _producer(tmp_path, rest_client)
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="blocked"):
+        producer.run()
+    terminal = store.read_completed()
+
+    def mutated() -> dict[str, object]:
+        return json.loads(json.dumps(terminal))
+
+    def rehash(evidence: dict[str, object]) -> None:
+        diagnostic = evidence["pre_preview_stage_evidence"]
+        evidence["pre_preview_stage_evidence_sha256"] = canonical_sha256(
+            diagnostic
+        )
+        evidence["evidence_sha256"] = canonical_sha256(
+            {
+                key: value
+                for key, value in evidence.items()
+                if key != "evidence_sha256"
+            }
+        )
+
+    attacks: list[dict[str, object]] = []
+
+    wrong_hash = mutated()
+    wrong_hash["pre_preview_stage_evidence_sha256"] = "0" * 64
+    wrong_hash["evidence_sha256"] = canonical_sha256(
+        {
+            key: value
+            for key, value in wrong_hash.items()
+            if key != "evidence_sha256"
+        }
+    )
+    attacks.append(wrong_hash)
+
+    reordered = mutated()
+    reordered_diagnostic = reordered["pre_preview_stage_evidence"]
+    assert isinstance(reordered_diagnostic, dict)
+    reordered_diagnostic["stages"].reverse()
+    rehash(reordered)
+    attacks.append(reordered)
+
+    passed_reason = mutated()
+    passed_reason_diagnostic = passed_reason["pre_preview_stage_evidence"]
+    assert isinstance(passed_reason_diagnostic, dict)
+    passed_reason_diagnostic["stages"][0]["reason_code"] = (
+        "futures_preview_product_price_invalid"
+    )
+    rehash(passed_reason)
+    attacks.append(passed_reason)
+
+    authority_expansion = mutated()
+    authority_diagnostic = authority_expansion["pre_preview_stage_evidence"]
+    assert isinstance(authority_diagnostic, dict)
+    authority_diagnostic["retry_allowed"] = True
+    rehash(authority_expansion)
+    attacks.append(authority_expansion)
+
+    post_preview = mutated()
+    post_preview["attempt_counters"]["preview_order"] = 1
+    rehash(post_preview)
+    attacks.append(post_preview)
+
+    raw_blocker = mutated()
+    raw_blocker["blocker"] = "PRIVATE_EXCEPTION_TYPE_AND_TEXT"
+    rehash(raw_blocker)
+    attacks.append(raw_blocker)
+
+    raw_attempt_context = mutated()
+    raw_product = {"PRIVATE_PRODUCT_PAYLOAD": "MUST_NOT_RETURN"}
+    raw_attempt_context["product_evidence"] = raw_product
+    raw_attempt_context["product_evidence_sha256"] = canonical_sha256(
+        raw_product
+    )
+    rehash(raw_attempt_context)
+    attacks.append(raw_attempt_context)
+
+    for attack in attacks:
+        with pytest.raises(ValidationError):
+            AdminFuturesOrderPreviewResponse.model_validate(attack)
+
+
+def test_terminal_failure_context_cannot_override_fixed_invariants():
+    producer, _store, _path = _producer(
+        Path("unused-for-record-only-test"),
+        FakePreviewRestClient(),
+    )
+    claim = producer.build_claim()
+    result = preview_module._terminal_failure_record(
+        claim=claim,
+        claim_sha256=canonical_sha256(claim),
+        counters=preview_module._zero_attempt_counters(),
+        read_counters=preview_module._zero_read_counters(),
+        outcome="blocked",
+        blocker="fixed_blocker",
+        context={
+            "status": "accepted",
+            "outcome": "accepted",
+            "attempt_counters": {"preview_order": 99},
+            "read_only": False,
+            "browser_authority": "execute",
+            "bff_authority": "execute",
+            "artifacts": {"runtime_created": True},
+            "retry_allowed": True,
+        },
+    )
+
+    assert result["status"] == "blocked"
+    assert result["outcome"] == "blocked"
+    assert result["attempt_counters"] == preview_module._zero_attempt_counters()
+    assert result["read_only"] is True
+    assert result["browser_authority"] == "display_only"
+    assert result["bff_authority"] == "forward_only_no_execution"
+    assert result["artifacts"] == {
+        "execution_marker_created": False,
+        "attempt_ledger_created": False,
+        "runtime_created": False,
+    }
+    assert "retry_allowed" not in result
+
+
+def test_stage_diagnostic_get_route_is_read_only_and_hides_raw_blocker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    rest_client = FakePreviewRestClient()
+    rest_client.get_product_dict = (  # type: ignore[method-assign]
+        lambda _product_id: _product(price="PRIVATE_VALUE_MUST_NOT_RETURN")
+    )
+    producer, _store, path = _producer(tmp_path, rest_client)
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="blocked"):
+        producer.run()
+    monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-token")
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_PATH",
+        str(path),
+    )
+
+    response = TestClient(create_app()).get(
+        "/api/v1/futures/order-preview",
+        headers={
+            "Authorization": "Bearer test-token",
+            "X-Admin-Actor": "operator-1",
+            "X-Admin-Roles": "viewer",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["X-Live-Execution-Enabled"] == "false"
+    assert response.json()["pre_preview_stage_evidence"]["stages"][-1] == {
+        "stage": "candidate_construction",
+        "status": "blocked",
+        "reason_code": "futures_preview_product_price_invalid",
+    }
+    assert response.json()["attempt_counters"]["preview_order"] == 0
+    assert rest_client.preview_calls == []
+    assert "PRIVATE_VALUE_MUST_NOT_RETURN" not in response.text
+
+
+def test_offline_stage_diagnostics_add_no_slice2r3_execution_path():
+    source = Path(preview_module.__file__).read_text(encoding="utf-8")
+    assert "futures_exact_no_live_preview_slice_2r3" not in source
+    assert not DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH.with_name(
+        "futures_exact_no_live_preview_slice_2r3.jsonl"
+    ).exists()
 
 
 @pytest.mark.parametrize(
@@ -2280,7 +2651,26 @@ def test_producer_revalidates_predecessor_chain_immediately_before_preview(
     evidence = FuturesOrderPreviewArtifactStore(path).read_completed()
     assert evidence["attempt_counters"]["preview_order"] == 0
     assert rest_client.preview_calls == []
-    assert "predecessor" in evidence["blocker"]
+    assert evidence["blocker"] == "preflight_or_preview_stage_blocked"
+    assert evidence["pre_preview_stage_evidence"]["stages"][-1] == {
+        "stage": "terminal_context_sanitization",
+        "status": "blocked",
+        "reason_code": (
+            "futures_preview_terminal_context_sanitization_unclassified"
+        ),
+    }
+    for raw_context_field in (
+        "portfolio_binding",
+        "product_evidence",
+        "market_evidence",
+        "position_evidence",
+        "margin_collateral_evidence",
+        "candidate",
+        "preview_request",
+        "preview_response",
+    ):
+        assert raw_context_field not in evidence
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
 
 
 def test_producer_claim_binds_revalidated_predecessor(
@@ -2406,3 +2796,15 @@ def test_openapi_exposes_typed_read_only_preview_contract():
         "const": "1783980960753782357",
         "title": "Mtime Ns",
     }
+    stage_row_schema = schema["components"]["schemas"][
+        "AdminFuturesPreviewStageEvidenceRow"
+    ]
+    reason_schema = stage_row_schema["properties"]["reason_code"]
+    reason_enum = next(
+        item["enum"] for item in reason_schema["anyOf"] if "enum" in item
+    )
+    expected_reason_codes = set().union(
+        *preview_module._PRE_PREVIEW_STAGE_ALLOWLISTED_REASONS.values(),
+        preview_module._PRE_PREVIEW_STAGE_FALLBACK_REASONS.values(),
+    )
+    assert set(reason_enum) == expected_reason_codes

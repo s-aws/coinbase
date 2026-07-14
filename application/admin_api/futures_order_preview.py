@@ -141,6 +141,123 @@ _SDK_MARGIN_SETTING_FIELDS = {
     "rate_limit_reset",
     "rate_limit_limit",
 }
+_PRE_PREVIEW_STAGE_ORDER = (
+    "remaining_margin_validation",
+    "candidate_construction",
+    "preview_request_construction",
+    "terminal_context_sanitization",
+)
+_PRE_PREVIEW_STAGE_FALLBACK_REASONS = {
+    "remaining_margin_validation": (
+        "futures_preview_remaining_margin_validation_unclassified"
+    ),
+    "candidate_construction": (
+        "futures_preview_candidate_construction_unclassified"
+    ),
+    "preview_request_construction": (
+        "futures_preview_request_construction_unclassified"
+    ),
+    "terminal_context_sanitization": (
+        "futures_preview_terminal_context_sanitization_unclassified"
+    ),
+}
+_PRE_PREVIEW_STAGE_ALLOWLISTED_REASONS = {
+    "remaining_margin_validation": frozenset(
+        {
+            "futures_preview_margin_collateral_ambiguous",
+            "futures_preview_margin_source_reads_ambiguous",
+            "futures_preview_available_margin_currency_invalid",
+            "futures_preview_available_margin_invalid",
+            "futures_preview_total_usd_balance_currency_invalid",
+            "futures_preview_total_usd_balance_invalid",
+            "futures_preview_cfm_usd_balance_currency_invalid",
+            "futures_preview_cfm_usd_balance_invalid",
+            "futures_preview_futures_buying_power_currency_invalid",
+            "futures_preview_futures_buying_power_invalid",
+            "futures_preview_initial_margin_currency_invalid",
+            "futures_preview_initial_margin_invalid",
+            "futures_preview_liquidation_threshold_currency_invalid",
+            "futures_preview_liquidation_threshold_invalid",
+            "futures_preview_margin_window_measure_ambiguous",
+            "futures_preview_maintenance_margin_invalid",
+            "futures_preview_liquidation_buffer_invalid",
+            "futures_preview_margin_maintenance_margin_invalid",
+            "futures_preview_margin_liquidation_buffer_invalid",
+            "futures_preview_margin_setting_ambiguous",
+            "futures_preview_margin_setting_unspecified",
+            "futures_preview_margin_windows_ambiguous",
+            "futures_preview_margin_killswitch_ambiguous",
+            "futures_preview_margin_killswitch_enabled",
+            "futures_preview_margin_sweeps_ambiguous",
+            "futures_preview_available_margin_not_positive",
+        }
+    ),
+    "candidate_construction": frozenset(
+        {
+            "futures_preview_product_identity_blocked",
+            "futures_preview_avp_display_name_blocked",
+            "futures_preview_product_type_blocked",
+            "futures_preview_product_status_blocked",
+            "futures_preview_product_trading_blocked",
+            "futures_preview_avp_perp_style_identity_blocked",
+            "futures_preview_contract_size_invalid",
+            "futures_preview_avp_contract_size_blocked",
+            "futures_preview_product_price_invalid",
+            "futures_preview_price_increment_invalid",
+            "futures_preview_base_increment_invalid",
+            "futures_preview_base_min_size_invalid",
+            "futures_preview_one_contract_rule_blocked",
+            "futures_preview_pricebook_missing",
+            "futures_preview_pricebook_ambiguous",
+            "futures_preview_market_time_missing",
+            "futures_preview_market_time_invalid",
+            "futures_preview_market_time_unzoned",
+            "futures_preview_market_stale",
+            "futures_preview_bids_missing",
+            "futures_preview_bids_price_invalid",
+            "futures_preview_asks_missing",
+            "futures_preview_asks_price_invalid",
+            "futures_preview_crossed_or_ambiguous_book",
+            "futures_preview_best_bid_tick_misaligned",
+            "futures_preview_limit_tick_blocked",
+            "futures_preview_positions_ambiguous",
+            "futures_preview_position_contracts_invalid",
+            "futures_preview_existing_product_exposure_blocked",
+            "futures_preview_opening_cap_blocked",
+            "futures_preview_exposure_cap_blocked",
+            "futures_preview_buffered_close_cap_blocked",
+            "futures_preview_turnover_cap_blocked",
+        }
+    ),
+    "preview_request_construction": frozenset(),
+    "terminal_context_sanitization": frozenset(),
+}
+_TERMINAL_FAILURE_CONTEXT_ALLOWED_KEYS = frozenset(
+    {
+        "portfolio_id",
+        "portfolio_binding",
+        "permission_evidence",
+        "permission_evidence_sha256",
+        "portfolio_catalog_evidence",
+        "portfolio_catalog_sha256",
+        "product_evidence",
+        "product_evidence_sha256",
+        "market_evidence",
+        "market_evidence_sha256",
+        "position_evidence",
+        "position_evidence_sha256",
+        "margin_collateral_evidence",
+        "margin_collateral_evidence_sha256",
+        "margin_setting_evidence",
+        "margin_setting_evidence_sha256",
+        "candidate",
+        "candidate_sha256",
+        "preview_request",
+        "preview_request_sha256",
+        "preview_response",
+        "preview_response_sha256",
+    }
+)
 
 
 class FuturesOrderPreviewArtifactError(RuntimeError):
@@ -151,6 +268,49 @@ def _redacted_preflight_blocker(exc: Exception) -> str:
     """Return only an exception type label, never response text."""
 
     return f"preflight_or_preview_blocked:{type(exc).__name__}"
+
+
+def _pre_preview_stage_failure_context(
+    *,
+    passed_stages: Sequence[str],
+    blocked_stage: str,
+    exc: Exception,
+) -> dict[str, Any]:
+    """Return fixed, sanitized stage evidence without inspecting exception text."""
+
+    reason = _PRE_PREVIEW_STAGE_FALLBACK_REASONS[blocked_stage]
+    if (
+        type(exc) is ValueError
+        and len(exc.args) == 1
+        and isinstance(exc.args[0], str)
+        and exc.args[0]
+        in _PRE_PREVIEW_STAGE_ALLOWLISTED_REASONS[blocked_stage]
+    ):
+        reason = exc.args[0]
+    stages = [
+        {"stage": stage, "status": "passed", "reason_code": None}
+        for stage in passed_stages
+    ]
+    stages.append(
+        {
+            "stage": blocked_stage,
+            "status": "blocked",
+            "reason_code": reason,
+        }
+    )
+    diagnostic = {
+        "schema_version": "1",
+        "source": "backend_futures_preview_producer",
+        "stages": stages,
+        "sanitized": True,
+        "raw_response_included": False,
+        "external_exception_text_included": False,
+        "identifier_values_included": False,
+    }
+    return {
+        "pre_preview_stage_evidence": diagnostic,
+        "pre_preview_stage_evidence_sha256": canonical_sha256(diagnostic),
+    }
 
 
 def _plain(value: Any) -> Any:
@@ -745,6 +905,7 @@ class FuturesOrderPreviewProducer:
         counters = _zero_attempt_counters()
         read_counters = _zero_read_counters()
         terminal_context: dict[str, Any] = {}
+        passed_pre_preview_stages: list[str] = []
         try:
             try:
                 revalidated_predecessor = dict(self.predecessor_validator())
@@ -792,41 +953,88 @@ class FuturesOrderPreviewProducer:
             margin_collateral = _plain(
                 self.rest_client.get_futures_margin_collateral_snapshot()
             )
-            terminal_context.update(
-                _margin_setting_terminal_context(margin_collateral)
-            )
-            available_margin = validate_margin_collateral_evidence(
-                margin_collateral
-            )
-            observed_at = self.now()
-            candidate = build_futures_order_preview_candidate(
-                product=product,
-                book=book,
-                positions=positions,
-                observed_at=observed_at,
-            )
-            preview_request = _preview_request(candidate)
-            terminal_context = _terminal_attempt_context(
-                binding=binding.to_dict(),
-                permissions=permissions,
-                portfolios=portfolios,
-                product=product,
-                book=book,
-                positions=positions,
-                margin_collateral=margin_collateral,
-                candidate=candidate,
-                preview_request=preview_request,
-            )
             try:
-                pre_preview_predecessor = dict(self.predecessor_validator())
-            except FuturesOrderPreviewArtifactError as exc:
-                raise ValueError(
-                    f"futures_preview_predecessor_pre_preview_blocked:{exc}"
-                ) from exc
-            if pre_preview_predecessor != self.predecessor_binding:
-                raise ValueError(
-                    "futures_preview_predecessor_binding_changed_pre_preview"
+                terminal_context.update(
+                    _margin_setting_terminal_context(margin_collateral)
                 )
+                available_margin = validate_margin_collateral_evidence(
+                    margin_collateral
+                )
+            except Exception as exc:
+                terminal_context.update(
+                    _pre_preview_stage_failure_context(
+                        passed_stages=passed_pre_preview_stages,
+                        blocked_stage="remaining_margin_validation",
+                        exc=exc,
+                    )
+                )
+                raise
+            passed_pre_preview_stages.append("remaining_margin_validation")
+            try:
+                observed_at = self.now()
+                candidate = build_futures_order_preview_candidate(
+                    product=product,
+                    book=book,
+                    positions=positions,
+                    observed_at=observed_at,
+                )
+            except Exception as exc:
+                terminal_context.update(
+                    _pre_preview_stage_failure_context(
+                        passed_stages=passed_pre_preview_stages,
+                        blocked_stage="candidate_construction",
+                        exc=exc,
+                    )
+                )
+                raise
+            passed_pre_preview_stages.append("candidate_construction")
+            try:
+                preview_request = _preview_request(candidate)
+            except Exception as exc:
+                terminal_context.update(
+                    _pre_preview_stage_failure_context(
+                        passed_stages=passed_pre_preview_stages,
+                        blocked_stage="preview_request_construction",
+                        exc=exc,
+                    )
+                )
+                raise
+            passed_pre_preview_stages.append("preview_request_construction")
+            try:
+                attempt_context = _terminal_attempt_context(
+                    binding=binding.to_dict(),
+                    permissions=permissions,
+                    portfolios=portfolios,
+                    product=product,
+                    book=book,
+                    positions=positions,
+                    margin_collateral=margin_collateral,
+                    candidate=candidate,
+                    preview_request=preview_request,
+                )
+                try:
+                    pre_preview_predecessor = dict(
+                        self.predecessor_validator()
+                    )
+                except FuturesOrderPreviewArtifactError as exc:
+                    raise ValueError(
+                        "futures_preview_predecessor_pre_preview_blocked"
+                    ) from exc
+                if pre_preview_predecessor != self.predecessor_binding:
+                    raise ValueError(
+                        "futures_preview_predecessor_binding_changed_pre_preview"
+                    )
+            except Exception as exc:
+                terminal_context.update(
+                    _pre_preview_stage_failure_context(
+                        passed_stages=passed_pre_preview_stages,
+                        blocked_stage="terminal_context_sanitization",
+                        exc=exc,
+                    )
+                )
+                raise
+            terminal_context = attempt_context
+            passed_pre_preview_stages.append("terminal_context_sanitization")
             counters["preview_order"] = 1
             try:
                 preview_response = _plain(
@@ -905,8 +1113,17 @@ class FuturesOrderPreviewProducer:
             raise
         except Exception as exc:
             transition_blocker = self._terminal_predecessor_blocker()
-            blocker = _redacted_preflight_blocker(exc)
-            if transition_blocker is not None and transition_blocker not in blocker:
+            stage_failure = "pre_preview_stage_evidence" in terminal_context
+            blocker = (
+                "preflight_or_preview_stage_blocked"
+                if stage_failure
+                else _redacted_preflight_blocker(exc)
+            )
+            if (
+                transition_blocker is not None
+                and not stage_failure
+                and transition_blocker not in blocker
+            ):
                 blocker = f"{blocker};{transition_blocker}"
             result = _terminal_failure_record(
                 claim=claim,
@@ -1456,7 +1673,27 @@ def _terminal_failure_record(
         "hash_algorithm": "sha256",
     }
     if context:
-        evidence.update(_plain(context))
+        normalized_context = {
+            key: _plain(context[key])
+            for key in _TERMINAL_FAILURE_CONTEXT_ALLOWED_KEYS
+            if key in context
+        }
+        evidence.update(normalized_context)
+        stage_evidence = (
+            _plain(context["pre_preview_stage_evidence"])
+            if "pre_preview_stage_evidence" in context
+            else None
+        )
+        stage_evidence_sha256 = (
+            _plain(context["pre_preview_stage_evidence_sha256"])
+            if "pre_preview_stage_evidence_sha256" in context
+            else None
+        )
+        if stage_evidence is not None or stage_evidence_sha256 is not None:
+            evidence["pre_preview_stage_evidence"] = stage_evidence
+            evidence["pre_preview_stage_evidence_sha256"] = (
+                stage_evidence_sha256
+            )
     evidence["evidence_sha256"] = canonical_sha256(evidence)
     return evidence
 
@@ -1609,11 +1846,15 @@ def _margin_setting_terminal_context(
     setting_present = "setting" in setting_evidence
     setting = setting_evidence.get("setting") if setting_present else None
     value_type = _diagnostic_value_type(setting, present=setting_present)
+    token_is_well_formed = (
+        isinstance(setting, str)
+        and setting == setting.strip()
+        and _SAFE_MARGIN_SETTING_TOKEN.fullmatch(setting) is not None
+    )
     safe_setting = (
         setting
         if isinstance(setting, str)
-        and setting == setting.strip()
-        and _SAFE_MARGIN_SETTING_TOKEN.fullmatch(setting)
+        and setting in FUTURES_PREVIEW_DOCUMENTED_MARGIN_SETTINGS
         else None
     )
     allowlist_match = (
@@ -1624,7 +1865,7 @@ def _margin_setting_terminal_context(
         isinstance(setting, str)
         and setting in FUTURES_PREVIEW_OPERATIONAL_MARGIN_SETTINGS
     )
-    if safe_setting is not None:
+    if token_is_well_formed:
         token_form = "safe_enum_token"
         classification = (
             "recognized_string"

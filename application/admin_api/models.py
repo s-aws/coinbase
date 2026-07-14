@@ -6655,7 +6655,7 @@ class AdminFuturesPreviewMarginSettingEvidence(BaseModel):
             )
         elif self.classification == "unrecognized_string":
             coherent = (
-                self.observed_token is not None
+                self.observed_token is None
                 and self.allowlist_match is False
                 and self.container_type == "mapping"
                 and self.field_present is True
@@ -6718,11 +6718,136 @@ class AdminFuturesPreviewMarginSettingEvidence(BaseModel):
             not coherent
             or self.token_form != expected_token_form
             or (self.observed_token is not None)
-            != (self.token_form == "safe_enum_token")
+            != (self.classification == "recognized_string")
             or (self.field_present is False and self.value_type != "missing")
             or (self.container_present is False and self.container_type != "missing")
         ):
             raise ValueError("futures_preview_margin_setting_diagnostic_invalid")
+        return self
+
+
+AdminFuturesPreviewStageReasonCode = Literal[
+    "futures_preview_remaining_margin_validation_unclassified",
+    "futures_preview_candidate_construction_unclassified",
+    "futures_preview_request_construction_unclassified",
+    "futures_preview_terminal_context_sanitization_unclassified",
+    "futures_preview_margin_collateral_ambiguous",
+    "futures_preview_margin_source_reads_ambiguous",
+    "futures_preview_available_margin_currency_invalid",
+    "futures_preview_available_margin_invalid",
+    "futures_preview_total_usd_balance_currency_invalid",
+    "futures_preview_total_usd_balance_invalid",
+    "futures_preview_cfm_usd_balance_currency_invalid",
+    "futures_preview_cfm_usd_balance_invalid",
+    "futures_preview_futures_buying_power_currency_invalid",
+    "futures_preview_futures_buying_power_invalid",
+    "futures_preview_initial_margin_currency_invalid",
+    "futures_preview_initial_margin_invalid",
+    "futures_preview_liquidation_threshold_currency_invalid",
+    "futures_preview_liquidation_threshold_invalid",
+    "futures_preview_margin_window_measure_ambiguous",
+    "futures_preview_maintenance_margin_invalid",
+    "futures_preview_liquidation_buffer_invalid",
+    "futures_preview_margin_maintenance_margin_invalid",
+    "futures_preview_margin_liquidation_buffer_invalid",
+    "futures_preview_margin_setting_ambiguous",
+    "futures_preview_margin_setting_unspecified",
+    "futures_preview_margin_windows_ambiguous",
+    "futures_preview_margin_killswitch_ambiguous",
+    "futures_preview_margin_killswitch_enabled",
+    "futures_preview_margin_sweeps_ambiguous",
+    "futures_preview_available_margin_not_positive",
+    "futures_preview_product_identity_blocked",
+    "futures_preview_avp_display_name_blocked",
+    "futures_preview_product_type_blocked",
+    "futures_preview_product_status_blocked",
+    "futures_preview_product_trading_blocked",
+    "futures_preview_avp_perp_style_identity_blocked",
+    "futures_preview_contract_size_invalid",
+    "futures_preview_avp_contract_size_blocked",
+    "futures_preview_product_price_invalid",
+    "futures_preview_price_increment_invalid",
+    "futures_preview_base_increment_invalid",
+    "futures_preview_base_min_size_invalid",
+    "futures_preview_one_contract_rule_blocked",
+    "futures_preview_pricebook_missing",
+    "futures_preview_pricebook_ambiguous",
+    "futures_preview_market_time_missing",
+    "futures_preview_market_time_invalid",
+    "futures_preview_market_time_unzoned",
+    "futures_preview_market_stale",
+    "futures_preview_bids_missing",
+    "futures_preview_bids_price_invalid",
+    "futures_preview_asks_missing",
+    "futures_preview_asks_price_invalid",
+    "futures_preview_crossed_or_ambiguous_book",
+    "futures_preview_best_bid_tick_misaligned",
+    "futures_preview_limit_tick_blocked",
+    "futures_preview_positions_ambiguous",
+    "futures_preview_position_contracts_invalid",
+    "futures_preview_existing_product_exposure_blocked",
+    "futures_preview_opening_cap_blocked",
+    "futures_preview_exposure_cap_blocked",
+    "futures_preview_buffered_close_cap_blocked",
+    "futures_preview_turnover_cap_blocked",
+]
+
+
+class AdminFuturesPreviewStageEvidenceRow(BaseModel):
+    """One fixed, non-authorizing pre-Preview diagnostic stage."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    stage: Literal[
+        "remaining_margin_validation",
+        "candidate_construction",
+        "preview_request_construction",
+        "terminal_context_sanitization",
+    ]
+    status: Literal["passed", "blocked"]
+    reason_code: AdminFuturesPreviewStageReasonCode | None = None
+
+
+class AdminFuturesPreviewStageEvidence(BaseModel):
+    """Sanitized ordered prefix showing the exact pre-Preview stop stage."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["1"]
+    source: Literal["backend_futures_preview_producer"]
+    stages: list[AdminFuturesPreviewStageEvidenceRow] = Field(
+        min_length=1,
+        max_length=4,
+    )
+    sanitized: Literal[True]
+    raw_response_included: Literal[False]
+    external_exception_text_included: Literal[False]
+    identifier_values_included: Literal[False]
+
+    @model_validator(mode="after")
+    def validate_stage_prefix(self) -> Self:
+        from application.admin_api.futures_order_preview import (
+            _PRE_PREVIEW_STAGE_ALLOWLISTED_REASONS,
+            _PRE_PREVIEW_STAGE_FALLBACK_REASONS,
+            _PRE_PREVIEW_STAGE_ORDER,
+        )
+
+        observed_stages = tuple(row.stage for row in self.stages)
+        if observed_stages != _PRE_PREVIEW_STAGE_ORDER[: len(self.stages)]:
+            raise ValueError("futures_preview_stage_evidence_order_invalid")
+        for row in self.stages[:-1]:
+            if row.status != "passed" or row.reason_code is not None:
+                raise ValueError("futures_preview_stage_evidence_prefix_invalid")
+        final = self.stages[-1]
+        allowed_final_reasons = (
+            _PRE_PREVIEW_STAGE_ALLOWLISTED_REASONS[final.stage]
+            | {_PRE_PREVIEW_STAGE_FALLBACK_REASONS[final.stage]}
+        )
+        if (
+            final.status != "blocked"
+            or final.reason_code not in allowed_final_reasons
+        ):
+            raise ValueError("futures_preview_stage_evidence_blocker_invalid")
         return self
 
 
@@ -6773,6 +6898,11 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
     )
     margin_setting_evidence: AdminFuturesPreviewMarginSettingEvidence | None = None
     margin_setting_evidence_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
+    pre_preview_stage_evidence: AdminFuturesPreviewStageEvidence | None = None
+    pre_preview_stage_evidence_sha256: str | None = Field(
         default=None,
         pattern=r"^[0-9a-f]{64}$",
     )
@@ -6878,6 +7008,75 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
             != self.margin_setting_evidence_sha256
         ):
             raise ValueError("futures_preview_margin_setting_evidence_hash_invalid")
+        if (self.pre_preview_stage_evidence is None) != (
+            self.pre_preview_stage_evidence_sha256 is None
+        ):
+            raise ValueError("futures_preview_stage_evidence_pair_invalid")
+        if self.pre_preview_stage_evidence is not None:
+            final_stage = self.pre_preview_stage_evidence.stages[-1].stage
+            forbidden_stage_attempt_context = (
+                self.portfolio_id,
+                self.portfolio_binding,
+                self.permission_evidence,
+                self.permission_evidence_sha256,
+                self.portfolio_catalog_evidence,
+                self.portfolio_catalog_sha256,
+                self.product_evidence,
+                self.product_evidence_sha256,
+                self.market_evidence,
+                self.market_evidence_sha256,
+                self.position_evidence,
+                self.position_evidence_sha256,
+                self.margin_collateral_evidence,
+                self.margin_collateral_evidence_sha256,
+                self.candidate,
+                self.candidate_sha256,
+                self.preview_request,
+                self.preview_request_sha256,
+                self.preview_response,
+                self.preview_response_sha256,
+                self.seal_ready_plan,
+                self.seal_ready_plan_sha256,
+            )
+            complete_pre_preview_reads = {
+                "api_key_permissions": 1,
+                "portfolio_catalog": 1,
+                "product": 1,
+                "best_bid_ask": 1,
+                "futures_positions": 1,
+                "futures_margin_collateral": 1,
+            }
+            if (
+                canonical_sha256(
+                    self.pre_preview_stage_evidence.model_dump(mode="json")
+                )
+                != self.pre_preview_stage_evidence_sha256
+                or self.outcome != "blocked"
+                or self.blocker != "preflight_or_preview_stage_blocked"
+                or preview_attempts != 0
+                or self.read_counters != complete_pre_preview_reads
+                or self.live_coinbase_read_ran is not True
+                or any(
+                    value is not None
+                    for value in forbidden_stage_attempt_context
+                )
+                or (
+                    final_stage != "remaining_margin_validation"
+                    and (
+                        self.margin_setting_evidence is None
+                        or (
+                            self.margin_setting_evidence.allowlist_match
+                            is not True
+                        )
+                        or self.margin_setting_evidence.operationally_resolved
+                        is not True
+                        or self.margin_setting_evidence.classification
+                        != "recognized_string"
+                        or self.margin_setting_evidence.unexpected_field_count != 0
+                    )
+                )
+            ):
+                raise ValueError("futures_preview_stage_evidence_invalid")
         expected_complete_reads = {
             "api_key_permissions": 1,
             "portfolio_catalog": 1,

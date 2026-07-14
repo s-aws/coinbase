@@ -101427,6 +101427,16 @@ components:
             pattern: ^[0-9a-f]{64}$
           - type: 'null'
           title: Margin Setting Evidence Sha256
+        pre_preview_stage_evidence:
+          anyOf:
+          - $ref: '#/components/schemas/AdminFuturesPreviewStageEvidence'
+          - type: 'null'
+        pre_preview_stage_evidence_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Pre Preview Stage Evidence Sha256
         candidate:
           anyOf:
           - additionalProperties: true
@@ -102279,6 +102289,143 @@ components:
       - original_predecessor_binding
       title: AdminFuturesPreviewPredecessorBinding
       description: Exact immutable R1 binding plus its original Slice 2 parent.
+    AdminFuturesPreviewStageEvidence:
+      properties:
+        schema_version:
+          type: string
+          const: '1'
+          title: Schema Version
+        source:
+          type: string
+          const: backend_futures_preview_producer
+          title: Source
+        stages:
+          items:
+            $ref: '#/components/schemas/AdminFuturesPreviewStageEvidenceRow'
+          type: array
+          maxItems: 4
+          minItems: 1
+          title: Stages
+        sanitized:
+          type: boolean
+          const: true
+          title: Sanitized
+        raw_response_included:
+          type: boolean
+          const: false
+          title: Raw Response Included
+        external_exception_text_included:
+          type: boolean
+          const: false
+          title: External Exception Text Included
+        identifier_values_included:
+          type: boolean
+          const: false
+          title: Identifier Values Included
+      additionalProperties: false
+      type: object
+      required:
+      - schema_version
+      - source
+      - stages
+      - sanitized
+      - raw_response_included
+      - external_exception_text_included
+      - identifier_values_included
+      title: AdminFuturesPreviewStageEvidence
+      description: Sanitized ordered prefix showing the exact pre-Preview stop stage.
+    AdminFuturesPreviewStageEvidenceRow:
+      properties:
+        stage:
+          type: string
+          enum:
+          - remaining_margin_validation
+          - candidate_construction
+          - preview_request_construction
+          - terminal_context_sanitization
+          title: Stage
+        status:
+          type: string
+          enum:
+          - passed
+          - blocked
+          title: Status
+        reason_code:
+          anyOf:
+          - type: string
+            enum:
+            - futures_preview_remaining_margin_validation_unclassified
+            - futures_preview_candidate_construction_unclassified
+            - futures_preview_request_construction_unclassified
+            - futures_preview_terminal_context_sanitization_unclassified
+            - futures_preview_margin_collateral_ambiguous
+            - futures_preview_margin_source_reads_ambiguous
+            - futures_preview_available_margin_currency_invalid
+            - futures_preview_available_margin_invalid
+            - futures_preview_total_usd_balance_currency_invalid
+            - futures_preview_total_usd_balance_invalid
+            - futures_preview_cfm_usd_balance_currency_invalid
+            - futures_preview_cfm_usd_balance_invalid
+            - futures_preview_futures_buying_power_currency_invalid
+            - futures_preview_futures_buying_power_invalid
+            - futures_preview_initial_margin_currency_invalid
+            - futures_preview_initial_margin_invalid
+            - futures_preview_liquidation_threshold_currency_invalid
+            - futures_preview_liquidation_threshold_invalid
+            - futures_preview_margin_window_measure_ambiguous
+            - futures_preview_maintenance_margin_invalid
+            - futures_preview_liquidation_buffer_invalid
+            - futures_preview_margin_maintenance_margin_invalid
+            - futures_preview_margin_liquidation_buffer_invalid
+            - futures_preview_margin_setting_ambiguous
+            - futures_preview_margin_setting_unspecified
+            - futures_preview_margin_windows_ambiguous
+            - futures_preview_margin_killswitch_ambiguous
+            - futures_preview_margin_killswitch_enabled
+            - futures_preview_margin_sweeps_ambiguous
+            - futures_preview_available_margin_not_positive
+            - futures_preview_product_identity_blocked
+            - futures_preview_avp_display_name_blocked
+            - futures_preview_product_type_blocked
+            - futures_preview_product_status_blocked
+            - futures_preview_product_trading_blocked
+            - futures_preview_avp_perp_style_identity_blocked
+            - futures_preview_contract_size_invalid
+            - futures_preview_avp_contract_size_blocked
+            - futures_preview_product_price_invalid
+            - futures_preview_price_increment_invalid
+            - futures_preview_base_increment_invalid
+            - futures_preview_base_min_size_invalid
+            - futures_preview_one_contract_rule_blocked
+            - futures_preview_pricebook_missing
+            - futures_preview_pricebook_ambiguous
+            - futures_preview_market_time_missing
+            - futures_preview_market_time_invalid
+            - futures_preview_market_time_unzoned
+            - futures_preview_market_stale
+            - futures_preview_bids_missing
+            - futures_preview_bids_price_invalid
+            - futures_preview_asks_missing
+            - futures_preview_asks_price_invalid
+            - futures_preview_crossed_or_ambiguous_book
+            - futures_preview_best_bid_tick_misaligned
+            - futures_preview_limit_tick_blocked
+            - futures_preview_positions_ambiguous
+            - futures_preview_position_contracts_invalid
+            - futures_preview_existing_product_exposure_blocked
+            - futures_preview_opening_cap_blocked
+            - futures_preview_exposure_cap_blocked
+            - futures_preview_buffered_close_cap_blocked
+            - futures_preview_turnover_cap_blocked
+          - type: 'null'
+          title: Reason Code
+      additionalProperties: false
+      type: object
+      required:
+      - stage
+      - status
+      title: AdminFuturesPreviewStageEvidenceRow
+      description: One fixed, non-authorizing pre-Preview diagnostic stage.
     AdminFuturesRiskInputEvidence:
       properties:
         status:
