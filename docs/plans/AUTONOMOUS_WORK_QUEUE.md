@@ -428,6 +428,17 @@ Exact autonomous phrase: Active Release 0.1 `8101-8120` adds a Stealth Lifecycle
 
 - Tighten generated-wrapper adapters and typed view models for stealth
   lifecycle status, command-suite, and evidence rows.
+- Evidence update 2026-07-14: frontend completed a display-only status
+  adapter over existing backend stealth lifecycle rows, command-suite
+  commands, selected-order action-state rows, and post-write evidence
+  contract-review rows. Backend contracts and OpenAPI were unchanged; raw
+  status, route, identity, no-live authority, and evidence fields still come
+  from the backend-owned Admin API responses. No backend live execution,
+  exchange-truth resolver, Coinbase call, lifecycle mutation, command
+  enablement, route-local execution, exchange `order_id` command identity, or
+  second trading/status path was added. Frontend focused validation and
+  blind/contextless review passed. Live Coinbase execution was not run;
+  submitted/executed notional stayed `0` USDC.
 
 ### Phase 8112 - Stealth Detail Action Matrix UX
 

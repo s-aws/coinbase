@@ -305,12 +305,16 @@ work. Historical milestone detail belongs in
   completed: reviewer findings were consumed and the agent was closed. Live
   Coinbase execution was not run and submitted/executed notional stayed 0
   USDC.
-- Exact next implementation slice after Phase 8110 validation: move to
-  Phase 8111 Frontend Stealth Status Adapter. Do not add browser scheduler,
-  BFF runner authority, retry loops, route-local execution, direct Coinbase
-  calls, manager invocation, recovery repair, rollback, proof writing,
+- Exact next implementation slice after Phase 8111 validation: move to
+  Phase 8112 Stealth Detail Action Matrix UX. Phase 8111 completed a
+  display-only frontend status adapter over existing backend lifecycle,
+  command-suite, selected-action, and post-write evidence rows; backend
+  contracts/OpenAPI did not change. Do not add browser scheduler, BFF runner
+  authority, retry loops, route-local execution, direct Coinbase calls,
+  manager invocation, recovery repair, rollback, proof writing,
   reconciliation execution, order/exchange state mutation, exchange `order_id`
-  command identity, or a second trading path.
+  command identity, or a second trading/status path. Live Coinbase execution
+  was not run and submitted/executed notional stayed 0 USDC.
 - Contextless review status: backend Phase 7997 passed after remediation.
   Initial blind reviews blocked on stale current Admin API command-authority
   docs and `genai_data` references that still implied all HTTP mutating routes
