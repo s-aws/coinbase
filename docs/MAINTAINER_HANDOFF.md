@@ -143,18 +143,29 @@ create a separate approval class.
   an exact documented-versus-operational allowlist, focused validation,
   independent audit, and—only after those gates—one new immutable R2
   Preview-only attempt. R2 preserves typed bounded margin diagnostics while
-  excluding raw account/margin payloads and external exception text. No R2
-  artifact or Coinbase/Preview/mutation call has been made. Focused backend and
-  frontend validation, OpenAPI/API freshness, typecheck, lint, build, and the
-  exact contract test pass; both final independent audits pass. The one-shot
-  boundary is eligible but unconsumed at this checkpoint.
+  excluding raw account/margin payloads and external exception text. The R2
+  artifact was then consumed exactly once and stopped after enum-diagnostic
+  capture but before complete candidate/request context or Preview. File SHA-256 is
+  `1831b2feaac69b9d3d64377123833831c1b1c1f26c1c0445ed17f334746b4053`;
+  evidence SHA-256 is
+  `afebf81c4d95c0abd7635fd700f6618e92191423173df3e2db0f875102b6f1c9`.
+  Its typed diagnostic proves
+  `INTRADAY_MARGIN_SETTING_INTRADAY` is documented and operationally eligible,
+  so the enum itself did not block. The exact remaining-margin,
+  candidate/request-construction, or context-sanitization condition is not
+  persisted and must not be inferred. All aggregate reads are `1`; Preview,
+  retry, fallback, mutation, exchange-submission, and notional counters are
+  `0`. API readback is HTTP `200` with live execution disabled. R2 cannot be
+  retried, Slice 2 is not accepted, and Slice 3 remains inactive pending a new
+  explicit operator decision.
 - Phase-end subagent sweep: the independent reviews found and caused
   correction of raw-evidence leakage, external exception-text persistence,
   permissive unknown margin-window handling, a stale authority mirror, and
   missing durable primary-source links, plus Preview cap, available-margin, and
   redirect-replay gaps. All causal findings were fixed; final independent
-  safety and blind contextless re-reviews completed with `PASS`, and no required
-  validation agent remains running.
+  safety and blind contextless re-reviews plus the consumed terminal artifact
+  integrity/retry audit completed with `PASS`, and no required validation agent
+  remains running.
 - Ordered successors: exact no-live preview (2), one terminal order roundtrip
   (3), intentional fill/position readback (4), then exact closeout (5). The
   no-live sequence is prospectively authorized; every live step remains behind

@@ -98,13 +98,33 @@ It permits zero retries, fallbacks, Create, Cancel, Close, Reduce, marker,
 ledger, runtime, or other exchange mutation. Raw account and margin responses
 and external exception text are never persisted; only strict sanitized evidence
 and hashes are operator-visible. An unknown Preview outcome consumes R2 and may
-not be retried. Before the gated attempt, R2 remains absent and all Coinbase and
-Preview attempt counters remain zero.
+not be retried. At the pre-attempt checkpoint, R2 was absent and all Coinbase
+and Preview attempt counters were zero.
 
 Focused backend/frontend validation, exact contract freshness, transport
-exact-once tests, and independent safety plus blind contextless audits pass.
-The one-shot R2 boundary is therefore eligible under the operator's explicit
-authorization; no attempt has yet been consumed at this checkpoint.
+exact-once tests, and independent safety plus blind contextless audits passed.
+R2 then ran exactly once on 2026-07-14 and stopped terminally after enum
+diagnostic capture but before complete candidate/request-context capture or
+Preview. Its immutable artifact is
+`artifacts/futures_exact_no_live_preview_slice_2r2.jsonl`, file SHA-256
+`1831b2feaac69b9d3d64377123833831c1b1c1f26c1c0445ed17f334746b4053`,
+and evidence SHA-256
+`afebf81c4d95c0abd7635fd700f6618e92191423173df3e2db0f875102b6f1c9`.
+The terminal blocker is the intentionally redacted
+`preflight_or_preview_blocked:ValueError`. Typed sanitized evidence proves
+Coinbase returned `INTRADAY_MARGIN_SETTING_INTRADAY`, with documented-enum and
+operational allowlist matches both true and raw response inclusion false.
+Therefore the official setting enum was not the blocker. Code-path and artifact
+shape confine the failure interval to remaining margin validation,
+candidate/request construction, or context sanitization; the exact condition
+was deliberately not persisted and must not be guessed.
+
+All six aggregate preflight-read counters are exactly `1`. Preview, retry,
+fallback, Create, Cancel, Close, and Reduce counters are `0`; exchange
+submissions, submitted notional, and executed notional are `0`. Admin API
+readback returns HTTP `200` with live execution disabled. R2 is consumed and
+cannot be retried. Slice 2 is not accepted and Slice 3 remains inactive; a
+distinct attempt requires a new explicit operator decision.
 
 `Default-profile Futures readback -> exact AVAX US CFM Coinbase Preview Order -> immutable operator-visible no-live preview readback`
 
