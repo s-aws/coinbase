@@ -1,4 +1,4 @@
-"""Consume the single authorized Slice 2 Coinbase Preview attempt.
+"""Consume the single authorized Slice 2R3 Coinbase Preview attempt.
 
 This backend-only tool has no product, profile, size, cap, actor, or artifact
 path options.  It can call only the fixed producer, whose exclusive artifact
@@ -9,7 +9,10 @@ cancels, closes, or reduces an exchange order.
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterator
+from contextlib import contextmanager
 import json
+import logging
 import os
 from pathlib import Path
 import sys
@@ -34,6 +37,17 @@ from tools.coinbase_live_credentials import (  # noqa: E402
 
 
 COINBASE_PREVIEW_HTTP_TIMEOUT_SECONDS = 30
+FUTURES_PREVIEW_CREDENTIAL_SECRET_ID = "coinbase"
+FUTURES_PREVIEW_CREDENTIAL_REGION = "us-east-1"
+_DIRECT_CREDENTIAL_ENV_NAMES = (
+    "COINBASE_API_KEY",
+    "COINBASE_API_SECRET",
+)
+_SECRET_ID_ENV_NAMES = (
+    "COINBASE_SECRETS_MANAGER_SECRET_ID",
+    "COINBASE_API_CREDENTIALS_SECRET_ID",
+    "COINBASE_LIVE_CREDENTIALS_SECRET_ID",
+)
 
 
 def production_artifact_path() -> Path:
@@ -43,7 +57,7 @@ def production_artifact_path() -> Path:
 
 
 def validate_production_predecessor() -> dict[str, object]:
-    """Validate the immutable consumed Slice 2 predecessor."""
+    """Validate the immutable consumed Slice 2R2 predecessor chain."""
 
     return validate_production_futures_order_preview_predecessor()
 
@@ -64,22 +78,58 @@ def build_parser() -> argparse.ArgumentParser:
         help="Report fixed-path consumption state without credentials or Coinbase calls.",
     )
     mode.add_argument(
-        "--confirm-one-preview",
+        "--confirm-one-r3-preview",
         action="store_true",
-        help="Confirm consumption of the one authorized Preview attempt.",
+        help="Confirm consumption of the one authorized Slice 2R3 Preview attempt.",
     )
     return parser
 
 
-def build_rest_client() -> CoinbaseRestClient:
-    """Hydrate backend credentials and construct the canonical wrapper."""
+def _controlled_default_credential_environment() -> dict[str, str]:
+    """Return a copy that cannot inherit a Spot/Test credential selection."""
 
-    ensure_live_coinbase_credentials(os.environ)
+    controlled = dict(os.environ)
+    for name in (*_DIRECT_CREDENTIAL_ENV_NAMES, *_SECRET_ID_ENV_NAMES):
+        controlled.pop(name, None)
+    controlled["COINBASE_SECRETS_MANAGER_SECRET_ID"] = (
+        FUTURES_PREVIEW_CREDENTIAL_SECRET_ID
+    )
+    controlled["COINBASE_SECRETS_MANAGER_REGION"] = (
+        FUTURES_PREVIEW_CREDENTIAL_REGION
+    )
+    return controlled
+
+
+@contextmanager
+def _suppress_coinbase_sdk_logging() -> Iterator[None]:
+    """Prevent the Coinbase SDK from logging raw HTTP response bodies."""
+
+    logger = logging.getLogger("coinbase.RESTClient")
+    previously_disabled = logger.disabled
+    logger.disabled = True
+    try:
+        yield
+    finally:
+        logger.disabled = previously_disabled
+
+
+def build_rest_client() -> CoinbaseRestClient:
+    """Hydrate the fixed Default credential and construct the wrapper."""
+
+    credential_environment = _controlled_default_credential_environment()
+    resolution = ensure_live_coinbase_credentials(credential_environment)
+    if (
+        resolution.source != "secrets_manager"
+        or resolution.secret_id_env != "COINBASE_SECRETS_MANAGER_SECRET_ID"
+    ):
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview credential source is not the fixed Default secret"
+        )
     from coinbase.rest import RESTClient
 
     sdk_client = RESTClient(
-        api_key=os.environ["COINBASE_API_KEY"],
-        api_secret=os.environ["COINBASE_API_SECRET"],
+        api_key=credential_environment["COINBASE_API_KEY"],
+        api_secret=credential_environment["COINBASE_API_SECRET"],
         timeout=COINBASE_PREVIEW_HTTP_TIMEOUT_SECONDS,
         rate_limit_headers=True,
     )
@@ -181,7 +231,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         predecessor_validator=validate_production_predecessor,
     )
     try:
-        evidence = producer.run()
+        with _suppress_coinbase_sdk_logging():
+            evidence = producer.run()
     except FuturesOrderPreviewArtifactError as exc:
         try:
             terminal = store.read_completed()

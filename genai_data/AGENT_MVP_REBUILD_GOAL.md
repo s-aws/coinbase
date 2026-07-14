@@ -126,6 +126,22 @@ readback returns HTTP `200` with live execution disabled. R2 is consumed and
 cannot be retried. Slice 2 is not accepted and Slice 3 remains inactive; a
 distinct attempt requires a new explicit operator decision.
 
+The operator has now authorized one distinct Slice 2R3 Preview-only attempt,
+effective only after implementation, focused validation, and independent audit
+pass. R3 uses a new fixed immutable claim/result artifact bound to the exact
+consumed R2 file and its R1/original chain. It permits only the fixed
+Default/DEFAULT permission, portfolio, AVAX product, market, position,
+balance, margin-setting/window, and sweep reads plus at most one Preview for
+exactly one contract under the strict `<100.00`, `<150.00`, and `<300.00 USDC`
+caps. Any stop after the aggregate reads but before Preview must carry the
+typed, sanitized, canonically hashed four-stage diagnostic; raw responses,
+external exception text, unknown identifiers, and malformed or undocumented
+margin values are withheld. Retry, fallback, Create, Cancel, Close, Reduce,
+marker, ledger, and runtime authority remain zero. R3 has not yet been claimed
+or run; no Coinbase call or new artifact exists at this checkpoint. R1 and R2
+remain consumed and immutable, R3 may not be retried after an unknown Preview
+outcome, and Slice 3 remains inactive unless R3 is terminally accepted.
+
 `Default-profile Futures readback -> exact AVAX US CFM Coinbase Preview Order -> immutable operator-visible no-live preview readback`
 
 ## Ordered Sequence — Slice 2 Active

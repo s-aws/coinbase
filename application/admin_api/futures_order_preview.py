@@ -43,27 +43,43 @@ FUTURES_PREVIEW_ORIGINAL_ARTIFACT_PATH = (
     / "artifacts"
     / "futures_exact_no_live_preview_slice_2.jsonl"
 )
-FUTURES_PREVIEW_PREDECESSOR_ARTIFACT_PATH = (
+FUTURES_PREVIEW_R1_ARTIFACT_PATH = (
     Path(__file__).resolve().parents[2]
     / "artifacts"
     / "futures_exact_no_live_preview_slice_2r1.jsonl"
 )
-DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH = (
+FUTURES_PREVIEW_PREDECESSOR_ARTIFACT_PATH = (
     Path(__file__).resolve().parents[2]
     / "artifacts"
     / "futures_exact_no_live_preview_slice_2r2.jsonl"
 )
-FUTURES_PREVIEW_PREDECESSOR_FILE_SHA256 = (
+DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "artifacts"
+    / "futures_exact_no_live_preview_slice_2r3.jsonl"
+)
+FUTURES_PREVIEW_R1_FILE_SHA256 = (
     "55c09c6d4819f2d03dd679ae4c952e203cf540d1a141e13035459821f1b680d7"
 )
-FUTURES_PREVIEW_PREDECESSOR_EVIDENCE_SHA256 = (
+FUTURES_PREVIEW_R1_EVIDENCE_SHA256 = (
     "a1b7820aa217b7119a6353a8f4fbffa5227ebfe5e4c8d8a1cde5449d370fc6f0"
 )
+FUTURES_PREVIEW_R1_DEVICE = 66305
+FUTURES_PREVIEW_R1_INODE = 42312970
+FUTURES_PREVIEW_R1_SIZE = 4197
+FUTURES_PREVIEW_R1_MODE = 0o400
+FUTURES_PREVIEW_R1_MTIME_NS = 1783980960753782357
+FUTURES_PREVIEW_PREDECESSOR_FILE_SHA256 = (
+    "1831b2feaac69b9d3d64377123833831c1b1c1f26c1c0445ed17f334746b4053"
+)
+FUTURES_PREVIEW_PREDECESSOR_EVIDENCE_SHA256 = (
+    "afebf81c4d95c0abd7635fd700f6618e92191423173df3e2db0f875102b6f1c9"
+)
 FUTURES_PREVIEW_PREDECESSOR_DEVICE = 66305
-FUTURES_PREVIEW_PREDECESSOR_INODE = 42312970
-FUTURES_PREVIEW_PREDECESSOR_SIZE = 4197
+FUTURES_PREVIEW_PREDECESSOR_INODE = 42312480
+FUTURES_PREVIEW_PREDECESSOR_SIZE = 6002
 FUTURES_PREVIEW_PREDECESSOR_MODE = 0o400
-FUTURES_PREVIEW_PREDECESSOR_MTIME_NS = 1783980960753782357
+FUTURES_PREVIEW_PREDECESSOR_MTIME_NS = 1783991637010957407
 FUTURES_PREVIEW_ORIGINAL_FILE_SHA256 = (
     "9b15da86c172eca46d4b3dc0fc2b81e9b325df9a1e2f75fef79362f538e2d5ff"
 )
@@ -76,7 +92,7 @@ FUTURES_PREVIEW_ORIGINAL_SIZE = 3043
 FUTURES_PREVIEW_ORIGINAL_MODE = 0o400
 FUTURES_PREVIEW_ORIGINAL_MTIME_NS = 1783968539951853688
 _SCHEMA_VERSION = "1"
-_ARTIFACT_TYPE = "futures_exact_no_live_preview_slice_2r2"
+_ARTIFACT_TYPE = "futures_exact_no_live_preview_slice_2r3"
 _MAX_ARTIFACT_BYTES = 2 * 1024 * 1024
 _NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 FUTURES_PREVIEW_DOCUMENTED_MARGIN_SETTINGS = frozenset(
@@ -126,12 +142,52 @@ FUTURES_PREVIEW_ORIGINAL_PREDECESSOR_BINDING = {
     "executed_notional_usdc": "0",
     "preservation": "immutable_no_modify_delete_or_reuse",
 }
+FUTURES_PREVIEW_R1_PREDECESSOR_BINDING = {
+    "artifact_name": "futures_exact_no_live_preview_slice_2r1.jsonl",
+    "file_sha256": FUTURES_PREVIEW_R1_FILE_SHA256,
+    "evidence_sha256": FUTURES_PREVIEW_R1_EVIDENCE_SHA256,
+    "device": str(FUTURES_PREVIEW_R1_DEVICE),
+    "inode": str(FUTURES_PREVIEW_R1_INODE),
+    "size_bytes": FUTURES_PREVIEW_R1_SIZE,
+    "mode": f"{FUTURES_PREVIEW_R1_MODE:04o}",
+    "mtime_ns": str(FUTURES_PREVIEW_R1_MTIME_NS),
+    "status": "blocked",
+    "outcome": "blocked",
+    "preview_order_attempt_count": 0,
+    "exchange_submission_attempt_count": 0,
+    "submitted_notional_usdc": "0",
+    "executed_notional_usdc": "0",
+    "preservation": "immutable_no_modify_delete_or_reuse",
+    "original_predecessor_binding": (
+        FUTURES_PREVIEW_ORIGINAL_PREDECESSOR_BINDING
+    ),
+}
+FUTURES_PREVIEW_PREDECESSOR_BINDING = {
+    "artifact_name": "futures_exact_no_live_preview_slice_2r2.jsonl",
+    "file_sha256": FUTURES_PREVIEW_PREDECESSOR_FILE_SHA256,
+    "evidence_sha256": FUTURES_PREVIEW_PREDECESSOR_EVIDENCE_SHA256,
+    "device": str(FUTURES_PREVIEW_PREDECESSOR_DEVICE),
+    "inode": str(FUTURES_PREVIEW_PREDECESSOR_INODE),
+    "size_bytes": FUTURES_PREVIEW_PREDECESSOR_SIZE,
+    "mode": f"{FUTURES_PREVIEW_PREDECESSOR_MODE:04o}",
+    "mtime_ns": str(FUTURES_PREVIEW_PREDECESSOR_MTIME_NS),
+    "status": "blocked",
+    "outcome": "blocked",
+    "preview_order_attempt_count": 0,
+    "exchange_submission_attempt_count": 0,
+    "submitted_notional_usdc": "0",
+    "executed_notional_usdc": "0",
+    "preservation": "immutable_no_modify_delete_or_reuse",
+    "original_predecessor_binding": FUTURES_PREVIEW_R1_PREDECESSOR_BINDING,
+}
 _CONSUMED_PREVIEW_IDENTIFIERS = frozenset(
     {
         "9c26aed6-fce5-470b-b57e-b89423ecc0ed",
         "1396cd8f-d258-446f-92e1-fc53f6b93c71",
         "5dcd3d52-95bf-4fd3-93ca-83e8be28f132",
         "d1a930f2-0e91-42e0-8a22-a20444575585",
+        "6cfffc61-2d69-4559-8729-ad3c5a8f9751",
+        "f26dbcc6-4336-4bb1-a317-6c5a3d87d2d0",
     }
 )
 _SAFE_MARGIN_SETTING_TOKEN = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
@@ -779,7 +835,7 @@ def validate_futures_order_preview_predecessor(
 
 
 def validate_production_futures_order_preview_predecessor() -> dict[str, Any]:
-    """Validate the exact R1 -> original Slice 2 predecessor chain."""
+    """Validate the exact R2 -> R1 -> original Slice 2 predecessor chain."""
 
     original_binding = validate_futures_order_preview_predecessor(
         FUTURES_PREVIEW_ORIGINAL_ARTIFACT_PATH,
@@ -802,7 +858,23 @@ def validate_production_futures_order_preview_predecessor() -> dict[str, Any]:
             "futures Preview original predecessor binding changed"
         )
 
-    return validate_futures_order_preview_predecessor(
+    r1_binding = validate_futures_order_preview_predecessor(
+        FUTURES_PREVIEW_R1_ARTIFACT_PATH,
+        expected_file_sha256=FUTURES_PREVIEW_R1_FILE_SHA256,
+        expected_evidence_sha256=FUTURES_PREVIEW_R1_EVIDENCE_SHA256,
+        expected_device=FUTURES_PREVIEW_R1_DEVICE,
+        expected_inode=FUTURES_PREVIEW_R1_INODE,
+        expected_size=FUTURES_PREVIEW_R1_SIZE,
+        expected_mode=FUTURES_PREVIEW_R1_MODE,
+        expected_mtime_ns=FUTURES_PREVIEW_R1_MTIME_NS,
+        expected_predecessor_binding=original_binding,
+    )
+    if r1_binding != FUTURES_PREVIEW_R1_PREDECESSOR_BINDING:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R1 predecessor binding changed"
+        )
+
+    r2_binding = validate_futures_order_preview_predecessor(
         FUTURES_PREVIEW_PREDECESSOR_ARTIFACT_PATH,
         expected_file_sha256=FUTURES_PREVIEW_PREDECESSOR_FILE_SHA256,
         expected_evidence_sha256=FUTURES_PREVIEW_PREDECESSOR_EVIDENCE_SHA256,
@@ -811,8 +883,15 @@ def validate_production_futures_order_preview_predecessor() -> dict[str, Any]:
         expected_size=FUTURES_PREVIEW_PREDECESSOR_SIZE,
         expected_mode=FUTURES_PREVIEW_PREDECESSOR_MODE,
         expected_mtime_ns=FUTURES_PREVIEW_PREDECESSOR_MTIME_NS,
-        expected_predecessor_binding=original_binding,
+        expected_artifact_type="futures_exact_no_live_preview_slice_2r2",
+        expected_blocker="preflight_or_preview_blocked:ValueError",
+        expected_predecessor_binding=r1_binding,
     )
+    if r2_binding != FUTURES_PREVIEW_PREDECESSOR_BINDING:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R2 predecessor binding changed"
+        )
+    return r2_binding
 
 
 class FuturesOrderPreviewProducer:
@@ -848,7 +927,7 @@ class FuturesOrderPreviewProducer:
             or correlation_id == idempotency_key
         ):
             raise FuturesOrderPreviewArtifactError(
-                "futures Preview R2 identifiers are not fresh"
+                "futures Preview R3 identifiers are not fresh"
             )
         return {
             "artifact_type": _ARTIFACT_TYPE,
@@ -950,10 +1029,10 @@ class FuturesOrderPreviewProducer:
             read_counters["futures_positions"] = 1
             positions = _plain(self.rest_client.get_futures_positions())
             read_counters["futures_margin_collateral"] = 1
-            margin_collateral = _plain(
-                self.rest_client.get_futures_margin_collateral_snapshot()
-            )
             try:
+                margin_collateral = _plain(
+                    self.rest_client.get_futures_margin_collateral_snapshot()
+                )
                 terminal_context.update(
                     _margin_setting_terminal_context(margin_collateral)
                 )

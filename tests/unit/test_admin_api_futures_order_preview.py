@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import hashlib
+import logging
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -57,10 +59,10 @@ ORIGINAL_SLICE2_BINDING = {
     "executed_notional_usdc": "0",
     "preservation": "immutable_no_modify_delete_or_reuse",
 }
-TEST_PREDECESSOR_BINDING = {
+R1_SLICE2_BINDING = {
     "artifact_name": "futures_exact_no_live_preview_slice_2r1.jsonl",
-    "file_sha256": FUTURES_PREVIEW_PREDECESSOR_FILE_SHA256,
-    "evidence_sha256": FUTURES_PREVIEW_PREDECESSOR_EVIDENCE_SHA256,
+    "file_sha256": "55c09c6d4819f2d03dd679ae4c952e203cf540d1a141e13035459821f1b680d7",
+    "evidence_sha256": "a1b7820aa217b7119a6353a8f4fbffa5227ebfe5e4c8d8a1cde5449d370fc6f0",
     "device": "66305",
     "inode": "42312970",
     "size_bytes": 4197,
@@ -74,6 +76,24 @@ TEST_PREDECESSOR_BINDING = {
     "executed_notional_usdc": "0",
     "preservation": "immutable_no_modify_delete_or_reuse",
     "original_predecessor_binding": ORIGINAL_SLICE2_BINDING,
+}
+TEST_PREDECESSOR_BINDING = {
+    "artifact_name": "futures_exact_no_live_preview_slice_2r2.jsonl",
+    "file_sha256": FUTURES_PREVIEW_PREDECESSOR_FILE_SHA256,
+    "evidence_sha256": FUTURES_PREVIEW_PREDECESSOR_EVIDENCE_SHA256,
+    "device": "66305",
+    "inode": "42312480",
+    "size_bytes": 6002,
+    "mode": "0400",
+    "mtime_ns": "1783991637010957407",
+    "status": "blocked",
+    "outcome": "blocked",
+    "preview_order_attempt_count": 0,
+    "exchange_submission_attempt_count": 0,
+    "submitted_notional_usdc": "0",
+    "executed_notional_usdc": "0",
+    "preservation": "immutable_no_modify_delete_or_reuse",
+    "original_predecessor_binding": R1_SLICE2_BINDING,
 }
 
 
@@ -514,6 +534,15 @@ def test_producer_reserves_before_one_exact_preview_and_never_mutates(tmp_path: 
 
     evidence = producer.run()
 
+    assert rest_client.read_calls == [
+        "api_key_permissions",
+        "portfolio_catalog",
+        "product",
+        "best_bid_ask",
+        "futures_positions",
+        "futures_margin_collateral",
+        "preview_order",
+    ]
     assert len(rest_client.preview_calls) == 1
     assert rest_client.preview_calls[0] == evidence["preview_request"]
     assert rest_client.preview_calls[0] == {
@@ -651,19 +680,46 @@ def test_producer_reserves_before_first_coinbase_read(tmp_path: Path):
     producer.run()
 
 
-def test_r2_rejects_consumed_identifiers_before_claim_or_coinbase_read(
+@pytest.mark.parametrize(
+    ("identifier_field", "consumed_identifier"),
+    [
+        (identifier_field, consumed_identifier)
+        for identifier_field in ("correlation_id", "idempotency_key")
+        for consumed_identifier in (
+            "9c26aed6-fce5-470b-b57e-b89423ecc0ed",
+            "1396cd8f-d258-446f-92e1-fc53f6b93c71",
+            "5dcd3d52-95bf-4fd3-93ca-83e8be28f132",
+            "d1a930f2-0e91-42e0-8a22-a20444575585",
+            "6cfffc61-2d69-4559-8729-ad3c5a8f9751",
+            "f26dbcc6-4336-4bb1-a317-6c5a3d87d2d0",
+        )
+    ],
+)
+def test_r3_rejects_every_consumed_identifier_before_claim_or_coinbase_read(
     tmp_path: Path,
+    identifier_field: str,
+    consumed_identifier: str,
 ):
-    path = tmp_path / "slice2r2.jsonl"
+    path = tmp_path / "slice2r3.jsonl"
     rest_client = FakePreviewRestClient()
+    fresh_correlation_id = "8f604e56-0a23-4bda-b244-11ebc0194241"
+    fresh_idempotency_key = "2d8327f6-826c-4f73-82a4-822e29f73065"
     producer = FuturesOrderPreviewProducer(
         rest_client=rest_client,
         store=FuturesOrderPreviewArtifactStore(path),
         predecessor_binding=TEST_PREDECESSOR_BINDING,
         predecessor_validator=lambda: dict(TEST_PREDECESSOR_BINDING),
         now=lambda: NOW,
-        correlation_id_factory=lambda: "5dcd3d52-95bf-4fd3-93ca-83e8be28f132",
-        idempotency_key_factory=lambda: "2d8327f6-826c-4f73-82a4-822e29f73065",
+        correlation_id_factory=lambda: (
+            consumed_identifier
+            if identifier_field == "correlation_id"
+            else fresh_correlation_id
+        ),
+        idempotency_key_factory=lambda: (
+            consumed_identifier
+            if identifier_field == "idempotency_key"
+            else fresh_idempotency_key
+        ),
     )
 
     with pytest.raises(FuturesOrderPreviewArtifactError, match="fresh"):
@@ -1121,6 +1177,48 @@ def test_safe_looking_unknown_value_error_is_not_promoted_to_diagnostic(
     assert rest_client.preview_calls == []
 
 
+def test_margin_snapshot_normalization_failure_is_sanitized_as_first_stage(
+    tmp_path: Path,
+):
+    secret = "PRIVATE_MARGIN_CONVERTER_FAILURE_MUST_NOT_PERSIST"
+
+    class ExplodingSnapshot:
+        def to_dict(self):
+            raise RuntimeError(secret)
+
+    rest_client = FakePreviewRestClient()
+    rest_client.get_futures_margin_collateral_snapshot = (  # type: ignore[method-assign]
+        lambda: ExplodingSnapshot()
+    )
+    producer, store, path = _producer(tmp_path, rest_client)
+
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="blocked"):
+        producer.run()
+
+    terminal = store.read_completed()
+    assert terminal["pre_preview_stage_evidence"]["stages"] == [
+        {
+            "stage": "remaining_margin_validation",
+            "status": "blocked",
+            "reason_code": (
+                "futures_preview_remaining_margin_validation_unclassified"
+            ),
+        }
+    ]
+    assert terminal["blocker"] == "preflight_or_preview_stage_blocked"
+    assert terminal["attempt_counters"]["preview_order"] == 0
+    assert terminal["read_counters"] == {
+        "api_key_permissions": 1,
+        "portfolio_catalog": 1,
+        "product": 1,
+        "best_bid_ask": 1,
+        "futures_positions": 1,
+        "futures_margin_collateral": 1,
+    }
+    assert secret not in path.read_text(encoding="utf-8")
+    AdminFuturesOrderPreviewResponse.model_validate(terminal)
+
+
 def test_stage_diagnostic_readback_rejects_hash_order_and_authority_drift(
     tmp_path: Path,
 ):
@@ -1204,6 +1302,21 @@ def test_stage_diagnostic_readback_rejects_hash_order_and_authority_drift(
     rehash(raw_attempt_context)
     attacks.append(raw_attempt_context)
 
+    missing_required_r3_diagnostic = mutated()
+    missing_required_r3_diagnostic.pop("pre_preview_stage_evidence")
+    missing_required_r3_diagnostic.pop("pre_preview_stage_evidence_sha256")
+    missing_required_r3_diagnostic["blocker"] = (
+        "preflight_or_preview_blocked:ValueError"
+    )
+    missing_required_r3_diagnostic["evidence_sha256"] = canonical_sha256(
+        {
+            key: value
+            for key, value in missing_required_r3_diagnostic.items()
+            if key != "evidence_sha256"
+        }
+    )
+    attacks.append(missing_required_r3_diagnostic)
+
     for attack in attacks:
         with pytest.raises(ValidationError):
             AdminFuturesOrderPreviewResponse.model_validate(attack)
@@ -1286,12 +1399,15 @@ def test_stage_diagnostic_get_route_is_read_only_and_hides_raw_blocker(
     assert "PRIVATE_VALUE_MUST_NOT_RETURN" not in response.text
 
 
-def test_offline_stage_diagnostics_add_no_slice2r3_execution_path():
+def test_r3_production_path_is_fixed_and_version_bound():
     source = Path(preview_module.__file__).read_text(encoding="utf-8")
-    assert "futures_exact_no_live_preview_slice_2r3" not in source
-    assert not DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH.with_name(
+    assert "futures_exact_no_live_preview_slice_2r3" in source
+    assert DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH.name == (
         "futures_exact_no_live_preview_slice_2r3.jsonl"
-    ).exists()
+    )
+    assert "--confirm-one-r3-preview" in Path(preview_tool.__file__).read_text(
+        encoding="utf-8"
+    )
 
 
 @pytest.mark.parametrize(
@@ -1616,6 +1732,50 @@ def test_claim_only_crash_state_is_consumed_and_fails_closed(tmp_path: Path):
     with pytest.raises(FuturesOrderPreviewArtifactError, match="consumed"):
         store.reserve(claim)
     assert path.exists()
+
+
+def test_concurrent_r3_reservations_allow_exactly_one_claim(tmp_path: Path):
+    producer, store, path = _producer(tmp_path, FakePreviewRestClient())
+    claim = producer.build_claim()
+
+    def reserve_once() -> str:
+        try:
+            store.reserve(claim)
+        except FuturesOrderPreviewArtifactError:
+            return "blocked"
+        return "reserved"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        outcomes = list(executor.map(lambda _index: reserve_once(), range(2)))
+
+    assert sorted(outcomes) == ["blocked", "reserved"]
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 1
+
+
+def test_result_append_failure_consumes_r3_without_second_preview(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    rest_client = FakePreviewRestClient()
+    producer, store, path = _producer(tmp_path, rest_client)
+    monkeypatch.setattr(
+        store,
+        "append_result",
+        lambda _result: (_ for _ in ()).throw(
+            FuturesOrderPreviewArtifactError(
+                "futures Preview artifact result append failed"
+            )
+        ),
+    )
+
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="append"):
+        producer.run()
+
+    assert len(rest_client.preview_calls) == 1
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 1
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="consumed"):
+        producer.run()
+    assert len(rest_client.preview_calls) == 1
 
 
 def test_store_rejects_tamper_extra_record_and_symlink(tmp_path: Path):
@@ -2295,8 +2455,10 @@ def test_producer_tool_path_is_fixed_and_has_no_path_or_scope_override(
     )
     with pytest.raises(SystemExit):
         preview_tool.build_parser().parse_args(
-            ["--confirm-one-preview", "--artifact-path", "/tmp/alternate"]
+            ["--confirm-one-r3-preview", "--artifact-path", "/tmp/alternate"]
         )
+    with pytest.raises(SystemExit):
+        preview_tool.build_parser().parse_args(["--confirm-one-preview"])
 
 
 def test_tool_binds_one_shot_coinbase_client_to_finite_timeout(
@@ -2314,10 +2476,20 @@ def test_tool_binds_one_shot_coinbase_client_to_finite_timeout(
                 adapters={"https://": adapter, "http://": adapter}
             )
 
-    def hydrate(environment: dict[str, str]) -> None:
+    def hydrate(environment: dict[str, str]) -> SimpleNamespace:
+        assert "COINBASE_API_KEY" not in environment
+        assert "COINBASE_API_SECRET" not in environment
+        assert environment["COINBASE_SECRETS_MANAGER_SECRET_ID"] == "coinbase"
+        assert environment["COINBASE_SECRETS_MANAGER_REGION"] == "us-east-1"
         environment["COINBASE_API_KEY"] = "organizations/test/apiKeys/key"
         environment["COINBASE_API_SECRET"] = "test-secret"
+        return SimpleNamespace(
+            source="secrets_manager",
+            secret_id_env="COINBASE_SECRETS_MANAGER_SECRET_ID",
+        )
 
+    monkeypatch.setenv("COINBASE_API_KEY", "inherited-test-profile-key")
+    monkeypatch.setenv("COINBASE_API_SECRET", "inherited-test-profile-secret")
     monkeypatch.setattr(preview_tool, "ensure_live_coinbase_credentials", hydrate)
     monkeypatch.setattr(coinbase_rest, "RESTClient", FakeSdk)
 
@@ -2327,6 +2499,53 @@ def test_tool_binds_one_shot_coinbase_client_to_finite_timeout(
     assert captured["timeout"] == preview_tool.COINBASE_PREVIEW_HTTP_TIMEOUT_SECONDS
     assert 0 < preview_tool.COINBASE_PREVIEW_HTTP_TIMEOUT_SECONDS <= 30
     assert client.get_sdk_client().session.max_redirects == 0
+
+
+def test_tool_rejects_inherited_or_non_default_credential_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    import coinbase.rest as coinbase_rest
+
+    def hydrate(environment: dict[str, str]) -> SimpleNamespace:
+        environment["COINBASE_API_KEY"] = "organizations/test/apiKeys/key"
+        environment["COINBASE_API_SECRET"] = "test-secret"
+        return SimpleNamespace(source="environment", secret_id_env=None)
+
+    monkeypatch.setattr(preview_tool, "ensure_live_coinbase_credentials", hydrate)
+    monkeypatch.setattr(
+        coinbase_rest,
+        "RESTClient",
+        lambda **_kwargs: (_ for _ in ()).throw(
+            AssertionError("SDK client must not be constructed")
+        ),
+    )
+
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="credential source"):
+        preview_tool.build_rest_client()
+
+
+def test_tool_suppresses_secret_bearing_coinbase_sdk_error_logs(
+    caplog: pytest.LogCaptureFixture,
+):
+    import requests
+    from coinbase.rest.rest_base import handle_exception
+
+    secret = "PRIVATE_COINBASE_HTTP_RESPONSE_MUST_NOT_BE_LOGGED"
+    response = SimpleNamespace(
+        status_code=500,
+        reason="Internal Server Error",
+        text=secret,
+    )
+    sdk_logger = logging.getLogger("coinbase.RESTClient")
+    previously_disabled = sdk_logger.disabled
+
+    with caplog.at_level(logging.ERROR, logger="coinbase.RESTClient"):
+        with preview_tool._suppress_coinbase_sdk_logging():
+            with pytest.raises(requests.HTTPError):
+                handle_exception(response)
+
+    assert secret not in caplog.text
+    assert sdk_logger.disabled is previously_disabled
 
 
 def test_build_rest_client_rejects_nonzero_transport_retries(
@@ -2339,9 +2558,13 @@ def test_build_rest_client_rejects_nonzero_transport_retries(
             adapter = SimpleNamespace(max_retries=SimpleNamespace(total=1))
             self.session = SimpleNamespace(adapters={"https://": adapter})
 
-    def hydrate(environment: dict[str, str]) -> None:
+    def hydrate(environment: dict[str, str]) -> SimpleNamespace:
         environment["COINBASE_API_KEY"] = "organizations/test/apiKeys/key"
         environment["COINBASE_API_SECRET"] = "test-secret"
+        return SimpleNamespace(
+            source="secrets_manager",
+            secret_id_env="COINBASE_SECRETS_MANAGER_SECRET_ID",
+        )
 
     monkeypatch.setattr(preview_tool, "ensure_live_coinbase_credentials", hydrate)
     monkeypatch.setattr(coinbase_rest, "RESTClient", RetryingSdk)
@@ -2383,9 +2606,13 @@ def test_build_rest_client_blocks_redirect_replay_after_first_response(
             self.session.mount("https://", adapter)
             self.session.mount("http://", adapter)
 
-    def hydrate(environment: dict[str, str]) -> None:
+    def hydrate(environment: dict[str, str]) -> SimpleNamespace:
         environment["COINBASE_API_KEY"] = "organizations/test/apiKeys/key"
         environment["COINBASE_API_SECRET"] = "test-secret"
+        return SimpleNamespace(
+            source="secrets_manager",
+            secret_id_env="COINBASE_SECRETS_MANAGER_SECRET_ID",
+        )
 
     monkeypatch.setattr(preview_tool, "ensure_live_coinbase_credentials", hydrate)
     monkeypatch.setattr(coinbase_rest, "RESTClient", RedirectingSdk)
@@ -2421,24 +2648,74 @@ def test_producer_tool_preflight_creates_no_artifact_or_coinbase_client(
     assert not path.exists()
 
 
-def test_slice2r2_paths_are_fixed_distinct_and_predecessor_matches_sealed_hashes():
+def test_slice2r3_paths_are_fixed_distinct_and_predecessor_matches_sealed_hashes():
     assert DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH.name == (
-        "futures_exact_no_live_preview_slice_2r2.jsonl"
+        "futures_exact_no_live_preview_slice_2r3.jsonl"
     )
     assert FUTURES_PREVIEW_PREDECESSOR_ARTIFACT_PATH.name == (
-        "futures_exact_no_live_preview_slice_2r1.jsonl"
+        "futures_exact_no_live_preview_slice_2r2.jsonl"
     )
     assert (
         DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH
         != FUTURES_PREVIEW_PREDECESSOR_ARTIFACT_PATH
     )
     assert FUTURES_PREVIEW_PREDECESSOR_FILE_SHA256 == (
-        "55c09c6d4819f2d03dd679ae4c952e203cf540d1a141e13035459821f1b680d7"
+        "1831b2feaac69b9d3d64377123833831c1b1c1f26c1c0445ed17f334746b4053"
     )
     assert FUTURES_PREVIEW_PREDECESSOR_EVIDENCE_SHA256 == (
-        "a1b7820aa217b7119a6353a8f4fbffa5227ebfe5e4c8d8a1cde5449d370fc6f0"
+        "afebf81c4d95c0abd7635fd700f6618e92191423173df3e2db0f875102b6f1c9"
     )
     assert FUTURES_PREVIEW_PREDECESSOR_DEVICE == 66305
+    assert preview_module.FUTURES_PREVIEW_PREDECESSOR_INODE == 42312480
+    assert preview_module.FUTURES_PREVIEW_PREDECESSOR_SIZE == 6002
+    assert preview_module.FUTURES_PREVIEW_PREDECESSOR_MTIME_NS == (
+        1783991637010957407
+    )
+    assert preview_module.FUTURES_PREVIEW_R1_ARTIFACT_PATH.name == (
+        "futures_exact_no_live_preview_slice_2r1.jsonl"
+    )
+
+
+def test_production_r2_chain_is_read_only_and_r2_readback_remains_compatible():
+    paths = (
+        preview_module.FUTURES_PREVIEW_ORIGINAL_ARTIFACT_PATH,
+        preview_module.FUTURES_PREVIEW_R1_ARTIFACT_PATH,
+        FUTURES_PREVIEW_PREDECESSOR_ARTIFACT_PATH,
+    )
+    before = {
+        path: (
+            path.stat().st_dev,
+            path.stat().st_ino,
+            path.stat().st_size,
+            path.stat().st_mode,
+            path.stat().st_mtime_ns,
+        )
+        for path in paths
+    }
+
+    binding = (
+        preview_module.validate_production_futures_order_preview_predecessor()
+    )
+    r2_evidence = FuturesOrderPreviewArtifactStore(
+        FUTURES_PREVIEW_PREDECESSOR_ARTIFACT_PATH
+    ).read_completed()
+    validated = AdminFuturesOrderPreviewResponse.model_validate(r2_evidence)
+
+    assert binding == TEST_PREDECESSOR_BINDING
+    assert validated.artifact_type == "futures_exact_no_live_preview_slice_2r2"
+    assert validated.status == "blocked"
+    assert validated.attempt_counters["preview_order"] == 0
+    assert validated.pre_preview_stage_evidence is None
+    assert before == {
+        path: (
+            path.stat().st_dev,
+            path.stat().st_ino,
+            path.stat().st_size,
+            path.stat().st_mode,
+            path.stat().st_mtime_ns,
+        )
+        for path in paths
+    }
 
 
 def test_predecessor_validation_is_read_only_and_binds_terminal_zero_preview(
@@ -2676,7 +2953,7 @@ def test_producer_revalidates_predecessor_chain_immediately_before_preview(
 def test_producer_claim_binds_revalidated_predecessor(
     tmp_path: Path,
 ):
-    path = tmp_path / "slice2r2.jsonl"
+    path = tmp_path / "slice2r3.jsonl"
     rest_client = FakePreviewRestClient()
     sealed_binding = {
         "artifact_name": "futures_exact_no_live_preview_slice_2r1.jsonl",
@@ -2701,7 +2978,7 @@ def test_producer_claim_binds_revalidated_predecessor(
     rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
     assert rows[0]["record"]["predecessor_binding"] == sealed_binding
     assert rows[0]["record"]["artifact_type"] == (
-        "futures_exact_no_live_preview_slice_2r2"
+        "futures_exact_no_live_preview_slice_2r3"
     )
     assert rows[1]["record"]["predecessor_binding"] == sealed_binding
     assert rows[1]["record"]["seal_ready_plan"]["predecessor_binding"] == (
@@ -2709,13 +2986,13 @@ def test_producer_claim_binds_revalidated_predecessor(
     )
 
 
-def test_tool_blocks_invalid_predecessor_before_client_or_r2_claim(
+def test_tool_blocks_invalid_predecessor_before_client_or_r3_claim(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    r2_path = tmp_path / "slice2r2.jsonl"
-    monkeypatch.setattr(preview_tool, "production_artifact_path", lambda: r2_path)
+    r3_path = tmp_path / "slice2r3.jsonl"
+    monkeypatch.setattr(preview_tool, "production_artifact_path", lambda: r3_path)
     monkeypatch.setattr(
         preview_tool,
         "validate_production_predecessor",
@@ -2730,11 +3007,11 @@ def test_tool_blocks_invalid_predecessor_before_client_or_r2_claim(
         lambda: (_ for _ in ()).throw(AssertionError("Coinbase client constructed")),
     )
 
-    assert preview_tool.main(["--confirm-one-preview"]) == 2
+    assert preview_tool.main(["--confirm-one-r3-preview"]) == 2
 
     summary = json.loads(capsys.readouterr().err)
     assert "predecessor" in summary["blocker"]
-    assert not r2_path.exists()
+    assert not r3_path.exists()
 
 
 def test_tool_reports_truthful_terminal_unknown_without_retry(
@@ -2742,12 +3019,12 @@ def test_tool_reports_truthful_terminal_unknown_without_retry(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    r2_path = tmp_path / "slice2r2.jsonl"
+    r3_path = tmp_path / "slice2r3.jsonl"
     rest_client = FakePreviewRestClient(preview_error=TimeoutError("ambiguous"))
     live_book = _book()
     live_book["pricebooks"][0]["time"] = datetime.now(timezone.utc).isoformat()
     rest_client.get_best_bid_ask = lambda **_kwargs: live_book  # type: ignore[method-assign]
-    monkeypatch.setattr(preview_tool, "production_artifact_path", lambda: r2_path)
+    monkeypatch.setattr(preview_tool, "production_artifact_path", lambda: r3_path)
     monkeypatch.setattr(
         preview_tool,
         "validate_production_predecessor",
@@ -2755,7 +3032,7 @@ def test_tool_reports_truthful_terminal_unknown_without_retry(
     )
     monkeypatch.setattr(preview_tool, "build_rest_client", lambda: rest_client)
 
-    assert preview_tool.main(["--confirm-one-preview"]) == 2
+    assert preview_tool.main(["--confirm-one-r3-preview"]) == 2
 
     summary = json.loads(capsys.readouterr().err)
     assert summary["status"] == "unknown", summary
@@ -2763,7 +3040,7 @@ def test_tool_reports_truthful_terminal_unknown_without_retry(
     assert summary["attempt_counters"]["preview_order"] == 1
     assert summary["exchange_submission_attempt_count"] == 0
     assert len(rest_client.preview_calls) == 1
-    assert FuturesOrderPreviewArtifactStore(r2_path).read_completed()[
+    assert FuturesOrderPreviewArtifactStore(r3_path).read_completed()[
         "status"
     ] == "unknown"
 
@@ -2781,12 +3058,20 @@ def test_openapi_exposes_typed_read_only_preview_contract():
     response_schema = schema["components"]["schemas"][
         "AdminFuturesOrderPreviewResponse"
     ]
-    assert response_schema["properties"]["artifact_type"]["const"] == (
-        "futures_exact_no_live_preview_slice_2r2"
-    )
+    assert set(response_schema["properties"]["artifact_type"]["enum"]) == {
+        "futures_exact_no_live_preview_slice_2r2",
+        "futures_exact_no_live_preview_slice_2r3",
+    }
     assert "predecessor_binding" in response_schema["required"]
-    assert response_schema["properties"]["predecessor_binding"] == {
-        "$ref": "#/components/schemas/AdminFuturesPreviewPredecessorBinding"
+    predecessor_refs = {
+        item["$ref"]
+        for item in response_schema["properties"]["predecessor_binding"][
+            "anyOf"
+        ]
+    }
+    assert predecessor_refs == {
+        "#/components/schemas/AdminFuturesPreviewPredecessorBinding",
+        "#/components/schemas/AdminFuturesPreviewR2PredecessorBinding",
     }
     predecessor_schema = schema["components"]["schemas"][
         "AdminFuturesPreviewPredecessorBinding"
@@ -2794,6 +3079,14 @@ def test_openapi_exposes_typed_read_only_preview_contract():
     assert predecessor_schema["properties"]["mtime_ns"] == {
         "type": "string",
         "const": "1783980960753782357",
+        "title": "Mtime Ns",
+    }
+    r2_predecessor_schema = schema["components"]["schemas"][
+        "AdminFuturesPreviewR2PredecessorBinding"
+    ]
+    assert r2_predecessor_schema["properties"]["mtime_ns"] == {
+        "type": "string",
+        "const": "1783991637010957407",
         "title": "Mtime Ns",
     }
     stage_row_schema = schema["components"]["schemas"][

@@ -6567,6 +6567,33 @@ class AdminFuturesPreviewPredecessorBinding(BaseModel):
     original_predecessor_binding: AdminFuturesPreviewOriginalPredecessorBinding
 
 
+class AdminFuturesPreviewR2PredecessorBinding(BaseModel):
+    """Exact immutable R2 binding plus its R1 and original predecessors."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    artifact_name: Literal["futures_exact_no_live_preview_slice_2r2.jsonl"]
+    file_sha256: Literal[
+        "1831b2feaac69b9d3d64377123833831c1b1c1f26c1c0445ed17f334746b4053"
+    ]
+    evidence_sha256: Literal[
+        "afebf81c4d95c0abd7635fd700f6618e92191423173df3e2db0f875102b6f1c9"
+    ]
+    device: Literal["66305"]
+    inode: Literal["42312480"]
+    size_bytes: Literal[6002]
+    mode: Literal["0400"]
+    mtime_ns: Literal["1783991637010957407"]
+    status: Literal["blocked"]
+    outcome: Literal["blocked"]
+    preview_order_attempt_count: Literal[0]
+    exchange_submission_attempt_count: Literal[0]
+    submitted_notional_usdc: Literal["0"]
+    executed_notional_usdc: Literal["0"]
+    preservation: Literal["immutable_no_modify_delete_or_reuse"]
+    original_predecessor_binding: AdminFuturesPreviewPredecessorBinding
+
+
 class AdminFuturesPreviewMarginSettingEvidence(BaseModel):
     """Allowlisted, secret-minimized pre-Preview margin-setting evidence."""
 
@@ -6858,11 +6885,17 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
 
     schema_version: Literal["1"]
     type: Literal["admin_futures_order_preview"]
-    artifact_type: Literal["futures_exact_no_live_preview_slice_2r2"]
+    artifact_type: Literal[
+        "futures_exact_no_live_preview_slice_2r2",
+        "futures_exact_no_live_preview_slice_2r3",
+    ]
     status: Literal["accepted", "blocked", "unknown"]
     outcome: Literal["accepted", "blocked", "unknown"]
     blocker: str | None = None
-    predecessor_binding: AdminFuturesPreviewPredecessorBinding
+    predecessor_binding: (
+        AdminFuturesPreviewPredecessorBinding
+        | AdminFuturesPreviewR2PredecessorBinding
+    )
     reserved_at: str
     completed_at: str
     claim_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
@@ -6967,6 +7000,16 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
 
         if self.roles != ["trader"]:
             raise ValueError("futures_preview_role_binding_invalid")
+        if (
+            self.artifact_type == "futures_exact_no_live_preview_slice_2r2"
+            and type(self.predecessor_binding)
+            is not AdminFuturesPreviewPredecessorBinding
+        ) or (
+            self.artifact_type == "futures_exact_no_live_preview_slice_2r3"
+            and type(self.predecessor_binding)
+            is not AdminFuturesPreviewR2PredecessorBinding
+        ):
+            raise ValueError("futures_preview_predecessor_generation_invalid")
         expected_zero_mutation_counters = {
             "retry": 0,
             "fallback": 0,
@@ -7085,6 +7128,14 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
             "futures_positions": 1,
             "futures_margin_collateral": 1,
         }
+        if (
+            self.artifact_type == "futures_exact_no_live_preview_slice_2r3"
+            and self.outcome == "blocked"
+            and preview_attempts == 0
+            and self.read_counters == expected_complete_reads
+            and self.pre_preview_stage_evidence is None
+        ):
+            raise ValueError("futures_preview_r3_stage_evidence_missing")
         if set(self.read_counters) != set(expected_complete_reads) or any(
             value not in {0, 1} for value in self.read_counters.values()
         ):
@@ -7580,7 +7631,7 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
                 ),
             }
         if (
-            plan.get("slice_id") != "futures_exact_no_live_preview_slice_2r2"
+            plan.get("slice_id") != self.artifact_type
             or plan.get("actor_id") != self.actor_id
             or plan.get("predecessor_binding")
             != self.predecessor_binding.model_dump(mode="json")
