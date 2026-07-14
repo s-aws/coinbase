@@ -66,25 +66,45 @@ fallback, Create, Cancel, Close, and Reduce counter `0`, exchange submissions
 `0`, and submitted/executed notional `0`. Its file SHA-256 is
 `55c09c6d4819f2d03dd679ae4c952e203cf540d1a141e13035459821f1b680d7`.
 The R1 authorization is consumed and cannot be retried. Slice 2 is not
-accepted, Slice 3 must not activate, and a new attempt requires an explicit
-operator decision after offline diagnosis and a separately authorized plan.
+accepted and Slice 3 must not activate unless a distinct R2 terminal result is
+accepted.
 
-On 2026-07-13 the operator authorized offline-only diagnosis, implementation of
-sanitized pre-Preview margin-setting evidence, focused validation, independent
-audit, and preparation of proposed Slice 2R2 authorization wording. The
-installed `coinbase-advanced-py 1.8.4` source proves only that
-`get_intraday_margin_setting` may return an optional string field named
-`setting`; it defines no valid enum literals. The two values in the current
-gate therefore have no local SDK provenance, and no newly observed enum may be
-accepted without a separately justified primary source. The causal R1 evidence
-gap was that margin validation ran before terminal context existed. The offline
-fix now captures a typed, bounded, allowlisted diagnostic before validation,
-withholds malformed values and all raw margin/account payloads, validates its
-hash and authority claims at API readback, and displays only those sanitized
-fields in the Admin UI. This work created no R2 artifact and made zero Coinbase,
-Preview, exchange-mutation, marker, ledger, or runtime calls. R2 remains an
-explicit operator decision.
-+Focused validation and independent safety plus blind contextless audits pass.
+On 2026-07-14 the operator explicitly authorized official-primary-source enum
+verification, the exact allowlist implementation, focused validation,
+independent audit, and—effective only after those gates—one distinct Slice 2R2
+Preview-only attempt. Official Coinbase Advanced Trade GET and SET documentation
+defines exactly `INTRADAY_MARGIN_SETTING_UNSPECIFIED`,
+`INTRADAY_MARGIN_SETTING_STANDARD`, and
+`INTRADAY_MARGIN_SETTING_INTRADAY`. R2 records all three as documented while
+permitting only `STANDARD` or `INTRADAY` to reach Preview; `UNSPECIFIED`, legacy
+tokens, malformed shapes, unknown margin-window tokens, enabled or ambiguous
+killswitches, nonempty sweeps, and incomplete margin evidence stop before
+Preview.
+
+The primary enum evidence is Coinbase's official Advanced Trade
+[`Get Intraday Margin Setting`](https://docs.cdp.coinbase.com/api-reference/advanced-trade-api/rest-api/futures/get-intraday-margin-setting)
+and [`Set Intraday Margin Settings`](https://docs.cdp.coinbase.com/api-reference/advanced-trade-api/rest-api/futures/set-intraday-margin-settings)
+documentation. The adjacent official
+[`Get Current Margin Window`](https://docs.cdp.coinbase.com/api-reference/advanced-trade-api/rest-api/futures/get-current-margin-window)
+contract supplies the fixed window and killswitch fields. No SDK-inferred or
+newly observed token may broaden these exact allowlists.
+
+The authorized R2 artifact is fixed to
+`artifacts/futures_exact_no_live_preview_slice_2r2.jsonl` and binds the exact
+immutable R1 file plus R1's exact original Slice 2 predecessor. It permits the
+fixed permission, portfolio, product, market, position, balance,
+intraday-margin-setting/window, and sweep reads and at most one Preview call.
+It permits zero retries, fallbacks, Create, Cancel, Close, Reduce, marker,
+ledger, runtime, or other exchange mutation. Raw account and margin responses
+and external exception text are never persisted; only strict sanitized evidence
+and hashes are operator-visible. An unknown Preview outcome consumes R2 and may
+not be retried. Before the gated attempt, R2 remains absent and all Coinbase and
+Preview attempt counters remain zero.
+
+Focused backend/frontend validation, exact contract freshness, transport
+exact-once tests, and independent safety plus blind contextless audits pass.
+The one-shot R2 boundary is therefore eligible under the operator's explicit
+authorization; no attempt has yet been consumed at this checkpoint.
 
 `Default-profile Futures readback -> exact AVAX US CFM Coinbase Preview Order -> immutable operator-visible no-live preview readback`
 

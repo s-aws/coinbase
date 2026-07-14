@@ -83,6 +83,29 @@ def build_rest_client() -> CoinbaseRestClient:
         timeout=COINBASE_PREVIEW_HTTP_TIMEOUT_SECONDS,
         rate_limit_headers=True,
     )
+    session = getattr(sdk_client, "session", None)
+    adapters = getattr(session, "adapters", None)
+    if not isinstance(adapters, dict) or not adapters:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview transport retry policy is unavailable"
+        )
+    if any(
+        getattr(getattr(adapter, "max_retries", None), "total", None) != 0
+        for adapter in adapters.values()
+    ):
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview transport retry policy is not zero"
+        )
+    try:
+        session.max_redirects = 0
+    except Exception as exc:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview transport redirect policy is unavailable"
+        ) from exc
+    if getattr(session, "max_redirects", None) != 0:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview transport redirect policy is not zero"
+        )
     return CoinbaseRestClient(sdk_client)
 
 

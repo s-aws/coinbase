@@ -74086,6 +74086,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "README.futures-perpetuals.md" in futures_module["documentation_refs"]
     assert "GET /api/v1/futures/command-suite" in futures_module["read_routes"]
     assert "GET /api/v1/futures/risk-proofs" in futures_module["read_routes"]
+    assert "GET /api/v1/futures/order-preview" in futures_module["read_routes"]
     assert "POST /api/v1/futures/orders" in futures_module["command_routes"]
     assert (
         "POST /api/v1/futures/positions/{position_key}/close-reduce"
@@ -74100,7 +74101,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         in futures_module["command_routes"]
     )
     assert "POST /api/v1/futures/risk-proofs" in futures_module["command_routes"]
-    assert futures_module["action_posture"]["read_route_count"] == 7
+    assert futures_module["action_posture"]["read_route_count"] == 8
     assert futures_module["action_posture"]["command_route_count"] == 5
     assert futures_module["action_posture"]["live_route_count"] == 3
     assert futures_module["action_posture"]["command_gap_count"] == 3

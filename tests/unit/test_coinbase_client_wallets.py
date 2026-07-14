@@ -113,7 +113,7 @@ class FakeFuturesSdkClient(FakeSdkClient):
         return FakeResponse(self.balance_summary)
 
     def get_intraday_margin_setting(self) -> FakeResponse:
-        return FakeResponse({"setting": "INTRADAY_MARGIN_SETTING_ENABLED"})
+        return FakeResponse({"setting": "INTRADAY_MARGIN_SETTING_STANDARD"})
 
     def get_current_margin_window(self, margin_profile_type: str) -> FakeResponse:
         self.margin_window_profiles.append(margin_profile_type)
@@ -121,7 +121,9 @@ class FakeFuturesSdkClient(FakeSdkClient):
             {
                 "margin_window": {
                     "margin_window_type": "MARGIN_WINDOW_TYPE_INTRADAY",
-                }
+                },
+                "is_intraday_margin_killswitch_enabled": False,
+                "is_intraday_margin_enrollment_killswitch_enabled": False,
             }
         )
 
@@ -248,7 +250,15 @@ def test_get_futures_margin_collateral_snapshot_uses_us_cfm_readers():
     assert snapshot["source"] == "backend_rest_client"
     assert snapshot["intx_applicability"] == "not_applicable_us_account"
     assert snapshot["balance_summary"]["available_margin"]["value"] == "250.00"
-    assert snapshot["intraday_margin_setting"]["setting"] == "INTRADAY_MARGIN_SETTING_ENABLED"
+    assert snapshot["intraday_margin_setting"]["setting"] == (
+        "INTRADAY_MARGIN_SETTING_STANDARD"
+    )
+    assert snapshot["source_read_attempts"] == {
+        "get_futures_balance_summary": 1,
+        "get_intraday_margin_setting": 1,
+        "get_current_margin_window": 2,
+        "list_futures_sweeps": 1,
+    }
     assert snapshot["futures_sweeps"] == []
     assert sdk.margin_window_profiles == [
         "MARGIN_PROFILE_TYPE_RETAIL_REGULAR",

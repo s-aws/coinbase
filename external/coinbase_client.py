@@ -665,6 +665,12 @@ class CoinbaseRestClient:
             "status": "ready" if normalized_balance and balance_error is None else "blocked",
             "account_family": "coinbase_futures_us_cfm",
             "source": "backend_rest_client",
+            "source_read_attempts": {
+                "get_futures_balance_summary": 1,
+                "get_intraday_margin_setting": 1,
+                "get_current_margin_window": 2,
+                "list_futures_sweeps": 1,
+            },
             "balance_summary": normalized_balance,
             "intraday_margin_setting": intraday_margin_setting,
             "current_margin_windows": current_margin_windows,

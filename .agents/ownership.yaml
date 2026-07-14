@@ -376,6 +376,7 @@ owners:
       - tests/regression/test_place_limit_order_returns_dict.py
       - tests/regression/test_list_fills_param_mapping.py
       - tests/unit/test_coinbase_api.py
+      - tests/unit/test_coinbase_client_wallets.py
       - tests/external/**
     tests:
       - pytest tests/regression/test_place_limit_order_returns_dict.py tests/regression/test_list_fills_param_mapping.py -v --tb=short

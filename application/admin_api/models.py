@@ -6514,8 +6514,8 @@ class AdminFuturesAccountReadResponse(BaseModel):
     live_coinbase_orders_ran: bool = False
 
 
-class AdminFuturesPreviewPredecessorBinding(BaseModel):
-    """Exact immutable binding to the consumed Slice 2 artifact."""
+class AdminFuturesPreviewOriginalPredecessorBinding(BaseModel):
+    """Exact immutable binding to the consumed original Slice 2 artifact."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -6538,6 +6538,33 @@ class AdminFuturesPreviewPredecessorBinding(BaseModel):
     submitted_notional_usdc: Literal["0"]
     executed_notional_usdc: Literal["0"]
     preservation: Literal["immutable_no_modify_delete_or_reuse"]
+
+
+class AdminFuturesPreviewPredecessorBinding(BaseModel):
+    """Exact immutable R1 binding plus its original Slice 2 parent."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    artifact_name: Literal["futures_exact_no_live_preview_slice_2r1.jsonl"]
+    file_sha256: Literal[
+        "55c09c6d4819f2d03dd679ae4c952e203cf540d1a141e13035459821f1b680d7"
+    ]
+    evidence_sha256: Literal[
+        "a1b7820aa217b7119a6353a8f4fbffa5227ebfe5e4c8d8a1cde5449d370fc6f0"
+    ]
+    device: Literal["66305"]
+    inode: Literal["42312970"]
+    size_bytes: Literal[4197]
+    mode: Literal["0400"]
+    mtime_ns: Literal["1783980960753782357"]
+    status: Literal["blocked"]
+    outcome: Literal["blocked"]
+    preview_order_attempt_count: Literal[0]
+    exchange_submission_attempt_count: Literal[0]
+    submitted_notional_usdc: Literal["0"]
+    executed_notional_usdc: Literal["0"]
+    preservation: Literal["immutable_no_modify_delete_or_reuse"]
+    original_predecessor_binding: AdminFuturesPreviewOriginalPredecessorBinding
 
 
 class AdminFuturesPreviewMarginSettingEvidence(BaseModel):
@@ -6581,6 +6608,8 @@ class AdminFuturesPreviewMarginSettingEvidence(BaseModel):
         pattern=r"^[A-Z][A-Z0-9_]{0,63}$",
     )
     allowlist_match: bool
+    operationally_resolved: bool
+    enum_authority: Literal["official_coinbase_advanced_trade_api_docs"]
     classification: Literal[
         "recognized_string",
         "unrecognized_string",
@@ -6600,14 +6629,22 @@ class AdminFuturesPreviewMarginSettingEvidence(BaseModel):
         """Reject contradictory or authority-expanding diagnostic claims."""
 
         from application.admin_api.futures_order_preview import (
-            FUTURES_PREVIEW_RECOGNIZED_MARGIN_SETTINGS,
+            FUTURES_PREVIEW_DOCUMENTED_MARGIN_SETTINGS,
+            FUTURES_PREVIEW_OPERATIONAL_MARGIN_SETTINGS,
         )
 
         expected_allowlist_match = (
-            self.observed_token in FUTURES_PREVIEW_RECOGNIZED_MARGIN_SETTINGS
+            self.observed_token in FUTURES_PREVIEW_DOCUMENTED_MARGIN_SETTINGS
         )
         if self.allowlist_match is not expected_allowlist_match:
             raise ValueError("futures_preview_margin_setting_allowlist_claim_invalid")
+        expected_operational_resolution = (
+            self.observed_token in FUTURES_PREVIEW_OPERATIONAL_MARGIN_SETTINGS
+        )
+        if self.operationally_resolved is not expected_operational_resolution:
+            raise ValueError(
+                "futures_preview_margin_setting_operational_claim_invalid"
+            )
         if self.classification == "recognized_string":
             coherent = (
                 self.allowlist_match is True
@@ -6696,7 +6733,7 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
 
     schema_version: Literal["1"]
     type: Literal["admin_futures_order_preview"]
-    artifact_type: Literal["futures_exact_no_live_preview_slice_2r1"]
+    artifact_type: Literal["futures_exact_no_live_preview_slice_2r2"]
     status: Literal["accepted", "blocked", "unknown"]
     outcome: Literal["accepted", "blocked", "unknown"]
     blocker: str | None = None
@@ -6717,7 +6754,7 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
         default=None,
         pattern=r"^[0-9a-f]{64}$",
     )
-    portfolio_catalog_evidence: list[FlexibleDict] | None = None
+    portfolio_catalog_evidence: FlexibleDict | None = None
     portfolio_catalog_sha256: str | None = Field(
         default=None,
         pattern=r"^[0-9a-f]{64}$",
@@ -6785,6 +6822,8 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
         from application.admin_api.futures_order_preview import (
             _margin_setting_terminal_context,
             canonical_sha256,
+            validate_preview_against_candidate,
+            validate_preview_response,
         )
 
         def finite_decimal(value: Any, blocker: str) -> Decimal:
@@ -6814,6 +6853,11 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
         preview_attempts = self.attempt_counters.get("preview_order")
         if preview_attempts not in {0, 1}:
             raise ValueError("futures_preview_attempt_counters_invalid")
+        if self.attempt_counters != {
+            "preview_order": preview_attempts,
+            **expected_zero_mutation_counters,
+        }:
+            raise ValueError("futures_preview_attempt_counters_invalid")
         if self.outcome == "unknown" and preview_attempts != 1:
             raise ValueError("futures_preview_unknown_attempt_invalid")
         if self.artifacts != {
@@ -6842,6 +6886,112 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
             "futures_positions": 1,
             "futures_margin_collateral": 1,
         }
+        if set(self.read_counters) != set(expected_complete_reads) or any(
+            value not in {0, 1} for value in self.read_counters.values()
+        ):
+            raise ValueError("futures_preview_read_counters_invalid")
+        ordered_reads = [
+            self.read_counters[key]
+            for key in (
+                "api_key_permissions",
+                "portfolio_catalog",
+                "product",
+                "best_bid_ask",
+                "futures_positions",
+                "futures_margin_collateral",
+            )
+        ]
+        if ordered_reads != sorted(ordered_reads, reverse=True):
+            raise ValueError("futures_preview_read_counters_invalid")
+        account_evidence_pairs = (
+            (self.permission_evidence, self.permission_evidence_sha256),
+            (
+                self.portfolio_catalog_evidence,
+                self.portfolio_catalog_sha256,
+            ),
+            (self.position_evidence, self.position_evidence_sha256),
+            (
+                self.margin_collateral_evidence,
+                self.margin_collateral_evidence_sha256,
+            ),
+        )
+        account_context_present = any(
+            item is not None or expected_hash is not None
+            for item, expected_hash in account_evidence_pairs
+        )
+        sanitized_shapes = (
+            (
+                self.permission_evidence,
+                {
+                    "portfolio_id",
+                    "portfolio_type",
+                    "can_view",
+                    "can_trade",
+                    "selection_authority",
+                    "sanitized",
+                    "raw_response_included",
+                },
+            ),
+            (
+                self.portfolio_catalog_evidence,
+                {
+                    "selected_portfolio_id",
+                    "selected_portfolio_label",
+                    "selected_portfolio_type",
+                    "exact_match_count",
+                    "sanitized",
+                    "raw_response_included",
+                },
+            ),
+            (
+                self.position_evidence,
+                {
+                    "product_id",
+                    "observed_contract_count",
+                    "sanitized",
+                    "raw_response_included",
+                },
+            ),
+            (
+                self.margin_collateral_evidence,
+                {
+                    "status",
+                    "account_family",
+                    "source",
+                    "source_read_attempts",
+                    "available_margin_usdc",
+                    "intraday_margin_window_measure",
+                    "intraday_margin_setting",
+                    "current_margin_windows",
+                    "futures_sweep_count",
+                    "sanitized",
+                    "raw_response_included",
+                },
+            ),
+        )
+        if account_context_present:
+            if any(
+                item is None or expected_hash is None
+                for item, expected_hash in account_evidence_pairs
+            ):
+                raise ValueError(
+                    "futures_preview_account_evidence_context_incomplete"
+                )
+            if any(
+                not isinstance(item, dict)
+                or set(item) != keys
+                or item.get("sanitized") is not True
+                or item.get("raw_response_included") is not False
+                for item, keys in sanitized_shapes
+            ):
+                raise ValueError(
+                    "futures_preview_attempt_raw_account_evidence_invalid"
+                )
+            if any(
+                canonical_sha256(item) != expected_hash
+                for item, expected_hash in account_evidence_pairs
+            ):
+                raise ValueError("futures_preview_account_evidence_hash_invalid")
         if preview_attempts == 1:
             required_attempt_context = (
                 self.portfolio_id,
@@ -6883,6 +7033,7 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
                     "margin_setting_evidence_sha256"
                 ]
                 or self.margin_setting_evidence.allowlist_match is not True
+                or self.margin_setting_evidence.operationally_resolved is not True
                 or self.margin_setting_evidence.classification
                 != "recognized_string"
                 or self.margin_setting_evidence.unexpected_field_count != 0
@@ -6983,24 +7134,131 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
         ):
             raise ValueError("futures_preview_accepted_portfolio_binding_invalid")
         permissions = self.permission_evidence or {}
-        if (
-            permissions.get("portfolio_uuid") != self.portfolio_id
-            or permissions.get("portfolio_type") != "DEFAULT"
-            or permissions.get("can_view") is not True
-            or permissions.get("can_trade") is not True
-        ):
+        if permissions != {
+            "portfolio_id": self.portfolio_id,
+            "portfolio_type": "DEFAULT",
+            "can_view": True,
+            "can_trade": True,
+            "selection_authority": "cdp_api_key_permissioned_portfolio",
+            "sanitized": True,
+            "raw_response_included": False,
+        }:
             raise ValueError("futures_preview_accepted_permission_evidence_invalid")
-        catalog_matches = [
-            row
-            for row in (self.portfolio_catalog_evidence or [])
-            if row.get("uuid") == self.portfolio_id
-        ]
-        if len(catalog_matches) != 1 or catalog_matches[0] != {
-            "uuid": self.portfolio_id,
-            "name": "Default",
-            "type": "DEFAULT",
+        if self.portfolio_catalog_evidence != {
+            "selected_portfolio_id": self.portfolio_id,
+            "selected_portfolio_label": "Default",
+            "selected_portfolio_type": "DEFAULT",
+            "exact_match_count": 1,
+            "sanitized": True,
+            "raw_response_included": False,
         }:
             raise ValueError("futures_preview_accepted_portfolio_catalog_invalid")
+        if self.position_evidence != {
+            "product_id": self.product_id,
+            "observed_contract_count": "0",
+            "sanitized": True,
+            "raw_response_included": False,
+        }:
+            raise ValueError("futures_preview_accepted_position_evidence_invalid")
+        margin = self.margin_collateral_evidence or {}
+        required_margin_keys = {
+            "status",
+            "account_family",
+            "source",
+            "source_read_attempts",
+            "available_margin_usdc",
+            "intraday_margin_window_measure",
+            "intraday_margin_setting",
+            "current_margin_windows",
+            "futures_sweep_count",
+            "sanitized",
+            "raw_response_included",
+        }
+        if (
+            set(margin) != required_margin_keys
+            or margin.get("status") != "ready"
+            or margin.get("account_family") != "coinbase_futures_us_cfm"
+            or margin.get("source") != "backend_rest_client"
+            or margin.get("source_read_attempts")
+            != {
+                "get_futures_balance_summary": 1,
+                "get_intraday_margin_setting": 1,
+                "get_current_margin_window": 2,
+                "list_futures_sweeps": 1,
+            }
+            or margin.get("futures_sweep_count") != 0
+            or margin.get("sanitized") is not True
+            or margin.get("raw_response_included") is not False
+            or margin.get("intraday_margin_setting")
+            != {"setting": self.margin_setting_evidence.observed_token}
+        ):
+            raise ValueError("futures_preview_accepted_margin_evidence_invalid")
+        available_margin = finite_decimal(
+            margin.get("available_margin_usdc"),
+            "futures_preview_accepted_margin_evidence_invalid",
+        )
+        if available_margin <= 0:
+            raise ValueError("futures_preview_accepted_margin_evidence_invalid")
+        measure = margin.get("intraday_margin_window_measure")
+        if (
+            not isinstance(measure, dict)
+            or set(measure)
+            != {
+                "margin_window_type",
+                "maintenance_margin_usdc",
+                "liquidation_buffer_usdc",
+            }
+            or measure.get("margin_window_type")
+            not in {
+                "FCM_MARGIN_WINDOW_TYPE_OVERNIGHT",
+                "FCM_MARGIN_WINDOW_TYPE_WEEKEND",
+                "FCM_MARGIN_WINDOW_TYPE_INTRADAY",
+                "FCM_MARGIN_WINDOW_TYPE_TRANSITION",
+            }
+            or finite_decimal(
+                measure.get("maintenance_margin_usdc"),
+                "futures_preview_accepted_margin_evidence_invalid",
+            )
+            < 0
+            or finite_decimal(
+                measure.get("liquidation_buffer_usdc"),
+                "futures_preview_accepted_margin_evidence_invalid",
+            )
+            < 0
+        ):
+            raise ValueError("futures_preview_accepted_margin_evidence_invalid")
+        windows = margin.get("current_margin_windows")
+        expected_profiles = {
+            "MARGIN_PROFILE_TYPE_RETAIL_REGULAR",
+            "MARGIN_PROFILE_TYPE_RETAIL_INTRADAY_MARGIN_1",
+        }
+        if not isinstance(windows, list) or len(windows) != 2:
+            raise ValueError("futures_preview_accepted_margin_evidence_invalid")
+        observed_profiles: set[str] = set()
+        for window in windows:
+            if not isinstance(window, dict) or set(window) != {
+                "profile",
+                "margin_window_type",
+                "is_intraday_margin_killswitch_enabled",
+                "is_intraday_margin_enrollment_killswitch_enabled",
+            }:
+                raise ValueError("futures_preview_accepted_margin_evidence_invalid")
+            profile = window.get("profile")
+            window_type = window.get("margin_window_type")
+            if (
+                profile not in expected_profiles
+                or profile in observed_profiles
+                or window_type != "MARGIN_WINDOW_TYPE_INTRADAY"
+                or window.get("is_intraday_margin_killswitch_enabled") is not False
+                or window.get(
+                    "is_intraday_margin_enrollment_killswitch_enabled"
+                )
+                is not False
+            ):
+                raise ValueError("futures_preview_accepted_margin_evidence_invalid")
+            observed_profiles.add(str(profile))
+        if observed_profiles != expected_profiles:
+            raise ValueError("futures_preview_accepted_margin_evidence_invalid")
         request = self.preview_request or {}
         if (
             request.get("product_id") != self.product_id
@@ -7050,6 +7308,23 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
             if canonical_sha256(value) != expected_hash:
                 raise ValueError("futures_preview_nested_hash_invalid")
         preview = self.preview_response or {}
+        try:
+            recomputed_preview = validate_preview_against_candidate(
+                validate_preview_response(preview),
+                candidate,
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(
+                "futures_preview_authoritative_cap_evidence_invalid"
+            ) from exc
+        if recomputed_preview != preview:
+            raise ValueError("futures_preview_authoritative_cap_evidence_invalid")
+        preview_margin = finite_decimal(
+            preview.get("order_margin_total"),
+            "futures_preview_available_margin_insufficient",
+        )
+        if preview_margin > available_margin:
+            raise ValueError("futures_preview_available_margin_insufficient")
         candidate_binding = preview.get("candidate_binding")
         if not isinstance(candidate_binding, dict):
             raise ValueError("futures_preview_authoritative_cap_evidence_invalid")
@@ -7106,7 +7381,7 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
                 ),
             }
         if (
-            plan.get("slice_id") != "futures_exact_no_live_preview_slice_2r1"
+            plan.get("slice_id") != "futures_exact_no_live_preview_slice_2r2"
             or plan.get("actor_id") != self.actor_id
             or plan.get("predecessor_binding")
             != self.predecessor_binding.model_dump(mode="json")

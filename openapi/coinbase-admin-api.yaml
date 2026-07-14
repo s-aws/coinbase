@@ -101276,7 +101276,7 @@ components:
           title: Type
         artifact_type:
           type: string
-          const: futures_exact_no_live_preview_slice_2r1
+          const: futures_exact_no_live_preview_slice_2r2
           title: Artifact Type
         status:
           type: string
@@ -101356,10 +101356,8 @@ components:
           title: Permission Evidence Sha256
         portfolio_catalog_evidence:
           anyOf:
-          - items:
-              additionalProperties: true
-              type: object
-            type: array
+          - additionalProperties: true
+            type: object
           - type: 'null'
           title: Portfolio Catalog Evidence
         portfolio_catalog_sha256:
@@ -102063,6 +102061,13 @@ components:
         allowlist_match:
           type: boolean
           title: Allowlist Match
+        operationally_resolved:
+          type: boolean
+          title: Operationally Resolved
+        enum_authority:
+          type: string
+          const: official_coinbase_advanced_trade_api_docs
+          title: Enum Authority
         classification:
           type: string
           enum:
@@ -102099,13 +102104,15 @@ components:
       - value_type
       - token_form
       - allowlist_match
+      - operationally_resolved
+      - enum_authority
       - classification
       - unexpected_field_count
       - sanitized
       - raw_response_included
       title: AdminFuturesPreviewMarginSettingEvidence
       description: Allowlisted, secret-minimized pre-Preview margin-setting evidence.
-    AdminFuturesPreviewPredecessorBinding:
+    AdminFuturesPreviewOriginalPredecessorBinding:
       properties:
         artifact_name:
           type: string
@@ -102185,8 +102192,93 @@ components:
       - submitted_notional_usdc
       - executed_notional_usdc
       - preservation
+      title: AdminFuturesPreviewOriginalPredecessorBinding
+      description: Exact immutable binding to the consumed original Slice 2 artifact.
+    AdminFuturesPreviewPredecessorBinding:
+      properties:
+        artifact_name:
+          type: string
+          const: futures_exact_no_live_preview_slice_2r1.jsonl
+          title: Artifact Name
+        file_sha256:
+          type: string
+          const: 55c09c6d4819f2d03dd679ae4c952e203cf540d1a141e13035459821f1b680d7
+          title: File Sha256
+        evidence_sha256:
+          type: string
+          const: a1b7820aa217b7119a6353a8f4fbffa5227ebfe5e4c8d8a1cde5449d370fc6f0
+          title: Evidence Sha256
+        device:
+          type: string
+          const: '66305'
+          title: Device
+        inode:
+          type: string
+          const: '42312970'
+          title: Inode
+        size_bytes:
+          type: integer
+          const: 4197
+          title: Size Bytes
+        mode:
+          type: string
+          const: '0400'
+          title: Mode
+        mtime_ns:
+          type: string
+          const: '1783980960753782357'
+          title: Mtime Ns
+        status:
+          type: string
+          const: blocked
+          title: Status
+        outcome:
+          type: string
+          const: blocked
+          title: Outcome
+        preview_order_attempt_count:
+          type: integer
+          const: 0
+          title: Preview Order Attempt Count
+        exchange_submission_attempt_count:
+          type: integer
+          const: 0
+          title: Exchange Submission Attempt Count
+        submitted_notional_usdc:
+          type: string
+          const: '0'
+          title: Submitted Notional Usdc
+        executed_notional_usdc:
+          type: string
+          const: '0'
+          title: Executed Notional Usdc
+        preservation:
+          type: string
+          const: immutable_no_modify_delete_or_reuse
+          title: Preservation
+        original_predecessor_binding:
+          $ref: '#/components/schemas/AdminFuturesPreviewOriginalPredecessorBinding'
+      additionalProperties: false
+      type: object
+      required:
+      - artifact_name
+      - file_sha256
+      - evidence_sha256
+      - device
+      - inode
+      - size_bytes
+      - mode
+      - mtime_ns
+      - status
+      - outcome
+      - preview_order_attempt_count
+      - exchange_submission_attempt_count
+      - submitted_notional_usdc
+      - executed_notional_usdc
+      - preservation
+      - original_predecessor_binding
       title: AdminFuturesPreviewPredecessorBinding
-      description: Exact immutable binding to the consumed Slice 2 artifact.
+      description: Exact immutable R1 binding plus its original Slice 2 parent.
     AdminFuturesRiskInputEvidence:
       properties:
         status:

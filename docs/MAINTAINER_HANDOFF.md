@@ -132,21 +132,28 @@ create a separate approval class.
 
 - Current goal id: `futures_exact_no_live_preview_slice_2`.
 - Current slice: Default-profile Futures readback -> exact AVAX US CFM Coinbase
-  Preview Order -> immutable operator-visible no-live preview readback. Slice 2
-  remains active but blocked. The one-shot R1 artifact terminated before
+  Preview Order -> immutable operator-visible no-live preview readback. The
+  one-shot R1 artifact terminated before
   Preview on `futures_preview_margin_setting_ambiguous`; Preview and every
   exchange/retry/fallback counter are zero, submitted/executed notional is
   `0`, and its evidence SHA-256 is
   `a1b7820aa217b7119a6353a8f4fbffa5227ebfe5e4c8d8a1cde5449d370fc6f0`.
-  R1 cannot be retried, and Slice 3 is inactive pending an operator decision.
-  Offline diagnosis is implemented and focused-test gated: the installed SDK
-  proves the response field shape but no enum allowlist, and future distinct
-  attempts will preserve only typed, bounded margin-setting diagnostics before
-  validation. Raw margin/account payloads are not emitted on that failure path.
-  No R2 artifact or Coinbase/Preview/mutation call has been made; R2 still
-  requires explicit authorization.
-+- Phase-end subagent sweep: the independent safety review and blind contextless
-  non-Spot architecture review both completed with `PASS`; no required
+  R1 cannot be retried, and Slice 3 is inactive unless R2 is accepted. The
+  operator explicitly authorized official-primary-source enum verification,
+  an exact documented-versus-operational allowlist, focused validation,
+  independent audit, and—only after those gates—one new immutable R2
+  Preview-only attempt. R2 preserves typed bounded margin diagnostics while
+  excluding raw account/margin payloads and external exception text. No R2
+  artifact or Coinbase/Preview/mutation call has been made. Focused backend and
+  frontend validation, OpenAPI/API freshness, typecheck, lint, build, and the
+  exact contract test pass; both final independent audits pass. The one-shot
+  boundary is eligible but unconsumed at this checkpoint.
+- Phase-end subagent sweep: the independent reviews found and caused
+  correction of raw-evidence leakage, external exception-text persistence,
+  permissive unknown margin-window handling, a stale authority mirror, and
+  missing durable primary-source links, plus Preview cap, available-margin, and
+  redirect-replay gaps. All causal findings were fixed; final independent
+  safety and blind contextless re-reviews completed with `PASS`, and no required
   validation agent remains running.
 - Ordered successors: exact no-live preview (2), one terminal order roundtrip
   (3), intentional fill/position readback (4), then exact closeout (5). The

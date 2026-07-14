@@ -38,35 +38,100 @@ FUTURES_PREVIEW_CLOSE_BUFFER = Decimal("1.20")
 FUTURES_PREVIEW_ARTIFACT_ENV = (
     "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_PATH"
 )
-FUTURES_PREVIEW_PREDECESSOR_ARTIFACT_PATH = (
+FUTURES_PREVIEW_ORIGINAL_ARTIFACT_PATH = (
     Path(__file__).resolve().parents[2]
     / "artifacts"
     / "futures_exact_no_live_preview_slice_2.jsonl"
 )
-DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH = (
+FUTURES_PREVIEW_PREDECESSOR_ARTIFACT_PATH = (
     Path(__file__).resolve().parents[2]
     / "artifacts"
     / "futures_exact_no_live_preview_slice_2r1.jsonl"
 )
+DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "artifacts"
+    / "futures_exact_no_live_preview_slice_2r2.jsonl"
+)
 FUTURES_PREVIEW_PREDECESSOR_FILE_SHA256 = (
-    "9b15da86c172eca46d4b3dc0fc2b81e9b325df9a1e2f75fef79362f538e2d5ff"
+    "55c09c6d4819f2d03dd679ae4c952e203cf540d1a141e13035459821f1b680d7"
 )
 FUTURES_PREVIEW_PREDECESSOR_EVIDENCE_SHA256 = (
-    "3b09cb9dfe02991dc886a1c6f041330d417ff11a0f1d45e3734bdc59bfb219b8"
+    "a1b7820aa217b7119a6353a8f4fbffa5227ebfe5e4c8d8a1cde5449d370fc6f0"
 )
 FUTURES_PREVIEW_PREDECESSOR_DEVICE = 66305
-FUTURES_PREVIEW_PREDECESSOR_INODE = 42312964
-FUTURES_PREVIEW_PREDECESSOR_SIZE = 3043
+FUTURES_PREVIEW_PREDECESSOR_INODE = 42312970
+FUTURES_PREVIEW_PREDECESSOR_SIZE = 4197
 FUTURES_PREVIEW_PREDECESSOR_MODE = 0o400
-FUTURES_PREVIEW_PREDECESSOR_MTIME_NS = 1783968539951853688
+FUTURES_PREVIEW_PREDECESSOR_MTIME_NS = 1783980960753782357
+FUTURES_PREVIEW_ORIGINAL_FILE_SHA256 = (
+    "9b15da86c172eca46d4b3dc0fc2b81e9b325df9a1e2f75fef79362f538e2d5ff"
+)
+FUTURES_PREVIEW_ORIGINAL_EVIDENCE_SHA256 = (
+    "3b09cb9dfe02991dc886a1c6f041330d417ff11a0f1d45e3734bdc59bfb219b8"
+)
+FUTURES_PREVIEW_ORIGINAL_DEVICE = 66305
+FUTURES_PREVIEW_ORIGINAL_INODE = 42312964
+FUTURES_PREVIEW_ORIGINAL_SIZE = 3043
+FUTURES_PREVIEW_ORIGINAL_MODE = 0o400
+FUTURES_PREVIEW_ORIGINAL_MTIME_NS = 1783968539951853688
 _SCHEMA_VERSION = "1"
-_ARTIFACT_TYPE = "futures_exact_no_live_preview_slice_2r1"
+_ARTIFACT_TYPE = "futures_exact_no_live_preview_slice_2r2"
 _MAX_ARTIFACT_BYTES = 2 * 1024 * 1024
 _NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
-FUTURES_PREVIEW_RECOGNIZED_MARGIN_SETTINGS = frozenset(
+FUTURES_PREVIEW_DOCUMENTED_MARGIN_SETTINGS = frozenset(
     {
-        "INTRADAY_MARGIN_SETTING_ENABLED",
-        "INTRADAY_MARGIN_SETTING_DISABLED",
+        "INTRADAY_MARGIN_SETTING_UNSPECIFIED",
+        "INTRADAY_MARGIN_SETTING_STANDARD",
+        "INTRADAY_MARGIN_SETTING_INTRADAY",
+    }
+)
+FUTURES_PREVIEW_OPERATIONAL_MARGIN_SETTINGS = frozenset(
+    {
+        "INTRADAY_MARGIN_SETTING_STANDARD",
+        "INTRADAY_MARGIN_SETTING_INTRADAY",
+    }
+)
+FUTURES_PREVIEW_OPERATIONAL_FCM_MARGIN_WINDOW_TYPES = frozenset(
+    {
+        "FCM_MARGIN_WINDOW_TYPE_OVERNIGHT",
+        "FCM_MARGIN_WINDOW_TYPE_WEEKEND",
+        "FCM_MARGIN_WINDOW_TYPE_INTRADAY",
+        "FCM_MARGIN_WINDOW_TYPE_TRANSITION",
+    }
+)
+FUTURES_PREVIEW_OPERATIONAL_CURRENT_MARGIN_WINDOW_TYPES = frozenset(
+    {"MARGIN_WINDOW_TYPE_INTRADAY"}
+)
+FUTURES_PREVIEW_EXPECTED_MARGIN_SOURCE_READS = {
+    "get_futures_balance_summary": 1,
+    "get_intraday_margin_setting": 1,
+    "get_current_margin_window": 2,
+    "list_futures_sweeps": 1,
+}
+FUTURES_PREVIEW_ORIGINAL_PREDECESSOR_BINDING = {
+    "artifact_name": "futures_exact_no_live_preview_slice_2.jsonl",
+    "file_sha256": FUTURES_PREVIEW_ORIGINAL_FILE_SHA256,
+    "evidence_sha256": FUTURES_PREVIEW_ORIGINAL_EVIDENCE_SHA256,
+    "device": "66305",
+    "inode": "42312964",
+    "size_bytes": 3043,
+    "mode": "0400",
+    "mtime_ns": "1783968539951853688",
+    "status": "blocked",
+    "outcome": "blocked",
+    "preview_order_attempt_count": 0,
+    "exchange_submission_attempt_count": 0,
+    "submitted_notional_usdc": "0",
+    "executed_notional_usdc": "0",
+    "preservation": "immutable_no_modify_delete_or_reuse",
+}
+_CONSUMED_PREVIEW_IDENTIFIERS = frozenset(
+    {
+        "9c26aed6-fce5-470b-b57e-b89423ecc0ed",
+        "1396cd8f-d258-446f-92e1-fc53f6b93c71",
+        "5dcd3d52-95bf-4fd3-93ca-83e8be28f132",
+        "d1a930f2-0e91-42e0-8a22-a20444575585",
     }
 )
 _SAFE_MARGIN_SETTING_TOKEN = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
@@ -80,6 +145,12 @@ _SDK_MARGIN_SETTING_FIELDS = {
 
 class FuturesOrderPreviewArtifactError(RuntimeError):
     """Raised when one-shot Preview evidence is unavailable or unsafe."""
+
+
+def _redacted_preflight_blocker(exc: Exception) -> str:
+    """Return only an exception type label, never response text."""
+
+    return f"preflight_or_preview_blocked:{type(exc).__name__}"
 
 
 def _plain(value: Any) -> Any:
@@ -371,8 +442,16 @@ def validate_futures_order_preview_predecessor(
     expected_size: int | None = None,
     expected_mode: int = 0o400,
     expected_mtime_ns: int | None = None,
+    expected_artifact_type: str = "futures_exact_no_live_preview_slice_2r1",
+    expected_blocker: str = (
+        "preflight_or_preview_blocked:ValueError:"
+        "futures_preview_margin_setting_ambiguous"
+    ),
+    expected_predecessor_binding: Mapping[str, Any] | None = (
+        FUTURES_PREVIEW_ORIGINAL_PREDECESSOR_BINDING
+    ),
 ) -> dict[str, Any]:
-    """Read and bind the immutable terminal Slice 2 predecessor."""
+    """Read and bind one exact immutable terminal Preview predecessor."""
 
     predecessor = Path(path)
     try:
@@ -451,6 +530,7 @@ def validate_futures_order_preview_predecessor(
         ) from exc
     evidence_sha256 = str(evidence.get("evidence_sha256") or "")
     attempts = _mapping(evidence.get("attempt_counters"))
+    reads = _mapping(evidence.get("read_counters"))
     artifacts = _mapping(evidence.get("artifacts"))
     expected_zero_attempts = {
         "preview_order": 0,
@@ -461,18 +541,27 @@ def validate_futures_order_preview_predecessor(
         "close_position": 0,
         "reduce_position": 0,
     }
+    expected_reads = {
+        "api_key_permissions": 1,
+        "portfolio_catalog": 1,
+        "product": 1,
+        "best_bid_ask": 1,
+        "futures_positions": 1,
+        "futures_margin_collateral": 1,
+    }
     if (
         not hmac.compare_digest(evidence_sha256, expected_evidence_sha256)
-        or evidence.get("artifact_type")
-        != "futures_exact_no_live_preview_slice_2"
+        or evidence.get("artifact_type") != expected_artifact_type
         or evidence.get("status") != "blocked"
         or evidence.get("outcome") != "blocked"
-        or evidence.get("blocker")
-        != (
-            "preflight_or_preview_blocked:ValueError:"
-            "futures_preview_product_status_blocked"
-        )
+        or evidence.get("blocker") != expected_blocker
         or attempts != expected_zero_attempts
+        or reads != expected_reads
+        or (
+            expected_predecessor_binding is not None
+            and evidence.get("predecessor_binding")
+            != dict(expected_predecessor_binding)
+        )
         or evidence.get("exchange_submission_attempt_count") != 0
         or evidence.get("submitted_notional_usdc") != "0"
         or evidence.get("executed_notional_usdc") != "0"
@@ -505,7 +594,7 @@ def validate_futures_order_preview_predecessor(
             "futures Preview predecessor changed during validation"
         )
 
-    return {
+    binding = {
         "artifact_name": predecessor.name,
         "file_sha256": file_sha256,
         "evidence_sha256": evidence_sha256,
@@ -522,10 +611,36 @@ def validate_futures_order_preview_predecessor(
         "executed_notional_usdc": "0",
         "preservation": "immutable_no_modify_delete_or_reuse",
     }
+    if expected_predecessor_binding is not None:
+        binding["original_predecessor_binding"] = dict(
+            expected_predecessor_binding
+        )
+    return binding
 
 
 def validate_production_futures_order_preview_predecessor() -> dict[str, Any]:
-    """Validate the exact operator-authorized Slice 2 predecessor."""
+    """Validate the exact R1 -> original Slice 2 predecessor chain."""
+
+    original_binding = validate_futures_order_preview_predecessor(
+        FUTURES_PREVIEW_ORIGINAL_ARTIFACT_PATH,
+        expected_file_sha256=FUTURES_PREVIEW_ORIGINAL_FILE_SHA256,
+        expected_evidence_sha256=FUTURES_PREVIEW_ORIGINAL_EVIDENCE_SHA256,
+        expected_device=FUTURES_PREVIEW_ORIGINAL_DEVICE,
+        expected_inode=FUTURES_PREVIEW_ORIGINAL_INODE,
+        expected_size=FUTURES_PREVIEW_ORIGINAL_SIZE,
+        expected_mode=FUTURES_PREVIEW_ORIGINAL_MODE,
+        expected_mtime_ns=FUTURES_PREVIEW_ORIGINAL_MTIME_NS,
+        expected_artifact_type="futures_exact_no_live_preview_slice_2",
+        expected_blocker=(
+            "preflight_or_preview_blocked:ValueError:"
+            "futures_preview_product_status_blocked"
+        ),
+        expected_predecessor_binding=None,
+    )
+    if original_binding != FUTURES_PREVIEW_ORIGINAL_PREDECESSOR_BINDING:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview original predecessor binding changed"
+        )
 
     return validate_futures_order_preview_predecessor(
         FUTURES_PREVIEW_PREDECESSOR_ARTIFACT_PATH,
@@ -536,6 +651,7 @@ def validate_production_futures_order_preview_predecessor() -> dict[str, Any]:
         expected_size=FUTURES_PREVIEW_PREDECESSOR_SIZE,
         expected_mode=FUTURES_PREVIEW_PREDECESSOR_MODE,
         expected_mtime_ns=FUTURES_PREVIEW_PREDECESSOR_MTIME_NS,
+        expected_predecessor_binding=original_binding,
     )
 
 
@@ -564,6 +680,16 @@ class FuturesOrderPreviewProducer:
     def build_claim(self) -> dict[str, Any]:
         """Build the fixed claim without calling Coinbase."""
 
+        correlation_id = self.correlation_id_factory()
+        idempotency_key = self.idempotency_key_factory()
+        if (
+            correlation_id in _CONSUMED_PREVIEW_IDENTIFIERS
+            or idempotency_key in _CONSUMED_PREVIEW_IDENTIFIERS
+            or correlation_id == idempotency_key
+        ):
+            raise FuturesOrderPreviewArtifactError(
+                "futures Preview R2 identifiers are not fresh"
+            )
         return {
             "artifact_type": _ARTIFACT_TYPE,
             "claim_status": "reserved",
@@ -571,8 +697,8 @@ class FuturesOrderPreviewProducer:
             "reserved_at": _timestamp(self.now()),
             "actor_id": FUTURES_PREVIEW_ACTOR_ID,
             "roles": [FUTURES_PREVIEW_ROLE],
-            "correlation_id": self.correlation_id_factory(),
-            "idempotency_key": self.idempotency_key_factory(),
+            "correlation_id": correlation_id,
+            "idempotency_key": idempotency_key,
             "profile_label": "Default",
             "portfolio_type": "DEFAULT",
             "product_id": FUTURES_PREVIEW_PRODUCT_ID,
@@ -691,6 +817,16 @@ class FuturesOrderPreviewProducer:
                 candidate=candidate,
                 preview_request=preview_request,
             )
+            try:
+                pre_preview_predecessor = dict(self.predecessor_validator())
+            except FuturesOrderPreviewArtifactError as exc:
+                raise ValueError(
+                    f"futures_preview_predecessor_pre_preview_blocked:{exc}"
+                ) from exc
+            if pre_preview_predecessor != self.predecessor_binding:
+                raise ValueError(
+                    "futures_preview_predecessor_binding_changed_pre_preview"
+                )
             counters["preview_order"] = 1
             try:
                 preview_response = _plain(
@@ -769,7 +905,7 @@ class FuturesOrderPreviewProducer:
             raise
         except Exception as exc:
             transition_blocker = self._terminal_predecessor_blocker()
-            blocker = f"preflight_or_preview_blocked:{type(exc).__name__}:{exc}"
+            blocker = _redacted_preflight_blocker(exc)
             if transition_blocker is not None and transition_blocker not in blocker:
                 blocker = f"{blocker};{transition_blocker}"
             result = _terminal_failure_record(
@@ -1024,6 +1160,10 @@ def validate_margin_collateral_evidence(value: Any) -> Decimal:
     ):
         raise ValueError("futures_preview_margin_collateral_ambiguous")
     summary = _mapping(evidence.get("balance_summary"))
+    if _mapping(evidence.get("source_read_attempts")) != (
+        FUTURES_PREVIEW_EXPECTED_MARGIN_SOURCE_READS
+    ):
+        raise ValueError("futures_preview_margin_source_reads_ambiguous")
     available = _usd_money_value(
         summary.get("available_margin"),
         "available_margin",
@@ -1037,7 +1177,10 @@ def validate_margin_collateral_evidence(value: Any) -> Decimal:
         "liquidation_threshold",
     )
     measure = _mapping(summary.get("intraday_margin_window_measure"))
-    if not str(measure.get("margin_window_type") or "").strip():
+    if (
+        measure.get("margin_window_type")
+        not in FUTURES_PREVIEW_OPERATIONAL_FCM_MARGIN_WINDOW_TYPES
+    ):
         raise ValueError("futures_preview_margin_window_measure_ambiguous")
     for field in ("maintenance_margin", "liquidation_buffer"):
         amount = _decimal(measure.get(field), field)
@@ -1048,10 +1191,12 @@ def validate_margin_collateral_evidence(value: Any) -> Decimal:
     setting = setting_evidence.get("setting")
     if (
         not isinstance(setting, str)
-        or setting not in FUTURES_PREVIEW_RECOGNIZED_MARGIN_SETTINGS
+        or setting not in FUTURES_PREVIEW_DOCUMENTED_MARGIN_SETTINGS
         or bool(set(setting_evidence) - _SDK_MARGIN_SETTING_FIELDS)
     ):
         raise ValueError("futures_preview_margin_setting_ambiguous")
+    if setting not in FUTURES_PREVIEW_OPERATIONAL_MARGIN_SETTINGS:
+        raise ValueError("futures_preview_margin_setting_unspecified")
     windows = evidence.get("current_margin_windows")
     if not isinstance(windows, list) or len(windows) != 2:
         raise ValueError("futures_preview_margin_windows_ambiguous")
@@ -1064,19 +1209,31 @@ def validate_margin_collateral_evidence(value: Any) -> Decimal:
         window = _mapping(item)
         profile = str(window.get("profile") or "")
         window_evidence = _mapping(window.get("margin_window"))
+        window_type = window_evidence.get("margin_window_type")
         if (
             profile not in expected_profiles
             or profile in observed_profiles
             or window.get("status") != "ready"
-            or not str(
-                window_evidence.get("margin_window_type") or ""
-            ).strip()
+            or window_type
+            not in FUTURES_PREVIEW_OPERATIONAL_CURRENT_MARGIN_WINDOW_TYPES
         ):
             raise ValueError("futures_preview_margin_windows_ambiguous")
+        for killswitch_field in (
+            "is_intraday_margin_killswitch_enabled",
+            "is_intraday_margin_enrollment_killswitch_enabled",
+        ):
+            killswitch = window.get(killswitch_field)
+            if not isinstance(killswitch, bool):
+                raise ValueError("futures_preview_margin_killswitch_ambiguous")
+            if killswitch:
+                raise ValueError("futures_preview_margin_killswitch_enabled")
         observed_profiles.add(profile)
     if observed_profiles != expected_profiles:
         raise ValueError("futures_preview_margin_windows_ambiguous")
-    if not isinstance(evidence.get("futures_sweeps"), list):
+    if (
+        not isinstance(evidence.get("futures_sweeps"), list)
+        or bool(evidence["futures_sweeps"])
+    ):
         raise ValueError("futures_preview_margin_sweeps_ambiguous")
     if available <= 0:
         raise ValueError("futures_preview_available_margin_not_positive")
@@ -1184,6 +1341,10 @@ def _accepted_evidence(
     seal_ready_plan: Mapping[str, Any],
     completed_at: datetime,
 ) -> dict[str, Any]:
+    sanitized_permissions = _sanitized_permission_evidence(binding)
+    sanitized_portfolio = _sanitized_portfolio_catalog_evidence(binding)
+    sanitized_positions = _sanitized_position_evidence(positions)
+    sanitized_margin = _sanitized_margin_collateral_evidence(margin_collateral)
     evidence: dict[str, Any] = {
         "schema_version": _SCHEMA_VERSION,
         "type": "admin_futures_order_preview",
@@ -1202,19 +1363,19 @@ def _accepted_evidence(
         "portfolio_type": "DEFAULT",
         "portfolio_id": binding.get("observed_portfolio_id"),
         "portfolio_binding": dict(binding),
-        "permission_evidence": _plain(permissions),
-        "permission_evidence_sha256": canonical_sha256(permissions),
-        "portfolio_catalog_evidence": _plain(portfolios),
-        "portfolio_catalog_sha256": canonical_sha256(portfolios),
+        "permission_evidence": sanitized_permissions,
+        "permission_evidence_sha256": canonical_sha256(sanitized_permissions),
+        "portfolio_catalog_evidence": sanitized_portfolio,
+        "portfolio_catalog_sha256": canonical_sha256(sanitized_portfolio),
         "product_id": FUTURES_PREVIEW_PRODUCT_ID,
         "product_evidence": _plain(product),
         "product_evidence_sha256": canonical_sha256(product),
         "market_evidence": _plain(book),
         "market_evidence_sha256": canonical_sha256(book),
-        "position_evidence": _plain(positions),
-        "position_evidence_sha256": canonical_sha256(positions),
-        "margin_collateral_evidence": _plain(margin_collateral),
-        "margin_collateral_evidence_sha256": canonical_sha256(margin_collateral),
+        "position_evidence": sanitized_positions,
+        "position_evidence_sha256": canonical_sha256(sanitized_positions),
+        "margin_collateral_evidence": sanitized_margin,
+        "margin_collateral_evidence_sha256": canonical_sha256(sanitized_margin),
         **_margin_setting_terminal_context(margin_collateral),
         "candidate": dict(candidate),
         "candidate_sha256": canonical_sha256(candidate),
@@ -1314,26 +1475,116 @@ def _terminal_attempt_context(
 ) -> dict[str, Any]:
     """Bind the exact preflight and payload for any post-attempt terminal state."""
 
+    sanitized_permissions = _sanitized_permission_evidence(binding)
+    sanitized_portfolio = _sanitized_portfolio_catalog_evidence(binding)
+    sanitized_positions = _sanitized_position_evidence(positions)
+    sanitized_margin = _sanitized_margin_collateral_evidence(margin_collateral)
     return {
         "portfolio_id": binding.get("observed_portfolio_id"),
         "portfolio_binding": dict(binding),
-        "permission_evidence": _plain(permissions),
-        "permission_evidence_sha256": canonical_sha256(permissions),
-        "portfolio_catalog_evidence": _plain(portfolios),
-        "portfolio_catalog_sha256": canonical_sha256(portfolios),
+        "permission_evidence": sanitized_permissions,
+        "permission_evidence_sha256": canonical_sha256(sanitized_permissions),
+        "portfolio_catalog_evidence": sanitized_portfolio,
+        "portfolio_catalog_sha256": canonical_sha256(sanitized_portfolio),
         "product_evidence": _plain(product),
         "product_evidence_sha256": canonical_sha256(product),
         "market_evidence": _plain(book),
         "market_evidence_sha256": canonical_sha256(book),
-        "position_evidence": _plain(positions),
-        "position_evidence_sha256": canonical_sha256(positions),
-        "margin_collateral_evidence": _plain(margin_collateral),
-        "margin_collateral_evidence_sha256": canonical_sha256(margin_collateral),
+        "position_evidence": sanitized_positions,
+        "position_evidence_sha256": canonical_sha256(sanitized_positions),
+        "margin_collateral_evidence": sanitized_margin,
+        "margin_collateral_evidence_sha256": canonical_sha256(sanitized_margin),
         **_margin_setting_terminal_context(margin_collateral),
         "candidate": dict(candidate),
         "candidate_sha256": canonical_sha256(candidate),
         "preview_request": dict(preview_request),
         "preview_request_sha256": canonical_sha256(preview_request),
+    }
+
+
+def _sanitized_permission_evidence(
+    binding: Mapping[str, Any],
+) -> dict[str, Any]:
+    return {
+        "portfolio_id": binding.get("observed_portfolio_id"),
+        "portfolio_type": binding.get("observed_portfolio_type"),
+        "can_view": binding.get("can_view"),
+        "can_trade": binding.get("can_trade"),
+        "selection_authority": binding.get("selection_authority"),
+        "sanitized": True,
+        "raw_response_included": False,
+    }
+
+
+def _sanitized_portfolio_catalog_evidence(
+    binding: Mapping[str, Any],
+) -> dict[str, Any]:
+    return {
+        "selected_portfolio_id": binding.get("observed_portfolio_id"),
+        "selected_portfolio_label": binding.get("observed_portfolio_label"),
+        "selected_portfolio_type": binding.get("observed_portfolio_type"),
+        "exact_match_count": 1,
+        "sanitized": True,
+        "raw_response_included": False,
+    }
+
+
+def _sanitized_position_evidence(positions: Any) -> dict[str, Any]:
+    contracts = _position_contracts(positions, FUTURES_PREVIEW_PRODUCT_ID)
+    return {
+        "product_id": FUTURES_PREVIEW_PRODUCT_ID,
+        "observed_contract_count": _decimal_text(contracts),
+        "sanitized": True,
+        "raw_response_included": False,
+    }
+
+
+def _sanitized_margin_collateral_evidence(value: Any) -> dict[str, Any]:
+    evidence = _mapping(value)
+    summary = _mapping(evidence.get("balance_summary"))
+    measure = _mapping(summary.get("intraday_margin_window_measure"))
+    setting = _mapping(evidence.get("intraday_margin_setting"))
+    windows: list[dict[str, Any]] = []
+    for item in evidence.get("current_margin_windows", []):
+        window = _mapping(item)
+        margin_window = _mapping(window.get("margin_window"))
+        windows.append(
+            {
+                "profile": window.get("profile"),
+                "margin_window_type": margin_window.get("margin_window_type"),
+                "is_intraday_margin_killswitch_enabled": window.get(
+                    "is_intraday_margin_killswitch_enabled"
+                ),
+                "is_intraday_margin_enrollment_killswitch_enabled": window.get(
+                    "is_intraday_margin_enrollment_killswitch_enabled"
+                ),
+            }
+        )
+    windows.sort(key=lambda item: str(item["profile"]))
+    return {
+        "status": evidence.get("status"),
+        "account_family": evidence.get("account_family"),
+        "source": evidence.get("source"),
+        "source_read_attempts": dict(
+            _mapping(evidence.get("source_read_attempts"))
+        ),
+        "available_margin_usdc": _decimal_text(
+            _usd_money_value(summary.get("available_margin"), "available_margin")
+        ),
+        "intraday_margin_window_measure": {
+            "margin_window_type": measure.get("margin_window_type"),
+            "maintenance_margin_usdc": _decimal_text(
+                _decimal(measure.get("maintenance_margin"), "maintenance_margin")
+            ),
+            "liquidation_buffer_usdc": _decimal_text(
+                _decimal(measure.get("liquidation_buffer"), "liquidation_buffer")
+            ),
+        },
+        "intraday_margin_setting": {"setting": setting.get("setting")},
+        "current_margin_windows": windows,
+        "futures_sweep_count": len(evidence.get("futures_sweeps", [])),
+        "sanitized": True,
+        "raw_response_included": False,
     }
 
 
@@ -1367,7 +1618,11 @@ def _margin_setting_terminal_context(
     )
     allowlist_match = (
         isinstance(setting, str)
-        and setting in FUTURES_PREVIEW_RECOGNIZED_MARGIN_SETTINGS
+        and setting in FUTURES_PREVIEW_DOCUMENTED_MARGIN_SETTINGS
+    )
+    operationally_resolved = (
+        isinstance(setting, str)
+        and setting in FUTURES_PREVIEW_OPERATIONAL_MARGIN_SETTINGS
     )
     if safe_setting is not None:
         token_form = "safe_enum_token"
@@ -1405,6 +1660,8 @@ def _margin_setting_terminal_context(
         "token_form": token_form,
         "observed_token": safe_setting,
         "allowlist_match": allowlist_match,
+        "operationally_resolved": operationally_resolved,
+        "enum_authority": "official_coinbase_advanced_trade_api_docs",
         "classification": classification,
         "unexpected_field_count": len(
             set(setting_evidence) - _SDK_MARGIN_SETTING_FIELDS
@@ -1469,6 +1726,7 @@ def _seal_ready_plan(
 ) -> dict[str, Any]:
     """Build the canonical fixed plan object suitable for later sealing."""
 
+    sanitized_margin = _sanitized_margin_collateral_evidence(margin_collateral)
     liquidation_source = str(preview_response["liquidation_evidence_source"])
     if liquidation_source == "current_and_projected_liquidation_buffer":
         liquidation_evidence = {
@@ -1516,7 +1774,7 @@ def _seal_ready_plan(
             "liquidation_evidence_source": liquidation_source,
             "liquidation_evidence": liquidation_evidence,
             "margin_collateral_evidence_sha256": canonical_sha256(
-                margin_collateral
+                sanitized_margin
             ),
         },
         "caps": dict(claim["caps"]),
