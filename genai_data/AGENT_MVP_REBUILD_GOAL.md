@@ -4,7 +4,7 @@ Goal ID: `futures_exact_no_live_preview_slice_2`
 
 Last reviewed: 2026-07-15 UTC.
 
-Status: `blocked — Slice 2R5 consumed before Preview; explicit operator decision required`
+Status: `blocked — Slice 2R6 prepared no-live; exact R6 execution authorization required`
 
 The canonical cross-repository authority is
 `/home/ec2-user/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. This backend copy
@@ -282,9 +282,25 @@ API/UI readback now selects this immutable model-valid R5 result. R5 is
 consumed and cannot be retried. Slice 2 is not accepted, Slice 3 remains
 inactive, and continuing requires a distinct explicit operator decision.
 
+The operator has now authorized and completed offline R6 implementation,
+focused validation, independent audit, and preparation only. The versioned V3
+policy accepts exactly one profile/state pair:
+`MARGIN_PROFILE_TYPE_RETAIL_REGULAR=MARGIN_WINDOW_TYPE_UNSPECIFIED` and
+`MARGIN_PROFILE_TYPE_RETAIL_INTRADAY_MARGIN_1=MARGIN_WINDOW_TYPE_INTRADAY`.
+The enum remains labeled Coinbase-documented; this exact mapping is labeled
+operator-defined, Slice-2-Preview-only, and not Coinbase-documented. R6 attempt
+authority, execution, Create Order eligibility, and later-live eligibility are
+all false in the policy evidence. The dormant R6 claim contract binds that exact policy,
+the immutable R5 predecessor hashes, one Preview maximum, zero retries,
+fallbacks, redirects, and exchange mutations, and the existing strict
+`100/150/300 USDC` caps. The fixed R6 preflight creates no client, claim, or
+artifact and makes no Coinbase call. Production default readback remains R5.
+No R6 claim, result artifact, credential hydration, or Coinbase call exists;
+running the one-use R6 attempt requires a separate exact authorization.
+
 `Default-profile Futures readback -> exact AVAX US CFM Coinbase Preview Order -> immutable operator-visible no-live preview readback`
 
-## Ordered Sequence — Slice 2 Blocked After R5
+## Ordered Sequence — Slice 2 Blocked At R6 Execution Authorization
 
 Continue implementation and independent audit only in this order. Prospective
 operator authority permits crossing documented no-live acceptance boundaries,

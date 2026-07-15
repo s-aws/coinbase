@@ -6650,6 +6650,33 @@ class AdminFuturesPreviewR4PredecessorBinding(BaseModel):
     original_predecessor_binding: AdminFuturesPreviewR3PredecessorBinding
 
 
+class AdminFuturesPreviewR5PredecessorBinding(BaseModel):
+    """Exact immutable R5 binding plus its complete predecessor chain."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    artifact_name: Literal["futures_exact_no_live_preview_slice_2r5.jsonl"]
+    file_sha256: Literal[
+        "4988e23886d218d25be518203676bec4f27a2199a0ed2e7f36d0d7e1d8e6bbf7"
+    ]
+    evidence_sha256: Literal[
+        "194cdd842944f8a453408051c04ff8e117b6b2b3ab6dcd7b1e78f44f4a5a467f"
+    ]
+    device: Literal["66305"]
+    inode: Literal["41943457"]
+    size_bytes: Literal[11647]
+    mode: Literal["0400"]
+    mtime_ns: Literal["1784111957686383208"]
+    status: Literal["blocked"]
+    outcome: Literal["blocked"]
+    preview_order_attempt_count: Literal[0]
+    exchange_submission_attempt_count: Literal[0]
+    submitted_notional_usdc: Literal["0"]
+    executed_notional_usdc: Literal["0"]
+    preservation: Literal["immutable_no_modify_delete_or_reuse"]
+    original_predecessor_binding: AdminFuturesPreviewR4PredecessorBinding
+
+
 class AdminFuturesPreviewMarginSettingEvidence(BaseModel):
     """Allowlisted, secret-minimized pre-Preview margin-setting evidence."""
 
@@ -7447,6 +7474,73 @@ class AdminFuturesPreviewMarginWindowsPolicyEvidenceV2(BaseModel):
         return self
 
 
+class AdminFuturesPreviewMarginWindowPolicyRowEvidenceV3(BaseModel):
+    """One exact profile/state decision under the operator R6 V3 policy."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    policy_row_index: Literal[0, 1]
+    recognized_profile: Literal[
+        "retail_regular",
+        "retail_intraday_margin_1",
+    ]
+    observed_token: AdminFuturesPreviewDocumentedMarginWindowType | None = None
+    documented_allowlist_match: bool
+    operator_policy_match: bool
+    classification: Literal[
+        "accepted",
+        "documented_but_operator_rejected",
+        "undocumented_or_malformed",
+    ]
+
+    @model_validator(mode="after")
+    def validate_exact_pair_policy_row(self) -> Self:
+        expected_profile, expected_token = {
+            0: ("retail_regular", "MARGIN_WINDOW_TYPE_UNSPECIFIED"),
+            1: ("retail_intraday_margin_1", "MARGIN_WINDOW_TYPE_INTRADAY"),
+        }[self.policy_row_index]
+        if self.classification == "accepted":
+            coherent = (
+                self.observed_token == expected_token
+                and self.documented_allowlist_match is True
+                and self.operator_policy_match is True
+            )
+        elif self.classification == "documented_but_operator_rejected":
+            coherent = (
+                self.observed_token is not None
+                and self.observed_token != expected_token
+                and self.documented_allowlist_match is True
+                and self.operator_policy_match is False
+            )
+        else:
+            coherent = (
+                self.observed_token is None
+                and self.documented_allowlist_match is False
+                and self.operator_policy_match is False
+            )
+        if not coherent or self.recognized_profile != expected_profile:
+            raise ValueError(
+                "futures_preview_margin_window_exact_pair_policy_row_invalid"
+            )
+        return self
+
+
+class AdminFuturesPreviewMarginWindowsPolicyEvidenceV3(
+    AdminFuturesPreviewMarginWindowsPolicyEvidenceV2
+):
+    """Operator-defined exact pair, limited to Slice 2 R6 Preview."""
+
+    schema_version: Literal["3"]
+    policy_id: Literal[
+        "slice2_preview_margin_window_exact_pair_policy_v3"
+    ]
+    pair_policy_mode: Literal["exact_profile_state_pair"]
+    r6_attempt_authority_granted: Literal[False]
+    rows: list[AdminFuturesPreviewMarginWindowPolicyRowEvidenceV3] = Field(
+        max_length=2,
+    )
+
+
 AdminFuturesPreviewStageReasonCode = Literal[
     "futures_preview_remaining_margin_validation_unclassified",
     "futures_preview_candidate_construction_unclassified",
@@ -7589,6 +7683,7 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
         "futures_exact_no_live_preview_slice_2r3",
         "futures_exact_no_live_preview_slice_2r4",
         "futures_exact_no_live_preview_slice_2r5",
+        "futures_exact_no_live_preview_slice_2r6",
     ]
     status: Literal["accepted", "blocked", "unknown"]
     outcome: Literal["accepted", "blocked", "unknown"]
@@ -7598,6 +7693,7 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
         | AdminFuturesPreviewR2PredecessorBinding
         | AdminFuturesPreviewR3PredecessorBinding
         | AdminFuturesPreviewR4PredecessorBinding
+        | AdminFuturesPreviewR5PredecessorBinding
     )
     reserved_at: str
     completed_at: str
@@ -7643,7 +7739,9 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
         pattern=r"^[0-9a-f]{64}$",
     )
     margin_windows_policy_evidence: (
-        AdminFuturesPreviewMarginWindowsPolicyEvidenceV2 | None
+        AdminFuturesPreviewMarginWindowsPolicyEvidenceV2
+        | AdminFuturesPreviewMarginWindowsPolicyEvidenceV3
+        | None
     ) = None
     margin_windows_policy_evidence_sha256: str | None = Field(
         default=None,
@@ -7699,6 +7797,8 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
 
         from application.admin_api.futures_order_preview import (
             _CONSUMED_PREVIEW_IDENTIFIERS,
+            _R6_CONSUMED_PREVIEW_IDENTIFIERS,
+            FUTURES_PREVIEW_R6_MARGIN_WINDOW_POLICY_BINDING,
             _margin_setting_terminal_context,
             _timestamp,
             build_futures_order_preview_candidate,
@@ -7765,8 +7865,18 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
                 and safe_exception_token(suffix.removeprefix(validation_prefix))
             )
 
+        modern_policy_artifact = self.artifact_type in {
+            "futures_exact_no_live_preview_slice_2r5",
+            "futures_exact_no_live_preview_slice_2r6",
+        }
+        consumed_identifiers = (
+            _R6_CONSUMED_PREVIEW_IDENTIFIERS
+            if self.artifact_type
+            == "futures_exact_no_live_preview_slice_2r6"
+            else _CONSUMED_PREVIEW_IDENTIFIERS
+        )
         r5_candidate_observed_at: datetime | None = None
-        if self.artifact_type == "futures_exact_no_live_preview_slice_2r5":
+        if modern_policy_artifact:
             try:
                 parsed_correlation_id = UUID(self.correlation_id)
                 parsed_idempotency_key = UUID(self.idempotency_key)
@@ -7778,8 +7888,8 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
                 or str(parsed_correlation_id) != self.correlation_id
                 or str(parsed_idempotency_key) != self.idempotency_key
                 or self.correlation_id == self.idempotency_key
-                or self.correlation_id in _CONSUMED_PREVIEW_IDENTIFIERS
-                or self.idempotency_key in _CONSUMED_PREVIEW_IDENTIFIERS
+                or self.correlation_id in consumed_identifiers
+                or self.idempotency_key in consumed_identifiers
             ):
                 raise ValueError("futures_preview_r5_identifier_invalid")
             reserved_at = canonical_utc_timestamp(self.reserved_at)
@@ -7796,7 +7906,7 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
                     raise ValueError("futures_preview_r5_timestamp_invalid")
 
         def validate_r5_policy_margin_binding() -> None:
-            if self.artifact_type != "futures_exact_no_live_preview_slice_2r5":
+            if not modern_policy_artifact:
                 return
             policy = self.margin_windows_policy_evidence
             margin = self.margin_collateral_evidence
@@ -7810,6 +7920,20 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
             ):
                 raise ValueError(
                     "futures_preview_margin_windows_policy_binding_invalid"
+                )
+            if (
+                self.artifact_type
+                == "futures_exact_no_live_preview_slice_2r5"
+                and type(policy)
+                is not AdminFuturesPreviewMarginWindowsPolicyEvidenceV2
+            ) or (
+                self.artifact_type
+                == "futures_exact_no_live_preview_slice_2r6"
+                and type(policy)
+                is not AdminFuturesPreviewMarginWindowsPolicyEvidenceV3
+            ):
+                raise ValueError(
+                    "futures_preview_margin_windows_policy_version_invalid"
                 )
             profile_by_name = {
                 "retail_regular": "MARGIN_PROFILE_TYPE_RETAIL_REGULAR",
@@ -7840,6 +7964,22 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
                 raise ValueError(
                     "futures_preview_margin_windows_policy_binding_invalid"
                 )
+            if (
+                self.artifact_type
+                == "futures_exact_no_live_preview_slice_2r6"
+                and policy_tokens
+                != {
+                    "MARGIN_PROFILE_TYPE_RETAIL_REGULAR": (
+                        "MARGIN_WINDOW_TYPE_UNSPECIFIED"
+                    ),
+                    "MARGIN_PROFILE_TYPE_RETAIL_INTRADAY_MARGIN_1": (
+                        "MARGIN_WINDOW_TYPE_INTRADAY"
+                    ),
+                }
+            ):
+                raise ValueError(
+                    "futures_preview_margin_windows_exact_pair_binding_invalid"
+                )
 
         if self.roles != ["trader"]:
             raise ValueError("futures_preview_role_binding_invalid")
@@ -7859,6 +7999,10 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
             self.artifact_type == "futures_exact_no_live_preview_slice_2r5"
             and type(self.predecessor_binding)
             is not AdminFuturesPreviewR4PredecessorBinding
+        ) or (
+            self.artifact_type == "futures_exact_no_live_preview_slice_2r6"
+            and type(self.predecessor_binding)
+            is not AdminFuturesPreviewR5PredecessorBinding
         ):
             raise ValueError("futures_preview_predecessor_generation_invalid")
         expected_zero_mutation_counters = {
@@ -7930,7 +8074,7 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
             raise ValueError(
                 "futures_preview_margin_windows_policy_evidence_hash_invalid"
             )
-        if self.artifact_type == "futures_exact_no_live_preview_slice_2r5":
+        if modern_policy_artifact:
             if self.margin_windows_evidence is not None:
                 raise ValueError(
                     "futures_preview_margin_windows_evidence_generation_invalid"
@@ -8010,8 +8154,7 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
             ):
                 raise ValueError("futures_preview_stage_evidence_invalid")
             if (
-                self.artifact_type
-                == "futures_exact_no_live_preview_slice_2r5"
+                modern_policy_artifact
                 and self.margin_windows_policy_evidence is None
             ):
                 raise ValueError(
@@ -8019,8 +8162,7 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
                 )
             if final_reason == "futures_preview_margin_windows_ambiguous":
                 if (
-                    self.artifact_type
-                    == "futures_exact_no_live_preview_slice_2r5"
+                    modern_policy_artifact
                 ):
                     if (
                         final_stage != "remaining_margin_validation"
@@ -8071,8 +8213,7 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
             elif self.margin_windows_evidence is not None:
                 raise ValueError("futures_preview_margin_windows_evidence_invalid")
             if (
-                self.artifact_type
-                == "futures_exact_no_live_preview_slice_2r5"
+                modern_policy_artifact
                 and final_stage != "remaining_margin_validation"
                 and (
                     self.margin_windows_policy_evidence is None
@@ -8101,6 +8242,7 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
                 "futures_exact_no_live_preview_slice_2r3",
                 "futures_exact_no_live_preview_slice_2r4",
                 "futures_exact_no_live_preview_slice_2r5",
+                "futures_exact_no_live_preview_slice_2r6",
             }
             and self.outcome == "blocked"
             and preview_attempts == 0
@@ -8113,7 +8255,7 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
         ):
             raise ValueError("futures_preview_read_counters_invalid")
         if (
-            self.artifact_type == "futures_exact_no_live_preview_slice_2r5"
+            modern_policy_artifact
             and (
                 (self.margin_windows_policy_evidence is not None)
                 != (self.read_counters.get("futures_margin_collateral") == 1)
@@ -8136,7 +8278,7 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
         if ordered_reads != sorted(ordered_reads, reverse=True):
             raise ValueError("futures_preview_read_counters_invalid")
         if (
-            self.artifact_type == "futures_exact_no_live_preview_slice_2r5"
+            modern_policy_artifact
             and self.live_coinbase_read_ran != any(self.read_counters.values())
         ):
             raise ValueError("futures_preview_r5_read_trace_invalid")
@@ -8230,7 +8372,7 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
             ):
                 raise ValueError("futures_preview_account_evidence_hash_invalid")
         if (
-            self.artifact_type == "futures_exact_no_live_preview_slice_2r5"
+            modern_policy_artifact
             and (self.product_evidence is not None or self.market_evidence is not None)
         ):
             expected_product_keys = {
@@ -8290,7 +8432,7 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
             ):
                 raise ValueError("futures_preview_r5_sanitized_evidence_invalid")
         if (
-            self.artifact_type == "futures_exact_no_live_preview_slice_2r5"
+            modern_policy_artifact
             and self.outcome != "accepted"
         ):
             if any(
@@ -8359,8 +8501,7 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
             ):
                 raise ValueError("futures_preview_attempt_context_incomplete")
             if (
-                self.artifact_type
-                == "futures_exact_no_live_preview_slice_2r5"
+                modern_policy_artifact
                 and (
                     self.margin_windows_policy_evidence is None
                     or self.margin_windows_policy_evidence.classification
@@ -8373,7 +8514,7 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
                     "futures_preview_attempt_margin_windows_policy_invalid"
                 )
             validate_r5_policy_margin_binding()
-            if self.artifact_type == "futures_exact_no_live_preview_slice_2r5":
+            if modern_policy_artifact:
                 candidate_context = self.candidate or {}
                 product_context = self.product_evidence or {}
                 market_context = self.market_evidence or {}
@@ -8581,7 +8722,7 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
         if any(value is None for value in required_accepted):
             raise ValueError("futures_preview_accepted_evidence_incomplete")
         if (
-            self.artifact_type == "futures_exact_no_live_preview_slice_2r5"
+            modern_policy_artifact
             and (
                 self.margin_windows_policy_evidence is None
                 or self.margin_windows_policy_evidence.classification != "ready"
@@ -8705,16 +8846,22 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
         }
         if not isinstance(windows, list) or len(windows) != 2:
             raise ValueError("futures_preview_accepted_margin_evidence_invalid")
-        r5_policy = (
-            self.artifact_type == "futures_exact_no_live_preview_slice_2r5"
-        )
+        r5_policy = modern_policy_artifact
         allowed_window_types = (
-            {
-                "MARGIN_WINDOW_TYPE_OVERNIGHT",
-                "MARGIN_WINDOW_TYPE_WEEKEND",
-                "MARGIN_WINDOW_TYPE_INTRADAY",
-                "MARGIN_WINDOW_TYPE_TRANSITION",
-            }
+            (
+                {
+                    "MARGIN_WINDOW_TYPE_UNSPECIFIED",
+                    "MARGIN_WINDOW_TYPE_INTRADAY",
+                }
+                if self.artifact_type
+                == "futures_exact_no_live_preview_slice_2r6"
+                else {
+                    "MARGIN_WINDOW_TYPE_OVERNIGHT",
+                    "MARGIN_WINDOW_TYPE_WEEKEND",
+                    "MARGIN_WINDOW_TYPE_INTRADAY",
+                    "MARGIN_WINDOW_TYPE_TRANSITION",
+                }
+            )
             if r5_policy
             else {"MARGIN_WINDOW_TYPE_INTRADAY"}
         )
@@ -8882,7 +9029,7 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
             raise ValueError("futures_preview_seal_authoritative_preview_missing")
         if not isinstance(preflight_hashes, dict):
             raise ValueError("futures_preview_seal_preflight_hashes_missing")
-        if self.artifact_type == "futures_exact_no_live_preview_slice_2r5":
+        if modern_policy_artifact:
             if (
                 preflight_hashes.get("margin_windows_policy_evidence")
                 != self.margin_windows_policy_evidence_sha256
@@ -8890,9 +9037,7 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
                 raise ValueError(
                     "futures_preview_seal_margin_windows_policy_binding_invalid"
                 )
-            if (
-                set(plan)
-                != {
+            expected_plan_keys = {
                     "schema_version",
                     "slice_id",
                     "actor_id",
@@ -8914,6 +9059,13 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
                     "canonicalization",
                     "hash_algorithm",
                 }
+            if (
+                self.artifact_type
+                == "futures_exact_no_live_preview_slice_2r6"
+            ):
+                expected_plan_keys.add("margin_window_policy_binding")
+            if (
+                set(plan) != expected_plan_keys
                 or set(authoritative_preview)
                 != {
                     "preview_id",
@@ -8964,6 +9116,17 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
                 or plan.get("canonicalization")
                 != "sorted_keys_compact_utf8_json"
                 or plan.get("hash_algorithm") != "sha256"
+                or (
+                    self.artifact_type
+                    == "futures_exact_no_live_preview_slice_2r5"
+                    and "margin_window_policy_binding" in plan
+                )
+                or (
+                    self.artifact_type
+                    == "futures_exact_no_live_preview_slice_2r6"
+                    and plan.get("margin_window_policy_binding")
+                    != FUTURES_PREVIEW_R6_MARGIN_WINDOW_POLICY_BINDING
+                )
             ):
                 raise ValueError("futures_preview_r5_seal_plan_invalid")
         elif "margin_windows_policy_evidence" in preflight_hashes:

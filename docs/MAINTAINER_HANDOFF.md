@@ -130,6 +130,19 @@ create a separate approval class.
 
 ## Current Handoff State
 
+- Slice 2 is now blocked only at a separate R6 execution authorization. The
+  consumed immutable R5 file/evidence SHA-256 pair remains
+  `4988e23886d218d25be518203676bec4f27a2199a0ed2e7f36d0d7e1d8e6bbf7` /
+  `194cdd842944f8a453408051c04ff8e117b6b2b3ab6dcd7b1e78f44f4a5a467f`.
+  R6 implementation, focused validation, independent audit, generated
+  contract/UI readback, and dormant preflight preparation are complete. V3
+  accepts exactly regular=`MARGIN_WINDOW_TYPE_UNSPECIFIED` plus intraday
+  profile=`MARGIN_WINDOW_TYPE_INTRADAY`, labels that mapping operator-defined,
+  Slice-2-Preview-only, and not Coinbase-documented, and grants no R6 attempt,
+  Create, execution, or later-live authority. Default API/UI readback remains
+  R5. No R6 claim/artifact/client/Coinbase call, marker, ledger, or runtime has
+  been created. Do not invoke `--confirm-one-r6-preview` until the operator
+  approves the prepared exact wording; Slice 3 remains inactive.
 - Current goal id: `futures_exact_no_live_preview_slice_2`.
 - Current slice: Default-profile Futures readback -> exact AVAX US CFM Coinbase
   Preview Order -> immutable operator-visible no-live preview readback. The

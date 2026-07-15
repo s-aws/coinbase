@@ -73,6 +73,7 @@ from application.admin_api.models import (
 from external.coinbase_client import CoinbaseRestClient
 from tools import run_admin_api_futures_no_live_preview as preview_tool
 from tools import run_admin_api_futures_no_live_preview_r5 as r5_preview_tool
+from tools import run_admin_api_futures_no_live_preview_r6 as r6_preview_tool
 
 
 NOW = datetime(2026, 7, 13, 12, 0, tzinfo=timezone.utc)
@@ -1650,6 +1651,302 @@ def test_consumed_r5_terminal_is_physically_bound_before_default_readback():
     assert configured_futures_order_preview_artifact_path() == (
         FUTURES_PREVIEW_R5_ARTIFACT_PATH
     )
+
+
+def test_r6_policy_accepts_only_the_exact_authorized_profile_state_pair():
+    snapshot = FakePreviewRestClient().get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_UNSPECIFIED"
+    snapshot["current_margin_windows"][1]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_INTRADAY"
+
+    context = preview_module.slice2_preview_margin_windows_pair_policy_context(
+        snapshot
+    )
+    evidence = context["margin_windows_policy_evidence"]
+
+    assert evidence["schema_version"] == "3"
+    assert evidence["policy_id"] == (
+        "slice2_preview_margin_window_exact_pair_policy_v3"
+    )
+    assert evidence["pair_policy_mode"] == "exact_profile_state_pair"
+    assert evidence["profile_state_mapping_documented_by_coinbase"] is False
+    assert evidence["r6_attempt_authority_granted"] is False
+    assert evidence["execution_allowed"] is False
+    assert evidence["create_order_eligibility_granted"] is False
+    assert evidence["later_live_eligibility_granted"] is False
+    assert evidence["classification"] == "ready"
+    assert evidence["margin_window_policy_satisfied"] is True
+    assert evidence["rows"] == [
+        {
+            "policy_row_index": 0,
+            "recognized_profile": "retail_regular",
+            "observed_token": "MARGIN_WINDOW_TYPE_UNSPECIFIED",
+            "documented_allowlist_match": True,
+            "operator_policy_match": True,
+            "classification": "accepted",
+        },
+        {
+            "policy_row_index": 1,
+            "recognized_profile": "retail_intraday_margin_1",
+            "observed_token": "MARGIN_WINDOW_TYPE_INTRADAY",
+            "documented_allowlist_match": True,
+            "operator_policy_match": True,
+            "classification": "accepted",
+        },
+    ]
+    assert context["margin_windows_policy_evidence_sha256"] == canonical_sha256(
+        evidence
+    )
+    assert preview_module.validate_slice2_preview_r6_margin_collateral_evidence(
+        snapshot
+    ) == Decimal("250.00")
+
+
+def test_r6_policy_rejects_other_v2_accepted_pairs_without_preview():
+    snapshot = FakePreviewRestClient().get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_OVERNIGHT"
+    snapshot["current_margin_windows"][1]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_INTRADAY"
+
+    assert validate_slice2_preview_margin_collateral_evidence(snapshot) == (
+        Decimal("250.00")
+    )
+    with pytest.raises(
+        ValueError,
+        match="^futures_preview_margin_windows_ambiguous$",
+    ):
+        preview_module.validate_slice2_preview_r6_margin_collateral_evidence(
+            snapshot
+        )
+    evidence = preview_module.slice2_preview_margin_windows_pair_policy_context(
+        snapshot
+    )["margin_windows_policy_evidence"]
+    assert evidence["classification"] == (
+        "margin_window_type_documented_but_operator_rejected"
+    )
+    assert evidence["failing_policy_row_index"] == 0
+    assert evidence["rows"][0]["operator_policy_match"] is False
+
+
+def test_r6_fake_preview_binds_exact_consumed_r5_and_v3_policy(tmp_path: Path):
+    assert preview_module.FUTURES_PREVIEW_R6_ARTIFACT_PATH.name == (
+        "futures_exact_no_live_preview_slice_2r6.jsonl"
+    )
+    assert not preview_module.FUTURES_PREVIEW_R6_ARTIFACT_PATH.exists()
+    rest_client = FakePreviewRestClient()
+    snapshot = rest_client.get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_UNSPECIFIED"
+    rest_client.read_calls.clear()
+    rest_client.get_futures_margin_collateral_snapshot = (  # type: ignore[method-assign]
+        lambda: snapshot
+    )
+    producer, store, _path = _producer(
+        tmp_path,
+        rest_client,
+        artifact_type=preview_module.FUTURES_PREVIEW_R6_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R5_TERMINAL_BINDING,
+    )
+
+    evidence = producer.run()
+
+    assert evidence == store.read_completed()
+    assert evidence["artifact_type"] == (
+        preview_module.FUTURES_PREVIEW_R6_ARTIFACT_TYPE
+    )
+    assert evidence["predecessor_binding"] == (
+        preview_module.FUTURES_PREVIEW_R5_TERMINAL_BINDING
+    )
+    assert evidence["margin_windows_policy_evidence"]["schema_version"] == "3"
+    assert evidence["attempt_counters"]["preview_order"] == 1
+    assert evidence["exchange_submission_attempt_count"] == 0
+    assert evidence["submitted_notional_usdc"] == "0"
+    assert evidence["executed_notional_usdc"] == "0"
+    assert rest_client.forbidden_calls == []
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
+@pytest.mark.parametrize(
+    "token",
+    [
+        "MARGIN_WINDOW_TYPE_OVERNIGHT",
+        "FCM_MARGIN_WINDOW_TYPE_INTRADAY",
+        "MARGIN_WINDOW_TYPE_PRIVATE_UNKNOWN",
+        " malformed ",
+        None,
+        7,
+    ],
+)
+def test_r6_policy_rejects_and_withholds_every_nonexact_regular_token(
+    token: object,
+):
+    snapshot = FakePreviewRestClient().get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = token
+    evidence = preview_module.slice2_preview_margin_windows_pair_policy_context(
+        snapshot
+    )["margin_windows_policy_evidence"]
+
+    assert evidence["classification"] != "ready"
+    assert evidence["margin_window_policy_satisfied"] is False
+    assert evidence["rows"][0]["operator_policy_match"] is False
+    if token == "MARGIN_WINDOW_TYPE_OVERNIGHT":
+        assert evidence["rows"][0]["observed_token"] == token
+        assert evidence["rows"][0]["classification"] == (
+            "documented_but_operator_rejected"
+        )
+    else:
+        assert evidence["rows"][0]["observed_token"] is None
+        assert evidence["rows"][0]["classification"] == (
+            "undocumented_or_malformed"
+        )
+    assert str(token) not in json.dumps(evidence) or token == (
+        "MARGIN_WINDOW_TYPE_OVERNIGHT"
+    )
+
+
+def test_r6_claim_binds_v3_policy_and_rejects_consumed_r5_identifiers(
+    tmp_path: Path,
+):
+    producer, _store, _path = _producer(
+        tmp_path,
+        FakePreviewRestClient(),
+        artifact_type=preview_module.FUTURES_PREVIEW_R6_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R5_TERMINAL_BINDING,
+    )
+    claim = producer.build_claim()
+    preview_module._validate_r6_claim_record(claim)
+    assert claim["margin_window_policy_binding"] == (
+        preview_module.FUTURES_PREVIEW_R6_MARGIN_WINDOW_POLICY_BINDING
+    )
+
+    tampered = deepcopy(claim)
+    tampered["margin_window_policy_binding"]["profile_state_pairs"][0][
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_OVERNIGHT"
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="R6 claim authority",
+    ):
+        preview_module._validate_r6_claim_record(tampered)
+
+    producer.correlation_id_factory = (
+        lambda: "aafa0078-be77-4b41-a2aa-672c8b26ecb3"
+    )
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="identifiers are not fresh",
+    ):
+        producer.build_claim()
+    r5 = FuturesOrderPreviewArtifactStore(
+        FUTURES_PREVIEW_R5_ARTIFACT_PATH
+    ).read_completed()
+    AdminFuturesOrderPreviewResponse.model_validate(r5)
+
+
+def test_r6_unknown_preview_is_consumed_once_without_retry(tmp_path: Path):
+    rest_client = FakePreviewRestClient(preview_error=TimeoutError("PRIVATE"))
+    snapshot = rest_client.get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_UNSPECIFIED"
+    rest_client.read_calls.clear()
+    rest_client.get_futures_margin_collateral_snapshot = (  # type: ignore[method-assign]
+        lambda: snapshot
+    )
+    producer, store, path = _producer(
+        tmp_path,
+        rest_client,
+        artifact_type=preview_module.FUTURES_PREVIEW_R6_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R5_TERMINAL_BINDING,
+    )
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="outcome is unknown; attempt consumed",
+    ):
+        producer.run()
+    evidence = store.read_completed()
+    assert evidence["outcome"] == "unknown"
+    assert evidence["attempt_counters"] == {
+        "preview_order": 1,
+        "retry": 0,
+        "fallback": 0,
+        "create_order": 0,
+        "cancel_order": 0,
+        "close_position": 0,
+        "reduce_position": 0,
+    }
+    assert len(rest_client.preview_calls) == 1
+    assert "PRIVATE" not in path.read_text(encoding="utf-8")
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="already consumed",
+    ):
+        producer.run()
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
+def test_r6_response_rejects_policy_authority_and_seal_binding_tampering(
+    tmp_path: Path,
+):
+    rest_client = FakePreviewRestClient()
+    snapshot = rest_client.get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_UNSPECIFIED"
+    rest_client.get_futures_margin_collateral_snapshot = (  # type: ignore[method-assign]
+        lambda: snapshot
+    )
+    producer, _store, _path = _producer(
+        tmp_path,
+        rest_client,
+        artifact_type=preview_module.FUTURES_PREVIEW_R6_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R5_TERMINAL_BINDING,
+    )
+    evidence = producer.run()
+
+    authority_attack = deepcopy(evidence)
+    authority_attack["margin_windows_policy_evidence"][
+        "r6_attempt_authority_granted"
+    ] = True
+    authority_attack["margin_windows_policy_evidence_sha256"] = canonical_sha256(
+        authority_attack["margin_windows_policy_evidence"]
+    )
+    authority_attack["evidence_sha256"] = canonical_sha256(
+        {
+            key: value
+            for key, value in authority_attack.items()
+            if key != "evidence_sha256"
+        }
+    )
+    with pytest.raises(ValidationError):
+        AdminFuturesOrderPreviewResponse.model_validate(authority_attack)
+
+    seal_attack = deepcopy(evidence)
+    seal_attack["seal_ready_plan"]["margin_window_policy_binding"][
+        "profile_state_pairs"
+    ][0]["margin_window_type"] = "MARGIN_WINDOW_TYPE_OVERNIGHT"
+    seal_attack["seal_ready_plan_sha256"] = canonical_sha256(
+        seal_attack["seal_ready_plan"]
+    )
+    seal_attack["evidence_sha256"] = canonical_sha256(
+        {
+            key: value
+            for key, value in seal_attack.items()
+            if key != "evidence_sha256"
+        }
+    )
+    with pytest.raises(ValidationError, match="r5_seal_plan_invalid"):
+        AdminFuturesOrderPreviewResponse.model_validate(seal_attack)
 
 
 @pytest.mark.parametrize(
@@ -5499,6 +5796,126 @@ def test_r5_tool_confirmation_produces_only_r5_preview_evidence(
     AdminFuturesOrderPreviewResponse.model_validate(evidence)
 
 
+def test_r6_tool_preflight_is_dormant_and_constructs_no_client(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    path = tmp_path / "fixed-r6-preview.jsonl"
+    monkeypatch.setattr(r6_preview_tool, "production_artifact_path", lambda: path)
+    monkeypatch.setattr(
+        r6_preview_tool,
+        "validate_production_predecessor",
+        lambda: dict(preview_module.FUTURES_PREVIEW_R5_TERMINAL_BINDING),
+    )
+    monkeypatch.setattr(
+        r6_preview_tool,
+        "build_rest_client",
+        lambda: (_ for _ in ()).throw(AssertionError("Coinbase client constructed")),
+    )
+
+    assert r6_preview_tool.main(["--preflight"]) == 0
+
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["status"] == "ready"
+    assert summary["predecessor_binding"] == (
+        preview_module.FUTURES_PREVIEW_R5_TERMINAL_BINDING
+    )
+    assert summary["artifact_created"] is False
+    assert summary["coinbase_read_ran"] is False
+    assert not path.exists()
+
+
+def test_r6_confirmed_predecessor_ambiguity_consumes_before_client_or_reads(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    path = tmp_path / "fixed-r6-preview.jsonl"
+    monkeypatch.setattr(r6_preview_tool, "production_artifact_path", lambda: path)
+    monkeypatch.setattr(
+        r6_preview_tool,
+        "validate_production_predecessor",
+        lambda: (_ for _ in ()).throw(
+            FuturesOrderPreviewArtifactError("predecessor ambiguous")
+        ),
+    )
+    monkeypatch.setattr(
+        r6_preview_tool,
+        "build_rest_client",
+        lambda: (_ for _ in ()).throw(
+            AssertionError("Coinbase client constructed before claim")
+        ),
+    )
+
+    assert r6_preview_tool.main(["--confirm-one-r6-preview"]) == 2
+
+    summary = json.loads(capsys.readouterr().err)
+    evidence = FuturesOrderPreviewArtifactStore(path).read_completed()
+    assert summary["status"] == "blocked"
+    assert evidence["artifact_type"] == (
+        preview_module.FUTURES_PREVIEW_R6_ARTIFACT_TYPE
+    )
+    assert evidence["attempt_counters"]["preview_order"] == 0
+    assert all(value == 0 for value in evidence["read_counters"].values())
+    assert evidence["exchange_submission_attempt_count"] == 0
+    assert path.stat().st_mode & 0o777 == 0o400
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
+def test_r6_tool_confirmation_uses_exact_pair_and_only_one_fake_preview(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    path = tmp_path / "fixed-r6-preview.jsonl"
+    rest_client = FakePreviewRestClient()
+    snapshot = rest_client.get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_UNSPECIFIED"
+    rest_client.read_calls.clear()
+    rest_client.get_futures_margin_collateral_snapshot = (  # type: ignore[method-assign]
+        lambda: snapshot
+    )
+    live_book = _book()
+    live_book["pricebooks"][0]["time"] = datetime.now(  # type: ignore[index]
+        timezone.utc
+    ).isoformat()
+    rest_client.get_best_bid_ask = lambda **_kwargs: live_book  # type: ignore[method-assign]
+    monkeypatch.setattr(r6_preview_tool, "production_artifact_path", lambda: path)
+    monkeypatch.setattr(
+        r6_preview_tool,
+        "validate_production_predecessor",
+        lambda: dict(preview_module.FUTURES_PREVIEW_R5_TERMINAL_BINDING),
+    )
+    monkeypatch.setattr(
+        r6_preview_tool,
+        "build_rest_client",
+        lambda: r6_preview_tool.FuturesPreviewOnlyRestClient(rest_client),
+    )
+
+    assert r6_preview_tool.main(["--confirm-one-r6-preview"]) == 0
+
+    summary = json.loads(capsys.readouterr().out)
+    evidence = FuturesOrderPreviewArtifactStore(path).read_completed()
+    assert summary["status"] == "accepted"
+    assert evidence["artifact_type"] == (
+        preview_module.FUTURES_PREVIEW_R6_ARTIFACT_TYPE
+    )
+    assert evidence["predecessor_binding"] == (
+        preview_module.FUTURES_PREVIEW_R5_TERMINAL_BINDING
+    )
+    assert evidence["margin_windows_policy_evidence"]["policy_id"] == (
+        "slice2_preview_margin_window_exact_pair_policy_v3"
+    )
+    assert evidence["attempt_counters"]["preview_order"] == 1
+    assert evidence["exchange_submission_attempt_count"] == 0
+    assert len(rest_client.preview_calls) == 1
+    assert rest_client.forbidden_calls == []
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
 def test_openapi_exposes_typed_read_only_preview_contract():
     schema = create_app().openapi()
     operation = schema["paths"]["/api/v1/futures/order-preview"]["get"]
@@ -5517,6 +5934,7 @@ def test_openapi_exposes_typed_read_only_preview_contract():
         "futures_exact_no_live_preview_slice_2r3",
         "futures_exact_no_live_preview_slice_2r4",
         "futures_exact_no_live_preview_slice_2r5",
+        "futures_exact_no_live_preview_slice_2r6",
     }
     assert "margin_windows_policy_evidence" in response_schema["properties"]
     assert "predecessor_binding" in response_schema["required"]
@@ -5531,6 +5949,7 @@ def test_openapi_exposes_typed_read_only_preview_contract():
         "#/components/schemas/AdminFuturesPreviewR2PredecessorBinding",
         "#/components/schemas/AdminFuturesPreviewR3PredecessorBinding",
         "#/components/schemas/AdminFuturesPreviewR4PredecessorBinding",
+        "#/components/schemas/AdminFuturesPreviewR5PredecessorBinding",
     }
     predecessor_schema = schema["components"]["schemas"][
         "AdminFuturesPreviewPredecessorBinding"
@@ -5588,7 +6007,8 @@ def test_openapi_exposes_typed_read_only_preview_contract():
         if "$ref" in item
     }
     assert policy_refs == {
-        "#/components/schemas/AdminFuturesPreviewMarginWindowsPolicyEvidenceV2"
+        "#/components/schemas/AdminFuturesPreviewMarginWindowsPolicyEvidenceV2",
+        "#/components/schemas/AdminFuturesPreviewMarginWindowsPolicyEvidenceV3",
     }
     stage_row_schema = schema["components"]["schemas"][
         "AdminFuturesPreviewStageEvidenceRow"

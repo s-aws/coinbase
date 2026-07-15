@@ -7,10 +7,12 @@ implicit platform model.
 Current goal id: `futures_exact_no_live_preview_slice_2`. Completed Slice 1
 binds authoritative US CFM account, position, margin, and collateral reads to
 the API-key-permissioned exact Default/DEFAULT portfolio. Slice 2 is blocked at
-distinct R5 integration/Preview authorization after consumed R4. Its offline
-V2 margin-window policy is operator-defined, Preview-only, and grants no R5
-attempt, Create, execution, or later-live eligibility; default operator
-readback remains immutable R4 under the `$100/$150/$300` slice-local scope.
+the distinct R6 execution authorization after consumed R5. R6 preparation is
+complete no-live. Its V3 exact-pair policy accepts only regular=`UNSPECIFIED`
+plus intraday-profile=`INTRADAY`; the mapping is operator-defined,
+Preview-only, and not Coinbase-documented. It grants no R6 attempt, Create,
+execution, or later-live eligibility; default operator readback remains
+immutable R5 under the `$100/$150/$300` slice-local scope.
 Slices 3-5 are ordered terminal roundtrip,
 intentional fill/position readback, and closeout successors whose no-live work
 is prospectively authorized; every live step retains its exact-hash gate.

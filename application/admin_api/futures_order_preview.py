@@ -10,6 +10,7 @@ client.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
+from copy import deepcopy
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 import hashlib
@@ -68,6 +69,11 @@ FUTURES_PREVIEW_R5_ARTIFACT_PATH = (
     Path(__file__).resolve().parents[2]
     / "artifacts"
     / "futures_exact_no_live_preview_slice_2r5.jsonl"
+)
+FUTURES_PREVIEW_R6_ARTIFACT_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "artifacts"
+    / "futures_exact_no_live_preview_slice_2r6.jsonl"
 )
 DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH = FUTURES_PREVIEW_R4_ARTIFACT_PATH
 FUTURES_PREVIEW_R1_FILE_SHA256 = (
@@ -146,6 +152,13 @@ FUTURES_PREVIEW_R5_ARTIFACT_TYPE = (
     "futures_exact_no_live_preview_slice_2r5"
 )
 _R5_ARTIFACT_TYPE = FUTURES_PREVIEW_R5_ARTIFACT_TYPE
+FUTURES_PREVIEW_R6_ARTIFACT_TYPE = (
+    "futures_exact_no_live_preview_slice_2r6"
+)
+_R6_ARTIFACT_TYPE = FUTURES_PREVIEW_R6_ARTIFACT_TYPE
+_SANITIZED_PREVIEW_ARTIFACT_TYPES = frozenset(
+    {_R5_ARTIFACT_TYPE, _R6_ARTIFACT_TYPE}
+)
 _MAX_ARTIFACT_BYTES = 2 * 1024 * 1024
 _NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 FUTURES_PREVIEW_DOCUMENTED_MARGIN_SETTINGS = frozenset(
@@ -196,6 +209,16 @@ FUTURES_PREVIEW_SLICE2_OPERATOR_MARGIN_WINDOW_POLICY = MappingProxyType(
         ),
         "MARGIN_PROFILE_TYPE_RETAIL_INTRADAY_MARGIN_1": (
             _FUTURES_PREVIEW_SLICE2_OPERATOR_ACCEPTED_MARGIN_WINDOW_TYPES
+        ),
+    }
+)
+FUTURES_PREVIEW_SLICE2_R6_OPERATOR_MARGIN_WINDOW_POLICY = MappingProxyType(
+    {
+        "MARGIN_PROFILE_TYPE_RETAIL_REGULAR": frozenset(
+            {"MARGIN_WINDOW_TYPE_UNSPECIFIED"}
+        ),
+        "MARGIN_PROFILE_TYPE_RETAIL_INTRADAY_MARGIN_1": frozenset(
+            {"MARGIN_WINDOW_TYPE_INTRADAY"}
         ),
     }
 )
@@ -342,6 +365,37 @@ _CONSUMED_PREVIEW_IDENTIFIERS = frozenset(
         "77016c90-d1e1-4344-84c7-53b3c2dca70b",
     }
 )
+_R6_CONSUMED_PREVIEW_IDENTIFIERS = _CONSUMED_PREVIEW_IDENTIFIERS | {
+    "aafa0078-be77-4b41-a2aa-672c8b26ecb3",
+    "054682fc-3e55-46f5-8661-868f5f9c32cd",
+}
+FUTURES_PREVIEW_R6_MARGIN_WINDOW_POLICY_BINDING = {
+    "schema_version": "3",
+    "policy_id": "slice2_preview_margin_window_exact_pair_policy_v3",
+    "pair_policy_mode": "exact_profile_state_pair",
+    "profile_state_pairs": [
+        {
+            "policy_row_index": 0,
+            "profile": "MARGIN_PROFILE_TYPE_RETAIL_REGULAR",
+            "margin_window_type": "MARGIN_WINDOW_TYPE_UNSPECIFIED",
+        },
+        {
+            "policy_row_index": 1,
+            "profile": "MARGIN_PROFILE_TYPE_RETAIL_INTRADAY_MARGIN_1",
+            "margin_window_type": "MARGIN_WINDOW_TYPE_INTRADAY",
+        },
+    ],
+    "enum_authority": "official_coinbase_advanced_trade_api_docs",
+    "profile_state_policy_authority": (
+        "operator_defined_slice_2_preview_only_not_coinbase_documented"
+    ),
+    "profile_state_mapping_documented_by_coinbase": False,
+    "eligibility_scope": "slice_2_preview_only",
+    "r6_attempt_authority_granted": False,
+    "execution_allowed": False,
+    "create_order_eligibility_granted": False,
+    "later_live_eligibility_granted": False,
+}
 _SAFE_MARGIN_SETTING_TOKEN = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
 _SAFE_MARGIN_WINDOW_TOKEN = re.compile(r"^[A-Z][A-Z0-9_]{0,95}$")
 _SDK_MARGIN_SETTING_FIELDS = {
@@ -722,6 +776,11 @@ class FuturesOrderPreviewArtifactStore:
             and claim_record.get("artifact_type") == _R5_ARTIFACT_TYPE
         ):
             _validate_r5_claim_record(claim_record)
+        elif (
+            isinstance(claim_record, Mapping)
+            and claim_record.get("artifact_type") == _R6_ARTIFACT_TYPE
+        ):
+            _validate_r6_claim_record(claim_record)
         if not isinstance(claim_record, Mapping) or any(
             record.get(key) != claim_record.get(key)
             for key in (
@@ -1192,6 +1251,7 @@ class FuturesOrderPreviewProducer:
             _ARTIFACT_TYPE,
             _R4_ARTIFACT_TYPE,
             _R5_ARTIFACT_TYPE,
+            _R6_ARTIFACT_TYPE,
         }:
             raise FuturesOrderPreviewArtifactError(
                 "futures Preview artifact generation is invalid"
@@ -1200,6 +1260,7 @@ class FuturesOrderPreviewProducer:
             _ARTIFACT_TYPE: "futures_exact_no_live_preview_slice_2r2.jsonl",
             _R4_ARTIFACT_TYPE: "futures_exact_no_live_preview_slice_2r3.jsonl",
             _R5_ARTIFACT_TYPE: "futures_exact_no_live_preview_slice_2r4.jsonl",
+            _R6_ARTIFACT_TYPE: "futures_exact_no_live_preview_slice_2r5.jsonl",
         }[artifact_type]
         if predecessor_binding.get("artifact_name") != expected_predecessor_name:
             raise FuturesOrderPreviewArtifactError(
@@ -1235,15 +1296,20 @@ class FuturesOrderPreviewProducer:
             raise FuturesOrderPreviewArtifactError(
                 "futures Preview identifiers are not canonical UUIDv4"
             )
+        consumed_identifiers = (
+            _R6_CONSUMED_PREVIEW_IDENTIFIERS
+            if self.artifact_type == _R6_ARTIFACT_TYPE
+            else _CONSUMED_PREVIEW_IDENTIFIERS
+        )
         if (
-            correlation_id in _CONSUMED_PREVIEW_IDENTIFIERS
-            or idempotency_key in _CONSUMED_PREVIEW_IDENTIFIERS
+            correlation_id in consumed_identifiers
+            or idempotency_key in consumed_identifiers
             or correlation_id == idempotency_key
         ):
             raise FuturesOrderPreviewArtifactError(
                 "futures Preview identifiers are not fresh"
             )
-        return {
+        claim = {
             "artifact_type": self.artifact_type,
             "claim_status": "reserved",
             "predecessor_binding": dict(self.predecessor_binding),
@@ -1284,11 +1350,16 @@ class FuturesOrderPreviewProducer:
             "ledger_created": False,
             "runtime_created": False,
         }
+        if self.artifact_type == _R6_ARTIFACT_TYPE:
+            claim["margin_window_policy_binding"] = deepcopy(
+                FUTURES_PREVIEW_R6_MARGIN_WINDOW_POLICY_BINDING
+            )
+        return claim
 
     def run(self) -> dict[str, Any]:
         """Reserve once, preflight, and make at most one Preview call."""
 
-        if self.artifact_type == _R5_ARTIFACT_TYPE:
+        if self.artifact_type in _SANITIZED_PREVIEW_ARTIFACT_TYPES:
             claim = self.build_claim()
             claim_sha256 = self.store.reserve(claim)
         else:
@@ -1304,7 +1375,7 @@ class FuturesOrderPreviewProducer:
         terminal_context: dict[str, Any] = {}
         passed_pre_preview_stages: list[str] = []
         try:
-            if self.artifact_type == _R5_ARTIFACT_TYPE:
+            if self.artifact_type in _SANITIZED_PREVIEW_ARTIFACT_TYPES:
                 try:
                     observed_predecessor = dict(self.predecessor_validator())
                 except FuturesOrderPreviewArtifactError as exc:
@@ -1372,12 +1443,24 @@ class FuturesOrderPreviewProducer:
                             margin_collateral
                         )
                     )
+                elif self.artifact_type == _R6_ARTIFACT_TYPE:
+                    terminal_context.update(
+                        slice2_preview_margin_windows_pair_policy_context(
+                            margin_collateral
+                        )
+                    )
                 terminal_context.update(
                     _margin_setting_terminal_context(margin_collateral)
                 )
                 if self.artifact_type == _R5_ARTIFACT_TYPE:
                     available_margin = (
                         validate_slice2_preview_margin_collateral_evidence(
+                            margin_collateral
+                        )
+                    )
+                elif self.artifact_type == _R6_ARTIFACT_TYPE:
+                    available_margin = (
+                        validate_slice2_preview_r6_margin_collateral_evidence(
                             margin_collateral
                         )
                     )
@@ -1397,15 +1480,16 @@ class FuturesOrderPreviewProducer:
                         _margin_windows_terminal_context(margin_collateral)
                     )
                 elif (
-                    self.artifact_type == _R5_ARTIFACT_TYPE
+                    self.artifact_type in _SANITIZED_PREVIEW_ARTIFACT_TYPES
                     and "margin_windows_policy_evidence"
                     not in terminal_context
                 ):
-                    terminal_context.update(
-                        slice2_preview_margin_windows_policy_context(
-                            margin_collateral
-                        )
+                    policy_context = (
+                        slice2_preview_margin_windows_pair_policy_context
+                        if self.artifact_type == _R6_ARTIFACT_TYPE
+                        else slice2_preview_margin_windows_policy_context
                     )
+                    terminal_context.update(policy_context(margin_collateral))
                 terminal_context.update(
                     _pre_preview_stage_failure_context(
                         passed_stages=passed_pre_preview_stages,
@@ -1561,7 +1645,7 @@ class FuturesOrderPreviewProducer:
             return self.store.read_completed()
         except Exception as exc:
             if isinstance(exc, FuturesOrderPreviewArtifactError):
-                if self.artifact_type != _R5_ARTIFACT_TYPE:
+                if self.artifact_type not in _SANITIZED_PREVIEW_ARTIFACT_TYPES:
                     raise
                 try:
                     self.store.read_completed()
@@ -1582,7 +1666,7 @@ class FuturesOrderPreviewProducer:
                 and transition_blocker not in blocker
             ):
                 blocker = f"{blocker};{transition_blocker}"
-            if self.artifact_type == _R5_ARTIFACT_TYPE:
+            if self.artifact_type in _SANITIZED_PREVIEW_ARTIFACT_TYPES:
                 terminal_context.pop("preview_response", None)
                 terminal_context.pop("preview_response_sha256", None)
             result = _terminal_failure_record(
@@ -1869,6 +1953,14 @@ def validate_slice2_preview_margin_collateral_evidence(value: Any) -> Decimal:
     return _validate_margin_collateral_evidence(value, policy_version="v2")
 
 
+def validate_slice2_preview_r6_margin_collateral_evidence(
+    value: Any,
+) -> Decimal:
+    """Validate R6 margin evidence under the exact-pair Preview-only policy."""
+
+    return _validate_margin_collateral_evidence(value, policy_version="v3")
+
+
 def _validate_margin_collateral_evidence(
     value: Any,
     *,
@@ -1876,7 +1968,7 @@ def _validate_margin_collateral_evidence(
 ) -> Decimal:
     """Apply common US CFM risk gates with one explicit window policy."""
 
-    if policy_version not in {"v1", "v2"}:
+    if policy_version not in {"v1", "v2", "v3"}:
         raise ValueError("futures_preview_margin_window_policy_invalid")
 
     evidence = _mapping(value)
@@ -1937,9 +2029,19 @@ def _validate_margin_collateral_evidence(
             != "expected_profile_set_incomplete"
         ):
             raise ValueError("futures_preview_margin_windows_ambiguous")
-    else:
+    elif policy_version == "v2":
         margin_windows_diagnostic = (
             _classify_slice2_preview_margin_windows_policy(evidence)
+        )
+        failing_row_index = None
+        if not margin_windows_diagnostic["margin_window_policy_satisfied"]:
+            raise ValueError("futures_preview_margin_windows_ambiguous")
+    else:
+        margin_windows_diagnostic = (
+            _classify_slice2_preview_margin_windows_policy(
+                evidence,
+                policy_version="v3",
+            )
         )
         failing_row_index = None
         if not margin_windows_diagnostic["margin_window_policy_satisfied"]:
@@ -2077,12 +2179,12 @@ def _accepted_evidence(
     sanitized_margin = _sanitized_margin_collateral_evidence(margin_collateral)
     product_evidence = (
         _sanitized_product_evidence(product)
-        if claim["artifact_type"] == _R5_ARTIFACT_TYPE
+        if claim["artifact_type"] in _SANITIZED_PREVIEW_ARTIFACT_TYPES
         else _plain(product)
     )
     market_evidence = (
         _sanitized_market_evidence(book)
-        if claim["artifact_type"] == _R5_ARTIFACT_TYPE
+        if claim["artifact_type"] in _SANITIZED_PREVIEW_ARTIFACT_TYPES
         else _plain(book)
     )
     evidence: dict[str, Any] = {
@@ -2147,6 +2249,12 @@ def _accepted_evidence(
     if claim["artifact_type"] == _R5_ARTIFACT_TYPE:
         evidence.update(
             slice2_preview_margin_windows_policy_context(margin_collateral)
+        )
+    elif claim["artifact_type"] == _R6_ARTIFACT_TYPE:
+        evidence.update(
+            slice2_preview_margin_windows_pair_policy_context(
+                margin_collateral
+            )
         )
     evidence["evidence_sha256"] = canonical_sha256(evidence)
     return evidence
@@ -2246,12 +2354,12 @@ def _terminal_attempt_context(
     sanitized_margin = _sanitized_margin_collateral_evidence(margin_collateral)
     product_evidence = (
         _sanitized_product_evidence(product)
-        if artifact_type == _R5_ARTIFACT_TYPE
+        if artifact_type in _SANITIZED_PREVIEW_ARTIFACT_TYPES
         else _plain(product)
     )
     market_evidence = (
         _sanitized_market_evidence(book)
-        if artifact_type == _R5_ARTIFACT_TYPE
+        if artifact_type in _SANITIZED_PREVIEW_ARTIFACT_TYPES
         else _plain(book)
     )
     context = {
@@ -2278,6 +2386,12 @@ def _terminal_attempt_context(
     if artifact_type == _R5_ARTIFACT_TYPE:
         context.update(
             slice2_preview_margin_windows_policy_context(margin_collateral)
+        )
+    elif artifact_type == _R6_ARTIFACT_TYPE:
+        context.update(
+            slice2_preview_margin_windows_pair_policy_context(
+                margin_collateral
+            )
         )
     return context
 
@@ -2770,10 +2884,40 @@ def slice2_preview_margin_windows_policy_context(
     }
 
 
-def _classify_slice2_preview_margin_windows_policy(
+def slice2_preview_margin_windows_pair_policy_context(
     margin_collateral: Any,
 ) -> dict[str, Any]:
-    """Evaluate the operator's exact two-profile Preview-only V2 policy."""
+    """Return the sanitized, non-authorizing exact-pair R6 decision."""
+
+    evidence = _classify_slice2_preview_margin_windows_policy(
+        margin_collateral,
+        policy_version="v3",
+    )
+    return {
+        "margin_windows_policy_evidence": evidence,
+        "margin_windows_policy_evidence_sha256": canonical_sha256(evidence),
+    }
+
+
+def _classify_slice2_preview_margin_windows_policy(
+    margin_collateral: Any,
+    *,
+    policy_version: str = "v2",
+) -> dict[str, Any]:
+    """Evaluate one versioned two-profile Preview-only operator policy."""
+
+    if policy_version == "v2":
+        operator_policy = FUTURES_PREVIEW_SLICE2_OPERATOR_MARGIN_WINDOW_POLICY
+        schema_version = "2"
+        policy_id = "slice2_preview_margin_window_profile_state_policy_v2"
+    elif policy_version == "v3":
+        operator_policy = (
+            FUTURES_PREVIEW_SLICE2_R6_OPERATOR_MARGIN_WINDOW_POLICY
+        )
+        schema_version = "3"
+        policy_id = "slice2_preview_margin_window_exact_pair_policy_v3"
+    else:
+        raise ValueError("futures_preview_margin_window_policy_invalid")
 
     snapshot = (
         dict(margin_collateral)
@@ -2800,11 +2944,18 @@ def _classify_slice2_preview_margin_windows_policy(
         failing_value_type: str | None,
         include_rows: bool = False,
     ) -> dict[str, Any]:
+        authority_fields = (
+            {
+                "pair_policy_mode": "exact_profile_state_pair",
+                "r5_attempt_authority_granted": False,
+                "r6_attempt_authority_granted": False,
+            }
+            if policy_version == "v3"
+            else {"r5_attempt_authority_granted": False}
+        )
         return {
-            "schema_version": "2",
-            "policy_id": (
-                "slice2_preview_margin_window_profile_state_policy_v2"
-            ),
+            "schema_version": schema_version,
+            "policy_id": policy_id,
             "source": "backend_rest_client.get_current_margin_window",
             "stage": "margin_collateral_validation",
             "field_path": "current_margin_windows",
@@ -2816,7 +2967,7 @@ def _classify_slice2_preview_margin_windows_policy(
             ),
             "profile_state_mapping_documented_by_coinbase": False,
             "eligibility_scope": "slice_2_preview_only",
-            "r5_attempt_authority_granted": False,
+            **authority_fields,
             "execution_allowed": False,
             "create_order_eligibility_granted": False,
             "later_live_eligibility_granted": False,
@@ -2905,7 +3056,7 @@ def _classify_slice2_preview_margin_windows_policy(
             or _SAFE_MARGIN_WINDOW_TOKEN.fullmatch(profile) is None
         ):
             profile_classification = "profile_malformed_string"
-        elif profile not in FUTURES_PREVIEW_SLICE2_OPERATOR_MARGIN_WINDOW_POLICY:
+        elif profile not in operator_policy:
             profile_classification = "profile_unrecognized_enum_token"
         else:
             profile_classification = "ready"
@@ -2995,7 +3146,7 @@ def _classify_slice2_preview_margin_windows_policy(
         operator_policy_match = (
             token_is_documented
             and token
-            in FUTURES_PREVIEW_SLICE2_OPERATOR_MARGIN_WINDOW_POLICY[profile]
+            in operator_policy[profile]
         )
         observed_token = token if token_is_documented else None
         if not token_present:
@@ -3041,7 +3192,7 @@ def _classify_slice2_preview_margin_windows_policy(
             )
 
     if observed_profiles != set(
-        FUTURES_PREVIEW_SLICE2_OPERATOR_MARGIN_WINDOW_POLICY
+        operator_policy
     ):
         return result(
             row_count_bucket=row_count_bucket,
@@ -3143,32 +3294,32 @@ def _seal_ready_plan(
     sanitized_margin = _sanitized_margin_collateral_evidence(margin_collateral)
     product_hash_source = (
         _sanitized_product_evidence(product)
-        if claim["artifact_type"] == _R5_ARTIFACT_TYPE
+        if claim["artifact_type"] in _SANITIZED_PREVIEW_ARTIFACT_TYPES
         else product
     )
     market_hash_source = (
         _sanitized_market_evidence(book)
-        if claim["artifact_type"] == _R5_ARTIFACT_TYPE
+        if claim["artifact_type"] in _SANITIZED_PREVIEW_ARTIFACT_TYPES
         else book
     )
     permission_hash_source = (
         _sanitized_permission_evidence(binding)
-        if claim["artifact_type"] == _R5_ARTIFACT_TYPE
+        if claim["artifact_type"] in _SANITIZED_PREVIEW_ARTIFACT_TYPES
         else permissions
     )
     portfolio_hash_source = (
         _sanitized_portfolio_catalog_evidence(binding)
-        if claim["artifact_type"] == _R5_ARTIFACT_TYPE
+        if claim["artifact_type"] in _SANITIZED_PREVIEW_ARTIFACT_TYPES
         else portfolios
     )
     position_hash_source = (
         _sanitized_position_evidence(positions)
-        if claim["artifact_type"] == _R5_ARTIFACT_TYPE
+        if claim["artifact_type"] in _SANITIZED_PREVIEW_ARTIFACT_TYPES
         else positions
     )
     margin_hash_source = (
         sanitized_margin
-        if claim["artifact_type"] == _R5_ARTIFACT_TYPE
+        if claim["artifact_type"] in _SANITIZED_PREVIEW_ARTIFACT_TYPES
         else margin_collateral
     )
     liquidation_source = str(preview_response["liquidation_evidence_source"])
@@ -3260,6 +3411,16 @@ def _seal_ready_plan(
         plan["preflight_evidence_hashes"][
             "margin_windows_policy_evidence"
         ] = policy_context["margin_windows_policy_evidence_sha256"]
+    elif claim["artifact_type"] == _R6_ARTIFACT_TYPE:
+        policy_context = slice2_preview_margin_windows_pair_policy_context(
+            margin_collateral
+        )
+        plan["preflight_evidence_hashes"][
+            "margin_windows_policy_evidence"
+        ] = policy_context["margin_windows_policy_evidence_sha256"]
+        plan["margin_window_policy_binding"] = deepcopy(
+            claim["margin_window_policy_binding"]
+        )
     return plan
 
 
@@ -3392,6 +3553,129 @@ def _validate_r5_claim_record(claim: Mapping[str, Any]) -> None:
     ):
         raise FuturesOrderPreviewArtifactError(
             "futures Preview R5 claim authority is invalid"
+        )
+
+
+def _validate_r6_claim_record(claim: Mapping[str, Any]) -> None:
+    """Reject scope, ancestry, policy, or identifier drift in an R6 claim."""
+
+    correlation_id = claim.get("correlation_id")
+    idempotency_key = claim.get("idempotency_key")
+    try:
+        parsed_correlation_id = UUID(correlation_id)
+        parsed_idempotency_key = UUID(idempotency_key)
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R6 claim identifier is invalid"
+        ) from exc
+    if (
+        parsed_correlation_id.version != 4
+        or parsed_idempotency_key.version != 4
+        or str(parsed_correlation_id) != correlation_id
+        or str(parsed_idempotency_key) != idempotency_key
+        or correlation_id == idempotency_key
+        or correlation_id in _R6_CONSUMED_PREVIEW_IDENTIFIERS
+        or idempotency_key in _R6_CONSUMED_PREVIEW_IDENTIFIERS
+    ):
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R6 claim identifier is invalid"
+        )
+    reserved_at = claim.get("reserved_at")
+    try:
+        parsed_reserved_at = datetime.fromisoformat(
+            str(reserved_at).replace("Z", "+00:00")
+        )
+    except ValueError as exc:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R6 claim timestamp is invalid"
+        ) from exc
+    if (
+        not isinstance(reserved_at, str)
+        or parsed_reserved_at.tzinfo is None
+        or _timestamp(parsed_reserved_at) != reserved_at
+    ):
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R6 claim timestamp is invalid"
+        )
+
+    expected_keys = {
+        "artifact_type",
+        "claim_status",
+        "predecessor_binding",
+        "reserved_at",
+        "actor_id",
+        "roles",
+        "correlation_id",
+        "idempotency_key",
+        "profile_label",
+        "portfolio_type",
+        "product_id",
+        "contract_count",
+        "caps",
+        "allowed_coinbase_methods",
+        "preview_order_attempt_max",
+        "retry_attempt_max",
+        "fallback_attempt_max",
+        "create_order_attempt_max",
+        "cancel_order_attempt_max",
+        "close_position_attempt_max",
+        "reduce_position_attempt_max",
+        "marker_created",
+        "ledger_created",
+        "runtime_created",
+        "margin_window_policy_binding",
+    }
+    if (
+        set(claim) != expected_keys
+        or claim.get("artifact_type") != _R6_ARTIFACT_TYPE
+        or claim.get("claim_status") != "reserved"
+        or claim.get("predecessor_binding")
+        != FUTURES_PREVIEW_R5_TERMINAL_BINDING
+        or claim.get("margin_window_policy_binding")
+        != FUTURES_PREVIEW_R6_MARGIN_WINDOW_POLICY_BINDING
+        or claim.get("actor_id") != FUTURES_PREVIEW_ACTOR_ID
+        or claim.get("roles") != [FUTURES_PREVIEW_ROLE]
+        or claim.get("profile_label") != "Default"
+        or claim.get("portfolio_type") != "DEFAULT"
+        or claim.get("product_id") != FUTURES_PREVIEW_PRODUCT_ID
+        or claim.get("contract_count") != "1"
+        or claim.get("caps")
+        != {
+            "opening_reference_notional_usdc": "100",
+            "concurrent_exposure_usdc": "150",
+            "buffered_close_reference_notional_usdc": "150",
+            "branch_turnover_reference_notional_usdc": "300",
+            "close_buffer_multiplier": "1.20",
+            "comparison": "strictly_less_than",
+        }
+        or claim.get("allowed_coinbase_methods")
+        != [
+            "get_api_key_permissions",
+            "list_portfolios",
+            "get_product_dict",
+            "get_best_bid_ask",
+            "get_futures_positions",
+            "get_futures_margin_collateral_snapshot",
+            "preview_order",
+        ]
+        or claim.get("preview_order_attempt_max") != 1
+        or any(
+            claim.get(key) != expected
+            for key, expected in {
+                "retry_attempt_max": 0,
+                "fallback_attempt_max": 0,
+                "create_order_attempt_max": 0,
+                "cancel_order_attempt_max": 0,
+                "close_position_attempt_max": 0,
+                "reduce_position_attempt_max": 0,
+                "marker_created": False,
+                "ledger_created": False,
+                "runtime_created": False,
+            }.items()
+        )
+    ):
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R6 claim authority is invalid"
         )
 
 
