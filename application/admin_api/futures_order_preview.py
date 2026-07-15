@@ -58,6 +58,12 @@ DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH = (
     / "artifacts"
     / "futures_exact_no_live_preview_slice_2r3.jsonl"
 )
+FUTURES_PREVIEW_R3_ARTIFACT_PATH = DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH
+FUTURES_PREVIEW_R4_ARTIFACT_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "artifacts"
+    / "futures_exact_no_live_preview_slice_2r4.jsonl"
+)
 FUTURES_PREVIEW_R1_FILE_SHA256 = (
     "55c09c6d4819f2d03dd679ae4c952e203cf540d1a141e13035459821f1b680d7"
 )
@@ -80,6 +86,17 @@ FUTURES_PREVIEW_PREDECESSOR_INODE = 42312480
 FUTURES_PREVIEW_PREDECESSOR_SIZE = 6002
 FUTURES_PREVIEW_PREDECESSOR_MODE = 0o400
 FUTURES_PREVIEW_PREDECESSOR_MTIME_NS = 1783991637010957407
+FUTURES_PREVIEW_R3_FILE_SHA256 = (
+    "7ccd5411878842f883b78a99a4103b9b7b1f9aa000ebdde29cdecf2ac894b61c"
+)
+FUTURES_PREVIEW_R3_EVIDENCE_SHA256 = (
+    "e79beb3d9f1324cf8f90ba78cd45869fec5b7963afe3745bd6e26617313718e8"
+)
+FUTURES_PREVIEW_R3_DEVICE = 66305
+FUTURES_PREVIEW_R3_INODE = 42312497
+FUTURES_PREVIEW_R3_SIZE = 7616
+FUTURES_PREVIEW_R3_MODE = 0o400
+FUTURES_PREVIEW_R3_MTIME_NS = 1784054457360155278
 FUTURES_PREVIEW_ORIGINAL_FILE_SHA256 = (
     "9b15da86c172eca46d4b3dc0fc2b81e9b325df9a1e2f75fef79362f538e2d5ff"
 )
@@ -93,6 +110,7 @@ FUTURES_PREVIEW_ORIGINAL_MODE = 0o400
 FUTURES_PREVIEW_ORIGINAL_MTIME_NS = 1783968539951853688
 _SCHEMA_VERSION = "1"
 _ARTIFACT_TYPE = "futures_exact_no_live_preview_slice_2r3"
+_R4_ARTIFACT_TYPE = "futures_exact_no_live_preview_slice_2r4"
 _MAX_ARTIFACT_BYTES = 2 * 1024 * 1024
 _NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 FUTURES_PREVIEW_DOCUMENTED_MARGIN_SETTINGS = frozenset(
@@ -119,6 +137,12 @@ FUTURES_PREVIEW_OPERATIONAL_FCM_MARGIN_WINDOW_TYPES = frozenset(
 FUTURES_PREVIEW_OPERATIONAL_CURRENT_MARGIN_WINDOW_TYPES = frozenset(
     {"MARGIN_WINDOW_TYPE_INTRADAY"}
 )
+FUTURES_PREVIEW_EXPECTED_MARGIN_PROFILES = {
+    "MARGIN_PROFILE_TYPE_RETAIL_REGULAR": "retail_regular",
+    "MARGIN_PROFILE_TYPE_RETAIL_INTRADAY_MARGIN_1": (
+        "retail_intraday_margin_1"
+    ),
+}
 FUTURES_PREVIEW_EXPECTED_MARGIN_SOURCE_READS = {
     "get_futures_balance_summary": 1,
     "get_intraday_margin_setting": 1,
@@ -180,6 +204,24 @@ FUTURES_PREVIEW_PREDECESSOR_BINDING = {
     "preservation": "immutable_no_modify_delete_or_reuse",
     "original_predecessor_binding": FUTURES_PREVIEW_R1_PREDECESSOR_BINDING,
 }
+FUTURES_PREVIEW_R3_PREDECESSOR_BINDING = {
+    "artifact_name": "futures_exact_no_live_preview_slice_2r3.jsonl",
+    "file_sha256": FUTURES_PREVIEW_R3_FILE_SHA256,
+    "evidence_sha256": FUTURES_PREVIEW_R3_EVIDENCE_SHA256,
+    "device": str(FUTURES_PREVIEW_R3_DEVICE),
+    "inode": str(FUTURES_PREVIEW_R3_INODE),
+    "size_bytes": FUTURES_PREVIEW_R3_SIZE,
+    "mode": f"{FUTURES_PREVIEW_R3_MODE:04o}",
+    "mtime_ns": str(FUTURES_PREVIEW_R3_MTIME_NS),
+    "status": "blocked",
+    "outcome": "blocked",
+    "preview_order_attempt_count": 0,
+    "exchange_submission_attempt_count": 0,
+    "submitted_notional_usdc": "0",
+    "executed_notional_usdc": "0",
+    "preservation": "immutable_no_modify_delete_or_reuse",
+    "original_predecessor_binding": FUTURES_PREVIEW_PREDECESSOR_BINDING,
+}
 _CONSUMED_PREVIEW_IDENTIFIERS = frozenset(
     {
         "9c26aed6-fce5-470b-b57e-b89423ecc0ed",
@@ -191,6 +233,7 @@ _CONSUMED_PREVIEW_IDENTIFIERS = frozenset(
     }
 )
 _SAFE_MARGIN_SETTING_TOKEN = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
+_SAFE_MARGIN_WINDOW_TOKEN = re.compile(r"^[A-Z][A-Z0-9_]{0,95}$")
 _SDK_MARGIN_SETTING_FIELDS = {
     "setting",
     "rate_limit_remaining",
@@ -306,6 +349,8 @@ _TERMINAL_FAILURE_CONTEXT_ALLOWED_KEYS = frozenset(
         "margin_collateral_evidence_sha256",
         "margin_setting_evidence",
         "margin_setting_evidence_sha256",
+        "margin_windows_evidence",
+        "margin_windows_evidence_sha256",
         "candidate",
         "candidate_sha256",
         "preview_request",
@@ -894,6 +939,30 @@ def validate_production_futures_order_preview_predecessor() -> dict[str, Any]:
     return r2_binding
 
 
+def validate_production_futures_order_preview_r3_predecessor() -> dict[str, Any]:
+    """Validate immutable R3 plus its complete R2/R1/original chain."""
+
+    r2_binding = validate_production_futures_order_preview_predecessor()
+    r3_binding = validate_futures_order_preview_predecessor(
+        FUTURES_PREVIEW_R3_ARTIFACT_PATH,
+        expected_file_sha256=FUTURES_PREVIEW_R3_FILE_SHA256,
+        expected_evidence_sha256=FUTURES_PREVIEW_R3_EVIDENCE_SHA256,
+        expected_device=FUTURES_PREVIEW_R3_DEVICE,
+        expected_inode=FUTURES_PREVIEW_R3_INODE,
+        expected_size=FUTURES_PREVIEW_R3_SIZE,
+        expected_mode=FUTURES_PREVIEW_R3_MODE,
+        expected_mtime_ns=FUTURES_PREVIEW_R3_MTIME_NS,
+        expected_artifact_type=_ARTIFACT_TYPE,
+        expected_blocker="preflight_or_preview_stage_blocked",
+        expected_predecessor_binding=r2_binding,
+    )
+    if r3_binding != FUTURES_PREVIEW_R3_PREDECESSOR_BINDING:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R3 predecessor binding changed"
+        )
+    return r3_binding
+
+
 class FuturesOrderPreviewProducer:
     """Consume one fixed authorization to produce Preview-only evidence."""
 
@@ -904,12 +973,27 @@ class FuturesOrderPreviewProducer:
         store: FuturesOrderPreviewArtifactStore,
         predecessor_binding: Mapping[str, Any],
         predecessor_validator: Callable[[], Mapping[str, Any]],
+        artifact_type: str = _ARTIFACT_TYPE,
         now: Callable[[], datetime] | None = None,
         correlation_id_factory: Callable[[], str] | None = None,
         idempotency_key_factory: Callable[[], str] | None = None,
     ) -> None:
+        if artifact_type not in {_ARTIFACT_TYPE, _R4_ARTIFACT_TYPE}:
+            raise FuturesOrderPreviewArtifactError(
+                "futures Preview artifact generation is invalid"
+            )
+        expected_predecessor_name = (
+            "futures_exact_no_live_preview_slice_2r2.jsonl"
+            if artifact_type == _ARTIFACT_TYPE
+            else "futures_exact_no_live_preview_slice_2r3.jsonl"
+        )
+        if predecessor_binding.get("artifact_name") != expected_predecessor_name:
+            raise FuturesOrderPreviewArtifactError(
+                "futures Preview predecessor generation is invalid"
+            )
         self.rest_client = rest_client
         self.store = store
+        self.artifact_type = artifact_type
         self.predecessor_binding = dict(predecessor_binding)
         self.predecessor_validator = predecessor_validator
         self.now = now or (lambda: datetime.now(timezone.utc))
@@ -927,10 +1011,10 @@ class FuturesOrderPreviewProducer:
             or correlation_id == idempotency_key
         ):
             raise FuturesOrderPreviewArtifactError(
-                "futures Preview R3 identifiers are not fresh"
+                "futures Preview identifiers are not fresh"
             )
         return {
-            "artifact_type": _ARTIFACT_TYPE,
+            "artifact_type": self.artifact_type,
             "claim_status": "reserved",
             "predecessor_binding": dict(self.predecessor_binding),
             "reserved_at": _timestamp(self.now()),
@@ -1029,10 +1113,12 @@ class FuturesOrderPreviewProducer:
             read_counters["futures_positions"] = 1
             positions = _plain(self.rest_client.get_futures_positions())
             read_counters["futures_margin_collateral"] = 1
+            margin_collateral_observed = False
             try:
                 margin_collateral = _plain(
                     self.rest_client.get_futures_margin_collateral_snapshot()
                 )
+                margin_collateral_observed = True
                 terminal_context.update(
                     _margin_setting_terminal_context(margin_collateral)
                 )
@@ -1040,6 +1126,16 @@ class FuturesOrderPreviewProducer:
                     margin_collateral
                 )
             except Exception as exc:
+                if (
+                    self.artifact_type == _R4_ARTIFACT_TYPE
+                    and margin_collateral_observed
+                    and type(exc) is ValueError
+                    and exc.args
+                    == ("futures_preview_margin_windows_ambiguous",)
+                ):
+                    terminal_context.update(
+                        _margin_windows_terminal_context(margin_collateral)
+                    )
                 terminal_context.update(
                     _pre_preview_stage_failure_context(
                         passed_stages=passed_pre_preview_stages,
@@ -1493,27 +1589,20 @@ def validate_margin_collateral_evidence(value: Any) -> Decimal:
         raise ValueError("futures_preview_margin_setting_ambiguous")
     if setting not in FUTURES_PREVIEW_OPERATIONAL_MARGIN_SETTINGS:
         raise ValueError("futures_preview_margin_setting_unspecified")
-    windows = evidence.get("current_margin_windows")
-    if not isinstance(windows, list) or len(windows) != 2:
+    margin_windows_diagnostic = _classify_margin_windows(evidence)
+    failing_row_index = margin_windows_diagnostic["failing_row_index"]
+    if (
+        margin_windows_diagnostic["classification"] != "ready"
+        and failing_row_index is None
+        and margin_windows_diagnostic["classification"]
+        != "expected_profile_set_incomplete"
+    ):
         raise ValueError("futures_preview_margin_windows_ambiguous")
-    expected_profiles = {
-        "MARGIN_PROFILE_TYPE_RETAIL_REGULAR",
-        "MARGIN_PROFILE_TYPE_RETAIL_INTRADAY_MARGIN_1",
-    }
-    observed_profiles: set[str] = set()
-    for item in windows:
-        window = _mapping(item)
-        profile = str(window.get("profile") or "")
-        window_evidence = _mapping(window.get("margin_window"))
-        window_type = window_evidence.get("margin_window_type")
-        if (
-            profile not in expected_profiles
-            or profile in observed_profiles
-            or window.get("status") != "ready"
-            or window_type
-            not in FUTURES_PREVIEW_OPERATIONAL_CURRENT_MARGIN_WINDOW_TYPES
-        ):
+    windows = evidence.get("current_margin_windows", [])
+    for index, item in enumerate(windows):
+        if failing_row_index == index:
             raise ValueError("futures_preview_margin_windows_ambiguous")
+        window = _mapping(item)
         for killswitch_field in (
             "is_intraday_margin_killswitch_enabled",
             "is_intraday_margin_enrollment_killswitch_enabled",
@@ -1523,8 +1612,7 @@ def validate_margin_collateral_evidence(value: Any) -> Decimal:
                 raise ValueError("futures_preview_margin_killswitch_ambiguous")
             if killswitch:
                 raise ValueError("futures_preview_margin_killswitch_enabled")
-        observed_profiles.add(profile)
-    if observed_profiles != expected_profiles:
+    if margin_windows_diagnostic["classification"] != "ready":
         raise ValueError("futures_preview_margin_windows_ambiguous")
     if (
         not isinstance(evidence.get("futures_sweeps"), list)
@@ -1644,7 +1732,7 @@ def _accepted_evidence(
     evidence: dict[str, Any] = {
         "schema_version": _SCHEMA_VERSION,
         "type": "admin_futures_order_preview",
-        "artifact_type": _ARTIFACT_TYPE,
+        "artifact_type": claim["artifact_type"],
         "status": "accepted",
         "outcome": "accepted",
         "predecessor_binding": dict(claim["predecessor_binding"]),
@@ -1717,7 +1805,7 @@ def _terminal_failure_record(
     evidence: dict[str, Any] = {
         "schema_version": _SCHEMA_VERSION,
         "type": "admin_futures_order_preview",
-        "artifact_type": _ARTIFACT_TYPE,
+        "artifact_type": claim["artifact_type"],
         "status": outcome,
         "outcome": outcome,
         "predecessor_binding": dict(claim["predecessor_binding"]),
@@ -1995,6 +2083,254 @@ def _margin_setting_terminal_context(
     }
 
 
+def _margin_windows_terminal_context(
+    margin_collateral: Any,
+) -> dict[str, Any]:
+    """Return an exact, identifier-withholding margin-window diagnostic."""
+
+    diagnostic = _classify_margin_windows(margin_collateral)
+    return {
+        "margin_windows_evidence": diagnostic,
+        "margin_windows_evidence_sha256": canonical_sha256(diagnostic),
+    }
+
+
+def _classify_margin_windows(margin_collateral: Any) -> dict[str, Any]:
+    """Classify the exact current-window validation boundary without raw values."""
+
+    snapshot = (
+        dict(margin_collateral)
+        if isinstance(margin_collateral, Mapping)
+        else {}
+    )
+    container_present = "current_margin_windows" in snapshot
+    windows = snapshot.get("current_margin_windows")
+    container_type = _diagnostic_value_type(
+        windows,
+        present=container_present,
+    )
+
+    def result(
+        *,
+        row_count_bucket: str,
+        classification: str,
+        failing_row_index: int | None,
+        recognized_profile: str | None,
+        failing_field: str | None,
+        failing_value_type: str | None,
+    ) -> dict[str, Any]:
+        return {
+            "schema_version": "1",
+            "source": "backend_rest_client.get_current_margin_window",
+            "stage": "margin_collateral_validation",
+            "field_path": "current_margin_windows",
+            "container_present": container_present,
+            "container_type": container_type,
+            "row_count_bucket": row_count_bucket,
+            "expected_row_count": 2,
+            "failing_row_index": failing_row_index,
+            "recognized_profile": recognized_profile,
+            "failing_field": failing_field,
+            "failing_value_type": failing_value_type,
+            "classification": classification,
+            "sanitized": True,
+            "raw_response_included": False,
+            "external_exception_text_included": False,
+            "unknown_identifier_values_included": False,
+        }
+
+    if not container_present:
+        return result(
+            row_count_bucket="not_applicable",
+            classification="missing_container",
+            failing_row_index=None,
+            recognized_profile=None,
+            failing_field="current_margin_windows",
+            failing_value_type="missing",
+        )
+    if not isinstance(windows, list):
+        return result(
+            row_count_bucket="not_applicable",
+            classification="non_list_container",
+            failing_row_index=None,
+            recognized_profile=None,
+            failing_field="current_margin_windows",
+            failing_value_type=container_type,
+        )
+    row_count_bucket = {
+        0: "zero",
+        1: "one",
+        2: "expected_two",
+    }.get(len(windows), "more_than_two")
+    if len(windows) != 2:
+        return result(
+            row_count_bucket=row_count_bucket,
+            classification="unexpected_row_count",
+            failing_row_index=None,
+            recognized_profile=None,
+            failing_field="current_margin_windows",
+            failing_value_type="sequence",
+        )
+
+    observed_profiles: set[str] = set()
+    for index, item in enumerate(windows):
+        if not isinstance(item, Mapping):
+            return result(
+                row_count_bucket=row_count_bucket,
+                classification="non_mapping_row",
+                failing_row_index=index,
+                recognized_profile=None,
+                failing_field="row",
+                failing_value_type=_diagnostic_value_type(item, present=True),
+            )
+        window = dict(item)
+        profile_present = "profile" in window
+        profile = window.get("profile")
+        profile_type = _diagnostic_value_type(
+            profile,
+            present=profile_present,
+        )
+        if not profile_present:
+            profile_classification = "profile_missing"
+        elif profile is None:
+            profile_classification = "profile_null"
+        elif not isinstance(profile, str):
+            profile_classification = "profile_non_string"
+        elif (
+            profile != profile.strip()
+            or _SAFE_MARGIN_WINDOW_TOKEN.fullmatch(profile) is None
+        ):
+            profile_classification = "profile_malformed_string"
+        elif profile not in FUTURES_PREVIEW_EXPECTED_MARGIN_PROFILES:
+            profile_classification = "profile_unrecognized_enum_token"
+        else:
+            profile_classification = "ready"
+        if profile_classification != "ready":
+            return result(
+                row_count_bucket=row_count_bucket,
+                classification=profile_classification,
+                failing_row_index=index,
+                recognized_profile=None,
+                failing_field="profile",
+                failing_value_type=profile_type,
+            )
+        recognized_profile = FUTURES_PREVIEW_EXPECTED_MARGIN_PROFILES[profile]
+        if profile in observed_profiles:
+            return result(
+                row_count_bucket=row_count_bucket,
+                classification="duplicate_profile",
+                failing_row_index=index,
+                recognized_profile=recognized_profile,
+                failing_field="profile",
+                failing_value_type="string",
+            )
+        observed_profiles.add(profile)
+
+        status_present = "status" in window
+        status = window.get("status")
+        status_type = _diagnostic_value_type(status, present=status_present)
+        if not status_present:
+            status_classification = "status_missing"
+        elif status is None:
+            status_classification = "status_null"
+        elif not isinstance(status, str):
+            status_classification = "status_non_string"
+        elif status != "ready":
+            status_classification = "status_not_ready"
+        else:
+            status_classification = "ready"
+        if status_classification != "ready":
+            return result(
+                row_count_bucket=row_count_bucket,
+                classification=status_classification,
+                failing_row_index=index,
+                recognized_profile=recognized_profile,
+                failing_field="status",
+                failing_value_type=status_type,
+            )
+
+        margin_window_present = "margin_window" in window
+        margin_window = window.get("margin_window")
+        margin_window_type = _diagnostic_value_type(
+            margin_window,
+            present=margin_window_present,
+        )
+        if not margin_window_present:
+            container_classification = "margin_window_missing"
+        elif margin_window is None:
+            container_classification = "margin_window_null"
+        elif not isinstance(margin_window, Mapping):
+            container_classification = "margin_window_non_mapping"
+        else:
+            container_classification = "ready"
+        if container_classification != "ready":
+            return result(
+                row_count_bucket=row_count_bucket,
+                classification=container_classification,
+                failing_row_index=index,
+                recognized_profile=recognized_profile,
+                failing_field="margin_window",
+                failing_value_type=margin_window_type,
+            )
+
+        margin_window_mapping = dict(margin_window)
+        window_type_present = "margin_window_type" in margin_window_mapping
+        window_type = margin_window_mapping.get("margin_window_type")
+        window_type_value_type = _diagnostic_value_type(
+            window_type,
+            present=window_type_present,
+        )
+        if not window_type_present:
+            window_type_classification = "margin_window_type_missing"
+        elif window_type is None:
+            window_type_classification = "margin_window_type_null"
+        elif not isinstance(window_type, str):
+            window_type_classification = "margin_window_type_non_string"
+        elif (
+            window_type != window_type.strip()
+            or _SAFE_MARGIN_WINDOW_TOKEN.fullmatch(window_type) is None
+        ):
+            window_type_classification = (
+                "margin_window_type_malformed_string"
+            )
+        elif (
+            window_type
+            not in FUTURES_PREVIEW_OPERATIONAL_CURRENT_MARGIN_WINDOW_TYPES
+        ):
+            window_type_classification = (
+                "margin_window_type_not_exact_operational_enum_token"
+            )
+        else:
+            window_type_classification = "ready"
+        if window_type_classification != "ready":
+            return result(
+                row_count_bucket=row_count_bucket,
+                classification=window_type_classification,
+                failing_row_index=index,
+                recognized_profile=recognized_profile,
+                failing_field="margin_window_type",
+                failing_value_type=window_type_value_type,
+            )
+
+    if observed_profiles != set(FUTURES_PREVIEW_EXPECTED_MARGIN_PROFILES):
+        return result(
+            row_count_bucket=row_count_bucket,
+            classification="expected_profile_set_incomplete",
+            failing_row_index=None,
+            recognized_profile=None,
+            failing_field="expected_profile_set",
+            failing_value_type=None,
+        )
+    return result(
+        row_count_bucket=row_count_bucket,
+        classification="ready",
+        failing_row_index=None,
+        recognized_profile=None,
+        failing_field=None,
+        failing_value_type=None,
+    )
+
+
 def _diagnostic_value_type(value: Any, *, present: bool) -> str:
     if not present:
         return "missing"
@@ -2066,7 +2402,7 @@ def _seal_ready_plan(
         }
     return {
         "schema_version": _SCHEMA_VERSION,
-        "slice_id": _ARTIFACT_TYPE,
+        "slice_id": claim["artifact_type"],
         "actor_id": claim["actor_id"],
         "roles": list(claim["roles"]),
         "correlation_id": claim["correlation_id"],

@@ -101279,6 +101279,7 @@ components:
           enum:
           - futures_exact_no_live_preview_slice_2r2
           - futures_exact_no_live_preview_slice_2r3
+          - futures_exact_no_live_preview_slice_2r4
           title: Artifact Type
         status:
           type: string
@@ -101303,6 +101304,7 @@ components:
           anyOf:
           - $ref: '#/components/schemas/AdminFuturesPreviewPredecessorBinding'
           - $ref: '#/components/schemas/AdminFuturesPreviewR2PredecessorBinding'
+          - $ref: '#/components/schemas/AdminFuturesPreviewR3PredecessorBinding'
           title: Predecessor Binding
         reserved_at:
           type: string
@@ -101432,6 +101434,16 @@ components:
             pattern: ^[0-9a-f]{64}$
           - type: 'null'
           title: Margin Setting Evidence Sha256
+        margin_windows_evidence:
+          anyOf:
+          - $ref: '#/components/schemas/AdminFuturesPreviewMarginWindowsEvidence'
+          - type: 'null'
+        margin_windows_evidence_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Margin Windows Evidence Sha256
         pre_preview_stage_evidence:
           anyOf:
           - $ref: '#/components/schemas/AdminFuturesPreviewStageEvidence'
@@ -102127,6 +102139,157 @@ components:
       - raw_response_included
       title: AdminFuturesPreviewMarginSettingEvidence
       description: Allowlisted, secret-minimized pre-Preview margin-setting evidence.
+    AdminFuturesPreviewMarginWindowsEvidence:
+      properties:
+        schema_version:
+          type: string
+          const: '1'
+          title: Schema Version
+        source:
+          type: string
+          const: backend_rest_client.get_current_margin_window
+          title: Source
+        stage:
+          type: string
+          const: margin_collateral_validation
+          title: Stage
+        field_path:
+          type: string
+          const: current_margin_windows
+          title: Field Path
+        container_present:
+          type: boolean
+          title: Container Present
+        container_type:
+          type: string
+          enum:
+          - missing
+          - 'null'
+          - boolean
+          - string
+          - number
+          - mapping
+          - sequence
+          - other
+          title: Container Type
+        row_count_bucket:
+          type: string
+          enum:
+          - not_applicable
+          - zero
+          - one
+          - expected_two
+          - more_than_two
+          title: Row Count Bucket
+        expected_row_count:
+          type: integer
+          const: 2
+          title: Expected Row Count
+        failing_row_index:
+          anyOf:
+          - type: integer
+            enum:
+            - 0
+            - 1
+          - type: 'null'
+          title: Failing Row Index
+        recognized_profile:
+          anyOf:
+          - type: string
+            enum:
+            - retail_regular
+            - retail_intraday_margin_1
+          - type: 'null'
+          title: Recognized Profile
+        failing_field:
+          anyOf:
+          - type: string
+            enum:
+            - current_margin_windows
+            - row
+            - profile
+            - status
+            - margin_window
+            - margin_window_type
+            - expected_profile_set
+          - type: 'null'
+          title: Failing Field
+        failing_value_type:
+          anyOf:
+          - type: string
+            enum:
+            - missing
+            - 'null'
+            - boolean
+            - string
+            - number
+            - mapping
+            - sequence
+            - other
+          - type: 'null'
+          title: Failing Value Type
+        classification:
+          type: string
+          enum:
+          - missing_container
+          - non_list_container
+          - unexpected_row_count
+          - non_mapping_row
+          - profile_missing
+          - profile_null
+          - profile_non_string
+          - profile_malformed_string
+          - profile_unrecognized_enum_token
+          - duplicate_profile
+          - status_missing
+          - status_null
+          - status_non_string
+          - status_not_ready
+          - margin_window_missing
+          - margin_window_null
+          - margin_window_non_mapping
+          - margin_window_type_missing
+          - margin_window_type_null
+          - margin_window_type_non_string
+          - margin_window_type_malformed_string
+          - margin_window_type_not_exact_operational_enum_token
+          - expected_profile_set_incomplete
+          - ready
+          title: Classification
+        sanitized:
+          type: boolean
+          const: true
+          title: Sanitized
+        raw_response_included:
+          type: boolean
+          const: false
+          title: Raw Response Included
+        external_exception_text_included:
+          type: boolean
+          const: false
+          title: External Exception Text Included
+        unknown_identifier_values_included:
+          type: boolean
+          const: false
+          title: Unknown Identifier Values Included
+      additionalProperties: false
+      type: object
+      required:
+      - schema_version
+      - source
+      - stage
+      - field_path
+      - container_present
+      - container_type
+      - row_count_bucket
+      - expected_row_count
+      - classification
+      - sanitized
+      - raw_response_included
+      - external_exception_text_included
+      - unknown_identifier_values_included
+      title: AdminFuturesPreviewMarginWindowsEvidence
+      description: Typed, identifier-withholding current margin-window diagnostic.
     AdminFuturesPreviewOriginalPredecessorBinding:
       properties:
         artifact_name:
@@ -102379,6 +102542,91 @@ components:
       - original_predecessor_binding
       title: AdminFuturesPreviewR2PredecessorBinding
       description: Exact immutable R2 binding plus its R1 and original predecessors.
+    AdminFuturesPreviewR3PredecessorBinding:
+      properties:
+        artifact_name:
+          type: string
+          const: futures_exact_no_live_preview_slice_2r3.jsonl
+          title: Artifact Name
+        file_sha256:
+          type: string
+          const: 7ccd5411878842f883b78a99a4103b9b7b1f9aa000ebdde29cdecf2ac894b61c
+          title: File Sha256
+        evidence_sha256:
+          type: string
+          const: e79beb3d9f1324cf8f90ba78cd45869fec5b7963afe3745bd6e26617313718e8
+          title: Evidence Sha256
+        device:
+          type: string
+          const: '66305'
+          title: Device
+        inode:
+          type: string
+          const: '42312497'
+          title: Inode
+        size_bytes:
+          type: integer
+          const: 7616
+          title: Size Bytes
+        mode:
+          type: string
+          const: '0400'
+          title: Mode
+        mtime_ns:
+          type: string
+          const: '1784054457360155278'
+          title: Mtime Ns
+        status:
+          type: string
+          const: blocked
+          title: Status
+        outcome:
+          type: string
+          const: blocked
+          title: Outcome
+        preview_order_attempt_count:
+          type: integer
+          const: 0
+          title: Preview Order Attempt Count
+        exchange_submission_attempt_count:
+          type: integer
+          const: 0
+          title: Exchange Submission Attempt Count
+        submitted_notional_usdc:
+          type: string
+          const: '0'
+          title: Submitted Notional Usdc
+        executed_notional_usdc:
+          type: string
+          const: '0'
+          title: Executed Notional Usdc
+        preservation:
+          type: string
+          const: immutable_no_modify_delete_or_reuse
+          title: Preservation
+        original_predecessor_binding:
+          $ref: '#/components/schemas/AdminFuturesPreviewR2PredecessorBinding'
+      additionalProperties: false
+      type: object
+      required:
+      - artifact_name
+      - file_sha256
+      - evidence_sha256
+      - device
+      - inode
+      - size_bytes
+      - mode
+      - mtime_ns
+      - status
+      - outcome
+      - preview_order_attempt_count
+      - exchange_submission_attempt_count
+      - submitted_notional_usdc
+      - executed_notional_usdc
+      - preservation
+      - original_predecessor_binding
+      title: AdminFuturesPreviewR3PredecessorBinding
+      description: Exact immutable R3 binding plus its complete predecessor chain.
     AdminFuturesPreviewStageEvidence:
       properties:
         schema_version:

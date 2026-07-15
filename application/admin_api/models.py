@@ -6594,6 +6594,33 @@ class AdminFuturesPreviewR2PredecessorBinding(BaseModel):
     original_predecessor_binding: AdminFuturesPreviewPredecessorBinding
 
 
+class AdminFuturesPreviewR3PredecessorBinding(BaseModel):
+    """Exact immutable R3 binding plus its complete predecessor chain."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    artifact_name: Literal["futures_exact_no_live_preview_slice_2r3.jsonl"]
+    file_sha256: Literal[
+        "7ccd5411878842f883b78a99a4103b9b7b1f9aa000ebdde29cdecf2ac894b61c"
+    ]
+    evidence_sha256: Literal[
+        "e79beb3d9f1324cf8f90ba78cd45869fec5b7963afe3745bd6e26617313718e8"
+    ]
+    device: Literal["66305"]
+    inode: Literal["42312497"]
+    size_bytes: Literal[7616]
+    mode: Literal["0400"]
+    mtime_ns: Literal["1784054457360155278"]
+    status: Literal["blocked"]
+    outcome: Literal["blocked"]
+    preview_order_attempt_count: Literal[0]
+    exchange_submission_attempt_count: Literal[0]
+    submitted_notional_usdc: Literal["0"]
+    executed_notional_usdc: Literal["0"]
+    preservation: Literal["immutable_no_modify_delete_or_reuse"]
+    original_predecessor_binding: AdminFuturesPreviewR2PredecessorBinding
+
+
 class AdminFuturesPreviewMarginSettingEvidence(BaseModel):
     """Allowlisted, secret-minimized pre-Preview margin-setting evidence."""
 
@@ -6753,6 +6780,244 @@ class AdminFuturesPreviewMarginSettingEvidence(BaseModel):
         return self
 
 
+class AdminFuturesPreviewMarginWindowsEvidence(BaseModel):
+    """Typed, identifier-withholding current margin-window diagnostic."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["1"]
+    source: Literal["backend_rest_client.get_current_margin_window"]
+    stage: Literal["margin_collateral_validation"]
+    field_path: Literal["current_margin_windows"]
+    container_present: bool
+    container_type: Literal[
+        "missing",
+        "null",
+        "boolean",
+        "string",
+        "number",
+        "mapping",
+        "sequence",
+        "other",
+    ]
+    row_count_bucket: Literal[
+        "not_applicable",
+        "zero",
+        "one",
+        "expected_two",
+        "more_than_two",
+    ]
+    expected_row_count: Literal[2]
+    failing_row_index: Literal[0, 1] | None = None
+    recognized_profile: Literal[
+        "retail_regular",
+        "retail_intraday_margin_1",
+    ] | None = None
+    failing_field: Literal[
+        "current_margin_windows",
+        "row",
+        "profile",
+        "status",
+        "margin_window",
+        "margin_window_type",
+        "expected_profile_set",
+    ] | None = None
+    failing_value_type: Literal[
+        "missing",
+        "null",
+        "boolean",
+        "string",
+        "number",
+        "mapping",
+        "sequence",
+        "other",
+    ] | None = None
+    classification: Literal[
+        "missing_container",
+        "non_list_container",
+        "unexpected_row_count",
+        "non_mapping_row",
+        "profile_missing",
+        "profile_null",
+        "profile_non_string",
+        "profile_malformed_string",
+        "profile_unrecognized_enum_token",
+        "duplicate_profile",
+        "status_missing",
+        "status_null",
+        "status_non_string",
+        "status_not_ready",
+        "margin_window_missing",
+        "margin_window_null",
+        "margin_window_non_mapping",
+        "margin_window_type_missing",
+        "margin_window_type_null",
+        "margin_window_type_non_string",
+        "margin_window_type_malformed_string",
+        "margin_window_type_not_exact_operational_enum_token",
+        "expected_profile_set_incomplete",
+        "ready",
+    ]
+    sanitized: Literal[True]
+    raw_response_included: Literal[False]
+    external_exception_text_included: Literal[False]
+    unknown_identifier_values_included: Literal[False]
+
+    @model_validator(mode="after")
+    def validate_margin_windows_diagnostic(self) -> Self:
+        """Reject contradictory shape claims or identifier expansion."""
+
+        if self.classification == "missing_container":
+            coherent = (
+                self.container_present is False
+                and self.container_type == "missing"
+                and self.row_count_bucket == "not_applicable"
+                and self.failing_row_index is None
+                and self.recognized_profile is None
+                and self.failing_field == "current_margin_windows"
+                and self.failing_value_type == "missing"
+            )
+            if not coherent:
+                raise ValueError("futures_preview_margin_windows_diagnostic_invalid")
+            return self
+        if self.classification == "non_list_container":
+            coherent = (
+                self.container_present is True
+                and self.container_type != "missing"
+                and self.row_count_bucket == "not_applicable"
+                and self.failing_row_index is None
+                and self.recognized_profile is None
+                and self.failing_field == "current_margin_windows"
+                and self.failing_value_type == self.container_type
+            )
+            if not coherent:
+                raise ValueError("futures_preview_margin_windows_diagnostic_invalid")
+            return self
+        if self.classification == "unexpected_row_count":
+            coherent = (
+                self.container_present is True
+                and self.container_type == "sequence"
+                and self.row_count_bucket in {"zero", "one", "more_than_two"}
+                and self.failing_row_index is None
+                and self.recognized_profile is None
+                and self.failing_field == "current_margin_windows"
+                and self.failing_value_type == "sequence"
+            )
+            if not coherent:
+                raise ValueError("futures_preview_margin_windows_diagnostic_invalid")
+            return self
+        if self.classification == "ready":
+            coherent = (
+                self.container_present is True
+                and self.container_type == "sequence"
+                and self.row_count_bucket == "expected_two"
+                and self.failing_row_index is None
+                and self.recognized_profile is None
+                and self.failing_field is None
+                and self.failing_value_type is None
+            )
+            if not coherent:
+                raise ValueError("futures_preview_margin_windows_diagnostic_invalid")
+            return self
+        if self.classification == "expected_profile_set_incomplete":
+            coherent = (
+                self.container_present is True
+                and self.container_type == "sequence"
+                and self.row_count_bucket == "expected_two"
+                and self.failing_row_index is None
+                and self.recognized_profile is None
+                and self.failing_field == "expected_profile_set"
+                and self.failing_value_type is None
+            )
+            if not coherent:
+                raise ValueError("futures_preview_margin_windows_diagnostic_invalid")
+            return self
+
+        rule: tuple[str, set[str], str]
+        rules: dict[str, tuple[str, set[str], str]] = {
+            "non_mapping_row": (
+                "row",
+                {"null", "boolean", "string", "number", "sequence", "other"},
+                "absent",
+            ),
+            "profile_missing": ("profile", {"missing"}, "absent"),
+            "profile_null": ("profile", {"null"}, "absent"),
+            "profile_non_string": (
+                "profile",
+                {"boolean", "number", "mapping", "sequence", "other"},
+                "absent",
+            ),
+            "profile_malformed_string": ("profile", {"string"}, "absent"),
+            "profile_unrecognized_enum_token": (
+                "profile",
+                {"string"},
+                "absent",
+            ),
+            "duplicate_profile": ("profile", {"string"}, "required"),
+            "status_missing": ("status", {"missing"}, "required"),
+            "status_null": ("status", {"null"}, "required"),
+            "status_non_string": (
+                "status",
+                {"boolean", "number", "mapping", "sequence", "other"},
+                "required",
+            ),
+            "status_not_ready": ("status", {"string"}, "required"),
+            "margin_window_missing": (
+                "margin_window",
+                {"missing"},
+                "required",
+            ),
+            "margin_window_null": ("margin_window", {"null"}, "required"),
+            "margin_window_non_mapping": (
+                "margin_window",
+                {"boolean", "string", "number", "sequence", "other"},
+                "required",
+            ),
+            "margin_window_type_missing": (
+                "margin_window_type",
+                {"missing"},
+                "required",
+            ),
+            "margin_window_type_null": (
+                "margin_window_type",
+                {"null"},
+                "required",
+            ),
+            "margin_window_type_non_string": (
+                "margin_window_type",
+                {"boolean", "number", "mapping", "sequence", "other"},
+                "required",
+            ),
+            "margin_window_type_malformed_string": (
+                "margin_window_type",
+                {"string"},
+                "required",
+            ),
+            "margin_window_type_not_exact_operational_enum_token": (
+                "margin_window_type",
+                {"string"},
+                "required",
+            ),
+        }
+        rule = rules[self.classification]
+        expected_field, allowed_value_types, profile_mode = rule
+        coherent = (
+            self.container_present is True
+            and self.container_type == "sequence"
+            and self.row_count_bucket == "expected_two"
+            and self.failing_row_index in {0, 1}
+            and self.failing_field == expected_field
+            and self.failing_value_type in allowed_value_types
+            and (
+                (profile_mode == "required" and self.recognized_profile is not None)
+                or (profile_mode == "absent" and self.recognized_profile is None)
+            )
+        )
+        if not coherent:
+            raise ValueError("futures_preview_margin_windows_diagnostic_invalid")
+        return self
+
+
 AdminFuturesPreviewStageReasonCode = Literal[
     "futures_preview_remaining_margin_validation_unclassified",
     "futures_preview_candidate_construction_unclassified",
@@ -6878,6 +7143,11 @@ class AdminFuturesPreviewStageEvidence(BaseModel):
         return self
 
 
+_CONSUMED_R3_MARGIN_WINDOWS_EVIDENCE_ABSENT_SHA256 = (
+    "e79beb3d9f1324cf8f90ba78cd45869fec5b7963afe3745bd6e26617313718e8"
+)
+
+
 class AdminFuturesOrderPreviewResponse(BaseModel):
     """Immutable one-shot Futures Preview evidence read from disk only."""
 
@@ -6888,6 +7158,7 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
     artifact_type: Literal[
         "futures_exact_no_live_preview_slice_2r2",
         "futures_exact_no_live_preview_slice_2r3",
+        "futures_exact_no_live_preview_slice_2r4",
     ]
     status: Literal["accepted", "blocked", "unknown"]
     outcome: Literal["accepted", "blocked", "unknown"]
@@ -6895,6 +7166,7 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
     predecessor_binding: (
         AdminFuturesPreviewPredecessorBinding
         | AdminFuturesPreviewR2PredecessorBinding
+        | AdminFuturesPreviewR3PredecessorBinding
     )
     reserved_at: str
     completed_at: str
@@ -6931,6 +7203,11 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
     )
     margin_setting_evidence: AdminFuturesPreviewMarginSettingEvidence | None = None
     margin_setting_evidence_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
+    margin_windows_evidence: AdminFuturesPreviewMarginWindowsEvidence | None = None
+    margin_windows_evidence_sha256: str | None = Field(
         default=None,
         pattern=r"^[0-9a-f]{64}$",
     )
@@ -7008,6 +7285,10 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
             self.artifact_type == "futures_exact_no_live_preview_slice_2r3"
             and type(self.predecessor_binding)
             is not AdminFuturesPreviewR2PredecessorBinding
+        ) or (
+            self.artifact_type == "futures_exact_no_live_preview_slice_2r4"
+            and type(self.predecessor_binding)
+            is not AdminFuturesPreviewR3PredecessorBinding
         ):
             raise ValueError("futures_preview_predecessor_generation_invalid")
         expected_zero_mutation_counters = {
@@ -7051,12 +7332,25 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
             != self.margin_setting_evidence_sha256
         ):
             raise ValueError("futures_preview_margin_setting_evidence_hash_invalid")
+        if (self.margin_windows_evidence is None) != (
+            self.margin_windows_evidence_sha256 is None
+        ):
+            raise ValueError("futures_preview_margin_windows_evidence_pair_invalid")
+        if (
+            self.margin_windows_evidence is not None
+            and canonical_sha256(
+                self.margin_windows_evidence.model_dump(mode="json")
+            )
+            != self.margin_windows_evidence_sha256
+        ):
+            raise ValueError("futures_preview_margin_windows_evidence_hash_invalid")
         if (self.pre_preview_stage_evidence is None) != (
             self.pre_preview_stage_evidence_sha256 is None
         ):
             raise ValueError("futures_preview_stage_evidence_pair_invalid")
         if self.pre_preview_stage_evidence is not None:
             final_stage = self.pre_preview_stage_evidence.stages[-1].stage
+            final_reason = self.pre_preview_stage_evidence.stages[-1].reason_code
             forbidden_stage_attempt_context = (
                 self.portfolio_id,
                 self.portfolio_binding,
@@ -7120,6 +7414,46 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
                 )
             ):
                 raise ValueError("futures_preview_stage_evidence_invalid")
+            if final_reason == "futures_preview_margin_windows_ambiguous":
+                if self.artifact_type == "futures_exact_no_live_preview_slice_2r4":
+                    if (
+                        self.margin_setting_evidence is None
+                        or self.margin_setting_evidence.allowlist_match is not True
+                        or self.margin_setting_evidence.operationally_resolved
+                        is not True
+                        or self.margin_setting_evidence.classification
+                        != "recognized_string"
+                        or self.margin_setting_evidence.unexpected_field_count != 0
+                    ):
+                        raise ValueError(
+                            "futures_preview_r4_margin_setting_evidence_invalid"
+                        )
+                    if self.margin_windows_evidence is None:
+                        raise ValueError(
+                            "futures_preview_margin_windows_evidence_missing"
+                        )
+                    if (
+                        final_stage != "remaining_margin_validation"
+                        or self.margin_windows_evidence.classification == "ready"
+                    ):
+                        raise ValueError(
+                            "futures_preview_margin_windows_evidence_invalid"
+                        )
+                elif (
+                    self.artifact_type == "futures_exact_no_live_preview_slice_2r3"
+                    and self.evidence_sha256
+                    == _CONSUMED_R3_MARGIN_WINDOWS_EVIDENCE_ABSENT_SHA256
+                    and self.margin_windows_evidence is None
+                ):
+                    pass
+                else:
+                    raise ValueError(
+                        "futures_preview_margin_windows_evidence_invalid"
+                    )
+            elif self.margin_windows_evidence is not None:
+                raise ValueError("futures_preview_margin_windows_evidence_invalid")
+        elif self.margin_windows_evidence is not None:
+            raise ValueError("futures_preview_margin_windows_evidence_invalid")
         expected_complete_reads = {
             "api_key_permissions": 1,
             "portfolio_catalog": 1,
@@ -7129,7 +7463,11 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
             "futures_margin_collateral": 1,
         }
         if (
-            self.artifact_type == "futures_exact_no_live_preview_slice_2r3"
+            self.artifact_type
+            in {
+                "futures_exact_no_live_preview_slice_2r3",
+                "futures_exact_no_live_preview_slice_2r4",
+            }
             and self.outcome == "blocked"
             and preview_attempts == 0
             and self.read_counters == expected_complete_reads

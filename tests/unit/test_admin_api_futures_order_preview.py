@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 import hashlib
 import logging
@@ -21,6 +22,16 @@ from application.admin_api.futures_order_preview import (
     FUTURES_PREVIEW_PREDECESSOR_DEVICE,
     FUTURES_PREVIEW_PREDECESSOR_EVIDENCE_SHA256,
     FUTURES_PREVIEW_PREDECESSOR_FILE_SHA256,
+    FUTURES_PREVIEW_R3_ARTIFACT_PATH,
+    FUTURES_PREVIEW_R3_DEVICE,
+    FUTURES_PREVIEW_R3_EVIDENCE_SHA256,
+    FUTURES_PREVIEW_R3_FILE_SHA256,
+    FUTURES_PREVIEW_R3_INODE,
+    FUTURES_PREVIEW_R3_MODE,
+    FUTURES_PREVIEW_R3_MTIME_NS,
+    FUTURES_PREVIEW_R3_PREDECESSOR_BINDING,
+    FUTURES_PREVIEW_R3_SIZE,
+    FUTURES_PREVIEW_R4_ARTIFACT_PATH,
     FUTURES_PREVIEW_ACTOR_ID,
     FUTURES_PREVIEW_DOCUMENTED_MARGIN_SETTINGS,
     FUTURES_PREVIEW_OPERATIONAL_MARGIN_SETTINGS,
@@ -30,12 +41,17 @@ from application.admin_api.futures_order_preview import (
     FuturesOrderPreviewProducer,
     build_futures_order_preview_candidate,
     canonical_sha256,
+    _margin_windows_terminal_context,
     _notional_text,
     validate_futures_order_preview_predecessor,
+    validate_production_futures_order_preview_r3_predecessor,
     validate_margin_collateral_evidence,
     validate_preview_response,
 )
-from application.admin_api.models import AdminFuturesOrderPreviewResponse
+from application.admin_api.models import (
+    AdminFuturesOrderPreviewResponse,
+    AdminFuturesPreviewMarginWindowsEvidence,
+)
 from external.coinbase_client import CoinbaseRestClient
 from tools import run_admin_api_futures_no_live_preview as preview_tool
 
@@ -94,6 +110,24 @@ TEST_PREDECESSOR_BINDING = {
     "executed_notional_usdc": "0",
     "preservation": "immutable_no_modify_delete_or_reuse",
     "original_predecessor_binding": R1_SLICE2_BINDING,
+}
+TEST_R3_PREDECESSOR_BINDING = {
+    "artifact_name": "futures_exact_no_live_preview_slice_2r3.jsonl",
+    "file_sha256": FUTURES_PREVIEW_R3_FILE_SHA256,
+    "evidence_sha256": FUTURES_PREVIEW_R3_EVIDENCE_SHA256,
+    "device": str(FUTURES_PREVIEW_R3_DEVICE),
+    "inode": str(FUTURES_PREVIEW_R3_INODE),
+    "size_bytes": FUTURES_PREVIEW_R3_SIZE,
+    "mode": f"{FUTURES_PREVIEW_R3_MODE:04o}",
+    "mtime_ns": str(FUTURES_PREVIEW_R3_MTIME_NS),
+    "status": "blocked",
+    "outcome": "blocked",
+    "preview_order_attempt_count": 0,
+    "exchange_submission_attempt_count": 0,
+    "submitted_notional_usdc": "0",
+    "executed_notional_usdc": "0",
+    "preservation": "immutable_no_modify_delete_or_reuse",
+    "original_predecessor_binding": TEST_PREDECESSOR_BINDING,
 }
 
 
@@ -375,14 +409,22 @@ class FakePreviewRestClient:
         raise AttributeError(name)
 
 
-def _producer(tmp_path: Path, rest_client: FakePreviewRestClient):
+def _producer(
+    tmp_path: Path,
+    rest_client: FakePreviewRestClient,
+    *,
+    artifact_type: str = "futures_exact_no_live_preview_slice_2r3",
+    predecessor_binding: dict[str, object] | None = None,
+):
     path = tmp_path / "futures-preview.jsonl"
     store = FuturesOrderPreviewArtifactStore(path)
+    bound_predecessor = predecessor_binding or TEST_PREDECESSOR_BINDING
     producer = FuturesOrderPreviewProducer(
         rest_client=rest_client,
         store=store,
-        predecessor_binding=TEST_PREDECESSOR_BINDING,
-        predecessor_validator=lambda: dict(TEST_PREDECESSOR_BINDING),
+        predecessor_binding=bound_predecessor,
+        predecessor_validator=lambda: dict(bound_predecessor),
+        artifact_type=artifact_type,
         now=lambda: NOW,
         correlation_id_factory=lambda: "8f604e56-0a23-4bda-b244-11ebc0194241",
         idempotency_key_factory=lambda: "2d8327f6-826c-4f73-82a4-822e29f73065",
@@ -1405,9 +1447,38 @@ def test_r3_production_path_is_fixed_and_version_bound():
     assert DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH.name == (
         "futures_exact_no_live_preview_slice_2r3.jsonl"
     )
+    assert FUTURES_PREVIEW_R3_ARTIFACT_PATH == (
+        DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH
+    )
+    assert FUTURES_PREVIEW_R4_ARTIFACT_PATH.name == (
+        "futures_exact_no_live_preview_slice_2r4.jsonl"
+    )
+    assert not FUTURES_PREVIEW_R4_ARTIFACT_PATH.exists()
     assert "--confirm-one-r3-preview" in Path(preview_tool.__file__).read_text(
         encoding="utf-8"
     )
+
+
+def test_consumed_r3_is_immutable_and_remains_compatible_r4_predecessor():
+    observed = FUTURES_PREVIEW_R3_ARTIFACT_PATH.lstat()
+    file_sha256 = hashlib.sha256(
+        FUTURES_PREVIEW_R3_ARTIFACT_PATH.read_bytes()
+    ).hexdigest()
+    assert file_sha256 == FUTURES_PREVIEW_R3_FILE_SHA256
+    assert observed.st_dev == FUTURES_PREVIEW_R3_DEVICE
+    assert observed.st_ino == FUTURES_PREVIEW_R3_INODE
+    assert observed.st_size == FUTURES_PREVIEW_R3_SIZE
+    assert observed.st_mode & 0o777 == FUTURES_PREVIEW_R3_MODE
+    assert observed.st_mtime_ns == FUTURES_PREVIEW_R3_MTIME_NS
+    assert validate_production_futures_order_preview_r3_predecessor() == (
+        FUTURES_PREVIEW_R3_PREDECESSOR_BINDING
+    )
+    evidence = FuturesOrderPreviewArtifactStore(
+        FUTURES_PREVIEW_R3_ARTIFACT_PATH
+    ).read_completed()
+    assert evidence["evidence_sha256"] == FUTURES_PREVIEW_R3_EVIDENCE_SHA256
+    assert "margin_windows_evidence" not in evidence
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
 
 
 @pytest.mark.parametrize(
@@ -1482,6 +1553,477 @@ def test_margin_window_sentinels_and_killswitch_ambiguity_block_pre_preview(
 
     with pytest.raises(ValueError, match="margin.*window|killswitch"):
         validate_margin_collateral_evidence(evidence)
+
+
+def test_earlier_row_killswitch_precedes_later_window_ambiguity():
+    evidence = FakePreviewRestClient().get_futures_margin_collateral_snapshot()
+    evidence["current_margin_windows"][0][
+        "is_intraday_margin_killswitch_enabled"
+    ] = True
+    evidence["current_margin_windows"][1]["margin_window"].update(
+        margin_window_type="MARGIN_WINDOW_TYPE_PRIVATE_ACCOUNT"
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="^futures_preview_margin_killswitch_enabled$",
+    ):
+        validate_margin_collateral_evidence(evidence)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "classification", "failing_field", "failing_value_type"),
+    [
+        (
+            lambda value: value.pop("current_margin_windows"),
+            "missing_container",
+            "current_margin_windows",
+            "missing",
+        ),
+        (
+            lambda value: value.update(
+                current_margin_windows="PRIVATE_WINDOW_RESPONSE"
+            ),
+            "non_list_container",
+            "current_margin_windows",
+            "string",
+        ),
+        (
+            lambda value: value.update(
+                current_margin_windows=tuple(value["current_margin_windows"])
+            ),
+            "non_list_container",
+            "current_margin_windows",
+            "sequence",
+        ),
+        (
+            lambda value: value["current_margin_windows"].clear(),
+            "unexpected_row_count",
+            "current_margin_windows",
+            "sequence",
+        ),
+        (
+            lambda value: value["current_margin_windows"].pop(),
+            "unexpected_row_count",
+            "current_margin_windows",
+            "sequence",
+        ),
+        (
+            lambda value: value["current_margin_windows"].append(
+                {"profile": "PRIVATE_OVERFLOW_ROW"}
+            ),
+            "unexpected_row_count",
+            "current_margin_windows",
+            "sequence",
+        ),
+        (
+            lambda value: value["current_margin_windows"].__setitem__(
+                0,
+                "PRIVATE_WINDOW_ROW",
+            ),
+            "non_mapping_row",
+            "row",
+            "string",
+        ),
+        (
+            lambda value: value["current_margin_windows"][0].pop("profile"),
+            "profile_missing",
+            "profile",
+            "missing",
+        ),
+        (
+            lambda value: value["current_margin_windows"][0].update(
+                profile=None
+            ),
+            "profile_null",
+            "profile",
+            "null",
+        ),
+        (
+            lambda value: value["current_margin_windows"][0].update(
+                profile=True
+            ),
+            "profile_non_string",
+            "profile",
+            "boolean",
+        ),
+        (
+            lambda value: value["current_margin_windows"][0].update(
+                profile=" PRIVATE_PROFILE\n"
+            ),
+            "profile_malformed_string",
+            "profile",
+            "string",
+        ),
+        (
+            lambda value: value["current_margin_windows"][0].update(
+                profile="MARGIN_PROFILE_TYPE_PRIVATE_ACCOUNT"
+            ),
+            "profile_unrecognized_enum_token",
+            "profile",
+            "string",
+        ),
+        (
+            lambda value: value["current_margin_windows"][1].update(
+                profile="MARGIN_PROFILE_TYPE_RETAIL_REGULAR"
+            ),
+            "duplicate_profile",
+            "profile",
+            "string",
+        ),
+        (
+            lambda value: value["current_margin_windows"][0].pop("status"),
+            "status_missing",
+            "status",
+            "missing",
+        ),
+        (
+            lambda value: value["current_margin_windows"][0].update(
+                status=None
+            ),
+            "status_null",
+            "status",
+            "null",
+        ),
+        (
+            lambda value: value["current_margin_windows"][0].update(
+                status=False
+            ),
+            "status_non_string",
+            "status",
+            "boolean",
+        ),
+        (
+            lambda value: value["current_margin_windows"][0].update(
+                status="PRIVATE_BLOCKED_STATUS"
+            ),
+            "status_not_ready",
+            "status",
+            "string",
+        ),
+        (
+            lambda value: value["current_margin_windows"][0].pop(
+                "margin_window"
+            ),
+            "margin_window_missing",
+            "margin_window",
+            "missing",
+        ),
+        (
+            lambda value: value["current_margin_windows"][0].update(
+                margin_window=None
+            ),
+            "margin_window_null",
+            "margin_window",
+            "null",
+        ),
+        (
+            lambda value: value["current_margin_windows"][0].update(
+                margin_window="PRIVATE_WINDOW_CONTAINER"
+            ),
+            "margin_window_non_mapping",
+            "margin_window",
+            "string",
+        ),
+        (
+            lambda value: value["current_margin_windows"][0][
+                "margin_window"
+            ].pop("margin_window_type"),
+            "margin_window_type_missing",
+            "margin_window_type",
+            "missing",
+        ),
+        (
+            lambda value: value["current_margin_windows"][0][
+                "margin_window"
+            ].update(margin_window_type=None),
+            "margin_window_type_null",
+            "margin_window_type",
+            "null",
+        ),
+        (
+            lambda value: value["current_margin_windows"][0][
+                "margin_window"
+            ].update(margin_window_type=1),
+            "margin_window_type_non_string",
+            "margin_window_type",
+            "number",
+        ),
+        (
+            lambda value: value["current_margin_windows"][0][
+                "margin_window"
+            ].update(margin_window_type=" PRIVATE_WINDOW_TYPE\n"),
+            "margin_window_type_malformed_string",
+            "margin_window_type",
+            "string",
+        ),
+        (
+            lambda value: value["current_margin_windows"][0][
+                "margin_window"
+            ].update(
+                margin_window_type="MARGIN_WINDOW_TYPE_PRIVATE_ACCOUNT"
+            ),
+            "margin_window_type_not_exact_operational_enum_token",
+            "margin_window_type",
+            "string",
+        ),
+        (
+            lambda _value: None,
+            "ready",
+            None,
+            None,
+        ),
+    ],
+)
+def test_margin_windows_diagnostic_classifies_without_echoing_raw_values(
+    mutation,
+    classification: str,
+    failing_field: str | None,
+    failing_value_type: str | None,
+):
+    snapshot = FakePreviewRestClient().get_futures_margin_collateral_snapshot()
+    mutation(snapshot)
+
+    context = _margin_windows_terminal_context(snapshot)
+    diagnostic = context["margin_windows_evidence"]
+
+    assert diagnostic["classification"] == classification
+    assert diagnostic["failing_field"] == failing_field
+    assert diagnostic["failing_value_type"] == failing_value_type
+    assert diagnostic["sanitized"] is True
+    assert diagnostic["raw_response_included"] is False
+    assert diagnostic["external_exception_text_included"] is False
+    assert diagnostic["unknown_identifier_values_included"] is False
+    assert context["margin_windows_evidence_sha256"] == canonical_sha256(
+        diagnostic
+    )
+    AdminFuturesPreviewMarginWindowsEvidence.model_validate(diagnostic)
+    serialized = json.dumps(context)
+    assert "PRIVATE" not in serialized
+
+
+def test_margin_windows_diagnostic_covers_defensive_profile_set_incomplete(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_EXPECTED_MARGIN_PROFILES",
+        {
+            **preview_module.FUTURES_PREVIEW_EXPECTED_MARGIN_PROFILES,
+            "MARGIN_PROFILE_TYPE_RETAIL_FUTURE": "retail_future",
+        },
+    )
+    snapshot = FakePreviewRestClient().get_futures_margin_collateral_snapshot()
+
+    diagnostic = _margin_windows_terminal_context(snapshot)[
+        "margin_windows_evidence"
+    ]
+
+    assert diagnostic["classification"] == "expected_profile_set_incomplete"
+    assert diagnostic["failing_row_index"] is None
+    assert diagnostic["recognized_profile"] is None
+    assert diagnostic["failing_field"] == "expected_profile_set"
+    assert diagnostic["failing_value_type"] is None
+    AdminFuturesPreviewMarginWindowsEvidence.model_validate(diagnostic)
+
+
+def test_margin_windows_ambiguity_persists_only_typed_sanitized_diagnostic(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    rest_client = FakePreviewRestClient()
+    snapshot = rest_client.get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"].update(
+        margin_window_type="MARGIN_WINDOW_TYPE_PRIVATE_ACCOUNT",
+        private_response_body="PRIVATE_HTTP_RESPONSE_BODY",
+    )
+    rest_client.read_calls.clear()
+    rest_client.get_futures_margin_collateral_snapshot = (  # type: ignore[method-assign]
+        lambda: snapshot
+    )
+    producer, store, path = _producer(
+        tmp_path,
+        rest_client,
+        artifact_type="futures_exact_no_live_preview_slice_2r4",
+        predecessor_binding=TEST_R3_PREDECESSOR_BINDING,
+    )
+
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="blocked"):
+        producer.run()
+
+    terminal = store.read_completed()
+    diagnostic = terminal["margin_windows_evidence"]
+    assert terminal["artifact_type"] == (
+        "futures_exact_no_live_preview_slice_2r4"
+    )
+    assert terminal["predecessor_binding"] == TEST_R3_PREDECESSOR_BINDING
+    assert terminal["blocker"] == "preflight_or_preview_stage_blocked"
+    assert terminal["attempt_counters"]["preview_order"] == 0
+    assert rest_client.preview_calls == []
+    assert "margin_collateral_evidence" not in terminal
+    assert diagnostic == {
+        "schema_version": "1",
+        "source": "backend_rest_client.get_current_margin_window",
+        "stage": "margin_collateral_validation",
+        "field_path": "current_margin_windows",
+        "container_present": True,
+        "container_type": "sequence",
+        "row_count_bucket": "expected_two",
+        "expected_row_count": 2,
+        "failing_row_index": 0,
+        "recognized_profile": "retail_regular",
+        "failing_field": "margin_window_type",
+        "failing_value_type": "string",
+        "classification": (
+            "margin_window_type_not_exact_operational_enum_token"
+        ),
+        "sanitized": True,
+        "raw_response_included": False,
+        "external_exception_text_included": False,
+        "unknown_identifier_values_included": False,
+    }
+    assert terminal["margin_windows_evidence_sha256"] == canonical_sha256(
+        diagnostic
+    )
+    assert "PRIVATE" not in path.read_text(encoding="utf-8")
+    AdminFuturesOrderPreviewResponse.model_validate(terminal)
+    monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-token")
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_PATH",
+        str(path),
+    )
+    response = TestClient(create_app()).get(
+        "/api/v1/futures/order-preview",
+        headers={
+            "Authorization": "Bearer test-token",
+            "X-Admin-Actor": "operator-1",
+            "X-Admin-Roles": "viewer",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["X-Live-Execution-Enabled"] == "false"
+    assert response.json()["margin_windows_evidence"] == diagnostic
+    assert response.json()["attempt_counters"]["preview_order"] == 0
+    assert "PRIVATE" not in response.text
+
+    hash_drift = deepcopy(terminal)
+    hash_drift["margin_windows_evidence"]["failing_row_index"] = 1
+    hash_drift["evidence_sha256"] = canonical_sha256(
+        {
+            key: value
+            for key, value in hash_drift.items()
+            if key != "evidence_sha256"
+        }
+    )
+    with pytest.raises(ValidationError, match="margin_windows.*hash"):
+        AdminFuturesOrderPreviewResponse.model_validate(hash_drift)
+
+    raw_expansion = deepcopy(terminal)
+    raw_expansion["margin_windows_evidence"]["raw_profile"] = (
+        "MARGIN_PROFILE_TYPE_PRIVATE_ACCOUNT"
+    )
+    raw_expansion["margin_windows_evidence_sha256"] = canonical_sha256(
+        raw_expansion["margin_windows_evidence"]
+    )
+    raw_expansion["evidence_sha256"] = canonical_sha256(
+        {
+            key: value
+            for key, value in raw_expansion.items()
+            if key != "evidence_sha256"
+        }
+    )
+    with pytest.raises(ValidationError):
+        AdminFuturesOrderPreviewResponse.model_validate(raw_expansion)
+
+    wrong_reason = deepcopy(terminal)
+    wrong_reason["pre_preview_stage_evidence"]["stages"][-1][
+        "reason_code"
+    ] = "futures_preview_margin_killswitch_ambiguous"
+    wrong_reason["pre_preview_stage_evidence_sha256"] = canonical_sha256(
+        wrong_reason["pre_preview_stage_evidence"]
+    )
+    wrong_reason["evidence_sha256"] = canonical_sha256(
+        {
+            key: value
+            for key, value in wrong_reason.items()
+            if key != "evidence_sha256"
+        }
+    )
+    with pytest.raises(ValidationError, match="margin_windows_evidence_invalid"):
+        AdminFuturesOrderPreviewResponse.model_validate(wrong_reason)
+
+    ready_claim = deepcopy(terminal)
+    ready_claim["margin_windows_evidence"].update(
+        classification="ready",
+        failing_row_index=None,
+        recognized_profile=None,
+        failing_field=None,
+        failing_value_type=None,
+    )
+    ready_claim["margin_windows_evidence_sha256"] = canonical_sha256(
+        ready_claim["margin_windows_evidence"]
+    )
+    ready_claim["evidence_sha256"] = canonical_sha256(
+        {
+            key: value
+            for key, value in ready_claim.items()
+            if key != "evidence_sha256"
+        }
+    )
+    with pytest.raises(ValidationError, match="margin_windows_evidence_invalid"):
+        AdminFuturesOrderPreviewResponse.model_validate(ready_claim)
+
+    stripped_diagnostic = deepcopy(terminal)
+    stripped_diagnostic.pop("margin_windows_evidence")
+    stripped_diagnostic.pop("margin_windows_evidence_sha256")
+    stripped_diagnostic["evidence_sha256"] = canonical_sha256(
+        {
+            key: value
+            for key, value in stripped_diagnostic.items()
+            if key != "evidence_sha256"
+        }
+    )
+    with pytest.raises(ValidationError, match="margin_windows_evidence_missing"):
+        AdminFuturesOrderPreviewResponse.model_validate(stripped_diagnostic)
+
+    attempted_preview = deepcopy(terminal)
+    attempted_preview["attempt_counters"]["preview_order"] = 1
+    attempted_preview["evidence_sha256"] = canonical_sha256(
+        {
+            key: value
+            for key, value in attempted_preview.items()
+            if key != "evidence_sha256"
+        }
+    )
+    with pytest.raises(ValidationError, match="stage_evidence_invalid"):
+        AdminFuturesOrderPreviewResponse.model_validate(attempted_preview)
+
+    incomplete_reads = deepcopy(terminal)
+    incomplete_reads["read_counters"]["futures_margin_collateral"] = 0
+    incomplete_reads["evidence_sha256"] = canonical_sha256(
+        {
+            key: value
+            for key, value in incomplete_reads.items()
+            if key != "evidence_sha256"
+        }
+    )
+    with pytest.raises(ValidationError, match="stage_evidence_invalid"):
+        AdminFuturesOrderPreviewResponse.model_validate(incomplete_reads)
+
+    missing_prior_margin_setting = deepcopy(terminal)
+    missing_prior_margin_setting.pop("margin_setting_evidence")
+    missing_prior_margin_setting.pop("margin_setting_evidence_sha256")
+    missing_prior_margin_setting["evidence_sha256"] = canonical_sha256(
+        {
+            key: value
+            for key, value in missing_prior_margin_setting.items()
+            if key != "evidence_sha256"
+        }
+    )
+    with pytest.raises(ValidationError, match="r4_margin_setting_evidence_invalid"):
+        AdminFuturesOrderPreviewResponse.model_validate(
+            missing_prior_margin_setting
+        )
 
 
 @pytest.mark.parametrize(
@@ -2830,7 +3372,11 @@ def test_producer_revalidates_predecessor_before_claim_or_coinbase_reads(
 ):
     path = tmp_path / "slice2r2.jsonl"
     rest_client = FakePreviewRestClient()
-    sealed_binding = {"file_sha256": "a" * 64, "status": "blocked"}
+    sealed_binding = {
+        "artifact_name": "futures_exact_no_live_preview_slice_2r2.jsonl",
+        "file_sha256": "a" * 64,
+        "status": "blocked",
+    }
     producer = FuturesOrderPreviewProducer(
         rest_client=rest_client,
         store=FuturesOrderPreviewArtifactStore(path),
@@ -2857,7 +3403,11 @@ def test_producer_terminally_blocks_if_predecessor_changes_after_claim(
 ):
     path = tmp_path / "slice2r2.jsonl"
     rest_client = FakePreviewRestClient()
-    sealed_binding = {"file_sha256": "a" * 64, "status": "blocked"}
+    sealed_binding = {
+        "artifact_name": "futures_exact_no_live_preview_slice_2r2.jsonl",
+        "file_sha256": "a" * 64,
+        "status": "blocked",
+    }
     validations = iter(
         [
             dict(sealed_binding),
@@ -2956,7 +3506,7 @@ def test_producer_claim_binds_revalidated_predecessor(
     path = tmp_path / "slice2r3.jsonl"
     rest_client = FakePreviewRestClient()
     sealed_binding = {
-        "artifact_name": "futures_exact_no_live_preview_slice_2r1.jsonl",
+        "artifact_name": "futures_exact_no_live_preview_slice_2r2.jsonl",
         "file_sha256": "a" * 64,
         "evidence_sha256": "b" * 64,
         "status": "blocked",
@@ -3061,6 +3611,7 @@ def test_openapi_exposes_typed_read_only_preview_contract():
     assert set(response_schema["properties"]["artifact_type"]["enum"]) == {
         "futures_exact_no_live_preview_slice_2r2",
         "futures_exact_no_live_preview_slice_2r3",
+        "futures_exact_no_live_preview_slice_2r4",
     }
     assert "predecessor_binding" in response_schema["required"]
     predecessor_refs = {
@@ -3072,6 +3623,7 @@ def test_openapi_exposes_typed_read_only_preview_contract():
     assert predecessor_refs == {
         "#/components/schemas/AdminFuturesPreviewPredecessorBinding",
         "#/components/schemas/AdminFuturesPreviewR2PredecessorBinding",
+        "#/components/schemas/AdminFuturesPreviewR3PredecessorBinding",
     }
     predecessor_schema = schema["components"]["schemas"][
         "AdminFuturesPreviewPredecessorBinding"
@@ -3088,6 +3640,24 @@ def test_openapi_exposes_typed_read_only_preview_contract():
         "type": "string",
         "const": "1783991637010957407",
         "title": "Mtime Ns",
+    }
+    r3_predecessor_schema = schema["components"]["schemas"][
+        "AdminFuturesPreviewR3PredecessorBinding"
+    ]
+    assert r3_predecessor_schema["properties"]["mtime_ns"] == {
+        "type": "string",
+        "const": "1784054457360155278",
+        "title": "Mtime Ns",
+    }
+    margin_windows_refs = {
+        item["$ref"]
+        for item in response_schema["properties"]["margin_windows_evidence"][
+            "anyOf"
+        ]
+        if "$ref" in item
+    }
+    assert margin_windows_refs == {
+        "#/components/schemas/AdminFuturesPreviewMarginWindowsEvidence"
     }
     stage_row_schema = schema["components"]["schemas"][
         "AdminFuturesPreviewStageEvidenceRow"
