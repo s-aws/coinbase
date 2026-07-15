@@ -21,7 +21,7 @@ import re
 import stat
 from types import MappingProxyType
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from application.admin_api.futures_portfolio_binding import (
     evaluate_futures_default_portfolio_binding,
@@ -64,6 +64,11 @@ FUTURES_PREVIEW_R4_ARTIFACT_PATH = (
     / "artifacts"
     / "futures_exact_no_live_preview_slice_2r4.jsonl"
 )
+FUTURES_PREVIEW_R5_ARTIFACT_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "artifacts"
+    / "futures_exact_no_live_preview_slice_2r5.jsonl"
+)
 DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH = FUTURES_PREVIEW_R4_ARTIFACT_PATH
 FUTURES_PREVIEW_R1_FILE_SHA256 = (
     "55c09c6d4819f2d03dd679ae4c952e203cf540d1a141e13035459821f1b680d7"
@@ -98,6 +103,17 @@ FUTURES_PREVIEW_R3_INODE = 42312497
 FUTURES_PREVIEW_R3_SIZE = 7616
 FUTURES_PREVIEW_R3_MODE = 0o400
 FUTURES_PREVIEW_R3_MTIME_NS = 1784054457360155278
+FUTURES_PREVIEW_R4_FILE_SHA256 = (
+    "90691e5b24c17fca5f3d1a67f942ea0b4b067e262435bcdf37e516f79ebb66cf"
+)
+FUTURES_PREVIEW_R4_EVIDENCE_SHA256 = (
+    "0edeffdb0702ba119a7d9c3e32874b75e295ee596538432df5f7be0a67a4af3e"
+)
+FUTURES_PREVIEW_R4_DEVICE = 66305
+FUTURES_PREVIEW_R4_INODE = 42321812
+FUTURES_PREVIEW_R4_SIZE = 9508
+FUTURES_PREVIEW_R4_MODE = 0o400
+FUTURES_PREVIEW_R4_MTIME_NS = 1784087822854381595
 FUTURES_PREVIEW_ORIGINAL_FILE_SHA256 = (
     "9b15da86c172eca46d4b3dc0fc2b81e9b325df9a1e2f75fef79362f538e2d5ff"
 )
@@ -115,6 +131,10 @@ FUTURES_PREVIEW_R4_ARTIFACT_TYPE = (
     "futures_exact_no_live_preview_slice_2r4"
 )
 _R4_ARTIFACT_TYPE = FUTURES_PREVIEW_R4_ARTIFACT_TYPE
+FUTURES_PREVIEW_R5_ARTIFACT_TYPE = (
+    "futures_exact_no_live_preview_slice_2r5"
+)
+_R5_ARTIFACT_TYPE = FUTURES_PREVIEW_R5_ARTIFACT_TYPE
 _MAX_ARTIFACT_BYTES = 2 * 1024 * 1024
 _NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 FUTURES_PREVIEW_DOCUMENTED_MARGIN_SETTINGS = frozenset(
@@ -261,6 +281,24 @@ FUTURES_PREVIEW_R3_PREDECESSOR_BINDING = {
     "preservation": "immutable_no_modify_delete_or_reuse",
     "original_predecessor_binding": FUTURES_PREVIEW_PREDECESSOR_BINDING,
 }
+FUTURES_PREVIEW_R4_PREDECESSOR_BINDING = {
+    "artifact_name": "futures_exact_no_live_preview_slice_2r4.jsonl",
+    "file_sha256": FUTURES_PREVIEW_R4_FILE_SHA256,
+    "evidence_sha256": FUTURES_PREVIEW_R4_EVIDENCE_SHA256,
+    "device": str(FUTURES_PREVIEW_R4_DEVICE),
+    "inode": str(FUTURES_PREVIEW_R4_INODE),
+    "size_bytes": FUTURES_PREVIEW_R4_SIZE,
+    "mode": f"{FUTURES_PREVIEW_R4_MODE:04o}",
+    "mtime_ns": str(FUTURES_PREVIEW_R4_MTIME_NS),
+    "status": "blocked",
+    "outcome": "blocked",
+    "preview_order_attempt_count": 0,
+    "exchange_submission_attempt_count": 0,
+    "submitted_notional_usdc": "0",
+    "executed_notional_usdc": "0",
+    "preservation": "immutable_no_modify_delete_or_reuse",
+    "original_predecessor_binding": FUTURES_PREVIEW_R3_PREDECESSOR_BINDING,
+}
 _CONSUMED_PREVIEW_IDENTIFIERS = frozenset(
     {
         "9c26aed6-fce5-470b-b57e-b89423ecc0ed",
@@ -394,6 +432,8 @@ _TERMINAL_FAILURE_CONTEXT_ALLOWED_KEYS = frozenset(
         "margin_setting_evidence_sha256",
         "margin_windows_evidence",
         "margin_windows_evidence_sha256",
+        "margin_windows_policy_evidence",
+        "margin_windows_policy_evidence_sha256",
         "candidate",
         "candidate_sha256",
         "preview_request",
@@ -498,10 +538,25 @@ def canonical_sha256(value: Any) -> str:
 
 
 def configured_futures_order_preview_artifact_path() -> Path:
-    """Resolve the backend-owned immutable evidence path."""
+    """Resolve R4 until R5 is immutable; then expose R5 fail closed."""
 
     configured = os.environ.get(FUTURES_PREVIEW_ARTIFACT_ENV, "").strip()
-    return Path(configured) if configured else DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH
+    if configured:
+        return Path(configured)
+    try:
+        payload = FuturesOrderPreviewArtifactStore(
+            FUTURES_PREVIEW_R5_ARTIFACT_PATH
+        ).read_completed()
+        if payload.get("artifact_type") != _R5_ARTIFACT_TYPE:
+            return DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH
+        from application.admin_api.models import (
+            AdminFuturesOrderPreviewResponse,
+        )
+
+        AdminFuturesOrderPreviewResponse.model_validate(payload)
+    except Exception:
+        return DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH
+    return FUTURES_PREVIEW_R5_ARTIFACT_PATH
 
 
 class FuturesOrderPreviewArtifactStore:
@@ -626,6 +681,30 @@ class FuturesOrderPreviewArtifactStore:
         if record.get("claim_sha256") != claim.get("record_sha256"):
             raise FuturesOrderPreviewArtifactError(
                 "futures Preview artifact claim binding is invalid"
+            )
+        claim_record = claim.get("record")
+        if (
+            isinstance(claim_record, Mapping)
+            and claim_record.get("artifact_type") == _R5_ARTIFACT_TYPE
+        ):
+            _validate_r5_claim_record(claim_record)
+        if not isinstance(claim_record, Mapping) or any(
+            record.get(key) != claim_record.get(key)
+            for key in (
+                "artifact_type",
+                "predecessor_binding",
+                "reserved_at",
+                "actor_id",
+                "roles",
+                "correlation_id",
+                "idempotency_key",
+                "profile_label",
+                "portfolio_type",
+                "product_id",
+            )
+        ):
+            raise FuturesOrderPreviewArtifactError(
+                "futures Preview artifact claim identity is invalid"
             )
         evidence = dict(record)
         expected_hash = str(evidence.get("evidence_sha256") or "")
@@ -1006,6 +1085,30 @@ def validate_production_futures_order_preview_r3_predecessor() -> dict[str, Any]
     return r3_binding
 
 
+def validate_production_futures_order_preview_r4_predecessor() -> dict[str, Any]:
+    """Validate immutable R4 plus its complete R3/R2/R1/original chain."""
+
+    r3_binding = validate_production_futures_order_preview_r3_predecessor()
+    r4_binding = validate_futures_order_preview_predecessor(
+        FUTURES_PREVIEW_R4_ARTIFACT_PATH,
+        expected_file_sha256=FUTURES_PREVIEW_R4_FILE_SHA256,
+        expected_evidence_sha256=FUTURES_PREVIEW_R4_EVIDENCE_SHA256,
+        expected_device=FUTURES_PREVIEW_R4_DEVICE,
+        expected_inode=FUTURES_PREVIEW_R4_INODE,
+        expected_size=FUTURES_PREVIEW_R4_SIZE,
+        expected_mode=FUTURES_PREVIEW_R4_MODE,
+        expected_mtime_ns=FUTURES_PREVIEW_R4_MTIME_NS,
+        expected_artifact_type=_R4_ARTIFACT_TYPE,
+        expected_blocker="preflight_or_preview_stage_blocked",
+        expected_predecessor_binding=r3_binding,
+    )
+    if r4_binding != FUTURES_PREVIEW_R4_PREDECESSOR_BINDING:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R4 predecessor binding changed"
+        )
+    return r4_binding
+
+
 class FuturesOrderPreviewProducer:
     """Consume one fixed authorization to produce Preview-only evidence."""
 
@@ -1021,15 +1124,19 @@ class FuturesOrderPreviewProducer:
         correlation_id_factory: Callable[[], str] | None = None,
         idempotency_key_factory: Callable[[], str] | None = None,
     ) -> None:
-        if artifact_type not in {_ARTIFACT_TYPE, _R4_ARTIFACT_TYPE}:
+        if artifact_type not in {
+            _ARTIFACT_TYPE,
+            _R4_ARTIFACT_TYPE,
+            _R5_ARTIFACT_TYPE,
+        }:
             raise FuturesOrderPreviewArtifactError(
                 "futures Preview artifact generation is invalid"
             )
-        expected_predecessor_name = (
-            "futures_exact_no_live_preview_slice_2r2.jsonl"
-            if artifact_type == _ARTIFACT_TYPE
-            else "futures_exact_no_live_preview_slice_2r3.jsonl"
-        )
+        expected_predecessor_name = {
+            _ARTIFACT_TYPE: "futures_exact_no_live_preview_slice_2r2.jsonl",
+            _R4_ARTIFACT_TYPE: "futures_exact_no_live_preview_slice_2r3.jsonl",
+            _R5_ARTIFACT_TYPE: "futures_exact_no_live_preview_slice_2r4.jsonl",
+        }[artifact_type]
         if predecessor_binding.get("artifact_name") != expected_predecessor_name:
             raise FuturesOrderPreviewArtifactError(
                 "futures Preview predecessor generation is invalid"
@@ -1048,6 +1155,22 @@ class FuturesOrderPreviewProducer:
 
         correlation_id = self.correlation_id_factory()
         idempotency_key = self.idempotency_key_factory()
+        try:
+            parsed_correlation_id = UUID(correlation_id)
+            parsed_idempotency_key = UUID(idempotency_key)
+        except (AttributeError, TypeError, ValueError) as exc:
+            raise FuturesOrderPreviewArtifactError(
+                "futures Preview identifiers are not canonical UUIDv4"
+            ) from exc
+        if (
+            parsed_correlation_id.version != 4
+            or parsed_idempotency_key.version != 4
+            or str(parsed_correlation_id) != correlation_id
+            or str(parsed_idempotency_key) != idempotency_key
+        ):
+            raise FuturesOrderPreviewArtifactError(
+                "futures Preview identifiers are not canonical UUIDv4"
+            )
         if (
             correlation_id in _CONSUMED_PREVIEW_IDENTIFIERS
             or idempotency_key in _CONSUMED_PREVIEW_IDENTIFIERS
@@ -1101,18 +1224,33 @@ class FuturesOrderPreviewProducer:
     def run(self) -> dict[str, Any]:
         """Reserve once, preflight, and make at most one Preview call."""
 
-        observed_predecessor = dict(self.predecessor_validator())
-        if observed_predecessor != self.predecessor_binding:
-            raise FuturesOrderPreviewArtifactError(
-                "futures Preview predecessor binding changed"
-            )
-        claim = self.build_claim()
-        claim_sha256 = self.store.reserve(claim)
+        if self.artifact_type == _R5_ARTIFACT_TYPE:
+            claim = self.build_claim()
+            claim_sha256 = self.store.reserve(claim)
+        else:
+            observed_predecessor = dict(self.predecessor_validator())
+            if observed_predecessor != self.predecessor_binding:
+                raise FuturesOrderPreviewArtifactError(
+                    "futures Preview predecessor binding changed"
+                )
+            claim = self.build_claim()
+            claim_sha256 = self.store.reserve(claim)
         counters = _zero_attempt_counters()
         read_counters = _zero_read_counters()
         terminal_context: dict[str, Any] = {}
         passed_pre_preview_stages: list[str] = []
         try:
+            if self.artifact_type == _R5_ARTIFACT_TYPE:
+                try:
+                    observed_predecessor = dict(self.predecessor_validator())
+                except FuturesOrderPreviewArtifactError as exc:
+                    raise ValueError(
+                        "futures_preview_predecessor_validation_blocked"
+                    ) from exc
+                if observed_predecessor != self.predecessor_binding:
+                    raise ValueError(
+                        "futures_preview_predecessor_binding_changed_after_claim"
+                    )
             try:
                 revalidated_predecessor = dict(self.predecessor_validator())
             except FuturesOrderPreviewArtifactError as exc:
@@ -1157,17 +1295,32 @@ class FuturesOrderPreviewProducer:
             positions = _plain(self.rest_client.get_futures_positions())
             read_counters["futures_margin_collateral"] = 1
             margin_collateral_observed = False
+            margin_collateral: Any = {}
             try:
-                margin_collateral = _plain(
+                raw_margin_collateral = (
                     self.rest_client.get_futures_margin_collateral_snapshot()
                 )
                 margin_collateral_observed = True
+                margin_collateral = _plain(raw_margin_collateral)
+                if self.artifact_type == _R5_ARTIFACT_TYPE:
+                    terminal_context.update(
+                        slice2_preview_margin_windows_policy_context(
+                            margin_collateral
+                        )
+                    )
                 terminal_context.update(
                     _margin_setting_terminal_context(margin_collateral)
                 )
-                available_margin = validate_margin_collateral_evidence(
-                    margin_collateral
-                )
+                if self.artifact_type == _R5_ARTIFACT_TYPE:
+                    available_margin = (
+                        validate_slice2_preview_margin_collateral_evidence(
+                            margin_collateral
+                        )
+                    )
+                else:
+                    available_margin = validate_margin_collateral_evidence(
+                        margin_collateral
+                    )
             except Exception as exc:
                 if (
                     self.artifact_type == _R4_ARTIFACT_TYPE
@@ -1178,6 +1331,16 @@ class FuturesOrderPreviewProducer:
                 ):
                     terminal_context.update(
                         _margin_windows_terminal_context(margin_collateral)
+                    )
+                elif (
+                    self.artifact_type == _R5_ARTIFACT_TYPE
+                    and "margin_windows_policy_evidence"
+                    not in terminal_context
+                ):
+                    terminal_context.update(
+                        slice2_preview_margin_windows_policy_context(
+                            margin_collateral
+                        )
                     )
                 terminal_context.update(
                     _pre_preview_stage_failure_context(
@@ -1220,6 +1383,7 @@ class FuturesOrderPreviewProducer:
             passed_pre_preview_stages.append("preview_request_construction")
             try:
                 attempt_context = _terminal_attempt_context(
+                    artifact_type=self.artifact_type,
                     binding=binding.to_dict(),
                     permissions=permissions,
                     portfolios=portfolios,
@@ -1331,9 +1495,16 @@ class FuturesOrderPreviewProducer:
                 raise ValueError(transition_blocker)
             self.store.append_result(evidence)
             return self.store.read_completed()
-        except FuturesOrderPreviewArtifactError:
-            raise
         except Exception as exc:
+            if isinstance(exc, FuturesOrderPreviewArtifactError):
+                if self.artifact_type != _R5_ARTIFACT_TYPE:
+                    raise
+                try:
+                    self.store.read_completed()
+                except FuturesOrderPreviewArtifactError:
+                    pass
+                else:
+                    raise
             transition_blocker = self._terminal_predecessor_blocker()
             stage_failure = "pre_preview_stage_evidence" in terminal_context
             blocker = (
@@ -1347,6 +1518,9 @@ class FuturesOrderPreviewProducer:
                 and transition_blocker not in blocker
             ):
                 blocker = f"{blocker};{transition_blocker}"
+            if self.artifact_type == _R5_ARTIFACT_TYPE:
+                terminal_context.pop("preview_response", None)
+                terminal_context.pop("preview_response_sha256", None)
             result = _terminal_failure_record(
                 claim=claim,
                 claim_sha256=claim_sha256,
@@ -1622,6 +1796,25 @@ def validate_preview_response(value: Any) -> dict[str, Any]:
 def validate_margin_collateral_evidence(value: Any) -> Decimal:
     """Return authoritative available US CFM margin or fail closed."""
 
+    return _validate_margin_collateral_evidence(value, policy_version="v1")
+
+
+def validate_slice2_preview_margin_collateral_evidence(value: Any) -> Decimal:
+    """Validate R5 margin evidence under the operator's Preview-only policy."""
+
+    return _validate_margin_collateral_evidence(value, policy_version="v2")
+
+
+def _validate_margin_collateral_evidence(
+    value: Any,
+    *,
+    policy_version: str,
+) -> Decimal:
+    """Apply common US CFM risk gates with one explicit window policy."""
+
+    if policy_version not in {"v1", "v2"}:
+        raise ValueError("futures_preview_margin_window_policy_invalid")
+
     evidence = _mapping(value)
     if (
         evidence.get("status") != "ready"
@@ -1670,15 +1863,23 @@ def validate_margin_collateral_evidence(value: Any) -> Decimal:
         raise ValueError("futures_preview_margin_setting_ambiguous")
     if setting not in FUTURES_PREVIEW_OPERATIONAL_MARGIN_SETTINGS:
         raise ValueError("futures_preview_margin_setting_unspecified")
-    margin_windows_diagnostic = _classify_margin_windows(evidence)
-    failing_row_index = margin_windows_diagnostic["failing_row_index"]
-    if (
-        margin_windows_diagnostic["classification"] != "ready"
-        and failing_row_index is None
-        and margin_windows_diagnostic["classification"]
-        != "expected_profile_set_incomplete"
-    ):
-        raise ValueError("futures_preview_margin_windows_ambiguous")
+    if policy_version == "v1":
+        margin_windows_diagnostic = _classify_margin_windows(evidence)
+        failing_row_index = margin_windows_diagnostic["failing_row_index"]
+        if (
+            margin_windows_diagnostic["classification"] != "ready"
+            and failing_row_index is None
+            and margin_windows_diagnostic["classification"]
+            != "expected_profile_set_incomplete"
+        ):
+            raise ValueError("futures_preview_margin_windows_ambiguous")
+    else:
+        margin_windows_diagnostic = (
+            _classify_slice2_preview_margin_windows_policy(evidence)
+        )
+        failing_row_index = None
+        if not margin_windows_diagnostic["margin_window_policy_satisfied"]:
+            raise ValueError("futures_preview_margin_windows_ambiguous")
     windows = evidence.get("current_margin_windows", [])
     for index, item in enumerate(windows):
         if failing_row_index == index:
@@ -1810,6 +2011,16 @@ def _accepted_evidence(
     sanitized_portfolio = _sanitized_portfolio_catalog_evidence(binding)
     sanitized_positions = _sanitized_position_evidence(positions)
     sanitized_margin = _sanitized_margin_collateral_evidence(margin_collateral)
+    product_evidence = (
+        _sanitized_product_evidence(product)
+        if claim["artifact_type"] == _R5_ARTIFACT_TYPE
+        else _plain(product)
+    )
+    market_evidence = (
+        _sanitized_market_evidence(book)
+        if claim["artifact_type"] == _R5_ARTIFACT_TYPE
+        else _plain(book)
+    )
     evidence: dict[str, Any] = {
         "schema_version": _SCHEMA_VERSION,
         "type": "admin_futures_order_preview",
@@ -1833,10 +2044,10 @@ def _accepted_evidence(
         "portfolio_catalog_evidence": sanitized_portfolio,
         "portfolio_catalog_sha256": canonical_sha256(sanitized_portfolio),
         "product_id": FUTURES_PREVIEW_PRODUCT_ID,
-        "product_evidence": _plain(product),
-        "product_evidence_sha256": canonical_sha256(product),
-        "market_evidence": _plain(book),
-        "market_evidence_sha256": canonical_sha256(book),
+        "product_evidence": product_evidence,
+        "product_evidence_sha256": canonical_sha256(product_evidence),
+        "market_evidence": market_evidence,
+        "market_evidence_sha256": canonical_sha256(market_evidence),
         "position_evidence": sanitized_positions,
         "position_evidence_sha256": canonical_sha256(sanitized_positions),
         "margin_collateral_evidence": sanitized_margin,
@@ -1869,6 +2080,10 @@ def _accepted_evidence(
         "canonicalization": "sorted_keys_compact_utf8_json",
         "hash_algorithm": "sha256",
     }
+    if claim["artifact_type"] == _R5_ARTIFACT_TYPE:
+        evidence.update(
+            slice2_preview_margin_windows_policy_context(margin_collateral)
+        )
     evidence["evidence_sha256"] = canonical_sha256(evidence)
     return evidence
 
@@ -1948,6 +2163,7 @@ def _terminal_failure_record(
 
 def _terminal_attempt_context(
     *,
+    artifact_type: str,
     binding: Mapping[str, Any],
     permissions: Any,
     portfolios: Any,
@@ -1964,17 +2180,27 @@ def _terminal_attempt_context(
     sanitized_portfolio = _sanitized_portfolio_catalog_evidence(binding)
     sanitized_positions = _sanitized_position_evidence(positions)
     sanitized_margin = _sanitized_margin_collateral_evidence(margin_collateral)
-    return {
+    product_evidence = (
+        _sanitized_product_evidence(product)
+        if artifact_type == _R5_ARTIFACT_TYPE
+        else _plain(product)
+    )
+    market_evidence = (
+        _sanitized_market_evidence(book)
+        if artifact_type == _R5_ARTIFACT_TYPE
+        else _plain(book)
+    )
+    context = {
         "portfolio_id": binding.get("observed_portfolio_id"),
         "portfolio_binding": dict(binding),
         "permission_evidence": sanitized_permissions,
         "permission_evidence_sha256": canonical_sha256(sanitized_permissions),
         "portfolio_catalog_evidence": sanitized_portfolio,
         "portfolio_catalog_sha256": canonical_sha256(sanitized_portfolio),
-        "product_evidence": _plain(product),
-        "product_evidence_sha256": canonical_sha256(product),
-        "market_evidence": _plain(book),
-        "market_evidence_sha256": canonical_sha256(book),
+        "product_evidence": product_evidence,
+        "product_evidence_sha256": canonical_sha256(product_evidence),
+        "market_evidence": market_evidence,
+        "market_evidence_sha256": canonical_sha256(market_evidence),
         "position_evidence": sanitized_positions,
         "position_evidence_sha256": canonical_sha256(sanitized_positions),
         "margin_collateral_evidence": sanitized_margin,
@@ -1985,6 +2211,11 @@ def _terminal_attempt_context(
         "preview_request": dict(preview_request),
         "preview_request_sha256": canonical_sha256(preview_request),
     }
+    if artifact_type == _R5_ARTIFACT_TYPE:
+        context.update(
+            slice2_preview_margin_windows_policy_context(margin_collateral)
+        )
+    return context
 
 
 def _sanitized_permission_evidence(
@@ -2019,6 +2250,55 @@ def _sanitized_position_evidence(positions: Any) -> dict[str, Any]:
     return {
         "product_id": FUTURES_PREVIEW_PRODUCT_ID,
         "observed_contract_count": _decimal_text(contracts),
+        "sanitized": True,
+        "raw_response_included": False,
+    }
+
+
+def _sanitized_product_evidence(product: Any) -> dict[str, Any]:
+    """Return only candidate-relevant R5 product fields."""
+
+    item = _mapping(product)
+    details = _mapping(item.get("future_product_details"))
+    return {
+        "product_id": item.get("product_id"),
+        "display_name": item.get("display_name"),
+        "product_type": item.get("product_type"),
+        "status": item.get("status"),
+        "price": item.get("price"),
+        "price_increment": item.get("price_increment"),
+        "base_increment": item.get("base_increment"),
+        "base_min_size": item.get("base_min_size"),
+        "trading_disabled": item.get("trading_disabled"),
+        "view_only": item.get("view_only"),
+        "cancel_only": item.get("cancel_only"),
+        "future_product_details": {
+            key: details.get(key)
+            for key in (
+                "contract_size",
+                "contract_code",
+                "group_description",
+                "group_short_description",
+                "venue",
+                "risk_managed_by",
+                "contract_expiry",
+                "contract_expiry_type",
+            )
+        },
+        "sanitized": True,
+        "raw_response_included": False,
+    }
+
+
+def _sanitized_market_evidence(book: Any) -> dict[str, Any]:
+    """Return only the exact fresh top-of-book fields used by R5."""
+
+    pricebook = _exact_pricebook(_mapping(book))
+    return {
+        "product_id": pricebook.get("product_id"),
+        "best_bid": _decimal_text(_top_price(pricebook, "bids")),
+        "best_ask": _decimal_text(_top_price(pricebook, "asks")),
+        "exchange_observed_at": pricebook.get("time"),
         "sanitized": True,
         "raw_response_included": False,
     }
@@ -2797,6 +3077,36 @@ def _seal_ready_plan(
     """Build the canonical fixed plan object suitable for later sealing."""
 
     sanitized_margin = _sanitized_margin_collateral_evidence(margin_collateral)
+    product_hash_source = (
+        _sanitized_product_evidence(product)
+        if claim["artifact_type"] == _R5_ARTIFACT_TYPE
+        else product
+    )
+    market_hash_source = (
+        _sanitized_market_evidence(book)
+        if claim["artifact_type"] == _R5_ARTIFACT_TYPE
+        else book
+    )
+    permission_hash_source = (
+        _sanitized_permission_evidence(binding)
+        if claim["artifact_type"] == _R5_ARTIFACT_TYPE
+        else permissions
+    )
+    portfolio_hash_source = (
+        _sanitized_portfolio_catalog_evidence(binding)
+        if claim["artifact_type"] == _R5_ARTIFACT_TYPE
+        else portfolios
+    )
+    position_hash_source = (
+        _sanitized_position_evidence(positions)
+        if claim["artifact_type"] == _R5_ARTIFACT_TYPE
+        else positions
+    )
+    margin_hash_source = (
+        sanitized_margin
+        if claim["artifact_type"] == _R5_ARTIFACT_TYPE
+        else margin_collateral
+    )
     liquidation_source = str(preview_response["liquidation_evidence_source"])
     if liquidation_source == "current_and_projected_liquidation_buffer":
         liquidation_evidence = {
@@ -2814,7 +3124,7 @@ def _seal_ready_plan(
                 "predicted_liquidation_price"
             ],
         }
-    return {
+    plan = {
         "schema_version": _SCHEMA_VERSION,
         "slice_id": claim["artifact_type"],
         "actor_id": claim["actor_id"],
@@ -2858,12 +3168,12 @@ def _seal_ready_plan(
             "reduce_position": 0,
         },
         "preflight_evidence_hashes": {
-            "permissions": canonical_sha256(permissions),
-            "portfolio_catalog": canonical_sha256(portfolios),
-            "product": canonical_sha256(product),
-            "market": canonical_sha256(book),
-            "positions": canonical_sha256(positions),
-            "margin_collateral": canonical_sha256(margin_collateral),
+            "permissions": canonical_sha256(permission_hash_source),
+            "portfolio_catalog": canonical_sha256(portfolio_hash_source),
+            "product": canonical_sha256(product_hash_source),
+            "market": canonical_sha256(market_hash_source),
+            "positions": canonical_sha256(position_hash_source),
+            "margin_collateral": canonical_sha256(margin_hash_source),
         },
         "no_live_posture": {
             "order_creation_authorized": False,
@@ -2879,6 +3189,14 @@ def _seal_ready_plan(
         "canonicalization": "sorted_keys_compact_utf8_json",
         "hash_algorithm": "sha256",
     }
+    if claim["artifact_type"] == _R5_ARTIFACT_TYPE:
+        policy_context = slice2_preview_margin_windows_policy_context(
+            margin_collateral
+        )
+        plan["preflight_evidence_hashes"][
+            "margin_windows_policy_evidence"
+        ] = policy_context["margin_windows_policy_evidence_sha256"]
+    return plan
 
 
 def _zero_attempt_counters() -> dict[str, int]:
@@ -2891,6 +3209,126 @@ def _zero_attempt_counters() -> dict[str, int]:
         "close_position": 0,
         "reduce_position": 0,
     }
+
+
+def _validate_r5_claim_record(claim: Mapping[str, Any]) -> None:
+    """Reject any authority or scope drift in the one-use R5 claim."""
+
+    correlation_id = claim.get("correlation_id")
+    idempotency_key = claim.get("idempotency_key")
+    try:
+        parsed_correlation_id = UUID(correlation_id)
+        parsed_idempotency_key = UUID(idempotency_key)
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R5 claim identifier is invalid"
+        ) from exc
+    if (
+        parsed_correlation_id.version != 4
+        or parsed_idempotency_key.version != 4
+        or str(parsed_correlation_id) != correlation_id
+        or str(parsed_idempotency_key) != idempotency_key
+        or correlation_id == idempotency_key
+        or correlation_id in _CONSUMED_PREVIEW_IDENTIFIERS
+        or idempotency_key in _CONSUMED_PREVIEW_IDENTIFIERS
+    ):
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R5 claim identifier is invalid"
+        )
+    reserved_at = claim.get("reserved_at")
+    try:
+        parsed_reserved_at = datetime.fromisoformat(
+            str(reserved_at).replace("Z", "+00:00")
+        )
+    except ValueError as exc:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R5 claim timestamp is invalid"
+        ) from exc
+    if (
+        not isinstance(reserved_at, str)
+        or parsed_reserved_at.tzinfo is None
+        or _timestamp(parsed_reserved_at) != reserved_at
+    ):
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R5 claim timestamp is invalid"
+        )
+
+    expected_keys = {
+        "artifact_type",
+        "claim_status",
+        "predecessor_binding",
+        "reserved_at",
+        "actor_id",
+        "roles",
+        "correlation_id",
+        "idempotency_key",
+        "profile_label",
+        "portfolio_type",
+        "product_id",
+        "contract_count",
+        "caps",
+        "allowed_coinbase_methods",
+        "preview_order_attempt_max",
+        "retry_attempt_max",
+        "fallback_attempt_max",
+        "create_order_attempt_max",
+        "cancel_order_attempt_max",
+        "close_position_attempt_max",
+        "reduce_position_attempt_max",
+        "marker_created",
+        "ledger_created",
+        "runtime_created",
+    }
+    if (
+        set(claim) != expected_keys
+        or claim.get("artifact_type") != _R5_ARTIFACT_TYPE
+        or claim.get("claim_status") != "reserved"
+        or claim.get("predecessor_binding")
+        != FUTURES_PREVIEW_R4_PREDECESSOR_BINDING
+        or claim.get("actor_id") != FUTURES_PREVIEW_ACTOR_ID
+        or claim.get("roles") != [FUTURES_PREVIEW_ROLE]
+        or claim.get("profile_label") != "Default"
+        or claim.get("portfolio_type") != "DEFAULT"
+        or claim.get("product_id") != FUTURES_PREVIEW_PRODUCT_ID
+        or claim.get("contract_count") != "1"
+        or claim.get("caps")
+        != {
+            "opening_reference_notional_usdc": "100",
+            "concurrent_exposure_usdc": "150",
+            "buffered_close_reference_notional_usdc": "150",
+            "branch_turnover_reference_notional_usdc": "300",
+            "close_buffer_multiplier": "1.20",
+            "comparison": "strictly_less_than",
+        }
+        or claim.get("allowed_coinbase_methods")
+        != [
+            "get_api_key_permissions",
+            "list_portfolios",
+            "get_product_dict",
+            "get_best_bid_ask",
+            "get_futures_positions",
+            "get_futures_margin_collateral_snapshot",
+            "preview_order",
+        ]
+        or claim.get("preview_order_attempt_max") != 1
+        or any(
+            claim.get(key) != expected
+            for key, expected in {
+                "retry_attempt_max": 0,
+                "fallback_attempt_max": 0,
+                "create_order_attempt_max": 0,
+                "cancel_order_attempt_max": 0,
+                "close_position_attempt_max": 0,
+                "reduce_position_attempt_max": 0,
+                "marker_created": False,
+                "ledger_created": False,
+                "runtime_created": False,
+            }.items()
+        )
+    ):
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R5 claim authority is invalid"
+        )
 
 
 def _zero_read_counters() -> dict[str, int]:

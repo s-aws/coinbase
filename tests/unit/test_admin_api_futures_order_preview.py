@@ -33,6 +33,16 @@ from application.admin_api.futures_order_preview import (
     FUTURES_PREVIEW_R3_SIZE,
     FUTURES_PREVIEW_R4_ARTIFACT_PATH,
     FUTURES_PREVIEW_R4_ARTIFACT_TYPE,
+    FUTURES_PREVIEW_R4_DEVICE,
+    FUTURES_PREVIEW_R4_EVIDENCE_SHA256,
+    FUTURES_PREVIEW_R4_FILE_SHA256,
+    FUTURES_PREVIEW_R4_INODE,
+    FUTURES_PREVIEW_R4_MODE,
+    FUTURES_PREVIEW_R4_MTIME_NS,
+    FUTURES_PREVIEW_R4_PREDECESSOR_BINDING,
+    FUTURES_PREVIEW_R4_SIZE,
+    FUTURES_PREVIEW_R5_ARTIFACT_PATH,
+    FUTURES_PREVIEW_R5_ARTIFACT_TYPE,
     FUTURES_PREVIEW_ACTOR_ID,
     FUTURES_PREVIEW_DOCUMENTED_MARGIN_SETTINGS,
     FUTURES_PREVIEW_OPERATIONAL_MARGIN_SETTINGS,
@@ -44,12 +54,15 @@ from application.admin_api.futures_order_preview import (
     FuturesOrderPreviewProducer,
     build_futures_order_preview_candidate,
     canonical_sha256,
+    configured_futures_order_preview_artifact_path,
     _margin_windows_terminal_context,
     slice2_preview_margin_windows_policy_context,
     _notional_text,
     validate_futures_order_preview_predecessor,
     validate_production_futures_order_preview_r3_predecessor,
+    validate_production_futures_order_preview_r4_predecessor,
     validate_margin_collateral_evidence,
+    validate_slice2_preview_margin_collateral_evidence,
     validate_preview_response,
 )
 from application.admin_api.models import (
@@ -59,6 +72,7 @@ from application.admin_api.models import (
 )
 from external.coinbase_client import CoinbaseRestClient
 from tools import run_admin_api_futures_no_live_preview as preview_tool
+from tools import run_admin_api_futures_no_live_preview_r5 as r5_preview_tool
 
 
 NOW = datetime(2026, 7, 13, 12, 0, tzinfo=timezone.utc)
@@ -133,6 +147,28 @@ TEST_R3_PREDECESSOR_BINDING = {
     "executed_notional_usdc": "0",
     "preservation": "immutable_no_modify_delete_or_reuse",
     "original_predecessor_binding": TEST_PREDECESSOR_BINDING,
+}
+TEST_R4_PREDECESSOR_BINDING = {
+    "artifact_name": "futures_exact_no_live_preview_slice_2r4.jsonl",
+    "file_sha256": (
+        "90691e5b24c17fca5f3d1a67f942ea0b4b067e262435bcdf37e516f79ebb66cf"
+    ),
+    "evidence_sha256": (
+        "0edeffdb0702ba119a7d9c3e32874b75e295ee596538432df5f7be0a67a4af3e"
+    ),
+    "device": "66305",
+    "inode": "42321812",
+    "size_bytes": 9508,
+    "mode": "0400",
+    "mtime_ns": "1784087822854381595",
+    "status": "blocked",
+    "outcome": "blocked",
+    "preview_order_attempt_count": 0,
+    "exchange_submission_attempt_count": 0,
+    "submitted_notional_usdc": "0",
+    "executed_notional_usdc": "0",
+    "preservation": "immutable_no_modify_delete_or_reuse",
+    "original_predecessor_binding": TEST_R3_PREDECESSOR_BINDING,
 }
 
 
@@ -836,6 +872,11 @@ def test_exact_operational_margin_settings_may_reach_preview(
     setting: str,
 ):
     rest_client = FakePreviewRestClient()
+    private_product = _product()
+    private_product["private_product_payload"] = "PRIVATE_R5_PRODUCT_PAYLOAD"
+    rest_client.get_product_dict = (  # type: ignore[method-assign]
+        lambda _product_id: private_product
+    )
     snapshot = rest_client.get_futures_margin_collateral_snapshot()
     snapshot["intraday_margin_setting"] = {"setting": setting}
     rest_client.read_calls.clear()
@@ -1475,7 +1516,11 @@ def test_r3_predecessor_and_r4_default_readback_are_version_bound():
         encoding="utf-8"
     )
     assert "--confirm-one-r4-preview" in tool_source
+    assert "--confirm-one-r5-preview" not in tool_source
     assert "--confirm-one-r3-preview" not in tool_source
+    r5_tool_source = Path(r5_preview_tool.__file__).read_text(encoding="utf-8")
+    assert "--confirm-one-r5-preview" in r5_tool_source
+    assert "--confirm-one-r4-preview" not in r5_tool_source
 
 
 def test_consumed_r3_is_immutable_and_remains_compatible_r4_predecessor():
@@ -2353,31 +2398,591 @@ def test_slice2_preview_policy_model_rejects_nonminimum_failed_policy_row():
         AdminFuturesPreviewMarginWindowsPolicyEvidenceV2.model_validate(evidence)
 
 
-def test_slice2_preview_policy_does_not_enable_r5_artifact_or_entrypoint(
+def test_slice2_preview_r5_uses_exact_r4_predecessor_and_v2_policy(
     tmp_path: Path,
 ):
-    production_r5 = (
-        FUTURES_PREVIEW_R4_ARTIFACT_PATH.parent
-        / "futures_exact_no_live_preview_slice_2r5.jsonl"
+    rest_client = FakePreviewRestClient()
+    snapshot = rest_client.get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_OVERNIGHT"
+    snapshot["current_margin_windows"][1]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_WEEKEND"
+    rest_client.read_calls.clear()
+    rest_client.get_futures_margin_collateral_snapshot = (  # type: ignore[method-assign]
+        lambda: snapshot
     )
-    assert not production_r5.exists()
-    tool_source = Path(preview_tool.__file__).read_text(encoding="utf-8")
-    assert "--confirm-one-r5-preview" not in tool_source
+    producer, store, _path = _producer(
+        tmp_path,
+        rest_client,
+        artifact_type=FUTURES_PREVIEW_R5_ARTIFACT_TYPE,
+        predecessor_binding=TEST_R4_PREDECESSOR_BINDING,
+    )
 
-    with pytest.raises(
-        FuturesOrderPreviewArtifactError,
-        match="artifact generation is invalid",
-    ):
-        FuturesOrderPreviewProducer(
-            rest_client=FakePreviewRestClient(),
-            store=FuturesOrderPreviewArtifactStore(
-                tmp_path / "must-not-exist.jsonl"
-            ),
-            predecessor_binding=TEST_R3_PREDECESSOR_BINDING,
-            predecessor_validator=lambda: dict(TEST_R3_PREDECESSOR_BINDING),
-            artifact_type="futures_exact_no_live_preview_slice_2r5",
+    evidence = producer.run()
+
+    assert evidence == store.read_completed()
+    assert evidence["artifact_type"] == FUTURES_PREVIEW_R5_ARTIFACT_TYPE
+    assert evidence["predecessor_binding"] == TEST_R4_PREDECESSOR_BINDING
+    assert evidence.get("margin_windows_evidence") is None
+    policy = evidence["margin_windows_policy_evidence"]
+    assert policy["classification"] == "ready"
+    assert policy["margin_window_policy_satisfied"] is True
+    assert policy["profile_state_policy_authority"] == (
+        "operator_defined_slice_2_preview_only_not_coinbase_documented"
+    )
+    assert policy["r5_attempt_authority_granted"] is False
+    assert policy["execution_allowed"] is False
+    assert evidence["margin_windows_policy_evidence_sha256"] == canonical_sha256(
+        policy
+    )
+    assert len(rest_client.preview_calls) == 1
+    assert rest_client.forbidden_calls == []
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
+def test_slice2_preview_r5_rejects_unspecified_with_sanitized_v2_evidence(
+    tmp_path: Path,
+):
+    rest_client = FakePreviewRestClient()
+    snapshot = rest_client.get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"].update(  # type: ignore[index]
+        margin_window_type="MARGIN_WINDOW_TYPE_UNSPECIFIED",
+        private_payload="PRIVATE_MARGIN_WINDOW_PAYLOAD",
+    )
+    rest_client.read_calls.clear()
+    rest_client.get_futures_margin_collateral_snapshot = (  # type: ignore[method-assign]
+        lambda: snapshot
+    )
+    producer, store, path = _producer(
+        tmp_path,
+        rest_client,
+        artifact_type=FUTURES_PREVIEW_R5_ARTIFACT_TYPE,
+        predecessor_binding=TEST_R4_PREDECESSOR_BINDING,
+    )
+
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="blocked"):
+        producer.run()
+
+    evidence = store.read_completed()
+    policy = evidence["margin_windows_policy_evidence"]
+    assert evidence["attempt_counters"]["preview_order"] == 0
+    assert evidence.get("margin_windows_evidence") is None
+    assert policy["classification"] == (
+        "margin_window_type_documented_but_operator_rejected"
+    )
+    assert policy["rows"][0]["observed_token"] == (
+        "MARGIN_WINDOW_TYPE_UNSPECIFIED"
+    )
+    assert policy["rows"][0]["operator_policy_match"] is False
+    assert rest_client.preview_calls == []
+    assert "PRIVATE_MARGIN_WINDOW_PAYLOAD" not in path.read_text(encoding="utf-8")
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
+def test_r5_response_rejects_policy_or_seal_authority_tampering(
+    tmp_path: Path,
+):
+    rest_client = FakePreviewRestClient()
+    snapshot = rest_client.get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_OVERNIGHT"
+    rest_client.get_futures_margin_collateral_snapshot = (  # type: ignore[method-assign]
+        lambda: snapshot
+    )
+    producer, _store, _path = _producer(
+        tmp_path,
+        rest_client,
+        artifact_type=FUTURES_PREVIEW_R5_ARTIFACT_TYPE,
+        predecessor_binding=TEST_R4_PREDECESSOR_BINDING,
+    )
+    accepted = producer.run()
+    AdminFuturesOrderPreviewResponse.model_validate(accepted)
+
+    def rehash(evidence: dict[str, object]) -> None:
+        evidence["evidence_sha256"] = canonical_sha256(
+            {
+                key: value
+                for key, value in evidence.items()
+                if key != "evidence_sha256"
+            }
         )
-    assert not (tmp_path / "must-not-exist.jsonl").exists()
+
+    missing_policy = deepcopy(accepted)
+    missing_policy.pop("margin_windows_policy_evidence")
+    missing_policy.pop("margin_windows_policy_evidence_sha256")
+    rehash(missing_policy)
+    with pytest.raises(ValidationError):
+        AdminFuturesOrderPreviewResponse.model_validate(missing_policy)
+
+    token_mismatch = deepcopy(accepted)
+    token_mismatch["margin_windows_policy_evidence"]["rows"][0][  # type: ignore[index]
+        "observed_token"
+    ] = "MARGIN_WINDOW_TYPE_TRANSITION"
+    token_mismatch["margin_windows_policy_evidence_sha256"] = canonical_sha256(
+        token_mismatch["margin_windows_policy_evidence"]
+    )
+    token_mismatch["seal_ready_plan"]["preflight_evidence_hashes"][  # type: ignore[index]
+        "margin_windows_policy_evidence"
+    ] = token_mismatch["margin_windows_policy_evidence_sha256"]
+    token_mismatch["seal_ready_plan_sha256"] = canonical_sha256(
+        token_mismatch["seal_ready_plan"]
+    )
+    rehash(token_mismatch)
+    with pytest.raises(ValidationError, match="policy_binding_invalid"):
+        AdminFuturesOrderPreviewResponse.model_validate(token_mismatch)
+
+    expanded_plan = deepcopy(accepted)
+    expanded_plan["seal_ready_plan"]["no_live_posture"][  # type: ignore[index]
+        "order_creation_authorized"
+    ] = True
+    expanded_plan["seal_ready_plan"][  # type: ignore[index]
+        "later_live_eligibility_granted"
+    ] = True
+    expanded_plan["seal_ready_plan_sha256"] = canonical_sha256(
+        expanded_plan["seal_ready_plan"]
+    )
+    rehash(expanded_plan)
+    with pytest.raises(ValidationError, match="r5_seal_plan_invalid"):
+        AdminFuturesOrderPreviewResponse.model_validate(expanded_plan)
+
+    unbound_permission_hash = deepcopy(accepted)
+    unbound_permission_hash["seal_ready_plan"]["preflight_evidence_hashes"][  # type: ignore[index]
+        "permissions"
+    ] = "0" * 64
+    unbound_permission_hash["seal_ready_plan_sha256"] = canonical_sha256(
+        unbound_permission_hash["seal_ready_plan"]
+    )
+    rehash(unbound_permission_hash)
+    with pytest.raises(ValidationError, match="r5_seal_plan_invalid"):
+        AdminFuturesOrderPreviewResponse.model_validate(unbound_permission_hash)
+
+    expanded_candidate = deepcopy(accepted)
+    expanded_candidate["candidate"][  # type: ignore[index]
+        "create_order_authorized"
+    ] = True
+    expanded_candidate["candidate_sha256"] = canonical_sha256(
+        expanded_candidate["candidate"]
+    )
+    expanded_candidate["seal_ready_plan"]["candidate"] = deepcopy(  # type: ignore[index]
+        expanded_candidate["candidate"]
+    )
+    expanded_candidate["seal_ready_plan_sha256"] = canonical_sha256(
+        expanded_candidate["seal_ready_plan"]
+    )
+    rehash(expanded_candidate)
+    with pytest.raises(ValidationError, match="sanitized_evidence_binding_invalid"):
+        AdminFuturesOrderPreviewResponse.model_validate(expanded_candidate)
+
+
+def _rehash_self_consistent_r5_attempt_evidence(
+    evidence: dict[str, object],
+) -> None:
+    """Rehash every R5 binding an artifact rewriter can recompute."""
+
+    for field in ("product_evidence", "market_evidence", "candidate"):
+        evidence[f"{field}_sha256"] = canonical_sha256(evidence[field])
+    plan = evidence["seal_ready_plan"]
+    assert isinstance(plan, dict)
+    preflight_hashes = plan["preflight_evidence_hashes"]
+    assert isinstance(preflight_hashes, dict)
+    preflight_hashes["product"] = evidence["product_evidence_sha256"]
+    preflight_hashes["market"] = evidence["market_evidence_sha256"]
+    plan["candidate"] = deepcopy(evidence["candidate"])
+    plan["correlation_id"] = evidence["correlation_id"]
+    plan["idempotency_key"] = evidence["idempotency_key"]
+    evidence["seal_ready_plan_sha256"] = canonical_sha256(plan)
+    evidence["evidence_sha256"] = canonical_sha256(
+        {
+            key: value
+            for key, value in evidence.items()
+            if key != "evidence_sha256"
+        }
+    )
+
+
+def test_r5_response_recomputes_candidate_from_sanitized_exchange_evidence(
+    tmp_path: Path,
+):
+    producer, _store, _path = _producer(
+        tmp_path,
+        FakePreviewRestClient(),
+        artifact_type=FUTURES_PREVIEW_R5_ARTIFACT_TYPE,
+        predecessor_binding=TEST_R4_PREDECESSOR_BINDING,
+    )
+    accepted = producer.run()
+    AdminFuturesOrderPreviewResponse.model_validate(accepted)
+
+    attacks: list[dict[str, object]] = []
+
+    disabled = deepcopy(accepted)
+    disabled["product_evidence"]["trading_disabled"] = True  # type: ignore[index]
+    attacks.append(disabled)
+
+    two_contract_minimum = deepcopy(accepted)
+    two_contract_minimum["product_evidence"]["base_min_size"] = "2"  # type: ignore[index]
+    attacks.append(two_contract_minimum)
+
+    wrong_expiry = deepcopy(accepted)
+    wrong_expiry["product_evidence"]["future_product_details"][  # type: ignore[index]
+        "contract_expiry"
+    ] = "2020-12-20T16:00:00Z"
+    attacks.append(wrong_expiry)
+
+    crossed_book = deepcopy(accepted)
+    crossed_book["market_evidence"]["best_bid"] = crossed_book[  # type: ignore[index]
+        "market_evidence"
+    ]["best_ask"]
+    attacks.append(crossed_book)
+
+    stale_market = deepcopy(accepted)
+    stale_market["market_evidence"][  # type: ignore[index]
+        "exchange_observed_at"
+    ] = "2000-01-01T00:00:00Z"
+    attacks.append(stale_market)
+
+    historical_pair = deepcopy(accepted)
+    historical_pair["market_evidence"][  # type: ignore[index]
+        "exchange_observed_at"
+    ] = "2000-01-01T00:00:00Z"
+    historical_pair["candidate"]["observed_at"] = (  # type: ignore[index]
+        "2000-01-01T00:00:00Z"
+    )
+    attacks.append(historical_pair)
+
+    for attack in attacks:
+        _rehash_self_consistent_r5_attempt_evidence(attack)
+        with pytest.raises(
+            ValidationError,
+            match="sanitized_evidence_binding_invalid|timestamp_invalid",
+        ):
+            AdminFuturesOrderPreviewResponse.model_validate(attack)
+
+
+def test_r5_claim_and_response_reject_consumed_identifiers_and_bad_timestamps(
+    tmp_path: Path,
+):
+    producer, _store, _path = _producer(
+        tmp_path,
+        FakePreviewRestClient(),
+        artifact_type=FUTURES_PREVIEW_R5_ARTIFACT_TYPE,
+        predecessor_binding=TEST_R4_PREDECESSOR_BINDING,
+    )
+    claim = producer.build_claim()
+    claim["correlation_id"] = "f32948c1-6bf1-421a-9267-6138ec2228ae"
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="identifier"):
+        preview_module._validate_r5_claim_record(claim)
+
+    accepted = producer.run()
+    attacks: list[dict[str, object]] = []
+
+    consumed_ids = deepcopy(accepted)
+    consumed_ids["correlation_id"] = "f32948c1-6bf1-421a-9267-6138ec2228ae"
+    consumed_ids["idempotency_key"] = "77016c90-d1e1-4344-84c7-53b3c2dca70b"
+    attacks.append(consumed_ids)
+
+    noncanonical_time = deepcopy(accepted)
+    noncanonical_time["reserved_at"] = str(noncanonical_time["reserved_at"]).replace(
+        "Z", "+00:00"
+    )
+    attacks.append(noncanonical_time)
+
+    reversed_time = deepcopy(accepted)
+    reversed_time["completed_at"] = "2000-01-01T00:00:00Z"
+    attacks.append(reversed_time)
+
+    for attack in attacks:
+        _rehash_self_consistent_r5_attempt_evidence(attack)
+        with pytest.raises(
+            ValidationError,
+            match="identifier|timestamp",
+        ):
+            AdminFuturesOrderPreviewResponse.model_validate(attack)
+
+
+def test_r5_artifact_store_rejects_self_consistent_claim_identity_drift(
+    tmp_path: Path,
+):
+    producer, _store, path = _producer(
+        tmp_path,
+        FakePreviewRestClient(),
+        artifact_type=FUTURES_PREVIEW_R5_ARTIFACT_TYPE,
+        predecessor_binding=TEST_R4_PREDECESSOR_BINDING,
+    )
+    producer.run()
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    evidence = rows[1]["record"]
+    evidence["correlation_id"] = "changed-but-self-consistently-rehashed"
+    evidence["evidence_sha256"] = canonical_sha256(
+        {key: value for key, value in evidence.items() if key != "evidence_sha256"}
+    )
+    rows[1]["record_sha256"] = canonical_sha256(
+        {key: value for key, value in rows[1].items() if key != "record_sha256"}
+    )
+    path.chmod(0o600)
+    path.write_text(
+        "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+    path.chmod(0o400)
+
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="claim identity"):
+        FuturesOrderPreviewArtifactStore(path).read_completed()
+
+
+def test_r5_unknown_preview_outcome_is_consumed_once_with_ready_policy(
+    tmp_path: Path,
+):
+    rest_client = FakePreviewRestClient(
+        preview_error=TimeoutError("PRIVATE_UNKNOWN_PREVIEW_RESPONSE")
+    )
+    producer, store, path = _producer(
+        tmp_path,
+        rest_client,
+        artifact_type=FUTURES_PREVIEW_R5_ARTIFACT_TYPE,
+        predecessor_binding=TEST_R4_PREDECESSOR_BINDING,
+    )
+
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="unknown"):
+        producer.run()
+
+    evidence = store.read_completed()
+    assert evidence["outcome"] == "unknown"
+    assert evidence["attempt_counters"] == {
+        "preview_order": 1,
+        "retry": 0,
+        "fallback": 0,
+        "create_order": 0,
+        "cancel_order": 0,
+        "close_position": 0,
+        "reduce_position": 0,
+    }
+    assert evidence["margin_windows_policy_evidence"]["classification"] == "ready"
+    assert len(rest_client.preview_calls) == 1
+    assert "PRIVATE_UNKNOWN" not in path.read_text(encoding="utf-8")
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="consumed"):
+        producer.run()
+    assert len(rest_client.preview_calls) == 1
+
+
+def test_r5_nonaccepted_readback_rejects_invented_authority_and_raw_content(
+    tmp_path: Path,
+):
+    rest_client = FakePreviewRestClient(
+        preview_error=TimeoutError("PRIVATE_UNKNOWN_PREVIEW_RESPONSE")
+    )
+    producer, store, _path = _producer(
+        tmp_path,
+        rest_client,
+        artifact_type=FUTURES_PREVIEW_R5_ARTIFACT_TYPE,
+        predecessor_binding=TEST_R4_PREDECESSOR_BINDING,
+    )
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="unknown"):
+        producer.run()
+    unknown = store.read_completed()
+    AdminFuturesOrderPreviewResponse.model_validate(unknown)
+
+    attacks: list[dict[str, object]] = []
+
+    invented_plan = deepcopy(unknown)
+    invented_plan["seal_ready_plan"] = {
+        "no_live_posture": {"order_creation_authorized": True},
+        "create_order_attempt_max": 1,
+    }
+    invented_plan["seal_ready_plan_sha256"] = canonical_sha256(
+        invented_plan["seal_ready_plan"]
+    )
+    attacks.append(invented_plan)
+
+    invented_response = deepcopy(unknown)
+    invented_response["preview_response"] = {
+        "create_order_authorized": True,
+        "raw_private": "PRIVATE_RESPONSE_MUST_NOT_READ_BACK",
+    }
+    invented_response["preview_response_sha256"] = canonical_sha256(
+        invented_response["preview_response"]
+    )
+    attacks.append(invented_response)
+
+    raw_blocker = deepcopy(unknown)
+    raw_blocker["blocker"] = "PRIVATE EXCEPTION TEXT MUST NOT READ BACK"
+    attacks.append(raw_blocker)
+
+    false_read_trace = deepcopy(unknown)
+    false_read_trace["live_coinbase_read_ran"] = False
+    attacks.append(false_read_trace)
+
+    for attack in attacks:
+        attack["evidence_sha256"] = canonical_sha256(
+            {
+                key: value
+                for key, value in attack.items()
+                if key != "evidence_sha256"
+            }
+        )
+        with pytest.raises(ValidationError):
+            AdminFuturesOrderPreviewResponse.model_validate(attack)
+
+
+def test_r5_blocked_after_preview_withholds_preview_response_content(
+    tmp_path: Path,
+):
+    response = _preview()
+    response["best_bid"] = "7.00"
+    rest_client = FakePreviewRestClient(preview_response=response)
+    producer, store, path = _producer(
+        tmp_path,
+        rest_client,
+        artifact_type=FUTURES_PREVIEW_R5_ARTIFACT_TYPE,
+        predecessor_binding=TEST_R4_PREDECESSOR_BINDING,
+    )
+
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="blocked"):
+        producer.run()
+
+    blocked = store.read_completed()
+    assert blocked["outcome"] == "blocked"
+    assert blocked["attempt_counters"]["preview_order"] == 1
+    assert "preview_response" not in blocked
+    assert "preview_response_sha256" not in blocked
+    assert "PRIVATE" not in path.read_text(encoding="utf-8")
+    AdminFuturesOrderPreviewResponse.model_validate(blocked)
+
+
+@pytest.mark.parametrize(
+    ("correlation_id", "idempotency_key"),
+    [
+        ("not-a-uuid", "2d8327f6-826c-4f73-82a4-822e29f73065"),
+        (
+            "8f604e56-0a23-1bda-b244-11ebc0194241",
+            "2d8327f6-826c-4f73-82a4-822e29f73065",
+        ),
+        (
+            "8F604E56-0A23-4BDA-B244-11EBC0194241",
+            "2d8327f6-826c-4f73-82a4-822e29f73065",
+        ),
+    ],
+)
+def test_r5_claim_rejects_noncanonical_or_non_v4_identifiers_before_reserve(
+    tmp_path: Path,
+    correlation_id: str,
+    idempotency_key: str,
+):
+    path = tmp_path / "invalid-r5-identifiers.jsonl"
+    producer = FuturesOrderPreviewProducer(
+        rest_client=FakePreviewRestClient(),
+        store=FuturesOrderPreviewArtifactStore(path),
+        predecessor_binding=TEST_R4_PREDECESSOR_BINDING,
+        predecessor_validator=lambda: dict(TEST_R4_PREDECESSOR_BINDING),
+        artifact_type=FUTURES_PREVIEW_R5_ARTIFACT_TYPE,
+        now=lambda: NOW,
+        correlation_id_factory=lambda: correlation_id,
+        idempotency_key_factory=lambda: idempotency_key,
+    )
+
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="UUIDv4"):
+        producer.run()
+    assert not path.exists()
+
+
+def test_r5_fixed_path_and_r4_predecessor_match_the_sealed_artifact():
+    before = FUTURES_PREVIEW_R4_ARTIFACT_PATH.stat()
+
+    assert FUTURES_PREVIEW_R5_ARTIFACT_PATH.name == (
+        "futures_exact_no_live_preview_slice_2r5.jsonl"
+    )
+    assert FUTURES_PREVIEW_R4_PREDECESSOR_BINDING == TEST_R4_PREDECESSOR_BINDING
+    assert validate_production_futures_order_preview_r4_predecessor() == (
+        TEST_R4_PREDECESSOR_BINDING
+    )
+    assert FUTURES_PREVIEW_R4_FILE_SHA256 == TEST_R4_PREDECESSOR_BINDING[
+        "file_sha256"
+    ]
+    assert FUTURES_PREVIEW_R4_EVIDENCE_SHA256 == TEST_R4_PREDECESSOR_BINDING[
+        "evidence_sha256"
+    ]
+    assert (
+        FUTURES_PREVIEW_R4_DEVICE,
+        FUTURES_PREVIEW_R4_INODE,
+        FUTURES_PREVIEW_R4_SIZE,
+        FUTURES_PREVIEW_R4_MODE,
+        FUTURES_PREVIEW_R4_MTIME_NS,
+    ) == (
+        before.st_dev,
+        before.st_ino,
+        before.st_size,
+        before.st_mode & 0o777,
+        before.st_mtime_ns,
+    )
+
+
+def test_default_readback_stays_r4_until_valid_immutable_r5_terminal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    r4_path = tmp_path / "default-r4.jsonl"
+    r5_path = tmp_path / "candidate-r5.jsonl"
+    monkeypatch.delenv(
+        "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_PATH",
+        raising=False,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH",
+        r4_path,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R5_ARTIFACT_PATH",
+        r5_path,
+    )
+
+    assert configured_futures_order_preview_artifact_path() == r4_path
+
+    claim_store = FuturesOrderPreviewArtifactStore(r5_path)
+    claim_store.reserve(
+        {
+            "artifact_type": FUTURES_PREVIEW_R5_ARTIFACT_TYPE,
+            "claim_status": "reserved",
+        }
+    )
+    assert r5_path.stat().st_mode & 0o777 == 0o600
+    assert configured_futures_order_preview_artifact_path() == r4_path
+
+    r5_path.unlink()
+    producer, _store, produced_path = _producer(
+        tmp_path,
+        FakePreviewRestClient(),
+        artifact_type=FUTURES_PREVIEW_R5_ARTIFACT_TYPE,
+        predecessor_binding=TEST_R4_PREDECESSOR_BINDING,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R5_ARTIFACT_PATH",
+        produced_path,
+    )
+    producer.run()
+    assert produced_path.stat().st_mode & 0o777 == 0o400
+    assert configured_futures_order_preview_artifact_path() == produced_path
+
+
+def test_r5_policy_validator_is_separate_from_exact_r4_v1_validator():
+    snapshot = FakePreviewRestClient().get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_TRANSITION"
+
+    assert validate_slice2_preview_margin_collateral_evidence(snapshot) == (
+        Decimal("250.00")
+    )
+    with pytest.raises(
+        ValueError,
+        match="^futures_preview_margin_windows_ambiguous$",
+    ):
+        validate_margin_collateral_evidence(snapshot)
 
 
 def test_margin_windows_ambiguity_persists_only_typed_sanitized_diagnostic(
@@ -3628,6 +4233,24 @@ def test_producer_tool_path_is_fixed_and_has_no_path_or_scope_override(
         preview_tool.build_parser().parse_args(["--confirm-one-preview"])
     with pytest.raises(SystemExit):
         preview_tool.build_parser().parse_args(["--confirm-one-r3-preview"])
+    with pytest.raises(SystemExit):
+        preview_tool.build_parser().parse_args(["--confirm-one-r5-preview"])
+
+
+def _install_fixed_preview_sdk_surface(instance: object) -> None:
+    for method in (
+        "get_api_key_permissions",
+        "get_portfolios",
+        "get_product",
+        "get_best_bid_ask",
+        "list_futures_positions",
+        "get_futures_balance_summary",
+        "get_intraday_margin_setting",
+        "get_current_margin_window",
+        "list_futures_sweeps",
+        "preview_order",
+    ):
+        setattr(instance, method, lambda *_args, **_kwargs: None)
 
 
 def test_tool_binds_one_shot_coinbase_client_to_finite_timeout(
@@ -3640,6 +4263,7 @@ def test_tool_binds_one_shot_coinbase_client_to_finite_timeout(
     class FakeSdk:
         def __init__(self, **kwargs: object) -> None:
             captured.update(kwargs)
+            _install_fixed_preview_sdk_surface(self)
             adapter = SimpleNamespace(max_retries=SimpleNamespace(total=0))
             self.session = SimpleNamespace(
                 adapters={"https://": adapter, "http://": adapter}
@@ -3826,6 +4450,7 @@ def test_build_rest_client_rejects_nonzero_transport_retries(
 
     class RetryingSdk:
         def __init__(self, **_kwargs: object) -> None:
+            _install_fixed_preview_sdk_surface(self)
             adapter = SimpleNamespace(max_retries=SimpleNamespace(total=1))
             self.session = SimpleNamespace(adapters={"https://": adapter})
 
@@ -3874,6 +4499,7 @@ def test_build_rest_client_blocks_redirect_replay_after_first_response(
 
     class RedirectingSdk:
         def __init__(self, **_kwargs: object) -> None:
+            _install_fixed_preview_sdk_surface(self)
             self.session = requests.Session()
             self.session.mount("https://", adapter)
             self.session.mount("http://", adapter)
@@ -3921,6 +4547,7 @@ def test_build_rest_client_transport_timeout_is_not_retried(
 
     class TimingOutSdk:
         def __init__(self, **_kwargs: object) -> None:
+            _install_fixed_preview_sdk_surface(self)
             self.session = requests.Session()
             self.session.mount("https://", adapter)
             self.session.mount("http://", adapter)
@@ -4603,6 +5230,219 @@ def test_tool_reports_truthful_terminal_unknown_without_retry(
     assert terminal["predecessor_binding"] == TEST_R3_PREDECESSOR_BINDING
 
 
+def test_r5_tool_is_a_distinct_fixed_one_use_entrypoint(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_PATH",
+        "/tmp/redirected-r5-preview.jsonl",
+    )
+
+    assert r5_preview_tool.production_artifact_path() == (
+        FUTURES_PREVIEW_R5_ARTIFACT_PATH
+    )
+    assert r5_preview_tool.production_artifact_path() != (
+        preview_tool.production_artifact_path()
+    )
+    parsed = r5_preview_tool.build_parser().parse_args(
+        ["--confirm-one-r5-preview"]
+    )
+    assert parsed.confirm_one_r5_preview is True
+    for rejected in (
+        ["--confirm-one-r4-preview"],
+        ["--confirm-one-preview"],
+        ["--confirm-one-r5-preview", "--product-id", "BTC-USDC"],
+        ["--confirm-one-r5-preview", "--artifact-path", "/tmp/other"],
+    ):
+        with pytest.raises(SystemExit):
+            r5_preview_tool.build_parser().parse_args(rejected)
+
+
+def test_r5_tool_preflight_creates_no_artifact_or_coinbase_client(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    path = tmp_path / "fixed-r5-preview.jsonl"
+    monkeypatch.setattr(r5_preview_tool, "production_artifact_path", lambda: path)
+    monkeypatch.setattr(
+        r5_preview_tool,
+        "validate_production_predecessor",
+        lambda: dict(TEST_R4_PREDECESSOR_BINDING),
+    )
+    monkeypatch.setattr(
+        r5_preview_tool,
+        "build_rest_client",
+        lambda: (_ for _ in ()).throw(AssertionError("Coinbase client constructed")),
+    )
+
+    assert r5_preview_tool.main(["--preflight"]) == 0
+
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["status"] == "ready"
+    assert summary["predecessor_binding"] == TEST_R4_PREDECESSOR_BINDING
+    assert summary["artifact_created"] is False
+    assert summary["coinbase_read_ran"] is False
+    assert not path.exists()
+
+
+def test_r5_confirmed_predecessor_ambiguity_consumes_terminal_before_reads(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    path = tmp_path / "fixed-r5-preview.jsonl"
+    monkeypatch.setattr(r5_preview_tool, "production_artifact_path", lambda: path)
+    monkeypatch.setattr(
+        r5_preview_tool,
+        "validate_production_predecessor",
+        lambda: (_ for _ in ()).throw(
+            FuturesOrderPreviewArtifactError("predecessor ambiguous")
+        ),
+    )
+    monkeypatch.setattr(
+        r5_preview_tool,
+        "build_rest_client",
+        lambda: (_ for _ in ()).throw(
+            AssertionError("Coinbase client constructed before predecessor gate")
+        ),
+    )
+
+    assert r5_preview_tool.main(["--confirm-one-r5-preview"]) == 2
+
+    summary = json.loads(capsys.readouterr().err)
+    evidence = FuturesOrderPreviewArtifactStore(path).read_completed()
+    assert summary["status"] == "blocked"
+    assert evidence["artifact_type"] == FUTURES_PREVIEW_R5_ARTIFACT_TYPE
+    assert evidence["attempt_counters"]["preview_order"] == 0
+    assert all(value == 0 for value in evidence["read_counters"].values())
+    assert evidence["exchange_submission_attempt_count"] == 0
+    assert path.stat().st_mode & 0o777 == 0o400
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
+def test_r5_confirmed_client_preparation_error_is_terminally_consumed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    path = tmp_path / "fixed-r5-preview.jsonl"
+    private_text = "PRIVATE_CLIENT_PREPARATION_ERROR"
+    monkeypatch.setattr(r5_preview_tool, "production_artifact_path", lambda: path)
+    monkeypatch.setattr(
+        r5_preview_tool,
+        "validate_production_predecessor",
+        lambda: dict(TEST_R4_PREDECESSOR_BINDING),
+    )
+    monkeypatch.setattr(
+        r5_preview_tool,
+        "build_rest_client",
+        lambda: (_ for _ in ()).throw(
+            FuturesOrderPreviewArtifactError(private_text)
+        ),
+    )
+
+    assert r5_preview_tool.main(["--confirm-one-r5-preview"]) == 2
+
+    captured = capsys.readouterr()
+    summary = json.loads(captured.err)
+    evidence = FuturesOrderPreviewArtifactStore(path).read_completed()
+    assert summary["status"] == "blocked"
+    assert evidence["attempt_counters"]["preview_order"] == 0
+    assert evidence["read_counters"]["api_key_permissions"] == 1
+    assert all(
+        value == 0
+        for key, value in evidence["read_counters"].items()
+        if key != "api_key_permissions"
+    )
+    assert evidence["exchange_submission_attempt_count"] == 0
+    assert private_text not in captured.err
+    assert private_text not in path.read_text(encoding="utf-8")
+    assert path.stat().st_mode & 0o777 == 0o400
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
+def test_r5_tool_rejects_sdk_portfolio_method_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    sdk = SimpleNamespace()
+    _install_fixed_preview_sdk_surface(sdk)
+    adapter = SimpleNamespace(max_retries=SimpleNamespace(total=0))
+    sdk.session = SimpleNamespace(
+        adapters={"https://": adapter, "http://": adapter},
+        max_redirects=0,
+    )
+    del sdk.get_portfolios
+    canonical_delegate = SimpleNamespace(_client=sdk)
+    facade = r5_preview_tool.FuturesPreviewOnlyRestClient(canonical_delegate)
+    monkeypatch.setattr(
+        r5_preview_tool.r4_tool,
+        "build_rest_client",
+        lambda: facade,
+    )
+
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="SDK read surface"):
+        r5_preview_tool.build_rest_client()
+
+    sdk.get_portfolios = lambda: None
+    assert r5_preview_tool.build_rest_client() is facade
+    adapter.max_retries = SimpleNamespace(total=0, read=1)
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="retry policy"):
+        r5_preview_tool.build_rest_client()
+
+
+def test_r5_tool_confirmation_produces_only_r5_preview_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    path = tmp_path / "fixed-r5-preview.jsonl"
+    rest_client = FakePreviewRestClient()
+    snapshot = rest_client.get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_TRANSITION"
+    snapshot["private_margin_payload"] = "PRIVATE_R5_MARGIN_PAYLOAD"
+    rest_client.read_calls.clear()
+    rest_client.get_futures_margin_collateral_snapshot = (  # type: ignore[method-assign]
+        lambda: snapshot
+    )
+    live_book = _book()
+    live_book["pricebooks"][0]["time"] = datetime.now(  # type: ignore[index]
+        timezone.utc
+    ).isoformat()
+    live_book["private_book_payload"] = "PRIVATE_R5_BOOK_PAYLOAD"
+    rest_client.get_best_bid_ask = (  # type: ignore[method-assign]
+        lambda **_kwargs: live_book
+    )
+    monkeypatch.setattr(r5_preview_tool, "production_artifact_path", lambda: path)
+    monkeypatch.setattr(
+        r5_preview_tool,
+        "validate_production_predecessor",
+        lambda: dict(TEST_R4_PREDECESSOR_BINDING),
+    )
+    monkeypatch.setattr(
+        r5_preview_tool,
+        "build_rest_client",
+        lambda: r5_preview_tool.FuturesPreviewOnlyRestClient(rest_client),
+    )
+
+    assert r5_preview_tool.main(["--confirm-one-r5-preview"]) == 0
+
+    summary = json.loads(capsys.readouterr().out)
+    evidence = FuturesOrderPreviewArtifactStore(path).read_completed()
+    assert summary["status"] == "accepted"
+    assert evidence["artifact_type"] == FUTURES_PREVIEW_R5_ARTIFACT_TYPE
+    assert evidence["predecessor_binding"] == TEST_R4_PREDECESSOR_BINDING
+    assert evidence["margin_windows_policy_evidence"]["classification"] == "ready"
+    assert evidence["attempt_counters"]["preview_order"] == 1
+    assert evidence["exchange_submission_attempt_count"] == 0
+    assert len(rest_client.preview_calls) == 1
+    assert rest_client.forbidden_calls == []
+    assert "PRIVATE_R5" not in path.read_text(encoding="utf-8")
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
 def test_openapi_exposes_typed_read_only_preview_contract():
     schema = create_app().openapi()
     operation = schema["paths"]["/api/v1/futures/order-preview"]["get"]
@@ -4620,7 +5460,9 @@ def test_openapi_exposes_typed_read_only_preview_contract():
         "futures_exact_no_live_preview_slice_2r2",
         "futures_exact_no_live_preview_slice_2r3",
         "futures_exact_no_live_preview_slice_2r4",
+        "futures_exact_no_live_preview_slice_2r5",
     }
+    assert "margin_windows_policy_evidence" in response_schema["properties"]
     assert "predecessor_binding" in response_schema["required"]
     predecessor_refs = {
         item["$ref"]
@@ -4632,6 +5474,7 @@ def test_openapi_exposes_typed_read_only_preview_contract():
         "#/components/schemas/AdminFuturesPreviewPredecessorBinding",
         "#/components/schemas/AdminFuturesPreviewR2PredecessorBinding",
         "#/components/schemas/AdminFuturesPreviewR3PredecessorBinding",
+        "#/components/schemas/AdminFuturesPreviewR4PredecessorBinding",
     }
     predecessor_schema = schema["components"]["schemas"][
         "AdminFuturesPreviewPredecessorBinding"
@@ -4657,6 +5500,20 @@ def test_openapi_exposes_typed_read_only_preview_contract():
         "const": "1784054457360155278",
         "title": "Mtime Ns",
     }
+    r4_predecessor_schema = schema["components"]["schemas"][
+        "AdminFuturesPreviewR4PredecessorBinding"
+    ]
+    assert r4_predecessor_schema["properties"]["file_sha256"]["const"] == (
+        FUTURES_PREVIEW_R4_FILE_SHA256
+    )
+    assert r4_predecessor_schema["properties"]["evidence_sha256"]["const"] == (
+        FUTURES_PREVIEW_R4_EVIDENCE_SHA256
+    )
+    assert r4_predecessor_schema["properties"]["mtime_ns"] == {
+        "type": "string",
+        "const": "1784087822854381595",
+        "title": "Mtime Ns",
+    }
     margin_windows_refs = {
         item["$ref"]
         for item in response_schema["properties"]["margin_windows_evidence"][
@@ -4666,6 +5523,16 @@ def test_openapi_exposes_typed_read_only_preview_contract():
     }
     assert margin_windows_refs == {
         "#/components/schemas/AdminFuturesPreviewMarginWindowsEvidence"
+    }
+    policy_refs = {
+        item["$ref"]
+        for item in response_schema["properties"][
+            "margin_windows_policy_evidence"
+        ]["anyOf"]
+        if "$ref" in item
+    }
+    assert policy_refs == {
+        "#/components/schemas/AdminFuturesPreviewMarginWindowsPolicyEvidenceV2"
     }
     stage_row_schema = schema["components"]["schemas"][
         "AdminFuturesPreviewStageEvidenceRow"
