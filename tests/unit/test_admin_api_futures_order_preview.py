@@ -36,6 +36,8 @@ from application.admin_api.futures_order_preview import (
     FUTURES_PREVIEW_ACTOR_ID,
     FUTURES_PREVIEW_DOCUMENTED_MARGIN_SETTINGS,
     FUTURES_PREVIEW_OPERATIONAL_MARGIN_SETTINGS,
+    FUTURES_PREVIEW_DOCUMENTED_CURRENT_MARGIN_WINDOW_TYPES,
+    FUTURES_PREVIEW_SLICE2_OPERATOR_MARGIN_WINDOW_POLICY,
     FUTURES_PREVIEW_PRODUCT_ID,
     FuturesOrderPreviewArtifactError,
     FuturesOrderPreviewArtifactStore,
@@ -43,6 +45,7 @@ from application.admin_api.futures_order_preview import (
     build_futures_order_preview_candidate,
     canonical_sha256,
     _margin_windows_terminal_context,
+    slice2_preview_margin_windows_policy_context,
     _notional_text,
     validate_futures_order_preview_predecessor,
     validate_production_futures_order_preview_r3_predecessor,
@@ -52,6 +55,7 @@ from application.admin_api.futures_order_preview import (
 from application.admin_api.models import (
     AdminFuturesOrderPreviewResponse,
     AdminFuturesPreviewMarginWindowsEvidence,
+    AdminFuturesPreviewMarginWindowsPolicyEvidenceV2,
 )
 from external.coinbase_client import CoinbaseRestClient
 from tools import run_admin_api_futures_no_live_preview as preview_tool
@@ -735,6 +739,10 @@ def test_producer_reserves_before_first_coinbase_read(tmp_path: Path):
             "d1a930f2-0e91-42e0-8a22-a20444575585",
             "6cfffc61-2d69-4559-8729-ad3c5a8f9751",
             "f26dbcc6-4336-4bb1-a317-6c5a3d87d2d0",
+            "5eaffbc0-4db9-40d5-b17a-3ec7c56bf700",
+            "f5285420-6891-4daf-885d-f3ffeacd7218",
+            "f32948c1-6bf1-421a-9267-6138ec2228ae",
+            "77016c90-d1e1-4344-84c7-53b3c2dca70b",
         )
     ],
 )
@@ -1892,6 +1900,484 @@ def test_margin_windows_diagnostic_covers_defensive_profile_set_incomplete(
     assert diagnostic["failing_field"] == "expected_profile_set"
     assert diagnostic["failing_value_type"] is None
     AdminFuturesPreviewMarginWindowsEvidence.model_validate(diagnostic)
+
+
+SLICE2_OPERATOR_ACCEPTED_MARGIN_WINDOW_TYPES = (
+    "MARGIN_WINDOW_TYPE_OVERNIGHT",
+    "MARGIN_WINDOW_TYPE_WEEKEND",
+    "MARGIN_WINDOW_TYPE_INTRADAY",
+    "MARGIN_WINDOW_TYPE_TRANSITION",
+)
+
+
+@pytest.mark.parametrize(
+    ("regular_state", "intraday_profile_state"),
+    [
+        (regular_state, intraday_profile_state)
+        for regular_state in SLICE2_OPERATOR_ACCEPTED_MARGIN_WINDOW_TYPES
+        for intraday_profile_state in (
+            SLICE2_OPERATOR_ACCEPTED_MARGIN_WINDOW_TYPES
+        )
+    ],
+)
+def test_slice2_preview_operator_policy_accepts_four_documented_states_for_both_profiles(
+    regular_state: str,
+    intraday_profile_state: str,
+):
+    snapshot = FakePreviewRestClient().get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = regular_state
+    snapshot["current_margin_windows"][1]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = intraday_profile_state
+
+    context = slice2_preview_margin_windows_policy_context(snapshot)
+    evidence = context["margin_windows_policy_evidence"]
+
+    assert evidence["classification"] == "ready"
+    assert evidence["enum_authority"] == (
+        "official_coinbase_advanced_trade_api_docs"
+    )
+    assert evidence["profile_state_policy_authority"] == (
+        "operator_defined_slice_2_preview_only_not_coinbase_documented"
+    )
+    assert evidence["profile_state_mapping_documented_by_coinbase"] is False
+    assert evidence["policy_id"] == (
+        "slice2_preview_margin_window_profile_state_policy_v2"
+    )
+    assert evidence["margin_window_policy_satisfied"] is True
+    assert evidence["eligibility_scope"] == "slice_2_preview_only"
+    assert evidence["r5_attempt_authority_granted"] is False
+    assert evidence["execution_allowed"] is False
+    assert evidence["create_order_eligibility_granted"] is False
+    assert evidence["later_live_eligibility_granted"] is False
+    assert evidence["rows"] == [
+        {
+            "policy_row_index": 0,
+            "recognized_profile": "retail_regular",
+            "observed_token": regular_state,
+            "documented_allowlist_match": True,
+            "operator_policy_match": True,
+            "classification": "accepted",
+        },
+        {
+            "policy_row_index": 1,
+            "recognized_profile": "retail_intraday_margin_1",
+            "observed_token": intraday_profile_state,
+            "documented_allowlist_match": True,
+            "operator_policy_match": True,
+            "classification": "accepted",
+        },
+    ]
+    assert context["margin_windows_policy_evidence_sha256"] == canonical_sha256(
+        evidence
+    )
+    AdminFuturesPreviewMarginWindowsPolicyEvidenceV2.model_validate(evidence)
+
+
+def test_slice2_preview_policy_is_canonical_across_exchange_row_order():
+    snapshot = FakePreviewRestClient().get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_OVERNIGHT"
+    snapshot["current_margin_windows"][1]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_TRANSITION"
+
+    forward = slice2_preview_margin_windows_policy_context(snapshot)
+    snapshot["current_margin_windows"].reverse()  # type: ignore[union-attr]
+    reverse = slice2_preview_margin_windows_policy_context(snapshot)
+
+    assert forward == reverse
+
+
+def test_slice2_preview_policy_rejection_is_canonical_across_exchange_row_order():
+    snapshot = FakePreviewRestClient().get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_UNSPECIFIED"
+
+    forward = slice2_preview_margin_windows_policy_context(snapshot)
+    snapshot["current_margin_windows"].reverse()  # type: ignore[union-attr]
+    reverse = slice2_preview_margin_windows_policy_context(snapshot)
+
+    assert forward == reverse
+
+
+def test_slice2_preview_structural_rejection_is_canonical_across_exchange_row_order():
+    snapshot = FakePreviewRestClient().get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["status"] = "closed"  # type: ignore[index]
+    snapshot["current_margin_windows"][1].pop("margin_window")  # type: ignore[index]
+
+    forward = slice2_preview_margin_windows_policy_context(snapshot)
+    snapshot["current_margin_windows"].reverse()
+    reverse = slice2_preview_margin_windows_policy_context(snapshot)
+
+    assert forward == reverse
+    assert forward["margin_windows_policy_evidence"][
+        "failing_policy_row_index"
+    ] == 0
+    assert forward["margin_windows_policy_evidence"]["classification"] == (
+        "status_not_ready"
+    )
+
+
+@pytest.mark.parametrize(
+    ("token", "classification", "observed_token", "documented_match"),
+    [
+        (
+            "MARGIN_WINDOW_TYPE_UNSPECIFIED",
+            "margin_window_type_documented_but_operator_rejected",
+            "MARGIN_WINDOW_TYPE_UNSPECIFIED",
+            True,
+        ),
+        (
+            "MARGIN_WINDOW_TYPE_PRIVATE_ACCOUNT",
+            "margin_window_type_undocumented_or_malformed",
+            None,
+            False,
+        ),
+        (
+            "FCM_MARGIN_WINDOW_TYPE_INTRADAY",
+            "margin_window_type_undocumented_or_malformed",
+            None,
+            False,
+        ),
+        (
+            " PRIVATE_MARGIN_WINDOW_TYPE\n",
+            "margin_window_type_undocumented_or_malformed",
+            None,
+            False,
+        ),
+        (
+            None,
+            "margin_window_type_null",
+            None,
+            False,
+        ),
+        (
+            7,
+            "margin_window_type_non_string",
+            None,
+            False,
+        ),
+    ],
+)
+def test_slice2_preview_policy_rejects_and_withholds_nonoperational_states(
+    token: object,
+    classification: str,
+    observed_token: str | None,
+    documented_match: bool,
+):
+    snapshot = FakePreviewRestClient().get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = token
+
+    context = slice2_preview_margin_windows_policy_context(snapshot)
+    evidence = context["margin_windows_policy_evidence"]
+    failing_row = next(
+        row for row in evidence["rows"] if row["recognized_profile"] == "retail_regular"
+    )
+
+    assert evidence["classification"] == classification
+    assert evidence["margin_window_policy_satisfied"] is False
+    assert evidence["failing_policy_row_index"] == 0
+    assert failing_row["observed_token"] == observed_token
+    assert failing_row["documented_allowlist_match"] is documented_match
+    assert failing_row["operator_policy_match"] is False
+    assert context["margin_windows_policy_evidence_sha256"] == canonical_sha256(
+        evidence
+    )
+    AdminFuturesPreviewMarginWindowsPolicyEvidenceV2.model_validate(evidence)
+    serialized = json.dumps(context)
+    if observed_token is None and isinstance(token, str):
+        assert token.strip() not in serialized
+
+
+@pytest.mark.parametrize("profile_index", [0, 1])
+def test_slice2_preview_policy_rejects_unspecified_for_either_exact_profile(
+    profile_index: int,
+):
+    snapshot = FakePreviewRestClient().get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][profile_index]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_UNSPECIFIED"
+
+    evidence = slice2_preview_margin_windows_policy_context(snapshot)[
+        "margin_windows_policy_evidence"
+    ]
+
+    assert evidence["margin_window_policy_satisfied"] is False
+    assert evidence["classification"] == (
+        "margin_window_type_documented_but_operator_rejected"
+    )
+    assert evidence["failing_policy_row_index"] == profile_index
+    assert any(
+        row["observed_token"] == "MARGIN_WINDOW_TYPE_UNSPECIFIED"
+        and row["documented_allowlist_match"] is True
+        and row["operator_policy_match"] is False
+        for row in evidence["rows"]
+    )
+
+
+@pytest.mark.parametrize(
+    ("mutation", "classification"),
+    [
+        (
+            lambda snapshot: snapshot["current_margin_windows"].pop(),
+            "unexpected_row_count",
+        ),
+        (
+            lambda snapshot: snapshot["current_margin_windows"][1].update(
+                profile="MARGIN_PROFILE_TYPE_RETAIL_REGULAR"
+            ),
+            "duplicate_profile",
+        ),
+        (
+            lambda snapshot: snapshot["current_margin_windows"][0].update(
+                profile="MARGIN_PROFILE_TYPE_PRIVATE_ACCOUNT"
+            ),
+            "profile_unrecognized_enum_token",
+        ),
+        (
+            lambda snapshot: snapshot["current_margin_windows"][0].pop(
+                "profile"
+            ),
+            "profile_missing",
+        ),
+        (
+            lambda snapshot: snapshot["current_margin_windows"].append(
+                deepcopy(snapshot["current_margin_windows"][0])
+            ),
+            "unexpected_row_count",
+        ),
+        (
+            lambda snapshot: snapshot["current_margin_windows"][0].update(
+                profile=" MARGIN_PROFILE_TYPE_RETAIL_REGULAR\n"
+            ),
+            "profile_malformed_string",
+        ),
+        (
+            lambda snapshot: snapshot["current_margin_windows"][0].update(
+                status="closed"
+            ),
+            "status_not_ready",
+        ),
+        (
+            lambda snapshot: snapshot["current_margin_windows"][0][
+                "margin_window"
+            ].pop("margin_window_type"),
+            "margin_window_type_missing",
+        ),
+    ],
+)
+def test_slice2_preview_policy_requires_exact_unique_profiles_without_leakage(
+    mutation,
+    classification: str,
+):
+    snapshot = FakePreviewRestClient().get_futures_margin_collateral_snapshot()
+    mutation(snapshot)
+
+    context = slice2_preview_margin_windows_policy_context(snapshot)
+    evidence = context["margin_windows_policy_evidence"]
+
+    assert evidence["classification"] == classification
+    assert "PRIVATE" not in json.dumps(context)
+    AdminFuturesPreviewMarginWindowsPolicyEvidenceV2.model_validate(evidence)
+
+
+def test_slice2_preview_policy_does_not_waive_existing_killswitch_gate():
+    snapshot = FakePreviewRestClient().get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0][
+        "is_intraday_margin_killswitch_enabled"
+    ] = True
+
+    evidence = slice2_preview_margin_windows_policy_context(snapshot)[
+        "margin_windows_policy_evidence"
+    ]
+
+    assert evidence["margin_window_policy_satisfied"] is True
+    with pytest.raises(
+        ValueError,
+        match="^futures_preview_margin_killswitch_enabled$",
+    ):
+        validate_margin_collateral_evidence(snapshot)
+
+
+@pytest.mark.parametrize(
+    "v2_only_state",
+    (
+        "MARGIN_WINDOW_TYPE_OVERNIGHT",
+        "MARGIN_WINDOW_TYPE_WEEKEND",
+        "MARGIN_WINDOW_TYPE_TRANSITION",
+    ),
+)
+def test_slice2_preview_policy_isolated_from_consumed_r4_v1_semantics(
+    v2_only_state: str,
+):
+    snapshot = FakePreviewRestClient().get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = v2_only_state
+
+    legacy = _margin_windows_terminal_context(snapshot)[
+        "margin_windows_evidence"
+    ]
+    v2 = slice2_preview_margin_windows_policy_context(snapshot)[
+        "margin_windows_policy_evidence"
+    ]
+
+    assert legacy["schema_version"] == "1"
+    assert legacy["classification"] == (
+        "margin_window_type_not_exact_operational_enum_token"
+    )
+    assert "observed_token" not in legacy
+    assert v2["schema_version"] == "2"
+    assert v2["classification"] == "ready"
+    assert FUTURES_PREVIEW_DOCUMENTED_CURRENT_MARGIN_WINDOW_TYPES == {
+        "MARGIN_WINDOW_TYPE_UNSPECIFIED",
+        *SLICE2_OPERATOR_ACCEPTED_MARGIN_WINDOW_TYPES,
+    }
+    assert set(FUTURES_PREVIEW_SLICE2_OPERATOR_MARGIN_WINDOW_POLICY) == {
+        "MARGIN_PROFILE_TYPE_RETAIL_REGULAR",
+        "MARGIN_PROFILE_TYPE_RETAIL_INTRADAY_MARGIN_1",
+    }
+    assert all(
+        accepted == frozenset(SLICE2_OPERATOR_ACCEPTED_MARGIN_WINDOW_TYPES)
+        for accepted in FUTURES_PREVIEW_SLICE2_OPERATOR_MARGIN_WINDOW_POLICY.values()
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        (
+            "profile_state_policy_authority",
+            "official_coinbase_advanced_trade_api_docs",
+        ),
+        ("profile_state_mapping_documented_by_coinbase", True),
+        ("eligibility_scope", "all_futures_order_execution"),
+        ("margin_window_policy_satisfied", False),
+        ("r5_attempt_authority_granted", True),
+        ("execution_allowed", True),
+        ("create_order_eligibility_granted", True),
+        ("later_live_eligibility_granted", True),
+    ],
+)
+def test_slice2_preview_policy_model_rejects_authority_or_scope_expansion(
+    field: str,
+    value: object,
+):
+    snapshot = FakePreviewRestClient().get_futures_margin_collateral_snapshot()
+    evidence = slice2_preview_margin_windows_policy_context(snapshot)[
+        "margin_windows_policy_evidence"
+    ]
+    evidence[field] = value
+
+    with pytest.raises(ValidationError):
+        AdminFuturesPreviewMarginWindowsPolicyEvidenceV2.model_validate(evidence)
+
+
+def test_slice2_preview_policy_model_rejects_contradictory_shape_classification():
+    snapshot = FakePreviewRestClient().get_futures_margin_collateral_snapshot()
+    evidence = slice2_preview_margin_windows_policy_context(snapshot)[
+        "margin_windows_policy_evidence"
+    ]
+    evidence.update(
+        classification="missing_container",
+        margin_window_policy_satisfied=False,
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="margin_window_policy_invalid",
+    ):
+        AdminFuturesPreviewMarginWindowsPolicyEvidenceV2.model_validate(evidence)
+
+
+@pytest.mark.parametrize(
+    ("classification", "failing_value_type"),
+    [
+        ("margin_window_type_undocumented_or_malformed", "string"),
+        ("margin_window_type_null", "null"),
+        ("margin_window_type_non_string", "number"),
+    ],
+)
+def test_slice2_preview_policy_model_rejects_cross_classified_token_failure(
+    classification: str,
+    failing_value_type: str,
+):
+    snapshot = FakePreviewRestClient().get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_UNSPECIFIED"
+    evidence = slice2_preview_margin_windows_policy_context(snapshot)[
+        "margin_windows_policy_evidence"
+    ]
+    evidence.update(
+        classification=classification,
+        failing_value_type=failing_value_type,
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="margin_window_policy_invalid",
+    ):
+        AdminFuturesPreviewMarginWindowsPolicyEvidenceV2.model_validate(evidence)
+
+
+def test_slice2_preview_policy_model_rejects_nonminimum_failed_policy_row():
+    snapshot = FakePreviewRestClient().get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_UNSPECIFIED"
+    snapshot["current_margin_windows"][1]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_PRIVATE_ACCOUNT"
+    evidence = slice2_preview_margin_windows_policy_context(snapshot)[
+        "margin_windows_policy_evidence"
+    ]
+    evidence.update(
+        classification="margin_window_type_undocumented_or_malformed",
+        failing_policy_row_index=1,
+        recognized_profile="retail_intraday_margin_1",
+        failing_value_type="string",
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="margin_window_policy_invalid",
+    ):
+        AdminFuturesPreviewMarginWindowsPolicyEvidenceV2.model_validate(evidence)
+
+
+def test_slice2_preview_policy_does_not_enable_r5_artifact_or_entrypoint(
+    tmp_path: Path,
+):
+    production_r5 = (
+        FUTURES_PREVIEW_R4_ARTIFACT_PATH.parent
+        / "futures_exact_no_live_preview_slice_2r5.jsonl"
+    )
+    assert not production_r5.exists()
+    tool_source = Path(preview_tool.__file__).read_text(encoding="utf-8")
+    assert "--confirm-one-r5-preview" not in tool_source
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="artifact generation is invalid",
+    ):
+        FuturesOrderPreviewProducer(
+            rest_client=FakePreviewRestClient(),
+            store=FuturesOrderPreviewArtifactStore(
+                tmp_path / "must-not-exist.jsonl"
+            ),
+            predecessor_binding=TEST_R3_PREDECESSOR_BINDING,
+            predecessor_validator=lambda: dict(TEST_R3_PREDECESSOR_BINDING),
+            artifact_type="futures_exact_no_live_preview_slice_2r5",
+        )
+    assert not (tmp_path / "must-not-exist.jsonl").exists()
 
 
 def test_margin_windows_ambiguity_persists_only_typed_sanitized_diagnostic(

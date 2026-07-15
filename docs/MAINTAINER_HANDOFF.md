@@ -291,7 +291,10 @@ create a separate approval class.
   [official Help](https://help.coinbase.com/en/coinbase/derivatives/us-derivatives-leverage-margin)
   says `6pm-4pm ET`, while the official SDK and
   [`Set Intraday Margin Setting`](https://docs.cdp.coinbase.com/api-reference/advanced-trade-api/rest-api/futures/set-intraday-margin-settings)
-  documentation say `8am-4pm ET`. The different
+  documentation say `8am-4pm ET`. The operator subsequently clarified that
+  `8am-4pm` applies to futures and `6pm-4pm` applies to perpetuals; these
+  schedule descriptions are deliberately not converted into a local clock,
+  holiday, or profile-to-state eligibility rule. The different
   `FCM_MARGIN_WINDOW_TYPE_*` balance enum is not REST profile-policy authority.
 - The resulting terminal blocker is
   `futures_preview_margin_profile_state_semantics_ambiguous`. Under the exact
@@ -304,6 +307,43 @@ create a separate approval class.
   official Coinbase source that unambiguously maps profiles to operational
   states or a new explicit operator-defined Slice-2-Preview-only policy that
   does not claim to be Coinbase-documented behavior.
+- The operator then explicitly authorized the second path: a versioned,
+  operator-defined, Slice-2-Preview-only policy for both exact REST profiles.
+  The V2 policy independently accepts exactly
+  `MARGIN_WINDOW_TYPE_OVERNIGHT`, `MARGIN_WINDOW_TYPE_WEEKEND`,
+  `MARGIN_WINDOW_TYPE_INTRADAY`, or `MARGIN_WINDOW_TYPE_TRANSITION` for each of
+  `MARGIN_PROFILE_TYPE_RETAIL_REGULAR` and
+  `MARGIN_PROFILE_TYPE_RETAIL_INTRADAY_MARGIN_1`.
+  `MARGIN_WINDOW_TYPE_UNSPECIFIED` is documented but rejected. Undocumented,
+  malformed, non-string, and unknown profile/state values are withheld and
+  rejected. Typed evidence labels the enum authority as official Coinbase
+  documentation and the profile/state mapping as
+  `operator_defined_slice_2_preview_only_not_coinbase_documented`; it also
+  fixes R5-attempt authority, execution allowance, Create eligibility, and
+  later-live eligibility to `false`.
+- This policy implementation is offline and dormant. It does not alter the V1
+  intraday-only R4 classifier, collateral validator, artifact schema, default
+  Admin API readback, or production CLI. It does not add an R5 artifact type,
+  path, claim, producer integration, credential hydration, Preview call, or
+  frontend authority. Consumed R3 and R4 correlation/idempotency identifiers
+  were added to the rejection set to prevent accidental reuse. A distinct
+  exact authorization is still required before any R5 integration, claim,
+  artifact creation, Coinbase read, or Preview attempt.
+- Focused TDD validation passes the complete Futures Preview/readback unit file
+  (`283 passed`), including `53` policy-focused cases, all `4 x 4` accepted
+  profile/state combinations, reversed-row canonicalization, adversarial model
+  coherence, identifier-reuse rejection, immutable R4/default readback, and R5
+  dormancy. Python compilation, ownership, OpenAPI freshness, and diff checks
+  pass. The frontend durable-goal quality test passes (`27 passed`), and its
+  goal-alignment, typecheck, lint, and generated API/route freshness checks pass.
+- Independent safety, adversarial model, immutable-artifact, and blind
+  contextless audits all returned `PASS` after their must-fix findings were
+  consumed. The artifact audit revalidated all five consumed artifact hashes,
+  exact read-only metadata, zero attempt/notional/mutation counters, R4 HTTP
+  payload equality, and R5 absence. The contextless review inspected historical
+  `origin/prod` `dashboard_server.py` and `calculation/fee_manager.py`; neither
+  contains the exact REST two-profile policy, so no legacy behavior was copied.
+  The phase-end subagent sweep found no required reviewer still running.
 - Offline R3 diagnostic preparation validation: focused backend Preview and
   Admin API contract coverage passed (`165 passed`), ownership, Python compile,
   OpenAPI freshness, and diff checks passed; focused frontend rendering passed

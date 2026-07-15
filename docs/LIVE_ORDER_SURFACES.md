@@ -5,13 +5,15 @@ live authority, and a backend-only live runner is not proof that the matching
 HTTP or browser workflow is live-capable.
 
 Current goal id is `futures_exact_no_live_preview_slice_2`. Slice 1 uses only
-authoritative GET account/position reads. Active Slice 2 permits at most one
-backend-owned AVAX Coinbase Preview call under strict `$100/$150/$300`
-slice-local bounds; the repeatable Admin API/UI path reads immutable evidence
-and cannot call Coinbase. This grants no marker, attempt ledger, runtime,
-placement, cancel, fill, close, or reduce call. Default release and deployment
-checks are no-live and must report live Coinbase execution as not run with
-notional `0`.
+authoritative GET account/position reads. Slice 2 is blocked at distinct R5
+integration/Preview authorization after consumed R4; there is no current
+Coinbase-call allowance. Its offline V2 margin-window policy is
+operator-defined and Preview-only, and grants no R5 attempt, execution, Create,
+or later-live eligibility. The repeatable Admin API/UI path still reads
+immutable R4 evidence and cannot call Coinbase. This grants no marker, attempt
+ledger, runtime, placement, cancel, fill, close, or reduce call. Default release
+and deployment checks are no-live and must report live Coinbase execution as
+not run with notional `0`.
 
 ## Admin HTTP Surfaces
 

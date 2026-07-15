@@ -7018,6 +7018,406 @@ class AdminFuturesPreviewMarginWindowsEvidence(BaseModel):
         return self
 
 
+AdminFuturesPreviewDocumentedMarginWindowType = Literal[
+    "MARGIN_WINDOW_TYPE_UNSPECIFIED",
+    "MARGIN_WINDOW_TYPE_OVERNIGHT",
+    "MARGIN_WINDOW_TYPE_WEEKEND",
+    "MARGIN_WINDOW_TYPE_INTRADAY",
+    "MARGIN_WINDOW_TYPE_TRANSITION",
+]
+
+
+class AdminFuturesPreviewMarginWindowPolicyRowEvidenceV2(BaseModel):
+    """One sanitized exact-profile decision under the operator V2 policy."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    policy_row_index: Literal[0, 1]
+    recognized_profile: Literal[
+        "retail_regular",
+        "retail_intraday_margin_1",
+    ]
+    observed_token: AdminFuturesPreviewDocumentedMarginWindowType | None = None
+    documented_allowlist_match: bool
+    operator_policy_match: bool
+    classification: Literal[
+        "accepted",
+        "documented_but_operator_rejected",
+        "undocumented_or_malformed",
+    ]
+
+    @model_validator(mode="after")
+    def validate_policy_row(self) -> Self:
+        expected_profile = {
+            0: "retail_regular",
+            1: "retail_intraday_margin_1",
+        }[self.policy_row_index]
+        accepted_tokens = {
+            "MARGIN_WINDOW_TYPE_OVERNIGHT",
+            "MARGIN_WINDOW_TYPE_WEEKEND",
+            "MARGIN_WINDOW_TYPE_INTRADAY",
+            "MARGIN_WINDOW_TYPE_TRANSITION",
+        }
+        if self.classification == "accepted":
+            coherent = (
+                self.observed_token in accepted_tokens
+                and self.documented_allowlist_match is True
+                and self.operator_policy_match is True
+            )
+        elif self.classification == "documented_but_operator_rejected":
+            coherent = (
+                self.observed_token == "MARGIN_WINDOW_TYPE_UNSPECIFIED"
+                and self.documented_allowlist_match is True
+                and self.operator_policy_match is False
+            )
+        else:
+            coherent = (
+                self.observed_token is None
+                and self.documented_allowlist_match is False
+                and self.operator_policy_match is False
+            )
+        if not coherent or self.recognized_profile != expected_profile:
+            raise ValueError("futures_preview_margin_window_policy_row_invalid")
+        return self
+
+
+class AdminFuturesPreviewMarginWindowsPolicyEvidenceV2(BaseModel):
+    """Operator-defined, Slice-2-Preview-only margin-window policy evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["2"]
+    policy_id: Literal[
+        "slice2_preview_margin_window_profile_state_policy_v2"
+    ]
+    source: Literal["backend_rest_client.get_current_margin_window"]
+    stage: Literal["margin_collateral_validation"]
+    field_path: Literal["current_margin_windows"]
+    enum_authority: Literal[
+        "official_coinbase_advanced_trade_api_docs"
+    ]
+    profile_state_policy_authority: Literal[
+        "operator_defined_slice_2_preview_only_not_coinbase_documented"
+    ]
+    profile_state_mapping_documented_by_coinbase: Literal[False]
+    eligibility_scope: Literal["slice_2_preview_only"]
+    r5_attempt_authority_granted: Literal[False]
+    execution_allowed: Literal[False]
+    create_order_eligibility_granted: Literal[False]
+    later_live_eligibility_granted: Literal[False]
+    container_present: bool
+    container_type: Literal[
+        "missing",
+        "null",
+        "boolean",
+        "string",
+        "number",
+        "mapping",
+        "sequence",
+        "other",
+    ]
+    row_count_bucket: Literal[
+        "not_applicable",
+        "zero",
+        "one",
+        "expected_two",
+        "more_than_two",
+    ]
+    expected_row_count: Literal[2]
+    failing_policy_row_index: Literal[0, 1] | None = None
+    recognized_profile: Literal[
+        "retail_regular",
+        "retail_intraday_margin_1",
+    ] | None = None
+    failing_field: Literal[
+        "current_margin_windows",
+        "row",
+        "profile",
+        "status",
+        "margin_window",
+        "margin_window_type",
+        "expected_profile_set",
+    ] | None = None
+    failing_value_type: Literal[
+        "missing",
+        "null",
+        "boolean",
+        "string",
+        "number",
+        "mapping",
+        "sequence",
+        "other",
+    ] | None = None
+    rows: list[AdminFuturesPreviewMarginWindowPolicyRowEvidenceV2] = Field(
+        max_length=2,
+    )
+    margin_window_policy_satisfied: bool
+    classification: Literal[
+        "missing_container",
+        "non_list_container",
+        "unexpected_row_count",
+        "non_mapping_row",
+        "profile_missing",
+        "profile_null",
+        "profile_non_string",
+        "profile_malformed_string",
+        "profile_unrecognized_enum_token",
+        "duplicate_profile",
+        "status_missing",
+        "status_null",
+        "status_non_string",
+        "status_not_ready",
+        "margin_window_missing",
+        "margin_window_null",
+        "margin_window_non_mapping",
+        "margin_window_type_missing",
+        "margin_window_type_null",
+        "margin_window_type_non_string",
+        "margin_window_type_documented_but_operator_rejected",
+        "margin_window_type_undocumented_or_malformed",
+        "expected_profile_set_incomplete",
+        "ready",
+    ]
+    sanitized: Literal[True]
+    raw_response_included: Literal[False]
+    external_exception_text_included: Literal[False]
+    unknown_identifier_values_included: Literal[False]
+
+    @model_validator(mode="after")
+    def validate_operator_policy_evidence(self) -> Self:
+        policy_indices = [row.policy_row_index for row in self.rows]
+        profiles = [row.recognized_profile for row in self.rows]
+        if (
+            policy_indices != sorted(policy_indices)
+            or len(policy_indices) != len(set(policy_indices))
+            or len(profiles) != len(set(profiles))
+            or self.margin_window_policy_satisfied
+            != (self.classification == "ready")
+        ):
+            raise ValueError("futures_preview_margin_window_policy_invalid")
+        if self.classification == "ready":
+            coherent = (
+                self.container_present is True
+                and self.container_type == "sequence"
+                and self.row_count_bucket == "expected_two"
+                and self.failing_policy_row_index is None
+                and self.recognized_profile is None
+                and self.failing_field is None
+                and self.failing_value_type is None
+                and policy_indices == [0, 1]
+                and all(row.classification == "accepted" for row in self.rows)
+            )
+            if not coherent:
+                raise ValueError("futures_preview_margin_window_policy_invalid")
+            return self
+
+        if self.classification == "missing_container":
+            coherent = (
+                self.container_present is False
+                and self.container_type == "missing"
+                and self.row_count_bucket == "not_applicable"
+                and self.failing_policy_row_index is None
+                and self.recognized_profile is None
+                and self.failing_field == "current_margin_windows"
+                and self.failing_value_type == "missing"
+                and not self.rows
+            )
+            if not coherent:
+                raise ValueError("futures_preview_margin_window_policy_invalid")
+            return self
+        if self.classification == "non_list_container":
+            coherent = (
+                self.container_present is True
+                and self.container_type != "missing"
+                and self.row_count_bucket == "not_applicable"
+                and self.failing_policy_row_index is None
+                and self.recognized_profile is None
+                and self.failing_field == "current_margin_windows"
+                and self.failing_value_type == self.container_type
+                and not self.rows
+            )
+            if not coherent:
+                raise ValueError("futures_preview_margin_window_policy_invalid")
+            return self
+        if self.classification == "unexpected_row_count":
+            coherent = (
+                self.container_present is True
+                and self.container_type == "sequence"
+                and self.row_count_bucket in {"zero", "one", "more_than_two"}
+                and self.failing_policy_row_index is None
+                and self.recognized_profile is None
+                and self.failing_field == "current_margin_windows"
+                and self.failing_value_type == "sequence"
+                and not self.rows
+            )
+            if not coherent:
+                raise ValueError("futures_preview_margin_window_policy_invalid")
+            return self
+        if self.classification == "expected_profile_set_incomplete":
+            coherent = (
+                self.container_present is True
+                and self.container_type == "sequence"
+                and self.row_count_bucket == "expected_two"
+                and self.failing_policy_row_index is None
+                and self.recognized_profile is None
+                and self.failing_field == "expected_profile_set"
+                and self.failing_value_type is None
+                and not self.rows
+            )
+            if not coherent:
+                raise ValueError("futures_preview_margin_window_policy_invalid")
+            return self
+
+        token_failure_rules: dict[
+            str,
+            tuple[str, set[str]],
+        ] = {
+            "margin_window_type_missing": (
+                "undocumented_or_malformed",
+                {"missing"},
+            ),
+            "margin_window_type_null": (
+                "undocumented_or_malformed",
+                {"null"},
+            ),
+            "margin_window_type_non_string": (
+                "undocumented_or_malformed",
+                {
+                    "boolean",
+                    "number",
+                    "mapping",
+                    "sequence",
+                    "other",
+                },
+            ),
+            "margin_window_type_documented_but_operator_rejected": (
+                "documented_but_operator_rejected",
+                {"string"},
+            ),
+            "margin_window_type_undocumented_or_malformed": (
+                "undocumented_or_malformed",
+                {"string"},
+            ),
+        }
+        if self.classification in token_failure_rules:
+            expected_row_classification, allowed_value_types = (
+                token_failure_rules[self.classification]
+            )
+            matching_rows = [
+                row
+                for row in self.rows
+                if row.policy_row_index == self.failing_policy_row_index
+            ]
+            failed_policy_indices = [
+                row.policy_row_index
+                for row in self.rows
+                if row.classification != "accepted"
+            ]
+            coherent = (
+                self.container_present is True
+                and self.container_type == "sequence"
+                and self.row_count_bucket == "expected_two"
+                and self.failing_policy_row_index in {0, 1}
+                and self.recognized_profile is not None
+                and self.failing_field == "margin_window_type"
+                and self.failing_value_type in allowed_value_types
+                and policy_indices == [0, 1]
+                and bool(failed_policy_indices)
+                and self.failing_policy_row_index
+                == min(failed_policy_indices)
+                and len(matching_rows) == 1
+                and matching_rows[0].recognized_profile
+                == self.recognized_profile
+                and matching_rows[0].classification
+                == expected_row_classification
+            )
+            if not coherent:
+                raise ValueError("futures_preview_margin_window_policy_invalid")
+            return self
+
+        structural_rules: dict[
+            str,
+            tuple[str, set[str], str],
+        ] = {
+            "non_mapping_row": (
+                "row",
+                {"null", "boolean", "string", "number", "sequence", "other"},
+                "absent",
+            ),
+            "profile_missing": ("profile", {"missing"}, "absent"),
+            "profile_null": ("profile", {"null"}, "absent"),
+            "profile_non_string": (
+                "profile",
+                {"boolean", "number", "mapping", "sequence", "other"},
+                "absent",
+            ),
+            "profile_malformed_string": (
+                "profile",
+                {"string"},
+                "absent",
+            ),
+            "profile_unrecognized_enum_token": (
+                "profile",
+                {"string"},
+                "absent",
+            ),
+            "duplicate_profile": ("profile", {"string"}, "required"),
+            "status_missing": ("status", {"missing"}, "required"),
+            "status_null": ("status", {"null"}, "required"),
+            "status_non_string": (
+                "status",
+                {"boolean", "number", "mapping", "sequence", "other"},
+                "required",
+            ),
+            "status_not_ready": ("status", {"string"}, "required"),
+            "margin_window_missing": (
+                "margin_window",
+                {"missing"},
+                "required",
+            ),
+            "margin_window_null": (
+                "margin_window",
+                {"null"},
+                "required",
+            ),
+            "margin_window_non_mapping": (
+                "margin_window",
+                {"boolean", "string", "number", "sequence", "other"},
+                "required",
+            ),
+        }
+        expected_field, allowed_value_types, profile_mode = structural_rules[
+            self.classification
+        ]
+        profile_is_coherent = (
+            self.failing_policy_row_index is not None
+            and self.recognized_profile
+            == {
+                0: "retail_regular",
+                1: "retail_intraday_margin_1",
+            }[self.failing_policy_row_index]
+        )
+        coherent = (
+            self.container_present is True
+            and self.container_type == "sequence"
+            and self.row_count_bucket == "expected_two"
+            and self.failing_field == expected_field
+            and self.failing_value_type in allowed_value_types
+            and not self.rows
+            and (
+                (profile_mode == "required" and profile_is_coherent)
+                or (
+                    profile_mode == "absent"
+                    and self.failing_policy_row_index is None
+                    and self.recognized_profile is None
+                )
+            )
+        )
+        if not coherent:
+            raise ValueError("futures_preview_margin_window_policy_invalid")
+        return self
+
+
 AdminFuturesPreviewStageReasonCode = Literal[
     "futures_preview_remaining_margin_validation_unclassified",
     "futures_preview_candidate_construction_unclassified",

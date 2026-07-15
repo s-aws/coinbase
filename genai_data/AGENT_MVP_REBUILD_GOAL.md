@@ -4,7 +4,7 @@ Goal ID: `futures_exact_no_live_preview_slice_2`
 
 Last reviewed: 2026-07-15 UTC.
 
-Status: `active`
+Status: `blocked — distinct R5 integration/Preview authorization required`
 
 The canonical cross-repository authority is
 `/home/ec2-user/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. This backend copy
@@ -34,7 +34,8 @@ Slice 1 made no order, cancel, close, reduce, marker, ledger, runtime, or local
 approval mutation. Live Coinbase execution is `not_run` and notional is
 `0 USDC`.
 
-Slice 2 is active by explicit operator authorization. It is fixed to the
+Slice 2 remains the current slice but is blocked at distinct R5 integration
+and Preview authority. Its fixed scope is the
 permission-selected `Default`/`DEFAULT` portfolio, configured AVAX perpetual
 `AVP-20DEC30-CDE`, and exactly one contract. The strict slice-local limits are
 opening/reference notional `<100.00 USDC`, maximum concurrent exposure and a
@@ -223,9 +224,11 @@ no profile-to-state mapping or operational eligibility definition. The
 discusses only intraday versus overnight rates, not weekend, transition, or
 allowed profile combinations. As verified on 2026-07-15,
 [Coinbase Help](https://help.coinbase.com/en/coinbase/derivatives/us-derivatives-leverage-margin)
-says the opted-in window is `6pm-4pm ET`, while the official SDK and
+says `6pm-4pm ET`, while the official SDK and
 [`Set Intraday Margin Setting`](https://docs.cdp.coinbase.com/api-reference/advanced-trade-api/rest-api/futures/set-intraday-margin-settings)
-documentation say `8am-4pm ET`; no calendar-derived policy is eligible.
+documentation say `8am-4pm ET`. The operator subsequently clarified that
+`8am-4pm` applies to futures and `6pm-4pm` applies to perpetuals. Neither
+schedule is converted into a local clock, holiday, or profile-to-state rule.
 The distinct `FCM_MARGIN_WINDOW_TYPE_*` balance enum cannot fill that gap.
 
 Per the authorization's explicit stop clause, blocker
@@ -234,13 +237,34 @@ implementation and creation. No operational allowlist/profile-policy change,
 diagnostic V2, schema, path, CLI, claim, or artifact exists. No Coinbase API,
 credential, Preview, retry, redirect, fallback, mutation, marker, ledger, or
 runtime call occurred. Default readback and the production entrypoint remain
-fixed to immutable R4. The conditional R5 attempt authority never activated;
-continuation requires new unambiguous official semantics or a new explicit
-operator-defined Slice-2-Preview-only policy decision.
+fixed to immutable R4. The conditional R5 attempt authority never activated.
+The operator then explicitly authorized the second path: an
+operator-defined, Slice-2-Preview-only policy that independently accepts the
+four documented non-`UNSPECIFIED` states for both exact profiles without
+representing that profile/state mapping as Coinbase-documented behavior. The
+versioned V2 policy accepts exactly `MARGIN_WINDOW_TYPE_OVERNIGHT`,
+`MARGIN_WINDOW_TYPE_WEEKEND`, `MARGIN_WINDOW_TYPE_INTRADAY`, or
+`MARGIN_WINDOW_TYPE_TRANSITION` for each of
+`MARGIN_PROFILE_TYPE_RETAIL_REGULAR` and
+`MARGIN_PROFILE_TYPE_RETAIL_INTRADAY_MARGIN_1`.
+`MARGIN_WINDOW_TYPE_UNSPECIFIED` is documented but rejected; unknown,
+malformed, FCM-prefixed, non-string, and unknown-profile values are withheld
+and rejected.
+
+Typed V2 evidence identifies the enum authority as official Coinbase
+documentation and the profile/state mapping authority as
+`operator_defined_slice_2_preview_only_not_coinbase_documented`. It fixes
+R5-attempt authority, execution allowance, Create eligibility, and later-live
+eligibility to `false`. The implementation is offline and dormant: it does not
+alter the V1 R4 classifier, collateral validator, outer artifact schema,
+default Admin API readback, or production CLI. No R5 artifact type, path,
+entrypoint, claim, credential hydration, Coinbase call, or frontend command
+authority exists. A distinct exact operator authorization is required before
+R5 integration, claim creation, or any Coinbase Preview attempt.
 
 `Default-profile Futures readback -> exact AVAX US CFM Coinbase Preview Order -> immutable operator-visible no-live preview readback`
 
-## Ordered Sequence — Slice 2 Blocked After R4
+## Ordered Sequence — Slice 2 Blocked At R5 Authorization
 
 Continue implementation and independent audit only in this order. Prospective
 operator authority permits crossing documented no-live acceptance boundaries,

@@ -19,6 +19,7 @@ import os
 from pathlib import Path
 import re
 import stat
+from types import MappingProxyType
 from typing import Any
 from uuid import uuid4
 
@@ -140,6 +141,41 @@ FUTURES_PREVIEW_OPERATIONAL_FCM_MARGIN_WINDOW_TYPES = frozenset(
 FUTURES_PREVIEW_OPERATIONAL_CURRENT_MARGIN_WINDOW_TYPES = frozenset(
     {"MARGIN_WINDOW_TYPE_INTRADAY"}
 )
+FUTURES_PREVIEW_DOCUMENTED_CURRENT_MARGIN_WINDOW_TYPES = frozenset(
+    {
+        "MARGIN_WINDOW_TYPE_UNSPECIFIED",
+        "MARGIN_WINDOW_TYPE_OVERNIGHT",
+        "MARGIN_WINDOW_TYPE_WEEKEND",
+        "MARGIN_WINDOW_TYPE_INTRADAY",
+        "MARGIN_WINDOW_TYPE_TRANSITION",
+    }
+)
+_FUTURES_PREVIEW_SLICE2_OPERATOR_ACCEPTED_MARGIN_WINDOW_TYPES = frozenset(
+    {
+        "MARGIN_WINDOW_TYPE_OVERNIGHT",
+        "MARGIN_WINDOW_TYPE_WEEKEND",
+        "MARGIN_WINDOW_TYPE_INTRADAY",
+        "MARGIN_WINDOW_TYPE_TRANSITION",
+    }
+)
+FUTURES_PREVIEW_SLICE2_OPERATOR_MARGIN_WINDOW_POLICY = MappingProxyType(
+    {
+        "MARGIN_PROFILE_TYPE_RETAIL_REGULAR": (
+            _FUTURES_PREVIEW_SLICE2_OPERATOR_ACCEPTED_MARGIN_WINDOW_TYPES
+        ),
+        "MARGIN_PROFILE_TYPE_RETAIL_INTRADAY_MARGIN_1": (
+            _FUTURES_PREVIEW_SLICE2_OPERATOR_ACCEPTED_MARGIN_WINDOW_TYPES
+        ),
+    }
+)
+_FUTURES_PREVIEW_SLICE2_MARGIN_PROFILE_POLICY_INDEX = MappingProxyType(
+    {
+        profile: index
+        for index, profile in enumerate(
+            FUTURES_PREVIEW_SLICE2_OPERATOR_MARGIN_WINDOW_POLICY
+        )
+    }
+)
 FUTURES_PREVIEW_EXPECTED_MARGIN_PROFILES = {
     "MARGIN_PROFILE_TYPE_RETAIL_REGULAR": "retail_regular",
     "MARGIN_PROFILE_TYPE_RETAIL_INTRADAY_MARGIN_1": (
@@ -233,6 +269,10 @@ _CONSUMED_PREVIEW_IDENTIFIERS = frozenset(
         "d1a930f2-0e91-42e0-8a22-a20444575585",
         "6cfffc61-2d69-4559-8729-ad3c5a8f9751",
         "f26dbcc6-4336-4bb1-a317-6c5a3d87d2d0",
+        "5eaffbc0-4db9-40d5-b17a-3ec7c56bf700",
+        "f5285420-6891-4daf-885d-f3ffeacd7218",
+        "f32948c1-6bf1-421a-9267-6138ec2228ae",
+        "77016c90-d1e1-4344-84c7-53b3c2dca70b",
     }
 )
 _SAFE_MARGIN_SETTING_TOKEN = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
@@ -2369,6 +2409,339 @@ def _classify_margin_windows(margin_collateral: Any) -> dict[str, Any]:
         recognized_profile=None,
         failing_field=None,
         failing_value_type=None,
+    )
+
+
+def slice2_preview_margin_windows_policy_context(
+    margin_collateral: Any,
+) -> dict[str, Any]:
+    """Return a typed, sanitized, non-authorizing Slice 2 policy decision."""
+
+    evidence = _classify_slice2_preview_margin_windows_policy(
+        margin_collateral
+    )
+    return {
+        "margin_windows_policy_evidence": evidence,
+        "margin_windows_policy_evidence_sha256": canonical_sha256(evidence),
+    }
+
+
+def _classify_slice2_preview_margin_windows_policy(
+    margin_collateral: Any,
+) -> dict[str, Any]:
+    """Evaluate the operator's exact two-profile Preview-only V2 policy."""
+
+    snapshot = (
+        dict(margin_collateral)
+        if isinstance(margin_collateral, Mapping)
+        else {}
+    )
+    container_present = "current_margin_windows" in snapshot
+    windows = snapshot.get("current_margin_windows")
+    container_type = _diagnostic_value_type(
+        windows,
+        present=container_present,
+    )
+    rows: list[dict[str, Any]] = []
+    structural_failures: list[dict[str, Any]] = []
+    token_failures: list[dict[str, Any]] = []
+
+    def result(
+        *,
+        row_count_bucket: str,
+        classification: str,
+        failing_policy_row_index: int | None,
+        recognized_profile: str | None,
+        failing_field: str | None,
+        failing_value_type: str | None,
+        include_rows: bool = False,
+    ) -> dict[str, Any]:
+        return {
+            "schema_version": "2",
+            "policy_id": (
+                "slice2_preview_margin_window_profile_state_policy_v2"
+            ),
+            "source": "backend_rest_client.get_current_margin_window",
+            "stage": "margin_collateral_validation",
+            "field_path": "current_margin_windows",
+            "enum_authority": (
+                "official_coinbase_advanced_trade_api_docs"
+            ),
+            "profile_state_policy_authority": (
+                "operator_defined_slice_2_preview_only_not_coinbase_documented"
+            ),
+            "profile_state_mapping_documented_by_coinbase": False,
+            "eligibility_scope": "slice_2_preview_only",
+            "r5_attempt_authority_granted": False,
+            "execution_allowed": False,
+            "create_order_eligibility_granted": False,
+            "later_live_eligibility_granted": False,
+            "container_present": container_present,
+            "container_type": container_type,
+            "row_count_bucket": row_count_bucket,
+            "expected_row_count": 2,
+            "failing_policy_row_index": failing_policy_row_index,
+            "recognized_profile": recognized_profile,
+            "failing_field": failing_field,
+            "failing_value_type": failing_value_type,
+            "rows": sorted(
+                rows if include_rows else [],
+                key=lambda row: int(row["policy_row_index"]),
+            ),
+            "margin_window_policy_satisfied": classification == "ready",
+            "classification": classification,
+            "sanitized": True,
+            "raw_response_included": False,
+            "external_exception_text_included": False,
+            "unknown_identifier_values_included": False,
+        }
+
+    if not container_present:
+        return result(
+            row_count_bucket="not_applicable",
+            classification="missing_container",
+            failing_policy_row_index=None,
+            recognized_profile=None,
+            failing_field="current_margin_windows",
+            failing_value_type="missing",
+        )
+    if not isinstance(windows, list):
+        return result(
+            row_count_bucket="not_applicable",
+            classification="non_list_container",
+            failing_policy_row_index=None,
+            recognized_profile=None,
+            failing_field="current_margin_windows",
+            failing_value_type=container_type,
+        )
+    row_count_bucket = {
+        0: "zero",
+        1: "one",
+        2: "expected_two",
+    }.get(len(windows), "more_than_two")
+    if len(windows) != 2:
+        return result(
+            row_count_bucket=row_count_bucket,
+            classification="unexpected_row_count",
+            failing_policy_row_index=None,
+            recognized_profile=None,
+            failing_field="current_margin_windows",
+            failing_value_type="sequence",
+        )
+
+    observed_profiles: set[str] = set()
+    for item in windows:
+        if not isinstance(item, Mapping):
+            return result(
+                row_count_bucket=row_count_bucket,
+                classification="non_mapping_row",
+                failing_policy_row_index=None,
+                recognized_profile=None,
+                failing_field="row",
+                failing_value_type=_diagnostic_value_type(
+                    item,
+                    present=True,
+                ),
+            )
+        window = dict(item)
+        profile_present = "profile" in window
+        profile = window.get("profile")
+        profile_type = _diagnostic_value_type(
+            profile,
+            present=profile_present,
+        )
+        if not profile_present:
+            profile_classification = "profile_missing"
+        elif profile is None:
+            profile_classification = "profile_null"
+        elif not isinstance(profile, str):
+            profile_classification = "profile_non_string"
+        elif (
+            profile != profile.strip()
+            or _SAFE_MARGIN_WINDOW_TOKEN.fullmatch(profile) is None
+        ):
+            profile_classification = "profile_malformed_string"
+        elif profile not in FUTURES_PREVIEW_SLICE2_OPERATOR_MARGIN_WINDOW_POLICY:
+            profile_classification = "profile_unrecognized_enum_token"
+        else:
+            profile_classification = "ready"
+        if profile_classification != "ready":
+            return result(
+                row_count_bucket=row_count_bucket,
+                classification=profile_classification,
+                failing_policy_row_index=None,
+                recognized_profile=None,
+                failing_field="profile",
+                failing_value_type=profile_type,
+            )
+        recognized_profile = FUTURES_PREVIEW_EXPECTED_MARGIN_PROFILES[profile]
+        policy_row_index = (
+            _FUTURES_PREVIEW_SLICE2_MARGIN_PROFILE_POLICY_INDEX[profile]
+        )
+        if profile in observed_profiles:
+            return result(
+                row_count_bucket=row_count_bucket,
+                classification="duplicate_profile",
+                failing_policy_row_index=policy_row_index,
+                recognized_profile=recognized_profile,
+                failing_field="profile",
+                failing_value_type="string",
+            )
+        observed_profiles.add(profile)
+
+        status_present = "status" in window
+        status = window.get("status")
+        status_type = _diagnostic_value_type(status, present=status_present)
+        if not status_present:
+            status_classification = "status_missing"
+        elif status is None:
+            status_classification = "status_null"
+        elif not isinstance(status, str):
+            status_classification = "status_non_string"
+        elif status != "ready":
+            status_classification = "status_not_ready"
+        else:
+            status_classification = "ready"
+        if status_classification != "ready":
+            structural_failures.append(
+                {
+                    "policy_row_index": policy_row_index,
+                    "classification": status_classification,
+                    "recognized_profile": recognized_profile,
+                    "failing_field": "status",
+                    "failing_value_type": status_type,
+                }
+            )
+            continue
+
+        margin_window_present = "margin_window" in window
+        margin_window = window.get("margin_window")
+        margin_window_type = _diagnostic_value_type(
+            margin_window,
+            present=margin_window_present,
+        )
+        if not margin_window_present:
+            container_classification = "margin_window_missing"
+        elif margin_window is None:
+            container_classification = "margin_window_null"
+        elif not isinstance(margin_window, Mapping):
+            container_classification = "margin_window_non_mapping"
+        else:
+            container_classification = "ready"
+        if container_classification != "ready":
+            structural_failures.append(
+                {
+                    "policy_row_index": policy_row_index,
+                    "classification": container_classification,
+                    "recognized_profile": recognized_profile,
+                    "failing_field": "margin_window",
+                    "failing_value_type": margin_window_type,
+                }
+            )
+            continue
+
+        margin_window_mapping = dict(margin_window)
+        token_present = "margin_window_type" in margin_window_mapping
+        token = margin_window_mapping.get("margin_window_type")
+        token_type = _diagnostic_value_type(token, present=token_present)
+        token_is_documented = (
+            isinstance(token, str)
+            and token in FUTURES_PREVIEW_DOCUMENTED_CURRENT_MARGIN_WINDOW_TYPES
+        )
+        operator_policy_match = (
+            token_is_documented
+            and token
+            in FUTURES_PREVIEW_SLICE2_OPERATOR_MARGIN_WINDOW_POLICY[profile]
+        )
+        observed_token = token if token_is_documented else None
+        if not token_present:
+            token_classification = "margin_window_type_missing"
+        elif token is None:
+            token_classification = "margin_window_type_null"
+        elif not isinstance(token, str):
+            token_classification = "margin_window_type_non_string"
+        elif operator_policy_match:
+            token_classification = "ready"
+        elif token_is_documented:
+            token_classification = (
+                "margin_window_type_documented_but_operator_rejected"
+            )
+        else:
+            token_classification = (
+                "margin_window_type_undocumented_or_malformed"
+            )
+        if operator_policy_match:
+            row_classification = "accepted"
+        elif token_is_documented:
+            row_classification = "documented_but_operator_rejected"
+        else:
+            row_classification = "undocumented_or_malformed"
+        rows.append(
+            {
+                "policy_row_index": policy_row_index,
+                "recognized_profile": recognized_profile,
+                "observed_token": observed_token,
+                "documented_allowlist_match": token_is_documented,
+                "operator_policy_match": operator_policy_match,
+                "classification": row_classification,
+            }
+        )
+        if token_classification != "ready":
+            token_failures.append(
+                {
+                    "policy_row_index": policy_row_index,
+                    "classification": token_classification,
+                    "recognized_profile": recognized_profile,
+                    "failing_value_type": token_type,
+                }
+            )
+
+    if observed_profiles != set(
+        FUTURES_PREVIEW_SLICE2_OPERATOR_MARGIN_WINDOW_POLICY
+    ):
+        return result(
+            row_count_bucket=row_count_bucket,
+            classification="expected_profile_set_incomplete",
+            failing_policy_row_index=None,
+            recognized_profile=None,
+            failing_field="expected_profile_set",
+            failing_value_type=None,
+        )
+    if structural_failures:
+        failure = min(
+            structural_failures,
+            key=lambda item: int(item["policy_row_index"]),
+        )
+        return result(
+            row_count_bucket=row_count_bucket,
+            classification=str(failure["classification"]),
+            failing_policy_row_index=int(failure["policy_row_index"]),
+            recognized_profile=str(failure["recognized_profile"]),
+            failing_field=str(failure["failing_field"]),
+            failing_value_type=str(failure["failing_value_type"]),
+        )
+    if token_failures:
+        failure = min(
+            token_failures,
+            key=lambda item: int(item["policy_row_index"]),
+        )
+        return result(
+            row_count_bucket=row_count_bucket,
+            classification=str(failure["classification"]),
+            failing_policy_row_index=int(failure["policy_row_index"]),
+            recognized_profile=str(failure["recognized_profile"]),
+            failing_field="margin_window_type",
+            failing_value_type=str(failure["failing_value_type"]),
+            include_rows=True,
+        )
+    return result(
+        row_count_bucket=row_count_bucket,
+        classification="ready",
+        failing_policy_row_index=None,
+        recognized_profile=None,
+        failing_field=None,
+        failing_value_type=None,
+        include_rows=True,
     )
 
 
