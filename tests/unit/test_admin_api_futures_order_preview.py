@@ -1442,17 +1442,23 @@ def test_stage_diagnostic_get_route_is_read_only_and_hides_raw_blocker(
     assert "PRIVATE_VALUE_MUST_NOT_RETURN" not in response.text
 
 
-def test_r3_readback_and_r4_producer_paths_are_fixed_and_version_bound():
+def test_r3_predecessor_and_r4_default_readback_are_version_bound():
     source = Path(preview_module.__file__).read_text(encoding="utf-8")
     assert "futures_exact_no_live_preview_slice_2r3" in source
     assert DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH.name == (
-        "futures_exact_no_live_preview_slice_2r3.jsonl"
+        "futures_exact_no_live_preview_slice_2r4.jsonl"
     )
-    assert FUTURES_PREVIEW_R3_ARTIFACT_PATH == (
-        DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH
+    assert FUTURES_PREVIEW_R3_ARTIFACT_PATH.name == (
+        "futures_exact_no_live_preview_slice_2r3.jsonl"
     )
     assert FUTURES_PREVIEW_R4_ARTIFACT_PATH.name == (
         "futures_exact_no_live_preview_slice_2r4.jsonl"
+    )
+    assert FUTURES_PREVIEW_R3_ARTIFACT_PATH != (
+        DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH
+    )
+    assert FUTURES_PREVIEW_R4_ARTIFACT_PATH == (
+        DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH
     )
     assert preview_module.configured_futures_order_preview_artifact_path() == (
         DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH
@@ -1484,6 +1490,62 @@ def test_consumed_r3_is_immutable_and_remains_compatible_r4_predecessor():
     assert evidence["evidence_sha256"] == FUTURES_PREVIEW_R3_EVIDENCE_SHA256
     assert "margin_windows_evidence" not in evidence
     AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
+def test_default_get_route_exposes_consumed_r4_terminal_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.delenv(
+        "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_PATH",
+        raising=False,
+    )
+    monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-token")
+    assert hashlib.sha256(
+        FUTURES_PREVIEW_R4_ARTIFACT_PATH.read_bytes()
+    ).hexdigest() == (
+        "90691e5b24c17fca5f3d1a67f942ea0b4b067e262435bcdf37e516f79ebb66cf"
+    )
+
+    response = TestClient(create_app()).get(
+        "/api/v1/futures/order-preview",
+        headers={
+            "Authorization": "Bearer test-token",
+            "X-Admin-Actor": "operator-1",
+            "X-Admin-Roles": "viewer",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["X-Live-Execution-Enabled"] == "false"
+    payload = response.json()
+    assert payload["artifact_type"] == FUTURES_PREVIEW_R4_ARTIFACT_TYPE
+    assert payload["status"] == "blocked"
+    assert payload["outcome"] == "blocked"
+    assert payload["predecessor_binding"]["file_sha256"] == (
+        FUTURES_PREVIEW_R3_FILE_SHA256
+    )
+    assert payload["attempt_counters"] == {
+        "preview_order": 0,
+        "retry": 0,
+        "fallback": 0,
+        "create_order": 0,
+        "cancel_order": 0,
+        "close_position": 0,
+        "reduce_position": 0,
+    }
+    assert payload["margin_setting_evidence"]["operationally_resolved"] is True
+    assert payload["margin_windows_evidence"]["classification"] == (
+        "margin_window_type_not_exact_operational_enum_token"
+    )
+    assert payload["pre_preview_stage_evidence"]["stages"][-1] == {
+        "stage": "remaining_margin_validation",
+        "status": "blocked",
+        "reason_code": "futures_preview_margin_windows_ambiguous",
+    }
+    assert payload["exchange_submission_attempt_count"] == 0
+    assert payload["submitted_notional_usdc"] == "0"
+    assert payload["executed_notional_usdc"] == "0"
+    assert "PRIVATE" not in response.text
 
 
 @pytest.mark.parametrize(
@@ -3066,7 +3128,7 @@ def test_producer_tool_path_is_fixed_and_has_no_path_or_scope_override(
     )
     assert (
         preview_tool.production_artifact_path()
-        != DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH
+        == DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH
     )
     parsed = preview_tool.build_parser().parse_args(
         ["--confirm-one-r4-preview"]
@@ -3646,14 +3708,14 @@ def test_r4_tool_margin_window_stop_is_typed_sanitized_and_pre_preview(
 
 
 def test_slice2r3_paths_are_fixed_distinct_and_predecessor_matches_sealed_hashes():
-    assert DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH.name == (
+    assert FUTURES_PREVIEW_R3_ARTIFACT_PATH.name == (
         "futures_exact_no_live_preview_slice_2r3.jsonl"
     )
     assert FUTURES_PREVIEW_PREDECESSOR_ARTIFACT_PATH.name == (
         "futures_exact_no_live_preview_slice_2r2.jsonl"
     )
     assert (
-        DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH
+        FUTURES_PREVIEW_R3_ARTIFACT_PATH
         != FUTURES_PREVIEW_PREDECESSOR_ARTIFACT_PATH
     )
     assert FUTURES_PREVIEW_PREDECESSOR_FILE_SHA256 == (

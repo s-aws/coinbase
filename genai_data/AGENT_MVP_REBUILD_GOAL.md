@@ -146,9 +146,35 @@ is no remaining Preview or exchange-call authority. Slice 2 is not accepted,
 Slice 3 remains inactive, and any distinct follow-up attempt or offline
 diagnosis requires a new explicit operator decision.
 
+After explicit R4 authorization, the fixed one-use command and its restricted
+read/Preview-only client boundary were implemented and pushed at backend commit
+`8435bf0b`. Focused validation and two independent pre-execution audits passed,
+including adversarial proof that malformed or unknown Preview response fields
+cannot leak or prevent a terminal result. The R4 command then ran exactly once
+on 2026-07-15 and stopped terminally before Preview at sanitized stage
+`remaining_margin_validation` with reason
+`futures_preview_margin_windows_ambiguous`. Its immutable artifact is
+`artifacts/futures_exact_no_live_preview_slice_2r4.jsonl`, file SHA-256
+`90691e5b24c17fca5f3d1a67f942ea0b4b067e262435bcdf37e516f79ebb66cf`,
+and evidence SHA-256
+`0edeffdb0702ba119a7d9c3e32874b75e295ee596538432df5f7be0a67a4af3e`.
+The operational typed setting remains
+`INTRADAY_MARGIN_SETTING_INTRADAY`; the margin-window diagnostic classification
+is `margin_window_type_not_exact_operational_enum_token` and deliberately
+withholds the unknown value, raw responses, identifiers, and external exception
+text. All six aggregate read counters are exactly `1`. Preview, retry, fallback,
+Create, Cancel, Close, and Reduce counters are `0`; exchange submissions,
+submitted notional, and executed notional are `0`; no marker, ledger, or runtime
+was created. Default Admin API readback now selects R4 and returns HTTP `200`
+with live execution disabled, and the focused frontend R4 diagnostic view passes.
+An independent post-execution audit recomputed the artifact, evidence, and typed
+diagnostic hashes and returned `PASS`. R4 is consumed and cannot be retried.
+Slice 2 is not accepted, Slice 3 remains inactive, and any offline diagnosis or
+distinct follow-up attempt requires a new explicit operator decision.
+
 `Default-profile Futures readback -> exact AVAX US CFM Coinbase Preview Order -> immutable operator-visible no-live preview readback`
 
-## Ordered Sequence — Slice 2 Active
+## Ordered Sequence — Slice 2 Blocked After R4
 
 Continue implementation and independent audit only in this order. Prospective
 operator authority permits crossing documented no-live acceptance boundaries,

@@ -53,17 +53,17 @@ FUTURES_PREVIEW_PREDECESSOR_ARTIFACT_PATH = (
     / "artifacts"
     / "futures_exact_no_live_preview_slice_2r2.jsonl"
 )
-DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH = (
+FUTURES_PREVIEW_R3_ARTIFACT_PATH = (
     Path(__file__).resolve().parents[2]
     / "artifacts"
     / "futures_exact_no_live_preview_slice_2r3.jsonl"
 )
-FUTURES_PREVIEW_R3_ARTIFACT_PATH = DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH
 FUTURES_PREVIEW_R4_ARTIFACT_PATH = (
     Path(__file__).resolve().parents[2]
     / "artifacts"
     / "futures_exact_no_live_preview_slice_2r4.jsonl"
 )
+DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH = FUTURES_PREVIEW_R4_ARTIFACT_PATH
 FUTURES_PREVIEW_R1_FILE_SHA256 = (
     "55c09c6d4819f2d03dd679ae4c952e203cf540d1a141e13035459821f1b680d7"
 )

@@ -184,6 +184,39 @@ create a separate approval class.
   Close, Reduce, exchange-submission, and notional counters are `0`. API
   readback is HTTP `200` with live execution disabled. R3 is consumed and
   cannot be retried; Slice 2 is not accepted and Slice 3 remains inactive.
+- The operator granted the fixed R4 authorization. Backend commit `8435bf0b`
+  bound the only production command to R4, the exact immutable R3 -> R2 -> R1
+  -> original chain, and a composition facade exposing only the six fixed reads
+  plus one exact Preview. The facade exposes no SDK accessor or Create, Cancel,
+  Close, Reduce, retry, fallback, or alternate-scope method. Focused tests and
+  two independent pre-execution audits passed after adversarial review caused
+  raw Preview-response persistence and claim-only terminal failure paths to be
+  removed.
+- R4 ran exactly once on 2026-07-15 and stopped terminally before Preview at
+  `remaining_margin_validation` with reason
+  `futures_preview_margin_windows_ambiguous`. The immutable R4 artifact file
+  SHA-256 is
+  `90691e5b24c17fca5f3d1a67f942ea0b4b067e262435bcdf37e516f79ebb66cf`;
+  evidence SHA-256 is
+  `0edeffdb0702ba119a7d9c3e32874b75e295ee596538432df5f7be0a67a4af3e`.
+  Operational margin-setting evidence resolves the documented token
+  `INTRADAY_MARGIN_SETTING_INTRADAY`; the margin-window diagnostic records only
+  `margin_window_type_not_exact_operational_enum_token` and withholds the
+  unknown value, raw responses, external exception text, and identifiers. All
+  six aggregate reads are `1`; Preview, retry, fallback, Create, Cancel, Close,
+  Reduce, exchange-submission, submitted-notional, and executed-notional values
+  are `0`. No marker, ledger, or runtime was created. R4 is consumed and cannot
+  be retried; Slice 2 is not accepted and Slice 3 remains inactive. Any offline
+  diagnosis or distinct follow-up attempt requires a new explicit operator
+  decision.
+- R4 operator-visible closeout selects the R4 artifact by default in Admin API
+  GET readback. The terminal readback returns HTTP `200` with live execution
+  disabled and the focused frontend diagnostic view passes (`11 passed`). Final
+  focused backend Preview/readback coverage passes (`222 passed`), with OpenAPI
+  freshness, ownership, Python compile, and diff checks clean. An independent
+  post-execution audit recomputed the artifact, evidence, and diagnostic hashes,
+  validated the complete predecessor chain and default GET, and returned `PASS`.
+  The R4 phase-end subagent sweep found no required reviewer still running.
 - Offline R3 diagnostic preparation validation: focused backend Preview and
   Admin API contract coverage passed (`165 passed`), ownership, Python compile,
   OpenAPI freshness, and diff checks passed; focused frontend rendering passed
