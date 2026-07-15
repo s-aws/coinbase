@@ -144,6 +144,19 @@ create a separate approval class.
   R5. No R6 claim/artifact/client/Coinbase call, marker, ledger, or runtime has
   been created. Do not invoke `--confirm-one-r6-preview` until the operator
   approves the prepared exact wording; Slice 3 remains inactive.
+  The operator subsequently approved that wording and a separate no-live
+  migration-aware re-preparation. The S3 migration package restored the exact
+  consumed R1-R5 bytes and hashes into the Docker workspace. Their original
+  nanosecond mtimes were restored; only physical device/inode bindings may be
+  rebound for Docker. Historical EC2 ancestry embedded in consumed evidence
+  remains unchanged and must still validate. Complete focused validation and
+  independent audit before invoking the already-authorized one-use R6 path.
+  Focused backend and frontend validation passed. Independent safety and blind
+  contextless reviews found one P2 contract issue: OpenAPI initially exposed
+  restored/historical device and inode values as independent enums. The
+  remediated models emit correlated `allOf`/`oneOf` pairs, generated TypeScript
+  preserves those pairs, hybrid identities are test-rejected, and both
+  reviewers re-reviewed the remediation with no remaining findings.
 - Current goal id: `futures_exact_no_live_preview_slice_2`.
 - Current slice: Default-profile Futures readback -> exact AVAX US CFM Coinbase
   Preview Order -> immutable operator-visible no-live preview readback. The

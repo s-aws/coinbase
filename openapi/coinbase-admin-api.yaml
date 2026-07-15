@@ -102827,6 +102827,24 @@ components:
       title: AdminFuturesPreviewMarginWindowsPolicyEvidenceV3
       description: Operator-defined exact pair, limited to Slice 2 R6 Preview.
     AdminFuturesPreviewOriginalPredecessorBinding:
+      allOf:
+      - oneOf:
+        - properties:
+            device:
+              const: '66305'
+            inode:
+              const: '42312964'
+          required:
+          - device
+          - inode
+        - properties:
+            device:
+              const: '2096'
+            inode:
+              const: '400172'
+          required:
+          - device
+          - inode
       properties:
         artifact_name:
           type: string
@@ -102842,11 +102860,15 @@ components:
           title: Evidence Sha256
         device:
           type: string
-          const: '66305'
+          enum:
+          - '66305'
+          - '2096'
           title: Device
         inode:
           type: string
-          const: '42312964'
+          enum:
+          - '42312964'
+          - '400172'
           title: Inode
         size_bytes:
           type: integer
@@ -102909,6 +102931,24 @@ components:
       title: AdminFuturesPreviewOriginalPredecessorBinding
       description: Exact immutable binding to the consumed original Slice 2 artifact.
     AdminFuturesPreviewPredecessorBinding:
+      allOf:
+      - oneOf:
+        - properties:
+            device:
+              const: '66305'
+            inode:
+              const: '42312970'
+          required:
+          - device
+          - inode
+        - properties:
+            device:
+              const: '2096'
+            inode:
+              const: '400173'
+          required:
+          - device
+          - inode
       properties:
         artifact_name:
           type: string
@@ -102924,11 +102964,15 @@ components:
           title: Evidence Sha256
         device:
           type: string
-          const: '66305'
+          enum:
+          - '66305'
+          - '2096'
           title: Device
         inode:
           type: string
-          const: '42312970'
+          enum:
+          - '42312970'
+          - '400173'
           title: Inode
         size_bytes:
           type: integer
@@ -102994,6 +103038,24 @@ components:
       title: AdminFuturesPreviewPredecessorBinding
       description: Exact immutable R1 binding plus its original Slice 2 parent.
     AdminFuturesPreviewR2PredecessorBinding:
+      allOf:
+      - oneOf:
+        - properties:
+            device:
+              const: '66305'
+            inode:
+              const: '42312480'
+          required:
+          - device
+          - inode
+        - properties:
+            device:
+              const: '2096'
+            inode:
+              const: '400174'
+          required:
+          - device
+          - inode
       properties:
         artifact_name:
           type: string
@@ -103009,11 +103071,15 @@ components:
           title: Evidence Sha256
         device:
           type: string
-          const: '66305'
+          enum:
+          - '66305'
+          - '2096'
           title: Device
         inode:
           type: string
-          const: '42312480'
+          enum:
+          - '42312480'
+          - '400174'
           title: Inode
         size_bytes:
           type: integer
@@ -103079,6 +103145,24 @@ components:
       title: AdminFuturesPreviewR2PredecessorBinding
       description: Exact immutable R2 binding plus its R1 and original predecessors.
     AdminFuturesPreviewR3PredecessorBinding:
+      allOf:
+      - oneOf:
+        - properties:
+            device:
+              const: '66305'
+            inode:
+              const: '42312497'
+          required:
+          - device
+          - inode
+        - properties:
+            device:
+              const: '2096'
+            inode:
+              const: '400175'
+          required:
+          - device
+          - inode
       properties:
         artifact_name:
           type: string
@@ -103094,11 +103178,15 @@ components:
           title: Evidence Sha256
         device:
           type: string
-          const: '66305'
+          enum:
+          - '66305'
+          - '2096'
           title: Device
         inode:
           type: string
-          const: '42312497'
+          enum:
+          - '42312497'
+          - '400175'
           title: Inode
         size_bytes:
           type: integer
@@ -103164,6 +103252,24 @@ components:
       title: AdminFuturesPreviewR3PredecessorBinding
       description: Exact immutable R3 binding plus its complete predecessor chain.
     AdminFuturesPreviewR4PredecessorBinding:
+      allOf:
+      - oneOf:
+        - properties:
+            device:
+              const: '66305'
+            inode:
+              const: '42321812'
+          required:
+          - device
+          - inode
+        - properties:
+            device:
+              const: '2096'
+            inode:
+              const: '400176'
+          required:
+          - device
+          - inode
       properties:
         artifact_name:
           type: string
@@ -103179,11 +103285,15 @@ components:
           title: Evidence Sha256
         device:
           type: string
-          const: '66305'
+          enum:
+          - '66305'
+          - '2096'
           title: Device
         inode:
           type: string
-          const: '42321812'
+          enum:
+          - '42321812'
+          - '400176'
           title: Inode
         size_bytes:
           type: integer
@@ -103249,6 +103359,24 @@ components:
       title: AdminFuturesPreviewR4PredecessorBinding
       description: Exact immutable R4 binding plus its complete predecessor chain.
     AdminFuturesPreviewR5PredecessorBinding:
+      allOf:
+      - oneOf:
+        - properties:
+            device:
+              const: '66305'
+            inode:
+              const: '41943457'
+          required:
+          - device
+          - inode
+        - properties:
+            device:
+              const: '2096'
+            inode:
+              const: '400177'
+          required:
+          - device
+          - inode
       properties:
         artifact_name:
           type: string
@@ -103264,11 +103392,15 @@ components:
           title: Evidence Sha256
         device:
           type: string
-          const: '66305'
+          enum:
+          - '66305'
+          - '2096'
           title: Device
         inode:
           type: string
-          const: '41943457'
+          enum:
+          - '41943457'
+          - '400177'
           title: Inode
         size_bytes:
           type: integer

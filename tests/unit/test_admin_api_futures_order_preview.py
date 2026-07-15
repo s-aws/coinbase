@@ -67,6 +67,7 @@ from application.admin_api.futures_order_preview import (
 )
 from application.admin_api.models import (
     AdminFuturesOrderPreviewResponse,
+    AdminFuturesPreviewR5PredecessorBinding,
     AdminFuturesPreviewMarginWindowsEvidence,
     AdminFuturesPreviewMarginWindowsPolicyEvidenceV2,
 )
@@ -82,8 +83,8 @@ ORIGINAL_SLICE2_BINDING = {
     "artifact_name": "futures_exact_no_live_preview_slice_2.jsonl",
     "file_sha256": "9b15da86c172eca46d4b3dc0fc2b81e9b325df9a1e2f75fef79362f538e2d5ff",
     "evidence_sha256": "3b09cb9dfe02991dc886a1c6f041330d417ff11a0f1d45e3734bdc59bfb219b8",
-    "device": "66305",
-    "inode": "42312964",
+    "device": "2096",
+    "inode": "400172",
     "size_bytes": 3043,
     "mode": "0400",
     "mtime_ns": "1783968539951853688",
@@ -99,8 +100,8 @@ R1_SLICE2_BINDING = {
     "artifact_name": "futures_exact_no_live_preview_slice_2r1.jsonl",
     "file_sha256": "55c09c6d4819f2d03dd679ae4c952e203cf540d1a141e13035459821f1b680d7",
     "evidence_sha256": "a1b7820aa217b7119a6353a8f4fbffa5227ebfe5e4c8d8a1cde5449d370fc6f0",
-    "device": "66305",
-    "inode": "42312970",
+    "device": "2096",
+    "inode": "400173",
     "size_bytes": 4197,
     "mode": "0400",
     "mtime_ns": "1783980960753782357",
@@ -117,8 +118,8 @@ TEST_PREDECESSOR_BINDING = {
     "artifact_name": "futures_exact_no_live_preview_slice_2r2.jsonl",
     "file_sha256": FUTURES_PREVIEW_PREDECESSOR_FILE_SHA256,
     "evidence_sha256": FUTURES_PREVIEW_PREDECESSOR_EVIDENCE_SHA256,
-    "device": "66305",
-    "inode": "42312480",
+    "device": "2096",
+    "inode": "400174",
     "size_bytes": 6002,
     "mode": "0400",
     "mtime_ns": "1783991637010957407",
@@ -157,8 +158,8 @@ TEST_R4_PREDECESSOR_BINDING = {
     "evidence_sha256": (
         "0edeffdb0702ba119a7d9c3e32874b75e295ee596538432df5f7be0a67a4af3e"
     ),
-    "device": "66305",
-    "inode": "42321812",
+    "device": "2096",
+    "inode": "400176",
     "size_bytes": 9508,
     "mode": "0400",
     "mtime_ns": "1784087822854381595",
@@ -1651,6 +1652,71 @@ def test_consumed_r5_terminal_is_physically_bound_before_default_readback():
     assert configured_futures_order_preview_artifact_path() == (
         FUTURES_PREVIEW_R5_ARTIFACT_PATH
     )
+
+
+def test_restored_preview_chain_is_bound_to_verified_local_docker_metadata():
+    expected = {
+        preview_module.FUTURES_PREVIEW_ORIGINAL_ARTIFACT_PATH: (
+            preview_module.FUTURES_PREVIEW_ORIGINAL_FILE_SHA256,
+            2096,
+            400172,
+        ),
+        preview_module.FUTURES_PREVIEW_R1_ARTIFACT_PATH: (
+            preview_module.FUTURES_PREVIEW_R1_FILE_SHA256,
+            2096,
+            400173,
+        ),
+        preview_module.FUTURES_PREVIEW_PREDECESSOR_ARTIFACT_PATH: (
+            preview_module.FUTURES_PREVIEW_PREDECESSOR_FILE_SHA256,
+            2096,
+            400174,
+        ),
+        preview_module.FUTURES_PREVIEW_R3_ARTIFACT_PATH: (
+            preview_module.FUTURES_PREVIEW_R3_FILE_SHA256,
+            2096,
+            400175,
+        ),
+        preview_module.FUTURES_PREVIEW_R4_ARTIFACT_PATH: (
+            preview_module.FUTURES_PREVIEW_R4_FILE_SHA256,
+            2096,
+            400176,
+        ),
+        preview_module.FUTURES_PREVIEW_R5_ARTIFACT_PATH: (
+            preview_module.FUTURES_PREVIEW_R5_FILE_SHA256,
+            2096,
+            400177,
+        ),
+    }
+
+    for path, (file_sha256, device, inode) in expected.items():
+        observed = path.lstat()
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == file_sha256
+        assert observed.st_dev == device
+        assert observed.st_ino == inode
+        assert observed.st_mode & 0o777 == 0o400
+
+    mixed_identity = dict(preview_module.FUTURES_PREVIEW_R5_TERMINAL_BINDING)
+    mixed_identity["inode"] = "41943457"
+    with pytest.raises(ValueError, match="filesystem identity is invalid"):
+        AdminFuturesPreviewR5PredecessorBinding.model_validate(mixed_identity)
+
+    schema = AdminFuturesPreviewR5PredecessorBinding.model_json_schema()
+    assert schema["allOf"][-1]["oneOf"] == [
+        {
+            "properties": {
+                "device": {"const": "66305"},
+                "inode": {"const": "41943457"},
+            },
+            "required": ["device", "inode"],
+        },
+        {
+            "properties": {
+                "device": {"const": "2096"},
+                "inode": {"const": "400177"},
+            },
+            "required": ["device", "inode"],
+        },
+    ]
 
 
 def test_r6_policy_accepts_only_the_exact_authorized_profile_state_pair():
@@ -5190,8 +5256,8 @@ def test_slice2r3_paths_are_fixed_distinct_and_predecessor_matches_sealed_hashes
     assert FUTURES_PREVIEW_PREDECESSOR_EVIDENCE_SHA256 == (
         "afebf81c4d95c0abd7635fd700f6618e92191423173df3e2db0f875102b6f1c9"
     )
-    assert FUTURES_PREVIEW_PREDECESSOR_DEVICE == 66305
-    assert preview_module.FUTURES_PREVIEW_PREDECESSOR_INODE == 42312480
+    assert FUTURES_PREVIEW_PREDECESSOR_DEVICE == 2096
+    assert preview_module.FUTURES_PREVIEW_PREDECESSOR_INODE == 400174
     assert preview_module.FUTURES_PREVIEW_PREDECESSOR_SIZE == 6002
     assert preview_module.FUTURES_PREVIEW_PREDECESSOR_MTIME_NS == (
         1783991637010957407

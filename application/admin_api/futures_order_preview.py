@@ -82,8 +82,8 @@ FUTURES_PREVIEW_R1_FILE_SHA256 = (
 FUTURES_PREVIEW_R1_EVIDENCE_SHA256 = (
     "a1b7820aa217b7119a6353a8f4fbffa5227ebfe5e4c8d8a1cde5449d370fc6f0"
 )
-FUTURES_PREVIEW_R1_DEVICE = 66305
-FUTURES_PREVIEW_R1_INODE = 42312970
+FUTURES_PREVIEW_R1_DEVICE = 2096
+FUTURES_PREVIEW_R1_INODE = 400173
 FUTURES_PREVIEW_R1_SIZE = 4197
 FUTURES_PREVIEW_R1_MODE = 0o400
 FUTURES_PREVIEW_R1_MTIME_NS = 1783980960753782357
@@ -93,8 +93,8 @@ FUTURES_PREVIEW_PREDECESSOR_FILE_SHA256 = (
 FUTURES_PREVIEW_PREDECESSOR_EVIDENCE_SHA256 = (
     "afebf81c4d95c0abd7635fd700f6618e92191423173df3e2db0f875102b6f1c9"
 )
-FUTURES_PREVIEW_PREDECESSOR_DEVICE = 66305
-FUTURES_PREVIEW_PREDECESSOR_INODE = 42312480
+FUTURES_PREVIEW_PREDECESSOR_DEVICE = 2096
+FUTURES_PREVIEW_PREDECESSOR_INODE = 400174
 FUTURES_PREVIEW_PREDECESSOR_SIZE = 6002
 FUTURES_PREVIEW_PREDECESSOR_MODE = 0o400
 FUTURES_PREVIEW_PREDECESSOR_MTIME_NS = 1783991637010957407
@@ -104,8 +104,8 @@ FUTURES_PREVIEW_R3_FILE_SHA256 = (
 FUTURES_PREVIEW_R3_EVIDENCE_SHA256 = (
     "e79beb3d9f1324cf8f90ba78cd45869fec5b7963afe3745bd6e26617313718e8"
 )
-FUTURES_PREVIEW_R3_DEVICE = 66305
-FUTURES_PREVIEW_R3_INODE = 42312497
+FUTURES_PREVIEW_R3_DEVICE = 2096
+FUTURES_PREVIEW_R3_INODE = 400175
 FUTURES_PREVIEW_R3_SIZE = 7616
 FUTURES_PREVIEW_R3_MODE = 0o400
 FUTURES_PREVIEW_R3_MTIME_NS = 1784054457360155278
@@ -115,8 +115,8 @@ FUTURES_PREVIEW_R4_FILE_SHA256 = (
 FUTURES_PREVIEW_R4_EVIDENCE_SHA256 = (
     "0edeffdb0702ba119a7d9c3e32874b75e295ee596538432df5f7be0a67a4af3e"
 )
-FUTURES_PREVIEW_R4_DEVICE = 66305
-FUTURES_PREVIEW_R4_INODE = 42321812
+FUTURES_PREVIEW_R4_DEVICE = 2096
+FUTURES_PREVIEW_R4_INODE = 400176
 FUTURES_PREVIEW_R4_SIZE = 9508
 FUTURES_PREVIEW_R4_MODE = 0o400
 FUTURES_PREVIEW_R4_MTIME_NS = 1784087822854381595
@@ -126,8 +126,8 @@ FUTURES_PREVIEW_R5_FILE_SHA256 = (
 FUTURES_PREVIEW_R5_EVIDENCE_SHA256 = (
     "194cdd842944f8a453408051c04ff8e117b6b2b3ab6dcd7b1e78f44f4a5a467f"
 )
-FUTURES_PREVIEW_R5_DEVICE = 66305
-FUTURES_PREVIEW_R5_INODE = 41943457
+FUTURES_PREVIEW_R5_DEVICE = 2096
+FUTURES_PREVIEW_R5_INODE = 400177
 FUTURES_PREVIEW_R5_SIZE = 11647
 FUTURES_PREVIEW_R5_MODE = 0o400
 FUTURES_PREVIEW_R5_MTIME_NS = 1784111957686383208
@@ -137,11 +137,19 @@ FUTURES_PREVIEW_ORIGINAL_FILE_SHA256 = (
 FUTURES_PREVIEW_ORIGINAL_EVIDENCE_SHA256 = (
     "3b09cb9dfe02991dc886a1c6f041330d417ff11a0f1d45e3734bdc59bfb219b8"
 )
-FUTURES_PREVIEW_ORIGINAL_DEVICE = 66305
-FUTURES_PREVIEW_ORIGINAL_INODE = 42312964
+FUTURES_PREVIEW_ORIGINAL_DEVICE = 2096
+FUTURES_PREVIEW_ORIGINAL_INODE = 400172
 FUTURES_PREVIEW_ORIGINAL_SIZE = 3043
 FUTURES_PREVIEW_ORIGINAL_MODE = 0o400
 FUTURES_PREVIEW_ORIGINAL_MTIME_NS = 1783968539951853688
+_FUTURES_PREVIEW_EC2_IDENTITIES = {
+    "original": (66305, 42312964),
+    "r1": (66305, 42312970),
+    "r2": (66305, 42312480),
+    "r3": (66305, 42312497),
+    "r4": (66305, 42321812),
+    "r5": (66305, 41943457),
+}
 _SCHEMA_VERSION = "1"
 _ARTIFACT_TYPE = "futures_exact_no_live_preview_slice_2r3"
 FUTURES_PREVIEW_R4_ARTIFACT_TYPE = (
@@ -246,8 +254,8 @@ FUTURES_PREVIEW_ORIGINAL_PREDECESSOR_BINDING = {
     "artifact_name": "futures_exact_no_live_preview_slice_2.jsonl",
     "file_sha256": FUTURES_PREVIEW_ORIGINAL_FILE_SHA256,
     "evidence_sha256": FUTURES_PREVIEW_ORIGINAL_EVIDENCE_SHA256,
-    "device": "66305",
-    "inode": "42312964",
+    "device": str(FUTURES_PREVIEW_ORIGINAL_DEVICE),
+    "inode": str(FUTURES_PREVIEW_ORIGINAL_INODE),
     "size_bytes": 3043,
     "mode": "0400",
     "mtime_ns": "1783968539951853688",
@@ -351,6 +359,49 @@ FUTURES_PREVIEW_R5_TERMINAL_BINDING = {
     "preservation": "immutable_no_modify_delete_or_reuse",
     "original_predecessor_binding": FUTURES_PREVIEW_R4_PREDECESSOR_BINDING,
 }
+
+
+def _rebind_preview_filesystem_identity(
+    binding: Mapping[str, Any],
+    *,
+    identity: tuple[int, int],
+    predecessor_binding: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    rebound = dict(binding)
+    rebound["device"] = str(identity[0])
+    rebound["inode"] = str(identity[1])
+    if predecessor_binding is None:
+        rebound.pop("original_predecessor_binding", None)
+    else:
+        rebound["original_predecessor_binding"] = dict(predecessor_binding)
+    return rebound
+
+
+_FUTURES_PREVIEW_EC2_ORIGINAL_BINDING = _rebind_preview_filesystem_identity(
+    FUTURES_PREVIEW_ORIGINAL_PREDECESSOR_BINDING,
+    identity=_FUTURES_PREVIEW_EC2_IDENTITIES["original"],
+    predecessor_binding=None,
+)
+_FUTURES_PREVIEW_EC2_R1_BINDING = _rebind_preview_filesystem_identity(
+    FUTURES_PREVIEW_R1_PREDECESSOR_BINDING,
+    identity=_FUTURES_PREVIEW_EC2_IDENTITIES["r1"],
+    predecessor_binding=_FUTURES_PREVIEW_EC2_ORIGINAL_BINDING,
+)
+_FUTURES_PREVIEW_EC2_R2_BINDING = _rebind_preview_filesystem_identity(
+    FUTURES_PREVIEW_PREDECESSOR_BINDING,
+    identity=_FUTURES_PREVIEW_EC2_IDENTITIES["r2"],
+    predecessor_binding=_FUTURES_PREVIEW_EC2_R1_BINDING,
+)
+_FUTURES_PREVIEW_EC2_R3_BINDING = _rebind_preview_filesystem_identity(
+    FUTURES_PREVIEW_R3_PREDECESSOR_BINDING,
+    identity=_FUTURES_PREVIEW_EC2_IDENTITIES["r3"],
+    predecessor_binding=_FUTURES_PREVIEW_EC2_R2_BINDING,
+)
+_FUTURES_PREVIEW_EC2_R4_BINDING = _rebind_preview_filesystem_identity(
+    FUTURES_PREVIEW_R4_PREDECESSOR_BINDING,
+    identity=_FUTURES_PREVIEW_EC2_IDENTITIES["r4"],
+    predecessor_binding=_FUTURES_PREVIEW_EC2_R3_BINDING,
+)
 _CONSUMED_PREVIEW_IDENTIFIERS = frozenset(
     {
         "9c26aed6-fce5-470b-b57e-b89423ecc0ed",
@@ -926,6 +977,7 @@ def validate_futures_order_preview_predecessor(
     expected_predecessor_binding: Mapping[str, Any] | None = (
         FUTURES_PREVIEW_ORIGINAL_PREDECESSOR_BINDING
     ),
+    expected_evidence_predecessor_binding: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Read and bind one exact immutable terminal Preview predecessor."""
 
@@ -1036,7 +1088,10 @@ def validate_futures_order_preview_predecessor(
         or (
             expected_predecessor_binding is not None
             and evidence.get("predecessor_binding")
-            != dict(expected_predecessor_binding)
+            != dict(
+                expected_evidence_predecessor_binding
+                or expected_predecessor_binding
+            )
         )
         or evidence.get("exchange_submission_attempt_count") != 0
         or evidence.get("submitted_notional_usdc") != "0"
@@ -1128,6 +1183,9 @@ def validate_production_futures_order_preview_predecessor() -> dict[str, Any]:
         expected_mode=FUTURES_PREVIEW_R1_MODE,
         expected_mtime_ns=FUTURES_PREVIEW_R1_MTIME_NS,
         expected_predecessor_binding=original_binding,
+        expected_evidence_predecessor_binding=(
+            _FUTURES_PREVIEW_EC2_ORIGINAL_BINDING
+        ),
     )
     if r1_binding != FUTURES_PREVIEW_R1_PREDECESSOR_BINDING:
         raise FuturesOrderPreviewArtifactError(
@@ -1146,6 +1204,7 @@ def validate_production_futures_order_preview_predecessor() -> dict[str, Any]:
         expected_artifact_type="futures_exact_no_live_preview_slice_2r2",
         expected_blocker="preflight_or_preview_blocked:ValueError",
         expected_predecessor_binding=r1_binding,
+        expected_evidence_predecessor_binding=_FUTURES_PREVIEW_EC2_R1_BINDING,
     )
     if r2_binding != FUTURES_PREVIEW_PREDECESSOR_BINDING:
         raise FuturesOrderPreviewArtifactError(
@@ -1170,6 +1229,7 @@ def validate_production_futures_order_preview_r3_predecessor() -> dict[str, Any]
         expected_artifact_type=_ARTIFACT_TYPE,
         expected_blocker="preflight_or_preview_stage_blocked",
         expected_predecessor_binding=r2_binding,
+        expected_evidence_predecessor_binding=_FUTURES_PREVIEW_EC2_R2_BINDING,
     )
     if r3_binding != FUTURES_PREVIEW_R3_PREDECESSOR_BINDING:
         raise FuturesOrderPreviewArtifactError(
@@ -1194,6 +1254,7 @@ def validate_production_futures_order_preview_r4_predecessor() -> dict[str, Any]
         expected_artifact_type=_R4_ARTIFACT_TYPE,
         expected_blocker="preflight_or_preview_stage_blocked",
         expected_predecessor_binding=r3_binding,
+        expected_evidence_predecessor_binding=_FUTURES_PREVIEW_EC2_R3_BINDING,
     )
     if r4_binding != FUTURES_PREVIEW_R4_PREDECESSOR_BINDING:
         raise FuturesOrderPreviewArtifactError(
@@ -1218,6 +1279,7 @@ def validate_production_futures_order_preview_r5_terminal() -> dict[str, Any]:
         expected_artifact_type=_R5_ARTIFACT_TYPE,
         expected_blocker="preflight_or_preview_stage_blocked",
         expected_predecessor_binding=r4_binding,
+        expected_evidence_predecessor_binding=_FUTURES_PREVIEW_EC2_R4_BINDING,
     )
     if r5_binding != FUTURES_PREVIEW_R5_TERMINAL_BINDING:
         raise FuturesOrderPreviewArtifactError(
@@ -3509,7 +3571,10 @@ def _validate_r5_claim_record(claim: Mapping[str, Any]) -> None:
         or claim.get("artifact_type") != _R5_ARTIFACT_TYPE
         or claim.get("claim_status") != "reserved"
         or claim.get("predecessor_binding")
-        != FUTURES_PREVIEW_R4_PREDECESSOR_BINDING
+        not in (
+            _FUTURES_PREVIEW_EC2_R4_BINDING,
+            FUTURES_PREVIEW_R4_PREDECESSOR_BINDING,
+        )
         or claim.get("actor_id") != FUTURES_PREVIEW_ACTOR_ID
         or claim.get("roles") != [FUTURES_PREVIEW_ROLE]
         or claim.get("profile_label") != "Default"

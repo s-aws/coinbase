@@ -8,10 +8,17 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from typing import Annotated, Any, Literal, Self
+from typing import Annotated, Any, ClassVar, Literal, Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    GetJsonSchemaHandler,
+    model_validator,
+)
+from pydantic.json_schema import JsonSchemaValue
 
 from core.enums import (
     AdminApiActionClass,
@@ -6516,7 +6523,42 @@ class AdminFuturesAccountReadResponse(BaseModel):
     live_coinbase_orders_ran: bool = False
 
 
-class AdminFuturesPreviewOriginalPredecessorBinding(BaseModel):
+class _AdminFuturesPreviewFilesystemBoundModel(BaseModel):
+    filesystem_identities: ClassVar[tuple[tuple[str, str], ...]] = ()
+
+    @model_validator(mode="after")
+    def validate_filesystem_identity(self) -> Self:
+        if (self.device, self.inode) not in self.filesystem_identities:
+            raise ValueError("futures Preview filesystem identity is invalid")
+        return self
+
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls,
+        core_schema: Any,
+        handler: GetJsonSchemaHandler,
+    ) -> JsonSchemaValue:
+        schema = handler(core_schema)
+        schema.setdefault("allOf", []).append(
+            {
+                "oneOf": [
+                    {
+                        "properties": {
+                            "device": {"const": device},
+                            "inode": {"const": inode},
+                        },
+                        "required": ["device", "inode"],
+                    }
+                    for device, inode in cls.filesystem_identities
+                ]
+            }
+        )
+        return schema
+
+
+class AdminFuturesPreviewOriginalPredecessorBinding(
+    _AdminFuturesPreviewFilesystemBoundModel
+):
     """Exact immutable binding to the consumed original Slice 2 artifact."""
 
     model_config = ConfigDict(extra="forbid")
@@ -6528,8 +6570,8 @@ class AdminFuturesPreviewOriginalPredecessorBinding(BaseModel):
     evidence_sha256: Literal[
         "3b09cb9dfe02991dc886a1c6f041330d417ff11a0f1d45e3734bdc59bfb219b8"
     ]
-    device: Literal["66305"]
-    inode: Literal["42312964"]
+    device: Literal["66305", "2096"]
+    inode: Literal["42312964", "400172"]
     size_bytes: Literal[3043]
     mode: Literal["0400"]
     mtime_ns: Literal["1783968539951853688"]
@@ -6541,8 +6583,15 @@ class AdminFuturesPreviewOriginalPredecessorBinding(BaseModel):
     executed_notional_usdc: Literal["0"]
     preservation: Literal["immutable_no_modify_delete_or_reuse"]
 
+    filesystem_identities = (
+        ("66305", "42312964"),
+        ("2096", "400172"),
+    )
 
-class AdminFuturesPreviewPredecessorBinding(BaseModel):
+
+class AdminFuturesPreviewPredecessorBinding(
+    _AdminFuturesPreviewFilesystemBoundModel
+):
     """Exact immutable R1 binding plus its original Slice 2 parent."""
 
     model_config = ConfigDict(extra="forbid")
@@ -6554,8 +6603,8 @@ class AdminFuturesPreviewPredecessorBinding(BaseModel):
     evidence_sha256: Literal[
         "a1b7820aa217b7119a6353a8f4fbffa5227ebfe5e4c8d8a1cde5449d370fc6f0"
     ]
-    device: Literal["66305"]
-    inode: Literal["42312970"]
+    device: Literal["66305", "2096"]
+    inode: Literal["42312970", "400173"]
     size_bytes: Literal[4197]
     mode: Literal["0400"]
     mtime_ns: Literal["1783980960753782357"]
@@ -6568,8 +6617,15 @@ class AdminFuturesPreviewPredecessorBinding(BaseModel):
     preservation: Literal["immutable_no_modify_delete_or_reuse"]
     original_predecessor_binding: AdminFuturesPreviewOriginalPredecessorBinding
 
+    filesystem_identities = (
+        ("66305", "42312970"),
+        ("2096", "400173"),
+    )
 
-class AdminFuturesPreviewR2PredecessorBinding(BaseModel):
+
+class AdminFuturesPreviewR2PredecessorBinding(
+    _AdminFuturesPreviewFilesystemBoundModel
+):
     """Exact immutable R2 binding plus its R1 and original predecessors."""
 
     model_config = ConfigDict(extra="forbid")
@@ -6581,8 +6637,8 @@ class AdminFuturesPreviewR2PredecessorBinding(BaseModel):
     evidence_sha256: Literal[
         "afebf81c4d95c0abd7635fd700f6618e92191423173df3e2db0f875102b6f1c9"
     ]
-    device: Literal["66305"]
-    inode: Literal["42312480"]
+    device: Literal["66305", "2096"]
+    inode: Literal["42312480", "400174"]
     size_bytes: Literal[6002]
     mode: Literal["0400"]
     mtime_ns: Literal["1783991637010957407"]
@@ -6595,8 +6651,15 @@ class AdminFuturesPreviewR2PredecessorBinding(BaseModel):
     preservation: Literal["immutable_no_modify_delete_or_reuse"]
     original_predecessor_binding: AdminFuturesPreviewPredecessorBinding
 
+    filesystem_identities = (
+        ("66305", "42312480"),
+        ("2096", "400174"),
+    )
 
-class AdminFuturesPreviewR3PredecessorBinding(BaseModel):
+
+class AdminFuturesPreviewR3PredecessorBinding(
+    _AdminFuturesPreviewFilesystemBoundModel
+):
     """Exact immutable R3 binding plus its complete predecessor chain."""
 
     model_config = ConfigDict(extra="forbid")
@@ -6608,8 +6671,8 @@ class AdminFuturesPreviewR3PredecessorBinding(BaseModel):
     evidence_sha256: Literal[
         "e79beb3d9f1324cf8f90ba78cd45869fec5b7963afe3745bd6e26617313718e8"
     ]
-    device: Literal["66305"]
-    inode: Literal["42312497"]
+    device: Literal["66305", "2096"]
+    inode: Literal["42312497", "400175"]
     size_bytes: Literal[7616]
     mode: Literal["0400"]
     mtime_ns: Literal["1784054457360155278"]
@@ -6622,8 +6685,15 @@ class AdminFuturesPreviewR3PredecessorBinding(BaseModel):
     preservation: Literal["immutable_no_modify_delete_or_reuse"]
     original_predecessor_binding: AdminFuturesPreviewR2PredecessorBinding
 
+    filesystem_identities = (
+        ("66305", "42312497"),
+        ("2096", "400175"),
+    )
 
-class AdminFuturesPreviewR4PredecessorBinding(BaseModel):
+
+class AdminFuturesPreviewR4PredecessorBinding(
+    _AdminFuturesPreviewFilesystemBoundModel
+):
     """Exact immutable R4 binding plus its complete predecessor chain."""
 
     model_config = ConfigDict(extra="forbid")
@@ -6635,8 +6705,8 @@ class AdminFuturesPreviewR4PredecessorBinding(BaseModel):
     evidence_sha256: Literal[
         "0edeffdb0702ba119a7d9c3e32874b75e295ee596538432df5f7be0a67a4af3e"
     ]
-    device: Literal["66305"]
-    inode: Literal["42321812"]
+    device: Literal["66305", "2096"]
+    inode: Literal["42321812", "400176"]
     size_bytes: Literal[9508]
     mode: Literal["0400"]
     mtime_ns: Literal["1784087822854381595"]
@@ -6649,8 +6719,15 @@ class AdminFuturesPreviewR4PredecessorBinding(BaseModel):
     preservation: Literal["immutable_no_modify_delete_or_reuse"]
     original_predecessor_binding: AdminFuturesPreviewR3PredecessorBinding
 
+    filesystem_identities = (
+        ("66305", "42321812"),
+        ("2096", "400176"),
+    )
 
-class AdminFuturesPreviewR5PredecessorBinding(BaseModel):
+
+class AdminFuturesPreviewR5PredecessorBinding(
+    _AdminFuturesPreviewFilesystemBoundModel
+):
     """Exact immutable R5 binding plus its complete predecessor chain."""
 
     model_config = ConfigDict(extra="forbid")
@@ -6662,8 +6739,8 @@ class AdminFuturesPreviewR5PredecessorBinding(BaseModel):
     evidence_sha256: Literal[
         "194cdd842944f8a453408051c04ff8e117b6b2b3ab6dcd7b1e78f44f4a5a467f"
     ]
-    device: Literal["66305"]
-    inode: Literal["41943457"]
+    device: Literal["66305", "2096"]
+    inode: Literal["41943457", "400177"]
     size_bytes: Literal[11647]
     mode: Literal["0400"]
     mtime_ns: Literal["1784111957686383208"]
@@ -6675,6 +6752,11 @@ class AdminFuturesPreviewR5PredecessorBinding(BaseModel):
     executed_notional_usdc: Literal["0"]
     preservation: Literal["immutable_no_modify_delete_or_reuse"]
     original_predecessor_binding: AdminFuturesPreviewR4PredecessorBinding
+
+    filesystem_identities = (
+        ("66305", "41943457"),
+        ("2096", "400177"),
+    )
 
 
 class AdminFuturesPreviewMarginSettingEvidence(BaseModel):

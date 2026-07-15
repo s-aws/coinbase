@@ -299,6 +299,17 @@ artifact and makes no Coinbase call. Production default readback remains R5.
 No R6 claim, result artifact, credential hydration, or Coinbase call exists;
 running the one-use R6 attempt requires a separate exact authorization.
 
+The operator granted that exact one-use R6 Preview authorization, then
+authorized a no-live migration-aware re-preparation after the verified S3
+migration restore showed that the immutable files retained their exact bytes,
+sizes, modes, and documented hashes but necessarily received new Docker
+filesystem device/inode identities. The original nanosecond mtimes were
+restored exactly. Re-preparation may update only the physical device/inode
+bindings used by the dormant R6 chain; historical EC2 bindings embedded in
+consumed R1-R5 evidence remain byte-identical and are still validated against
+their exact file hashes. This authorization creates no R6 claim or Coinbase
+call and does not broaden the existing one-use Preview scope.
+
 `Default-profile Futures readback -> exact AVAX US CFM Coinbase Preview Order -> immutable operator-visible no-live preview readback`
 
 ## Ordered Sequence — Slice 2 Blocked At R6 Execution Authorization
