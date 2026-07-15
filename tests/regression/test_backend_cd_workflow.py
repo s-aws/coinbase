@@ -34,7 +34,7 @@ def test_github_hosted_deployment_workflows_remain_retired() -> None:
     assert not PUBLIC_CHECKS_WORKFLOW_PATH.exists()
 
 
-def test_ec2_local_deployment_contract_sources_exist() -> None:
+def test_local_linux_docker_deployment_contract_sources_exist() -> None:
     for path in [
         Path("tools/run_autonomous_work_queue_check.py"),
         OPENAPI_GENERATOR_PATH,

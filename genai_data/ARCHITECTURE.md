@@ -232,8 +232,9 @@ Broadcast model:
 ## Enterprise Admin API
 
 The enterprise Admin API is the contract surface for the separate frontend
-repository at `/home/ec2-user/coinbase-frontend` in the active EC2 workspace.
-HTTP command posture is route-specific and remains backend-owned.
+repository at `/home/developer/coinbase/coinbase-frontend` in the local Linux
+Docker workspace. HTTP command posture is route-specific and remains
+backend-owned.
 
 Current modules:
 - `api/v1/app.py`: FastAPI app factory.
@@ -324,7 +325,7 @@ Current behavior:
   history, fetch Coinbase, replay commands, or approve browser live execution.
 - Admin bootstrap, health, session/RBAC, capabilities, release/recovery,
   fill-ledger health, and frontend fixture routes are read-only backend
-  association surfaces for `/home/ec2-user/coinbase-frontend`.
+  association surfaces for `/home/developer/coinbase/coinbase-frontend`.
 - Admin API responses include observability headers and structured error
   payloads for auth, RBAC, and validation failures.
 - Read-only spot routes expose readiness, sweep status, sweep P/L, cost-basis

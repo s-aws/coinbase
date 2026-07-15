@@ -1,8 +1,8 @@
 ﻿# Admin API
 
 This repository exposes the professional backend API for the separate
-enterprise admin platform at `/home/ec2-user/coinbase-frontend` in the active
-EC2 workspace.
+enterprise admin platform at `/home/developer/coinbase/coinbase-frontend` in
+the local Linux Docker workspace.
 Spot is the first complete product module consumed by that platform; it is not
 the generic contract shape for every backend feature.
 The repository association is documented in
@@ -1981,7 +1981,7 @@ HTTP routes, and sweep/campaign execution, see
 [Live Order Surfaces](docs/LIVE_ORDER_SURFACES.md).
 
 The frontend release-hardening gate is owned by
-`/home/ec2-user/coinbase-frontend` and is
+`/home/developer/coinbase/coinbase-frontend` and is
 the canonical no-live command:
 
 ```powershell

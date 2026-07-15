@@ -90,7 +90,7 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     assert summary["mvp_scope"] == {
         "work_mode": "futures_exact_no_live_preview_slice_2",
         "goal_authority": (
-            "/home/ec2-user/coinbase-frontend/docs/CURRENT_MVP_GOAL.md"
+            "/home/developer/coinbase/coinbase-frontend/docs/CURRENT_MVP_GOAL.md"
         ),
         "frontend_authority": "operator_ui_only",
         "live_action_path": "auditable_backend_admin_interfaces_only",
@@ -143,6 +143,9 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     assert check_results["current_goal_alignment"]["passed"] is True
     assert check_results["historical_queue_posture"]["passed"] is True
     assert check_results["github_workflows_retired"]["passed"] is True
+    assert check_results["github_workflows_retired"]["evidence"][
+        "execution_authority"
+    ] == "local_linux_docker"
 
 
 def test_spot_release_gate_coinbase_readonly_includes_cost_basis_checks():

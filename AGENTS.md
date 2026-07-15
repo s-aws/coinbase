@@ -1,7 +1,8 @@
 # AGENTS.md - Session Entry Point
 
-The active workspace runs on EC2 Linux. Historical Windows commands remain in
-some operator/deployment references and must not replace the EC2 paths below.
+The active workspace runs in a local Linux Docker environment. Historical
+Windows and EC2 commands may remain in archived evidence, but they must not
+replace the local sibling paths below.
 
 ## Required Reading (in this order)
 
@@ -53,38 +54,34 @@ some operator/deployment references and must not replace the EC2 paths below.
   unmerged branch exists, summarize its unique commits and get operator
   direction before building on it.
 
-## EC2 Workspace and Cost Discipline
+## Local Linux Docker Workspace Discipline
 
-- The active development workspace for both Coinbase projects is the EC2
-  workspace, not the local laptop, whenever the instance is available.
-- Use `/home/ec2-user/coinbase` for this backend and
-  `/home/ec2-user/coinbase-frontend` for the frontend on EC2. Both projects
-  should stay on `main` unless the user explicitly asks otherwise.
-- The Windows checkouts are not active workspaces. Do not read, edit,
-  build, test, or continue implementation from local repo copies. Use the
-  local machine only as an AWS/SSH control plane to start, stop, or access
-  EC2.
-- The EC2 instance costs money while running. Start or keep it running only
-  while actively coding, testing, serving the local Admin UI, or performing an
-  operator-requested validation.
-- EC2 local validation is the default for this repository. Do not manually
+- The active development workspace for both Coinbase projects is the local
+  Linux Docker environment.
+- Use `/home/developer/coinbase/coinbase` for this backend and
+  `/home/developer/coinbase/coinbase-frontend` for the frontend. Both sibling
+  projects should stay on `main` unless the user explicitly asks otherwise.
+- Stale Windows or former EC2 checkouts are not active workspaces. Do not read,
+  edit, build, test, or continue implementation from them as a substitute for
+  the local Linux Docker sibling checkouts.
+- Local Docker validation is the default for this repository. Do not manually
   dispatch GitHub Actions or otherwise use GitHub-hosted runners for routine
   MVP validation, closeout, or deployment evidence unless the operator
   explicitly asks for a GitHub Actions run.
 - Before ending a work session, stop repo-owned dev servers, test watchers, and
-  long-running helper processes on EC2, confirm required commits are pushed, and
-  stop the EC2 instance unless the user explicitly says to keep it running.
-- Stop means stop the instance, not terminate it. Do not destroy volumes,
-  delete the workspace, or remove secrets infrastructure as part of routine
-  cost control.
-- If EC2 is stopped or unreachable, state that clearly and either start it for
-  the requested work or wait for the user to start it. Do not perform repo
-  work in local checkouts as a substitute for the EC2 workspace.
+  long-running helper processes that are no longer needed, and confirm required
+  commits are pushed. The local Linux Docker environment may remain running;
+  host or container shutdown is not a routine session-closeout requirement.
+- This infrastructure rule does not weaken trading-runtime safety. When a
+  trading runtime is intentionally stopped, use its graceful admission,
+  drain, reconciliation, and shutdown path rather than forced termination.
+- If the local Docker workspace is unavailable, state that clearly and restore
+  or wait for access. Do not use stale Windows or EC2 checkouts as a substitute.
 
 ## Codex Desktop Terminal Bridge Guard
 
 - Do not use `codex_app.read_thread_terminal` for routine status, cleanup,
-  process hygiene, or final verification in this EC2 workspace. It has
+  process hygiene, or final verification in this local Docker workspace. It has
   previously blocked indefinitely while waiting on the Codex Desktop/app-server
   terminal bridge, leaving the turn active with low CPU usage and no repo
   command still running.
@@ -93,7 +90,7 @@ some operator/deployment references and must not replace the EC2 paths below.
   repo-side timeout or shell PID to inspect from the workspace.
 - Use shell-side checks instead: `ps`, `pgrep`, `pstree`, `lsof`,
   `python3.13 tools/check_stale_test_processes.py --include-sibling-frontend`,
-  `git status --short`, and targeted log reads under `/home/ec2-user/.codex/`
+  `git status --short`, and targeted log reads under `/home/developer/.codex/`
   when investigating Codex runtime state. Long-running validation should run
   through explicit shell commands with `timeout_ms`, or a controlled background
   process with a PID and log file that can be checked from the workspace.
@@ -117,7 +114,7 @@ some operator/deployment references and must not replace the EC2 paths below.
   or a temporary worktree, then translate only MVP-aligned behavior into the
   backend Admin API/BFF path with focused tests.
 - When available, also read
-  `/home/ec2-user/coinbase-frontend/docs/ORIGIN_PROD_FEATURE_MVP_MAP.md` before translating
+  `/home/developer/coinbase/coinbase-frontend/docs/ORIGIN_PROD_FEATURE_MVP_MAP.md` before translating
   legacy behavior into Admin MVP work.
 - For backend-facing MVP work, record the `origin/prod` files or references
   inspected in the handoff/summary. If no legacy lookup was needed, state why it
@@ -152,7 +149,7 @@ If a recommendation would land softer than the evidence warrants, the recommenda
 - Use `process_memory_snapshots` from the summary as host attribution evidence. They distinguish pytest workers from Codex, VS Code, browsers, WSL, Docker, or unrelated host processes instead of guessing after terminated processes have disappeared.
 - Before full closeout gates and after interrupted or timed-out backend/frontend test commands, run the stale test-process checker. It is report-only unless `--kill` is explicitly provided and must only target matched repo-owned test command lines that are stale or above the default high-memory threshold: `python3.13 tools/check_stale_test_processes.py --include-sibling-frontend`.
 - After memory-guard aborts or unexpected regression memory spikes, run the report-only runtime artifact checker before retrying: `python3.13 tools/check_runtime_artifacts.py`. It identifies oversized `runtime_state/` test payloads such as stale Admin API idempotency response blobs; do not delete artifacts without explicit cleanup approval.
-- On EC2 Linux, the `python` alias may be absent and `/usr/bin/python3` may not be the backend dependency interpreter. Use `python3.13` for backend scripts, OpenAPI generation, ownership checks, and compile checks, for example `python3.13 tools/check_ownership.py` or `python3.13 -m py_compile ...`. The repo pytest executable is available and valid for focused tests because it runs under Python 3.13, so prefer direct `pytest ...` for regression targets unless a command specifically requires module execution. Do not treat `/bin/bash: python: command not found` or `ModuleNotFoundError` from `/usr/bin/python3` as missing pytest or missing dependencies; rerun the script with `python3.13` or the test with `pytest`.
+- In the local Linux Docker environment, the `python` alias may be absent and `/usr/bin/python3` may not be the backend dependency interpreter. Use `python3.13` for backend scripts, OpenAPI generation, ownership checks, and compile checks, for example `python3.13 tools/check_ownership.py` or `python3.13 -m py_compile ...`. The repo pytest executable is available and valid for focused tests because it runs under Python 3.13, so prefer direct `pytest ...` for regression targets unless a command specifically requires module execution. Do not treat `/bin/bash: python: command not found` or `ModuleNotFoundError` from `/usr/bin/python3` as missing pytest or missing dependencies; rerun the script with `python3.13` or the test with `pytest`.
 
 Canonical full regression closeout command:
 

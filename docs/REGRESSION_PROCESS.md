@@ -11,9 +11,10 @@ behavior. Do not run the full regression suite by default for every phase.
 
 ## Interpreter Selection
 
-On EC2 Linux, the `python` alias may be absent and `/usr/bin/python3` may not
-be the backend dependency interpreter. Use `python3.13` for backend scripts,
-OpenAPI generation, ownership checks, and compile checks, for example:
+In the local Linux Docker environment, the `python` alias may be absent and
+`/usr/bin/python3` may not be the backend dependency interpreter. Use
+`python3.13` for backend scripts, OpenAPI generation, ownership checks, and
+compile checks, for example:
 
 ```bash
 python3.13 tools/check_ownership.py
@@ -134,13 +135,13 @@ that include this repository or the sibling `coinbase-frontend` path. Backend
 pytest regression commands launched from the repo root with relative
 `tests/regression` paths are also treated as repo-owned, because those children
 can survive an interrupted parent shell without retaining the absolute
-`/home/ec2-user/coinbase` path in their command line. The checker also reports matching
-repo-owned test workers above `8192 MB` private or working-set memory even
-before they reach the age threshold; a failing pytest process retaining huge
-failure payloads is operationally stale once it is no longer part of active
-validation. If the checker reports stale or high-memory workers that are no
-longer part of an active validation run, terminate only those matched process
-trees explicitly:
+`/home/developer/coinbase/coinbase` path in their command line. The checker also
+reports matching repo-owned test workers above `8192 MB` private or working-set
+memory even before they reach the age threshold; a failing pytest process
+retaining huge failure payloads is operationally stale once it is no longer
+part of active validation. If the checker reports stale or high-memory workers
+that are no longer part of an active validation run, terminate only those
+matched process trees explicitly:
 
 ```powershell
 python3.13 tools/check_stale_test_processes.py --include-sibling-frontend --kill

@@ -204,7 +204,10 @@ def _github_workflows_retired() -> QueueCheck:
     return QueueCheck(
         name="github_workflows_retired",
         passed=not present,
-        evidence={"unexpected_present_paths": present, "execution_authority": "ec2_local_only"},
+        evidence={
+            "unexpected_present_paths": present,
+            "execution_authority": "local_linux_docker",
+        },
     )
 
 
@@ -243,7 +246,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"Historical phases: {HISTORICAL_PHASE_RANGE} "
             "(not work authority)"
         )
-        print("Validation: focused EC2-local blast-radius tests")
+        print("Validation: focused local Linux Docker blast-radius tests")
         print("Live Coinbase execution: not run; notional $0")
     print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
     return 0 if summary["status"] == "passed" else 1

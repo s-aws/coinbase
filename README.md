@@ -104,7 +104,7 @@ python3.13 tools/generate_admin_api_openapi.py
 ## Tested Environment
 
 This project is tested on:
-- Windows 11 + VS Code
+- Local Linux Docker
 - Python 3.13
 - Coinbase Advanced Trade API (REST + WebSocket)
 
@@ -114,12 +114,12 @@ approval/closeout, release-hardening closeout, Admin API/backend association
 closeout, or explicit user request gate. See
 [Regression Process](docs/REGRESSION_PROCESS.md) for the durable policy.
 
-On EC2 Linux, use `python3.13` for backend scripts, OpenAPI generation,
-ownership checks, and compile checks. The `python` alias may be unavailable,
-and `/usr/bin/python3` may not be the backend dependency interpreter. Use the
-installed `pytest` executable directly for test targets unless a command
-specifically requires module execution; the repo pytest executable runs under
-Python 3.13.
+In the local Linux Docker environment, use `python3.13` for backend scripts,
+OpenAPI generation, ownership checks, and compile checks. The `python` alias
+may be unavailable, and `/usr/bin/python3` may not be the backend dependency
+interpreter. Use the installed `pytest` executable directly for test targets
+unless a command specifically requires module execution; the repo pytest
+executable runs under Python 3.13.
 
 Use the process-parallel runner for that closeout gate:
 ```powershell

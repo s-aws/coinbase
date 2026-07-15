@@ -6,9 +6,10 @@ Use `genai_data/AGENT_MVP_REBUILD_GOAL.md`, goal id
 `selected_order_execution_closeout_slice`, for current scope. Numbered phase
 language below is implementation and regression history only.
 
-The active frontend workspace is `/home/ec2-user/coinbase-frontend`. Any
-Windows checkout or screenshot paths retained below are historical evidence,
-not current workspace instructions.
+The active frontend workspace is
+`/home/developer/coinbase/coinbase-frontend` in the local Linux Docker
+environment. Any Windows or EC2 checkout and screenshot paths retained below
+are historical evidence, not current workspace instructions.
 
 This plan defines how the backend repository moves from proof-of-concept
 dashboard surfaces to a professional enterprise API consumed by the separate

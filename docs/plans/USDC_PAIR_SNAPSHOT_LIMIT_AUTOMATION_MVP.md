@@ -11,8 +11,8 @@ the canonical goal's closed scope rule.
 This lane cannot promote itself by generating more blocker evidence about its own parked prerequisites.
 
 Default next action: none. Use
-`/home/ec2-user/coinbase-frontend/docs/CURRENT_MVP_GOAL.md` to select current
-work.
+`/home/developer/coinbase/coinbase-frontend/docs/CURRENT_MVP_GOAL.md` to select
+current work.
 
 This durable plan records the approved direction for a future backend-owned
 automation MVP that discovers eligible Coinbase spot `*-USDC` products,
@@ -1014,8 +1014,9 @@ The current Phase D slice displays disabled live-service proof references and
 generated proof-chain decision evidence as read-only backend evidence. Backend
 proof refresh now requires exact approval, admission audit, cap/guard,
 reconciliation, disabled live-service, row-scoped notional, and no-live
-submission evidence before clearing any corresponding blocker. Focused EC2
-validation still reports `live_coinbase_execution=not_run` and notional `0`.
+submission evidence before clearing any corresponding blocker. Focused local
+Linux Docker validation still reports `live_coinbase_execution=not_run` and
+notional `0`.
 
 The aggregate proof-chain readback fields below are implemented as no-live
 readback evidence and covered by backend and frontend contract tests. Do not

@@ -7,8 +7,9 @@ Last reviewed: 2026-07-15 UTC.
 Status: `blocked — Slice 2R6 prepared no-live; exact R6 execution authorization required`
 
 The canonical cross-repository authority is
-`/home/ec2-user/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. This backend copy
-records the behavior-owner interpretation and must remain aligned with it.
+`/home/developer/coinbase/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. This
+backend copy records the behavior-owner interpretation and must remain aligned
+with it.
 
 ## Completed Predecessor And Active Slice
 

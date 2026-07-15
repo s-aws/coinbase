@@ -13,13 +13,13 @@ s-aws/coinbase-frontend
 Expected local sibling checkout:
 
 ```text
-/home/ec2-user/coinbase
-/home/ec2-user/coinbase-frontend
+/home/developer/coinbase/coinbase
+/home/developer/coinbase/coinbase-frontend
 ```
 
 Backend maintainer handoff starts at [Maintainer Handoff](MAINTAINER_HANDOFF.md).
 Frontend maintainer handoff lives in
-`/home/ec2-user/coinbase-frontend/docs/MAINTAINER_HANDOFF.md`.
+`/home/developer/coinbase/coinbase-frontend/docs/MAINTAINER_HANDOFF.md`.
 
 ## Contract Boundary
 
@@ -49,10 +49,10 @@ openapi/coinbase-admin-api.yaml
 Frontend generated output:
 
 ```text
-/home/ec2-user/coinbase-frontend/src/shared/api/generated/schema.ts
+/home/developer/coinbase/coinbase-frontend/src/shared/api/generated/schema.ts
 ```
 
-EC2-local frontend validation reads this sibling backend checkout and fails
+Local Docker frontend validation reads this sibling backend checkout and fails
 when generated output is stale. The retired GitHub-hosted workflow is not a
 contract authority or routine validation path.
 
@@ -128,14 +128,14 @@ execution as not run with notional `$0` and do not replace backend regression.
 The frontend `npm run autonomous:check` command remains available for
 historical autonomous queue maintenance. It is not part of the local MVP
 release/deployment gate.
-The frontend release artifact is `/home/ec2-user/coinbase-frontend/artifacts/release-readiness.json`;
+The frontend release artifact is `/home/developer/coinbase/coinbase-frontend/artifacts/release-readiness.json`;
 it is generated and consumed locally rather than committed or uploaded by a
 GitHub-hosted workflow. The same local artifact set includes
-`/home/ec2-user/coinbase-frontend/artifacts/deployment-package-manifest.json` and
-`/home/ec2-user/coinbase-frontend/artifacts/observability-drill.json`,
-`/home/ec2-user/coinbase-frontend/artifacts/synthetic-probes.json`, and
-`/home/ec2-user/coinbase-frontend/artifacts/public-release-checklist.json`, and
-`/home/ec2-user/coinbase-frontend/artifacts/runtime-evidence.json`
+`/home/developer/coinbase/coinbase-frontend/artifacts/deployment-package-manifest.json` and
+`/home/developer/coinbase/coinbase-frontend/artifacts/observability-drill.json`,
+`/home/developer/coinbase/coinbase-frontend/artifacts/synthetic-probes.json`, and
+`/home/developer/coinbase/coinbase-frontend/artifacts/public-release-checklist.json`, and
+`/home/developer/coinbase/coinbase-frontend/artifacts/runtime-evidence.json`
 (`artifacts/runtime-evidence.json` in the frontend checkout).
 These artifacts are not approval for live Coinbase execution.
 Read-only frontend rollback is a hosting/build rollback. Live-action rollback

@@ -8,8 +8,9 @@ working on the enterprise admin platform.
 The backend repository owns trading behavior, Coinbase integration, guard
 checks, authorization, audit evidence, OpenAPI schema generation, and all live
 execution authority. The frontend repository at
-`/home/ec2-user/coinbase-frontend` in the active EC2 workspace owns the browser
-application and must consume backend-owned contracts only.
+`/home/developer/coinbase/coinbase-frontend` in the local Linux Docker
+workspace owns the browser application and must consume backend-owned
+contracts only.
 
 Spot is the first complete product module, not the generic model for futures,
 perpetuals, stealth orders, movement/repricing, or future modules.

@@ -51,5 +51,5 @@ python3.13 tools/check_ownership.py --owner <owner_id>
 python3.13 tools/check_ownership.py --list
 ```
 
-EC2-local validation checks that changed files are owned. Maintainers can run
-the stricter `--owner <owner_id>` form before publishing.
+Local Docker validation checks that changed files are owned. Maintainers can
+run the stricter `--owner <owner_id>` form before publishing.

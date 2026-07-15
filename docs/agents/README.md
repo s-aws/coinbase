@@ -52,7 +52,7 @@ python3.13 tools/check_ownership.py --owner stealth_lifecycle
 Pull requests use `.github/PULL_REQUEST_TEMPLATE.md` to record the primary
 owner, canonical behavior path, focused tests, and public/private boundary
 check. GitHub-hosted agent workflows are retired; run the ownership and policy
-checks directly in the active EC2 workspace.
+checks directly in the local Linux Docker workspace.
 
 Use the cleanup classifier before moving or archiving files:
 

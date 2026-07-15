@@ -53,7 +53,7 @@ broad or that omit total/order/count safety caps.
 ## Admin Frontend Release Gate
 
 For the enterprise admin frontend sibling repository at
-`/home/ec2-user/coinbase-frontend`,
+`/home/developer/coinbase/coinbase-frontend`,
 run the canonical no-live release gate:
 
 ```powershell
@@ -141,7 +141,7 @@ pytest tests/external/ -v -m external --tb=short
 
 Live spot smoke is a manual release-readiness check. It places real Coinbase
 Advanced Trade spot orders and must never be part of default regression or
-default EC2-local validation.
+default local Docker validation.
 
 Required:
 

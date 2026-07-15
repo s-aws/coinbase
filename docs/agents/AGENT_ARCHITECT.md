@@ -53,7 +53,7 @@ or inspect public files through an allowlisted publish path.
   specific owner with `--owner`.
 - GitHub-hosted agent workflows are retired. Run
   `python3.13 tools/check_ownership.py` to verify changed files against the
-  manifest in the active EC2 workspace.
+  manifest in the local Linux Docker workspace.
 - `.github/PULL_REQUEST_TEMPLATE.md` records the primary owner, canonical path,
   focused tests, and public/private boundary check.
 - `tools/classify_repo_files.py` and `docs/REPO_CLEANUP_CLASSIFICATION.md`
