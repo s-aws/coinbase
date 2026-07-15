@@ -85,6 +85,13 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     assert summary["historical_phase_range"] == "7961-7980"
     assert summary["historical_phase_count"] == 20
     assert summary["phase_range_status"] == "historical_not_work_authority"
+    assert summary["slice_status"] == "blocked"
+    assert summary["blocker"] == (
+        "slice_2r7_consumed_without_accepted_preview_evidence"
+    )
+    assert summary["default_next_action"] == (
+        "await_operator_scope_change_decision_after_slice_2r7_closeout"
+    )
     assert summary["live_coinbase_orders_ran"] is False
     assert summary["live_order_notional_usdc"] == "0"
     assert summary["mvp_scope"] == {
@@ -101,7 +108,11 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
             "current_priority": "futures_exact_no_live_preview_slice_2",
             "approved_phase_range_status": "historical_not_work_authority",
             "phase_range_work_allowed": False,
-            "default_next_action": "complete_authorized_slice_2r7_workflow",
+            "slice_status": "blocked",
+            "blocker": "slice_2r7_consumed_without_accepted_preview_evidence",
+            "default_next_action": (
+                "await_operator_scope_change_decision_after_slice_2r7_closeout"
+            ),
             "ordered_successors": [
                 "futures_exact_no_live_preview_slice_2",
                 "futures_terminal_order_roundtrip_slice_3",
@@ -133,7 +144,7 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
             "opening_reference_notional_under_usdc": "100.00",
             "exposure_and_buffered_close_under_usdc": "150.00",
             "branch_turnover_under_usdc": "300.00",
-            "coinbase_preview_attempts_max": 1,
+            "coinbase_preview_attempts_max": 0,
             "exchange_mutation_attempts_max": 0,
         },
         "max_fan_out_notional_usdc": "100.00",
@@ -142,6 +153,7 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     }
     assert check_results["current_goal_alignment"]["passed"] is True
     assert check_results["historical_queue_posture"]["passed"] is True
+    assert check_results["slice_2r7_terminal_closeout"]["passed"] is True
     assert check_results["github_workflows_retired"]["passed"] is True
     assert check_results["github_workflows_retired"]["evidence"][
         "execution_authority"

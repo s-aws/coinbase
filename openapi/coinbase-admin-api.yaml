@@ -101583,6 +101583,12 @@ components:
           type: string
           pattern: ^[0-9a-f]{64}$
           title: Evidence Sha256
+        terminal_diagnostic_classification:
+          anyOf:
+          - $ref: '#/components/schemas/AdminFuturesPreviewTerminalDiagnosticClassification'
+          - type: 'null'
+          description: Derive the narrowest boundary supported by immutable evidence.
+          readOnly: true
       additionalProperties: false
       type: object
       required:
@@ -101617,6 +101623,7 @@ components:
       - canonicalization
       - hash_algorithm
       - evidence_sha256
+      - terminal_diagnostic_classification
       title: AdminFuturesOrderPreviewResponse
       description: Immutable one-shot Futures Preview evidence read from disk only.
     AdminFuturesPortfolioBindingEvidence:
@@ -103746,6 +103753,67 @@ components:
       - status
       title: AdminFuturesPreviewStageEvidenceRow
       description: One fixed, non-authorizing pre-Preview diagnostic stage.
+    AdminFuturesPreviewTerminalDiagnosticClassification:
+      properties:
+        schema_version:
+          type: string
+          const: '1'
+          title: Schema Version
+          default: '1'
+        classification:
+          type: string
+          const: sdk_returned__post_preview_value_error__before_acceptance
+          title: Classification
+          default: sdk_returned__post_preview_value_error__before_acceptance
+        failure_boundary:
+          type: string
+          const: after_preview_return_before_accepted_evidence_append
+          title: Failure Boundary
+          default: after_preview_return_before_accepted_evidence_append
+        exact_reason_status:
+          type: string
+          const: not_persisted_and_unrecoverable
+          title: Exact Reason Status
+          default: not_persisted_and_unrecoverable
+        coinbase_preview_method_returned:
+          type: boolean
+          const: true
+          title: Coinbase Preview Method Returned
+          default: true
+        retry_allowed:
+          type: boolean
+          const: false
+          title: Retry Allowed
+          default: false
+        additional_coinbase_call_allowed:
+          type: boolean
+          const: false
+          title: Additional Coinbase Call Allowed
+          default: false
+        sanitized:
+          type: boolean
+          const: true
+          title: Sanitized
+          default: true
+        raw_response_included:
+          type: boolean
+          const: false
+          title: Raw Response Included
+          default: false
+        external_exception_text_included:
+          type: boolean
+          const: false
+          title: External Exception Text Included
+          default: false
+        identifier_values_included:
+          type: boolean
+          const: false
+          title: Identifier Values Included
+          default: false
+      additionalProperties: false
+      type: object
+      title: AdminFuturesPreviewTerminalDiagnosticClassification
+      description: Derived sanitized boundary for a consumed post-Preview ValueError.
     AdminFuturesRiskInputEvidence:
       properties:
         status:

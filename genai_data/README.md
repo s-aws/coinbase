@@ -9,6 +9,11 @@ at `/home/developer/coinbase/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. An
 individual analysis or implementation note does not become current work merely
 because it lives in this directory.
 
+Current terminal state: Slice 2R7 is consumed and blocked without accepted
+Preview evidence; remaining Coinbase-call authority is zero. The next action is
+`await_operator_scope_change_decision_after_slice_2r7_closeout`. See
+`../docs/FUTURES_SLICE_2R7_TERMINAL_DIAGNOSIS.md`.
+
 ## Read Order
 
 1. `README.md` (this file)

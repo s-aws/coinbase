@@ -1,20 +1,21 @@
-# Futures Slice 2R7 preparation
+# Futures Slice 2R7 preparation and terminal closeout
 
 Date: 2026-07-15
 
 ## Scope and authority
 
-Slice 2R7 is a single end-to-end Preview-only successor to consumed R6 for
+Slice 2R7 was the single end-to-end Preview-only successor to consumed R6 for
 `AVP-20DEC30-CDE`, exactly one contract, under the unchanged V3 exact-pair
-margin-window policy and strict `<100 / <150 / <300 USDC` caps.
+margin-window policy and strict `<100 / <150 / <300 USDC` caps. Its one
+authorized Preview call is now consumed.
 
-Preparation may use offline checks and official online documentation only. The
-fixed execution path may perform the same bounded permission, portfolio,
+Preparation was limited to offline checks and official online documentation.
+The fixed execution path was permitted the bounded permission, portfolio,
 product, market, position, and margin/collateral reads required to revalidate
-the candidate, followed by at most one Coinbase Preview Order call. It permits
+the candidate, followed by at most one Coinbase Preview Order call. It allowed
 zero retry, fallback, redirect, Create, Cancel, Close, Reduce, or other exchange
-mutation. An unknown Preview outcome consumes R7. It grants no second call, R8,
-Slice 3 activation, or other live authority.
+mutation. That call is consumed. No second call, R8, Slice 3 activation, or
+other live authority exists.
 
 If preparation, validation, audit, or the terminal result fails, work remains
 limited to the authorized offline sanitized diagnosis and remediation surface.
@@ -33,8 +34,9 @@ The R7 claim, terminal evidence, and accepted seal bind schema policy
 - Only the existing sanitized response allowlist may be persisted.
 
 The shared validator remains backward-compatible for immutable R1-R6
-evidence. R7 adds an artifact-specific fail-closed validator after shared
-normalization and again during response-model validation. It accepts only a
+evidence. R7 adds an artifact-specific fail-closed validator against the raw
+response before shared normalization and again during response-model
+validation. It accepts only a
 `margin_ratio_data` liquidation source (with the optional predicted-price
 variant), rejects legacy-only or mixed legacy/replacement evidence—including
 either lone or present-empty legacy key—and
@@ -66,7 +68,7 @@ test fixtures.
 
 ## One-use claim and transport posture
 
-The backend-only R7 tool has a fixed artifact path and only two modes:
+The backend-only R7 tool has a fixed artifact path and had only two modes:
 
 - dormant `--preflight`, which validates R6 ancestry and a disposable R7 claim
   without creating an artifact, hydrating credentials, constructing a Coinbase
@@ -83,7 +85,11 @@ Close, or Reduce methods.
 
 The dormant production preflight completed with `status=ready`, no artifact,
 no client, no Coinbase read, no Preview attempt, and no exchange submission.
-The production R7 artifact remained absent after preflight.
+After the readiness gates passed, the confirmation mode ran exactly once. It
+must never be invoked again. The retained CLI is now terminally disabled by a
+hard-coded consumed-authority gate: both modes return a sanitized blocker
+before claim construction, credential hydration, client construction, or any
+Coinbase call, even if the artifact path is unexpectedly absent.
 
 All dormant-preflight validation failures, including path acquisition/state
 checks and unexpected model or filesystem exceptions, are converted to the
@@ -99,22 +105,19 @@ original Slice 2 artifact and displays the optional-price rule without adding
 buttons, browser-side trading decisions, direct Coinbase calls, or mutation
 authority.
 
-The default backend selector checks the fixed R7 path before R6. While R7 is
-absent it continues serving the exact immutable R6 terminal. Once R7 exists,
-it must be a completed, chain-valid, response-model-valid R7 terminal or
-readback fails closed; a reserved, malformed, tampered, or wrong-generation R7
-cannot fall back to R6. A valid terminal is selected immediately for Admin API
-and UI readback. The authorized post-terminal closeout then records and binds
-its exact file hash, evidence hash, and restored filesystem metadata without
-altering the artifact.
+The default backend selector checks the fixed R7 path before R6. R7 now exists
+and must be the exact completed, chain-valid, response-model-valid terminal or
+readback fails closed. A reserved, malformed, tampered, wrong-generation, or
+metadata-drifted R7 cannot fall back to R6. The valid blocked terminal is the
+default Admin API/UI readback. Its exact file hash, evidence hash, and restored
+filesystem metadata are statically bound without altering the artifact.
 
 ## Readiness and terminal record
 
-Focused validation and independent safety plus blind contextless audit must
-pass before the one permitted Preview call. Their final results and the
-sanitized R7 terminal classification are recorded here before closeout. The
-workflow does not stop for another authorization if authorized offline
-diagnosis or remediation is needed after the terminal attempt.
+Focused validation and independent safety plus blind contextless audit passed
+before the one permitted Preview call. The workflow continued through the
+authorized offline terminal diagnosis and remediation without another
+Coinbase call.
 
 The first blind readiness audit returned `NO-GO` because the R7 binding was
 declared but not artifact-specifically enforced, default readback could not
@@ -127,17 +130,49 @@ the sanitized preflight boundary. Cycle 3 moved R7 validation to the raw
 response before shared normalization and enclosed path acquisition and state
 checks in the fixed-output boundary.
 
-Final cycle 3 result: independent safety audit `GO`; fresh blind/contextless
-audit `GO`. The safety audit observed `354` focused backend tests and `46`
-focused frontend tests passing. The blind audit independently passed `23`
-adversarial backend selections, `19` frontend readback tests, API freshness,
-malformed-readback `503`, raw-schema attacks, privacy attacks, immutable-chain
-validation, and no-stale-process checks. Local validation also passed OpenAPI
-freshness, ownership, compilation, typecheck, lint, build, security, goal and
-queue alignment. Dormant production preflight remains `ready`, with no client,
-Coinbase read, Preview attempt, exchange submission, or R7 artifact. The
-one-use confirmation mode has not run.
+Final cycle 3 preparation result: independent safety audit `GO`; fresh
+blind/contextless audit `GO`. The safety audit observed `354` focused backend
+tests and `46` focused frontend tests passing. The blind audit independently
+passed `23` adversarial backend selections, `19` frontend readback tests, API
+freshness, malformed-readback `503`, raw-schema attacks, privacy attacks,
+immutable-chain validation, and no-stale-process checks. Local validation also
+passed OpenAPI freshness, ownership, compilation, typecheck, lint, build,
+security, goal and queue alignment.
 
-Phase-end subagent sweep: the safety reviewer, blind/contextless reviewer, and
-blind backend-trace helper are complete; all blocking findings were consumed
-and remediated, and no preparation reviewer remains active.
+## Terminal result
+
+R7 ran exactly once on 2026-07-15. All six fixed Coinbase reads and exactly one
+Preview call occurred. The SDK returned control, then the backend stopped
+terminally with status/outcome `blocked` and sanitized blocker
+`preflight_or_preview_blocked:ValueError` before accepted Preview evidence was
+appended. Preview attempts are `1`; retry, fallback, redirect, Create, Cancel,
+Close, Reduce, exchange-submission, and submitted/executed notional counts are
+zero. Live execution is `not_run`.
+
+The immutable terminal file is
+`artifacts/futures_exact_no_live_preview_slice_2r7.jsonl`, file SHA-256
+`8e7bdf1a1efa67df9b1081cc8270dc9607e0b8c7285053d06985dcab195115e4`,
+and evidence SHA-256
+`65791ec5aae8bd9db7c623042e3238f80a54067209aeeb1916801ca1d02369c3`.
+It contains no persisted Preview response or seal-ready plan.
+
+The narrow sanitized diagnostic is
+`sdk_returned__post_preview_value_error__before_acceptance`, boundary
+`after_preview_return_before_accepted_evidence_append`, exact-reason status
+`not_persisted_and_unrecoverable`. It is derived at read time from immutable
+terminal structure, not persisted in the R7 artifact, and excluded from the
+evidence SHA-256. It does not prove the corrected schema, caps, available
+margin, candidate binding, seal construction, or any other exact post-Preview
+check caused the failure. Raw responses, exception text, secrets, and private
+identifiers remain excluded.
+
+R7 is consumed and cannot be retried. Slice 2 is blocked by
+`slice_2r7_consumed_without_accepted_preview_evidence`; remaining Coinbase
+Preview-attempt maximum is `0`; the default next action is
+`await_operator_scope_change_decision_after_slice_2r7_closeout`. There is no
+R8, Slice 3 activation, Coinbase call, or other live authority. The dedicated
+diagnosis is `docs/FUTURES_SLICE_2R7_TERMINAL_DIAGNOSIS.md`.
+
+Preparation phase-end subagent sweep: the safety reviewer, blind/contextless
+reviewer, and blind backend-trace helper completed; all blocking preparation
+findings were consumed and remediated before the one call.

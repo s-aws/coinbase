@@ -29,6 +29,14 @@ CLOSED_LOOPHOLE_RULE = (
     "A candidate blocker cannot make itself in scope by generating evidence "
     "about the candidate blocker."
 )
+SLICE_STATUS = "blocked"
+SLICE_BLOCKER = "slice_2r7_consumed_without_accepted_preview_evidence"
+DEFAULT_NEXT_ACTION = (
+    "await_operator_scope_change_decision_after_slice_2r7_closeout"
+)
+R7_TERMINAL_DIAGNOSTIC = (
+    "sdk_returned__post_preview_value_error__before_acceptance"
+)
 MVP_SCOPE = {
     "work_mode": GOAL_ID,
     "goal_authority": str(FRONTEND_GOAL_DOC),
@@ -41,7 +49,9 @@ MVP_SCOPE = {
         "current_priority": GOAL_ID,
         "approved_phase_range_status": PHASE_RANGE_STATUS,
         "phase_range_work_allowed": False,
-        "default_next_action": "complete_authorized_slice_2r7_workflow",
+        "slice_status": SLICE_STATUS,
+        "blocker": SLICE_BLOCKER,
+        "default_next_action": DEFAULT_NEXT_ACTION,
         "ordered_successors": [
             "futures_exact_no_live_preview_slice_2",
             "futures_terminal_order_roundtrip_slice_3",
@@ -73,7 +83,7 @@ STANDING_LIMITS = {
         "opening_reference_notional_under_usdc": "100.00",
         "exposure_and_buffered_close_under_usdc": "150.00",
         "branch_turnover_under_usdc": "300.00",
-        "coinbase_preview_attempts_max": 1,
+        "coinbase_preview_attempts_max": 0,
         "exchange_mutation_attempts_max": 0,
     },
     "max_fan_out_notional_usdc": "100.00",
@@ -157,6 +167,31 @@ def _historical_queue_posture() -> QueueCheck:
     )
 
 
+def _slice_2r7_terminal_closeout() -> QueueCheck:
+    required = (
+        SLICE_BLOCKER,
+        DEFAULT_NEXT_ACTION,
+        R7_TERMINAL_DIAGNOSTIC,
+        "not_persisted_and_unrecoverable",
+    )
+    documents = [
+        _contains_all(BACKEND_GOAL_DOC, required),
+        _contains_all(
+            PROJECT_ROOT / "docs" / "FUTURES_SLICE_2R7_PREPARATION.md",
+            required,
+        ),
+        _contains_all(
+            PROJECT_ROOT / "docs" / "FUTURES_SLICE_2R7_TERMINAL_DIAGNOSIS.md",
+            required,
+        ),
+    ]
+    return QueueCheck(
+        name="slice_2r7_terminal_closeout",
+        passed=all(document.passed for document in documents),
+        evidence={"documents": [document.evidence for document in documents]},
+    )
+
+
 def _entry_point_alignment() -> QueueCheck:
     documents = [
         _contains_all(PROJECT_ROOT / "README.md", (GOAL_ID, "Current MVP Goal")),
@@ -217,6 +252,7 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
     checks = [
         _current_goal_alignment(),
         _historical_queue_posture(),
+        _slice_2r7_terminal_closeout(),
         _entry_point_alignment(),
         _previous_version_sources(),
         _github_workflows_retired(),
@@ -228,6 +264,9 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
         "historical_phase_range": HISTORICAL_PHASE_RANGE,
         "historical_phase_count": len(HISTORICAL_PHASES),
         "phase_range_status": PHASE_RANGE_STATUS,
+        "slice_status": SLICE_STATUS,
+        "blocker": SLICE_BLOCKER,
+        "default_next_action": DEFAULT_NEXT_ACTION,
         "mvp_scope": MVP_SCOPE,
         "standing_limits": STANDING_LIMITS,
         "live_coinbase_orders_ran": False,
@@ -246,6 +285,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"Historical phases: {HISTORICAL_PHASE_RANGE} "
             "(not work authority)"
         )
+        print(f"Slice status: {SLICE_STATUS}; blocker: {SLICE_BLOCKER}")
+        print(f"Default next action: {DEFAULT_NEXT_ACTION}")
         print("Validation: focused local Linux Docker blast-radius tests")
         print("Live Coinbase execution: not run; notional $0")
     print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))

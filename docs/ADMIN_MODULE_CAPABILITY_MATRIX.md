@@ -6,18 +6,19 @@ implicit platform model.
 
 Current goal id: `futures_exact_no_live_preview_slice_2`. Completed Slice 1
 binds authoritative US CFM account, position, margin, and collateral reads to
-the API-key-permissioned exact Default/DEFAULT portfolio. The active Slice 2R7
-workflow follows consumed R6 and retains its V3 exact pair:
+the API-key-permissioned exact Default/DEFAULT portfolio. The consumed Slice
+2R7 workflow followed R6 and retained its V3 exact pair:
 regular=`UNSPECIFIED` plus intraday-profile=`INTRADAY`. The mapping remains
 operator-defined, Preview-only, and not Coinbase-documented. R7 additionally
 binds the corrected official liquidation-response schema, immutable R6
 ancestry, one contract, and the `$100/$150/$300` slice-local scope. Exactly one
-audited Preview call is authorized after focused gates; retry, fallback,
-redirect, Create, execution, and later-live eligibility remain false. Default
-operator readback selects immutable R6 while R7 is absent.
-Slices 3-5 are ordered terminal roundtrip,
-intentional fill/position readback, and closeout successors whose no-live work
-is prospectively authorized; every live step retains its exact-hash gate.
+audited Preview call occurred and returned control before a sanitized
+post-Preview `ValueError`; no accepted Preview evidence was appended. Default
+operator readback now selects exact immutable R7 and derives only the
+non-persisted sanitized terminal boundary. Remaining Coinbase-call authority is
+zero. Retry, fallback, redirect, Create, execution, R8, Slice 3 activation, and
+later-live eligibility remain false. Slices 3-5 remain unactivated planning
+successors pending an operator scope-change decision.
 Fan-out, scheduler, runtime-control,
 retry/recovery, multi-product wallet-ledger work, and ladder/grid order sets
 are parked.

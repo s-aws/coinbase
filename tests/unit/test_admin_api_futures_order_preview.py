@@ -1773,12 +1773,12 @@ def test_restored_preview_chain_is_bound_to_verified_local_docker_metadata():
     ]
 
 
-def test_consumed_r6_terminal_is_physically_bound_and_selected_by_default(
+def test_consumed_r6_terminal_is_physically_bound_and_available_when_configured(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    monkeypatch.delenv(
+    monkeypatch.setenv(
         "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_PATH",
-        raising=False,
+        str(preview_module.FUTURES_PREVIEW_R6_ARTIFACT_PATH),
     )
     monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-token")
     path = preview_module.FUTURES_PREVIEW_R6_ARTIFACT_PATH
@@ -1828,7 +1828,165 @@ def test_consumed_r6_terminal_is_physically_bound_and_selected_by_default(
     assert "seal_ready_plan" not in payload
 
 
-def test_default_readback_transitions_to_only_a_valid_completed_r7_terminal(
+def test_consumed_r7_terminal_is_exactly_bound_selected_and_diagnosed(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.delenv(
+        "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_PATH",
+        raising=False,
+    )
+    monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-token")
+    path = preview_module.FUTURES_PREVIEW_R7_ARTIFACT_PATH
+    observed = path.lstat()
+
+    with path.open("rb") as artifact_file:
+        assert hashlib.file_digest(artifact_file, "sha256").hexdigest() == (
+            "8e7bdf1a1efa67df9b1081cc8270dc9607e0b8c7285053d06985dcab195115e4"
+        )
+    assert (
+        observed.st_dev,
+        observed.st_ino,
+        observed.st_size,
+        observed.st_mode & 0o777,
+        observed.st_mtime_ns,
+    ) == (2096, 400397, 20548, 0o400, 1784133682760886913)
+    binding = (
+        preview_module.validate_production_futures_order_preview_r7_terminal()
+    )
+    assert binding == preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING
+    assert binding["file_sha256"] == (
+        "8e7bdf1a1efa67df9b1081cc8270dc9607e0b8c7285053d06985dcab195115e4"
+    )
+    assert binding["evidence_sha256"] == (
+        "65791ec5aae8bd9db7c623042e3238f80a54067209aeeb1916801ca1d02369c3"
+    )
+    assert configured_futures_order_preview_artifact_path() == path
+
+    evidence = FuturesOrderPreviewArtifactStore(path).read_completed()
+    assert "terminal_diagnostic_classification" not in evidence
+    validated = AdminFuturesOrderPreviewResponse.model_validate(evidence)
+    diagnostic = validated.terminal_diagnostic_classification
+    assert diagnostic is not None
+    assert diagnostic.model_dump(mode="json") == {
+        "schema_version": "1",
+        "classification": (
+            "sdk_returned__post_preview_value_error__before_acceptance"
+        ),
+        "failure_boundary": (
+            "after_preview_return_before_accepted_evidence_append"
+        ),
+        "exact_reason_status": "not_persisted_and_unrecoverable",
+        "coinbase_preview_method_returned": True,
+        "retry_allowed": False,
+        "additional_coinbase_call_allowed": False,
+        "sanitized": True,
+        "raw_response_included": False,
+        "external_exception_text_included": False,
+        "identifier_values_included": False,
+    }
+
+
+def test_synthetic_consumed_r7_route_serializes_sanitized_terminal_diagnostic(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    rest_client = FakePreviewRestClient()
+    snapshot = rest_client.get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_UNSPECIFIED"
+    rest_client.get_futures_margin_collateral_snapshot = (  # type: ignore[method-assign]
+        lambda: snapshot
+    )
+    producer, store, path = _producer(
+        tmp_path,
+        rest_client,
+        artifact_type=preview_module.FUTURES_PREVIEW_R7_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R6_TERMINAL_BINDING,
+    )
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="preflight blocked; attempt consumed",
+    ):
+        producer.run()
+    assert store.read_completed()["attempt_counters"]["preview_order"] == 1
+    assert len(rest_client.preview_calls) == 1
+    assert rest_client.forbidden_calls == []
+    monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-token")
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_PATH",
+        str(path),
+    )
+
+    response = TestClient(create_app()).get(
+        "/api/v1/futures/order-preview",
+        headers={
+            "Authorization": "Bearer test-token",
+            "X-Admin-Actor": "synthetic-operator",
+            "X-Admin-Roles": "viewer",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["artifact_type"] == (
+        preview_module.FUTURES_PREVIEW_R7_ARTIFACT_TYPE
+    )
+    assert payload["status"] == "blocked"
+    assert payload["outcome"] == "blocked"
+    assert payload["blocker"] == "preflight_or_preview_blocked:ValueError"
+    assert payload["attempt_counters"] == {
+        "preview_order": 1,
+        "retry": 0,
+        "fallback": 0,
+        "create_order": 0,
+        "cancel_order": 0,
+        "close_position": 0,
+        "reduce_position": 0,
+    }
+    assert payload["exchange_submission_attempt_count"] == 0
+    assert payload["submitted_notional_usdc"] == "0"
+    assert payload["executed_notional_usdc"] == "0"
+    assert "preview_response" not in payload
+    assert "seal_ready_plan" not in payload
+    assert payload["terminal_diagnostic_classification"] == {
+        "schema_version": "1",
+        "classification": (
+            "sdk_returned__post_preview_value_error__before_acceptance"
+        ),
+        "failure_boundary": (
+            "after_preview_return_before_accepted_evidence_append"
+        ),
+        "exact_reason_status": "not_persisted_and_unrecoverable",
+        "coinbase_preview_method_returned": True,
+        "retry_allowed": False,
+        "additional_coinbase_call_allowed": False,
+        "sanitized": True,
+        "raw_response_included": False,
+        "external_exception_text_included": False,
+        "identifier_values_included": False,
+    }
+    assert "preview-avp-1" not in response.text
+
+
+def test_r7_terminal_binding_fails_closed_on_physical_metadata_drift(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R7_SIZE",
+        20549,
+        raising=False,
+    )
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="size changed",
+    ):
+        preview_module.validate_production_futures_order_preview_r7_terminal()
+
+
+def test_default_readback_fails_closed_when_consumed_r7_terminal_is_missing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ):
@@ -1842,42 +2000,19 @@ def test_default_readback_transitions_to_only_a_valid_completed_r7_terminal(
         "FUTURES_PREVIEW_R7_ARTIFACT_PATH",
         r7_path,
     )
-
-    assert configured_futures_order_preview_artifact_path() == (
-        preview_module.FUTURES_PREVIEW_R6_ARTIFACT_PATH
+    monkeypatch.setattr(
+        preview_module,
+        "validate_production_futures_order_preview_r7_terminal",
+        lambda: dict(preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING),
     )
 
-    rest_client = FakePreviewRestClient()
-    snapshot = rest_client.get_futures_margin_collateral_snapshot()
-    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
-        "margin_window_type"
-    ] = "MARGIN_WINDOW_TYPE_UNSPECIFIED"
-    rest_client.get_futures_margin_collateral_snapshot = (  # type: ignore[method-assign]
-        lambda: snapshot
-    )
-    response = _preview()
-    response.pop("current_liquidation_buffer")
-    response.pop("projected_liquidation_buffer")
-    response["margin_ratio_data"] = {
-        "current_margin_ratio": "0.20",
-        "projected_margin_ratio": "0.25",
-    }
-    rest_client.preview_response = response
-    producer = FuturesOrderPreviewProducer(
-        rest_client=rest_client,
-        store=FuturesOrderPreviewArtifactStore(r7_path),
-        predecessor_binding=preview_module.FUTURES_PREVIEW_R6_TERMINAL_BINDING,
-        predecessor_validator=lambda: dict(
-            preview_module.FUTURES_PREVIEW_R6_TERMINAL_BINDING
-        ),
-        artifact_type=preview_module.FUTURES_PREVIEW_R7_ARTIFACT_TYPE,
-        now=lambda: NOW,
-        correlation_id_factory=lambda: "8f604e56-0a23-4bda-b244-11ebc0194241",
-        idempotency_key_factory=lambda: "2d8327f6-826c-4f73-82a4-822e29f73065",
-    )
-    producer.run()
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="R7 terminal readback is missing",
+    ):
+        configured_futures_order_preview_artifact_path()
 
-    assert configured_futures_order_preview_artifact_path() == r7_path
+    assert not r7_path.exists()
 
 
 def test_default_readback_fails_closed_on_nonterminal_r7_claim(
@@ -3999,64 +4134,26 @@ def test_r5_fixed_path_and_r4_predecessor_match_the_sealed_artifact():
     )
 
 
-def test_default_readback_stays_r4_until_valid_immutable_r5_terminal(
+def test_default_readback_fails_closed_without_consumed_r7_terminal(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    r4_path = tmp_path / "default-r4.jsonl"
-    r5_path = tmp_path / "candidate-r5.jsonl"
+    r7_path = tmp_path / "absent-r7.jsonl"
     monkeypatch.delenv(
         "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_PATH",
         raising=False,
     )
     monkeypatch.setattr(
         preview_module,
-        "DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH",
-        r4_path,
-    )
-    monkeypatch.setattr(
-        preview_module,
-        "FUTURES_PREVIEW_R5_ARTIFACT_PATH",
-        r5_path,
-    )
-    monkeypatch.setattr(
-        preview_module,
-        "FUTURES_PREVIEW_R6_ARTIFACT_PATH",
-        tmp_path / "absent-r6.jsonl",
+        "FUTURES_PREVIEW_R7_ARTIFACT_PATH",
+        r7_path,
     )
 
-    assert configured_futures_order_preview_artifact_path() == r4_path
-
-    claim_store = FuturesOrderPreviewArtifactStore(r5_path)
-    claim_store.reserve(
-        {
-            "artifact_type": FUTURES_PREVIEW_R5_ARTIFACT_TYPE,
-            "claim_status": "reserved",
-        }
-    )
-    assert r5_path.stat().st_mode & 0o777 == 0o600
-    assert configured_futures_order_preview_artifact_path() == r4_path
-
-    r5_path.unlink()
-    producer, _store, produced_path = _producer(
-        tmp_path,
-        FakePreviewRestClient(),
-        artifact_type=FUTURES_PREVIEW_R5_ARTIFACT_TYPE,
-        predecessor_binding=TEST_R4_PREDECESSOR_BINDING,
-    )
-    monkeypatch.setattr(
-        preview_module,
-        "FUTURES_PREVIEW_R5_ARTIFACT_PATH",
-        produced_path,
-    )
-    producer.run()
-    assert produced_path.stat().st_mode & 0o777 == 0o400
-    monkeypatch.setattr(
-        preview_module,
-        "validate_production_futures_order_preview_r5_terminal",
-        lambda: preview_module.FUTURES_PREVIEW_R5_TERMINAL_BINDING,
-    )
-    assert configured_futures_order_preview_artifact_path() == produced_path
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="R7 terminal readback is missing",
+    ):
+        configured_futures_order_preview_artifact_path()
 
 
 def test_r5_policy_validator_is_separate_from_exact_r4_v1_validator():
@@ -4881,7 +4978,10 @@ def test_get_route_is_authenticated_read_only_and_never_uses_coinbase(
     )
 
     assert response.status_code == 200
-    assert response.json() == expected
+    assert response.json() == {
+        **expected,
+        "terminal_diagnostic_classification": None,
+    }
     assert response.json()["predecessor_binding"] == TEST_PREDECESSOR_BINDING
     assert len(rest_client.preview_calls) == preview_calls_before_get
     assert response.headers["X-Live-Execution-Enabled"] == "false"
@@ -6687,6 +6787,33 @@ def test_r6_tool_confirmation_uses_exact_pair_and_only_one_fake_preview(
     AdminFuturesOrderPreviewResponse.model_validate(evidence)
 
 
+def test_r7_tool_is_terminally_disabled_even_if_artifact_path_is_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    from tools import run_admin_api_futures_no_live_preview_r7 as r7_preview_tool
+
+    path = tmp_path / "missing-r7-preview.jsonl"
+    monkeypatch.setattr(r7_preview_tool, "production_artifact_path", lambda: path)
+    monkeypatch.setattr(
+        r7_preview_tool,
+        "build_rest_client",
+        lambda: (_ for _ in ()).throw(AssertionError("Coinbase client constructed")),
+    )
+
+    assert r7_preview_tool.main(["--confirm-one-r7-preview"]) == 2
+
+    captured = capsys.readouterr()
+    summary = json.loads(captured.err)
+    assert summary["status"] == "blocked"
+    assert summary["blocker"] == "futures_preview_r7_call_authority_consumed"
+    assert summary["artifact_created"] is False
+    assert summary["coinbase_read_ran"] is False
+    assert summary["preview_order_attempt_count"] == 0
+    assert not path.exists()
+
+
 def test_r7_tool_preflight_is_dormant_and_validates_corrected_claim_contract(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -6695,6 +6822,7 @@ def test_r7_tool_preflight_is_dormant_and_validates_corrected_claim_contract(
     from tools import run_admin_api_futures_no_live_preview_r7 as r7_preview_tool
 
     path = tmp_path / "fixed-r7-preview.jsonl"
+    monkeypatch.setattr(r7_preview_tool, "R7_PREVIEW_CALL_AUTHORITY_ACTIVE", True)
     monkeypatch.setattr(r7_preview_tool, "production_artifact_path", lambda: path)
     monkeypatch.setattr(
         r7_preview_tool,
@@ -6731,6 +6859,7 @@ def test_r7_tool_preflight_redacts_unexpected_predecessor_failure(
     from tools import run_admin_api_futures_no_live_preview_r7 as r7_preview_tool
 
     path = tmp_path / "fixed-r7-preview.jsonl"
+    monkeypatch.setattr(r7_preview_tool, "R7_PREVIEW_CALL_AUTHORITY_ACTIVE", True)
     monkeypatch.setattr(r7_preview_tool, "production_artifact_path", lambda: path)
     monkeypatch.setattr(
         r7_preview_tool,
@@ -6763,6 +6892,8 @@ def test_r7_tool_preflight_redacts_fixed_path_check_failure(
     capsys: pytest.CaptureFixture[str],
 ):
     from tools import run_admin_api_futures_no_live_preview_r7 as r7_preview_tool
+
+    monkeypatch.setattr(r7_preview_tool, "R7_PREVIEW_CALL_AUTHORITY_ACTIVE", True)
 
     class FailingPath:
         def exists(self) -> bool:
@@ -6807,6 +6938,7 @@ def test_r7_tool_confirmation_uses_one_corrected_fake_preview_and_no_mutation(
     from tools import run_admin_api_futures_no_live_preview_r7 as r7_preview_tool
 
     path = tmp_path / "fixed-r7-preview.jsonl"
+    monkeypatch.setattr(r7_preview_tool, "R7_PREVIEW_CALL_AUTHORITY_ACTIVE", True)
     rest_client = FakePreviewRestClient()
     snapshot = rest_client.get_futures_margin_collateral_snapshot()
     snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
@@ -6904,6 +7036,34 @@ def test_openapi_exposes_typed_read_only_preview_contract():
         "#/components/schemas/AdminFuturesPreviewR6PredecessorBinding",
     }
     assert "preview_response_schema_binding" in response_schema["properties"]
+    assert "terminal_diagnostic_classification" in response_schema["required"]
+    assert response_schema["properties"]["terminal_diagnostic_classification"] == {
+        "anyOf": [
+            {
+                "$ref": (
+                    "#/components/schemas/"
+                    "AdminFuturesPreviewTerminalDiagnosticClassification"
+                )
+            },
+            {"type": "null"},
+        ],
+        "description": (
+            "Derive the narrowest boundary supported by immutable evidence."
+        ),
+        "readOnly": True,
+    }
+    terminal_diagnostic_schema = schema["components"]["schemas"][
+        "AdminFuturesPreviewTerminalDiagnosticClassification"
+    ]
+    assert terminal_diagnostic_schema["properties"]["classification"]["const"] == (
+        "sdk_returned__post_preview_value_error__before_acceptance"
+    )
+    assert terminal_diagnostic_schema["properties"]["retry_allowed"]["const"] is (
+        False
+    )
+    assert terminal_diagnostic_schema["properties"][
+        "additional_coinbase_call_allowed"
+    ]["const"] is False
     predecessor_schema = schema["components"]["schemas"][
         "AdminFuturesPreviewPredecessorBinding"
     ]

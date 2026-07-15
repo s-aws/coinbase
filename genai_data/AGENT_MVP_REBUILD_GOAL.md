@@ -4,7 +4,7 @@ Goal ID: `futures_exact_no_live_preview_slice_2`
 
 Last reviewed: 2026-07-15 UTC.
 
-Status: `in progress — Slice 2R7 end-to-end workflow authorized; audited one-use Preview pending`
+Status: `blocked — Slice 2R7 consumed without accepted Preview evidence; offline terminal closeout complete`
 
 The canonical cross-repository authority is
 `/home/developer/coinbase/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. This
@@ -327,7 +327,7 @@ are `0`; submitted and executed notional are `0 USDC`; live execution is
 `not_run`. Default Admin API/UI readback selects immutable R6. R6 is consumed
 and cannot be retried. Slice 2 is not accepted and Slice 3 remains inactive.
 
-The operator has now authorized one end-to-end Slice 2R7 workflow. R7 preserves
+The operator authorized one end-to-end Slice 2R7 workflow. R7 preserved
 the exact V3 profile/state policy, `AVP-20DEC30-CDE`, one-contract scope, and
 strict `<100 / <150 / <300 USDC` caps while binding the corrected Coinbase
 Preview-response schema: documented `margin_ratio_data` replaces the legacy
@@ -338,34 +338,57 @@ plus blind contextless audit, exactly one Preview Order call is permitted with
 zero retries, fallbacks, redirects, or exchange mutations. An unknown outcome
 consumes R7. Authorized offline diagnosis and remediation continue after any
 failed gate or terminal result without another approval. No second Coinbase
-call, R8, Slice 3 activation, or other live authority is granted.
+call, R8, Slice 3 activation, or other live authority was granted.
 
-The dormant R7 preflight validates the immutable R6-to-original chain and a
-disposable fresh claim without creating an artifact, hydrating credentials,
-constructing a Coinbase client, or calling an endpoint. Generated OpenAPI and
-frontend readback model the R7 schema binding and complete R6 through original
-predecessor chain. The production R7 artifact is still absent at this
-preparation checkpoint, so the one-use attempt remains unconsumed.
+After three bounded preparation/remediation cycles, focused validation and
+independent safety plus blind contextless audits returned `GO`. The exact
+readiness commits were pushed before the single authorized call. R7 then ran
+exactly once on 2026-07-15. All six fixed Coinbase reads and exactly one
+Preview call returned control to the backend, after which the workflow stopped
+terminally with sanitized blocker `preflight_or_preview_blocked:ValueError`
+before accepted Preview evidence was appended. Retry, fallback, redirect,
+Create, Cancel, Close, Reduce, exchange submission, and submitted/executed
+notional counters are all zero; live execution is `not_run`.
+
+The immutable R7 artifact is
+`artifacts/futures_exact_no_live_preview_slice_2r7.jsonl`, file SHA-256
+`8e7bdf1a1efa67df9b1081cc8270dc9607e0b8c7285053d06985dcab195115e4`,
+and evidence SHA-256
+`65791ec5aae8bd9db7c623042e3238f80a54067209aeeb1916801ca1d02369c3`.
+It contains no persisted Preview response or seal-ready plan. The narrowest
+safe derived diagnostic is
+`sdk_returned__post_preview_value_error__before_acceptance`, at boundary
+`after_preview_return_before_accepted_evidence_append`, with exact reason
+`not_persisted_and_unrecoverable`. This classification is computed from the
+immutable terminal structure, is not persisted in R7, and is excluded from the
+artifact's evidence hash. It is not proof that the corrected response schema,
+a cap, available margin, candidate binding, seal construction, or any other
+specific post-Preview check caused the failure.
+
+R7 is consumed and cannot be retried. The remaining Coinbase Preview-attempt
+maximum is `0`. Slice 2 remains unaccepted and blocked by
+`slice_2r7_consumed_without_accepted_preview_evidence`. The default next action
+is `await_operator_scope_change_decision_after_slice_2r7_closeout`. No R8,
+Slice 3 activation, Coinbase call, or other live authority exists.
 
 `Default-profile Futures readback -> exact AVAX US CFM Coinbase Preview Order -> immutable operator-visible no-live preview readback`
 
-## Ordered Sequence — Slice 2R7 In Progress
+## Ordered Sequence — Slice 2R7 Terminally Blocked
 
-Continue implementation and independent audit only in this order. Prospective
-operator authority permits crossing documented no-live acceptance boundaries,
-but never an exact-hash live execution gate:
+The sequence below is retained as design context only. Step 1 is terminally
+blocked, and no later step is active or authorized by the R7 closeout:
 
-1. `futures_exact_no_live_preview_slice_2`: at most one backend-derived
+1. `futures_exact_no_live_preview_slice_2`: the sole R7 backend-derived
    Default-profile US CFM Coinbase Preview Order call for AVAX perpetual
    `AVP-20DEC30-CDE` and exactly one contract/order candidate under the strict
    `<100.00 USDC` opening, `<150.00 USDC` exposure/buffered-close, and
    `<300.00 USDC` branch-turnover limits. Bind product
    metadata, exact decimals, market freshness, fees, margin/collateral,
    liquidation, caps, idempotency, and correlation. Zero create/cancel/close
-   submissions, marker, ledger, or runtime. The one-shot backend tool may call
-   Preview; the repeatable Admin API/UI path reads immutable evidence and calls
-   Coinbase zero times. Failure after the one Preview attempt is fail-closed
-   with no retry.
+   submissions, marker, ledger, or runtime. The one-shot backend tool consumed
+   its call and must never run again; the repeatable Admin API/UI path reads
+   immutable evidence and calls Coinbase zero times. R7 is terminally blocked
+   with no retry or successor-call authority.
 2. `futures_terminal_order_roundtrip_slice_3`: separately implement, audit,
    seal, and exactly approve one resting order, authoritative OPEN readback,
    at most one exchange-ID cancel resolved from its `client_order_id`, and
@@ -407,12 +430,12 @@ explicitly acknowledges the unpriced Coinbase Close Position policy. A proven
 price-protected replacement requires a revised seal. One opening and one
 conditional close are the maxima, with zero retries.
 
-The operator prospectively authorized Slices 3, 4, and 5 no-live implementation
-and independent audit in order once each predecessor is accepted. If Slice 3
-reaches its exact-hash live checkpoint while the operator is unavailable, that
-checkpoint remains an explicit blocker while only Slices 4 and 5 no-live work
-may continue. No prospective statement authorizes a marker, ledger, runtime,
-Create, Cancel, Close, Reduce, or any other exchange mutation.
+Earlier successor planning described Slices 3, 4, and 5 in order only after
+each predecessor is accepted. R7 did not accept Slice 2, and its controlling
+authorization expressly granted no Slice 3 activation. Therefore no successor
+implementation or live checkpoint may start from this closeout. No planning
+statement authorizes a marker, ledger, runtime, Create, Cancel, Close, Reduce,
+or any other exchange mutation.
 
 ## Shared Successor Safety
 
@@ -481,9 +504,9 @@ reconciliation, rollback, or traceability failure on it.
 
 A candidate blocker cannot make itself in scope by generating evidence about the candidate blocker.
 
-Slice 2 is active. Prospectively authorized no-live successor work may continue
-only in order after documented predecessor acceptance; exact-hash live gates
-remain hard stops. Fan-out, multi-product automation, schedulers, unattended
+Slice 2 is terminally blocked after consumed R7. Successor work may continue
+only after a distinct operator scope-change decision and documented predecessor
+acceptance; exact-hash live gates remain hard stops. Fan-out, multi-product automation, schedulers, unattended
 loops, generic runtime/retry/recovery tightening, wallet-ledger expansion,
 ladders/grids, unrelated domain work, and broad cleanup remain parked.
 
@@ -499,8 +522,7 @@ Use focused tests for ordinary changes. Run full backend/frontend suites only
 at durable milestone, release/deployment, cross-repository closeout, after
 broad cross-cutting changes, or when explicitly requested.
 
-For R7, a failed gate or unknown terminal outcome stops the exchange path but
-does not end the authorized workflow. Continue bounded offline diagnosis and
-remediation until the terminal classification and authorized offline work are
-complete. Stop the overall R7 workflow early only if continuing would require
-changing the product, contract count, V3 policy, caps, or one-call limit.
+R7 is terminal and its authorized offline diagnosis/remediation is complete.
+Do not invoke its runner again or make any Coinbase call. Continue only after
+an operator decision explicitly changes scope; the present authority does not
+permit R8, Slice 3 activation, or any other live action.

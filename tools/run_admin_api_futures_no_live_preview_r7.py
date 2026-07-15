@@ -1,8 +1,9 @@
-"""Prepare or consume the single authorized Slice 2R7 Preview attempt.
+"""Retain the historical Slice 2R7 producer in a terminally disabled state.
 
-Preparation validates immutable R6 ancestry and a fresh in-memory R7 claim
-without creating an artifact or constructing a Coinbase client. Confirmation
-is the only path that can reserve R7 and reach the fixed Preview-only facade.
+R7 consumed its sole Preview-call authority. Both CLI modes now fail closed
+before claim construction, credential hydration, client construction, or any
+Coinbase call. Historical preparation and producer paths remain testable only
+through an explicit in-process test override.
 """
 
 from __future__ import annotations
@@ -34,6 +35,7 @@ from tools import run_admin_api_futures_no_live_preview_r6 as r6_tool  # noqa: E
 
 FuturesPreviewOnlyRestClient = r6_tool.FuturesPreviewOnlyRestClient
 _suppress_coinbase_sdk_logging = r6_tool._suppress_coinbase_sdk_logging
+R7_PREVIEW_CALL_AUTHORITY_ACTIVE = False
 
 
 class DeferredR7PreviewRestClient:
@@ -89,9 +91,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(
         description=(
-            "Prepare or run exactly one fixed Default-profile AVAX Futures "
-            "Preview under the corrected response schema; no exchange "
-            "mutation is possible."
+            "Historical fixed Default-profile AVAX Futures R7 producer. "
+            "R7 is consumed and all modes fail closed without Coinbase access."
         )
     )
     mode = parser.add_mutually_exclusive_group(required=True)
@@ -99,14 +100,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--preflight",
         action="store_true",
         help=(
-            "Validate fixed R6 ancestry and the R7 claim contract without "
-            "credentials, artifact creation, or Coinbase calls."
+            "Report the consumed R7 authority without credentials, artifact "
+            "creation, or Coinbase calls."
         ),
     )
     mode.add_argument(
         "--confirm-one-r7-preview",
         action="store_true",
-        help="Consume the authorized one-use Slice 2R7 Preview attempt.",
+        help="Report that the one-use Slice 2R7 Preview authority is consumed.",
     )
     return parser
 
@@ -150,10 +151,24 @@ def _validate_fresh_claim_contract(path: Path) -> None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Prepare R7 or consume its exact one-use authorization once."""
+    """Fail closed because the exact one-use R7 authority is consumed."""
 
     parser = build_parser()
     args = parser.parse_args(argv)
+    if not R7_PREVIEW_CALL_AUTHORITY_ACTIVE:
+        print(
+            json.dumps(
+                _summary_before_attempt(
+                    status="blocked",
+                    blocker="futures_preview_r7_call_authority_consumed",
+                    path=production_artifact_path(),
+                    artifact_created=False,
+                ),
+                sort_keys=True,
+            ),
+            file=sys.stderr,
+        )
+        return 2
     if args.preflight:
         try:
             path = production_artifact_path()

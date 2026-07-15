@@ -12809,3 +12809,11 @@ Coinbase call, exchange mutation, submitted notional, or executed notional ran.
 Legacy `origin/prod` lookup was not applicable because this work corrected the
 current backend Preview contract and readback boundary rather than recreating
 legacy product or order behavior.
+## Slice 2R7 Terminal Post-Remediation Review — 2026-07-15
+
+Result: GO after the final blind and safety audits. R7 is consumed and blocked;
+the default backend selector now fails closed if the immutable R7 terminal is
+missing and never falls back to R6. The frontend default mock/readback exposes
+the synthetic blocked R7 state, complete predecessor chain, and sanitized
+non-persisted diagnostic. No Coinbase call, raw artifact inspection, retry,
+mutation, R8, or Slice 3 authority was introduced during remediation.

@@ -13,11 +13,12 @@ plans.
 
 ## Current MVP Goal
 
-Current goal id `futures_exact_no_live_preview_slice_2` records the active
+Current goal id `futures_exact_no_live_preview_slice_2` records the current
 Default-profile AVAX US CFM no-live Preview slice under strict
-`$100/$150/$300` slice-local limits. Slices 3-5 may proceed through ordered
-no-live implementation gates, but every live action remains behind a separate
-exact-hash approval. See
+`<100 / <150 / <300 USDC` slice-local limits. Its one-use R7 Preview call is consumed
+without accepted Preview evidence, the slice is blocked, and the remaining
+Coinbase-call maximum is zero. No R8, Slice 3 activation, or other live action
+is authorized; the next action is an operator scope-change decision. See
 [Coinbase Admin MVP Goal](genai_data/AGENT_MVP_REBUILD_GOAL.md). Historical M57
 phase ranges and M58 fan-out/scheduler blockers do not select default work.
 

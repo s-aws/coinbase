@@ -14,6 +14,7 @@ from uuid import UUID
 from pydantic import (
     BaseModel,
     ConfigDict,
+    computed_field,
     Field,
     GetJsonSchemaHandler,
     model_validator,
@@ -7668,6 +7669,30 @@ class AdminFuturesPreviewResponseSchemaBinding(BaseModel):
     persisted_response_policy: Literal["sanitized_allowlist_only"]
 
 
+class AdminFuturesPreviewTerminalDiagnosticClassification(BaseModel):
+    """Derived sanitized boundary for a consumed post-Preview ValueError."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["1"] = "1"
+    classification: Literal[
+        "sdk_returned__post_preview_value_error__before_acceptance"
+    ] = "sdk_returned__post_preview_value_error__before_acceptance"
+    failure_boundary: Literal[
+        "after_preview_return_before_accepted_evidence_append"
+    ] = "after_preview_return_before_accepted_evidence_append"
+    exact_reason_status: Literal[
+        "not_persisted_and_unrecoverable"
+    ] = "not_persisted_and_unrecoverable"
+    coinbase_preview_method_returned: Literal[True] = True
+    retry_allowed: Literal[False] = False
+    additional_coinbase_call_allowed: Literal[False] = False
+    sanitized: Literal[True] = True
+    raw_response_included: Literal[False] = False
+    external_exception_text_included: Literal[False] = False
+    identifier_values_included: Literal[False] = False
+
+
 AdminFuturesPreviewStageReasonCode = Literal[
     "futures_preview_remaining_margin_validation_unclassified",
     "futures_preview_candidate_construction_unclassified",
@@ -7907,6 +7932,63 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
     canonicalization: Literal["sorted_keys_compact_utf8_json"]
     hash_algorithm: Literal["sha256"]
     evidence_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+    @computed_field
+    @property
+    def terminal_diagnostic_classification(
+        self,
+    ) -> AdminFuturesPreviewTerminalDiagnosticClassification | None:
+        """Derive the narrowest boundary supported by immutable evidence."""
+
+        expected_attempts = {
+            "preview_order": 1,
+            "retry": 0,
+            "fallback": 0,
+            "create_order": 0,
+            "cancel_order": 0,
+            "close_position": 0,
+            "reduce_position": 0,
+        }
+        expected_reads = {
+            "api_key_permissions": 1,
+            "portfolio_catalog": 1,
+            "product": 1,
+            "best_bid_ask": 1,
+            "futures_positions": 1,
+            "futures_margin_collateral": 1,
+        }
+        required_attempt_context = (
+            self.permission_evidence,
+            self.portfolio_catalog_evidence,
+            self.product_evidence,
+            self.market_evidence,
+            self.position_evidence,
+            self.margin_collateral_evidence,
+            self.candidate,
+            self.preview_request,
+        )
+        if not (
+            self.artifact_type
+            in {
+                "futures_exact_no_live_preview_slice_2r6",
+                "futures_exact_no_live_preview_slice_2r7",
+            }
+            and self.status == "blocked"
+            and self.outcome == "blocked"
+            and self.blocker == "preflight_or_preview_blocked:ValueError"
+            and self.attempt_counters == expected_attempts
+            and self.read_counters == expected_reads
+            and self.live_coinbase_read_ran is True
+            and self.exchange_submission_attempt_count == 0
+            and all(value is not None for value in required_attempt_context)
+            and self.pre_preview_stage_evidence is None
+            and self.preview_response is None
+            and self.preview_response_sha256 is None
+            and self.seal_ready_plan is None
+            and self.seal_ready_plan_sha256 is None
+        ):
+            return None
+        return AdminFuturesPreviewTerminalDiagnosticClassification()
 
     @model_validator(mode="before")
     @classmethod

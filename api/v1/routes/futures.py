@@ -757,13 +757,18 @@ def get_futures_order_preview(
     require_permission(actor, AdminApiPermission.ANALYTICS_READ)
     try:
         payload = store.read_completed()
-        AdminFuturesOrderPreviewResponse.model_validate(payload)
+        validated = AdminFuturesOrderPreviewResponse.model_validate(payload)
     except (FuturesOrderPreviewArtifactError, ValidationError) as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Futures Preview evidence is unavailable or invalid",
         ) from exc
-    return JSONResponse(content=jsonable_encoder(payload))
+    response_payload = dict(payload)
+    diagnostic = validated.terminal_diagnostic_classification
+    response_payload["terminal_diagnostic_classification"] = (
+        diagnostic.model_dump(mode="json") if diagnostic is not None else None
+    )
+    return JSONResponse(content=jsonable_encoder(response_payload))
 
 
 @router.get(

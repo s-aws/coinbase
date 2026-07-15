@@ -147,6 +147,17 @@ FUTURES_PREVIEW_R6_INODE = 400333
 FUTURES_PREVIEW_R6_SIZE = 18567
 FUTURES_PREVIEW_R6_MODE = 0o400
 FUTURES_PREVIEW_R6_MTIME_NS = 1784122432722849234
+FUTURES_PREVIEW_R7_FILE_SHA256 = (
+    "8e7bdf1a1efa67df9b1081cc8270dc9607e0b8c7285053d06985dcab195115e4"
+)
+FUTURES_PREVIEW_R7_EVIDENCE_SHA256 = (
+    "65791ec5aae8bd9db7c623042e3238f80a54067209aeeb1916801ca1d02369c3"
+)
+FUTURES_PREVIEW_R7_DEVICE = 2096
+FUTURES_PREVIEW_R7_INODE = 400397
+FUTURES_PREVIEW_R7_SIZE = 20548
+FUTURES_PREVIEW_R7_MODE = 0o400
+FUTURES_PREVIEW_R7_MTIME_NS = 1784133682760886913
 FUTURES_PREVIEW_ORIGINAL_FILE_SHA256 = (
     "9b15da86c172eca46d4b3dc0fc2b81e9b325df9a1e2f75fef79362f538e2d5ff"
 )
@@ -399,6 +410,24 @@ FUTURES_PREVIEW_R6_TERMINAL_BINDING = {
     "executed_notional_usdc": "0",
     "preservation": "immutable_no_modify_delete_or_reuse",
     "original_predecessor_binding": FUTURES_PREVIEW_R5_TERMINAL_BINDING,
+}
+FUTURES_PREVIEW_R7_TERMINAL_BINDING = {
+    "artifact_name": "futures_exact_no_live_preview_slice_2r7.jsonl",
+    "file_sha256": FUTURES_PREVIEW_R7_FILE_SHA256,
+    "evidence_sha256": FUTURES_PREVIEW_R7_EVIDENCE_SHA256,
+    "device": str(FUTURES_PREVIEW_R7_DEVICE),
+    "inode": str(FUTURES_PREVIEW_R7_INODE),
+    "size_bytes": FUTURES_PREVIEW_R7_SIZE,
+    "mode": f"{FUTURES_PREVIEW_R7_MODE:04o}",
+    "mtime_ns": str(FUTURES_PREVIEW_R7_MTIME_NS),
+    "status": "blocked",
+    "outcome": "blocked",
+    "preview_order_attempt_count": 1,
+    "exchange_submission_attempt_count": 0,
+    "submitted_notional_usdc": "0",
+    "executed_notional_usdc": "0",
+    "preservation": "immutable_no_modify_delete_or_reuse",
+    "original_predecessor_binding": FUTURES_PREVIEW_R6_TERMINAL_BINDING,
 }
 
 
@@ -750,7 +779,7 @@ def canonical_sha256(value: Any) -> str:
 
 
 def configured_futures_order_preview_artifact_path() -> Path:
-    """Expose the latest exact immutable terminal, falling back fail closed."""
+    """Expose only the consumed R7 terminal, failing closed if it is absent."""
 
     configured = os.environ.get(FUTURES_PREVIEW_ARTIFACT_ENV, "").strip()
     if configured:
@@ -758,13 +787,22 @@ def configured_futures_order_preview_artifact_path() -> Path:
     try:
         FUTURES_PREVIEW_R7_ARTIFACT_PATH.lstat()
     except FileNotFoundError:
-        pass
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R7 terminal readback is missing"
+        ) from None
     except OSError:
         raise FuturesOrderPreviewArtifactError(
             "futures Preview R7 terminal readback is invalid"
         ) from None
     else:
         try:
+            terminal_binding = (
+                validate_production_futures_order_preview_r7_terminal()
+            )
+            if terminal_binding != FUTURES_PREVIEW_R7_TERMINAL_BINDING:
+                raise FuturesOrderPreviewArtifactError(
+                    "futures Preview R7 terminal binding changed"
+                )
             payload = FuturesOrderPreviewArtifactStore(
                 FUTURES_PREVIEW_R7_ARTIFACT_PATH
             ).read_completed()
@@ -782,41 +820,6 @@ def configured_futures_order_preview_artifact_path() -> Path:
                 "futures Preview R7 terminal readback is invalid"
             ) from None
         return FUTURES_PREVIEW_R7_ARTIFACT_PATH
-    try:
-        terminal_binding = (
-            validate_production_futures_order_preview_r6_terminal()
-        )
-        if terminal_binding == FUTURES_PREVIEW_R6_TERMINAL_BINDING:
-            payload = FuturesOrderPreviewArtifactStore(
-                FUTURES_PREVIEW_R6_ARTIFACT_PATH
-            ).read_completed()
-            from application.admin_api.models import (
-                AdminFuturesOrderPreviewResponse,
-            )
-
-            AdminFuturesOrderPreviewResponse.model_validate(payload)
-            return FUTURES_PREVIEW_R6_ARTIFACT_PATH
-    except Exception:
-        pass
-    try:
-        terminal_binding = (
-            validate_production_futures_order_preview_r5_terminal()
-        )
-        if terminal_binding != FUTURES_PREVIEW_R5_TERMINAL_BINDING:
-            return DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH
-        payload = FuturesOrderPreviewArtifactStore(
-            FUTURES_PREVIEW_R5_ARTIFACT_PATH
-        ).read_completed()
-        if payload.get("artifact_type") != _R5_ARTIFACT_TYPE:
-            return DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH
-        from application.admin_api.models import (
-            AdminFuturesOrderPreviewResponse,
-        )
-
-        AdminFuturesOrderPreviewResponse.model_validate(payload)
-    except Exception:
-        return DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH
-    return FUTURES_PREVIEW_R5_ARTIFACT_PATH
 
 
 class FuturesOrderPreviewArtifactStore:
@@ -1450,6 +1453,37 @@ def validate_production_futures_order_preview_r6_terminal() -> dict[str, Any]:
     ).read_completed()
     AdminFuturesOrderPreviewResponse.model_validate(evidence)
     return r6_binding
+
+
+def validate_production_futures_order_preview_r7_terminal() -> dict[str, Any]:
+    """Validate immutable terminal R7 plus its complete restored chain."""
+
+    r6_binding = validate_production_futures_order_preview_r6_terminal()
+    r7_binding = validate_futures_order_preview_predecessor(
+        FUTURES_PREVIEW_R7_ARTIFACT_PATH,
+        expected_file_sha256=FUTURES_PREVIEW_R7_FILE_SHA256,
+        expected_evidence_sha256=FUTURES_PREVIEW_R7_EVIDENCE_SHA256,
+        expected_device=FUTURES_PREVIEW_R7_DEVICE,
+        expected_inode=FUTURES_PREVIEW_R7_INODE,
+        expected_size=FUTURES_PREVIEW_R7_SIZE,
+        expected_mode=FUTURES_PREVIEW_R7_MODE,
+        expected_mtime_ns=FUTURES_PREVIEW_R7_MTIME_NS,
+        expected_artifact_type=_R7_ARTIFACT_TYPE,
+        expected_blocker="preflight_or_preview_blocked:ValueError",
+        expected_predecessor_binding=r6_binding,
+        expected_preview_order_attempt_count=1,
+    )
+    if r7_binding != FUTURES_PREVIEW_R7_TERMINAL_BINDING:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R7 terminal binding changed"
+        )
+    from application.admin_api.models import AdminFuturesOrderPreviewResponse
+
+    evidence = FuturesOrderPreviewArtifactStore(
+        FUTURES_PREVIEW_R7_ARTIFACT_PATH
+    ).read_completed()
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+    return r7_binding
 
 
 class FuturesOrderPreviewProducer:

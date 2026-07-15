@@ -131,17 +131,34 @@ create a separate approval class.
 
 ## Current Handoff State
 
-- Active action is `complete_authorized_slice_2r7_workflow`. R7 is authorized,
-  absent, and unconsumed at the preparation checkpoint. Its fixed claim binds
-  immutable R6 and the complete predecessor chain, the unchanged V3 exact
-  pair, one `AVP-20DEC30-CDE` contract, strict `<100 / <150 / <300 USDC`
-  caps, and the corrected official Preview liquidation schema. The dormant
-  preflight creates no artifact or client and makes no endpoint call. After
-  focused validation and independent safety plus blind audit, the backend-only
-  runner may make exactly one Preview call with zero retries, fallbacks,
-  redirects, or exchange mutations. A non-accepted result continues into the
-  already authorized offline diagnosis/remediation path. No second call, R8,
-  or Slice 3 authority exists.
+- Terminal action is
+  `await_operator_scope_change_decision_after_slice_2r7_closeout`. R7 ran
+  exactly once after focused validation and independent safety plus blind
+  audits. Its sole Preview call returned control, then the backend stopped
+  blocked with sanitized `preflight_or_preview_blocked:ValueError` before
+  accepted Preview evidence was appended. Its file/evidence SHA-256 pair is
+  `8e7bdf1a1efa67df9b1081cc8270dc9607e0b8c7285053d06985dcab195115e4` /
+  `65791ec5aae8bd9db7c623042e3238f80a54067209aeeb1916801ca1d02369c3`.
+  All six fixed reads and Preview are `1`; retry, fallback, redirect, Create,
+  Cancel, Close, Reduce, exchange submission, and submitted/executed notional
+  are zero; live execution is `not_run`. R7 retains immutable R6 ancestry, the
+  unchanged V3 exact pair, one `AVP-20DEC30-CDE` contract, strict
+  `<100 / <150 / <300 USDC` caps, and the corrected official Preview
+  liquidation schema.
+- The derived terminal classification is
+  `sdk_returned__post_preview_value_error__before_acceptance`, boundary
+  `after_preview_return_before_accepted_evidence_append`, exact-reason status
+  `not_persisted_and_unrecoverable`. It is computed from validated immutable
+  terminal structure, not persisted in R7, and excluded from the evidence
+  SHA-256. It does not prove a schema, cap, available-margin, candidate,
+  sealing, or other exact cause. See
+  `docs/FUTURES_SLICE_2R7_TERMINAL_DIAGNOSIS.md`.
+- Current `slice_status` is `blocked`, blocker is
+  `slice_2r7_consumed_without_accepted_preview_evidence`, and remaining
+  Coinbase Preview-attempt maximum is `0`. Default API/UI readback selects the
+  exact statically bound R7 terminal and fails closed without R6 fallback on
+  any invalid R7 state. Never invoke the R7 runner again. No second Coinbase
+  call, R8, Slice 3 activation, or other live authority exists.
 - R6 predecessor state: Slice 2 remained blocked after the authorized R6
   attempt was consumed without accepted Preview evidence. The
   consumed immutable R5 file/evidence SHA-256 pair remains
@@ -154,11 +171,9 @@ create a separate approval class.
   `bf26fa6b0f67499dea02f337517c1ebd42ae9a20c88fbb5cfbe45e3f30f9e4f9`.
   It persisted no Preview response or seal-ready plan. Retry, fallback, Create,
   Cancel, Close, Reduce, exchange-submission, submitted-notional, and
-  executed-notional values are zero; live execution is `not_run`. Default
-  API/UI readback selects immutable R6 while R7 is absent. A fixed-path R7
-  terminal must be complete and model-valid or readback fails closed; a valid
-  R7 terminal becomes the default immediately. Do not retry R6. Slice 2 is not accepted
-  and Slice 3 remains inactive pending a distinct operator follow-up decision.
+  executed-notional values are zero; live execution is `not_run`. Do not retry
+  R6. Slice 2 is not accepted and Slice 3 remains inactive pending a distinct
+  operator scope-change decision.
   The operator subsequently approved that wording and a separate no-live
   migration-aware re-preparation. The S3 migration package restored the exact
   consumed R1-R5 bytes and hashes into the Docker workspace. Their original
@@ -405,8 +420,9 @@ create a separate approval class.
   remains running.
 - Ordered successors: exact no-live preview (2), one terminal order roundtrip
   (3), intentional fill/position readback (4), then exact closeout (5). The
-  no-live sequence is prospectively authorized; every live step remains behind
-  a separate exact-hash gate.
+  sequence is retained as historical design context only. Consumed blocked R7
+  grants no successor activation or live authority; a distinct operator
+  scope-change decision is required before any later work.
 - Previous state: V14 completed the predecessor automatic/live proof for ten
   Test-profile roots and ten first-child submissions under the approved
   `30.00 USDC` reference cap. Every root was authoritatively FILLED, every child

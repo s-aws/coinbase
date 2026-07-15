@@ -2,8 +2,10 @@
 
 The M57 phase statements in this document are a historical implementation
 snapshot. Current goal id is `futures_exact_no_live_preview_slice_2`; Slice 1
-is complete, Slice 2 is active, and Slices 3-5 are prospectively authorized for
-ordered no-live work while every live step remains exact-hash gated.
+is complete and Slice 2 is terminally blocked after its one-use R7 Preview call
+was consumed without accepted Preview evidence. No R8, Slice 3 activation,
+additional Coinbase call, or other live authority exists; continuing requires
+an operator scope-change decision.
 
 This feature exposes read-only futures and perpetual account, risk, and
 position evidence through the enterprise Admin API. It is a separate module,
