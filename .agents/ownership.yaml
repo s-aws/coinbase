@@ -256,6 +256,7 @@ owners:
       - api/**
       - application/__init__.py
       - application/admin_api/**
+      - docs/FUTURES_SLICE_2R6_TERMINAL_DIAGNOSIS.md
       - openapi/**
       - tools/export_admin_api_route_inventory.py
       - tests/regression/test_admin_api_*.py

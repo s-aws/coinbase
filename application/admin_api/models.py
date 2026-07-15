@@ -9228,10 +9228,11 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
         else:
             liquidation_evidence = {
                 "margin_ratio_data": preview.get("margin_ratio_data"),
-                "predicted_liquidation_price": preview.get(
-                    "predicted_liquidation_price"
-                ),
             }
+            if "predicted_liquidation_price" in preview:
+                liquidation_evidence["predicted_liquidation_price"] = preview.get(
+                    "predicted_liquidation_price"
+                )
         if (
             plan.get("slice_id") != self.artifact_type
             or plan.get("actor_id") != self.actor_id

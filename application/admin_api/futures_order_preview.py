@@ -2012,9 +2012,8 @@ def validate_preview_response(value: Any) -> dict[str, Any]:
             "projected_liquidation_buffer",
         )
     )
-    replacement_liquidation_ready = (
-        bool(_mapping(response.get("margin_ratio_data")))
-        and _nonempty(response.get("predicted_liquidation_price"))
+    replacement_liquidation_ready = bool(
+        _mapping(response.get("margin_ratio_data"))
     )
     sanitized: dict[str, Any] = {
         "preview_id": preview_id,
@@ -2057,24 +2056,27 @@ def validate_preview_response(value: Any) -> dict[str, Any]:
                     f"futures_preview_margin_ratio_{field}_not_finite_or_negative"
                 )
             sanitized_margin_ratio[field] = _decimal_text(decimal)
-        predicted_liquidation_price = _decimal(
-            response["predicted_liquidation_price"],
-            "predicted_liquidation_price",
-        )
-        if (
-            not predicted_liquidation_price.is_finite()
-            or predicted_liquidation_price <= 0
-        ):
-            raise ValueError(
-                "futures_preview_predicted_liquidation_price_not_finite_or_positive"
-            )
         sanitized["margin_ratio_data"] = sanitized_margin_ratio
-        sanitized["predicted_liquidation_price"] = _decimal_text(
-            predicted_liquidation_price
-        )
-        sanitized["liquidation_evidence_source"] = (
-            "margin_ratio_data_and_predicted_liquidation_price"
-        )
+        if "predicted_liquidation_price" in response:
+            predicted_liquidation_price = _decimal(
+                response["predicted_liquidation_price"],
+                "predicted_liquidation_price",
+            )
+            if (
+                not predicted_liquidation_price.is_finite()
+                or predicted_liquidation_price <= 0
+            ):
+                raise ValueError(
+                    "futures_preview_predicted_liquidation_price_not_finite_or_positive"
+                )
+            sanitized["predicted_liquidation_price"] = _decimal_text(
+                predicted_liquidation_price
+            )
+            sanitized["liquidation_evidence_source"] = (
+                "margin_ratio_data_and_predicted_liquidation_price"
+            )
+        else:
+            sanitized["liquidation_evidence_source"] = "margin_ratio_data"
     else:
         raise ValueError("futures_preview_response_liquidation_evidence_incomplete")
     return sanitized
@@ -3474,10 +3476,11 @@ def _seal_ready_plan(
     else:
         liquidation_evidence = {
             "margin_ratio_data": _mapping(preview_response["margin_ratio_data"]),
-            "predicted_liquidation_price": preview_response[
-                "predicted_liquidation_price"
-            ],
         }
+        if "predicted_liquidation_price" in preview_response:
+            liquidation_evidence["predicted_liquidation_price"] = (
+                preview_response["predicted_liquidation_price"]
+            )
     plan = {
         "schema_version": _SCHEMA_VERSION,
         "slice_id": claim["artifact_type"],

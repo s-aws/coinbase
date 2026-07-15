@@ -101,3 +101,31 @@ Recommended next-step authorization wording:
 > no Slice 3 activation, and no live authority. After focused validation and
 > independent safety plus blind contextless audit, report the correction and
 > stop for a distinct operator decision.
+
+## Offline validator correction
+
+Authorized and completed on 2026-07-15 without a Coinbase endpoint call.
+
+The backend now accepts `margin_ratio_data` as the documented replacement for
+the two legacy liquidation-buffer fields without requiring
+`predicted_liquidation_price`. When the optional predicted price is supplied,
+it is still required to be finite and positive; a present-but-empty value fails
+closed. Sanitized seal evidence contains only the liquidation fields actually
+present, and immutable readback recomputes that exact evidence shape to prevent
+later drift.
+
+Synthetic fixtures cover both documented variants:
+
+- margin-ratio replacement with a valid predicted liquidation price;
+- margin-ratio replacement with the optional predicted price omitted.
+
+The second fixture traverses response normalization, candidate/cap binding,
+margin comparison, seal construction, and immutable model readback. It retains
+one synthetic Preview-method invocation, zero retry/fallback/mutation counters,
+zero exchange submissions, and zero submitted/executed notional. This is test
+fixture execution only and made no Coinbase API or Preview call.
+
+The correction does not establish the exact cause of consumed R6. R6 remains
+unchanged and its exact rejected field remains unrecoverable. The correction
+only removes the independently verified schema incompatibility candidate from
+future offline validation behavior.

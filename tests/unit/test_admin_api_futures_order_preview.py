@@ -710,6 +710,63 @@ def test_producer_reserves_before_one_exact_preview_and_never_mutates(tmp_path: 
     assert len(path.read_text(encoding="utf-8").splitlines()) == 2
 
 
+@pytest.mark.parametrize(
+    ("predicted_price", "source"),
+    [
+        (MISSING, "margin_ratio_data"),
+        ("3.10", "margin_ratio_data_and_predicted_liquidation_price"),
+    ],
+    ids=("price-omitted", "price-present"),
+)
+def test_producer_seals_sanitized_margin_ratio_fixture(
+    tmp_path: Path,
+    predicted_price: object,
+    source: str,
+):
+    response = _preview()
+    response.pop("current_liquidation_buffer")
+    response.pop("projected_liquidation_buffer")
+    response["margin_ratio_data"] = {
+        "current_margin_ratio": "0.20",
+        "projected_margin_ratio": "0.25",
+    }
+    if predicted_price is not MISSING:
+        response["predicted_liquidation_price"] = predicted_price
+    rest_client = FakePreviewRestClient(preview_response=response)
+    producer, _, _ = _producer(tmp_path, rest_client)
+
+    evidence = producer.run()
+
+    assert evidence["status"] == "accepted"
+    assert evidence["attempt_counters"] == {
+        "preview_order": 1,
+        "retry": 0,
+        "fallback": 0,
+        "create_order": 0,
+        "cancel_order": 0,
+        "close_position": 0,
+        "reduce_position": 0,
+    }
+    assert evidence["exchange_submission_attempt_count"] == 0
+    assert evidence["submitted_notional_usdc"] == "0"
+    assert evidence["executed_notional_usdc"] == "0"
+    assert evidence["preview_response"]["liquidation_evidence_source"] == source
+    liquidation_evidence = evidence["seal_ready_plan"]["authoritative_preview"][
+        "liquidation_evidence"
+    ]
+    assert liquidation_evidence["margin_ratio_data"] == {
+        "current_margin_ratio": "0.20",
+        "projected_margin_ratio": "0.25",
+    }
+    if predicted_price is MISSING:
+        assert "predicted_liquidation_price" not in evidence["preview_response"]
+        assert "predicted_liquidation_price" not in liquidation_evidence
+    else:
+        assert evidence["preview_response"]["predicted_liquidation_price"] == "3.10"
+        assert liquidation_evidence["predicted_liquidation_price"] == "3.10"
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
 def test_attempt_artifact_withholds_raw_margin_and_account_payloads(
     tmp_path: Path,
 ):
@@ -3743,6 +3800,40 @@ def test_preview_accepts_documented_margin_ratio_liquidation_replacement():
     assert normalized["liquidation_evidence_source"] == (
         "margin_ratio_data_and_predicted_liquidation_price"
     )
+
+
+def test_preview_accepts_documented_margin_ratio_replacement_without_optional_price():
+    response = _preview()
+    response.pop("current_liquidation_buffer")
+    response.pop("projected_liquidation_buffer")
+    response["margin_ratio_data"] = {
+        "current_margin_ratio": "0.20",
+        "projected_margin_ratio": "0.25",
+    }
+
+    normalized = validate_preview_response(response)
+
+    assert normalized["liquidation_evidence_source"] == "margin_ratio_data"
+    assert normalized["margin_ratio_data"] == {
+        "current_margin_ratio": "0.20",
+        "projected_margin_ratio": "0.25",
+    }
+    assert "predicted_liquidation_price" not in normalized
+
+
+@pytest.mark.parametrize("value", [None, ""])
+def test_preview_rejects_present_but_empty_optional_liquidation_price(value):
+    response = _preview()
+    response.pop("current_liquidation_buffer")
+    response.pop("projected_liquidation_buffer")
+    response["margin_ratio_data"] = {
+        "current_margin_ratio": "0.20",
+        "projected_margin_ratio": "0.25",
+    }
+    response["predicted_liquidation_price"] = value
+
+    with pytest.raises(ValueError, match="predicted_liquidation_price"):
+        validate_preview_response(response)
 
 
 @pytest.mark.parametrize("field", ["errs", "warning"])
