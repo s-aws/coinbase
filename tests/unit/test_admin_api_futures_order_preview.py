@@ -32,6 +32,7 @@ from application.admin_api.futures_order_preview import (
     FUTURES_PREVIEW_R3_PREDECESSOR_BINDING,
     FUTURES_PREVIEW_R3_SIZE,
     FUTURES_PREVIEW_R4_ARTIFACT_PATH,
+    FUTURES_PREVIEW_R4_ARTIFACT_TYPE,
     FUTURES_PREVIEW_ACTOR_ID,
     FUTURES_PREVIEW_DOCUMENTED_MARGIN_SETTINGS,
     FUTURES_PREVIEW_OPERATIONAL_MARGIN_SETTINGS,
@@ -1441,7 +1442,7 @@ def test_stage_diagnostic_get_route_is_read_only_and_hides_raw_blocker(
     assert "PRIVATE_VALUE_MUST_NOT_RETURN" not in response.text
 
 
-def test_r3_production_path_is_fixed_and_version_bound():
+def test_r3_readback_and_r4_producer_paths_are_fixed_and_version_bound():
     source = Path(preview_module.__file__).read_text(encoding="utf-8")
     assert "futures_exact_no_live_preview_slice_2r3" in source
     assert DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH.name == (
@@ -1453,10 +1454,14 @@ def test_r3_production_path_is_fixed_and_version_bound():
     assert FUTURES_PREVIEW_R4_ARTIFACT_PATH.name == (
         "futures_exact_no_live_preview_slice_2r4.jsonl"
     )
-    assert not FUTURES_PREVIEW_R4_ARTIFACT_PATH.exists()
-    assert "--confirm-one-r3-preview" in Path(preview_tool.__file__).read_text(
+    assert preview_module.configured_futures_order_preview_artifact_path() == (
+        DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH
+    )
+    tool_source = Path(preview_tool.__file__).read_text(
         encoding="utf-8"
     )
+    assert "--confirm-one-r4-preview" in tool_source
+    assert "--confirm-one-r3-preview" not in tool_source
 
 
 def test_consumed_r3_is_immutable_and_remains_compatible_r4_predecessor():
@@ -2200,6 +2205,70 @@ def test_preview_size_and_notional_drift_is_terminal_blocked(
     assert terminal["product_evidence_sha256"] == canonical_sha256(
         terminal["product_evidence"]
     )
+
+
+def test_post_preview_failure_persists_only_allowlisted_response_fields(
+    tmp_path: Path,
+):
+    response = _preview()
+    response["base_size"] = "2"
+    response["PRIVATE_UNKNOWN_IDENTIFIER"] = (
+        "PRIVATE_PREVIEW_RESPONSE_MUST_NOT_PERSIST"
+    )
+    rest_client = FakePreviewRestClient(preview_response=response)
+    producer, store, path = _producer(tmp_path, rest_client)
+
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="blocked"):
+        producer.run()
+
+    terminal = store.read_completed()
+    assert terminal["status"] == "blocked"
+    assert terminal["attempt_counters"]["preview_order"] == 1
+    assert set(terminal["preview_response"]) == {
+        "preview_id",
+        "errs",
+        "warning",
+        "order_total",
+        "commission_total",
+        "quote_size",
+        "base_size",
+        "best_bid",
+        "best_ask",
+        "order_margin_total",
+        "current_liquidation_buffer",
+        "projected_liquidation_buffer",
+        "liquidation_evidence_source",
+    }
+    assert terminal["preview_response"]["base_size"] == "2"
+    assert "PRIVATE" not in path.read_text(encoding="utf-8")
+    AdminFuturesOrderPreviewResponse.model_validate(terminal)
+
+
+def test_malformed_post_preview_response_still_appends_redacted_terminal_result(
+    tmp_path: Path,
+):
+    response = _preview()
+    response["order_total"] = float("nan")
+    response["PRIVATE_UNKNOWN_IDENTIFIER"] = (
+        "PRIVATE_PREVIEW_RESPONSE_MUST_NOT_PERSIST"
+    )
+    rest_client = FakePreviewRestClient(preview_response=response)
+    producer, store, path = _producer(tmp_path, rest_client)
+
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="blocked"):
+        producer.run()
+
+    terminal = store.read_completed()
+    assert terminal["status"] == "blocked"
+    assert terminal["blocker"] == "preflight_or_preview_blocked:ValueError"
+    assert terminal["attempt_counters"]["preview_order"] == 1
+    assert "preview_response" not in terminal
+    assert "preview_response_sha256" not in terminal
+    artifact_text = path.read_text(encoding="utf-8")
+    assert "PRIVATE" not in artifact_text
+    assert "NaN" not in artifact_text
+    assert len(artifact_text.splitlines()) == 2
+    AdminFuturesOrderPreviewResponse.model_validate(terminal)
 
 
 @pytest.mark.parametrize(
@@ -2993,14 +3062,24 @@ def test_producer_tool_path_is_fixed_and_has_no_path_or_scope_override(
 
     assert (
         preview_tool.production_artifact_path()
-        == preview_tool.DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH
+        == FUTURES_PREVIEW_R4_ARTIFACT_PATH
     )
+    assert (
+        preview_tool.production_artifact_path()
+        != DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH
+    )
+    parsed = preview_tool.build_parser().parse_args(
+        ["--confirm-one-r4-preview"]
+    )
+    assert parsed.confirm_one_r4_preview is True
     with pytest.raises(SystemExit):
         preview_tool.build_parser().parse_args(
-            ["--confirm-one-r3-preview", "--artifact-path", "/tmp/alternate"]
+            ["--confirm-one-r4-preview", "--artifact-path", "/tmp/alternate"]
         )
     with pytest.raises(SystemExit):
         preview_tool.build_parser().parse_args(["--confirm-one-preview"])
+    with pytest.raises(SystemExit):
+        preview_tool.build_parser().parse_args(["--confirm-one-r3-preview"])
 
 
 def test_tool_binds_one_shot_coinbase_client_to_finite_timeout(
@@ -3017,6 +3096,7 @@ def test_tool_binds_one_shot_coinbase_client_to_finite_timeout(
             self.session = SimpleNamespace(
                 adapters={"https://": adapter, "http://": adapter}
             )
+            captured["sdk"] = self
 
     def hydrate(environment: dict[str, str]) -> SimpleNamespace:
         assert "COINBASE_API_KEY" not in environment
@@ -3037,10 +3117,111 @@ def test_tool_binds_one_shot_coinbase_client_to_finite_timeout(
 
     client = preview_tool.build_rest_client()
 
-    assert isinstance(client, CoinbaseRestClient)
+    assert isinstance(client, preview_tool.FuturesPreviewOnlyRestClient)
     assert captured["timeout"] == preview_tool.COINBASE_PREVIEW_HTTP_TIMEOUT_SECONDS
     assert 0 < preview_tool.COINBASE_PREVIEW_HTTP_TIMEOUT_SECONDS <= 30
-    assert client.get_sdk_client().session.max_redirects == 0
+    assert captured["sdk"].session.max_redirects == 0
+    assert not hasattr(client, "get_sdk_client")
+
+
+def test_preview_only_client_allows_at_most_one_preview_and_no_mutations():
+    rest_client = FakePreviewRestClient()
+    client = preview_tool.FuturesPreviewOnlyRestClient(rest_client)
+    request = {
+        "product_id": FUTURES_PREVIEW_PRODUCT_ID,
+        "side": "BUY",
+        "order_configuration": {
+            "limit_limit_gtc": {
+                "base_size": "1",
+                "limit_price": "6.40",
+                "post_only": True,
+            }
+        },
+    }
+
+    assert client.preview_order(**request) == rest_client.preview_response
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="already attempted"):
+        client.preview_order(**request)
+
+    assert len(rest_client.preview_calls) == 1
+    assert rest_client.forbidden_calls == []
+    for forbidden_method in (
+        "create_order",
+        "place_limit_order",
+        "limit_order_gtc",
+        "cancel_order",
+        "cancel_order_by_exchange_order_id",
+        "cancel_orders",
+        "close_position",
+        "reduce_position",
+        "get_sdk_client",
+    ):
+        assert not hasattr(client, forbidden_method)
+    assert not hasattr(client, "__dict__")
+
+
+def test_preview_only_client_surface_and_scope_are_exact():
+    rest_client = FakePreviewRestClient()
+    client = preview_tool.FuturesPreviewOnlyRestClient(rest_client)
+    public_callables = {
+        name
+        for name in dir(type(client))
+        if not name.startswith("_") and callable(getattr(type(client), name))
+    }
+    assert public_callables == {
+        "get_api_key_permissions",
+        "list_portfolios",
+        "get_product_dict",
+        "get_best_bid_ask",
+        "get_futures_positions",
+        "get_futures_margin_collateral_snapshot",
+        "preview_order",
+    }
+
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="product scope"):
+        client.get_product_dict("BTC-USDC")
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="market scope"):
+        client.get_best_bid_ask(product_ids=["BTC-USDC"])
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="request scope"):
+        client.preview_order(
+            product_id=FUTURES_PREVIEW_PRODUCT_ID,
+            side="SELL",
+            order_configuration={
+                "limit_limit_gtc": {
+                    "base_size": "1",
+                    "limit_price": "6.40",
+                    "post_only": True,
+                }
+            },
+        )
+
+    assert rest_client.read_calls == []
+    assert rest_client.preview_calls == []
+    assert rest_client.forbidden_calls == []
+
+
+def test_preview_only_client_consumes_timeout_without_second_delegate_call():
+    rest_client = FakePreviewRestClient(preview_error=TimeoutError("ambiguous"))
+    client = preview_tool.FuturesPreviewOnlyRestClient(rest_client)
+    request = {
+        "product_id": FUTURES_PREVIEW_PRODUCT_ID,
+        "side": "BUY",
+        "order_configuration": {
+            "limit_limit_gtc": {
+                "base_size": "1",
+                "limit_price": "6.40",
+                "post_only": True,
+            }
+        },
+    }
+
+    with pytest.raises(TimeoutError):
+        client.preview_order(**request)
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="already attempted"):
+        client.preview_order(**request)
+
+    assert len(rest_client.preview_calls) == 1
+    assert rest_client.forbidden_calls == []
 
 
 def test_tool_rejects_inherited_or_non_default_credential_resolution(
@@ -3141,12 +3322,14 @@ def test_build_rest_client_blocks_redirect_replay_after_first_response(
             return None
 
     adapter = RedirectAdapter()
+    sdk_instances: list[object] = []
 
     class RedirectingSdk:
         def __init__(self, **_kwargs: object) -> None:
             self.session = requests.Session()
             self.session.mount("https://", adapter)
             self.session.mount("http://", adapter)
+            sdk_instances.append(self)
 
     def hydrate(environment: dict[str, str]) -> SimpleNamespace:
         environment["COINBASE_API_KEY"] = "organizations/test/apiKeys/key"
@@ -3159,10 +3342,57 @@ def test_build_rest_client_blocks_redirect_replay_after_first_response(
     monkeypatch.setattr(preview_tool, "ensure_live_coinbase_credentials", hydrate)
     monkeypatch.setattr(coinbase_rest, "RESTClient", RedirectingSdk)
 
-    client = preview_tool.build_rest_client()
+    preview_tool.build_rest_client()
 
     with pytest.raises(requests.TooManyRedirects):
-        client.get_sdk_client().session.post("https://example.test/preview")
+        sdk_instances[0].session.post("https://example.test/preview")
+    assert adapter.calls == ["https://example.test/preview"]
+
+
+def test_build_rest_client_transport_timeout_is_not_retried(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    import coinbase.rest as coinbase_rest
+    import requests
+
+    class TimeoutAdapter(requests.adapters.BaseAdapter):
+        max_retries = SimpleNamespace(total=0)
+
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def send(self, request, **_kwargs):
+            self.calls.append(request.url)
+            raise requests.Timeout("ambiguous")
+
+        def close(self) -> None:
+            return None
+
+    adapter = TimeoutAdapter()
+    sdk_instances: list[object] = []
+
+    class TimingOutSdk:
+        def __init__(self, **_kwargs: object) -> None:
+            self.session = requests.Session()
+            self.session.mount("https://", adapter)
+            self.session.mount("http://", adapter)
+            sdk_instances.append(self)
+
+    def hydrate(environment: dict[str, str]) -> SimpleNamespace:
+        environment["COINBASE_API_KEY"] = "organizations/test/apiKeys/key"
+        environment["COINBASE_API_SECRET"] = "test-secret"
+        return SimpleNamespace(
+            source="secrets_manager",
+            secret_id_env="COINBASE_SECRETS_MANAGER_SECRET_ID",
+        )
+
+    monkeypatch.setattr(preview_tool, "ensure_live_coinbase_credentials", hydrate)
+    monkeypatch.setattr(coinbase_rest, "RESTClient", TimingOutSdk)
+
+    preview_tool.build_rest_client()
+
+    with pytest.raises(requests.Timeout):
+        sdk_instances[0].session.post("https://example.test/preview")
     assert adapter.calls == ["https://example.test/preview"]
 
 
@@ -3175,6 +3405,11 @@ def test_producer_tool_preflight_creates_no_artifact_or_coinbase_client(
     monkeypatch.setattr(preview_tool, "production_artifact_path", lambda: path)
     monkeypatch.setattr(
         preview_tool,
+        "validate_production_predecessor",
+        lambda: dict(TEST_R3_PREDECESSOR_BINDING),
+    )
+    monkeypatch.setattr(
+        preview_tool,
         "build_rest_client",
         lambda: (_ for _ in ()).throw(AssertionError("Coinbase client constructed")),
     )
@@ -3184,10 +3419,230 @@ def test_producer_tool_preflight_creates_no_artifact_or_coinbase_client(
     summary = json.loads(capsys.readouterr().out)
     assert summary["status"] == "ready"
     assert summary["artifact_created"] is False
+    assert summary["predecessor_binding"] == TEST_R3_PREDECESSOR_BINDING
     assert summary["coinbase_read_ran"] is False
     assert summary["preview_order_attempt_count"] == 0
     assert summary["exchange_submission_attempt_count"] == 0
     assert not path.exists()
+
+
+@pytest.mark.parametrize("occupied_kind", ["regular", "symlink"])
+def test_r4_tool_consumed_path_blocks_before_predecessor_or_client(
+    occupied_kind: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    path = tmp_path / "slice2r4.jsonl"
+    if occupied_kind == "regular":
+        path.write_text("consumed\n", encoding="utf-8")
+    else:
+        path.symlink_to(tmp_path / "missing-target")
+    monkeypatch.setattr(preview_tool, "production_artifact_path", lambda: path)
+    monkeypatch.setattr(
+        preview_tool,
+        "validate_production_predecessor",
+        lambda: (_ for _ in ()).throw(
+            AssertionError("predecessor checked after consumed-path gate")
+        ),
+    )
+    monkeypatch.setattr(
+        preview_tool,
+        "build_rest_client",
+        lambda: (_ for _ in ()).throw(
+            AssertionError("Coinbase client constructed after consumed-path gate")
+        ),
+    )
+
+    assert preview_tool.main(["--confirm-one-r4-preview"]) == 2
+
+    summary = json.loads(capsys.readouterr().err)
+    assert summary["status"] == "blocked"
+    assert summary["blocker"] == "futures_preview_attempt_already_consumed"
+    assert summary["artifact_created"] is False
+    assert summary["coinbase_read_ran"] is False
+    assert summary["preview_order_attempt_count"] == 0
+
+
+def test_r4_tool_redacts_client_preparation_failure_before_claim(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    path = tmp_path / "slice2r4.jsonl"
+    private_text = "PRIVATE_CREDENTIAL_RESPONSE_MUST_NOT_PRINT"
+    monkeypatch.setattr(preview_tool, "production_artifact_path", lambda: path)
+    monkeypatch.setattr(
+        preview_tool,
+        "validate_production_predecessor",
+        lambda: dict(TEST_R3_PREDECESSOR_BINDING),
+    )
+    monkeypatch.setattr(
+        preview_tool,
+        "build_rest_client",
+        lambda: (_ for _ in ()).throw(RuntimeError(private_text)),
+    )
+
+    assert preview_tool.main(["--confirm-one-r4-preview"]) == 2
+
+    captured = capsys.readouterr()
+    summary = json.loads(captured.err)
+    assert summary["status"] == "blocked"
+    assert summary["blocker"] == (
+        "futures_preview_client_preparation_blocked:RuntimeError"
+    )
+    assert summary["artifact_created"] is False
+    assert summary["coinbase_read_ran"] is False
+    assert summary["preview_order_attempt_count"] == 0
+    assert private_text not in captured.err
+    assert not path.exists()
+
+
+def test_r4_tool_confirmation_produces_only_r4_preview_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    path = tmp_path / "slice2r4.jsonl"
+    rest_client = FakePreviewRestClient()
+    rest_client.preview_response["private_http_response_body"] = (
+        "PRIVATE_ACCEPTED_PREVIEW_RESPONSE_MUST_NOT_PERSIST"
+    )
+    live_book = _book()
+    live_book["pricebooks"][0]["time"] = datetime.now(
+        timezone.utc
+    ).isoformat()
+
+    def get_best_bid_ask(*, product_ids: list[str]) -> dict[str, object]:
+        rest_client.read_calls.append("best_bid_ask")
+        assert product_ids == [FUTURES_PREVIEW_PRODUCT_ID]
+        return live_book
+
+    rest_client.get_best_bid_ask = get_best_bid_ask  # type: ignore[method-assign]
+    monkeypatch.setattr(
+        preview_tool,
+        "production_artifact_path",
+        lambda: path,
+    )
+    monkeypatch.setattr(
+        preview_tool,
+        "validate_production_predecessor",
+        lambda: dict(TEST_R3_PREDECESSOR_BINDING),
+    )
+    monkeypatch.setattr(
+        preview_tool,
+        "build_rest_client",
+        lambda: preview_tool.FuturesPreviewOnlyRestClient(rest_client),
+    )
+
+    assert preview_tool.main(["--confirm-one-r4-preview"]) == 0
+
+    summary = json.loads(capsys.readouterr().out)
+    evidence = FuturesOrderPreviewArtifactStore(path).read_completed()
+    assert summary["status"] == "accepted"
+    assert evidence["artifact_type"] == FUTURES_PREVIEW_R4_ARTIFACT_TYPE
+    assert evidence["predecessor_binding"] == TEST_R3_PREDECESSOR_BINDING
+    assert evidence["attempt_counters"] == {
+        "preview_order": 1,
+        "retry": 0,
+        "fallback": 0,
+        "create_order": 0,
+        "cancel_order": 0,
+        "close_position": 0,
+        "reduce_position": 0,
+    }
+    assert evidence["exchange_submission_attempt_count"] == 0
+    assert evidence["artifacts"] == {
+        "execution_marker_created": False,
+        "attempt_ledger_created": False,
+        "runtime_created": False,
+    }
+    assert len(rest_client.preview_calls) == 1
+    assert rest_client.read_calls == [
+        "api_key_permissions",
+        "portfolio_catalog",
+        "product",
+        "best_bid_ask",
+        "futures_positions",
+        "futures_margin_collateral",
+        "preview_order",
+    ]
+    assert rest_client.preview_calls == [evidence["preview_request"]]
+    assert rest_client.forbidden_calls == []
+    assert "PRIVATE" not in path.read_text(encoding="utf-8")
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
+def test_r4_tool_margin_window_stop_is_typed_sanitized_and_pre_preview(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    path = tmp_path / "slice2r4.jsonl"
+    rest_client = FakePreviewRestClient()
+    snapshot = rest_client.get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"].update(
+        margin_window_type="MARGIN_WINDOW_TYPE_PRIVATE_ACCOUNT",
+        private_response_body="PRIVATE_HTTP_RESPONSE_BODY",
+    )
+    rest_client.read_calls.clear()
+    live_book = _book()
+    live_book["pricebooks"][0]["time"] = datetime.now(
+        timezone.utc
+    ).isoformat()
+
+    def get_best_bid_ask(*, product_ids: list[str]) -> dict[str, object]:
+        rest_client.read_calls.append("best_bid_ask")
+        assert product_ids == [FUTURES_PREVIEW_PRODUCT_ID]
+        return live_book
+
+    def get_margin_snapshot() -> dict[str, object]:
+        rest_client.read_calls.append("futures_margin_collateral")
+        return snapshot
+
+    rest_client.get_best_bid_ask = get_best_bid_ask  # type: ignore[method-assign]
+    rest_client.get_futures_margin_collateral_snapshot = (  # type: ignore[method-assign]
+        get_margin_snapshot
+    )
+    monkeypatch.setattr(preview_tool, "production_artifact_path", lambda: path)
+    monkeypatch.setattr(
+        preview_tool,
+        "validate_production_predecessor",
+        lambda: dict(TEST_R3_PREDECESSOR_BINDING),
+    )
+    monkeypatch.setattr(
+        preview_tool,
+        "build_rest_client",
+        lambda: preview_tool.FuturesPreviewOnlyRestClient(rest_client),
+    )
+
+    assert preview_tool.main(["--confirm-one-r4-preview"]) == 2
+
+    summary = json.loads(capsys.readouterr().err)
+    evidence = FuturesOrderPreviewArtifactStore(path).read_completed()
+    diagnostic = evidence["margin_windows_evidence"]
+    assert summary["status"] == "blocked"
+    assert evidence["artifact_type"] == FUTURES_PREVIEW_R4_ARTIFACT_TYPE
+    assert evidence["predecessor_binding"] == TEST_R3_PREDECESSOR_BINDING
+    assert evidence["margin_setting_evidence"]["allowlist_match"] is True
+    assert evidence["margin_setting_evidence"]["operationally_resolved"] is True
+    assert evidence["margin_setting_evidence_sha256"] == canonical_sha256(
+        evidence["margin_setting_evidence"]
+    )
+    assert diagnostic["classification"] == (
+        "margin_window_type_not_exact_operational_enum_token"
+    )
+    assert diagnostic["failing_value_type"] == "string"
+    assert diagnostic["raw_response_included"] is False
+    assert diagnostic["external_exception_text_included"] is False
+    assert diagnostic["unknown_identifier_values_included"] is False
+    assert evidence["margin_windows_evidence_sha256"] == canonical_sha256(
+        diagnostic
+    )
+    assert evidence["attempt_counters"]["preview_order"] == 0
+    assert rest_client.preview_calls == []
+    assert "PRIVATE" not in path.read_text(encoding="utf-8")
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
 
 
 def test_slice2r3_paths_are_fixed_distinct_and_predecessor_matches_sealed_hashes():
@@ -3536,13 +3991,13 @@ def test_producer_claim_binds_revalidated_predecessor(
     )
 
 
-def test_tool_blocks_invalid_predecessor_before_client_or_r3_claim(
+def test_tool_blocks_invalid_predecessor_before_client_or_r4_claim(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    r3_path = tmp_path / "slice2r3.jsonl"
-    monkeypatch.setattr(preview_tool, "production_artifact_path", lambda: r3_path)
+    r4_path = tmp_path / "slice2r4.jsonl"
+    monkeypatch.setattr(preview_tool, "production_artifact_path", lambda: r4_path)
     monkeypatch.setattr(
         preview_tool,
         "validate_production_predecessor",
@@ -3557,11 +4012,11 @@ def test_tool_blocks_invalid_predecessor_before_client_or_r3_claim(
         lambda: (_ for _ in ()).throw(AssertionError("Coinbase client constructed")),
     )
 
-    assert preview_tool.main(["--confirm-one-r3-preview"]) == 2
+    assert preview_tool.main(["--confirm-one-r4-preview"]) == 2
 
     summary = json.loads(capsys.readouterr().err)
     assert "predecessor" in summary["blocker"]
-    assert not r3_path.exists()
+    assert not r4_path.exists()
 
 
 def test_tool_reports_truthful_terminal_unknown_without_retry(
@@ -3569,20 +4024,24 @@ def test_tool_reports_truthful_terminal_unknown_without_retry(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ):
-    r3_path = tmp_path / "slice2r3.jsonl"
+    r4_path = tmp_path / "slice2r4.jsonl"
     rest_client = FakePreviewRestClient(preview_error=TimeoutError("ambiguous"))
     live_book = _book()
     live_book["pricebooks"][0]["time"] = datetime.now(timezone.utc).isoformat()
     rest_client.get_best_bid_ask = lambda **_kwargs: live_book  # type: ignore[method-assign]
-    monkeypatch.setattr(preview_tool, "production_artifact_path", lambda: r3_path)
+    monkeypatch.setattr(preview_tool, "production_artifact_path", lambda: r4_path)
     monkeypatch.setattr(
         preview_tool,
         "validate_production_predecessor",
-        lambda: dict(TEST_PREDECESSOR_BINDING),
+        lambda: dict(TEST_R3_PREDECESSOR_BINDING),
     )
-    monkeypatch.setattr(preview_tool, "build_rest_client", lambda: rest_client)
+    monkeypatch.setattr(
+        preview_tool,
+        "build_rest_client",
+        lambda: preview_tool.FuturesPreviewOnlyRestClient(rest_client),
+    )
 
-    assert preview_tool.main(["--confirm-one-r3-preview"]) == 2
+    assert preview_tool.main(["--confirm-one-r4-preview"]) == 2
 
     summary = json.loads(capsys.readouterr().err)
     assert summary["status"] == "unknown", summary
@@ -3590,9 +4049,10 @@ def test_tool_reports_truthful_terminal_unknown_without_retry(
     assert summary["attempt_counters"]["preview_order"] == 1
     assert summary["exchange_submission_attempt_count"] == 0
     assert len(rest_client.preview_calls) == 1
-    assert FuturesOrderPreviewArtifactStore(r3_path).read_completed()[
-        "status"
-    ] == "unknown"
+    terminal = FuturesOrderPreviewArtifactStore(r4_path).read_completed()
+    assert terminal["status"] == "unknown"
+    assert terminal["artifact_type"] == FUTURES_PREVIEW_R4_ARTIFACT_TYPE
+    assert terminal["predecessor_binding"] == TEST_R3_PREDECESSOR_BINDING
 
 
 def test_openapi_exposes_typed_read_only_preview_contract():

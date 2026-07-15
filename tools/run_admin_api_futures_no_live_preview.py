@@ -1,4 +1,4 @@
-"""Consume the single authorized Slice 2R3 Coinbase Preview attempt.
+"""Consume the single authorized Slice 2R4 Coinbase Preview attempt.
 
 This backend-only tool has no product, profile, size, cap, actor, or artifact
 path options.  It can call only the fixed producer, whose exclusive artifact
@@ -16,7 +16,7 @@ import logging
 import os
 from pathlib import Path
 import sys
-from typing import Sequence
+from typing import Any, Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -24,11 +24,13 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from application.admin_api.futures_order_preview import (  # noqa: E402
-    DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH,
+    FUTURES_PREVIEW_PRODUCT_ID,
+    FUTURES_PREVIEW_R4_ARTIFACT_PATH,
+    FUTURES_PREVIEW_R4_ARTIFACT_TYPE,
     FuturesOrderPreviewArtifactError,
     FuturesOrderPreviewArtifactStore,
     FuturesOrderPreviewProducer,
-    validate_production_futures_order_preview_predecessor,
+    validate_production_futures_order_preview_r3_predecessor,
 )
 from external.coinbase_client import CoinbaseRestClient  # noqa: E402
 from tools.coinbase_live_credentials import (  # noqa: E402
@@ -50,16 +52,94 @@ _SECRET_ID_ENV_NAMES = (
 )
 
 
+class FuturesPreviewOnlyRestClient:
+    """Expose only the fixed reads and one exact Preview used by Slice 2R4."""
+
+    __slots__ = ("__delegate", "__preview_attempted")
+
+    def __init__(self, delegate: Any) -> None:
+        self.__delegate = delegate
+        self.__preview_attempted = False
+
+    def get_api_key_permissions(self) -> dict[str, Any]:
+        return self.__delegate.get_api_key_permissions()
+
+    def list_portfolios(self) -> list[dict[str, Any]]:
+        return self.__delegate.list_portfolios()
+
+    def get_product_dict(self, product_id: str) -> dict[str, Any] | None:
+        if product_id != FUTURES_PREVIEW_PRODUCT_ID:
+            raise FuturesOrderPreviewArtifactError(
+                "futures Preview product scope is invalid"
+            )
+        return self.__delegate.get_product_dict(product_id)
+
+    def get_best_bid_ask(self, *, product_ids: list[str]) -> dict[str, Any]:
+        if product_ids != [FUTURES_PREVIEW_PRODUCT_ID]:
+            raise FuturesOrderPreviewArtifactError(
+                "futures Preview market scope is invalid"
+            )
+        return self.__delegate.get_best_bid_ask(product_ids=product_ids)
+
+    def get_futures_positions(self) -> dict[str, Any]:
+        return self.__delegate.get_futures_positions()
+
+    def get_futures_margin_collateral_snapshot(self) -> dict[str, Any]:
+        return self.__delegate.get_futures_margin_collateral_snapshot()
+
+    def preview_order(
+        self,
+        *,
+        product_id: str,
+        side: str,
+        order_configuration: dict[str, Any],
+        leverage: str | None = None,
+        margin_type: str | None = None,
+    ) -> dict[str, Any]:
+        if self.__preview_attempted:
+            raise FuturesOrderPreviewArtifactError(
+                "futures Preview was already attempted"
+            )
+        limit_configuration = (
+            order_configuration.get("limit_limit_gtc")
+            if isinstance(order_configuration, dict)
+            and set(order_configuration) == {"limit_limit_gtc"}
+            else None
+        )
+        if (
+            product_id != FUTURES_PREVIEW_PRODUCT_ID
+            or side != "BUY"
+            or not isinstance(limit_configuration, dict)
+            or set(limit_configuration)
+            != {"base_size", "limit_price", "post_only"}
+            or limit_configuration.get("base_size") != "1"
+            or not isinstance(limit_configuration.get("limit_price"), str)
+            or not str(limit_configuration["limit_price"]).strip()
+            or limit_configuration.get("post_only") is not True
+            or leverage is not None
+            or margin_type is not None
+        ):
+            raise FuturesOrderPreviewArtifactError(
+                "futures Preview request scope is invalid"
+            )
+        self.__preview_attempted = True
+        return self.__delegate.preview_order(
+            product_id=product_id,
+            side=side,
+            order_configuration=order_configuration,
+        )
+
+
 def production_artifact_path() -> Path:
     """Return the fixed one-attempt path; environment cannot redirect it."""
 
-    return DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH
+    return FUTURES_PREVIEW_R4_ARTIFACT_PATH
 
 
 def validate_production_predecessor() -> dict[str, object]:
-    """Validate the immutable consumed Slice 2R2 predecessor chain."""
+    """Validate immutable R3 plus its complete R2/R1/original chain."""
 
-    return validate_production_futures_order_preview_predecessor()
+    return validate_production_futures_order_preview_r3_predecessor()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -75,12 +155,15 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument(
         "--preflight",
         action="store_true",
-        help="Report fixed-path consumption state without credentials or Coinbase calls.",
+        help=(
+            "Report fixed-path consumption state without credentials or "
+            "Coinbase calls."
+        ),
     )
     mode.add_argument(
-        "--confirm-one-r3-preview",
+        "--confirm-one-r4-preview",
         action="store_true",
-        help="Confirm consumption of the one authorized Slice 2R3 Preview attempt.",
+        help="Confirm consumption of the one authorized Slice 2R4 Preview attempt.",
     )
     return parser
 
@@ -113,8 +196,8 @@ def _suppress_coinbase_sdk_logging() -> Iterator[None]:
         logger.disabled = previously_disabled
 
 
-def build_rest_client() -> CoinbaseRestClient:
-    """Hydrate the fixed Default credential and construct the wrapper."""
+def build_rest_client() -> FuturesPreviewOnlyRestClient:
+    """Hydrate Default credentials and return a mutation-incapable facade."""
 
     credential_environment = _controlled_default_credential_environment()
     resolution = ensure_live_coinbase_credentials(credential_environment)
@@ -156,7 +239,7 @@ def build_rest_client() -> CoinbaseRestClient:
         raise FuturesOrderPreviewArtifactError(
             "futures Preview transport redirect policy is not zero"
         )
-    return CoinbaseRestClient(sdk_client)
+    return FuturesPreviewOnlyRestClient(CoinbaseRestClient(sdk_client))
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -223,12 +306,38 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 0
 
+    try:
+        with _suppress_coinbase_sdk_logging():
+            rest_client = build_rest_client()
+    except Exception as exc:
+        print(
+            json.dumps(
+                {
+                    "status": "blocked",
+                    "blocker": (
+                        "futures_preview_client_preparation_blocked:"
+                        f"{type(exc).__name__}"
+                    ),
+                    "artifact_path": str(path),
+                    "artifact_created": path.exists() or path.is_symlink(),
+                    "coinbase_read_ran": False,
+                    "preview_order_attempt_count": 0,
+                    "exchange_submission_attempt_count": 0,
+                    "live_coinbase_execution": "not_run",
+                },
+                sort_keys=True,
+            ),
+            file=sys.stderr,
+        )
+        return 2
+
     store = FuturesOrderPreviewArtifactStore(path)
     producer = FuturesOrderPreviewProducer(
-        rest_client=build_rest_client(),
+        rest_client=rest_client,
         store=store,
         predecessor_binding=predecessor_binding,
         predecessor_validator=validate_production_predecessor,
+        artifact_type=FUTURES_PREVIEW_R4_ARTIFACT_TYPE,
     )
     try:
         with _suppress_coinbase_sdk_logging():

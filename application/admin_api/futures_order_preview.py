@@ -110,7 +110,10 @@ FUTURES_PREVIEW_ORIGINAL_MODE = 0o400
 FUTURES_PREVIEW_ORIGINAL_MTIME_NS = 1783968539951853688
 _SCHEMA_VERSION = "1"
 _ARTIFACT_TYPE = "futures_exact_no_live_preview_slice_2r3"
-_R4_ARTIFACT_TYPE = "futures_exact_no_live_preview_slice_2r4"
+FUTURES_PREVIEW_R4_ARTIFACT_TYPE = (
+    "futures_exact_no_live_preview_slice_2r4"
+)
+_R4_ARTIFACT_TYPE = FUTURES_PREVIEW_R4_ARTIFACT_TYPE
 _MAX_ARTIFACT_BYTES = 2 * 1024 * 1024
 _NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 FUTURES_PREVIEW_DOCUMENTED_MARGIN_SETTINGS = frozenset(
@@ -1233,14 +1236,18 @@ class FuturesOrderPreviewProducer:
                 raise FuturesOrderPreviewArtifactError(
                     "futures Preview outcome is unknown; attempt consumed"
                 ) from exc
-            terminal_context["preview_response"] = preview_response
-            terminal_context["preview_response_sha256"] = canonical_sha256(
-                preview_response
-            )
             normalized_preview = validate_preview_response(preview_response)
+            terminal_context["preview_response"] = normalized_preview
+            terminal_context["preview_response_sha256"] = canonical_sha256(
+                normalized_preview
+            )
             normalized_preview = validate_preview_against_candidate(
                 normalized_preview,
                 candidate,
+            )
+            terminal_context["preview_response"] = normalized_preview
+            terminal_context["preview_response_sha256"] = canonical_sha256(
+                normalized_preview
             )
             preview_margin = _decimal(
                 normalized_preview["order_margin_total"],
@@ -1445,7 +1452,7 @@ def build_futures_order_preview_candidate(
 
 
 def validate_preview_response(value: Any) -> dict[str, Any]:
-    """Require authoritative fee, margin, and liquidation Preview evidence."""
+    """Return exact allowlisted fee, margin, and liquidation evidence."""
 
     response = _mapping(value)
     if not response:
@@ -1470,6 +1477,15 @@ def validate_preview_response(value: Any) -> dict[str, Any]:
     ):
         if not _nonempty(response.get(field)):
             raise ValueError(f"futures_preview_response_{field}_missing")
+    preview_id = response["preview_id"]
+    if (
+        not isinstance(preview_id, str)
+        or preview_id != preview_id.strip()
+        or not preview_id.isprintable()
+        or len(preview_id) > 256
+    ):
+        raise ValueError("futures_preview_response_preview_id_invalid")
+    decimals: dict[str, Decimal] = {}
     for field in (
         "order_total",
         "commission_total",
@@ -1480,6 +1496,7 @@ def validate_preview_response(value: Any) -> dict[str, Any]:
         "order_margin_total",
     ):
         decimal = _decimal(response[field], field)
+        decimals[field] = decimal
         if not decimal.is_finite():
             raise ValueError(f"futures_preview_response_{field}_not_finite")
         if field == "commission_total":
@@ -1498,27 +1515,47 @@ def validate_preview_response(value: Any) -> dict[str, Any]:
         bool(_mapping(response.get("margin_ratio_data")))
         and _nonempty(response.get("predicted_liquidation_price"))
     )
+    sanitized: dict[str, Any] = {
+        "preview_id": preview_id,
+        "errs": [],
+        "warning": [],
+        **{
+            field: _decimal_text(decimals[field])
+            for field in (
+                "order_total",
+                "commission_total",
+                "quote_size",
+                "base_size",
+                "best_bid",
+                "best_ask",
+                "order_margin_total",
+            )
+        },
+    }
     if legacy_liquidation_ready:
         for field in (
             "current_liquidation_buffer",
             "projected_liquidation_buffer",
         ):
-            value = _decimal(response[field], field)
-            if not value.is_finite() or value < 0:
+            decimal = _decimal(response[field], field)
+            if not decimal.is_finite() or decimal < 0:
                 raise ValueError(
                     f"futures_preview_liquidation_{field}_not_finite_or_negative"
                 )
-        response["liquidation_evidence_source"] = (
+            sanitized[field] = _decimal_text(decimal)
+        sanitized["liquidation_evidence_source"] = (
             "current_and_projected_liquidation_buffer"
         )
     elif replacement_liquidation_ready:
         margin_ratio_data = _mapping(response["margin_ratio_data"])
+        sanitized_margin_ratio: dict[str, str] = {}
         for field in ("current_margin_ratio", "projected_margin_ratio"):
-            value = _decimal(margin_ratio_data.get(field), field)
-            if not value.is_finite() or value < 0:
+            decimal = _decimal(margin_ratio_data.get(field), field)
+            if not decimal.is_finite() or decimal < 0:
                 raise ValueError(
                     f"futures_preview_margin_ratio_{field}_not_finite_or_negative"
                 )
+            sanitized_margin_ratio[field] = _decimal_text(decimal)
         predicted_liquidation_price = _decimal(
             response["predicted_liquidation_price"],
             "predicted_liquidation_price",
@@ -1530,12 +1567,16 @@ def validate_preview_response(value: Any) -> dict[str, Any]:
             raise ValueError(
                 "futures_preview_predicted_liquidation_price_not_finite_or_positive"
             )
-        response["liquidation_evidence_source"] = (
+        sanitized["margin_ratio_data"] = sanitized_margin_ratio
+        sanitized["predicted_liquidation_price"] = _decimal_text(
+            predicted_liquidation_price
+        )
+        sanitized["liquidation_evidence_source"] = (
             "margin_ratio_data_and_predicted_liquidation_price"
         )
     else:
         raise ValueError("futures_preview_response_liquidation_evidence_incomplete")
-    return response
+    return sanitized
 
 
 def validate_margin_collateral_evidence(value: Any) -> Decimal:
