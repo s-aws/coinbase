@@ -12763,3 +12763,49 @@ Status:
   `C:\coinbase-frontend\artifacts\ui-smoke-4681-4700.png`.
 - Live Coinbase execution was not run for this review; submitted notional
   `$0`, executed notional `$0`.
+## Slice 2R7 Preview-Only Readiness Review - 2026-07-15
+
+Result: PASS after three bounded preparation/remediation cycles. This is a
+Futures/Perpetuals domain workflow using shared auth, OpenAPI, immutable-audit,
+generated-client, and BFF primitives. It is not a reusable trading primitive,
+does not copy Spot rules, and gives the browser no Preview or mutation path.
+
+Contract and trace: backend models and generated OpenAPI are authoritative;
+the frontend uses the generated schema and canonical read-only Admin API
+wrapper. The backend-only producer binds R7 to exact immutable
+R6 → R5 → R4 → R3 → R2 → R1 → original ancestry, Default/DEFAULT,
+`AVP-20DEC30-CDE`, BUY one contract, post-only `LIMIT_GTC`, the exact V3
+regular=`UNSPECIFIED` plus intraday-profile=`INTRADAY` pair, and strict
+opening `<100`, exposure/buffered-close `<150`, and turnover `<300 USDC` caps.
+Reservation precedes client hydration; the facade permits six bounded reads
+and at most one Preview, with zero retry, redirect, fallback, Create, Cancel,
+Close, Reduce, submission, or execution authority.
+
+Findings and resolution:
+
+- Cycle 1 `NO-GO`: the R7 response binding was not enforced by artifact
+  generation/model validation, default readback could not select R7, and
+  unexpected dormant-preflight validation exceptions were not uniformly
+  sanitized.
+- Cycle 2 `NO-GO`: shared normalization could discard either lone or
+  present-empty legacy liquidation key before the R7 check, and fixed-path
+  state-check exceptions remained outside the sanitized boundary.
+- Cycle 3 `GO`: R7 now validates raw response keys before shared normalization,
+  rejects legacy-only, complete/partial/empty mixed evidence and invalid
+  predicted price, and repeats that rule during model readback. The selector
+  serves exact R6 only while R7 is absent, selects a valid completed R7, and
+  maps any present invalid/nonterminal R7 to a fixed sanitized `503` without
+  fallback. Dormant preflight encloses path acquisition, state checks,
+  predecessor validation, and claim validation in a fixed-output boundary.
+
+Independent final gates: safety `GO`; blind/contextless `GO`. Observed focused
+coverage was `354` backend tests and `46` frontend tests, plus `23` blind
+adversarial backend selections and `19` blind frontend readback tests. OpenAPI,
+ownership, compilation, typecheck, lint, build, security, API freshness, goal,
+queue, immutable hashes, R6 Docker metadata, and dormant production preflight
+passed. R7 remained absent. No confirmation mode, credential hydration,
+Coinbase call, exchange mutation, submitted notional, or executed notional ran.
+
+Legacy `origin/prod` lookup was not applicable because this work corrected the
+current backend Preview contract and readback boundary rather than recreating
+legacy product or order behavior.

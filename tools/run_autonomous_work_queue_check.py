@@ -41,7 +41,7 @@ MVP_SCOPE = {
         "current_priority": GOAL_ID,
         "approved_phase_range_status": PHASE_RANGE_STATUS,
         "phase_range_work_allowed": False,
-        "default_next_action": "implement_and_audit_futures_slice_2_preview",
+        "default_next_action": "complete_authorized_slice_2r7_workflow",
         "ordered_successors": [
             "futures_exact_no_live_preview_slice_2",
             "futures_terminal_order_roundtrip_slice_3",

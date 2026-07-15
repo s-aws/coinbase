@@ -101282,6 +101282,7 @@ components:
           - futures_exact_no_live_preview_slice_2r4
           - futures_exact_no_live_preview_slice_2r5
           - futures_exact_no_live_preview_slice_2r6
+          - futures_exact_no_live_preview_slice_2r7
           title: Artifact Type
         status:
           type: string
@@ -101309,6 +101310,7 @@ components:
           - $ref: '#/components/schemas/AdminFuturesPreviewR3PredecessorBinding'
           - $ref: '#/components/schemas/AdminFuturesPreviewR4PredecessorBinding'
           - $ref: '#/components/schemas/AdminFuturesPreviewR5PredecessorBinding'
+          - $ref: '#/components/schemas/AdminFuturesPreviewR6PredecessorBinding'
           title: Predecessor Binding
         reserved_at:
           type: string
@@ -101460,6 +101462,10 @@ components:
             pattern: ^[0-9a-f]{64}$
           - type: 'null'
           title: Margin Windows Policy Evidence Sha256
+        preview_response_schema_binding:
+          anyOf:
+          - $ref: '#/components/schemas/AdminFuturesPreviewResponseSchemaBinding'
+          - type: 'null'
         pre_preview_stage_evidence:
           anyOf:
           - $ref: '#/components/schemas/AdminFuturesPreviewStageEvidence'
@@ -103465,6 +103471,144 @@ components:
       - original_predecessor_binding
       title: AdminFuturesPreviewR5PredecessorBinding
       description: Exact immutable R5 binding plus its complete predecessor chain.
+    AdminFuturesPreviewR6PredecessorBinding:
+      allOf:
+      - oneOf:
+        - properties:
+            device:
+              const: '2096'
+            inode:
+              const: '400333'
+          required:
+          - device
+          - inode
+      properties:
+        artifact_name:
+          type: string
+          const: futures_exact_no_live_preview_slice_2r6.jsonl
+          title: Artifact Name
+        file_sha256:
+          type: string
+          const: df5959e95ed4a6027e6c0a6980045fc685e7dd201158b39ff5fcc9577bf73904
+          title: File Sha256
+        evidence_sha256:
+          type: string
+          const: bf26fa6b0f67499dea02f337517c1ebd42ae9a20c88fbb5cfbe45e3f30f9e4f9
+          title: Evidence Sha256
+        device:
+          type: string
+          const: '2096'
+          title: Device
+        inode:
+          type: string
+          const: '400333'
+          title: Inode
+        size_bytes:
+          type: integer
+          const: 18567
+          title: Size Bytes
+        mode:
+          type: string
+          const: '0400'
+          title: Mode
+        mtime_ns:
+          type: string
+          const: '1784122432722849234'
+          title: Mtime Ns
+        status:
+          type: string
+          const: blocked
+          title: Status
+        outcome:
+          type: string
+          const: blocked
+          title: Outcome
+        preview_order_attempt_count:
+          type: integer
+          const: 1
+          title: Preview Order Attempt Count
+        exchange_submission_attempt_count:
+          type: integer
+          const: 0
+          title: Exchange Submission Attempt Count
+        submitted_notional_usdc:
+          type: string
+          const: '0'
+          title: Submitted Notional Usdc
+        executed_notional_usdc:
+          type: string
+          const: '0'
+          title: Executed Notional Usdc
+        preservation:
+          type: string
+          const: immutable_no_modify_delete_or_reuse
+          title: Preservation
+        original_predecessor_binding:
+          $ref: '#/components/schemas/AdminFuturesPreviewR5PredecessorBinding'
+      additionalProperties: false
+      type: object
+      required:
+      - artifact_name
+      - file_sha256
+      - evidence_sha256
+      - device
+      - inode
+      - size_bytes
+      - mode
+      - mtime_ns
+      - status
+      - outcome
+      - preview_order_attempt_count
+      - exchange_submission_attempt_count
+      - submitted_notional_usdc
+      - executed_notional_usdc
+      - preservation
+      - original_predecessor_binding
+      title: AdminFuturesPreviewR6PredecessorBinding
+      description: Exact immutable R6 binding plus its complete predecessor chain.
+    AdminFuturesPreviewResponseSchemaBinding:
+      properties:
+        schema_version:
+          type: string
+          const: '1'
+          title: Schema Version
+        policy_id:
+          type: string
+          const: slice2_preview_liquidation_evidence_schema_v1
+          title: Policy Id
+        schema_authority:
+          type: string
+          const: official_coinbase_advanced_trade_api_docs
+          title: Schema Authority
+        margin_ratio_data_replaces_legacy_liquidation_buffers:
+          type: boolean
+          const: true
+          title: Margin Ratio Data Replaces Legacy Liquidation Buffers
+        predicted_liquidation_price_required:
+          type: boolean
+          const: false
+          title: Predicted Liquidation Price Required
+        present_predicted_liquidation_price_policy:
+          type: string
+          const: finite_and_positive
+          title: Present Predicted Liquidation Price Policy
+        persisted_response_policy:
+          type: string
+          const: sanitized_allowlist_only
+          title: Persisted Response Policy
+      additionalProperties: false
+      type: object
+      required:
+      - schema_version
+      - policy_id
+      - schema_authority
+      - margin_ratio_data_replaces_legacy_liquidation_buffers
+      - predicted_liquidation_price_required
+      - present_predicted_liquidation_price_policy
+      - persisted_response_policy
+      title: AdminFuturesPreviewResponseSchemaBinding
+      description: Exact R7 binding to the corrected Coinbase Preview liquidation
+        schema.
     AdminFuturesPreviewStageEvidence:
       properties:
         schema_version:

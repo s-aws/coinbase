@@ -5,17 +5,16 @@ live authority, and a backend-only live runner is not proof that the matching
 HTTP or browser workflow is live-capable.
 
 Current goal id is `futures_exact_no_live_preview_slice_2`. Slice 1 uses only
-authoritative GET account/position reads. Slice 2 is blocked at the separately
-authorized R6 execution gate after consumed R5. R6 is implemented, validated,
-audited, and prepared no-live, but there is no current Coinbase-call or R6
-claim allowance. Its V3 policy accepts only regular=`UNSPECIFIED` plus
-intraday-profile=`INTRADAY`; the mapping is operator-defined and Preview-only,
-not Coinbase-documented, and grants no R6 attempt, execution, Create, or
-later-live eligibility. The repeatable Admin API/UI path still reads immutable
-R5 evidence and cannot call Coinbase. This grants no marker, attempt
-ledger, runtime, placement, cancel, fill, close, or reduce call. Default release
-and deployment checks are no-live and must report live Coinbase execution as
-not run with notional `0`.
+authoritative GET account/position reads. R7 is the sole authorized
+non-ordering Coinbase successor after consumed R6: exactly one Preview-only
+call may run after focused validation and independent safety plus blind audit.
+It retains the V3 regular=`UNSPECIFIED` plus intraday-profile=`INTRADAY` pair,
+one contract, strict `<100 / <150 / <300 USDC` caps, and the corrected official
+liquidation-response schema. The repeatable Admin API/UI path reads immutable
+R6 while R7 remains absent and cannot call Coinbase. No retry, fallback,
+redirect, Create, Cancel, Close, Reduce, marker, ledger, runtime, or other
+exchange mutation is authorized. Default release and deployment checks remain
+no-live and report live Coinbase execution as not run with notional `0`.
 
 ## Admin HTTP Surfaces
 

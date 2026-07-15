@@ -131,8 +131,19 @@ create a separate approval class.
 
 ## Current Handoff State
 
-- Slice 2 is blocked after the authorized R6 attempt was consumed without
-  accepted Preview evidence. The
+- Active action is `complete_authorized_slice_2r7_workflow`. R7 is authorized,
+  absent, and unconsumed at the preparation checkpoint. Its fixed claim binds
+  immutable R6 and the complete predecessor chain, the unchanged V3 exact
+  pair, one `AVP-20DEC30-CDE` contract, strict `<100 / <150 / <300 USDC`
+  caps, and the corrected official Preview liquidation schema. The dormant
+  preflight creates no artifact or client and makes no endpoint call. After
+  focused validation and independent safety plus blind audit, the backend-only
+  runner may make exactly one Preview call with zero retries, fallbacks,
+  redirects, or exchange mutations. A non-accepted result continues into the
+  already authorized offline diagnosis/remediation path. No second call, R8,
+  or Slice 3 authority exists.
+- R6 predecessor state: Slice 2 remained blocked after the authorized R6
+  attempt was consumed without accepted Preview evidence. The
   consumed immutable R5 file/evidence SHA-256 pair remains
   `4988e23886d218d25be518203676bec4f27a2199a0ed2e7f36d0d7e1d8e6bbf7` /
   `194cdd842944f8a453408051c04ff8e117b6b2b3ab6dcd7b1e78f44f4a5a467f`.
@@ -144,15 +155,17 @@ create a separate approval class.
   It persisted no Preview response or seal-ready plan. Retry, fallback, Create,
   Cancel, Close, Reduce, exchange-submission, submitted-notional, and
   executed-notional values are zero; live execution is `not_run`. Default
-  API/UI readback selects immutable R6. Do not retry R6. Slice 2 is not accepted
+  API/UI readback selects immutable R6 while R7 is absent. A fixed-path R7
+  terminal must be complete and model-valid or readback fails closed; a valid
+  R7 terminal becomes the default immediately. Do not retry R6. Slice 2 is not accepted
   and Slice 3 remains inactive pending a distinct operator follow-up decision.
   The operator subsequently approved that wording and a separate no-live
   migration-aware re-preparation. The S3 migration package restored the exact
   consumed R1-R5 bytes and hashes into the Docker workspace. Their original
   nanosecond mtimes were restored; only physical device/inode bindings may be
   rebound for Docker. Historical EC2 ancestry embedded in consumed evidence
-  remains unchanged and must still validate. Complete focused validation and
-  independent audit before the now-consumed one-use R6 path.
+  remains unchanged and must still validate. These facts are predecessor
+  evidence for R7; the consumed R6 path must never be retried.
   Focused backend and frontend validation passed. Independent safety and blind
   contextless reviews found one P2 contract issue: OpenAPI initially exposed
   restored/historical device and inode values as independent enums. The

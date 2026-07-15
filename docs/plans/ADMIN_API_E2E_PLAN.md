@@ -3,7 +3,7 @@
 Historical planning record; not current work authority.
 
 Use `genai_data/AGENT_MVP_REBUILD_GOAL.md`, goal id
-`selected_order_execution_closeout_slice`, for current scope. Numbered phase
+`futures_exact_no_live_preview_slice_2`, for current scope. Numbered phase
 language below is implementation and regression history only.
 
 The active frontend workspace is

@@ -1828,6 +1828,139 @@ def test_consumed_r6_terminal_is_physically_bound_and_selected_by_default(
     assert "seal_ready_plan" not in payload
 
 
+def test_default_readback_transitions_to_only_a_valid_completed_r7_terminal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    r7_path = tmp_path / "candidate-r7.jsonl"
+    monkeypatch.delenv(
+        "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_PATH",
+        raising=False,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R7_ARTIFACT_PATH",
+        r7_path,
+    )
+
+    assert configured_futures_order_preview_artifact_path() == (
+        preview_module.FUTURES_PREVIEW_R6_ARTIFACT_PATH
+    )
+
+    rest_client = FakePreviewRestClient()
+    snapshot = rest_client.get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_UNSPECIFIED"
+    rest_client.get_futures_margin_collateral_snapshot = (  # type: ignore[method-assign]
+        lambda: snapshot
+    )
+    response = _preview()
+    response.pop("current_liquidation_buffer")
+    response.pop("projected_liquidation_buffer")
+    response["margin_ratio_data"] = {
+        "current_margin_ratio": "0.20",
+        "projected_margin_ratio": "0.25",
+    }
+    rest_client.preview_response = response
+    producer = FuturesOrderPreviewProducer(
+        rest_client=rest_client,
+        store=FuturesOrderPreviewArtifactStore(r7_path),
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R6_TERMINAL_BINDING,
+        predecessor_validator=lambda: dict(
+            preview_module.FUTURES_PREVIEW_R6_TERMINAL_BINDING
+        ),
+        artifact_type=preview_module.FUTURES_PREVIEW_R7_ARTIFACT_TYPE,
+        now=lambda: NOW,
+        correlation_id_factory=lambda: "8f604e56-0a23-4bda-b244-11ebc0194241",
+        idempotency_key_factory=lambda: "2d8327f6-826c-4f73-82a4-822e29f73065",
+    )
+    producer.run()
+
+    assert configured_futures_order_preview_artifact_path() == r7_path
+
+
+def test_default_readback_fails_closed_on_nonterminal_r7_claim(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    r7_path = tmp_path / "reserved-r7.jsonl"
+    monkeypatch.delenv(
+        "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_PATH",
+        raising=False,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R7_ARTIFACT_PATH",
+        r7_path,
+    )
+    producer = FuturesOrderPreviewProducer(
+        rest_client=FakePreviewRestClient(),
+        store=FuturesOrderPreviewArtifactStore(r7_path),
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R6_TERMINAL_BINDING,
+        predecessor_validator=lambda: dict(
+            preview_module.FUTURES_PREVIEW_R6_TERMINAL_BINDING
+        ),
+        artifact_type=preview_module.FUTURES_PREVIEW_R7_ARTIFACT_TYPE,
+        now=lambda: NOW,
+        correlation_id_factory=lambda: "8f604e56-0a23-4bda-b244-11ebc0194241",
+        idempotency_key_factory=lambda: "2d8327f6-826c-4f73-82a4-822e29f73065",
+    )
+    FuturesOrderPreviewArtifactStore(r7_path).reserve(producer.build_claim())
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="R7 terminal readback is invalid",
+    ):
+        configured_futures_order_preview_artifact_path()
+
+
+def test_default_route_returns_sanitized_503_for_nonterminal_r7_claim(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    r7_path = tmp_path / "reserved-private-r7.jsonl"
+    monkeypatch.delenv(
+        "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_PATH",
+        raising=False,
+    )
+    monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-token")
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R7_ARTIFACT_PATH",
+        r7_path,
+    )
+    producer = FuturesOrderPreviewProducer(
+        rest_client=FakePreviewRestClient(),
+        store=FuturesOrderPreviewArtifactStore(r7_path),
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R6_TERMINAL_BINDING,
+        predecessor_validator=lambda: dict(
+            preview_module.FUTURES_PREVIEW_R6_TERMINAL_BINDING
+        ),
+        artifact_type=preview_module.FUTURES_PREVIEW_R7_ARTIFACT_TYPE,
+        now=lambda: NOW,
+        correlation_id_factory=lambda: "8f604e56-0a23-4bda-b244-11ebc0194241",
+        idempotency_key_factory=lambda: "2d8327f6-826c-4f73-82a4-822e29f73065",
+    )
+    FuturesOrderPreviewArtifactStore(r7_path).reserve(producer.build_claim())
+
+    response = TestClient(create_app(), raise_server_exceptions=False).get(
+        "/api/v1/futures/order-preview",
+        headers={
+            "Authorization": "Bearer test-token",
+            "X-Admin-Actor": "operator-1",
+            "X-Admin-Roles": "viewer",
+        },
+    )
+
+    assert response.status_code == 503
+    assert response.json()["message"] == (
+        "Futures Preview evidence is unavailable or invalid"
+    )
+    assert response.json()["code"] == "backend_unavailable"
+    assert "8f604e56-0a23-4bda-b244-11ebc0194241" not in response.text
+
+
 def test_r6_policy_accepts_only_the_exact_authorized_profile_state_pair():
     snapshot = FakePreviewRestClient().get_futures_margin_collateral_snapshot()
     snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
@@ -2120,6 +2253,431 @@ def test_r6_response_rejects_policy_authority_and_seal_binding_tampering(
         }
     )
     with pytest.raises(ValidationError, match="r5_seal_plan_invalid"):
+        AdminFuturesOrderPreviewResponse.model_validate(seal_attack)
+
+
+def test_r7_fake_preview_binds_consumed_r6_v3_and_corrected_response_schema(
+    tmp_path: Path,
+):
+    assert preview_module.FUTURES_PREVIEW_R7_ARTIFACT_PATH.name == (
+        "futures_exact_no_live_preview_slice_2r7.jsonl"
+    )
+    rest_client = FakePreviewRestClient()
+    snapshot = rest_client.get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_UNSPECIFIED"
+    rest_client.get_futures_margin_collateral_snapshot = (  # type: ignore[method-assign]
+        lambda: snapshot
+    )
+    response = _preview()
+    response.pop("current_liquidation_buffer")
+    response.pop("projected_liquidation_buffer")
+    response["margin_ratio_data"] = {
+        "current_margin_ratio": "0.20",
+        "projected_margin_ratio": "0.25",
+    }
+    rest_client.preview_response = response
+    producer, store, _path = _producer(
+        tmp_path,
+        rest_client,
+        artifact_type=preview_module.FUTURES_PREVIEW_R7_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R6_TERMINAL_BINDING,
+    )
+
+    claim = producer.build_claim()
+    preview_module._validate_r7_claim_record(claim)
+    evidence = producer.run()
+
+    assert evidence == store.read_completed()
+    assert evidence["artifact_type"] == (
+        preview_module.FUTURES_PREVIEW_R7_ARTIFACT_TYPE
+    )
+    assert evidence["predecessor_binding"] == (
+        preview_module.FUTURES_PREVIEW_R6_TERMINAL_BINDING
+    )
+    assert claim["margin_window_policy_binding"] == (
+        preview_module.FUTURES_PREVIEW_R6_MARGIN_WINDOW_POLICY_BINDING
+    )
+    assert claim["preview_response_schema_binding"] == (
+        preview_module.FUTURES_PREVIEW_R7_RESPONSE_SCHEMA_BINDING
+    )
+    assert evidence["preview_response_schema_binding"] == (
+        preview_module.FUTURES_PREVIEW_R7_RESPONSE_SCHEMA_BINDING
+    )
+    assert evidence["preview_response"]["liquidation_evidence_source"] == (
+        "margin_ratio_data"
+    )
+    assert "predicted_liquidation_price" not in evidence["preview_response"]
+    assert evidence["seal_ready_plan"]["preview_response_schema_binding"] == (
+        preview_module.FUTURES_PREVIEW_R7_RESPONSE_SCHEMA_BINDING
+    )
+    assert evidence["attempt_counters"] == {
+        "preview_order": 1,
+        "retry": 0,
+        "fallback": 0,
+        "create_order": 0,
+        "cancel_order": 0,
+        "close_position": 0,
+        "reduce_position": 0,
+    }
+    assert evidence["exchange_submission_attempt_count"] == 0
+    assert evidence["submitted_notional_usdc"] == "0"
+    assert evidence["executed_notional_usdc"] == "0"
+    assert rest_client.forbidden_calls == []
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
+def test_r7_legacy_only_liquidation_response_is_blocked_and_consumed_once(
+    tmp_path: Path,
+):
+    rest_client = FakePreviewRestClient()
+    snapshot = rest_client.get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_UNSPECIFIED"
+    rest_client.get_futures_margin_collateral_snapshot = (  # type: ignore[method-assign]
+        lambda: snapshot
+    )
+    producer, store, path = _producer(
+        tmp_path,
+        rest_client,
+        artifact_type=preview_module.FUTURES_PREVIEW_R7_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R6_TERMINAL_BINDING,
+    )
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="preflight blocked; attempt consumed",
+    ):
+        producer.run()
+
+    evidence = store.read_completed()
+    assert evidence["outcome"] == "blocked"
+    assert evidence["blocker"] == "preflight_or_preview_blocked:ValueError"
+    assert evidence["attempt_counters"]["preview_order"] == 1
+    assert evidence["attempt_counters"]["retry"] == 0
+    assert len(rest_client.preview_calls) == 1
+    assert "preview_response" not in evidence
+    assert "preview-avp-1" not in path.read_text(encoding="utf-8")
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="already consumed"):
+        producer.run()
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
+@pytest.mark.parametrize(
+    "response_variant",
+    [
+        "complete_mixed",
+        "current_only_mixed",
+        "projected_only_mixed",
+        "current_empty_mixed",
+        "projected_empty_mixed",
+        "invalid_predicted_price",
+    ],
+)
+def test_r7_rejects_other_nonconforming_liquidation_response_shapes(
+    tmp_path: Path,
+    response_variant: str,
+):
+    rest_client = FakePreviewRestClient()
+    snapshot = rest_client.get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_UNSPECIFIED"
+    rest_client.get_futures_margin_collateral_snapshot = (  # type: ignore[method-assign]
+        lambda: snapshot
+    )
+    response = _preview()
+    response["margin_ratio_data"] = {
+        "current_margin_ratio": "0.20",
+        "projected_margin_ratio": "0.25",
+    }
+    if response_variant == "current_only_mixed":
+        response.pop("projected_liquidation_buffer")
+    elif response_variant == "projected_only_mixed":
+        response.pop("current_liquidation_buffer")
+    elif response_variant == "current_empty_mixed":
+        response.pop("projected_liquidation_buffer")
+        response["current_liquidation_buffer"] = ""
+    elif response_variant == "projected_empty_mixed":
+        response.pop("current_liquidation_buffer")
+        response["projected_liquidation_buffer"] = ""
+    elif response_variant == "invalid_predicted_price":
+        response.pop("current_liquidation_buffer")
+        response.pop("projected_liquidation_buffer")
+        response["predicted_liquidation_price"] = "0"
+    rest_client.preview_response = response
+    producer, store, path = _producer(
+        tmp_path,
+        rest_client,
+        artifact_type=preview_module.FUTURES_PREVIEW_R7_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R6_TERMINAL_BINDING,
+    )
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="preflight blocked; attempt consumed",
+    ):
+        producer.run()
+
+    evidence = store.read_completed()
+    assert evidence["outcome"] == "blocked"
+    assert evidence["attempt_counters"]["preview_order"] == 1
+    assert len(rest_client.preview_calls) == 1
+    assert "preview_response" not in evidence
+    assert "preview-avp-1" not in path.read_text(encoding="utf-8")
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
+def test_r7_model_rejects_accepted_legacy_only_liquidation_evidence(
+    tmp_path: Path,
+):
+    rest_client = FakePreviewRestClient()
+    snapshot = rest_client.get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_UNSPECIFIED"
+    rest_client.get_futures_margin_collateral_snapshot = (  # type: ignore[method-assign]
+        lambda: snapshot
+    )
+    response = _preview()
+    response.pop("current_liquidation_buffer")
+    response.pop("projected_liquidation_buffer")
+    response["margin_ratio_data"] = {
+        "current_margin_ratio": "0.20",
+        "projected_margin_ratio": "0.25",
+    }
+    rest_client.preview_response = response
+    producer, _store, _path = _producer(
+        tmp_path,
+        rest_client,
+        artifact_type=preview_module.FUTURES_PREVIEW_R7_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R6_TERMINAL_BINDING,
+    )
+    evidence = producer.run()
+    attack = deepcopy(evidence)
+    legacy_preview = deepcopy(attack["preview_response"])
+    legacy_preview.pop("margin_ratio_data")
+    legacy_preview["current_liquidation_buffer"] = "0.80"
+    legacy_preview["projected_liquidation_buffer"] = "0.75"
+    legacy_preview["liquidation_evidence_source"] = (
+        "current_and_projected_liquidation_buffer"
+    )
+    attack["preview_response"] = legacy_preview
+    attack["preview_response_sha256"] = canonical_sha256(legacy_preview)
+    authoritative_preview = attack["seal_ready_plan"]["authoritative_preview"]
+    authoritative_preview["preview_response"] = legacy_preview
+    authoritative_preview["preview_response_sha256"] = canonical_sha256(
+        legacy_preview
+    )
+    authoritative_preview["liquidation_evidence_source"] = (
+        "current_and_projected_liquidation_buffer"
+    )
+    authoritative_preview["liquidation_evidence"] = {
+        "current_liquidation_buffer": "0.80",
+        "projected_liquidation_buffer": "0.75",
+    }
+    attack["seal_ready_plan_sha256"] = canonical_sha256(
+        attack["seal_ready_plan"]
+    )
+    attack["evidence_sha256"] = canonical_sha256(
+        {key: value for key, value in attack.items() if key != "evidence_sha256"}
+    )
+
+    with pytest.raises(ValidationError, match="response_schema"):
+        AdminFuturesOrderPreviewResponse.model_validate(attack)
+
+
+def test_r7_claim_rejects_hashed_consumed_r6_identifiers(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    consumed_identifier = "11111111-1111-4111-8111-111111111111"
+    monkeypatch.setattr(
+        preview_module,
+        "_R7_CONSUMED_PREVIEW_IDENTIFIER_SHA256",
+        frozenset(
+            {
+                hashlib.sha256(consumed_identifier.encode("ascii")).hexdigest(),
+            }
+        ),
+        raising=False,
+    )
+    producer, _store, _path = _producer(
+        tmp_path,
+        FakePreviewRestClient(),
+        artifact_type=preview_module.FUTURES_PREVIEW_R7_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R6_TERMINAL_BINDING,
+    )
+
+    producer.correlation_id_factory = (
+        lambda: consumed_identifier
+    )
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="identifiers are not fresh",
+    ):
+        producer.build_claim()
+
+
+def test_r7_unknown_preview_consumes_once_without_retry_or_private_text(
+    tmp_path: Path,
+):
+    rest_client = FakePreviewRestClient(preview_error=TimeoutError("PRIVATE_R7"))
+    snapshot = rest_client.get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_UNSPECIFIED"
+    rest_client.get_futures_margin_collateral_snapshot = (  # type: ignore[method-assign]
+        lambda: snapshot
+    )
+    producer, store, path = _producer(
+        tmp_path,
+        rest_client,
+        artifact_type=preview_module.FUTURES_PREVIEW_R7_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R6_TERMINAL_BINDING,
+    )
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="outcome is unknown; attempt consumed",
+    ):
+        producer.run()
+
+    evidence = store.read_completed()
+    assert evidence["outcome"] == "unknown"
+    assert evidence["preview_response_schema_binding"] == (
+        preview_module.FUTURES_PREVIEW_R7_RESPONSE_SCHEMA_BINDING
+    )
+    assert evidence["attempt_counters"]["preview_order"] == 1
+    assert evidence["attempt_counters"]["retry"] == 0
+    assert len(rest_client.preview_calls) == 1
+    assert "PRIVATE_R7" not in path.read_text(encoding="utf-8")
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="already consumed"):
+        producer.run()
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
+def test_r7_post_preview_schema_block_is_sanitized_and_consumed_once(
+    tmp_path: Path,
+):
+    rest_client = FakePreviewRestClient()
+    snapshot = rest_client.get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_UNSPECIFIED"
+    rest_client.get_futures_margin_collateral_snapshot = (  # type: ignore[method-assign]
+        lambda: snapshot
+    )
+    response = _preview()
+    response.pop("current_liquidation_buffer")
+    response.pop("projected_liquidation_buffer")
+    response["margin_ratio_data"] = {
+        "current_margin_ratio": "PRIVATE_R7_VALUE",
+        "projected_margin_ratio": "0.25",
+    }
+    rest_client.preview_response = response
+    producer, store, path = _producer(
+        tmp_path,
+        rest_client,
+        artifact_type=preview_module.FUTURES_PREVIEW_R7_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R6_TERMINAL_BINDING,
+    )
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="preflight blocked; attempt consumed",
+    ):
+        producer.run()
+
+    evidence = store.read_completed()
+    assert evidence["outcome"] == "blocked"
+    assert evidence["preview_response_schema_binding"] == (
+        preview_module.FUTURES_PREVIEW_R7_RESPONSE_SCHEMA_BINDING
+    )
+    assert evidence["attempt_counters"]["preview_order"] == 1
+    assert evidence["attempt_counters"]["retry"] == 0
+    assert len(rest_client.preview_calls) == 1
+    assert "preview_response" not in evidence
+    assert "PRIVATE_R7_VALUE" not in path.read_text(encoding="utf-8")
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="already consumed"):
+        producer.run()
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
+def test_r7_rejects_response_schema_predecessor_and_seal_binding_drift(
+    tmp_path: Path,
+):
+    rest_client = FakePreviewRestClient()
+    snapshot = rest_client.get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_UNSPECIFIED"
+    rest_client.get_futures_margin_collateral_snapshot = (  # type: ignore[method-assign]
+        lambda: snapshot
+    )
+    response = _preview()
+    response.pop("current_liquidation_buffer")
+    response.pop("projected_liquidation_buffer")
+    response["margin_ratio_data"] = {
+        "current_margin_ratio": "0.20",
+        "projected_margin_ratio": "0.25",
+    }
+    rest_client.preview_response = response
+    producer, _store, _path = _producer(
+        tmp_path,
+        rest_client,
+        artifact_type=preview_module.FUTURES_PREVIEW_R7_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R6_TERMINAL_BINDING,
+    )
+    claim = producer.build_claim()
+
+    claim_attack = deepcopy(claim)
+    claim_attack["preview_response_schema_binding"][
+        "predicted_liquidation_price_required"
+    ] = True
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="R7 claim authority"):
+        preview_module._validate_r7_claim_record(claim_attack)
+
+    predecessor_attack = deepcopy(claim)
+    predecessor_attack["predecessor_binding"] = (
+        preview_module.FUTURES_PREVIEW_R5_TERMINAL_BINDING
+    )
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="R7 claim authority"):
+        preview_module._validate_r7_claim_record(predecessor_attack)
+
+    evidence = producer.run()
+    evidence_attack = deepcopy(evidence)
+    evidence_attack["preview_response_schema_binding"][
+        "predicted_liquidation_price_required"
+    ] = True
+    evidence_attack["evidence_sha256"] = canonical_sha256(
+        {
+            key: value
+            for key, value in evidence_attack.items()
+            if key != "evidence_sha256"
+        }
+    )
+    with pytest.raises(ValidationError, match="response_schema_binding"):
+        AdminFuturesOrderPreviewResponse.model_validate(evidence_attack)
+
+    seal_attack = deepcopy(evidence)
+    seal_attack["seal_ready_plan"]["preview_response_schema_binding"][
+        "predicted_liquidation_price_required"
+    ] = True
+    seal_attack["seal_ready_plan_sha256"] = canonical_sha256(
+        seal_attack["seal_ready_plan"]
+    )
+    seal_attack["evidence_sha256"] = canonical_sha256(
+        {
+            key: value
+            for key, value in seal_attack.items()
+            if key != "evidence_sha256"
+        }
+    )
+    with pytest.raises(ValidationError, match="seal_plan_invalid"):
         AdminFuturesOrderPreviewResponse.model_validate(seal_attack)
 
 
@@ -6129,6 +6687,185 @@ def test_r6_tool_confirmation_uses_exact_pair_and_only_one_fake_preview(
     AdminFuturesOrderPreviewResponse.model_validate(evidence)
 
 
+def test_r7_tool_preflight_is_dormant_and_validates_corrected_claim_contract(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    from tools import run_admin_api_futures_no_live_preview_r7 as r7_preview_tool
+
+    path = tmp_path / "fixed-r7-preview.jsonl"
+    monkeypatch.setattr(r7_preview_tool, "production_artifact_path", lambda: path)
+    monkeypatch.setattr(
+        r7_preview_tool,
+        "validate_production_predecessor",
+        lambda: dict(preview_module.FUTURES_PREVIEW_R6_TERMINAL_BINDING),
+    )
+    monkeypatch.setattr(
+        r7_preview_tool,
+        "build_rest_client",
+        lambda: (_ for _ in ()).throw(AssertionError("Coinbase client constructed")),
+    )
+
+    assert r7_preview_tool.main(["--preflight"]) == 0
+
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["status"] == "ready"
+    assert summary["predecessor_binding"] == (
+        preview_module.FUTURES_PREVIEW_R6_TERMINAL_BINDING
+    )
+    assert summary["preview_response_schema_binding"] == (
+        preview_module.FUTURES_PREVIEW_R7_RESPONSE_SCHEMA_BINDING
+    )
+    assert summary["claim_contract_ready"] is True
+    assert summary["artifact_created"] is False
+    assert summary["coinbase_read_ran"] is False
+    assert not path.exists()
+
+
+def test_r7_tool_preflight_redacts_unexpected_predecessor_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    from tools import run_admin_api_futures_no_live_preview_r7 as r7_preview_tool
+
+    path = tmp_path / "fixed-r7-preview.jsonl"
+    monkeypatch.setattr(r7_preview_tool, "production_artifact_path", lambda: path)
+    monkeypatch.setattr(
+        r7_preview_tool,
+        "validate_production_predecessor",
+        lambda: (_ for _ in ()).throw(
+            RuntimeError("PRIVATE_PREDECESSOR_IDENTIFIER")
+        ),
+    )
+    monkeypatch.setattr(
+        r7_preview_tool,
+        "build_rest_client",
+        lambda: (_ for _ in ()).throw(AssertionError("Coinbase client constructed")),
+    )
+
+    assert r7_preview_tool.main(["--preflight"]) == 2
+
+    captured = capsys.readouterr()
+    summary = json.loads(captured.out)
+    assert summary["status"] == "blocked"
+    assert summary["blocker"] == "futures_preview_r7_preflight_validation_blocked"
+    assert summary["artifact_created"] is False
+    assert summary["coinbase_read_ran"] is False
+    assert "PRIVATE_PREDECESSOR_IDENTIFIER" not in captured.out
+    assert "PRIVATE_PREDECESSOR_IDENTIFIER" not in captured.err
+    assert not path.exists()
+
+
+def test_r7_tool_preflight_redacts_fixed_path_check_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    from tools import run_admin_api_futures_no_live_preview_r7 as r7_preview_tool
+
+    class FailingPath:
+        def exists(self) -> bool:
+            raise OSError("PRIVATE_R7_PATH_CHECK")
+
+        def is_symlink(self) -> bool:
+            raise AssertionError("path check continued after failure")
+
+        def __str__(self) -> str:
+            return "PRIVATE_R7_PATH_VALUE"
+
+    monkeypatch.setattr(
+        r7_preview_tool,
+        "production_artifact_path",
+        lambda: FailingPath(),
+    )
+    monkeypatch.setattr(
+        r7_preview_tool,
+        "build_rest_client",
+        lambda: (_ for _ in ()).throw(AssertionError("Coinbase client constructed")),
+    )
+
+    assert r7_preview_tool.main(["--preflight"]) == 2
+
+    captured = capsys.readouterr()
+    summary = json.loads(captured.out)
+    assert summary["status"] == "blocked"
+    assert summary["blocker"] == "futures_preview_r7_preflight_validation_blocked"
+    assert summary["artifact_created"] is False
+    assert summary["coinbase_read_ran"] is False
+    assert "PRIVATE_R7_PATH_CHECK" not in captured.out
+    assert "PRIVATE_R7_PATH_CHECK" not in captured.err
+    assert "PRIVATE_R7_PATH_VALUE" not in captured.out
+    assert "PRIVATE_R7_PATH_VALUE" not in captured.err
+
+
+def test_r7_tool_confirmation_uses_one_corrected_fake_preview_and_no_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    from tools import run_admin_api_futures_no_live_preview_r7 as r7_preview_tool
+
+    path = tmp_path / "fixed-r7-preview.jsonl"
+    rest_client = FakePreviewRestClient()
+    snapshot = rest_client.get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_UNSPECIFIED"
+    rest_client.get_futures_margin_collateral_snapshot = (  # type: ignore[method-assign]
+        lambda: snapshot
+    )
+    response = _preview()
+    response.pop("current_liquidation_buffer")
+    response.pop("projected_liquidation_buffer")
+    response["margin_ratio_data"] = {
+        "current_margin_ratio": "0.20",
+        "projected_margin_ratio": "0.25",
+    }
+    rest_client.preview_response = response
+    live_book = _book()
+    live_book["pricebooks"][0]["time"] = datetime.now(  # type: ignore[index]
+        timezone.utc
+    ).isoformat()
+    rest_client.get_best_bid_ask = lambda **_kwargs: live_book  # type: ignore[method-assign]
+    monkeypatch.setattr(r7_preview_tool, "production_artifact_path", lambda: path)
+    monkeypatch.setattr(
+        r7_preview_tool,
+        "validate_production_predecessor",
+        lambda: dict(preview_module.FUTURES_PREVIEW_R6_TERMINAL_BINDING),
+    )
+    monkeypatch.setattr(
+        r7_preview_tool,
+        "build_rest_client",
+        lambda: r7_preview_tool.FuturesPreviewOnlyRestClient(rest_client),
+    )
+
+    assert r7_preview_tool.main(["--confirm-one-r7-preview"]) == 0
+
+    summary = json.loads(capsys.readouterr().out)
+    evidence = FuturesOrderPreviewArtifactStore(path).read_completed()
+    assert summary["status"] == "accepted"
+    assert "preview_id" not in summary
+    assert evidence["artifact_type"] == (
+        preview_module.FUTURES_PREVIEW_R7_ARTIFACT_TYPE
+    )
+    assert evidence["predecessor_binding"] == (
+        preview_module.FUTURES_PREVIEW_R6_TERMINAL_BINDING
+    )
+    assert evidence["preview_response_schema_binding"] == (
+        preview_module.FUTURES_PREVIEW_R7_RESPONSE_SCHEMA_BINDING
+    )
+    assert evidence["preview_response"]["liquidation_evidence_source"] == (
+        "margin_ratio_data"
+    )
+    assert evidence["attempt_counters"]["preview_order"] == 1
+    assert evidence["attempt_counters"]["retry"] == 0
+    assert evidence["exchange_submission_attempt_count"] == 0
+    assert len(rest_client.preview_calls) == 1
+    assert rest_client.forbidden_calls == []
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
 def test_openapi_exposes_typed_read_only_preview_contract():
     schema = create_app().openapi()
     operation = schema["paths"]["/api/v1/futures/order-preview"]["get"]
@@ -6148,6 +6885,7 @@ def test_openapi_exposes_typed_read_only_preview_contract():
         "futures_exact_no_live_preview_slice_2r4",
         "futures_exact_no_live_preview_slice_2r5",
         "futures_exact_no_live_preview_slice_2r6",
+        "futures_exact_no_live_preview_slice_2r7",
     }
     assert "margin_windows_policy_evidence" in response_schema["properties"]
     assert "predecessor_binding" in response_schema["required"]
@@ -6163,7 +6901,9 @@ def test_openapi_exposes_typed_read_only_preview_contract():
         "#/components/schemas/AdminFuturesPreviewR3PredecessorBinding",
         "#/components/schemas/AdminFuturesPreviewR4PredecessorBinding",
         "#/components/schemas/AdminFuturesPreviewR5PredecessorBinding",
+        "#/components/schemas/AdminFuturesPreviewR6PredecessorBinding",
     }
+    assert "preview_response_schema_binding" in response_schema["properties"]
     predecessor_schema = schema["components"]["schemas"][
         "AdminFuturesPreviewPredecessorBinding"
     ]

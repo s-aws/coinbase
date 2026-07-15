@@ -257,6 +257,7 @@ owners:
       - application/__init__.py
       - application/admin_api/**
       - docs/FUTURES_SLICE_2R6_TERMINAL_DIAGNOSIS.md
+      - docs/FUTURES_SLICE_2R7_PREPARATION.md
       - openapi/**
       - tools/export_admin_api_route_inventory.py
       - tests/regression/test_admin_api_*.py
@@ -273,6 +274,7 @@ owners:
       - tools/run_admin_api_futures_no_live_preview.py
       - tools/run_admin_api_futures_no_live_preview_r5.py
       - tools/run_admin_api_futures_no_live_preview_r6.py
+      - tools/run_admin_api_futures_no_live_preview_r7.py
       - tools/run_admin_api_manual_order_live_submit.py
       - tools/run_admin_api_spot_live_cancel.py
       - tools/run_admin_api_spot_live_order_readback.py

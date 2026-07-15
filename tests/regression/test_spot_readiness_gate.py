@@ -101,7 +101,7 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
             "current_priority": "futures_exact_no_live_preview_slice_2",
             "approved_phase_range_status": "historical_not_work_authority",
             "phase_range_work_allowed": False,
-            "default_next_action": "implement_and_audit_futures_slice_2_preview",
+            "default_next_action": "complete_authorized_slice_2r7_workflow",
             "ordered_successors": [
                 "futures_exact_no_live_preview_slice_2",
                 "futures_terminal_order_roundtrip_slice_3",

@@ -4,7 +4,7 @@ Goal ID: `futures_exact_no_live_preview_slice_2`
 
 Last reviewed: 2026-07-15 UTC.
 
-Status: `blocked — Slice 2R6 consumed without accepted Preview evidence; distinct follow-up decision required`
+Status: `in progress — Slice 2R7 end-to-end workflow authorized; audited one-use Preview pending`
 
 The canonical cross-repository authority is
 `/home/developer/coinbase/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. This
@@ -327,9 +327,29 @@ are `0`; submitted and executed notional are `0 USDC`; live execution is
 `not_run`. Default Admin API/UI readback selects immutable R6. R6 is consumed
 and cannot be retried. Slice 2 is not accepted and Slice 3 remains inactive.
 
+The operator has now authorized one end-to-end Slice 2R7 workflow. R7 preserves
+the exact V3 profile/state policy, `AVP-20DEC30-CDE`, one-contract scope, and
+strict `<100 / <150 / <300 USDC` caps while binding the corrected Coinbase
+Preview-response schema: documented `margin_ratio_data` replaces the legacy
+liquidation-buffer pair, and `predicted_liquidation_price` is optional but must
+be finite and positive when present. Preparation may use offline checks and
+official online documentation. After focused validation and independent safety
+plus blind contextless audit, exactly one Preview Order call is permitted with
+zero retries, fallbacks, redirects, or exchange mutations. An unknown outcome
+consumes R7. Authorized offline diagnosis and remediation continue after any
+failed gate or terminal result without another approval. No second Coinbase
+call, R8, Slice 3 activation, or other live authority is granted.
+
+The dormant R7 preflight validates the immutable R6-to-original chain and a
+disposable fresh claim without creating an artifact, hydrating credentials,
+constructing a Coinbase client, or calling an endpoint. Generated OpenAPI and
+frontend readback model the R7 schema binding and complete R6 through original
+predecessor chain. The production R7 artifact is still absent at this
+preparation checkpoint, so the one-use attempt remains unconsumed.
+
 `Default-profile Futures readback -> exact AVAX US CFM Coinbase Preview Order -> immutable operator-visible no-live preview readback`
 
-## Ordered Sequence — Slice 2 Blocked After Consumed R6
+## Ordered Sequence — Slice 2R7 In Progress
 
 Continue implementation and independent audit only in this order. Prospective
 operator authority permits crossing documented no-live acceptance boundaries,
@@ -478,3 +498,9 @@ partially fills, or fills.
 Use focused tests for ordinary changes. Run full backend/frontend suites only
 at durable milestone, release/deployment, cross-repository closeout, after
 broad cross-cutting changes, or when explicitly requested.
+
+For R7, a failed gate or unknown terminal outcome stops the exchange path but
+does not end the authorized workflow. Continue bounded offline diagnosis and
+remediation until the terminal classification and authorized offline work are
+complete. Stop the overall R7 workflow early only if continuing would require
+changing the product, contract count, V3 policy, caps, or one-call limit.

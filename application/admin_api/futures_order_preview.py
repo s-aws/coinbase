@@ -75,6 +75,11 @@ FUTURES_PREVIEW_R6_ARTIFACT_PATH = (
     / "artifacts"
     / "futures_exact_no_live_preview_slice_2r6.jsonl"
 )
+FUTURES_PREVIEW_R7_ARTIFACT_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "artifacts"
+    / "futures_exact_no_live_preview_slice_2r7.jsonl"
+)
 DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH = FUTURES_PREVIEW_R4_ARTIFACT_PATH
 FUTURES_PREVIEW_R1_FILE_SHA256 = (
     "55c09c6d4819f2d03dd679ae4c952e203cf540d1a141e13035459821f1b680d7"
@@ -175,8 +180,15 @@ FUTURES_PREVIEW_R6_ARTIFACT_TYPE = (
     "futures_exact_no_live_preview_slice_2r6"
 )
 _R6_ARTIFACT_TYPE = FUTURES_PREVIEW_R6_ARTIFACT_TYPE
+FUTURES_PREVIEW_R7_ARTIFACT_TYPE = (
+    "futures_exact_no_live_preview_slice_2r7"
+)
+_R7_ARTIFACT_TYPE = FUTURES_PREVIEW_R7_ARTIFACT_TYPE
 _SANITIZED_PREVIEW_ARTIFACT_TYPES = frozenset(
-    {_R5_ARTIFACT_TYPE, _R6_ARTIFACT_TYPE}
+    {_R5_ARTIFACT_TYPE, _R6_ARTIFACT_TYPE, _R7_ARTIFACT_TYPE}
+)
+_V3_MARGIN_WINDOW_ARTIFACT_TYPES = frozenset(
+    {_R6_ARTIFACT_TYPE, _R7_ARTIFACT_TYPE}
 )
 _MAX_ARTIFACT_BYTES = 2 * 1024 * 1024
 _NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
@@ -449,6 +461,34 @@ _R6_CONSUMED_PREVIEW_IDENTIFIERS = _CONSUMED_PREVIEW_IDENTIFIERS | {
     "aafa0078-be77-4b41-a2aa-672c8b26ecb3",
     "054682fc-3e55-46f5-8661-868f5f9c32cd",
 }
+_R7_CONSUMED_PREVIEW_IDENTIFIERS = _R6_CONSUMED_PREVIEW_IDENTIFIERS
+_R7_CONSUMED_PREVIEW_IDENTIFIER_SHA256 = frozenset(
+    {
+        "525928d556e0ad5461b4dee7424a4bb5040d9c3d224da5e91746a6587bed4115",
+        "b9177e87cec7b31c35e66a1281aaa5e36c404efa8cc52558388cc0aaa37938d9",
+    }
+)
+
+
+def _preview_identifier_was_consumed(
+    identifier: Any,
+    *,
+    artifact_type: str,
+) -> bool:
+    """Reject predecessor UUID reuse without exposing the latest raw IDs."""
+
+    consumed_identifiers = {
+        _R6_ARTIFACT_TYPE: _R6_CONSUMED_PREVIEW_IDENTIFIERS,
+        _R7_ARTIFACT_TYPE: _R7_CONSUMED_PREVIEW_IDENTIFIERS,
+    }.get(artifact_type, _CONSUMED_PREVIEW_IDENTIFIERS)
+    if isinstance(identifier, str) and identifier in consumed_identifiers:
+        return True
+    if artifact_type != _R7_ARTIFACT_TYPE or not isinstance(identifier, str):
+        return False
+    identifier_sha256 = hashlib.sha256(identifier.encode("utf-8")).hexdigest()
+    return identifier_sha256 in _R7_CONSUMED_PREVIEW_IDENTIFIER_SHA256
+
+
 FUTURES_PREVIEW_R6_MARGIN_WINDOW_POLICY_BINDING = {
     "schema_version": "3",
     "policy_id": "slice2_preview_margin_window_exact_pair_policy_v3",
@@ -475,6 +515,15 @@ FUTURES_PREVIEW_R6_MARGIN_WINDOW_POLICY_BINDING = {
     "execution_allowed": False,
     "create_order_eligibility_granted": False,
     "later_live_eligibility_granted": False,
+}
+FUTURES_PREVIEW_R7_RESPONSE_SCHEMA_BINDING = {
+    "schema_version": "1",
+    "policy_id": "slice2_preview_liquidation_evidence_schema_v1",
+    "schema_authority": "official_coinbase_advanced_trade_api_docs",
+    "margin_ratio_data_replaces_legacy_liquidation_buffers": True,
+    "predicted_liquidation_price_required": False,
+    "present_predicted_liquidation_price_policy": "finite_and_positive",
+    "persisted_response_policy": "sanitized_allowlist_only",
 }
 _SAFE_MARGIN_SETTING_TOKEN = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
 _SAFE_MARGIN_WINDOW_TOKEN = re.compile(r"^[A-Z][A-Z0-9_]{0,95}$")
@@ -707,6 +756,33 @@ def configured_futures_order_preview_artifact_path() -> Path:
     if configured:
         return Path(configured)
     try:
+        FUTURES_PREVIEW_R7_ARTIFACT_PATH.lstat()
+    except FileNotFoundError:
+        pass
+    except OSError:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R7 terminal readback is invalid"
+        ) from None
+    else:
+        try:
+            payload = FuturesOrderPreviewArtifactStore(
+                FUTURES_PREVIEW_R7_ARTIFACT_PATH
+            ).read_completed()
+            if payload.get("artifact_type") != _R7_ARTIFACT_TYPE:
+                raise FuturesOrderPreviewArtifactError(
+                    "futures Preview R7 terminal generation is invalid"
+                )
+            from application.admin_api.models import (
+                AdminFuturesOrderPreviewResponse,
+            )
+
+            AdminFuturesOrderPreviewResponse.model_validate(payload)
+        except Exception:
+            raise FuturesOrderPreviewArtifactError(
+                "futures Preview R7 terminal readback is invalid"
+            ) from None
+        return FUTURES_PREVIEW_R7_ARTIFACT_PATH
+    try:
         terminal_binding = (
             validate_production_futures_order_preview_r6_terminal()
         )
@@ -877,6 +953,11 @@ class FuturesOrderPreviewArtifactStore:
             and claim_record.get("artifact_type") == _R6_ARTIFACT_TYPE
         ):
             _validate_r6_claim_record(claim_record)
+        elif (
+            isinstance(claim_record, Mapping)
+            and claim_record.get("artifact_type") == _R7_ARTIFACT_TYPE
+        ):
+            _validate_r7_claim_record(claim_record)
         if not isinstance(claim_record, Mapping) or any(
             record.get(key) != claim_record.get(key)
             for key in (
@@ -1391,6 +1472,7 @@ class FuturesOrderPreviewProducer:
             _R4_ARTIFACT_TYPE,
             _R5_ARTIFACT_TYPE,
             _R6_ARTIFACT_TYPE,
+            _R7_ARTIFACT_TYPE,
         }:
             raise FuturesOrderPreviewArtifactError(
                 "futures Preview artifact generation is invalid"
@@ -1400,6 +1482,7 @@ class FuturesOrderPreviewProducer:
             _R4_ARTIFACT_TYPE: "futures_exact_no_live_preview_slice_2r3.jsonl",
             _R5_ARTIFACT_TYPE: "futures_exact_no_live_preview_slice_2r4.jsonl",
             _R6_ARTIFACT_TYPE: "futures_exact_no_live_preview_slice_2r5.jsonl",
+            _R7_ARTIFACT_TYPE: "futures_exact_no_live_preview_slice_2r6.jsonl",
         }[artifact_type]
         if predecessor_binding.get("artifact_name") != expected_predecessor_name:
             raise FuturesOrderPreviewArtifactError(
@@ -1435,14 +1518,15 @@ class FuturesOrderPreviewProducer:
             raise FuturesOrderPreviewArtifactError(
                 "futures Preview identifiers are not canonical UUIDv4"
             )
-        consumed_identifiers = (
-            _R6_CONSUMED_PREVIEW_IDENTIFIERS
-            if self.artifact_type == _R6_ARTIFACT_TYPE
-            else _CONSUMED_PREVIEW_IDENTIFIERS
-        )
         if (
-            correlation_id in consumed_identifiers
-            or idempotency_key in consumed_identifiers
+            _preview_identifier_was_consumed(
+                correlation_id,
+                artifact_type=self.artifact_type,
+            )
+            or _preview_identifier_was_consumed(
+                idempotency_key,
+                artifact_type=self.artifact_type,
+            )
             or correlation_id == idempotency_key
         ):
             raise FuturesOrderPreviewArtifactError(
@@ -1489,9 +1573,13 @@ class FuturesOrderPreviewProducer:
             "ledger_created": False,
             "runtime_created": False,
         }
-        if self.artifact_type == _R6_ARTIFACT_TYPE:
+        if self.artifact_type in _V3_MARGIN_WINDOW_ARTIFACT_TYPES:
             claim["margin_window_policy_binding"] = deepcopy(
                 FUTURES_PREVIEW_R6_MARGIN_WINDOW_POLICY_BINDING
+            )
+        if self.artifact_type == _R7_ARTIFACT_TYPE:
+            claim["preview_response_schema_binding"] = deepcopy(
+                FUTURES_PREVIEW_R7_RESPONSE_SCHEMA_BINDING
             )
         return claim
 
@@ -1582,7 +1670,7 @@ class FuturesOrderPreviewProducer:
                             margin_collateral
                         )
                     )
-                elif self.artifact_type == _R6_ARTIFACT_TYPE:
+                elif self.artifact_type in _V3_MARGIN_WINDOW_ARTIFACT_TYPES:
                     terminal_context.update(
                         slice2_preview_margin_windows_pair_policy_context(
                             margin_collateral
@@ -1597,7 +1685,7 @@ class FuturesOrderPreviewProducer:
                             margin_collateral
                         )
                     )
-                elif self.artifact_type == _R6_ARTIFACT_TYPE:
+                elif self.artifact_type in _V3_MARGIN_WINDOW_ARTIFACT_TYPES:
                     available_margin = (
                         validate_slice2_preview_r6_margin_collateral_evidence(
                             margin_collateral
@@ -1625,7 +1713,7 @@ class FuturesOrderPreviewProducer:
                 ):
                     policy_context = (
                         slice2_preview_margin_windows_pair_policy_context
-                        if self.artifact_type == _R6_ARTIFACT_TYPE
+                        if self.artifact_type in _V3_MARGIN_WINDOW_ARTIFACT_TYPES
                         else slice2_preview_margin_windows_policy_context
                     )
                     terminal_context.update(policy_context(margin_collateral))
@@ -1727,7 +1815,12 @@ class FuturesOrderPreviewProducer:
                 raise FuturesOrderPreviewArtifactError(
                     "futures Preview outcome is unknown; attempt consumed"
                 ) from exc
-            normalized_preview = validate_preview_response(preview_response)
+            if self.artifact_type == _R7_ARTIFACT_TYPE:
+                normalized_preview = validate_r7_preview_response_schema(
+                    preview_response
+                )
+            else:
+                normalized_preview = validate_preview_response(preview_response)
             terminal_context["preview_response"] = normalized_preview
             terminal_context["preview_response_sha256"] = canonical_sha256(
                 normalized_preview
@@ -2082,6 +2175,52 @@ def validate_preview_response(value: Any) -> dict[str, Any]:
     return sanitized
 
 
+def validate_r7_preview_response_schema(
+    value: Any,
+) -> dict[str, Any]:
+    """Validate raw R7 evidence before shared normalization can drop fields."""
+
+    response = _mapping(value)
+    if any(
+        field in response
+        for field in (
+            "current_liquidation_buffer",
+            "projected_liquidation_buffer",
+        )
+    ):
+        raise ValueError(
+            "futures_preview_r7_response_schema_liquidation_evidence_invalid"
+        )
+    normalized = validate_preview_response(response)
+    liquidation_source = normalized.get("liquidation_evidence_source")
+    if liquidation_source not in {
+        "margin_ratio_data",
+        "margin_ratio_data_and_predicted_liquidation_price",
+    }:
+        raise ValueError(
+            "futures_preview_r7_response_schema_liquidation_evidence_invalid"
+        )
+    margin_ratio_data = normalized.get("margin_ratio_data")
+    if not isinstance(margin_ratio_data, Mapping) or set(margin_ratio_data) != {
+        "current_margin_ratio",
+        "projected_margin_ratio",
+    }:
+        raise ValueError(
+            "futures_preview_r7_response_schema_liquidation_evidence_invalid"
+        )
+    if (
+        liquidation_source == "margin_ratio_data"
+        and "predicted_liquidation_price" in normalized
+    ) or (
+        liquidation_source == "margin_ratio_data_and_predicted_liquidation_price"
+        and "predicted_liquidation_price" not in normalized
+    ):
+        raise ValueError(
+            "futures_preview_r7_response_schema_liquidation_evidence_invalid"
+        )
+    return normalized
+
+
 def validate_margin_collateral_evidence(value: Any) -> Decimal:
     """Return authoritative available US CFM margin or fail closed."""
 
@@ -2391,11 +2530,15 @@ def _accepted_evidence(
         evidence.update(
             slice2_preview_margin_windows_policy_context(margin_collateral)
         )
-    elif claim["artifact_type"] == _R6_ARTIFACT_TYPE:
+    elif claim["artifact_type"] in _V3_MARGIN_WINDOW_ARTIFACT_TYPES:
         evidence.update(
             slice2_preview_margin_windows_pair_policy_context(
                 margin_collateral
             )
+        )
+    if claim["artifact_type"] == _R7_ARTIFACT_TYPE:
+        evidence["preview_response_schema_binding"] = deepcopy(
+            claim["preview_response_schema_binding"]
         )
     evidence["evidence_sha256"] = canonical_sha256(evidence)
     return evidence
@@ -2470,6 +2613,10 @@ def _terminal_failure_record(
             evidence["pre_preview_stage_evidence_sha256"] = (
                 stage_evidence_sha256
             )
+    if claim["artifact_type"] == _R7_ARTIFACT_TYPE:
+        evidence["preview_response_schema_binding"] = deepcopy(
+            claim["preview_response_schema_binding"]
+        )
     evidence["evidence_sha256"] = canonical_sha256(evidence)
     return evidence
 
@@ -2528,7 +2675,7 @@ def _terminal_attempt_context(
         context.update(
             slice2_preview_margin_windows_policy_context(margin_collateral)
         )
-    elif artifact_type == _R6_ARTIFACT_TYPE:
+    elif artifact_type in _V3_MARGIN_WINDOW_ARTIFACT_TYPES:
         context.update(
             slice2_preview_margin_windows_pair_policy_context(
                 margin_collateral
@@ -3553,7 +3700,7 @@ def _seal_ready_plan(
         plan["preflight_evidence_hashes"][
             "margin_windows_policy_evidence"
         ] = policy_context["margin_windows_policy_evidence_sha256"]
-    elif claim["artifact_type"] == _R6_ARTIFACT_TYPE:
+    elif claim["artifact_type"] in _V3_MARGIN_WINDOW_ARTIFACT_TYPES:
         policy_context = slice2_preview_margin_windows_pair_policy_context(
             margin_collateral
         )
@@ -3562,6 +3709,10 @@ def _seal_ready_plan(
         ] = policy_context["margin_windows_policy_evidence_sha256"]
         plan["margin_window_policy_binding"] = deepcopy(
             claim["margin_window_policy_binding"]
+        )
+    if claim["artifact_type"] == _R7_ARTIFACT_TYPE:
+        plan["preview_response_schema_binding"] = deepcopy(
+            claim["preview_response_schema_binding"]
         )
     return plan
 
@@ -3822,6 +3973,73 @@ def _validate_r6_claim_record(claim: Mapping[str, Any]) -> None:
         raise FuturesOrderPreviewArtifactError(
             "futures Preview R6 claim authority is invalid"
         )
+
+
+def _validate_r7_claim_record(claim: Mapping[str, Any]) -> None:
+    """Reject any R7 drift while preserving the exact R6 V3 scope."""
+
+    expected_r7_keys = {
+        "artifact_type",
+        "claim_status",
+        "predecessor_binding",
+        "reserved_at",
+        "actor_id",
+        "roles",
+        "correlation_id",
+        "idempotency_key",
+        "profile_label",
+        "portfolio_type",
+        "product_id",
+        "contract_count",
+        "caps",
+        "allowed_coinbase_methods",
+        "preview_order_attempt_max",
+        "retry_attempt_max",
+        "fallback_attempt_max",
+        "create_order_attempt_max",
+        "cancel_order_attempt_max",
+        "close_position_attempt_max",
+        "reduce_position_attempt_max",
+        "marker_created",
+        "ledger_created",
+        "runtime_created",
+        "margin_window_policy_binding",
+        "preview_response_schema_binding",
+    }
+    correlation_id = claim.get("correlation_id")
+    idempotency_key = claim.get("idempotency_key")
+    if (
+        set(claim) != expected_r7_keys
+        or claim.get("artifact_type") != _R7_ARTIFACT_TYPE
+        or claim.get("predecessor_binding")
+        != FUTURES_PREVIEW_R6_TERMINAL_BINDING
+        or claim.get("margin_window_policy_binding")
+        != FUTURES_PREVIEW_R6_MARGIN_WINDOW_POLICY_BINDING
+        or claim.get("preview_response_schema_binding")
+        != FUTURES_PREVIEW_R7_RESPONSE_SCHEMA_BINDING
+        or _preview_identifier_was_consumed(
+            correlation_id,
+            artifact_type=_R7_ARTIFACT_TYPE,
+        )
+        or _preview_identifier_was_consumed(
+            idempotency_key,
+            artifact_type=_R7_ARTIFACT_TYPE,
+        )
+    ):
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R7 claim authority is invalid"
+        )
+
+    r6_equivalent = dict(claim)
+    r6_equivalent.pop("preview_response_schema_binding")
+    r6_equivalent["artifact_type"] = _R6_ARTIFACT_TYPE
+    r6_equivalent["predecessor_binding"] = FUTURES_PREVIEW_R5_TERMINAL_BINDING
+    try:
+        _validate_r6_claim_record(r6_equivalent)
+    except FuturesOrderPreviewArtifactError as exc:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R7 claim authority is invalid"
+        ) from exc
 
 
 def _zero_read_counters() -> dict[str, int]:

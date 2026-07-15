@@ -158,9 +158,14 @@ def get_authoritative_futures_read_service() -> AdminMvpService:
 def get_futures_order_preview_store() -> FuturesOrderPreviewArtifactStore:
     """Return the disk-only one-shot Preview evidence reader."""
 
-    return FuturesOrderPreviewArtifactStore(
-        configured_futures_order_preview_artifact_path()
-    )
+    try:
+        path = configured_futures_order_preview_artifact_path()
+    except FuturesOrderPreviewArtifactError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Futures Preview evidence is unavailable or invalid",
+        ) from exc
+    return FuturesOrderPreviewArtifactStore(path)
 
 
 TReadModel = TypeVar("TReadModel", bound=BaseModel)

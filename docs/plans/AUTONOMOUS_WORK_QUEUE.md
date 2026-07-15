@@ -2,10 +2,12 @@
 
 Historical planning record; not current work authority.
 
-Current goal id `selected_order_execution_closeout_slice` is documented in
-`genai_data/AGENT_MVP_REBUILD_GOAL.md` and the frontend canonical goal. The
-phase range below is a frozen compatibility/release artifact and cannot
-reactivate M57 or promote M58 fan-out/scheduler work.
+Current goal id `futures_exact_no_live_preview_slice_2` and action
+`complete_authorized_slice_2r7_workflow` are documented in
+`genai_data/AGENT_MVP_REBUILD_GOAL.md` and the frontend canonical goal. This
+historical queue does not grant or broaden that authority. The phase range
+below is a frozen compatibility/release artifact and cannot reactivate M57 or
+promote M58 fan-out/scheduler work.
 
 This document records durable approval for unattended work on this project.
 It exists so a contextless maintainer or agent can continue approved work
@@ -75,8 +77,9 @@ The former M57 policy and its controlled-live continuous-deployment objective
 are no longer active. Do not execute `complete_current_approved_range`.
 Do not execute `work_mvp_cd_blockers_before_phase_range`. Current work must
 come from goal id
-`selected_order_execution_closeout_slice`; this document cannot select or promote
-a next action.
+`futures_exact_no_live_preview_slice_2`, whose active action is
+`complete_authorized_slice_2r7_workflow`; this document cannot select or
+promote a next action.
 
 Durable future plan:
 [USDC Pair Snapshot Limit Automation MVP](USDC_PAIR_SNAPSHOT_LIMIT_AUTOMATION_MVP.md)

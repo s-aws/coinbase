@@ -129,3 +129,11 @@ The correction does not establish the exact cause of consumed R6. R6 remains
 unchanged and its exact rejected field remains unrecoverable. The correction
 only removes the independently verified schema incompatibility candidate from
 future offline validation behavior.
+
+## Subsequent authority
+
+The validator correction was validated with sanitized synthetic fixtures and
+independent audits. A later explicit operator authorization now activates the
+separate end-to-end R7 workflow documented in
+[Futures Slice 2R7 preparation](FUTURES_SLICE_2R7_PREPARATION.md). This does not
+change or retry R6, reconstruct its withheld response, or activate Slice 3.
