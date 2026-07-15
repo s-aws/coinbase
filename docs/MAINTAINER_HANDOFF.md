@@ -217,6 +217,61 @@ create a separate approval class.
   post-execution audit recomputed the artifact, evidence, and diagnostic hashes,
   validated the complete predecessor chain and default GET, and returned `PASS`.
   The R4 phase-end subagent sweep found no required reviewer still running.
+- The operator then authorized offline-only diagnosis of the consumed R4
+  margin-window ambiguity. The exact proven boundary is row `0`, recognized
+  profile `retail_regular`, ready row, nested window mapping, present trimmed
+  safe string, followed by failure against the singleton operational allowlist
+  `{MARGIN_WINDOW_TYPE_INTRADAY}`. R4 intentionally withholds the literal and
+  therefore does not prove it, the window end time, kill switches, row `1`,
+  sweeps, or final positive-margin evidence. SDK intraday/overnight semantics,
+  late-evening timing, the cached official `MARGIN_WINDOW_TYPE_UNSPECIFIED`
+  example, and separate `FCM_MARGIN_WINDOW_TYPE_*` values are diagnostic clues
+  only; none may broaden the REST allowlist. Focused validation passed `44`
+  tests, two independent offline audits agreed with the fail-closed boundary,
+  and all five consumed artifacts remained byte-identical. No production code,
+  schema, eligibility, R5 artifact, Coinbase call, marker, ledger, or runtime
+  was created.
+- Proposed distinct R5 authorization wording, not yet granted:
+
+  > AUTHORIZE primary-source-only online verification of the exact Coinbase
+  > Advanced Trade US CFM Get Current Margin Window `margin_window_type` enum
+  > and its documented profile/state semantics, limited to official Coinbase
+  > documentation. Implement versioned, typed, sanitized documented-versus-
+  > operational margin-window evidence and an exact profile/state policy only
+  > if that primary evidence is unambiguous. Limit that policy to Slice 2
+  > Preview eligibility; it grants no Create Order or later live eligibility.
+  > Preserve exact V1 readback of the consumed R4 diagnostic, followed by
+  > focused validation and independent audit. Effective only after those gates
+  > pass, AUTHORIZE one fresh Slice 2R5
+  > Preview-only evidence attempt through a fixed one-use R5 entrypoint using a
+  > new immutable claim/result artifact bound to the consumed Slice 2R4 artifact
+  > with file SHA-256
+  > `90691e5b24c17fca5f3d1a67f942ea0b4b067e262435bcdf37e516f79ebb66cf`
+  > and evidence SHA-256
+  > `0edeffdb0702ba119a7d9c3e32874b75e295ee596538432df5f7be0a67a4af3e`,
+  > while preserving and never modifying, deleting, reusing, or retrying the
+  > consumed Slice 2, Slice 2R1, Slice 2R2, Slice 2R3, and Slice 2R4 artifacts.
+  > Permit the fixed backend-owned permission, portfolio, product, market,
+  > position, balance, intraday-margin-setting/window, and sweep preflight
+  > reads, plus at most one Coinbase Preview Order call for the permission-
+  > selected Default/DEFAULT US CFM AVAX perp-style future AVP-20DEC30-CDE,
+  > exactly one contract, actor operator-controlled-futures-proof with BFF role
+  > trader, strict opening/reference below 100.00 USDC, maximum exposure and
+  > 1.20-buffered close each below 150.00 USDC, and branch turnover below
+  > 300.00 USDC. Require the versioned diagnostic to expose an observed token
+  > only when it exactly matches the verified documented allowlist; withhold
+  > undocumented or malformed values, raw responses, external exception text,
+  > and unknown identifiers. Zero retries, fallback calls, redirects, redirect
+  > replays, Create Order, Cancel Order, Close Position, Reduce, marker, ledger,
+  > replacement runtime, or other exchange-mutation attempts. If the official
+  > enum or profile/state semantics are ambiguous, do not implement an allowlist
+  > or profile-policy expansion and do not reserve, claim, or create R5. Only
+  > after that primary evidence is unambiguous and implementation, focused
+  > validation, and independent audit pass may R5 be created. After creation,
+  > any ambiguity in predecessor, profile, product, contract, position,
+  > margin/collateral, liquidation, freshness, diagnostic, or cap
+  > evidence consumes R5 terminally before Preview. Any unknown Preview outcome
+  > consumes R5 and may not be retried.
 - Offline R3 diagnostic preparation validation: focused backend Preview and
   Admin API contract coverage passed (`165 passed`), ownership, Python compile,
   OpenAPI freshness, and diff checks passed; focused frontend rendering passed

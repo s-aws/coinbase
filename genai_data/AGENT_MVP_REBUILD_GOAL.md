@@ -2,7 +2,7 @@
 
 Goal ID: `futures_exact_no_live_preview_slice_2`
 
-Last reviewed: 2026-07-13 UTC.
+Last reviewed: 2026-07-15 UTC.
 
 Status: `active`
 
@@ -171,6 +171,39 @@ An independent post-execution audit recomputed the artifact, evidence, and typed
 diagnostic hashes and returned `PASS`. R4 is consumed and cannot be retried.
 Slice 2 is not accepted, Slice 3 remains inactive, and any offline diagnosis or
 distinct follow-up attempt requires a new explicit operator decision.
+
+On 2026-07-15 the operator authorized offline-only diagnosis of the consumed R4
+margin-window ambiguity, focused validation, independent audit, and preparation
+of proposed distinct R5 wording. That authority granted no Coinbase call,
+Preview attempt, exchange mutation, marker, ledger, runtime, or production
+implementation. The diagnosis localized the exact failure boundary: R4 proves
+that the response container, row `0`, recognized `retail_regular` profile,
+ready status, nested margin-window mapping, field presence, string type,
+trimming, and safe-token form all passed. The returned value then failed the
+singleton operational allowlist `{MARGIN_WINDOW_TYPE_INTRADAY}`. Because the
+classifier raised at that point, R4 does not prove the literal token,
+`end_time`, kill-switch values, row `1`, sweeps, or the later positive-margin
+check.
+
+The consumed artifact intentionally makes the token unrecoverable. The
+installed official Coinbase SDK describes Get Current Margin Window as
+selecting intraday versus overnight rates but models `margin_window_type` only
+as `str`. R4 ran at approximately 23:57 Eastern, making an overnight semantic
+state plausible, while a cached official example uses
+`MARGIN_WINDOW_TYPE_UNSPECIFIED`; neither clue proves the returned literal.
+The separate `FCM_MARGIN_WINDOW_TYPE_*` balance-summary values are a different
+field and cannot be converted into a REST allowlist. No offline evidence
+justifies exposing or accepting `OVERNIGHT`, `UNSPECIFIED`, `WEEKEND`,
+`TRANSITION`, or any other inferred value.
+
+Focused validation passed `44` margin-window/R4 tests, including immutable
+predecessor binding, default operator readback, sanitized diagnostic behavior,
+unknown-token rejection, and terminal zero-Preview behavior. Independent
+forensic and safety audits agree that R5 must first verify the exact REST enum
+and profile/state semantics from official Coinbase primary sources. All five
+consumed artifacts remain byte-identical and retain their original hashes and
+read-only metadata. No code, schema, diagnostic version, allowlist, profile
+policy, R5 claim, or R5 artifact was created during this diagnosis.
 
 `Default-profile Futures readback -> exact AVAX US CFM Coinbase Preview Order -> immutable operator-visible no-live preview readback`
 
