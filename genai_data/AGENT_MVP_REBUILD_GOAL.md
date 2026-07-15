@@ -4,7 +4,7 @@ Goal ID: `futures_exact_no_live_preview_slice_2`
 
 Last reviewed: 2026-07-15 UTC.
 
-Status: `blocked — Slice 2R6 prepared no-live; exact R6 execution authorization required`
+Status: `blocked — Slice 2R6 consumed without accepted Preview evidence; distinct follow-up decision required`
 
 The canonical cross-repository authority is
 `/home/developer/coinbase/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. This
@@ -310,9 +310,26 @@ consumed R1-R5 evidence remain byte-identical and are still validated against
 their exact file hashes. This authorization creates no R6 claim or Coinbase
 call and does not broaden the existing one-use Preview scope.
 
+After focused validation, independent safety and blind contextless audits,
+contract-pair remediation, and synchronized pushed commits, R6 ran exactly
+once on 2026-07-15. The V3 exact profile/state policy passed and all six fixed
+read counters are `1`. Exactly one Coinbase Preview call occurred. The attempt
+then stopped terminally with sanitized blocker
+`preflight_or_preview_blocked:ValueError`; no exact internal exception,
+Preview response, or seal-ready plan is persisted and none may be guessed. The
+immutable R6 artifact is
+`artifacts/futures_exact_no_live_preview_slice_2r6.jsonl`, file SHA-256
+`df5959e95ed4a6027e6c0a6980045fc685e7dd201158b39ff5fcc9577bf73904`,
+and evidence SHA-256
+`bf26fa6b0f67499dea02f337517c1ebd42ae9a20c88fbb5cfbe45e3f30f9e4f9`.
+Retry, fallback, Create, Cancel, Close, Reduce, and exchange-submission counters
+are `0`; submitted and executed notional are `0 USDC`; live execution is
+`not_run`. Default Admin API/UI readback selects immutable R6. R6 is consumed
+and cannot be retried. Slice 2 is not accepted and Slice 3 remains inactive.
+
 `Default-profile Futures readback -> exact AVAX US CFM Coinbase Preview Order -> immutable operator-visible no-live preview readback`
 
-## Ordered Sequence — Slice 2 Blocked At R6 Execution Authorization
+## Ordered Sequence — Slice 2 Blocked After Consumed R6
 
 Continue implementation and independent audit only in this order. Prospective
 operator authority permits crossing documented no-live acceptance boundaries,

@@ -131,26 +131,28 @@ create a separate approval class.
 
 ## Current Handoff State
 
-- Slice 2 is now blocked only at a separate R6 execution authorization. The
+- Slice 2 is blocked after the authorized R6 attempt was consumed without
+  accepted Preview evidence. The
   consumed immutable R5 file/evidence SHA-256 pair remains
   `4988e23886d218d25be518203676bec4f27a2199a0ed2e7f36d0d7e1d8e6bbf7` /
   `194cdd842944f8a453408051c04ff8e117b6b2b3ab6dcd7b1e78f44f4a5a467f`.
-  R6 implementation, focused validation, independent audit, generated
-  contract/UI readback, and dormant preflight preparation are complete. V3
-  accepts exactly regular=`MARGIN_WINDOW_TYPE_UNSPECIFIED` plus intraday
-  profile=`MARGIN_WINDOW_TYPE_INTRADAY`, labels that mapping operator-defined,
-  Slice-2-Preview-only, and not Coinbase-documented, and grants no R6 attempt,
-  Create, execution, or later-live authority. Default API/UI readback remains
-  R5. No R6 claim/artifact/client/Coinbase call, marker, ledger, or runtime has
-  been created. Do not invoke `--confirm-one-r6-preview` until the operator
-  approves the prepared exact wording; Slice 3 remains inactive.
+  R6 made exactly one Preview call after the V3 exact profile/state policy
+  passed, then stopped with sanitized
+  `preflight_or_preview_blocked:ValueError`. Its file/evidence SHA-256 pair is
+  `df5959e95ed4a6027e6c0a6980045fc685e7dd201158b39ff5fcc9577bf73904` /
+  `bf26fa6b0f67499dea02f337517c1ebd42ae9a20c88fbb5cfbe45e3f30f9e4f9`.
+  It persisted no Preview response or seal-ready plan. Retry, fallback, Create,
+  Cancel, Close, Reduce, exchange-submission, submitted-notional, and
+  executed-notional values are zero; live execution is `not_run`. Default
+  API/UI readback selects immutable R6. Do not retry R6. Slice 2 is not accepted
+  and Slice 3 remains inactive pending a distinct operator follow-up decision.
   The operator subsequently approved that wording and a separate no-live
   migration-aware re-preparation. The S3 migration package restored the exact
   consumed R1-R5 bytes and hashes into the Docker workspace. Their original
   nanosecond mtimes were restored; only physical device/inode bindings may be
   rebound for Docker. Historical EC2 ancestry embedded in consumed evidence
   remains unchanged and must still validate. Complete focused validation and
-  independent audit before invoking the already-authorized one-use R6 path.
+  independent audit before the now-consumed one-use R6 path.
   Focused backend and frontend validation passed. Independent safety and blind
   contextless reviews found one P2 contract issue: OpenAPI initially exposed
   restored/historical device and inode values as independent enums. The

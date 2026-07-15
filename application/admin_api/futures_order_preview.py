@@ -131,6 +131,17 @@ FUTURES_PREVIEW_R5_INODE = 400177
 FUTURES_PREVIEW_R5_SIZE = 11647
 FUTURES_PREVIEW_R5_MODE = 0o400
 FUTURES_PREVIEW_R5_MTIME_NS = 1784111957686383208
+FUTURES_PREVIEW_R6_FILE_SHA256 = (
+    "df5959e95ed4a6027e6c0a6980045fc685e7dd201158b39ff5fcc9577bf73904"
+)
+FUTURES_PREVIEW_R6_EVIDENCE_SHA256 = (
+    "bf26fa6b0f67499dea02f337517c1ebd42ae9a20c88fbb5cfbe45e3f30f9e4f9"
+)
+FUTURES_PREVIEW_R6_DEVICE = 2096
+FUTURES_PREVIEW_R6_INODE = 400333
+FUTURES_PREVIEW_R6_SIZE = 18567
+FUTURES_PREVIEW_R6_MODE = 0o400
+FUTURES_PREVIEW_R6_MTIME_NS = 1784122432722849234
 FUTURES_PREVIEW_ORIGINAL_FILE_SHA256 = (
     "9b15da86c172eca46d4b3dc0fc2b81e9b325df9a1e2f75fef79362f538e2d5ff"
 )
@@ -358,6 +369,24 @@ FUTURES_PREVIEW_R5_TERMINAL_BINDING = {
     "executed_notional_usdc": "0",
     "preservation": "immutable_no_modify_delete_or_reuse",
     "original_predecessor_binding": FUTURES_PREVIEW_R4_PREDECESSOR_BINDING,
+}
+FUTURES_PREVIEW_R6_TERMINAL_BINDING = {
+    "artifact_name": "futures_exact_no_live_preview_slice_2r6.jsonl",
+    "file_sha256": FUTURES_PREVIEW_R6_FILE_SHA256,
+    "evidence_sha256": FUTURES_PREVIEW_R6_EVIDENCE_SHA256,
+    "device": str(FUTURES_PREVIEW_R6_DEVICE),
+    "inode": str(FUTURES_PREVIEW_R6_INODE),
+    "size_bytes": FUTURES_PREVIEW_R6_SIZE,
+    "mode": f"{FUTURES_PREVIEW_R6_MODE:04o}",
+    "mtime_ns": str(FUTURES_PREVIEW_R6_MTIME_NS),
+    "status": "blocked",
+    "outcome": "blocked",
+    "preview_order_attempt_count": 1,
+    "exchange_submission_attempt_count": 0,
+    "submitted_notional_usdc": "0",
+    "executed_notional_usdc": "0",
+    "preservation": "immutable_no_modify_delete_or_reuse",
+    "original_predecessor_binding": FUTURES_PREVIEW_R5_TERMINAL_BINDING,
 }
 
 
@@ -672,11 +701,27 @@ def canonical_sha256(value: Any) -> str:
 
 
 def configured_futures_order_preview_artifact_path() -> Path:
-    """Resolve R4 until R5 is immutable; then expose R5 fail closed."""
+    """Expose the latest exact immutable terminal, falling back fail closed."""
 
     configured = os.environ.get(FUTURES_PREVIEW_ARTIFACT_ENV, "").strip()
     if configured:
         return Path(configured)
+    try:
+        terminal_binding = (
+            validate_production_futures_order_preview_r6_terminal()
+        )
+        if terminal_binding == FUTURES_PREVIEW_R6_TERMINAL_BINDING:
+            payload = FuturesOrderPreviewArtifactStore(
+                FUTURES_PREVIEW_R6_ARTIFACT_PATH
+            ).read_completed()
+            from application.admin_api.models import (
+                AdminFuturesOrderPreviewResponse,
+            )
+
+            AdminFuturesOrderPreviewResponse.model_validate(payload)
+            return FUTURES_PREVIEW_R6_ARTIFACT_PATH
+    except Exception:
+        pass
     try:
         terminal_binding = (
             validate_production_futures_order_preview_r5_terminal()
@@ -978,6 +1023,7 @@ def validate_futures_order_preview_predecessor(
         FUTURES_PREVIEW_ORIGINAL_PREDECESSOR_BINDING
     ),
     expected_evidence_predecessor_binding: Mapping[str, Any] | None = None,
+    expected_preview_order_attempt_count: int = 0,
 ) -> dict[str, Any]:
     """Read and bind one exact immutable terminal Preview predecessor."""
 
@@ -1061,7 +1107,7 @@ def validate_futures_order_preview_predecessor(
     reads = _mapping(evidence.get("read_counters"))
     artifacts = _mapping(evidence.get("artifacts"))
     expected_zero_attempts = {
-        "preview_order": 0,
+        "preview_order": expected_preview_order_attempt_count,
         "retry": 0,
         "fallback": 0,
         "create_order": 0,
@@ -1136,7 +1182,7 @@ def validate_futures_order_preview_predecessor(
         "mtime_ns": str(before.st_mtime_ns),
         "status": "blocked",
         "outcome": "blocked",
-        "preview_order_attempt_count": 0,
+        "preview_order_attempt_count": expected_preview_order_attempt_count,
         "exchange_submission_attempt_count": 0,
         "submitted_notional_usdc": "0",
         "executed_notional_usdc": "0",
@@ -1292,6 +1338,37 @@ def validate_production_futures_order_preview_r5_terminal() -> dict[str, Any]:
     ).read_completed()
     AdminFuturesOrderPreviewResponse.model_validate(evidence)
     return r5_binding
+
+
+def validate_production_futures_order_preview_r6_terminal() -> dict[str, Any]:
+    """Validate immutable terminal R6 plus its complete restored chain."""
+
+    r5_binding = validate_production_futures_order_preview_r5_terminal()
+    r6_binding = validate_futures_order_preview_predecessor(
+        FUTURES_PREVIEW_R6_ARTIFACT_PATH,
+        expected_file_sha256=FUTURES_PREVIEW_R6_FILE_SHA256,
+        expected_evidence_sha256=FUTURES_PREVIEW_R6_EVIDENCE_SHA256,
+        expected_device=FUTURES_PREVIEW_R6_DEVICE,
+        expected_inode=FUTURES_PREVIEW_R6_INODE,
+        expected_size=FUTURES_PREVIEW_R6_SIZE,
+        expected_mode=FUTURES_PREVIEW_R6_MODE,
+        expected_mtime_ns=FUTURES_PREVIEW_R6_MTIME_NS,
+        expected_artifact_type=_R6_ARTIFACT_TYPE,
+        expected_blocker="preflight_or_preview_blocked:ValueError",
+        expected_predecessor_binding=r5_binding,
+        expected_preview_order_attempt_count=1,
+    )
+    if r6_binding != FUTURES_PREVIEW_R6_TERMINAL_BINDING:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R6 terminal binding changed"
+        )
+    from application.admin_api.models import AdminFuturesOrderPreviewResponse
+
+    evidence = FuturesOrderPreviewArtifactStore(
+        FUTURES_PREVIEW_R6_ARTIFACT_PATH
+    ).read_completed()
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+    return r6_binding
 
 
 class FuturesOrderPreviewProducer:

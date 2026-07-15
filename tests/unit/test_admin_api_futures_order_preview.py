@@ -1544,12 +1544,12 @@ def test_consumed_r3_is_immutable_and_remains_compatible_r4_predecessor():
     AdminFuturesOrderPreviewResponse.model_validate(evidence)
 
 
-def test_default_get_route_exposes_consumed_r5_terminal_evidence(
+def test_configured_get_route_exposes_consumed_r5_terminal_evidence(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    monkeypatch.delenv(
+    monkeypatch.setenv(
         "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_PATH",
-        raising=False,
+        str(FUTURES_PREVIEW_R5_ARTIFACT_PATH),
     )
     monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-token")
     assert hashlib.sha256(
@@ -1649,9 +1649,6 @@ def test_consumed_r5_terminal_is_physically_bound_before_default_readback():
     assert preview_module.validate_production_futures_order_preview_r5_terminal() == (
         preview_module.FUTURES_PREVIEW_R5_TERMINAL_BINDING
     )
-    assert configured_futures_order_preview_artifact_path() == (
-        FUTURES_PREVIEW_R5_ARTIFACT_PATH
-    )
 
 
 def test_restored_preview_chain_is_bound_to_verified_local_docker_metadata():
@@ -1717,6 +1714,61 @@ def test_restored_preview_chain_is_bound_to_verified_local_docker_metadata():
             "required": ["device", "inode"],
         },
     ]
+
+
+def test_consumed_r6_terminal_is_physically_bound_and_selected_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.delenv(
+        "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_PATH",
+        raising=False,
+    )
+    monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-token")
+    path = preview_module.FUTURES_PREVIEW_R6_ARTIFACT_PATH
+    observed = path.lstat()
+
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == (
+        "df5959e95ed4a6027e6c0a6980045fc685e7dd201158b39ff5fcc9577bf73904"
+    )
+    assert (
+        observed.st_dev,
+        observed.st_ino,
+        observed.st_size,
+        observed.st_mode & 0o777,
+        observed.st_mtime_ns,
+    ) == (2096, 400333, 18567, 0o400, 1784122432722849234)
+    binding = preview_module.validate_production_futures_order_preview_r6_terminal()
+    assert binding["artifact_name"] == (
+        "futures_exact_no_live_preview_slice_2r6.jsonl"
+    )
+    assert binding["file_sha256"] == (
+        "df5959e95ed4a6027e6c0a6980045fc685e7dd201158b39ff5fcc9577bf73904"
+    )
+    assert binding["evidence_sha256"] == (
+        "bf26fa6b0f67499dea02f337517c1ebd42ae9a20c88fbb5cfbe45e3f30f9e4f9"
+    )
+    assert configured_futures_order_preview_artifact_path() == path
+
+    response = TestClient(create_app()).get(
+        "/api/v1/futures/order-preview",
+        headers={
+            "Authorization": "Bearer test-token",
+            "X-Admin-Actor": "operator-1",
+            "X-Admin-Roles": "viewer",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["X-Live-Execution-Enabled"] == "false"
+    payload = response.json()
+    assert payload["artifact_type"] == (
+        preview_module.FUTURES_PREVIEW_R6_ARTIFACT_TYPE
+    )
+    assert payload["attempt_counters"]["preview_order"] == 1
+    assert payload["exchange_submission_attempt_count"] == 0
+    assert payload["submitted_notional_usdc"] == "0"
+    assert payload["executed_notional_usdc"] == "0"
+    assert "preview_response" not in payload
+    assert "seal_ready_plan" not in payload
 
 
 def test_r6_policy_accepts_only_the_exact_authorized_profile_state_pair():
@@ -1804,7 +1856,6 @@ def test_r6_fake_preview_binds_exact_consumed_r5_and_v3_policy(tmp_path: Path):
     assert preview_module.FUTURES_PREVIEW_R6_ARTIFACT_PATH.name == (
         "futures_exact_no_live_preview_slice_2r6.jsonl"
     )
-    assert not preview_module.FUTURES_PREVIEW_R6_ARTIFACT_PATH.exists()
     rest_client = FakePreviewRestClient()
     snapshot = rest_client.get_futures_margin_collateral_snapshot()
     snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
@@ -3352,6 +3403,11 @@ def test_default_readback_stays_r4_until_valid_immutable_r5_terminal(
         preview_module,
         "FUTURES_PREVIEW_R5_ARTIFACT_PATH",
         r5_path,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R6_ARTIFACT_PATH",
+        tmp_path / "absent-r6.jsonl",
     )
 
     assert configured_futures_order_preview_artifact_path() == r4_path
