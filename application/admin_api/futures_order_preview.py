@@ -114,6 +114,17 @@ FUTURES_PREVIEW_R4_INODE = 42321812
 FUTURES_PREVIEW_R4_SIZE = 9508
 FUTURES_PREVIEW_R4_MODE = 0o400
 FUTURES_PREVIEW_R4_MTIME_NS = 1784087822854381595
+FUTURES_PREVIEW_R5_FILE_SHA256 = (
+    "4988e23886d218d25be518203676bec4f27a2199a0ed2e7f36d0d7e1d8e6bbf7"
+)
+FUTURES_PREVIEW_R5_EVIDENCE_SHA256 = (
+    "194cdd842944f8a453408051c04ff8e117b6b2b3ab6dcd7b1e78f44f4a5a467f"
+)
+FUTURES_PREVIEW_R5_DEVICE = 66305
+FUTURES_PREVIEW_R5_INODE = 41943457
+FUTURES_PREVIEW_R5_SIZE = 11647
+FUTURES_PREVIEW_R5_MODE = 0o400
+FUTURES_PREVIEW_R5_MTIME_NS = 1784111957686383208
 FUTURES_PREVIEW_ORIGINAL_FILE_SHA256 = (
     "9b15da86c172eca46d4b3dc0fc2b81e9b325df9a1e2f75fef79362f538e2d5ff"
 )
@@ -298,6 +309,24 @@ FUTURES_PREVIEW_R4_PREDECESSOR_BINDING = {
     "executed_notional_usdc": "0",
     "preservation": "immutable_no_modify_delete_or_reuse",
     "original_predecessor_binding": FUTURES_PREVIEW_R3_PREDECESSOR_BINDING,
+}
+FUTURES_PREVIEW_R5_TERMINAL_BINDING = {
+    "artifact_name": "futures_exact_no_live_preview_slice_2r5.jsonl",
+    "file_sha256": FUTURES_PREVIEW_R5_FILE_SHA256,
+    "evidence_sha256": FUTURES_PREVIEW_R5_EVIDENCE_SHA256,
+    "device": str(FUTURES_PREVIEW_R5_DEVICE),
+    "inode": str(FUTURES_PREVIEW_R5_INODE),
+    "size_bytes": FUTURES_PREVIEW_R5_SIZE,
+    "mode": f"{FUTURES_PREVIEW_R5_MODE:04o}",
+    "mtime_ns": str(FUTURES_PREVIEW_R5_MTIME_NS),
+    "status": "blocked",
+    "outcome": "blocked",
+    "preview_order_attempt_count": 0,
+    "exchange_submission_attempt_count": 0,
+    "submitted_notional_usdc": "0",
+    "executed_notional_usdc": "0",
+    "preservation": "immutable_no_modify_delete_or_reuse",
+    "original_predecessor_binding": FUTURES_PREVIEW_R4_PREDECESSOR_BINDING,
 }
 _CONSUMED_PREVIEW_IDENTIFIERS = frozenset(
     {
@@ -544,6 +573,11 @@ def configured_futures_order_preview_artifact_path() -> Path:
     if configured:
         return Path(configured)
     try:
+        terminal_binding = (
+            validate_production_futures_order_preview_r5_terminal()
+        )
+        if terminal_binding != FUTURES_PREVIEW_R5_TERMINAL_BINDING:
+            return DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH
         payload = FuturesOrderPreviewArtifactStore(
             FUTURES_PREVIEW_R5_ARTIFACT_PATH
         ).read_completed()
@@ -1107,6 +1141,36 @@ def validate_production_futures_order_preview_r4_predecessor() -> dict[str, Any]
             "futures Preview R4 predecessor binding changed"
         )
     return r4_binding
+
+
+def validate_production_futures_order_preview_r5_terminal() -> dict[str, Any]:
+    """Validate immutable terminal R5 plus its complete predecessor chain."""
+
+    r4_binding = validate_production_futures_order_preview_r4_predecessor()
+    r5_binding = validate_futures_order_preview_predecessor(
+        FUTURES_PREVIEW_R5_ARTIFACT_PATH,
+        expected_file_sha256=FUTURES_PREVIEW_R5_FILE_SHA256,
+        expected_evidence_sha256=FUTURES_PREVIEW_R5_EVIDENCE_SHA256,
+        expected_device=FUTURES_PREVIEW_R5_DEVICE,
+        expected_inode=FUTURES_PREVIEW_R5_INODE,
+        expected_size=FUTURES_PREVIEW_R5_SIZE,
+        expected_mode=FUTURES_PREVIEW_R5_MODE,
+        expected_mtime_ns=FUTURES_PREVIEW_R5_MTIME_NS,
+        expected_artifact_type=_R5_ARTIFACT_TYPE,
+        expected_blocker="preflight_or_preview_stage_blocked",
+        expected_predecessor_binding=r4_binding,
+    )
+    if r5_binding != FUTURES_PREVIEW_R5_TERMINAL_BINDING:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R5 terminal binding changed"
+        )
+    from application.admin_api.models import AdminFuturesOrderPreviewResponse
+
+    evidence = FuturesOrderPreviewArtifactStore(
+        FUTURES_PREVIEW_R5_ARTIFACT_PATH
+    ).read_completed()
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+    return r5_binding
 
 
 class FuturesOrderPreviewProducer:

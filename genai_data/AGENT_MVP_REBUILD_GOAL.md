@@ -4,7 +4,7 @@ Goal ID: `futures_exact_no_live_preview_slice_2`
 
 Last reviewed: 2026-07-15 UTC.
 
-Status: `blocked — distinct R5 integration/Preview authorization required`
+Status: `blocked — Slice 2R5 consumed before Preview; explicit operator decision required`
 
 The canonical cross-repository authority is
 `/home/ec2-user/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. This backend copy
@@ -34,8 +34,10 @@ Slice 1 made no order, cancel, close, reduce, marker, ledger, runtime, or local
 approval mutation. Live Coinbase execution is `not_run` and notional is
 `0 USDC`.
 
-Slice 2 remains the current slice but is blocked at distinct R5 integration
-and Preview authority. Its fixed scope is the
+Slice 2 remains the current slice. The authorized R5 integration and one-use
+attempt are complete, but R5 stopped before Preview because the exact
+`retail_regular` margin-window state was the documented but operator-rejected
+`MARGIN_WINDOW_TYPE_UNSPECIFIED`. Its fixed scope is the
 permission-selected `Default`/`DEFAULT` portfolio, configured AVAX perpetual
 `AVP-20DEC30-CDE`, and exactly one contract. The strict slice-local limits are
 opening/reference notional `<100.00 USDC`, maximum concurrent exposure and a
@@ -255,16 +257,34 @@ Typed V2 evidence identifies the enum authority as official Coinbase
 documentation and the profile/state mapping authority as
 `operator_defined_slice_2_preview_only_not_coinbase_documented`. It fixes
 R5-attempt authority, execution allowance, Create eligibility, and later-live
-eligibility to `false`. The implementation is offline and dormant: it does not
-alter the V1 R4 classifier, collateral validator, outer artifact schema,
-default Admin API readback, or production CLI. No R5 artifact type, path,
-entrypoint, claim, credential hydration, Coinbase call, or frontend command
-authority exists. A distinct exact operator authorization is required before
-R5 integration, claim creation, or any Coinbase Preview attempt.
+eligibility to `false`. The operator then authorized the exact R5 integration,
+audits, and one-use Preview attempt. Backend commit `48051bb3` and frontend
+commit `979e7fd0` were pushed before execution. The fixed preflight validated
+the complete R4-to-original chain and created no artifact or Coinbase client.
+
+R5 ran exactly once on 2026-07-15 and stopped terminally before Preview at
+sanitized stage `remaining_margin_validation` with reason
+`futures_preview_margin_windows_ambiguous`. The immutable artifact is
+`artifacts/futures_exact_no_live_preview_slice_2r5.jsonl`, file SHA-256
+`4988e23886d218d25be518203676bec4f27a2199a0ed2e7f36d0d7e1d8e6bbf7`,
+and evidence SHA-256
+`194cdd842944f8a453408051c04ff8e117b6b2b3ab6dcd7b1e78f44f4a5a467f`.
+The operational setting remains the documented
+`INTRADAY_MARGIN_SETTING_INTRADAY`. V2 margin-window evidence records
+`retail_regular=MARGIN_WINDOW_TYPE_UNSPECIFIED`, which is documented but
+operator-rejected, and
+`retail_intraday_margin_1=MARGIN_WINDOW_TYPE_INTRADAY`, which is accepted.
+Raw responses, external exception text, and unknown identifiers are absent.
+All six fixed read counters are `1`; Preview, retry, fallback, Create, Cancel,
+Close, Reduce, and exchange-submission counters are `0`; submitted/executed
+notional is `0 USDC`; no marker, ledger, or runtime was created. Default Admin
+API/UI readback now selects this immutable model-valid R5 result. R5 is
+consumed and cannot be retried. Slice 2 is not accepted, Slice 3 remains
+inactive, and continuing requires a distinct explicit operator decision.
 
 `Default-profile Futures readback -> exact AVAX US CFM Coinbase Preview Order -> immutable operator-visible no-live preview readback`
 
-## Ordered Sequence — Slice 2 Blocked At R5 Authorization
+## Ordered Sequence — Slice 2 Blocked After R5
 
 Continue implementation and independent audit only in this order. Prospective
 operator authority permits crossing documented no-live acceptance boundaries,

@@ -1491,7 +1491,7 @@ def test_stage_diagnostic_get_route_is_read_only_and_hides_raw_blocker(
     assert "PRIVATE_VALUE_MUST_NOT_RETURN" not in response.text
 
 
-def test_r3_predecessor_and_r4_default_readback_are_version_bound():
+def test_r3_predecessor_and_r4_fallback_readback_are_version_bound():
     source = Path(preview_module.__file__).read_text(encoding="utf-8")
     assert "futures_exact_no_live_preview_slice_2r3" in source
     assert DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH.name == (
@@ -1507,9 +1507,6 @@ def test_r3_predecessor_and_r4_default_readback_are_version_bound():
         DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH
     )
     assert FUTURES_PREVIEW_R4_ARTIFACT_PATH == (
-        DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH
-    )
-    assert preview_module.configured_futures_order_preview_artifact_path() == (
         DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH
     )
     tool_source = Path(preview_tool.__file__).read_text(
@@ -1545,7 +1542,7 @@ def test_consumed_r3_is_immutable_and_remains_compatible_r4_predecessor():
     AdminFuturesOrderPreviewResponse.model_validate(evidence)
 
 
-def test_default_get_route_exposes_consumed_r4_terminal_evidence(
+def test_default_get_route_exposes_consumed_r5_terminal_evidence(
     monkeypatch: pytest.MonkeyPatch,
 ):
     monkeypatch.delenv(
@@ -1554,9 +1551,9 @@ def test_default_get_route_exposes_consumed_r4_terminal_evidence(
     )
     monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-token")
     assert hashlib.sha256(
-        FUTURES_PREVIEW_R4_ARTIFACT_PATH.read_bytes()
+        FUTURES_PREVIEW_R5_ARTIFACT_PATH.read_bytes()
     ).hexdigest() == (
-        "90691e5b24c17fca5f3d1a67f942ea0b4b067e262435bcdf37e516f79ebb66cf"
+        "4988e23886d218d25be518203676bec4f27a2199a0ed2e7f36d0d7e1d8e6bbf7"
     )
 
     response = TestClient(create_app()).get(
@@ -1571,11 +1568,11 @@ def test_default_get_route_exposes_consumed_r4_terminal_evidence(
     assert response.status_code == 200
     assert response.headers["X-Live-Execution-Enabled"] == "false"
     payload = response.json()
-    assert payload["artifact_type"] == FUTURES_PREVIEW_R4_ARTIFACT_TYPE
+    assert payload["artifact_type"] == FUTURES_PREVIEW_R5_ARTIFACT_TYPE
     assert payload["status"] == "blocked"
     assert payload["outcome"] == "blocked"
     assert payload["predecessor_binding"]["file_sha256"] == (
-        FUTURES_PREVIEW_R3_FILE_SHA256
+        FUTURES_PREVIEW_R4_FILE_SHA256
     )
     assert payload["attempt_counters"] == {
         "preview_order": 0,
@@ -1587,9 +1584,28 @@ def test_default_get_route_exposes_consumed_r4_terminal_evidence(
         "reduce_position": 0,
     }
     assert payload["margin_setting_evidence"]["operationally_resolved"] is True
-    assert payload["margin_windows_evidence"]["classification"] == (
-        "margin_window_type_not_exact_operational_enum_token"
+    assert "margin_windows_evidence" not in payload
+    assert payload["margin_windows_policy_evidence"]["classification"] == (
+        "margin_window_type_documented_but_operator_rejected"
     )
+    assert payload["margin_windows_policy_evidence"]["rows"] == [
+        {
+            "policy_row_index": 0,
+            "recognized_profile": "retail_regular",
+            "observed_token": "MARGIN_WINDOW_TYPE_UNSPECIFIED",
+            "documented_allowlist_match": True,
+            "operator_policy_match": False,
+            "classification": "documented_but_operator_rejected",
+        },
+        {
+            "policy_row_index": 1,
+            "recognized_profile": "retail_intraday_margin_1",
+            "observed_token": "MARGIN_WINDOW_TYPE_INTRADAY",
+            "documented_allowlist_match": True,
+            "operator_policy_match": True,
+            "classification": "accepted",
+        },
+    ]
     assert payload["pre_preview_stage_evidence"]["stages"][-1] == {
         "stage": "remaining_margin_validation",
         "status": "blocked",
@@ -1598,7 +1614,42 @@ def test_default_get_route_exposes_consumed_r4_terminal_evidence(
     assert payload["exchange_submission_attempt_count"] == 0
     assert payload["submitted_notional_usdc"] == "0"
     assert payload["executed_notional_usdc"] == "0"
+    assert payload["evidence_sha256"] == (
+        "194cdd842944f8a453408051c04ff8e117b6b2b3ab6dcd7b1e78f44f4a5a467f"
+    )
+    assert "preview_response" not in payload
+    assert "seal_ready_plan" not in payload
     assert "PRIVATE" not in response.text
+
+
+def test_consumed_r5_terminal_is_physically_bound_before_default_readback():
+    observed = FUTURES_PREVIEW_R5_ARTIFACT_PATH.lstat()
+
+    assert preview_module.FUTURES_PREVIEW_R5_FILE_SHA256 == (
+        "4988e23886d218d25be518203676bec4f27a2199a0ed2e7f36d0d7e1d8e6bbf7"
+    )
+    assert preview_module.FUTURES_PREVIEW_R5_EVIDENCE_SHA256 == (
+        "194cdd842944f8a453408051c04ff8e117b6b2b3ab6dcd7b1e78f44f4a5a467f"
+    )
+    assert (
+        observed.st_dev,
+        observed.st_ino,
+        observed.st_size,
+        observed.st_mode & 0o777,
+        observed.st_mtime_ns,
+    ) == (
+        preview_module.FUTURES_PREVIEW_R5_DEVICE,
+        preview_module.FUTURES_PREVIEW_R5_INODE,
+        preview_module.FUTURES_PREVIEW_R5_SIZE,
+        preview_module.FUTURES_PREVIEW_R5_MODE,
+        preview_module.FUTURES_PREVIEW_R5_MTIME_NS,
+    )
+    assert preview_module.validate_production_futures_order_preview_r5_terminal() == (
+        preview_module.FUTURES_PREVIEW_R5_TERMINAL_BINDING
+    )
+    assert configured_futures_order_preview_artifact_path() == (
+        FUTURES_PREVIEW_R5_ARTIFACT_PATH
+    )
 
 
 @pytest.mark.parametrize(
@@ -2966,6 +3017,11 @@ def test_default_readback_stays_r4_until_valid_immutable_r5_terminal(
     )
     producer.run()
     assert produced_path.stat().st_mode & 0o777 == 0o400
+    monkeypatch.setattr(
+        preview_module,
+        "validate_production_futures_order_preview_r5_terminal",
+        lambda: preview_module.FUTURES_PREVIEW_R5_TERMINAL_BINDING,
+    )
     assert configured_futures_order_preview_artifact_path() == produced_path
 
 
