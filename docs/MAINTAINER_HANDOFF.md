@@ -231,7 +231,9 @@ create a separate approval class.
   and all five consumed artifacts remained byte-identical. No production code,
   schema, eligibility, R5 artifact, Coinbase call, marker, ledger, or runtime
   was created.
-- Proposed distinct R5 authorization wording, not yet granted:
+- The following R5 authorization wording was proposed at that checkpoint,
+  subsequently granted once, and terminated before its conditional
+  implementation/attempt authority activated:
 
   > AUTHORIZE primary-source-only online verification of the exact Coinbase
   > Advanced Trade US CFM Get Current Margin Window `margin_window_type` enum
@@ -272,6 +274,36 @@ create a separate approval class.
   > margin/collateral, liquidation, freshness, diagnostic, or cap
   > evidence consumes R5 terminally before Preview. Any unknown Preview outcome
   > consumes R5 and may not be retried.
+- The operator granted the proposed R5 authorization exactly. Official-only
+  verification proved the
+  [`Get Current Margin Window`](https://docs.cdp.coinbase.com/api-reference/advanced-trade-api/rest-api/futures/get-current-margin-window.md)
+  response enum but failed the authorization's equally mandatory profile/state
+  semantics gate. The official generated Markdown defines exactly
+  `MARGIN_WINDOW_TYPE_UNSPECIFIED`, `MARGIN_WINDOW_TYPE_OVERNIGHT`,
+  `MARGIN_WINDOW_TYPE_WEEKEND`, `MARGIN_WINDOW_TYPE_INTRADAY`, and
+  `MARGIN_WINDOW_TYPE_TRANSITION` REST tokens and the regular/intraday query
+  profiles; its retrieved SHA-256 is
+  `3bcf6504cb092e2565c604ff6938682de2652d662be415612d51a0c28b82db3c`.
+  It provides no profile-to-state mapping or operational eligibility
+  definition. The
+  [official SDK](https://coinbase.github.io/coinbase-advanced-py/coinbase.rest.html#coinbase.rest.RESTClient.get_current_margin_window)
+  omits weekend/transition/profile combinations. As verified on 2026-07-15,
+  [official Help](https://help.coinbase.com/en/coinbase/derivatives/us-derivatives-leverage-margin)
+  says `6pm-4pm ET`, while the official SDK and
+  [`Set Intraday Margin Setting`](https://docs.cdp.coinbase.com/api-reference/advanced-trade-api/rest-api/futures/set-intraday-margin-settings)
+  documentation say `8am-4pm ET`. The different
+  `FCM_MARGIN_WINDOW_TYPE_*` balance enum is not REST profile-policy authority.
+- The resulting terminal blocker is
+  `futures_preview_margin_profile_state_semantics_ambiguous`. Under the exact
+  authorization, no allowlist/profile-policy expansion, diagnostic V2, schema,
+  R5 path, CLI, claim, or artifact was created. Coinbase API, credential,
+  Preview, retry, redirect, fallback, Create, Cancel, Close, Reduce, marker,
+  ledger, and runtime attempts are all `0`. Default readback and the production
+  command remain fixed to R4. Independent primary-source and safety audits
+  returned `PASS` on this fail-closed result. Future work requires either an
+  official Coinbase source that unambiguously maps profiles to operational
+  states or a new explicit operator-defined Slice-2-Preview-only policy that
+  does not claim to be Coinbase-documented behavior.
 - Offline R3 diagnostic preparation validation: focused backend Preview and
   Admin API contract coverage passed (`165 passed`), ownership, Python compile,
   OpenAPI freshness, and diff checks passed; focused frontend rendering passed

@@ -205,6 +205,39 @@ consumed artifacts remain byte-identical and retain their original hashes and
 read-only metadata. No code, schema, diagnostic version, allowlist, profile
 policy, R5 claim, or R5 artifact was created during this diagnosis.
 
+The operator then granted the exact proposed R5 primary-source verification
+authorization, with implementation and a single Preview attempt effective only
+if both enum and profile/state semantics were unambiguous. Coinbase's official
+generated [`Get Current Margin Window` schema](https://docs.cdp.coinbase.com/api-reference/advanced-trade-api/rest-api/futures/get-current-margin-window.md)
+defines the REST response enum
+exactly as `MARGIN_WINDOW_TYPE_UNSPECIFIED`,
+`MARGIN_WINDOW_TYPE_OVERNIGHT`, `MARGIN_WINDOW_TYPE_WEEKEND`,
+`MARGIN_WINDOW_TYPE_INTRADAY`, and `MARGIN_WINDOW_TYPE_TRANSITION`. The
+retrieved official Markdown SHA-256 is
+`3bcf6504cb092e2565c604ff6938682de2652d662be415612d51a0c28b82db3c`.
+It also defines the regular and intraday query-profile literals.
+
+The required operational semantics remain ambiguous. The official schema has
+no profile-to-state mapping or operational eligibility definition. The
+[official SDK](https://coinbase.github.io/coinbase-advanced-py/coinbase.rest.html#coinbase.rest.RESTClient.get_current_margin_window)
+discusses only intraday versus overnight rates, not weekend, transition, or
+allowed profile combinations. As verified on 2026-07-15,
+[Coinbase Help](https://help.coinbase.com/en/coinbase/derivatives/us-derivatives-leverage-margin)
+says the opted-in window is `6pm-4pm ET`, while the official SDK and
+[`Set Intraday Margin Setting`](https://docs.cdp.coinbase.com/api-reference/advanced-trade-api/rest-api/futures/set-intraday-margin-settings)
+documentation say `8am-4pm ET`; no calendar-derived policy is eligible.
+The distinct `FCM_MARGIN_WINDOW_TYPE_*` balance enum cannot fill that gap.
+
+Per the authorization's explicit stop clause, blocker
+`futures_preview_margin_profile_state_semantics_ambiguous` prevented all R5
+implementation and creation. No operational allowlist/profile-policy change,
+diagnostic V2, schema, path, CLI, claim, or artifact exists. No Coinbase API,
+credential, Preview, retry, redirect, fallback, mutation, marker, ledger, or
+runtime call occurred. Default readback and the production entrypoint remain
+fixed to immutable R4. The conditional R5 attempt authority never activated;
+continuation requires new unambiguous official semantics or a new explicit
+operator-defined Slice-2-Preview-only policy decision.
+
 `Default-profile Futures readback -> exact AVAX US CFM Coinbase Preview Order -> immutable operator-visible no-live preview readback`
 
 ## Ordered Sequence — Slice 2 Blocked After R4
