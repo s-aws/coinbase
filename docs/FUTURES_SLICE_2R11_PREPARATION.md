@@ -188,8 +188,10 @@ The one-call runner remains fail-closed until all of the following are true:
   filename and SHA-256 (all other untracked files fail the gate). A second
   backend closure check also rejects ignored importable source, legacy
   bytecode, symlinks, or ABI extensions in tracked Python namespaces;
-- the prepared backend and frontend revisions, normalized runner logic hash,
-  audited component hashes, exact SDK pin, and bounded activation expiry are
+- the prepared backend and frontend revisions are bound as their exact raw,
+  lowercase 40-hex Git object IDs; the normalized runner, authorization,
+  audit-receipt, and component integrity evidence remains exact lowercase
+  64-hex SHA-256. The exact SDK pin and bounded activation expiry are also
   fixed;
 - one independent safety audit and one independent blind-contextless audit
   return distinct passing receipts;
@@ -265,6 +267,20 @@ invocation, preserves only `dry_run=true` drafts and read-only fill evidence,
 and expands the audited component manifest to cover the complete Admin-shell,
 runtime, canonical client/BFF, unit, e2e, and documentation boundary. Fresh
 validation and two new passing receipts remain mandatory.
+
+The first activation after that frontend remediation failed its isolated
+preflight at the literal bootstrap before claim reservation, credential
+hydration, dependency imports, or network access. R11 remained absent and
+unconsumed. The parser had incorrectly grouped the raw 40-hex preparation and
+frontend Git object IDs with 64-hex SHA-256 evidence, while the later
+activation-commit check compared those fields directly with `git rev-parse`.
+The bounded offline correction restores an inactive gate, validates the two
+Git object IDs with an exact lowercase 40-hex grammar, validates only the
+integrity fields with the exact lowercase 64-hex SHA-256 grammar, and adds
+mixed-width positive and wrong-width negative tests. The failed activation's
+receipts, component binding, normalized hash, and expiry are stale and cannot
+be reused; a new preparation revision and two fresh passing audits are
+required before a new runner-only activation child may exist.
 
 After R11 becomes terminal, the workflow continues automatically with bounded
 offline diagnosis and remediation. That work may update sanitized diagnostic

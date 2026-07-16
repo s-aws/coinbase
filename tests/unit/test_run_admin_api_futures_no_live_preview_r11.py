@@ -244,6 +244,10 @@ def _sha(label: str) -> str:
     return hashlib.sha256(label.encode("utf-8")).hexdigest()
 
 
+def _git_oid(label: str) -> str:
+    return hashlib.sha1(label.encode("utf-8"), usedforsecurity=False).hexdigest()
+
+
 def _canonical_runner_command(runner: Path, *args: str) -> list[str]:
     return [
         sys.executable,
@@ -428,8 +432,8 @@ def test_r11_isolated_bootstrap_rejects_unclean_source_before_project_imports(
 
 def _synthetic_audit_binding_block(*, active: bool) -> bytes:
     values = {
-        "R11_PREPARATION_REVISION": _sha("prepared-backend-revision"),
-        "R11_FRONTEND_REVISION": _sha("prepared-frontend-revision"),
+        "R11_PREPARATION_REVISION": _git_oid("prepared-backend-revision"),
+        "R11_FRONTEND_REVISION": _git_oid("prepared-frontend-revision"),
         "R11_NORMALIZED_RUNNER_SHA256": _sha("normalized-runner"),
         "R11_AUTHORIZATION_SHA256": _sha("bounded-r11-authorization"),
         "R11_SAFETY_AUDIT_RECEIPT_SHA256": _sha("independent-safety-audit"),
@@ -468,13 +472,13 @@ def _bind_valid_r11_audit(
 ) -> tuple[dict[str, str], dict[str, str]]:
     monkeypatch.setattr(r11_tool, "_R11_CLI_BOOTSTRAP_VALIDATED", True)
     values = {
-        "preparation": _sha("prepared-backend-revision"),
-        "frontend": _sha("prepared-frontend-revision"),
+        "preparation": _git_oid("prepared-backend-revision"),
+        "frontend": _git_oid("prepared-frontend-revision"),
         "runner": _sha("normalized-runner"),
         "authorization": _sha("bounded-r11-authorization"),
         "safety": _sha("independent-safety-audit"),
         "blind": _sha("blind-contextless-audit"),
-        "activation": _sha("constants-only-activation-commit"),
+        "activation": _git_oid("constants-only-activation-commit"),
     }
     components = {
         component: _sha(component)
@@ -574,6 +578,40 @@ def test_r11_normalized_runner_hash_ignores_only_literal_audit_bindings() -> Non
         activated_normalized
     ).digest()
     assert r11_tool._normalized_runner_bytes(logic_changed) != first_normalized
+
+
+@pytest.mark.parametrize(
+    "revision_name",
+    ["R11_PREPARATION_REVISION", "R11_FRONTEND_REVISION"],
+)
+def test_r11_active_literal_binding_requires_full_git_object_ids(
+    revision_name: str,
+) -> None:
+    block = _synthetic_audit_binding_block(active=True).decode("utf-8")
+    values = r11_tool._literal_audit_binding_values(block)
+
+    assert len(values[revision_name]) == 40
+
+    poisoned = block.replace(
+        str(values[revision_name]),
+        _sha(f"invalid-{revision_name}"),
+        1,
+    )
+    with pytest.raises(ValueError, match="binding_state"):
+        r11_tool._literal_audit_binding_values(poisoned)
+
+
+def test_r11_active_literal_binding_requires_sha256_evidence() -> None:
+    block = _synthetic_audit_binding_block(active=True).decode("utf-8")
+    values = r11_tool._literal_audit_binding_values(block)
+    poisoned = block.replace(
+        str(values["R11_NORMALIZED_RUNNER_SHA256"]),
+        _git_oid("invalid-normalized-runner-evidence"),
+        1,
+    )
+
+    with pytest.raises(ValueError, match="binding_state"):
+        r11_tool._literal_audit_binding_values(poisoned)
 
 
 @pytest.mark.parametrize(
@@ -1031,6 +1069,17 @@ def test_r11_sdk_pin_binds_official_v1_8_4_preview_path_source_hashes(
         r11_tool._validate_sdk_pin()
 
 
+def test_r11_final_binding_accepts_git_object_ids_and_sha256_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _components, values = _bind_valid_r11_audit(monkeypatch)
+
+    assert len(values["preparation"]) == 40
+    assert len(values["frontend"]) == 40
+    assert len(values["runner"]) == 64
+    r11_tool._validate_final_audit_binding()
+
+
 @pytest.mark.parametrize(
     ("safety_receipt", "blind_receipt"),
     [
@@ -1093,7 +1142,7 @@ def test_r11_final_binding_rejects_runner_openapi_or_revision_drift(
                 "rev-parse",
                 "HEAD",
             ):
-                return _sha("unexpected-frontend-revision")
+                return _git_oid("unexpected-frontend-revision")
             return original_git_output(root, *args)
 
         monkeypatch.setattr(r11_tool, "_git_output", revision_drift)
@@ -1133,7 +1182,7 @@ def test_r11_activation_commit_requires_preparation_parent_and_runner_only(
             and root == r11_tool.REPO_ROOT
             and args == ("rev-parse", "HEAD^")
         ):
-            return _sha("unexpected-parent")
+            return _git_oid("unexpected-parent")
         if (
             commit_drift == "changed_files"
             and root == r11_tool.REPO_ROOT
