@@ -33,11 +33,15 @@ _EXPECTED_R11_AUDITED_COMPONENTS = {
     "backend:api/v1/routes/futures.py",
     "backend:application/admin_api/futures_order_preview.py",
     "backend:application/admin_api/models.py",
+    "backend:docs/ADMIN_MODULE_CAPABILITY_MATRIX.md",
     "backend:docs/FUTURES_SLICE_2R11_PREPARATION.md",
+    "backend:docs/MAINTAINER_HANDOFF.md",
+    "backend:docs/README.md",
     "backend:external/coinbase_client.py",
     "backend:genai_data/AGENT_MVP_REBUILD_GOAL.md",
     "backend:openapi/coinbase-admin-api.yaml",
     "backend:pyproject.toml",
+    "backend:README.admin-api.md",
     "backend:tests/unit/test_admin_api_futures_order_preview.py",
     "backend:tests/unit/test_run_admin_api_futures_no_live_preview_r11.py",
     "backend:tests/regression/test_spot_readiness_gate.py",
@@ -689,12 +693,61 @@ def test_r11_runtime_dependency_guard_rejects_unverified_site_origin(
         "_R11_VERIFIED_DEPENDENCY_FILES",
         {str(verified.resolve())},
     )
+    monkeypatch.setattr(
+        r11_tool,
+        "_R11_VERIFIED_DEPENDENCY_BINDINGS",
+        {
+            str(verified.resolve()): r11_tool._runtime_file_binding(verified),
+        },
+    )
 
     bound = SimpleNamespace(origin=str(verified), submodule_search_locations=None)
     unbound = SimpleNamespace(origin=str(rogue), submodule_search_locations=None)
 
     assert r11_tool._runtime_dependency_spec_is_verified(bound) is True
     assert r11_tool._runtime_dependency_spec_is_verified(unbound) is False
+
+
+def test_r11_runtime_dependency_guard_revalidates_bound_bytes_at_import(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    site = tmp_path / "site-packages"
+    verified = site / "requests" / "__init__.py"
+    verified.parent.mkdir(parents=True)
+    verified.write_text("BOUND = True\n", encoding="utf-8")
+    monkeypatch.setattr(r11_tool, "_R11_RUNTIME_SITE_ROOTS", (str(site),))
+    monkeypatch.setattr(
+        r11_tool,
+        "_R11_VERIFIED_DEPENDENCY_FILES",
+        {str(verified.resolve())},
+    )
+    monkeypatch.setattr(
+        r11_tool,
+        "_R11_VERIFIED_DEPENDENCY_BINDINGS",
+        {
+            str(verified.resolve()): r11_tool._runtime_file_binding(verified),
+        },
+    )
+    specification = SimpleNamespace(
+        origin=str(verified),
+        submodule_search_locations=None,
+    )
+
+    assert r11_tool._runtime_dependency_spec_is_verified(specification) is True
+    verified.write_text("BOUND = False\n", encoding="utf-8")
+    assert r11_tool._runtime_dependency_spec_is_verified(specification) is False
+
+
+def test_r11_runtime_dependency_guard_rejects_arbitrary_external_origin(
+    tmp_path: Path,
+) -> None:
+    external = tmp_path / "external_dependency.py"
+    external.write_text("", encoding="utf-8")
+
+    assert r11_tool._runtime_dependency_spec_is_verified(
+        SimpleNamespace(origin=str(external), submodule_search_locations=None)
+    ) is False
 
 
 def test_r11_bootstrap_dependency_site_rejects_unrecorded_sdk_code(
@@ -760,6 +813,25 @@ def test_r11_audited_component_manifest_covers_all_material_surfaces() -> None:
     assert r11_tool._R11_EXPECTED_COMPONENTS == frozenset(
         _EXPECTED_R11_AUDITED_COMPONENTS
     )
+
+
+def test_r11_backend_contextless_authority_entry_points_are_consistent() -> None:
+    required = (
+        "Goal `futures_preview_acceptance_recovery_r11`",
+        "R11 preparation is authorized",
+        "R11 is unconsumed",
+        "Preview gate remains inactive",
+        "exactly one Preview-only call",
+        "No R12 attempt or Slice 3/4/5 activation is authorized.",
+    )
+    for relative in (
+        "README.admin-api.md",
+        "docs/README.md",
+        "docs/ADMIN_MODULE_CAPABILITY_MATRIX.md",
+        "docs/MAINTAINER_HANDOFF.md",
+    ):
+        payload = (r11_tool.REPO_ROOT / relative).read_text(encoding="utf-8")
+        assert all(token in payload for token in required), relative
 
 
 def test_r11_production_path_rejects_environment_redirection(
@@ -1252,6 +1324,28 @@ def test_r11_fixed_secret_lookup_uses_only_pinned_aws_cli_and_closed_environment
         "text": True,
         "timeout": 35,
     }
+
+
+def test_r11_direct_secret_lookup_is_blocked_without_authority_and_claim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subprocess_attempts = 0
+
+    def forbidden_run(*_args, **_kwargs):
+        nonlocal subprocess_attempts
+        subprocess_attempts += 1
+        raise AssertionError("AWS CLI invoked without authority and claim")
+
+    monkeypatch.setattr(r11_tool, "_R11_CLI_BOOTSTRAP_VALIDATED", False)
+    monkeypatch.setattr(r11_tool.subprocess, "run", forbidden_run)
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="^futures Preview R11 credential preparation failed$",
+    ):
+        r11_tool._lookup_fixed_r11_secret("coinbase", "us-east-1")
+
+    assert subprocess_attempts == 0
 
 
 @pytest.mark.parametrize(
