@@ -2,26 +2,34 @@
 
 Goal id: `futures_preview_acceptance_recovery_r11`
 
-Current priority:
-`prepare_audit_and_consume_single_r11_preview_then_offline_diagnosis`
+Final action: `stop_and_await_operator_direction`
 
-Status: `preparing_audit_gate_inactive`
+Status: `complete_terminal_blocked_before_preview`
 
-Alignment token: `authorized_r11_preparation_live_gate_inactive`
+Alignment token: `r11_terminal_pre_preview_v3_operator_policy_rejection`
 
 ## Current Posture
 
-Slice 2R11 is the only active successor workflow. Its bounded preparation and
-audit work is authorized, but the live-capable runner gate remains inactive.
-R11 is unconsumed. This preparation record does not claim that an R11 artifact,
-terminal result, or Coinbase call already exists.
+Slice 2R11 is consumed, terminal `blocked`, immutable, and cannot be retried.
+It stopped at `remaining_margin_validation` before candidate construction or
+Coinbase Preview. All six bounded reads ran exactly once; Preview, retry,
+fallback, redirect, submission, Create, Cancel, Close, Reduce, and every other
+exchange-mutation counter remained `0`.
 
-The workflow may use at most ten bounded offline or
-online-official-documentation-only preparation, integration, remediation,
-testing, local deployment-validation, and audit cycles. After focused
-validation and independent safety plus blind-contextless audits establish
-readiness, it may make exactly one Coinbase Preview-only R11 call. An unknown
-outcome consumes R11 and cannot be retried.
+The structured boundary is
+`margin_window_type_documented_but_operator_rejected`: failing row `1`,
+recognized profile `retail_intraday_margin_1`, field `margin_window_type`, and
+value type `string`. This is an exact V3 operator-defined profile/state-policy
+rejection, not a Preview response or a reason to broaden schema or acceptance.
+The immutable R11 file/evidence SHA-256 pair is
+`effb4bd037b853e06da14a0327d71eb8104e2b7edb2f56970b4c47ef855b6061` /
+`548bbb02709c70dc320219bc15520b40ed948309ad09ec0f8af8f812d63bedea`.
+The runner is permanently tombstoned. See
+`docs/FUTURES_SLICE_2R11_TERMINAL_DIAGNOSIS.md`.
+
+Unless a section explicitly states the terminal result, the remaining
+readiness, activation, and validation language is retained as historical
+preparation evidence only and grants no current authority.
 
 ## Fixed Authority Boundary
 
@@ -31,7 +39,8 @@ The successor retains all of these exact constraints:
 - product: `AVP-20DEC30-CDE`;
 - contract count: one;
 - strict caps: `<100 / <150 / <300 USDC`;
-- Coinbase Preview attempts: one maximum, currently zero consumed;
+- Coinbase Preview attempts: one was authorized, zero ran, and the claim is
+  consumed with no remaining authority;
 - retries, fallbacks, and redirects: zero;
 - Create, Cancel, Close, Reduce, and other exchange mutations: zero;
 - R12 attempts: zero;
@@ -174,9 +183,10 @@ This credential hardening changes no trading authority: R11 still permits at
 most one Coinbase Preview call and zero Coinbase retries, fallbacks,
 redirects, Create, Cancel, Close, Reduce, or other exchange mutations.
 
-## Readiness And Audit Gate
+## Historical Readiness And Audit Gate
 
-The one-call runner remains fail-closed until all of the following are true:
+The following gate governed preparation before the terminal claim. It is
+retained as audit history and grants no current runner authority:
 
 - focused backend response, claim, privacy, runner, model, and OpenAPI tests
   pass with synthetic sanitized fixtures;
@@ -225,16 +235,15 @@ Preflight is offline. It must not load credentials, instantiate a live client,
 call Coinbase, or create the production artifact. Audit activation does not
 itself consume R11; the exclusive claim reservation does.
 
-The canonical commands are therefore:
+The historical canonical commands were:
 
 ```bash
 python3.13 -I -S -B -X pycache_prefix=/dev/null/r11 tools/run_admin_api_futures_no_live_preview_r11.py --preflight
 python3.13 -I -S -B -X pycache_prefix=/dev/null/r11 tools/run_admin_api_futures_no_live_preview_r11.py --confirm-one-r11-preview
 ```
 
-The confirmation command remains single-use and may be invoked only after the
-fresh audit receipts have been bound. The second command must never be invoked
-again after any known or unknown R11 outcome.
+Neither command may be invoked now. R11 is consumed and the runner is
+permanently tombstoned.
 
 ## Terminal Handling
 
@@ -282,22 +291,18 @@ receipts, component binding, normalized hash, and expiry are stale and cannot
 be reused; a new preparation revision and two fresh passing audits are
 required before a new runner-only activation child may exist.
 
-After R11 becomes terminal, the workflow continues automatically with bounded
-offline diagnosis and remediation. That work may update sanitized diagnostic
-classification, backend models and tests, generated contracts, frontend
-readback, and documentation, but it may not expose or reconstruct raw
-responses, secrets, private identifiers, or withheld exception text. The final
-closeout must hard-bind the terminal R11 artifact metadata and hash, permanently
-tombstone the runner, revalidate immutable R1-R10 evidence without accessing
-R8 content or hash, and report whether the terminal boundary was accepted,
-blocked, or unknown.
+The bounded offline diagnosis and remediation are complete. The closeout binds
+the immutable terminal hashes above, permanently tombstones the runner, and
+classifies the result as the fixed pre-Preview V3 operator-policy boundary.
+No raw response, secret, private identifier, restricted Preview identifier, or
+exception text was added to readback.
 
 This goal grants no R12 attempt and no Slice 3, Slice 4, or Slice 5 activation.
-It stops only after R11 is terminal and the authorized offline diagnosis and
-remediation are complete, or if continuing would require changing the product,
-contract count, V3 policy, caps, or one-call limit.
+Those terminal conditions are satisfied. Further work requires explicit
+operator direction and may not infer authority to change the product, contract
+count, V3 policy, caps, or one-call limit.
 
-## Validation Scope
+## Historical Validation Scope
 
 Use focused tests during ordinary preparation and remediation. Before live
 activation, run the canonical backend and frontend release gates required by

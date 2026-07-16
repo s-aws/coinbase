@@ -2,26 +2,27 @@
 
 Historical planning record; not current work authority.
 
-Current goal id
-`futures_post_r10_preview_compatibility_and_direction_selection` is complete.
-It prospectively separates official Preview wire compatibility from stricter
-project acceptance while preserving immutable R1-R10 history and granting no
-R11, Slice 3/4/5, Preview, or mutation authority. Its default next action is
-`await_operator_decision_on_one_post_r10_successor_or_official_clarification`,
-as documented in `genai_data/AGENT_MVP_REBUILD_GOAL.md` and the frontend
-canonical goal. This
-historical queue does not grant or broaden that authority. The phase range
-below is a frozen compatibility/release artifact and cannot reactivate M57 or
-promote M58 fan-out/scheduler work.
+Machine alignment: `r11_terminal_pre_preview_v3_operator_policy_rejection`.
+Slice status: `complete_terminal_no_retry`. Default action:
+`stop_and_await_operator_direction`. R11 is terminally consumed.
+
+Current goal `futures_preview_acceptance_recovery_r11` is complete. R11 is
+consumed, terminal `blocked`, immutable, and cannot be retried. It stopped at
+`remaining_margin_validation` before Preview after six reads; Preview, retry,
+fallback, submission, and mutation counts remained `0`. The structured result
+`margin_window_type_documented_but_operator_rejected` is an exact V3
+operator-policy boundary and does not authorize acceptance broadening. The
+default action is `stop_and_await_operator_direction`. This historical queue
+cannot grant R12, Slice 3/4/5, live authority, or reactivate M57/M58 work.
 
 Current machine state is `slice_status=complete`, with no active work blocker,
 current-generation Coinbase Preview maximum `0`, remaining authorized recovery
-maximum `0`, and current exchange-
-mutation maximum `0`. Product `AVP-20DEC30-CDE`, one-contract scope, V3 policy,
-and strict `<100 / <150 / <300 USDC` caps remain unchanged. There is no R11.
-Slice 3 did not run; Slices 4/5 are unauthorized. Live execution remains
-`not_run`. The exact immutable R10 hashes and zero-mutation terminal diagnosis
-are recorded in `docs/FUTURES_SLICE_2R10_TERMINAL_DIAGNOSIS.md`.
+maximum `0`, and current exchange-mutation maximum `0`. Product
+`AVP-20DEC30-CDE`, one-contract scope, V3 policy, and strict
+`<100 / <150 / <300 USDC` caps remain unchanged. R11 is terminal and Slice 3
+did not run; Slices 4/5 are unauthorized. Live execution remains `not_run`.
+Exact terminal evidence is recorded in
+`docs/FUTURES_SLICE_2R11_TERMINAL_DIAGNOSIS.md`.
 
 This document records durable approval for unattended work on this project.
 It exists so a contextless maintainer or agent can continue approved work

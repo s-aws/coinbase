@@ -4,20 +4,22 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 
 ## Project Entry
 
-Goal `futures_preview_acceptance_recovery_r11` is current. R11 preparation is authorized.
-R11 is unconsumed. The Preview gate remains inactive until focused validation,
-fresh independent safety and blind-contextless audits, and backend-runner-only
-exact-hash activation all confirm readiness. Only then may the backend R11 runner
-make exactly one Preview-only call. The frontend remains readback-only and exposes
-no R11 initiation control. It permits zero retries, fallbacks, redirects, Create,
-Cancel, Close, Reduce, or other exchange mutations. No R12 attempt or Slice 3/4/5 activation is authorized.
+Goal `futures_preview_acceptance_recovery_r11` is complete. R11 is consumed,
+terminal `blocked`, immutable, and cannot be retried. It stopped at
+`remaining_margin_validation` before Preview after six bounded reads; Preview,
+retry, fallback, submission, and mutation counts remained `0`. The exact V3
+operator-policy boundary is `margin_window_type_documented_but_operator_rejected`.
+No acceptance broadening, R12, Slice 3/4/5, or live authority follows. Default:
+`stop_and_await_operator_direction`.
 
 Historical goal `futures_post_r10_preview_compatibility_and_direction_selection`
 is a completed compatibility/direction record, not current work authority.
 
-- [Current MVP Goal](../genai_data/AGENT_MVP_REBUILD_GOAL.md) - authorized R11
-  preparation, inactive readiness and exact-hash gate, immutable R1-R10 history,
-  and automatic bounded offline post-terminal diagnosis/remediation
+- [Current MVP Goal](../genai_data/AGENT_MVP_REBUILD_GOAL.md) - completed R11
+  terminal authority, immutable R1-R11 history, and no-successor stop posture
+- [Futures Slice 2R11 Terminal Diagnosis](FUTURES_SLICE_2R11_TERMINAL_DIAGNOSIS.md) -
+  exact pre-Preview V3 operator-policy boundary, immutable terminal hashes,
+  six-read/zero-Preview accounting, and permanent no-retry tombstone
 - [Futures Post-R10 Preview Compatibility And Direction](FUTURES_POST_R10_COMPATIBILITY_DIRECTION.md) -
   historical official-source mapping, two-layer validator boundary, value-blind
   safety posture, ranked direction, and the finding that ten attempts were
@@ -117,7 +119,8 @@ is a completed compatibility/direction record, not current work authority.
 - Canonical engine embedding:
   `main.py` with `COINBASE_ADMIN_API_EMBEDDED_ENABLED=true`; activation is not
   a separate fill-testing permission, and every order remains subject to the
-  current goal's explicit order limits and complete backend gate chain.
+  separately authorized order scope and complete backend gate chain. Terminal
+  R11 grants no such live-order authority.
 - Process-parallel regression closeout:
   `python3.13 tools/run_parallel_regression.py --workers 4`
 - Stale test-process check before closeout and after interrupted tests:

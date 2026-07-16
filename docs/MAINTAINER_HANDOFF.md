@@ -123,22 +123,29 @@ explicit-request gate:
 npm run release:gate
 ```
 
-Live Coinbase execution is not part of normal handoff validation. When a live
-order is exercised under the current goal's explicit order limits and backend
-gates, report product, submitted notional, executed notional, retained
-inventory, reconciliation result, and audit ids. Expected fill status does not
-create a separate approval class.
+Live Coinbase execution is not part of normal handoff validation. Terminal R11
+grants no live-order authority. If a future, separately authorized scope
+permits a live order under complete backend gates, report product, submitted
+notional, executed notional, retained inventory, reconciliation result, and
+audit ids. Expected fill status does not create a separate approval class.
 
 ## Current Handoff State
 
-- Current authority: Goal `futures_preview_acceptance_recovery_r11` is current.
-  R11 preparation is authorized. R11 is unconsumed. The Preview gate remains inactive
-  until focused validation, fresh independent safety and blind-contextless audits,
-  and backend-runner-only exact-hash activation all confirm readiness. Only then
-  may the backend R11 runner make exactly one Preview-only call. The frontend
-  remains readback-only and exposes no R11 initiation control. It permits zero
-  retries, fallbacks, redirects, Create, Cancel, Close, Reduce, or other exchange
-  mutations. No R12 attempt or Slice 3/4/5 activation is authorized.
+- Current authority: Goal `futures_preview_acceptance_recovery_r11` is complete.
+  R11 is consumed, terminal `blocked`, immutable, and cannot be retried. It
+  stopped at `remaining_margin_validation` before Preview after all six reads
+  ran once; Preview, retry, fallback, redirect, submission, and mutation counts
+  remained `0`. The exact boundary is
+  `margin_window_type_documented_but_operator_rejected`: row `1`, profile
+  `retail_intraday_margin_1`, field `margin_window_type`, value type `string`.
+  The immutable R11 file/evidence SHA-256 pair is
+  `effb4bd037b853e06da14a0327d71eb8104e2b7edb2f56970b4c47ef855b6061` /
+  `548bbb02709c70dc320219bc15520b40ed948309ad09ec0f8af8f812d63bedea`.
+  Default API/UI readback selects this exact immutable R11 terminal and fails
+  closed instead of falling back to R10.
+  It grants no schema/acceptance broadening, R12, Slice 3/4/5, or live
+  authority. Default action: `stop_and_await_operator_direction`. See
+  `docs/FUTURES_SLICE_2R11_TERMINAL_DIAGNOSIS.md`.
 - Historical post-R10 checkpoint: goal
   `futures_post_r10_preview_compatibility_and_direction_selection` completed the
   prospective separation of the official Preview wire schema from stricter
@@ -191,15 +198,16 @@ create a separate approval class.
   All six reads and Preview are `1`; retry, fallback, redirect, Create, Cancel,
   Close, Reduce, exchange submission, and submitted/executed notional are zero.
   No normalized Preview, Preview identifier, or seal-ready plan was persisted.
-  Default API/UI readback selects this exact terminal while preserving R8
-  through documented-SHA/stat-metadata-only validation. See
+  At that historical checkpoint, default API/UI readback selected this exact
+  R10 terminal while preserving R8 through documented-SHA/stat-metadata-only
+  validation. See
   `docs/FUTURES_SLICE_2R10_TERMINAL_DIAGNOSIS.md`.
 - The standalone and composite R10 entrypoints are permanently hard-false.
   R10 has no remaining Preview authority; no R11 existed at that historical
   checkpoint, and Slice 3 did not run. Its handoff, admission, activation,
   action-journal, read-journal, and terminal artifacts are absent. Never invoke
-  any R7-R10 runner again. Current R11 authority is separate and remains behind
-  the inactive backend-runner-only gate above.
+  any R7-R10 runner again. R11 later consumed its claim before Preview and its
+  runner is likewise permanently tombstoned.
 - R6 predecessor state: Slice 2 remained blocked after the authorized R6
   attempt was consumed without accepted Preview evidence. The
   consumed immutable R5 file/evidence SHA-256 pair remains
@@ -228,9 +236,8 @@ create a separate approval class.
   remediated models emit correlated `allOf`/`oneOf` pairs, generated TypeScript
   preserves those pairs, hybrid identities are test-rejected, and both
   reviewers re-reviewed the remediation with no remaining findings.
-- Current goal id: `futures_preview_acceptance_recovery_r11`.
-- Current next action:
-  `prepare_audit_and_consume_single_r11_preview_then_offline_diagnosis`.
+- Current goal id: `futures_preview_acceptance_recovery_r11` (complete).
+- Current next action: `stop_and_await_operator_direction`.
 - Historical predecessor slice: Default-profile Futures readback -> exact AVAX US CFM Coinbase
   Preview Order -> immutable operator-visible no-live preview readback. The
   one-shot R1 artifact terminated before
@@ -465,8 +472,9 @@ create a separate approval class.
   order roundtrip (3), intentional fill/position readback (4), then exact
   closeout (5). This ordering is design history, not work authority. Consumed
   blocked R10 granted no successor activation or live authority at that
-  historical checkpoint; no R11 existed then, and Slice 3 did not run. Current
-  R11 preparation authority is defined only by the current-authority block above.
+  historical checkpoint; no R11 existed then, and Slice 3 did not run. R11
+  subsequently consumed its claim before Preview and is governed by the
+  terminal current-authority block above.
 - Previous state: V14 completed the predecessor automatic/live proof for ten
   Test-profile roots and ten first-child submissions under the approved
   `30.00 USDC` reference cap. Every root was authoritatively FILLED, every child

@@ -12,13 +12,17 @@ Maintainer handoff for contextless agents starts at
 
 ## Current Status
 
-Goal `futures_preview_acceptance_recovery_r11` is current. R11 preparation is authorized.
-R11 is unconsumed. The Preview gate remains inactive until focused validation,
-fresh independent safety and blind-contextless audits, and backend-runner-only
-exact-hash activation all confirm readiness. Only then may the backend R11 runner
-make exactly one Preview-only call. The frontend remains readback-only and exposes
-no R11 initiation control. It permits zero retries, fallbacks, redirects, Create,
-Cancel, Close, Reduce, or other exchange mutations. No R12 attempt or Slice 3/4/5 activation is authorized.
+Goal `futures_preview_acceptance_recovery_r11` is complete. R11 is consumed,
+terminal `blocked`, immutable, and cannot be retried. It stopped at
+`remaining_margin_validation` before Coinbase Preview after all six bounded
+reads ran once; Preview, retry, fallback, redirect, submission, and every
+exchange mutation remained `0`. The exact boundary is
+`margin_window_type_documented_but_operator_rejected` for row `1`, profile
+`retail_intraday_margin_1`, field `margin_window_type`, value type `string`.
+It does not authorize schema or acceptance broadening. No R12, Slice 3/4/5,
+or live authority exists, and the default action is
+`stop_and_await_operator_direction`. See
+[R11 Terminal Diagnosis](docs/FUTURES_SLICE_2R11_TERMINAL_DIAGNOSIS.md).
 
 Historically, goal `selected_order_execution_closeout_slice` recorded the completed
 selected-root fill-ledger/audit, terminal-child, and read-only recovery closeout.

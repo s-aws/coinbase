@@ -89,18 +89,21 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     assert summary["historical_phase_range"] == "7961-7980"
     assert summary["historical_phase_count"] == 20
     assert summary["phase_range_status"] == "historical_not_work_authority"
-    assert summary["slice_status"] == "preparing_audit_gate_inactive"
+    assert summary["slice_status"] == "complete_terminal_no_retry"
     assert summary["blockers"] == []
     assert summary["default_next_action"] == (
-        "prepare_audit_and_consume_single_r11_preview_then_offline_diagnosis"
+        "stop_and_await_operator_direction"
     )
+    assert summary["r11_workflow_attempts_consumed"] == 1
     assert summary["r11_preview_attempts_consumed"] == 0
-    assert summary["r11_terminal"] is False
+    assert summary["r11_terminal"] is True
+    assert summary["r11_terminal_before_preview"] is True
+    assert summary["r11_successor_authorized"] is False
     assert summary["live_coinbase_preview_ran"] is False
     assert summary["live_coinbase_orders_ran"] is False
     assert summary["live_order_notional_usdc"] == "0"
     assert summary["mvp_scope"] == {
-        "work_mode": "authorized_r11_preparation_and_single_preview_workflow",
+        "work_mode": "r11_terminal_offline_closeout_no_successor_authority",
         "goal_authority": (
             "/home/developer/coinbase/coinbase-frontend/docs/CURRENT_MVP_GOAL.md"
         ),
@@ -108,26 +111,28 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         "live_action_path": "auditable_backend_admin_interfaces_only",
         "phase_range_policy": "parked_unless_direct_current_slice_blocker",
         "current_vertical_slice": "Slice 2R11",
-        "direct_blocker_rule": "only_r11_scope_or_immediate_r11_safety_blocker",
-        "scope_posture": "authorized_r11_preparation_live_gate_inactive",
+        "direct_blocker_rule": "r11_terminal_closeout_only_no_successor_authority",
+        "scope_posture": (
+            "r11_terminal_pre_preview_v3_operator_policy_rejection"
+        ),
         "focused_blast_radius_tests_required": True,
         "full_suite_at_durable_milestone_only": True,
         "active_work_policy": {
             "current_priority": (
-                "prepare_audit_and_consume_single_r11_preview_then_offline_diagnosis"
+                "stop_and_await_operator_direction"
             ),
             "approved_phase_range_status": "historical_not_work_authority",
             "phase_range_work_allowed": False,
-            "slice_status": "preparing_audit_gate_inactive",
+            "slice_status": "complete_terminal_no_retry",
             "blockers": [],
             "default_next_action": (
-                "prepare_audit_and_consume_single_r11_preview_then_offline_diagnosis"
+                "stop_and_await_operator_direction"
             ),
             "ordered_successors": [],
             "allow_only_when_directly_blocks": [
-                "slice_2r11_preparation_integration_validation_and_audit",
-                "single_slice_2r11_preview_after_all_readiness_gates",
-                "slice_2r11_post_terminal_offline_diagnosis_and_remediation",
+                "slice_2r11_terminal_artifact_hard_binding",
+                "slice_2r11_offline_diagnosis_and_readback",
+                "slice_2r11_closeout_validation_and_audit",
             ],
             "forbidden_default_actions": [
                 "second_r11_preview_or_retry",
@@ -148,7 +153,7 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         "preferred_perpetual_notional_under_usdc": "30.00",
         "active_futures_slice": {
             "slice": "2R11",
-            "status": "preparing_audit_gate_inactive",
+            "status": "complete_terminal_no_retry",
             "policy": "V3",
             "product_id": "AVP-20DEC30-CDE",
             "contract_count": "1",
@@ -162,22 +167,35 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
             "converter_only_envelopes_allowed": False,
             "preview_id_persistence": "sha256_or_withheld",
             "diagnostics": "fixed_value_blind",
-            "coinbase_preview_attempts_max": 1,
+            "coinbase_preview_attempts_max": 0,
             "coinbase_preview_attempts_consumed": 0,
+            "r11_workflow_attempts_consumed": 1,
+            "terminal_before_preview": True,
+            "terminal_reason_code": "futures_preview_margin_windows_ambiguous",
+            "terminal_policy_classification": (
+                "margin_window_type_documented_but_operator_rejected"
+            ),
             "retry_attempts_max": 0,
             "fallback_attempts_max": 0,
             "redirect_attempts_max": 0,
             "exchange_mutation_attempts_max": 0,
         },
         "terminal_futures_slice": {
+            "slice": "2R11",
+            "status": "complete_terminal_no_retry",
             "product_id": "AVP-20DEC30-CDE",
             "contract_count": "1",
             "opening_reference_notional_under_usdc": "100.00",
             "exposure_and_buffered_close_under_usdc": "150.00",
             "branch_turnover_under_usdc": "300.00",
             "coinbase_preview_attempts_max": 0,
+            "coinbase_preview_attempts_observed": 0,
+            "r11_workflow_attempts_consumed": 1,
             "authorized_recovery_preview_attempts_max": 0,
             "exchange_mutation_attempts_max": 0,
+            "successor_authorized": False,
+            "terminal_before_preview": True,
+            "terminal_reason_code": "futures_preview_margin_windows_ambiguous",
             "conditional_slice_3": {
                 "status": "not_run_terminally_inactive",
                 "exchange_mutation_attempts_max": 0,
@@ -194,7 +212,7 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     assert check_results["post_r10_compatibility_direction_closeout"][
         "passed"
     ] is True
-    assert check_results["slice_2r11_preparation_posture"]["passed"] is True
+    assert check_results["slice_2r11_terminal_posture"]["passed"] is True
     assert check_results["github_workflows_retired"]["passed"] is True
     assert check_results["github_workflows_retired"]["evidence"][
         "execution_authority"
@@ -228,25 +246,28 @@ def test_post_r10_closeout_records_integration_invariants_and_gate_evidence():
     )
 
 
-def test_r11_preparation_doc_records_exact_bounded_active_posture():
-    preparation = Path("docs/FUTURES_SLICE_2R11_PREPARATION.md").read_text(
+def test_r11_terminal_doc_records_exact_bounded_closeout_posture():
+    terminal = Path("docs/FUTURES_SLICE_2R11_TERMINAL_DIAGNOSIS.md").read_text(
         encoding="utf-8"
     )
-    normalized = " ".join(preparation.split())
+    normalized = " ".join(terminal.split())
 
     for text in (
         "futures_preview_acceptance_recovery_r11",
-        "prepare_audit_and_consume_single_r11_preview_then_offline_diagnosis",
-        "preparing_audit_gate_inactive",
+        "r11_terminal_pre_preview_v3_operator_policy_rejection",
+        "stop_and_await_operator_direction",
+        "complete_terminal_no_retry",
         "coinbase-advanced-py==1.8.4",
-        "raw SDK envelope before any recursive `_plain()` normalization",
-        "converter-only envelopes",
-        "hashed or withheld",
-        "fixed value-blind diagnostics",
         "AVP-20DEC30-CDE",
         "<100 / <150 / <300 USDC",
-        "exactly one Coinbase Preview-only R11 call",
-        "R11 is unconsumed",
+        "R11 is terminally consumed",
+        "remaining_margin_validation",
+        "futures_preview_margin_windows_ambiguous",
+        "margin_window_type_documented_but_operator_rejected",
+        "retail_intraday_margin_1",
+        "Preview attempts: `0`",
+        "Exchange submission attempts: `0`",
+        "no retry",
         "no R12 attempt",
         "no Slice 3, Slice 4, or Slice 5 activation",
     ):

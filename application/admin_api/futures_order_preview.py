@@ -240,6 +240,18 @@ FUTURES_PREVIEW_R10_SIZE = 26144
 FUTURES_PREVIEW_R10_MODE = 0o400
 FUTURES_PREVIEW_R10_MTIME_NS = 1784179469052389092
 FUTURES_PREVIEW_R10_NLINK = 1
+FUTURES_PREVIEW_R11_FILE_SHA256 = (
+    "effb4bd037b853e06da14a0327d71eb8104e2b7edb2f56970b4c47ef855b6061"
+)
+FUTURES_PREVIEW_R11_EVIDENCE_SHA256 = (
+    "548bbb02709c70dc320219bc15520b40ed948309ad09ec0f8af8f812d63bedea"
+)
+FUTURES_PREVIEW_R11_DEVICE = 2096
+FUTURES_PREVIEW_R11_INODE = 221385
+FUTURES_PREVIEW_R11_SIZE = 24610
+FUTURES_PREVIEW_R11_MODE = 0o400
+FUTURES_PREVIEW_R11_MTIME_NS = 1784233044565789650
+FUTURES_PREVIEW_R11_NLINK = 1
 FUTURES_PREVIEW_ORIGINAL_FILE_SHA256 = (
     "9b15da86c172eca46d4b3dc0fc2b81e9b325df9a1e2f75fef79362f538e2d5ff"
 )
@@ -618,6 +630,25 @@ FUTURES_PREVIEW_R10_TERMINAL_BINDING = {
     "executed_notional_usdc": "0",
     "preservation": "immutable_no_modify_delete_or_reuse",
     "original_predecessor_binding": FUTURES_PREVIEW_R9_TERMINAL_BINDING,
+}
+FUTURES_PREVIEW_R11_TERMINAL_BINDING = {
+    "artifact_name": "futures_exact_no_live_preview_slice_2r11.jsonl",
+    "file_sha256": FUTURES_PREVIEW_R11_FILE_SHA256,
+    "evidence_sha256": FUTURES_PREVIEW_R11_EVIDENCE_SHA256,
+    "device": str(FUTURES_PREVIEW_R11_DEVICE),
+    "inode": str(FUTURES_PREVIEW_R11_INODE),
+    "size_bytes": FUTURES_PREVIEW_R11_SIZE,
+    "mode": f"{FUTURES_PREVIEW_R11_MODE:04o}",
+    "mtime_ns": str(FUTURES_PREVIEW_R11_MTIME_NS),
+    "nlink": FUTURES_PREVIEW_R11_NLINK,
+    "status": "blocked",
+    "outcome": "blocked",
+    "preview_order_attempt_count": 0,
+    "exchange_submission_attempt_count": 0,
+    "submitted_notional_usdc": "0",
+    "executed_notional_usdc": "0",
+    "preservation": "immutable_no_modify_delete_or_reuse",
+    "original_predecessor_binding": FUTURES_PREVIEW_R10_TERMINAL_BINDING,
 }
 
 
@@ -1660,16 +1691,38 @@ def _configured_futures_order_preview_r10_artifact_path() -> Path | None:
 
 
 def _configured_futures_order_preview_r11_artifact_path() -> Path | None:
-    """Return a completed valid R11 terminal, or ``None`` only if absent."""
+    """Return the exact R11 terminal or an absent nonproduction override."""
 
     try:
         FUTURES_PREVIEW_R11_ARTIFACT_PATH.lstat()
     except FileNotFoundError:
+        if _same_artifact_path(
+            FUTURES_PREVIEW_R11_ARTIFACT_PATH,
+            _PRODUCTION_FUTURES_PREVIEW_R11_ARTIFACT_PATH,
+        ):
+            raise FuturesOrderPreviewArtifactError(
+                "futures Preview R11 terminal readback is missing"
+            ) from None
         return None
     except OSError:
         raise FuturesOrderPreviewArtifactError(
             "futures Preview R11 terminal readback is invalid"
         ) from None
+    if _same_artifact_path(
+        FUTURES_PREVIEW_R11_ARTIFACT_PATH,
+        _PRODUCTION_FUTURES_PREVIEW_R11_ARTIFACT_PATH,
+    ):
+        try:
+            observed = validate_production_futures_order_preview_r11_terminal()
+            if observed != FUTURES_PREVIEW_R11_TERMINAL_BINDING:
+                raise FuturesOrderPreviewArtifactError(
+                    "futures Preview R11 terminal binding changed"
+                )
+        except Exception:
+            raise FuturesOrderPreviewArtifactError(
+                "futures Preview R11 terminal readback is invalid"
+            ) from None
+        return FUTURES_PREVIEW_R11_ARTIFACT_PATH
     try:
         payload = FuturesOrderPreviewArtifactStore(
             FUTURES_PREVIEW_R11_ARTIFACT_PATH
@@ -2678,6 +2731,143 @@ def validate_production_futures_order_preview_r10_terminal() -> dict[str, Any]:
             "futures Preview R10 terminal binding changed"
         )
     return dict(FUTURES_PREVIEW_R10_TERMINAL_BINDING)
+
+
+def validate_production_futures_order_preview_r11_terminal() -> dict[str, Any]:
+    """Model/hash/stat-bind consumed R11 and its immutable predecessor chain."""
+
+    r10_binding = validate_production_futures_order_preview_r10_terminal()
+    if r10_binding != FUTURES_PREVIEW_R10_TERMINAL_BINDING:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R10 predecessor binding changed"
+        )
+    r11_binding = validate_futures_order_preview_predecessor(
+        FUTURES_PREVIEW_R11_ARTIFACT_PATH,
+        expected_file_sha256=FUTURES_PREVIEW_R11_FILE_SHA256,
+        expected_evidence_sha256=FUTURES_PREVIEW_R11_EVIDENCE_SHA256,
+        expected_device=FUTURES_PREVIEW_R11_DEVICE,
+        expected_inode=FUTURES_PREVIEW_R11_INODE,
+        expected_size=FUTURES_PREVIEW_R11_SIZE,
+        expected_mode=FUTURES_PREVIEW_R11_MODE,
+        expected_mtime_ns=FUTURES_PREVIEW_R11_MTIME_NS,
+        expected_nlink=FUTURES_PREVIEW_R11_NLINK,
+        expected_artifact_type=FUTURES_PREVIEW_R11_ARTIFACT_TYPE,
+        expected_blocker="preflight_or_preview_stage_blocked",
+        expected_predecessor_binding=r10_binding,
+        expected_preview_order_attempt_count=0,
+    )
+    try:
+        from application.admin_api.models import (
+            AdminFuturesOrderPreviewResponse,
+        )
+
+        payload = FuturesOrderPreviewArtifactStore(
+            FUTURES_PREVIEW_R11_ARTIFACT_PATH
+        ).read_completed()
+        validated = AdminFuturesOrderPreviewResponse.model_validate(payload)
+        pre_preview = validated.pre_preview_stage_evidence
+        margin_setting = validated.margin_setting_evidence
+        margin_policy = validated.margin_windows_policy_evidence
+        policy_rows = [] if margin_policy is None else margin_policy.rows
+        if (
+            pre_preview is None
+            or pre_preview.model_dump(mode="json")
+            != {
+                "schema_version": "1",
+                "source": "backend_futures_preview_producer",
+                "stages": [
+                    {
+                        "stage": "remaining_margin_validation",
+                        "status": "blocked",
+                        "reason_code": (
+                            "futures_preview_margin_windows_ambiguous"
+                        ),
+                    }
+                ],
+                "sanitized": True,
+                "raw_response_included": False,
+                "external_exception_text_included": False,
+                "identifier_values_included": False,
+            }
+            or margin_setting is None
+            or margin_setting.allowlist_match is not True
+            or margin_setting.operationally_resolved is not True
+            or margin_setting.classification != "recognized_string"
+            or margin_setting.unexpected_field_count != 0
+            or margin_setting.sanitized is not True
+            or margin_setting.raw_response_included is not False
+            or margin_policy is None
+            or margin_policy.schema_version != "3"
+            or margin_policy.policy_id
+            != "slice2_preview_margin_window_exact_pair_policy_v3"
+            or margin_policy.pair_policy_mode != "exact_profile_state_pair"
+            or margin_policy.classification
+            != "margin_window_type_documented_but_operator_rejected"
+            or margin_policy.margin_window_policy_satisfied is not False
+            or margin_policy.failing_policy_row_index != 1
+            or margin_policy.recognized_profile
+            != "retail_intraday_margin_1"
+            or margin_policy.failing_field != "margin_window_type"
+            or margin_policy.failing_value_type != "string"
+            or [row.policy_row_index for row in policy_rows] != [0, 1]
+            or policy_rows[0].classification != "accepted"
+            or policy_rows[1].recognized_profile
+            != "retail_intraday_margin_1"
+            or policy_rows[1].classification
+            != "documented_but_operator_rejected"
+            or policy_rows[1].documented_allowlist_match is not True
+            or policy_rows[1].operator_policy_match is not False
+            or margin_policy.sanitized is not True
+            or margin_policy.raw_response_included is not False
+            or margin_policy.external_exception_text_included is not False
+            or margin_policy.unknown_identifier_values_included is not False
+            or validated.correlation_id != "withheld"
+            or validated.idempotency_key != "withheld"
+            or validated.portfolio_id is not None
+            or validated.portfolio_binding is not None
+            or validated.permission_evidence is not None
+            or validated.portfolio_catalog_evidence is not None
+            or validated.product_evidence is not None
+            or validated.market_evidence is not None
+            or validated.position_evidence is not None
+            or validated.margin_collateral_evidence is not None
+            or validated.candidate is not None
+            or validated.preview_request is not None
+            or validated.preview_response is not None
+            or validated.preview_id_sha256 is not None
+            or validated.seal_ready_plan is not None
+            or validated.post_preview_stage_evidence is not None
+            or validated.exchange_submission_attempt_count != 0
+            or validated.submitted_notional_usdc != "0"
+            or validated.executed_notional_usdc != "0"
+            or validated.live_execution != "not_run"
+            or validated.live_coinbase_execution != "not_run"
+            or validated.live_coinbase_read_ran is not True
+            or validated.read_only is not True
+            or validated.browser_authority != "display_only"
+            or validated.bff_authority != "forward_only_no_execution"
+        ):
+            raise FuturesOrderPreviewArtifactError(
+                "futures Preview R11 terminal diagnosis changed"
+            )
+        _validate_opaque_preview_artifact(
+            FUTURES_PREVIEW_R11_ARTIFACT_PATH,
+            expected_file_sha256=FUTURES_PREVIEW_R11_FILE_SHA256,
+            expected_device=FUTURES_PREVIEW_R11_DEVICE,
+            expected_inode=FUTURES_PREVIEW_R11_INODE,
+            expected_size=FUTURES_PREVIEW_R11_SIZE,
+            expected_mode=FUTURES_PREVIEW_R11_MODE,
+            expected_mtime_ns=FUTURES_PREVIEW_R11_MTIME_NS,
+        )
+    except Exception:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R11 terminal model validation failed"
+        ) from None
+    if r11_binding != FUTURES_PREVIEW_R11_TERMINAL_BINDING:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R11 terminal binding changed"
+        )
+    return dict(FUTURES_PREVIEW_R11_TERMINAL_BINDING)
 
 
 def validate_production_futures_order_preview_predecessor() -> dict[str, Any]:

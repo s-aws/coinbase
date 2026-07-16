@@ -1,12 +1,10 @@
-"""Prepare and consume the single audited Slice 2R11 Preview claim.
+"""Retain the permanently consumed Slice 2R11 Preview runner as a tombstone.
 
-Preflight is fully offline: it validates the immutable R10 predecessor, the
-installed SDK pin, and a disposable R11 claim without creating the production
-artifact or hydrating credentials.  Confirmation remains fail-closed until a
-separate constants-only audit activation binds the exact prepared revisions.
-The live-capable surface exposes six fixed read categories and one Preview;
-it has no Create, Cancel, Close, Reduce, retry, fallback, redirect, or accepted
-session handoff path.
+The historical preparation helpers remain available for offline synthetic
+tests, but production confirmation is permanently unavailable after the one
+authorized R11 workflow reached a terminal result.  Neither literal audit
+activation nor runtime monkeypatching of those activation values can restore
+the production factory authority.
 """
 
 from __future__ import annotations
@@ -79,6 +77,7 @@ _R11_RUNNER_RELATIVE_PATH = "tools/run_admin_api_futures_no_live_preview_r11.py"
 _FIXED_R11_PRODUCTION_ARTIFACT_PATH = (
     REPO_ROOT / "artifacts" / "futures_exact_no_live_preview_slice_2r11.jsonl"
 )
+R11_TERMINAL_TOMBSTONE = True
 _R11_EXPECTED_COMPONENTS = frozenset(
     {
         "backend:.agents/ownership.yaml",
@@ -453,9 +452,34 @@ def _literal_audit_binding_values(block: str) -> dict[str, object]:
         and values["R11_ACTIVATION_NOT_AFTER"] == ""
         and components == {}
     )
-    if not active and not inactive:
+    tombstoned = (
+        R11_TERMINAL_TOMBSTONE
+        and values["R11_PREVIEW_CALL_AUTHORITY_ACTIVE"] is False
+        and values["R11_FINAL_AUDIT_BINDING_READY"] is False
+        and all(
+            isinstance(values[name], str)
+            and _HEX_GIT_OBJECT_ID.fullmatch(values[name]) is not None
+            for name in _AUDIT_BINDING_REVISION_NAMES
+        )
+        and all(
+            isinstance(values[name], str)
+            and _HEX_SHA256.fullmatch(values[name]) is not None
+            for name in _AUDIT_BINDING_SHA256_NAMES
+        )
+        and isinstance(values["R11_ACTIVATION_NOT_AFTER"], str)
+        and bool(values["R11_ACTIVATION_NOT_AFTER"])
+        and isinstance(components, dict)
+        and set(components) == _R11_EXPECTED_COMPONENTS
+        and all(
+            isinstance(key, str)
+            and isinstance(value, str)
+            and _HEX_SHA256.fullmatch(value) is not None
+            for key, value in components.items()
+        )
+    )
+    if not active and not inactive and not tombstoned:
         raise ValueError("binding_state")
-    if active:
+    if active or tombstoned:
         if component_keys != sorted(_R11_EXPECTED_COMPONENTS):
             raise ValueError("component_order")
         activation = datetime.fromisoformat(
@@ -1315,13 +1339,35 @@ def _early_bootstrap() -> tuple[dict[str, object], bool]:
     source = Path(__file__).read_text(encoding="utf-8")
     block, _start, _end = _audit_binding_block(source)
     values = _literal_audit_binding_values(block)
-    if not _repository_clean_with_output(
-        REPO_ROOT, _bootstrap_git_output
-    ) or not _repository_clean_with_output(
-        FRONTEND_ROOT, _bootstrap_git_output
-    ) or not _bootstrap_runtime_is_valid():
+    direct_cli = __name__ == "__main__"
+    tombstoned_import = (
+        not direct_cli
+        and R11_TERMINAL_TOMBSTONE
+        and values["R11_PREVIEW_CALL_AUTHORITY_ACTIVE"] is False
+        and values["R11_FINAL_AUDIT_BINDING_READY"] is False
+    )
+    if (
+        (
+            not tombstoned_import
+            and (
+                not _repository_clean_with_output(
+                    REPO_ROOT, _bootstrap_git_output
+                )
+                or not _repository_clean_with_output(
+                    FRONTEND_ROOT, _bootstrap_git_output
+                )
+            )
+        )
+        or (
+            tombstoned_import
+            and not _backend_import_shadows_absent(
+                REPO_ROOT, _bootstrap_git_output
+            )
+        )
+        or not _bootstrap_runtime_is_valid()
+    ):
         raise ValueError("source_state")
-    return values, __name__ == "__main__"
+    return values, direct_cli
 
 
 try:
@@ -1339,8 +1385,8 @@ except Exception:
 
 # BEGIN R11 AUDIT BINDINGS
 if False:
-    R11_PREVIEW_CALL_AUTHORITY_ACTIVE = True
-    R11_FINAL_AUDIT_BINDING_READY = True
+    R11_PREVIEW_CALL_AUTHORITY_ACTIVE = False
+    R11_FINAL_AUDIT_BINDING_READY = False
     R11_PREPARATION_REVISION = "cbaf46690a760603cf2510c43bf2fdc32d456317"
     R11_FRONTEND_REVISION = "934d29953edba2c9d4ff5b0d64682d063bf59d49"
     R11_NORMALIZED_RUNNER_SHA256 = "870a7f3313777814917ed1d2f1e7e4942a4ce14471a10d9b0f918e8b9cb186f3"
@@ -1745,14 +1791,9 @@ def _validate_final_audit_binding() -> None:
 
 
 def _require_production_factory_authority() -> None:
-    if (
-        not _R11_CLI_BOOTSTRAP_VALIDATED
-        or not R11_PREVIEW_CALL_AUTHORITY_ACTIVE
-        or not R11_FINAL_AUDIT_BINDING_READY
-    ):
-        raise FuturesOrderPreviewArtifactError(
-            "futures Preview R11 production factory authority is unavailable"
-        )
+    raise FuturesOrderPreviewArtifactError(
+        "futures Preview R11 production factory authority is permanently consumed"
+    )
 
 
 def _assert_exclusive_r11_claim(
@@ -2148,53 +2189,17 @@ def _path_is_consumed(path: Path) -> bool:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    if args.confirm_one_r11_preview and not _R11_CLI_BOOTSTRAP_VALIDATED:
-        print(
-            json.dumps(
-                _fixed_blocked_summary(
-                    "futures_preview_r11_bootstrap_validation_required"
-                ),
-                sort_keys=True,
-            ),
-            file=sys.stderr,
-        )
-        return 2
-    if args.confirm_one_r11_preview and not R11_PREVIEW_CALL_AUTHORITY_ACTIVE:
-        print(
-            json.dumps(
-                _fixed_blocked_summary(
-                    "futures_preview_r11_call_authority_inactive"
-                ),
-                sort_keys=True,
-            ),
-            file=sys.stderr,
-        )
-        return 2
-    if args.confirm_one_r11_preview and not R11_FINAL_AUDIT_BINDING_READY:
-        print(
-            json.dumps(
-                _fixed_blocked_summary(
-                    "futures_preview_r11_final_audit_binding_incomplete"
-                ),
-                sort_keys=True,
-            ),
-            file=sys.stderr,
-        )
-        return 2
     if args.confirm_one_r11_preview:
-        try:
-            _validate_final_audit_binding()
-        except Exception:
-            print(
-                json.dumps(
-                    _fixed_blocked_summary(
-                        "futures_preview_r11_final_audit_binding_invalid"
-                    ),
-                    sort_keys=True,
+        print(
+            json.dumps(
+                _fixed_blocked_summary(
+                    "futures_preview_r11_terminally_consumed"
                 ),
-                file=sys.stderr,
-            )
-            return 2
+                sort_keys=True,
+            ),
+            file=sys.stderr,
+        )
+        return 2
 
     if args.preflight:
         try:

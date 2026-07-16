@@ -263,6 +263,7 @@ owners:
       - docs/FUTURES_SLICE_2R9_TERMINAL_DIAGNOSIS.md
       - docs/FUTURES_SLICE_2R10_TERMINAL_DIAGNOSIS.md
       - docs/FUTURES_SLICE_2R11_PREPARATION.md
+      - docs/FUTURES_SLICE_2R11_TERMINAL_DIAGNOSIS.md
       - docs/FUTURES_POST_R10_COMPATIBILITY_DIRECTION.md
       - openapi/**
       - tools/export_admin_api_route_inventory.py

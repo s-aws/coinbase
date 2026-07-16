@@ -1,13 +1,18 @@
 # Futures/Perpetuals Admin Reads
 
 The M57 phase statements in this document are a historical implementation
-snapshot. Current goal id is
-`futures_post_r10_preview_compatibility_and_direction_selection`. The completed
-post-R10 work prospectively separates Coinbase's official Preview wire schema
-from stricter project acceptance without changing immutable R1-R10 history or
-R10's sanitized terminal category. R8 content/hash remain inaccessible. There
-is no R11, Slice 3/4/5, Preview, or mutation authority. The next action is
-`await_operator_decision_on_one_post_r10_successor_or_official_clarification`.
+snapshot. Current goal `futures_preview_acceptance_recovery_r11` is complete.
+R11 is consumed and terminal `blocked`; it stopped at
+`remaining_margin_validation` before Preview after six reads, with Preview,
+retry, fallback, submission, and mutation counts all `0`. The exact boundary
+is `margin_window_type_documented_but_operator_rejected` for row `1`, profile
+`retail_intraday_margin_1`, field `margin_window_type`, value type `string`.
+The immutable file/evidence SHA-256 pair is
+`effb4bd037b853e06da14a0327d71eb8104e2b7edb2f56970b4c47ef855b6061` /
+`548bbb02709c70dc320219bc15520b40ed948309ad09ec0f8af8f812d63bedea`.
+This operator-policy result grants no acceptance broadening, retry, R12,
+Slice 3/4/5, Preview, mutation, or live authority. The default action is
+`stop_and_await_operator_direction`.
 
 This feature exposes read-only futures and perpetual account, risk, and
 position evidence through the enterprise Admin API. It is a separate module,

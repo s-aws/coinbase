@@ -10,13 +10,23 @@ at `/home/developer/coinbase/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. An
 individual analysis or implementation note does not become current work merely
 because it lives in this directory.
 
-Goal `futures_preview_acceptance_recovery_r11` is current. R11 preparation is authorized.
-R11 is unconsumed. The Preview gate remains inactive until focused validation,
-fresh independent safety and blind-contextless audits, and backend-runner-only
-exact-hash activation all confirm readiness. Only then may the backend R11 runner
-make exactly one Preview-only call. The frontend remains readback-only and exposes
-no R11 initiation control. It permits zero retries, fallbacks, redirects, Create,
-Cancel, Close, Reduce, or other exchange mutations. No R12 attempt or Slice 3/4/5 activation is authorized.
+Goal `futures_preview_acceptance_recovery_r11` is complete with alignment
+`r11_terminal_pre_preview_v3_operator_policy_rejection` and slice status
+`complete_terminal_no_retry`. R11 is terminally consumed. Its one workflow
+claim stopped at `remaining_margin_validation` with fixed reason
+`futures_preview_margin_windows_ambiguous`: the documented token for policy row
+`1` / `retail_intraday_margin_1` was classified
+`margin_window_type_documented_but_operator_rejected` under the unchanged V3
+operator policy. Preview attempts: `0`. Exchange submission attempts: `0`.
+All retry, fallback, redirect, Create, Cancel, Close, Reduce, and other exchange
+mutation counters are zero. The terminal artifact file SHA-256 is
+`effb4bd037b853e06da14a0327d71eb8104e2b7edb2f56970b4c47ef855b6061` and
+its evidence SHA-256 is
+`548bbb02709c70dc320219bc15520b40ed948309ad09ec0f8af8f812d63bedea`.
+There is no retry, no R12 attempt, no successor authority, and no Slice 3,
+Slice 4, or Slice 5 activation. The default action is
+`stop_and_await_operator_direction`. No R12 attempt or Slice 3/4/5 activation
+is authorized.
 
 Historically, goal
 `futures_post_r10_preview_compatibility_and_direction_selection` completed the
@@ -125,4 +135,4 @@ notes are archival evidence, not current implementation instructions.
 
 ---
 
-Last updated: 2026-07-10
+Last updated: 2026-07-16

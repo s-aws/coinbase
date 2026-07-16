@@ -4,55 +4,54 @@ Goal ID: `futures_preview_acceptance_recovery_r11`
 
 Last reviewed: 2026-07-16 UTC.
 
-Status: `authorized — Slice 2R11 preparing/audit gate inactive; R11 is unconsumed; exactly one Preview remains gated`
+Status: `complete — Slice 2R11 consumed and terminal before Preview; offline diagnosis/remediation complete; no successor authority`
+
+Machine alignment: `r11_terminal_pre_preview_v3_operator_policy_rejection`.
+Slice status: `complete_terminal_no_retry`. Default action:
+`stop_and_await_operator_direction`. R11 is terminally consumed.
 
 The canonical cross-repository authority is
 `/home/developer/coinbase/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. This
 backend copy records the behavior-owner interpretation and must remain aligned
 with it.
 
-## Active Slice 2R11 Successor Workflow
+## Completed Slice 2R11 Successor Workflow
 
-The current cross-repository alignment token is
-`authorized_r11_preparation_live_gate_inactive`. The current next action is
-`prepare_audit_and_consume_single_r11_preview_then_offline_diagnosis`.
-Preparation, integration, remediation, testing, local deployment validation,
-and independent safety plus blind-contextless audits may run for at most ten
-bounded offline or online-official-documentation-only cycles. The Preview call
-gate remains inactive until the prepared revisions and audit receipts are
-bound and every focused readiness check passes.
+The cross-repository alignment token is
+`r11_terminal_pre_preview_v3_operator_policy_rejection`. R11 is consumed,
+terminal `blocked`, immutable, and cannot be retried. The single-use workflow
+stopped at `remaining_margin_validation` before candidate construction or
+Coinbase Preview with fixed reason
+`futures_preview_margin_windows_ambiguous`. All six bounded reads ran exactly
+once; Preview, retry,
+fallback, redirect, submission, Create, Cancel, Close, Reduce, and every other
+exchange-mutation counter remained `0`.
 
-R11 is unconsumed. No R11 terminal claim or result is asserted by this
-preparation posture. Once readiness is independently established, the workflow
-may consume exactly one Coinbase Preview-only R11 call. There are zero retries,
-fallbacks, redirects, Create, Cancel, Close, Reduce, or other exchange
-mutations. An unknown result consumes R11 and cannot be retried. A failed
-preparation, audit, or terminal result continues into the already authorized
-bounded offline diagnosis and remediation; it does not create a second call.
+The structured boundary is
+`margin_window_type_documented_but_operator_rejected`: failing row `1`,
+recognized profile `retail_intraday_margin_1`, field `margin_window_type`, and
+value type `string`. The returned state token was documented, but it did not
+satisfy the exact V3 operator-defined profile/state pair. This is not a
+Preview-response schema incompatibility and does not justify changing the V3
+policy, product `AVP-20DEC30-CDE`, one-contract scope, or strict
+`<100 / <150 / <300 USDC` caps.
 
-The fixed scope remains the exact V3 policy, product `AVP-20DEC30-CDE`, one
-contract, and strict `<100 / <150 / <300 USDC` caps. The integration is pinned
-to `coinbase-advanced-py==1.8.4`. It must validate the raw SDK envelope before
-any recursive `_plain()` normalization, reject converter-only envelopes, and
-keep `preview_id` ephemeral by making it hashed or withheld before persistence
-or readback. Diagnostics are fixed value-blind diagnostics: they never expose
-raw response values, exception text, secrets, private identifiers, or the
-restricted Preview identifier.
+The immutable R11 file/evidence SHA-256 pair is
+`effb4bd037b853e06da14a0327d71eb8104e2b7edb2f56970b4c47ef855b6061` /
+`548bbb02709c70dc320219bc15520b40ed948309ad09ec0f8af8f812d63bedea`.
+Default API/UI readback selects this exact immutable R11 terminal and fails
+closed instead of falling back to R10.
+R1-R10 remain byte-for-byte unchanged, and R8 content/hash remain inaccessible.
+The runner is permanently tombstoned. Synthetic backend/frontend remediation
+now foregrounds the exact policy boundary without exposing raw responses,
+restricted identifiers, secrets, private identifiers, or exception text.
 
-Every R1-R10 artifact byte and documented hash remains immutable. R8 content
-and hash remain inaccessible; only the existing opaque forensic contract may
-be used. The audit gate must revalidate the exact R10 predecessor binding,
-prepared backend/frontend revisions, normalized runner hash, SDK pin, and
-audited component hashes before the single call. The fixed V3 authoritative
-preflight reads remain bounded to one invocation per category and cannot be
-used as another Preview, retry, fallback, redirect, or mutation path.
-
-This goal grants no R12 attempt, no Slice 3, Slice 4, or Slice 5 activation,
-and no other live authority. It stops only after R11 is terminal and the
-authorized offline diagnosis/remediation is complete, or when proceeding would
-require changing the product, contract count, V3 policy, caps, or one-call
-limit. The durable preparation contract is
-`docs/FUTURES_SLICE_2R11_PREPARATION.md`.
+The authorized workflow and offline terminal diagnosis are complete. There is
+no second R11 call, no R12 attempt, no Slice 3, Slice 4, or Slice 5 activation,
+and no other live authority. The default next action is
+`stop_and_await_operator_direction`.
+Details are in `docs/FUTURES_SLICE_2R11_PREPARATION.md` and
+`docs/FUTURES_SLICE_2R11_TERMINAL_DIAGNOSIS.md`.
 
 ## Historical Completed Post-R10 Compatibility And Direction Selection
 
@@ -528,16 +527,18 @@ and evidence SHA-256
 It is mode `0400`, size `26144`, device/inode `2096/221388`, mtime-ns
 `1784179469052389092`, and link count `1`. Retry, fallback, redirect, Create,
 Cancel, Close, Reduce, exchange submission, and submitted/executed notional are
-all zero. The production selector binds this exact terminal and reaches R8 only
-through documented-SHA/stat-metadata-only validation.
+all zero. At that historical R10 checkpoint, the production selector bound
+this exact terminal and reached R8 only through documented-SHA/stat-metadata-
+only validation.
 
 R10 was not accepted, so Slice 3 did not run. Its accepted handoff, admission,
 activation, action journal, read journal, and terminal artifacts are absent.
 The standalone and composite R10 entrypoints are permanently hard-false. No
-Preview authority remains and no R11 exists. The default next action is
-historically recorded as
+Preview authority remained and no R11 existed at that checkpoint. The default
+next action was historically recorded as
 `await_operator_selection_of_separately_authorized_next_goal`; the completed
-post-R10 goal supersedes it with the current decision point above.
+post-R10 goal superseded it, and separately authorized R11 later consumed its
+claim and terminated before Preview as recorded at the top of this file.
 
 `Default-profile Futures readback -> exact AVAX US CFM Coinbase Preview Order -> immutable operator-visible no-live preview readback`
 
@@ -679,18 +680,20 @@ service/runtime. Evidence:
 
 ## Scope And Validation
 
-Default work may implement only an explicitly active slice, remove a focused
-test/runtime blocker causally preventing it, or prevent an immediate
-authorization, duplicate-order, cap, wallet, data-loss, audit,
-reconciliation, rollback, or traceability failure on it.
+There is no active implementation slice after terminal R11. New work requires
+a distinct explicit operator-selected goal. A safety defect involving
+authorization, duplicate-order prevention, caps, wallets, data loss, audit,
+reconciliation, rollback, or traceability may be investigated without granting
+itself successor or Coinbase-call authority.
 
 A candidate blocker cannot make itself in scope by generating evidence about the candidate blocker.
 
-The post-R10 compatibility goal and its historical recovery predecessor are
-complete. Slice 2R11 is the only current successor, remains unconsumed, and is
-still in preparation with its audited one-Preview activation gate inactive.
-R12, Slice 3, Slice 4, Slice 5, and every unrelated successor remain
-unauthorized; exact-hash live gates remain hard stops. Fan-out,
+The post-R10 compatibility goal, its historical recovery predecessor, and the
+separately authorized Slice 2R11 workflow are complete. R11 is consumed,
+immutable, and terminally blocked at `remaining_margin_validation` before
+Preview; there is no active successor or remaining R11 activation gate. R12,
+Slice 3, Slice 4, Slice 5, and every unrelated successor remain unauthorized.
+The default action is `stop_and_await_operator_direction`. Fan-out,
 multi-product automation, schedulers, unattended loops, generic runtime/retry/
 recovery tightening, wallet-ledger expansion, ladders/grids, unrelated domain
 work, and broad cleanup remain parked.
@@ -707,10 +710,9 @@ Use focused tests for ordinary changes. Run full backend/frontend suites only
 at durable milestone, release/deployment, cross-repository closeout, after
 broad cross-cutting changes, or when explicitly requested.
 
-R7, R8, R9, and R10 are terminal and their authorized offline
+R7, R8, R9, R10, and R11 are terminal and their authorized offline
 diagnosis/remediation is complete; never invoke any of those runners again.
-R11 is unconsumed and Slice 3 did not run. Current work is limited to the
-authorized R11 preparation, independent gates, exactly one Preview after those
-gates, and bounded offline post-terminal diagnosis/remediation. Any R12 attempt,
-second R11 call, Slice 3/4/5 activation, product/policy/cap change, or exchange
-mutation requires distinct authority.
+R11 stopped before Preview after all six reads, and Slice 3 did not run.
+Current work is stopped at that terminal boundary pending operator direction.
+Any R12 attempt, second R11 call, Slice 3/4/5 activation,
+product/policy/cap change, or exchange mutation requires distinct authority.

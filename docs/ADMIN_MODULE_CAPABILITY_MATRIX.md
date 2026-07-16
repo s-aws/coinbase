@@ -4,13 +4,14 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Goal `futures_preview_acceptance_recovery_r11` is current. R11 preparation is authorized.
-R11 is unconsumed. The Preview gate remains inactive until focused validation,
-fresh independent safety and blind-contextless audits, and backend-runner-only
-exact-hash activation all confirm readiness. Only then may the backend R11 runner
-make exactly one Preview-only call. The frontend remains readback-only and exposes
-no R11 initiation control. It permits zero retries, fallbacks, redirects, Create,
-Cancel, Close, Reduce, or other exchange mutations. No R12 attempt or Slice 3/4/5 activation is authorized.
+Goal `futures_preview_acceptance_recovery_r11` is complete. R11 is consumed,
+terminal `blocked`, immutable, and cannot be retried. It stopped at
+`remaining_margin_validation` before Preview after six reads; Preview, retry,
+fallback, submission, and mutation counts remained `0`. Its exact boundary is
+`margin_window_type_documented_but_operator_rejected`, an operator-defined V3
+policy rejection that does not authorize schema or acceptance broadening. No
+R12, Slice 3/4/5, or live authority exists; default action is
+`stop_and_await_operator_direction`.
 
 Historically, goal
 `futures_post_r10_preview_compatibility_and_direction_selection` prospectively
@@ -26,10 +27,12 @@ operator-defined, Preview-only, and not Coinbase-documented. R7 additionally
 binds the corrected official liquidation-response schema, immutable R6
 ancestry, one contract, and the `$100/$150/$300` slice-local scope. Exactly one
 audited Preview call occurred and returned control before a sanitized
-post-Preview `ValueError`; no accepted Preview evidence was appended. Default
-operator readback selects exact immutable R8 through a documented-SHA/stat-
-metadata-only forensic contract and never opens or deserializes its pre-fix
-content. R8 is terminal blocked
+post-Preview `ValueError`; no accepted Preview evidence was appended.
+Historical R8-era default operator readback selected exact immutable R8 through
+a documented-SHA/stat-metadata-only forensic contract and never opened or
+deserialized its pre-fix content. Current default operator readback selects
+exact immutable R11 and fails closed instead of falling back to R10. R8 is
+terminal blocked
 with zero Preview or real Coinbase calls. R9 is terminal blocked after all six
 fixed reads and one returned Preview reached response validation; retry,
 fallback, redirect, and every exchange mutation remained zero. Its exact
@@ -39,9 +42,10 @@ Preview and blocked at the first post-return stage with sanitized category
 `futures_preview_response_economics_invalid`. It made zero retries, fallbacks,
 redirects, submissions, or mutations. That historical recovery sequence is
 exhausted; no R11 existed at that checkpoint, Slice 3 did not run, and Slices
-4/5 were unauthorized. Current R11 preparation is governed only by the
-authorized-but-inactive gate above. Exact R10 evidence is in
-`docs/FUTURES_SLICE_2R10_TERMINAL_DIAGNOSIS.md`.
+4/5 were unauthorized. R11 subsequently stopped before Preview at the terminal
+operator-policy boundary above. Exact R10 and R11 evidence is in
+`docs/FUTURES_SLICE_2R10_TERMINAL_DIAGNOSIS.md` and
+`docs/FUTURES_SLICE_2R11_TERMINAL_DIAGNOSIS.md`.
 Fan-out, scheduler, runtime-control,
 retry/recovery, multi-product wallet-ledger work, and ladder/grid order sets
 are parked.

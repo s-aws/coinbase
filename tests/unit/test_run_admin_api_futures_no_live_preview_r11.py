@@ -321,6 +321,14 @@ def _synthetic_claim_bound_secret_lookup(
     monkeypatch.setattr(r11_tool, "_R11_CLI_BOOTSTRAP_VALIDATED", True)
     monkeypatch.setattr(r11_tool, "R11_PREVIEW_CALL_AUTHORITY_ACTIVE", True)
     monkeypatch.setattr(r11_tool, "R11_FINAL_AUDIT_BINDING_READY", True)
+    # The production guard is structurally unconditional after R11. Bypass it
+    # only inside these synthetic legacy-helper tests; no CLI/factory path uses
+    # this helper and no Coinbase request can be made by the fixtures.
+    monkeypatch.setattr(
+        r11_tool,
+        "_require_production_factory_authority",
+        lambda: None,
+    )
     return r11_tool._R11ClaimBoundSecretLookup(store), store
 
 
@@ -901,11 +909,9 @@ def test_r11_audited_component_manifest_covers_all_material_surfaces() -> None:
 def test_r11_backend_contextless_authority_entry_points_are_consistent() -> None:
     required = (
         "Goal `futures_preview_acceptance_recovery_r11`",
-        "R11 preparation is authorized",
-        "R11 is unconsumed",
-        "Preview gate remains inactive",
-        "exactly one Preview-only call",
-        "No R12 attempt or Slice 3/4/5 activation is authorized.",
+        "remaining_margin_validation",
+        "margin_window_type_documented_but_operator_rejected",
+        "stop_and_await_operator_direction",
     )
     for relative in (
         "README.md",
@@ -917,6 +923,13 @@ def test_r11_backend_contextless_authority_entry_points_are_consistent() -> None
     ):
         payload = (r11_tool.REPO_ROOT / relative).read_text(encoding="utf-8")
         assert all(token in payload for token in required), relative
+        assert "consumed" in payload, relative
+        assert "terminal" in payload, relative
+        assert "Preview" in payload and "`0`" in payload, relative
+        assert "retry" in payload, relative
+        assert "R12" in payload, relative
+        assert "Slice 3" in payload, relative
+        assert "live authority" in payload, relative
 
 
 def test_r11_production_path_rejects_environment_redirection(
@@ -1249,7 +1262,7 @@ def test_r11_preflight_is_offline_and_never_reserves_hydrates_or_calls(
     assert not path.exists()
 
 
-def test_r11_confirmation_blocks_before_path_predecessor_or_client_until_activation(
+def test_r11_confirmation_tombstone_blocks_before_every_boundary(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -1281,7 +1294,7 @@ def test_r11_confirmation_blocks_before_path_predecessor_or_client_until_activat
     assert summary == {
         "artifact_created": False,
         "artifact_path": str(preview_module.FUTURES_PREVIEW_R11_ARTIFACT_PATH),
-        "blocker": "futures_preview_r11_call_authority_inactive",
+        "blocker": "futures_preview_r11_terminally_consumed",
         "coinbase_read_ran": False,
         "exchange_submission_attempt_count": 0,
         "live_coinbase_execution": "not_run",
@@ -1290,7 +1303,82 @@ def test_r11_confirmation_blocks_before_path_predecessor_or_client_until_activat
     }
 
 
-def test_r11_imported_confirmation_requires_cli_bootstrap_before_all_boundaries(
+def test_r11_terminal_tombstone_blocks_synthetic_activation_before_any_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def forbidden(label: str):
+        return lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError(label)
+        )
+
+    monkeypatch.setattr(r11_tool, "_R11_CLI_BOOTSTRAP_VALIDATED", True)
+    monkeypatch.setattr(r11_tool, "R11_PREVIEW_CALL_AUTHORITY_ACTIVE", True)
+    monkeypatch.setattr(r11_tool, "R11_FINAL_AUDIT_BINDING_READY", True)
+    monkeypatch.setattr(r11_tool, "R11_TERMINAL_TOMBSTONE", False)
+    monkeypatch.setattr(
+        r11_tool,
+        "_validate_final_audit_binding",
+        forbidden("final audit evaluated after terminal tombstone"),
+    )
+    monkeypatch.setattr(
+        r11_tool,
+        "production_artifact_path",
+        forbidden("R11 path inspected after terminal tombstone"),
+    )
+    monkeypatch.setattr(
+        r11_tool,
+        "validate_production_predecessor",
+        forbidden("R10 predecessor inspected after terminal tombstone"),
+    )
+    monkeypatch.setattr(
+        r11_tool,
+        "_build_production_r11_store",
+        forbidden("R11 store built after terminal tombstone"),
+    )
+    monkeypatch.setattr(
+        r11_tool,
+        "_build_production_r11_deferred_client",
+        forbidden("R11 client built after terminal tombstone"),
+    )
+    monkeypatch.setattr(
+        r11_tool,
+        "_build_production_r11_producer",
+        forbidden("R11 producer built after terminal tombstone"),
+    )
+
+    assert r11_tool.R11_TERMINAL_TOMBSTONE is False
+    assert r11_tool.main(["--confirm-one-r11-preview"]) == 2
+
+    summary = json.loads(capsys.readouterr().err)
+    assert summary == {
+        "artifact_created": False,
+        "artifact_path": str(preview_module.FUTURES_PREVIEW_R11_ARTIFACT_PATH),
+        "blocker": "futures_preview_r11_terminally_consumed",
+        "coinbase_read_ran": False,
+        "exchange_submission_attempt_count": 0,
+        "live_coinbase_execution": "not_run",
+        "preview_order_attempt_count": 0,
+        "status": "blocked",
+    }
+
+
+def test_r11_production_factory_authority_is_tombstoned_after_consumption(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(r11_tool, "_R11_CLI_BOOTSTRAP_VALIDATED", True)
+    monkeypatch.setattr(r11_tool, "R11_PREVIEW_CALL_AUTHORITY_ACTIVE", True)
+    monkeypatch.setattr(r11_tool, "R11_FINAL_AUDIT_BINDING_READY", True)
+    monkeypatch.setattr(r11_tool, "R11_TERMINAL_TOMBSTONE", False)
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="R11 production factory authority is permanently consumed",
+    ):
+        r11_tool._require_production_factory_authority()
+
+
+def test_r11_imported_confirmation_tombstone_precedes_cli_bootstrap(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -1319,9 +1407,7 @@ def test_r11_imported_confirmation_requires_cli_bootstrap_before_all_boundaries(
     assert r11_tool.main(["--confirm-one-r11-preview"]) == 2
 
     summary = json.loads(capsys.readouterr().err)
-    assert summary["blocker"] == (
-        "futures_preview_r11_bootstrap_validation_required"
-    )
+    assert summary["blocker"] == "futures_preview_r11_terminally_consumed"
 
 
 def test_r11_import_mode_validates_source_but_has_no_live_factory_authority(
@@ -1341,7 +1427,7 @@ def test_r11_import_mode_validates_source_but_has_no_live_factory_authority(
 
     with pytest.raises(
         FuturesOrderPreviewArtifactError,
-        match="production factory authority is unavailable",
+        match="production factory authority is permanently consumed",
     ):
         r11_tool._build_production_r11_store()
 
@@ -1739,6 +1825,9 @@ def test_r11_cli_catches_unexpected_claim_boundary_error_value_blind(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    # Even forcing the public evidence constant false cannot reach the
+    # historical synthetic collaborators below.
+    monkeypatch.setattr(r11_tool, "R11_TERMINAL_TOMBSTONE", False)
     private_text = "PRIVATE-R11-CLI-CLAIM-BOUNDARY-TEXT"
     path = tmp_path / "cli-claim-failed-r11.jsonl"
     monkeypatch.setattr(r11_tool, "_R11_CLI_BOOTSTRAP_VALIDATED", True)
@@ -1789,10 +1878,10 @@ def test_r11_cli_catches_unexpected_claim_boundary_error_value_blind(
     assert private_text not in captured.out
     assert private_text not in captured.err
     summary = json.loads(captured.err)
-    assert summary["status"] == summary["outcome"] == "unknown"
-    assert summary["blocker"] == "futures_preview_r11_consumed_without_terminal"
-    assert summary["artifact_created"] is True
-    assert summary["attempt_counters"] is None
+    assert summary["status"] == "blocked"
+    assert summary["blocker"] == "futures_preview_r11_terminally_consumed"
+    assert summary["artifact_created"] is False
+    assert not path.exists()
     assert summary["exchange_submission_attempt_count"] == 0
 
 

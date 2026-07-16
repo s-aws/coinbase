@@ -13,13 +13,17 @@ plans.
 
 ## Current MVP Goal
 
-Goal `futures_preview_acceptance_recovery_r11` is current. R11 preparation is authorized.
-R11 is unconsumed. The Preview gate remains inactive until focused validation,
-fresh independent safety and blind-contextless audits, and backend-runner-only
-exact-hash activation all confirm readiness. Only then may the backend R11 runner
-make exactly one Preview-only call. The frontend remains readback-only and exposes
-no R11 initiation control. It permits zero retries, fallbacks, redirects, Create,
-Cancel, Close, Reduce, or other exchange mutations. No R12 attempt or Slice 3/4/5 activation is authorized.
+Goal `futures_preview_acceptance_recovery_r11` is complete. R11 is consumed,
+terminal `blocked`, immutable, and cannot be retried. It stopped at
+`remaining_margin_validation` before Coinbase Preview: all six bounded reads
+ran once, while Preview, retry, fallback, redirect, submission, and every
+exchange mutation remained `0`. The structured boundary is
+`margin_window_type_documented_but_operator_rejected` at row `1`, profile
+`retail_intraday_margin_1`, field `margin_window_type`, value type `string`.
+This is an exact V3 operator-policy rejection, not authority to broaden schema
+or acceptance. No R12 attempt, Slice 3/4/5 activation, or live authority is
+granted; the default action is `stop_and_await_operator_direction`. See the
+[R11 terminal diagnosis](docs/FUTURES_SLICE_2R11_TERMINAL_DIAGNOSIS.md).
 
 Historically, goal
 `futures_post_r10_preview_compatibility_and_direction_selection` completed the
