@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 
@@ -73,6 +75,92 @@ def _sha(label: str) -> str:
     return hashlib.sha256(label.encode("utf-8")).hexdigest()
 
 
+def test_r11_audit_binding_expression_is_rejected_before_execution(
+    tmp_path: Path,
+) -> None:
+    marker = tmp_path / "activation-side-effect"
+    tools_dir = tmp_path / "tools"
+    tools_dir.mkdir()
+    runner = tools_dir / "run_admin_api_futures_no_live_preview_r11.py"
+    source = Path(r11_tool.__file__).read_text(encoding="utf-8")
+    poisoned = source.replace(
+        "    R11_PREVIEW_CALL_AUTHORITY_ACTIVE = False",
+        "    R11_PREVIEW_CALL_AUTHORITY_ACTIVE = "
+        f"__import__('pathlib').Path({str(marker)!r}).write_text("
+        "'executed', encoding='utf-8')",
+        1,
+    )
+    runner.write_text(poisoned, encoding="utf-8")
+
+    completed = subprocess.run(
+        [sys.executable, "-I", str(runner), "--preflight"],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+
+    assert completed.returncode == 2
+    assert "futures_preview_r11_bootstrap_source_invalid" in completed.stderr
+    assert marker.exists() is False
+
+
+def test_r11_direct_execution_requires_isolated_python_before_stdlib_imports(
+    tmp_path: Path,
+) -> None:
+    tools_dir = tmp_path / "tools"
+    tools_dir.mkdir()
+    runner = tools_dir / "run_admin_api_futures_no_live_preview_r11.py"
+    runner.write_bytes(Path(r11_tool.__file__).read_bytes())
+    marker = tmp_path / "stdlib-shadow-executed"
+    (tools_dir / "argparse.py").write_text(
+        "from pathlib import Path\n"
+        f"Path({str(marker)!r}).write_text('executed', encoding='utf-8')\n",
+        encoding="utf-8",
+    )
+
+    completed = subprocess.run(
+        [sys.executable, str(runner), "--preflight"],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+
+    assert completed.returncode == 2
+    assert "futures_preview_r11_isolated_runtime_required" in completed.stderr
+    assert marker.exists() is False
+
+
+def test_r11_isolated_bootstrap_rejects_unclean_source_before_project_imports(
+    tmp_path: Path,
+) -> None:
+    tools_dir = tmp_path / "tools"
+    application_dir = tmp_path / "application" / "admin_api"
+    tools_dir.mkdir()
+    application_dir.mkdir(parents=True)
+    runner = tools_dir / "run_admin_api_futures_no_live_preview_r11.py"
+    runner.write_bytes(Path(r11_tool.__file__).read_bytes())
+    marker = tmp_path / "project-import-executed"
+    (application_dir / "futures_order_preview.py").write_text(
+        "from pathlib import Path\n"
+        f"Path({str(marker)!r}).write_text('executed', encoding='utf-8')\n",
+        encoding="utf-8",
+    )
+
+    completed = subprocess.run(
+        [sys.executable, "-I", str(runner), "--preflight"],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+
+    assert completed.returncode == 2
+    assert "futures_preview_r11_bootstrap_source_invalid" in completed.stderr
+    assert marker.exists() is False
+
+
 def _synthetic_audit_binding_block(*, active: bool) -> bytes:
     values = {
         "R11_PREPARATION_REVISION": _sha("prepared-backend-revision"),
@@ -84,27 +172,28 @@ def _synthetic_audit_binding_block(*, active: bool) -> bytes:
     }
     lines = [
         "# BEGIN R11 AUDIT BINDINGS",
-        f"R11_PREVIEW_CALL_AUTHORITY_ACTIVE = {active!r}",
-        f"R11_FINAL_AUDIT_BINDING_READY = {active!r}",
+        "if False:",
+        f"    R11_PREVIEW_CALL_AUTHORITY_ACTIVE = {active!r}",
+        f"    R11_FINAL_AUDIT_BINDING_READY = {active!r}",
     ]
     lines.extend(
-        f'{name} = "{value if active else ""}"'
+        f'    {name} = "{value if active else ""}"'
         for name, value in values.items()
     )
     lines.append(
-        'R11_ACTIVATION_NOT_AFTER = "2999-01-01T00:00:00Z"'
+        '    R11_ACTIVATION_NOT_AFTER = "2999-01-01T00:00:00Z"'
         if active
-        else 'R11_ACTIVATION_NOT_AFTER = ""'
+        else '    R11_ACTIVATION_NOT_AFTER = ""'
     )
     if active:
-        lines.append("R11_AUDITED_COMPONENT_SHA256: dict[str, str] = {")
+        lines.append("    R11_AUDITED_COMPONENT_SHA256: dict[str, str] = {")
         lines.extend(
-            f'    "{component}": "{_sha(component)}",'
+            f'        "{component}": "{_sha(component)}",'
             for component in sorted(_EXPECTED_R11_AUDITED_COMPONENTS)
         )
-        lines.append("}")
+        lines.append("    }")
     else:
-        lines.append("R11_AUDITED_COMPONENT_SHA256: dict[str, str] = {}")
+        lines.append("    R11_AUDITED_COMPONENT_SHA256: dict[str, str] = {}")
     lines.append("# END R11 AUDIT BINDINGS")
     return ("\n".join(lines) + "\n").encode("utf-8")
 
@@ -112,6 +201,7 @@ def _synthetic_audit_binding_block(*, active: bool) -> bytes:
 def _bind_valid_r11_audit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> tuple[dict[str, str], dict[str, str]]:
+    monkeypatch.setattr(r11_tool, "_R11_CLI_BOOTSTRAP_VALIDATED", True)
     values = {
         "preparation": _sha("prepared-backend-revision"),
         "frontend": _sha("prepared-frontend-revision"),
@@ -248,7 +338,7 @@ def test_r11_normalized_runner_rejects_nonliteral_or_extra_activation_code(
 def test_r11_normalized_runner_rejects_duplicate_component_literal() -> None:
     block = _synthetic_audit_binding_block(active=True)
     component = sorted(_EXPECTED_R11_AUDITED_COMPONENTS)[0]
-    line = f'    "{component}": "{_sha(component)}",\n'.encode("utf-8")
+    line = f'        "{component}": "{_sha(component)}",\n'.encode("utf-8")
     poisoned = block.replace(line, line + line)
 
     with pytest.raises(
@@ -256,6 +346,48 @@ def test_r11_normalized_runner_rejects_duplicate_component_literal() -> None:
         match="literal audit binding block is invalid",
     ):
         r11_tool._normalized_runner_bytes(b"before\n" + poisoned + b"after\n")
+
+
+def test_r11_normalized_runner_rejects_executable_activation_wrapper() -> None:
+    poisoned = _synthetic_audit_binding_block(active=False).replace(
+        b"if False:\n",
+        b"if True:\n",
+        1,
+    )
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="literal audit binding block is invalid",
+    ):
+        r11_tool._normalized_runner_bytes(b"before\n" + poisoned + b"after\n")
+
+
+def test_r11_isolated_bootstrap_ignores_local_sitecustomize(
+    tmp_path: Path,
+) -> None:
+    tools_dir = tmp_path / "tools"
+    tools_dir.mkdir()
+    runner = tools_dir / "run_admin_api_futures_no_live_preview_r11.py"
+    runner.write_bytes(Path(r11_tool.__file__).read_bytes())
+    marker = tmp_path / "sitecustomize-executed"
+    (tmp_path / "sitecustomize.py").write_text(
+        "from pathlib import Path\n"
+        f"Path({str(marker)!r}).write_text('executed', encoding='utf-8')\n",
+        encoding="utf-8",
+    )
+
+    completed = subprocess.run(
+        [sys.executable, "-I", str(runner), "--preflight"],
+        cwd=tmp_path,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+
+    assert completed.returncode == 2
+    assert "futures_preview_r11_bootstrap_source_invalid" in completed.stderr
+    assert marker.exists() is False
 
 
 def test_r11_audited_component_manifest_covers_all_material_surfaces() -> None:
@@ -570,6 +702,7 @@ def test_r11_confirmation_blocks_before_path_predecessor_or_client_until_activat
         "_build_r11_preview_rest_client",
         forbidden("credential hydration or Coinbase client construction"),
     )
+    monkeypatch.setattr(r11_tool, "_R11_CLI_BOOTSTRAP_VALIDATED", True)
 
     assert r11_tool.main(["--confirm-one-r11-preview"]) == 2
 
@@ -584,6 +717,40 @@ def test_r11_confirmation_blocks_before_path_predecessor_or_client_until_activat
         "preview_order_attempt_count": 0,
         "status": "blocked",
     }
+
+
+def test_r11_imported_confirmation_requires_cli_bootstrap_before_all_boundaries(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def forbidden(label: str):
+        return lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError(label)
+        )
+
+    monkeypatch.setattr(r11_tool, "_R11_CLI_BOOTSTRAP_VALIDATED", False)
+    monkeypatch.setattr(
+        r11_tool,
+        "production_artifact_path",
+        forbidden("R11 path inspected"),
+    )
+    monkeypatch.setattr(
+        r11_tool,
+        "validate_production_predecessor",
+        forbidden("R10 predecessor inspected"),
+    )
+    monkeypatch.setattr(
+        r11_tool,
+        "_build_r11_preview_rest_client",
+        forbidden("credential hydration or Coinbase client construction"),
+    )
+
+    assert r11_tool.main(["--confirm-one-r11-preview"]) == 2
+
+    summary = json.loads(capsys.readouterr().err)
+    assert summary["blocker"] == (
+        "futures_preview_r11_bootstrap_validation_required"
+    )
 
 
 def test_r11_deferred_client_requires_exclusive_r11_claim_before_hydration(
@@ -786,6 +953,7 @@ def test_r11_cli_catches_unexpected_claim_boundary_error_value_blind(
 ) -> None:
     private_text = "PRIVATE-R11-CLI-CLAIM-BOUNDARY-TEXT"
     path = tmp_path / "cli-claim-failed-r11.jsonl"
+    monkeypatch.setattr(r11_tool, "_R11_CLI_BOOTSTRAP_VALIDATED", True)
     monkeypatch.setattr(r11_tool, "R11_PREVIEW_CALL_AUTHORITY_ACTIVE", True)
     monkeypatch.setattr(r11_tool, "R11_FINAL_AUDIT_BINDING_READY", True)
     monkeypatch.setattr(r11_tool, "production_artifact_path", lambda: path)

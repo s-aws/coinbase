@@ -11,6 +11,17 @@ session handoff path.
 
 from __future__ import annotations
 
+import sys
+
+
+if __name__ == "__main__" and not sys.flags.isolated:
+    sys.stderr.write(
+        '{"blocker":"futures_preview_r11_isolated_runtime_required",'
+        '"status":"blocked"}\n'
+    )
+    raise SystemExit(2)
+
+
 import argparse
 import ast
 from collections.abc import Callable, Mapping, Sequence
@@ -23,52 +34,19 @@ from pathlib import Path
 import re
 import stat
 import subprocess
-import sys
 import tomllib
 from typing import Any
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FRONTEND_ROOT = REPO_ROOT.parent / "coinbase-frontend"
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
-
-from application.admin_api.futures_order_preview import (  # noqa: E402
-    FUTURES_PREVIEW_R10_FILE_SHA256,
-    FUTURES_PREVIEW_R10_TERMINAL_BINDING,
-    FUTURES_PREVIEW_R11_ARTIFACT_PATH,
-    FUTURES_PREVIEW_R11_ARTIFACT_TYPE,
-    FuturesOrderPreviewArtifactError,
-    FuturesOrderPreviewArtifactStore,
-    FuturesOrderPreviewProducer,
-    _validate_r11_claim_record,
-    _validate_r11_ephemeral_claim_record,
-    validate_production_futures_order_preview_r10_terminal,
-)
-from tools import run_admin_api_futures_no_live_preview as base_tool  # noqa: E402
-
-
-FuturesPreviewOnlyRestClient = base_tool.FuturesPreviewOnlyRestClient
-_suppress_coinbase_sdk_logging = base_tool._suppress_coinbase_sdk_logging
-
-# BEGIN R11 AUDIT BINDINGS
-R11_PREVIEW_CALL_AUTHORITY_ACTIVE = False
-R11_FINAL_AUDIT_BINDING_READY = False
-R11_PREPARATION_REVISION = ""
-R11_FRONTEND_REVISION = ""
-R11_NORMALIZED_RUNNER_SHA256 = ""
-R11_AUTHORIZATION_SHA256 = ""
-R11_SAFETY_AUDIT_RECEIPT_SHA256 = ""
-R11_BLIND_AUDIT_RECEIPT_SHA256 = ""
-R11_ACTIVATION_NOT_AFTER = ""
-R11_AUDITED_COMPONENT_SHA256: dict[str, str] = {}
-# END R11 AUDIT BINDINGS
 
 _AUDIT_BINDING_START = "# BEGIN R11 AUDIT BINDINGS\n"
 _AUDIT_BINDING_END = "# END R11 AUDIT BINDINGS\n"
 _AUDIT_BINDING_PLACEHOLDER = (
     "# BEGIN R11 AUDIT BINDINGS\n"
-    "# normalized audited activation bindings\n"
+    "if False:\n"
+    "    pass  # normalized audited activation bindings\n"
     "# END R11 AUDIT BINDINGS\n"
 )
 _HEX_SHA256 = re.compile(r"[0-9a-f]{64}\Z")
@@ -160,90 +138,265 @@ _R11_DEFERRED_CALLS = (
 )
 
 
+def _literal_audit_binding_values(block: str) -> dict[str, object]:
+    """Parse the inert activation suite without evaluating any expression."""
+
+    parsed = ast.parse(block, mode="exec")
+    if len(parsed.body) != 1 or not isinstance(parsed.body[0], ast.If):
+        raise ValueError("wrapper")
+    wrapper = parsed.body[0]
+    if (
+        not isinstance(wrapper.test, ast.Constant)
+        or wrapper.test.value is not False
+        or wrapper.orelse
+        or len(wrapper.body) != len(_AUDIT_BINDING_SCALAR_NAMES) + 1
+    ):
+        raise ValueError("wrapper")
+    values: dict[str, object] = {}
+    for expected_name, statement in zip(
+        _AUDIT_BINDING_SCALAR_NAMES,
+        wrapper.body[:-1],
+        strict=True,
+    ):
+        if (
+            not isinstance(statement, ast.Assign)
+            or len(statement.targets) != 1
+            or not isinstance(statement.targets[0], ast.Name)
+            or statement.targets[0].id != expected_name
+            or statement.type_comment is not None
+        ):
+            raise ValueError("scalar_assignment")
+        values[expected_name] = ast.literal_eval(statement.value)
+    component_statement = wrapper.body[-1]
+    if (
+        not isinstance(component_statement, ast.AnnAssign)
+        or not isinstance(component_statement.target, ast.Name)
+        or component_statement.target.id != "R11_AUDITED_COMPONENT_SHA256"
+        or ast.unparse(component_statement.annotation) != "dict[str, str]"
+        or component_statement.value is None
+        or component_statement.simple != 1
+        or not isinstance(component_statement.value, ast.Dict)
+    ):
+        raise ValueError("component_assignment")
+    component_keys = [
+        ast.literal_eval(key) for key in component_statement.value.keys
+    ]
+    if (
+        any(not isinstance(key, str) for key in component_keys)
+        or len(component_keys) != len(set(component_keys))
+        or any(
+            not isinstance(value, ast.Constant)
+            or not isinstance(value.value, str)
+            for value in component_statement.value.values
+        )
+    ):
+        raise ValueError("component_literals")
+    components = ast.literal_eval(component_statement.value)
+    values["R11_AUDITED_COMPONENT_SHA256"] = components
+    active = (
+        values["R11_PREVIEW_CALL_AUTHORITY_ACTIVE"] is True
+        and values["R11_FINAL_AUDIT_BINDING_READY"] is True
+        and all(
+            isinstance(values[name], str)
+            and _HEX_SHA256.fullmatch(values[name]) is not None
+            for name in _AUDIT_BINDING_HASH_NAMES
+        )
+        and isinstance(values["R11_ACTIVATION_NOT_AFTER"], str)
+        and bool(values["R11_ACTIVATION_NOT_AFTER"])
+        and isinstance(components, dict)
+        and set(components) == _R11_EXPECTED_COMPONENTS
+        and all(
+            isinstance(key, str)
+            and isinstance(value, str)
+            and _HEX_SHA256.fullmatch(value) is not None
+            for key, value in components.items()
+        )
+    )
+    inactive = (
+        values["R11_PREVIEW_CALL_AUTHORITY_ACTIVE"] is False
+        and values["R11_FINAL_AUDIT_BINDING_READY"] is False
+        and all(values[name] == "" for name in _AUDIT_BINDING_HASH_NAMES)
+        and values["R11_ACTIVATION_NOT_AFTER"] == ""
+        and components == {}
+    )
+    if not active and not inactive:
+        raise ValueError("binding_state")
+    if active:
+        if component_keys != sorted(_R11_EXPECTED_COMPONENTS):
+            raise ValueError("component_order")
+        activation = datetime.fromisoformat(
+            str(values["R11_ACTIVATION_NOT_AFTER"]).replace("Z", "+00:00")
+        )
+        if activation.tzinfo is None:
+            raise ValueError("activation_timezone")
+    return values
+
+
+def _audit_binding_block(text: str) -> tuple[str, int, int]:
+    if text.count(_AUDIT_BINDING_START) != 1 or text.count(
+        _AUDIT_BINDING_END
+    ) != 1:
+        raise ValueError("markers")
+    start = text.index(_AUDIT_BINDING_START)
+    end = text.index(_AUDIT_BINDING_END, start) + len(_AUDIT_BINDING_END)
+    return text[start:end], start, end
+
+
+def _bootstrap_file_sha256(path: Path) -> str:
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def _bootstrap_git_output(root: Path, *args: str) -> str:
+    completed = subprocess.run(
+        ["/usr/bin/git", "-c", "core.fsmonitor=false", *args],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    return completed.stdout.strip()
+
+
+def _repository_clean_with_output(
+    root: Path,
+    output: Callable[..., str],
+    file_sha256: Callable[[Path], str] = _bootstrap_file_sha256,
+) -> bool:
+    if (
+        output(root, "branch", "--show-current") != "main"
+        or output(root, "rev-parse", "HEAD")
+        != output(root, "rev-parse", "origin/main")
+        or output(root, "status", "--porcelain", "--untracked-files=no")
+        != ""
+    ):
+        return False
+    untracked = set(
+        filter(
+            None,
+            output(
+                root,
+                "ls-files",
+                "--others",
+                "--exclude-standard",
+            ).splitlines(),
+        )
+    )
+    if root == REPO_ROOT:
+        return not untracked
+    if root != FRONTEND_ROOT or untracked != set(
+        _FRONTEND_INERT_UNTRACKED_SHA256
+    ):
+        return False
+    for relative, expected_sha256 in _FRONTEND_INERT_UNTRACKED_SHA256.items():
+        path = root / relative
+        observed = path.lstat()
+        if (
+            not stat.S_ISREG(observed.st_mode)
+            or file_sha256(path) != expected_sha256
+        ):
+            return False
+    return True
+
+
+def _early_bootstrap() -> tuple[dict[str, object], bool]:
+    source = Path(__file__).read_text(encoding="utf-8")
+    block, _start, _end = _audit_binding_block(source)
+    values = _literal_audit_binding_values(block)
+    if __name__ != "__main__":
+        return values, False
+    if not _repository_clean_with_output(
+        REPO_ROOT, _bootstrap_git_output
+    ) or not _repository_clean_with_output(
+        FRONTEND_ROOT, _bootstrap_git_output
+    ):
+        raise ValueError("source_state")
+    return values, True
+
+
+try:
+    _R11_AUDIT_BINDING_VALUES, _R11_CLI_BOOTSTRAP_VALIDATED = _early_bootstrap()
+except Exception:
+    if __name__ == "__main__":
+        sys.stderr.write(
+            '{"blocker":"futures_preview_r11_bootstrap_source_invalid",'
+            '"status":"blocked"}\n'
+        )
+        raise SystemExit(2)
+    raise RuntimeError("futures Preview R11 bootstrap source is invalid") from None
+
+
+# BEGIN R11 AUDIT BINDINGS
+if False:
+    R11_PREVIEW_CALL_AUTHORITY_ACTIVE = False
+    R11_FINAL_AUDIT_BINDING_READY = False
+    R11_PREPARATION_REVISION = ""
+    R11_FRONTEND_REVISION = ""
+    R11_NORMALIZED_RUNNER_SHA256 = ""
+    R11_AUTHORIZATION_SHA256 = ""
+    R11_SAFETY_AUDIT_RECEIPT_SHA256 = ""
+    R11_BLIND_AUDIT_RECEIPT_SHA256 = ""
+    R11_ACTIVATION_NOT_AFTER = ""
+    R11_AUDITED_COMPONENT_SHA256: dict[str, str] = {}
+# END R11 AUDIT BINDINGS
+
+R11_PREVIEW_CALL_AUTHORITY_ACTIVE = _R11_AUDIT_BINDING_VALUES[
+    "R11_PREVIEW_CALL_AUTHORITY_ACTIVE"
+]
+R11_FINAL_AUDIT_BINDING_READY = _R11_AUDIT_BINDING_VALUES[
+    "R11_FINAL_AUDIT_BINDING_READY"
+]
+R11_PREPARATION_REVISION = _R11_AUDIT_BINDING_VALUES[
+    "R11_PREPARATION_REVISION"
+]
+R11_FRONTEND_REVISION = _R11_AUDIT_BINDING_VALUES["R11_FRONTEND_REVISION"]
+R11_NORMALIZED_RUNNER_SHA256 = _R11_AUDIT_BINDING_VALUES[
+    "R11_NORMALIZED_RUNNER_SHA256"
+]
+R11_AUTHORIZATION_SHA256 = _R11_AUDIT_BINDING_VALUES[
+    "R11_AUTHORIZATION_SHA256"
+]
+R11_SAFETY_AUDIT_RECEIPT_SHA256 = _R11_AUDIT_BINDING_VALUES[
+    "R11_SAFETY_AUDIT_RECEIPT_SHA256"
+]
+R11_BLIND_AUDIT_RECEIPT_SHA256 = _R11_AUDIT_BINDING_VALUES[
+    "R11_BLIND_AUDIT_RECEIPT_SHA256"
+]
+R11_ACTIVATION_NOT_AFTER = _R11_AUDIT_BINDING_VALUES[
+    "R11_ACTIVATION_NOT_AFTER"
+]
+R11_AUDITED_COMPONENT_SHA256 = dict(
+    _R11_AUDIT_BINDING_VALUES["R11_AUDITED_COMPONENT_SHA256"]
+)
+
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from application.admin_api.futures_order_preview import (  # noqa: E402
+    FUTURES_PREVIEW_R10_FILE_SHA256,
+    FUTURES_PREVIEW_R10_TERMINAL_BINDING,
+    FUTURES_PREVIEW_R11_ARTIFACT_PATH,
+    FUTURES_PREVIEW_R11_ARTIFACT_TYPE,
+    FuturesOrderPreviewArtifactError,
+    FuturesOrderPreviewArtifactStore,
+    FuturesOrderPreviewProducer,
+    _validate_r11_claim_record,
+    _validate_r11_ephemeral_claim_record,
+    validate_production_futures_order_preview_r10_terminal,
+)
+from tools import run_admin_api_futures_no_live_preview as base_tool  # noqa: E402
+
+
+FuturesPreviewOnlyRestClient = base_tool.FuturesPreviewOnlyRestClient
+_suppress_coinbase_sdk_logging = base_tool._suppress_coinbase_sdk_logging
+
+
 def _validate_literal_audit_binding_block(block: str) -> None:
-    """Accept only the ten named, literal activation assignments."""
+    """Accept only the inert wrapper and ten named literal assignments."""
 
     try:
-        parsed = ast.parse(block, mode="exec")
-        if len(parsed.body) != len(_AUDIT_BINDING_SCALAR_NAMES) + 1:
-            raise ValueError("statement_count")
-        values: dict[str, object] = {}
-        for expected_name, statement in zip(
-            _AUDIT_BINDING_SCALAR_NAMES,
-            parsed.body[:-1],
-            strict=True,
-        ):
-            if (
-                not isinstance(statement, ast.Assign)
-                or len(statement.targets) != 1
-                or not isinstance(statement.targets[0], ast.Name)
-                or statement.targets[0].id != expected_name
-                or statement.type_comment is not None
-            ):
-                raise ValueError("scalar_assignment")
-            values[expected_name] = ast.literal_eval(statement.value)
-        component_statement = parsed.body[-1]
-        if (
-            not isinstance(component_statement, ast.AnnAssign)
-            or not isinstance(component_statement.target, ast.Name)
-            or component_statement.target.id != "R11_AUDITED_COMPONENT_SHA256"
-            or ast.unparse(component_statement.annotation) != "dict[str, str]"
-            or component_statement.value is None
-            or component_statement.simple != 1
-            or not isinstance(component_statement.value, ast.Dict)
-        ):
-            raise ValueError("component_assignment")
-        component_keys = [
-            ast.literal_eval(key) for key in component_statement.value.keys
-        ]
-        if (
-            any(not isinstance(key, str) for key in component_keys)
-            or len(component_keys) != len(set(component_keys))
-            or any(
-                not isinstance(value, ast.Constant)
-                or not isinstance(value.value, str)
-                for value in component_statement.value.values
-            )
-        ):
-            raise ValueError("component_literals")
-        components = ast.literal_eval(component_statement.value)
-        values["R11_AUDITED_COMPONENT_SHA256"] = components
-        active = (
-            values["R11_PREVIEW_CALL_AUTHORITY_ACTIVE"] is True
-            and values["R11_FINAL_AUDIT_BINDING_READY"] is True
-            and all(
-                isinstance(values[name], str)
-                and _HEX_SHA256.fullmatch(values[name]) is not None
-                for name in _AUDIT_BINDING_HASH_NAMES
-            )
-            and isinstance(values["R11_ACTIVATION_NOT_AFTER"], str)
-            and bool(values["R11_ACTIVATION_NOT_AFTER"])
-            and isinstance(components, dict)
-            and set(components) == _R11_EXPECTED_COMPONENTS
-            and all(
-                isinstance(key, str)
-                and isinstance(value, str)
-                and _HEX_SHA256.fullmatch(value) is not None
-                for key, value in components.items()
-            )
-        )
-        inactive = (
-            values["R11_PREVIEW_CALL_AUTHORITY_ACTIVE"] is False
-            and values["R11_FINAL_AUDIT_BINDING_READY"] is False
-            and all(values[name] == "" for name in _AUDIT_BINDING_HASH_NAMES)
-            and values["R11_ACTIVATION_NOT_AFTER"] == ""
-            and components == {}
-        )
-        if not active and not inactive:
-            raise ValueError("binding_state")
-        if active:
-            if component_keys != sorted(_R11_EXPECTED_COMPONENTS):
-                raise ValueError("component_order")
-            activation = datetime.fromisoformat(
-                str(values["R11_ACTIVATION_NOT_AFTER"]).replace("Z", "+00:00")
-            )
-            if activation.tzinfo is None:
-                raise ValueError("activation_timezone")
+        _literal_audit_binding_values(block)
     except Exception:
         raise FuturesOrderPreviewArtifactError(
             "futures Preview R11 literal audit binding block is invalid"
@@ -258,14 +411,13 @@ def _normalized_runner_bytes(payload: bytes | None = None) -> bytes:
         if payload is None
         else payload.decode("utf-8")
     )
-    start = text.find(_AUDIT_BINDING_START)
-    end = text.find(_AUDIT_BINDING_END, start)
-    if start < 0 or end < 0 or text.find(_AUDIT_BINDING_START, start + 1) >= 0:
+    try:
+        block, start, end = _audit_binding_block(text)
+    except Exception:
         raise FuturesOrderPreviewArtifactError(
             "futures Preview R11 audit binding markers are invalid"
-        )
-    end += len(_AUDIT_BINDING_END)
-    _validate_literal_audit_binding_block(text[start:end])
+        ) from None
+    _validate_literal_audit_binding_block(block)
     return (
         text[:start] + _AUDIT_BINDING_PLACEHOLDER + text[end:]
     ).encode("utf-8")
@@ -276,8 +428,7 @@ def normalized_runner_sha256() -> str:
 
 
 def _file_sha256(path: Path) -> str:
-    with path.open("rb") as stream:
-        return hashlib.file_digest(stream, "sha256").hexdigest()
+    return _bootstrap_file_sha256(path)
 
 
 def _installed_sdk_source_sha256() -> dict[str, str]:
@@ -303,63 +454,18 @@ def current_audited_component_sha256() -> dict[str, str]:
 
 def _git_output(root: Path, *args: str) -> str:
     try:
-        completed = subprocess.run(
-            ["git", *args],
-            cwd=root,
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
+        return _bootstrap_git_output(root, *args)
     except Exception:
         raise FuturesOrderPreviewArtifactError(
             "futures Preview R11 audited revision is unavailable"
         ) from None
-    return completed.stdout.strip()
 
 
 def _repository_is_clean_synced_main(root: Path) -> bool:
-    if (
-        _git_output(root, "branch", "--show-current") != "main"
-        or _git_output(root, "rev-parse", "HEAD")
-        != _git_output(root, "rev-parse", "origin/main")
-        or _git_output(
-            root,
-            "status",
-            "--porcelain",
-            "--untracked-files=no",
-        )
-        != ""
-    ):
+    try:
+        return _repository_clean_with_output(root, _git_output, _file_sha256)
+    except Exception:
         return False
-    untracked = set(
-        filter(
-            None,
-            _git_output(
-                root,
-                "ls-files",
-                "--others",
-                "--exclude-standard",
-            ).splitlines(),
-        )
-    )
-    if root == REPO_ROOT:
-        return not untracked
-    if root != FRONTEND_ROOT or untracked != set(
-        _FRONTEND_INERT_UNTRACKED_SHA256
-    ):
-        return False
-    for relative, expected_sha256 in _FRONTEND_INERT_UNTRACKED_SHA256.items():
-        path = root / relative
-        try:
-            observed = path.lstat()
-            if not stat.S_ISREG(observed.st_mode):
-                return False
-            if _file_sha256(path) != expected_sha256:
-                return False
-        except OSError:
-            return False
-    return True
 
 
 def _validate_fixed_production_artifact_path() -> None:
@@ -699,6 +805,17 @@ def _path_is_consumed(path: Path) -> bool:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.confirm_one_r11_preview and not _R11_CLI_BOOTSTRAP_VALIDATED:
+        print(
+            json.dumps(
+                _fixed_blocked_summary(
+                    "futures_preview_r11_bootstrap_validation_required"
+                ),
+                sort_keys=True,
+            ),
+            file=sys.stderr,
+        )
+        return 2
     if args.confirm_one_r11_preview and not R11_PREVIEW_CALL_AUTHORITY_ACTIVE:
         print(
             json.dumps(

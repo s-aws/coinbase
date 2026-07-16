@@ -8555,6 +8555,13 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
             ):
                 if primary != "preview_order_unknown_consumed":
                     return False
+            elif (
+                self.artifact_type
+                == "futures_exact_no_live_preview_slice_2r11"
+                and outcome == "blocked"
+            ):
+                if primary != "preflight_or_preview_blocked":
+                    return False
             else:
                 prefix = (
                     "preview_order_unknown:"
@@ -8571,6 +8578,13 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
             validation_prefix = (
                 "futures_preview_predecessor_terminal_validation_blocked:"
             )
+            if (
+                self.artifact_type
+                == "futures_exact_no_live_preview_slice_2r11"
+                and suffix
+                == "futures_preview_predecessor_terminal_validation_blocked"
+            ):
+                return True
             return suffix == binding_suffix or (
                 suffix.startswith(validation_prefix)
                 and safe_exception_token(suffix.removeprefix(validation_prefix))

@@ -116,9 +116,14 @@ The one-call runner remains fail-closed until all of the following are true:
 - one independent safety audit and one independent blind-contextless audit
   return distinct passing receipts;
 - the activation commit changes only the runner relative to the prepared
-  revision, and a strict source parser proves that the normalized audit-binding
-  block contains exactly the ten named literal assignments with no extra
-  statement, call, duplicate, or executable expression;
+  revision, and a stdlib-only bootstrap parses a structurally inert `if False`
+  audit-binding suite before execution can reach it; the suite must contain
+  exactly the ten named literal assignments with no extra statement, call,
+  duplicate, executable expression, or alternate wrapper;
+- direct preflight and confirmation require isolated Python (`python3.13 -I`).
+  Before the runner adds the repository to `sys.path` or imports any project
+  module, the bootstrap verifies clean synchronized `main` revisions, zero
+  backend untracked files, and the exact hash-bound frontend PNG allowlist;
 - the production R11 path is absent before reservation and the exact R10
   predecessor validates immediately before the attempt.
 
@@ -126,11 +131,29 @@ Preflight is offline. It must not load credentials, instantiate a live client,
 call Coinbase, or create the production artifact. Audit activation does not
 itself consume R11; the exclusive claim reservation does.
 
+The canonical commands are therefore:
+
+```bash
+python3.13 -I tools/run_admin_api_futures_no_live_preview_r11.py --preflight
+python3.13 -I tools/run_admin_api_futures_no_live_preview_r11.py --confirm-one-r11-preview
+```
+
+The confirmation command remains single-use and may be invoked only after the
+fresh audit receipts have been bound. The second command must never be invoked
+again after any known or unknown R11 outcome.
+
 ## Terminal Handling
 
 The authorized call count is global for R11, not per process, command, failure
 category, or remediation cycle. There is no retry after a transport-unknown,
 validator-blocked, persistence-blocked, or otherwise uncertain result.
+
+The first independent pre-activation audit found that the R11 producer's fixed
+value-blind early blocker and fixed terminal-predecessor-validation suffix were
+stricter than the existing read-model grammar. Red tests now prove both exact
+R11 forms remain value-blind and can be validated for Admin API readback; the
+model accepts only those exact R11 constants while retaining the older
+tokenized grammar for predecessor attempts.
 
 After R11 becomes terminal, the workflow continues automatically with bounded
 offline diagnosis and remediation. That work may update sanitized diagnostic

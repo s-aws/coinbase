@@ -10134,6 +10134,38 @@ def test_r11_early_preflight_failure_uses_only_fixed_value_blind_diagnostic(
     persisted_text = path.read_text(encoding="utf-8")
     assert "PrivateR11PreflightFailure" not in persisted_text
     assert "PRIVATE_R11_EXCEPTION_TEXT" not in persisted_text
+    AdminFuturesOrderPreviewResponse.model_validate(terminal)
+
+
+def test_r11_early_failure_with_terminal_predecessor_failure_is_readable(
+    tmp_path: Path,
+) -> None:
+    rest_client = _r8_compatible_rest_client()
+
+    def private_preflight_failure() -> object:
+        raise RuntimeError("PRIVATE_R11_PREFLIGHT_TEXT")
+
+    def private_predecessor_failure() -> dict[str, object]:
+        raise RuntimeError("PRIVATE_R11_PREDECESSOR_TEXT")
+
+    rest_client.get_api_key_permissions = (  # type: ignore[method-assign]
+        private_preflight_failure
+    )
+    producer, store, path = _r11_producer(tmp_path, rest_client)
+    producer.predecessor_validator = private_predecessor_failure
+
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="attempt consumed"):
+        producer.run()
+
+    terminal = store.read_completed()
+    assert terminal["blocker"] == (
+        "preflight_or_preview_blocked;"
+        "futures_preview_predecessor_terminal_validation_blocked"
+    )
+    persisted_text = path.read_text(encoding="utf-8")
+    assert "PRIVATE_R11_PREFLIGHT_TEXT" not in persisted_text
+    assert "PRIVATE_R11_PREDECESSOR_TEXT" not in persisted_text
+    AdminFuturesOrderPreviewResponse.model_validate(terminal)
 
 
 def test_r11_terminal_predecessor_failure_uses_fixed_value_blind_diagnostic(
