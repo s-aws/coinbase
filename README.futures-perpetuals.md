@@ -2,14 +2,12 @@
 
 The M57 phase statements in this document are a historical implementation
 snapshot. Current goal id is
-`futures_preview_acceptance_recovery_r8_r10_and_conditional_terminal_roundtrip_slice_3`.
-R7 remains immutable historical evidence. R8 is immutable opaque terminal
-evidence with zero Preview or real Coinbase calls. R9 is immutable terminal
-evidence after one returned Preview blocked at response validation, with zero
-retry, fallback, or exchange mutation. R10 is immutable terminal evidence after
-one returned Preview blocked at sanitized economics validation. Recovery has no
-remaining Preview, R11, or mutation authority; Slice 3 did not run and Slices
-4/5 remain unauthorized.
+`futures_post_r10_preview_compatibility_and_direction_selection`. The completed
+post-R10 work prospectively separates Coinbase's official Preview wire schema
+from stricter project acceptance without changing immutable R1-R10 history or
+R10's sanitized terminal category. R8 content/hash remain inaccessible. There
+is no R11, Slice 3/4/5, Preview, or mutation authority. The next action is
+`await_operator_decision_on_one_post_r10_successor_or_official_clarification`.
 
 This feature exposes read-only futures and perpetual account, risk, and
 position evidence through the enterprise Admin API. It is a separate module,

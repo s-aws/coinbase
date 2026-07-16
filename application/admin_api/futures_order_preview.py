@@ -739,6 +739,170 @@ FUTURES_PREVIEW_R10_RESPONSE_SCHEMA_BINDING = {
     "present_predicted_liquidation_price_policy": "finite_and_positive",
     "persisted_response_policy": "sanitized_allowlist_only",
 }
+FUTURES_PREVIEW_POST_R10_COMPATIBILITY_BINDING = {
+    "schema_version": "3",
+    "policy_id": "post_r10_preview_wire_schema_and_acceptance_policy_v3",
+    "schema_authority": "official_coinbase_advanced_trade_api_docs",
+    "official_spec_url": (
+        "https://docs.cdp.coinbase.com/api-reference/"
+        "advanced-trade-api/rest-api/advanced-trade-spec.yaml"
+    ),
+    "official_spec_sha256": (
+        "7115b6b13132565a0a65371aadc9a0e09c725860ae5119655d8cd4d8c226a6b7"
+    ),
+    "official_spec_retrieved_at": "2026-07-16",
+    "wire_schema_and_project_acceptance_separated": True,
+    "official_required_response_fields": [
+        "order_total",
+        "commission_total",
+        "errs",
+        "warning",
+        "quote_size",
+        "base_size",
+        "best_bid",
+        "best_ask",
+        "is_max",
+    ],
+    "official_optional_project_required_fields": [
+        "preview_id",
+        "order_margin_total",
+        "margin_ratio_data",
+    ],
+    "official_required_margin_ratio_child_fields": [],
+    "policy_relevant_optional_field_types_enforced_when_present": True,
+    "other_optional_fields_policy": (
+        "ignored_uninspected_no_project_policy_relevance"
+    ),
+    "project_required_margin_ratio_child_fields": [
+        "current_margin_ratio",
+        "projected_margin_ratio",
+    ],
+    "is_max_project_policy": "must_be_false_for_exact_one_contract",
+    "decimal_token_policy": "plain_bounded_non_exponent_string",
+    "negative_zero_policy": "canonicalize_to_zero",
+    "official_sdk_version_verified": "1.8.4",
+    "sdk_response_mapping_policy": (
+        "mapping_or_shallow_attributes_before_validation_"
+        "never_recursive_plain"
+    ),
+    "preview_id_handling_policy": (
+        "ephemeral_restricted_hash_or_withhold_before_"
+        "persistence_or_readback"
+    ),
+    "runner_integration_status": "not_wired",
+    "project_acceptance_policy": "fail_closed_no_fallback",
+    "persisted_diagnostic_policy": "fixed_value_blind_category_only",
+    "r11_attempt_authority_granted": False,
+    "coinbase_call_authority_granted": False,
+    "exchange_mutation_authority_granted": False,
+}
+_POST_R10_OFFICIAL_REQUIRED_STRING_FIELDS = (
+    "order_total",
+    "commission_total",
+    "quote_size",
+    "base_size",
+    "best_bid",
+    "best_ask",
+)
+_POST_R10_OFFICIAL_REQUIRED_LIST_FIELDS = ("errs", "warning")
+_POST_R10_OFFICIAL_OPTIONAL_PROJECT_FIELDS = (
+    "preview_id",
+    "order_margin_total",
+    "margin_ratio_data",
+)
+_POST_R10_OFFICIAL_SCHEMA_INTERNAL_REASONS = frozenset(
+    {
+        "futures_preview_response_official_response_missing",
+        "futures_preview_response_official_is_max_missing",
+        "futures_preview_response_official_is_max_type_invalid",
+        *(
+            reason
+            for field in _POST_R10_OFFICIAL_REQUIRED_STRING_FIELDS
+            for reason in (
+                f"futures_preview_response_official_{field}_missing",
+                f"futures_preview_response_official_{field}_type_invalid",
+            )
+        ),
+        *(
+            reason
+            for field in _POST_R10_OFFICIAL_REQUIRED_LIST_FIELDS
+            for reason in (
+                f"futures_preview_response_official_{field}_missing",
+                f"futures_preview_response_official_{field}_type_invalid",
+            )
+        ),
+        *(
+            f"futures_preview_response_official_{field}_item_type_invalid"
+            for field in _POST_R10_OFFICIAL_REQUIRED_LIST_FIELDS
+        ),
+        *(
+            f"futures_preview_response_official_{field}_type_invalid"
+            for field in (
+                "preview_id",
+                "order_margin_total",
+                "margin_ratio_data",
+                "current_margin_ratio",
+                "projected_margin_ratio",
+                "predicted_liquidation_price",
+            )
+        ),
+    }
+)
+_POST_R10_CORE_ECONOMICS_INTERNAL_REASONS = frozenset(
+    {
+        *(
+            f"futures_preview_response_{field}_invalid"
+            for field in _POST_R10_OFFICIAL_REQUIRED_STRING_FIELDS
+        ),
+        *(
+            f"futures_preview_response_{field}_not_positive"
+            for field in _POST_R10_OFFICIAL_REQUIRED_STRING_FIELDS
+            if field != "commission_total"
+        ),
+        "futures_preview_response_commission_total_negative",
+    }
+)
+_POST_R10_PROJECT_IDENTIFIER_INTERNAL_REASONS = frozenset(
+    {
+        "futures_preview_response_project_preview_id_missing",
+        "futures_preview_response_project_preview_id_invalid",
+    }
+)
+_POST_R10_PROJECT_MARGIN_INTERNAL_REASONS = frozenset(
+    {
+        "futures_preview_response_project_order_margin_total_missing",
+        "futures_preview_response_project_order_margin_total_invalid",
+        "futures_preview_response_project_order_margin_total_not_finite_or_positive",
+    }
+)
+_POST_R10_LIQUIDATION_INVALID_INTERNAL_REASONS = frozenset(
+    {
+        "futures_preview_response_liquidation_replacement_invalid",
+        "futures_preview_response_project_current_margin_ratio_missing",
+        "futures_preview_response_project_projected_margin_ratio_missing",
+        "futures_preview_response_project_current_margin_ratio_invalid",
+        "futures_preview_response_project_projected_margin_ratio_invalid",
+        "futures_preview_response_project_current_margin_ratio_not_finite_or_negative",
+        "futures_preview_response_project_projected_margin_ratio_not_finite_or_negative",
+        "futures_preview_response_project_predicted_liquidation_price_invalid",
+        "futures_preview_response_project_predicted_liquidation_price_not_finite_or_positive",
+    }
+)
+_POST_R10_PREVIEW_RESPONSE_REJECTION_REASONS = frozenset(
+    {
+        *_POST_R10_OFFICIAL_SCHEMA_INTERNAL_REASONS,
+        *_POST_R10_CORE_ECONOMICS_INTERNAL_REASONS,
+        *_POST_R10_PROJECT_IDENTIFIER_INTERNAL_REASONS,
+        *_POST_R10_PROJECT_MARGIN_INTERNAL_REASONS,
+        *_POST_R10_LIQUIDATION_INVALID_INTERNAL_REASONS,
+        "futures_preview_response_exchange_errors_present",
+        "futures_preview_response_exchange_warnings_present",
+        "futures_preview_response_project_is_max_true",
+        "futures_preview_response_liquidation_replacement_missing",
+    }
+)
+_POST_R10_DECIMAL_TOKEN = re.compile(r"-?[0-9]+(?:\.[0-9]+)?\Z")
+_POST_R10_MAX_DECIMAL_TOKEN_LENGTH = 128
 _POST_PREVIEW_STAGE_ORDER = (
     "preview_response_validation",
     "candidate_cap_binding",
@@ -3605,6 +3769,281 @@ def validate_r10_preview_response_schema(
             "futures_preview_r10_response_schema_liquidation_evidence_invalid"
         )
     return normalized
+
+
+def _post_r10_shallow_mapping(value: Any) -> dict[Any, Any] | None:
+    """Copy one response object without traversing unknown field values."""
+
+    try:
+        if isinstance(value, Mapping):
+            return dict(value)
+        attributes = getattr(value, "__dict__", None)
+        if isinstance(attributes, Mapping):
+            return dict(attributes)
+    except Exception:
+        return None
+    return None
+
+
+def validate_post_r10_official_preview_response_schema(
+    value: Any,
+) -> dict[str, Any]:
+    """Validate only Coinbase's documented Preview response wire shape.
+
+    This prospective compatibility boundary intentionally does not apply the
+    project's stricter one-contract acceptance rules.  It returns shape-only,
+    value-blind evidence and never includes response values.
+    """
+
+    response = _post_r10_shallow_mapping(value)
+    if not response:
+        raise ValueError("futures_preview_response_official_response_missing")
+    for field in _POST_R10_OFFICIAL_REQUIRED_STRING_FIELDS:
+        if field not in response:
+            raise ValueError(
+                f"futures_preview_response_official_{field}_missing"
+            )
+        if type(response[field]) is not str:
+            raise ValueError(
+                f"futures_preview_response_official_{field}_type_invalid"
+            )
+    for field in _POST_R10_OFFICIAL_REQUIRED_LIST_FIELDS:
+        if field not in response:
+            raise ValueError(
+                f"futures_preview_response_official_{field}_missing"
+            )
+        if type(response[field]) is not list:
+            raise ValueError(
+                f"futures_preview_response_official_{field}_type_invalid"
+            )
+        if any(type(item) is not str for item in response[field]):
+            raise ValueError(
+                f"futures_preview_response_official_{field}_item_type_invalid"
+            )
+    if "is_max" not in response:
+        raise ValueError("futures_preview_response_official_is_max_missing")
+    if type(response["is_max"]) is not bool:
+        raise ValueError(
+            "futures_preview_response_official_is_max_type_invalid"
+        )
+    for field in (
+        "preview_id",
+        "order_margin_total",
+        "predicted_liquidation_price",
+    ):
+        if field in response and type(response[field]) is not str:
+            raise ValueError(
+                f"futures_preview_response_official_{field}_type_invalid"
+            )
+    if "margin_ratio_data" in response:
+        margin_ratio_data = _post_r10_shallow_mapping(
+            response["margin_ratio_data"]
+        )
+        if margin_ratio_data is None:
+            raise ValueError(
+                "futures_preview_response_official_margin_ratio_data_"
+                "type_invalid"
+            )
+        for field in ("current_margin_ratio", "projected_margin_ratio"):
+            if field in margin_ratio_data and type(
+                margin_ratio_data[field]
+            ) is not str:
+                raise ValueError(
+                    f"futures_preview_response_official_{field}_type_invalid"
+                )
+    return {
+        "schema_status": "official_required_shape_valid",
+        "official_required_fields_present": True,
+        "official_optional_project_fields_present": {
+            field: field in response
+            for field in _POST_R10_OFFICIAL_OPTIONAL_PROJECT_FIELDS
+        },
+        "unknown_fields_ignored": True,
+        "raw_response_included": False,
+    }
+
+
+def _post_r10_decimal(value: Any, invalid_reason: str) -> Decimal:
+    """Parse one bounded plain decimal string without echoing its value."""
+
+    if (
+        type(value) is not str
+        or not value
+        or len(value) > _POST_R10_MAX_DECIMAL_TOKEN_LENGTH
+        or _POST_R10_DECIMAL_TOKEN.fullmatch(value) is None
+    ):
+        raise ValueError(invalid_reason)
+    try:
+        return Decimal(value)
+    except (InvalidOperation, ValueError):
+        raise ValueError(invalid_reason) from None
+
+
+def _post_r10_decimal_text(value: Decimal) -> str:
+    """Canonicalize permitted signed zero before sanitized persistence."""
+
+    return "0" if value == 0 else _decimal_text(value)
+
+
+def validate_post_r10_preview_response_acceptance(
+    value: Any,
+) -> dict[str, Any]:
+    """Apply prospective fixed-scope acceptance after wire validation.
+
+    Coinbase-optional fields can remain mandatory for this project's exact
+    one-contract safety policy.  Legacy liquidation fields and unknown keys
+    are ignored and never parsed, returned, or used as fallback evidence.
+    """
+
+    response = _post_r10_shallow_mapping(value)
+    if response is None:
+        raise ValueError("futures_preview_response_official_response_missing")
+    validate_post_r10_official_preview_response_schema(response)
+    if response["errs"]:
+        raise ValueError("futures_preview_response_exchange_errors_present")
+    if response["warning"]:
+        raise ValueError("futures_preview_response_exchange_warnings_present")
+    if response["is_max"] is not False:
+        raise ValueError("futures_preview_response_project_is_max_true")
+
+    if (
+        "preview_id" not in response
+        or response["preview_id"] is None
+        or response["preview_id"] == ""
+    ):
+        raise ValueError(
+            "futures_preview_response_project_preview_id_missing"
+        )
+    preview_id = response["preview_id"]
+    if (
+        type(preview_id) is not str
+        or preview_id != preview_id.strip()
+        or not preview_id.isprintable()
+        or len(preview_id) > 256
+    ):
+        raise ValueError(
+            "futures_preview_response_project_preview_id_invalid"
+        )
+
+    decimals: dict[str, Decimal] = {}
+    for field in _POST_R10_OFFICIAL_REQUIRED_STRING_FIELDS:
+        decimal = _post_r10_decimal(
+            response[field],
+            f"futures_preview_response_{field}_invalid",
+        )
+        decimals[field] = decimal
+        if not decimal.is_finite():
+            raise ValueError(f"futures_preview_response_{field}_invalid")
+        if field == "commission_total":
+            if decimal < 0:
+                raise ValueError(
+                    "futures_preview_response_commission_total_negative"
+                )
+        elif decimal <= 0:
+            raise ValueError(
+                f"futures_preview_response_{field}_not_positive"
+            )
+
+    if (
+        "order_margin_total" not in response
+        or response["order_margin_total"] is None
+        or response["order_margin_total"] == ""
+    ):
+        raise ValueError(
+            "futures_preview_response_project_order_margin_total_missing"
+        )
+    order_margin_total = _post_r10_decimal(
+        response["order_margin_total"],
+        "futures_preview_response_project_order_margin_total_invalid",
+    )
+    if not order_margin_total.is_finite() or order_margin_total <= 0:
+        raise ValueError(
+            "futures_preview_response_project_order_margin_total_"
+            "not_finite_or_positive"
+        )
+
+    if "margin_ratio_data" not in response:
+        raise ValueError(
+            "futures_preview_response_liquidation_replacement_missing"
+        )
+    margin_ratio_value = _post_r10_shallow_mapping(
+        response["margin_ratio_data"]
+    )
+    if margin_ratio_value is None:
+        raise ValueError(
+            "futures_preview_response_liquidation_replacement_invalid"
+        )
+    margin_ratio_data = margin_ratio_value
+    sanitized_margin_ratio: dict[str, str] = {}
+    for field in ("current_margin_ratio", "projected_margin_ratio"):
+        if (
+            field not in margin_ratio_data
+            or margin_ratio_data[field] is None
+            or margin_ratio_data[field] == ""
+        ):
+            raise ValueError(
+                f"futures_preview_response_project_{field}_missing"
+            )
+        decimal = _post_r10_decimal(
+            margin_ratio_data[field],
+            f"futures_preview_response_project_{field}_invalid",
+        )
+        if not decimal.is_finite() or decimal < 0:
+            raise ValueError(
+                f"futures_preview_response_project_{field}_"
+                "not_finite_or_negative"
+            )
+        sanitized_margin_ratio[field] = _post_r10_decimal_text(decimal)
+
+    sanitized: dict[str, Any] = {
+        "preview_id": preview_id,
+        "errs": [],
+        "warning": [],
+        "is_max": False,
+        **{
+            field: _post_r10_decimal_text(decimals[field])
+            for field in _POST_R10_OFFICIAL_REQUIRED_STRING_FIELDS
+        },
+        "order_margin_total": _post_r10_decimal_text(order_margin_total),
+        "margin_ratio_data": sanitized_margin_ratio,
+        "liquidation_evidence_source": "margin_ratio_data",
+    }
+    if "predicted_liquidation_price" in response:
+        predicted_liquidation_price = _post_r10_decimal(
+            response["predicted_liquidation_price"],
+            "futures_preview_response_project_predicted_liquidation_price_"
+            "invalid",
+        )
+        if (
+            not predicted_liquidation_price.is_finite()
+            or predicted_liquidation_price <= 0
+        ):
+            raise ValueError(
+                "futures_preview_response_project_predicted_liquidation_"
+                "price_not_finite_or_positive"
+            )
+        sanitized["predicted_liquidation_price"] = _decimal_text(
+            predicted_liquidation_price
+        )
+        sanitized["liquidation_evidence_source"] = (
+            "margin_ratio_data_and_predicted_liquidation_price"
+        )
+    return sanitized
+
+
+def classify_post_r10_preview_response_rejection(
+    exc: BaseException,
+) -> str | None:
+    """Return only an exact prospective value-blind rejection category."""
+
+    if (
+        type(exc) is not ValueError
+        or len(exc.args) != 1
+        or type(exc.args[0]) is not str
+        or exc.args[0] not in _POST_R10_PREVIEW_RESPONSE_REJECTION_REASONS
+    ):
+        return None
+    return exc.args[0]
 
 
 def validate_margin_collateral_evidence(value: Any) -> Decimal:

@@ -15,29 +15,39 @@ BACKEND_GOAL_DOC = PROJECT_ROOT / "genai_data" / "AGENT_MVP_REBUILD_GOAL.md"
 FRONTEND_GOAL_DOC = FRONTEND_ROOT / "docs" / "CURRENT_MVP_GOAL.md"
 BACKEND_QUEUE_DOC = PROJECT_ROOT / "docs" / "plans" / "AUTONOMOUS_WORK_QUEUE.md"
 BACKEND_E2E_PLAN = PROJECT_ROOT / "docs" / "plans" / "ADMIN_API_E2E_PLAN.md"
+POST_R10_DIRECTION_DOC = (
+    PROJECT_ROOT / "docs" / "FUTURES_POST_R10_COMPATIBILITY_DIRECTION.md"
+)
 FRONTEND_QUEUE_DOC = FRONTEND_ROOT / "docs" / "plans" / "AUTONOMOUS_WORK_QUEUE.md"
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-GOAL_ID = (
+GOAL_ID = "futures_post_r10_preview_compatibility_and_direction_selection"
+HISTORICAL_R8_R10_GOAL_ID = (
     "futures_preview_acceptance_recovery_r8_r10_and_"
     "conditional_terminal_roundtrip_slice_3"
 )
 HISTORICAL_PHASE_RANGE = "7961-7980"
 HISTORICAL_PHASES = tuple(range(7961, 7981))
 PHASE_RANGE_STATUS = "historical_not_work_authority"
-CURRENT_SLICE = (
-    "Default-profile Futures readback -> exact AVAX US CFM Coinbase Preview "
-    "Order -> immutable operator-visible no-live preview readback"
+COMPLETION_ALIGNMENT_TOKEN = (
+    "official_wire_schema_and_project_acceptance_separated_prospectively"
 )
 CLOSED_LOOPHOLE_RULE = (
     "A candidate blocker cannot make itself in scope by generating evidence "
     "about the candidate blocker."
 )
 SLICE_STATUS = "complete"
-SLICE_BLOCKERS: tuple[str, ...] = (
-    "r10_consumed_without_accepted_preview_evidence",
-    "slice3_not_run_no_accepted_preview",
+SLICE_BLOCKERS: tuple[str, ...] = ()
+DEFAULT_NEXT_ACTION = (
+    "await_operator_decision_on_one_post_r10_successor_or_official_clarification"
 )
-DEFAULT_NEXT_ACTION = "await_operator_selection_of_separately_authorized_next_goal"
+SUCCESSOR_MAPPING_INVARIANT = (
+    "A future successor must pass the raw SDK envelope to the shallow "
+    "validator before any recursive `_plain()` normalization."
+)
+PREVIEW_ID_INVARIANT = (
+    "`preview_id` must remain ephemeral and restricted, then be hashed or "
+    "withheld before persistence or readback."
+)
 R7_TERMINAL_BLOCKER = "slice_2r7_consumed_without_accepted_preview_evidence"
 R7_TERMINAL_NEXT_ACTION = (
     "await_operator_scope_change_decision_after_slice_2r7_closeout"
@@ -46,14 +56,14 @@ R7_TERMINAL_DIAGNOSTIC = (
     "sdk_returned__post_preview_value_error__before_acceptance"
 )
 MVP_SCOPE = {
-    "work_mode": "terminal_awaiting_operator_selection",
+    "work_mode": "post_r10_compatibility_complete_awaiting_operator_decision",
     "goal_authority": str(FRONTEND_GOAL_DOC),
     "frontend_authority": "operator_ui_only",
     "live_action_path": "auditable_backend_admin_interfaces_only",
     "phase_range_policy": "parked_unless_direct_current_slice_blocker",
     "current_vertical_slice": None,
     "direct_blocker_rule": "no_current_slice_no_implicit_work_authority",
-    "scope_posture": "completed_terminal_no_work_authority",
+    "scope_posture": "completed_post_r10_no_live_authority",
     "focused_blast_radius_tests_required": True,
     "full_suite_at_durable_milestone_only": True,
     "active_work_policy": {
@@ -132,8 +142,12 @@ def _read(path: Path) -> str:
 
 
 def _contains_all(path: Path, required: Sequence[str]) -> QueueCheck:
-    body = _read(path)
-    missing = [text for text in required if text not in body]
+    body = " ".join(_read(path).split())
+    missing = [
+        text
+        for text in required
+        if " ".join(text.split()) not in body
+    ]
     return QueueCheck(
         name=path.name,
         passed=path.exists() and not missing,
@@ -144,11 +158,25 @@ def _contains_all(path: Path, required: Sequence[str]) -> QueueCheck:
 def _current_goal_alignment() -> QueueCheck:
     backend = _contains_all(
         BACKEND_GOAL_DOC,
-        (GOAL_ID, CURRENT_SLICE, CLOSED_LOOPHOLE_RULE, "Use focused tests"),
+        (
+            GOAL_ID,
+            COMPLETION_ALIGNMENT_TOKEN,
+            CLOSED_LOOPHOLE_RULE,
+            SUCCESSOR_MAPPING_INVARIANT,
+            PREVIEW_ID_INVARIANT,
+            "Use focused tests",
+        ),
     )
     frontend = _contains_all(
         FRONTEND_GOAL_DOC,
-        (GOAL_ID, CURRENT_SLICE, CLOSED_LOOPHOLE_RULE, "Focused tests are the default"),
+        (
+            GOAL_ID,
+            COMPLETION_ALIGNMENT_TOKEN,
+            CLOSED_LOOPHOLE_RULE,
+            SUCCESSOR_MAPPING_INVARIANT,
+            PREVIEW_ID_INVARIANT,
+            "Focused tests are the default",
+        ),
     )
     return QueueCheck(
         name="current_goal_alignment",
@@ -201,8 +229,6 @@ def _slice_2r7_terminal_closeout() -> QueueCheck:
 
 def _r8_r10_recovery_terminal_closeout() -> QueueCheck:
     required = (
-        GOAL_ID,
-        DEFAULT_NEXT_ACTION,
         "R8 is terminally consumed",
         "R9 is terminally consumed",
         "R10 is terminally consumed",
@@ -210,7 +236,10 @@ def _r8_r10_recovery_terminal_closeout() -> QueueCheck:
         "Slice 3 did not run",
     )
     documents = [
-        _contains_all(BACKEND_GOAL_DOC, required),
+        _contains_all(
+            BACKEND_GOAL_DOC,
+            (*required, HISTORICAL_R8_R10_GOAL_ID),
+        ),
         _contains_all(FRONTEND_GOAL_DOC, required),
         _contains_all(
             PROJECT_ROOT / "docs" / "FUTURES_SLICE_2R8_TERMINAL_DIAGNOSIS.md",
@@ -248,6 +277,41 @@ def _r8_r10_recovery_terminal_closeout() -> QueueCheck:
         name="r8_r10_recovery_terminal_closeout",
         passed=all(document.passed for document in documents),
         evidence={"documents": [document.evidence for document in documents]},
+    )
+
+
+def _post_r10_compatibility_direction_closeout() -> QueueCheck:
+    required = (
+        GOAL_ID,
+        COMPLETION_ALIGNMENT_TOKEN,
+        DEFAULT_NEXT_ACTION,
+        "No R11 exists",
+    )
+    direction = _contains_all(
+        POST_R10_DIRECTION_DOC,
+        (
+            *required,
+            "https://docs.cdp.coinbase.com/api-reference/advanced-trade-api/rest-api/orders/preview-orders",
+            "https://docs.cdp.coinbase.com/api-reference/advanced-trade-api/rest-api/advanced-trade-spec.yaml",
+            "7115b6b13132565a0a65371aadc9a0e09c725860ae5119655d8cd4d8c226a6b7",
+            "2026-07-16",
+            "coinbase-advanced-py 1.8.4",
+            SUCCESSOR_MAPPING_INVARIANT,
+            PREVIEW_ID_INVARIANT,
+            "Final independent safety and blind-contextless audits passed",
+            "Ten future attempts are not warranted",
+        ),
+    )
+    backend = _contains_all(BACKEND_GOAL_DOC, required)
+    frontend = _contains_all(FRONTEND_GOAL_DOC, required)
+    return QueueCheck(
+        name="post_r10_compatibility_direction_closeout",
+        passed=direction.passed and backend.passed and frontend.passed,
+        evidence={
+            "direction": direction.evidence,
+            "backend": backend.evidence,
+            "frontend": frontend.evidence,
+        },
     )
 
 
@@ -313,6 +377,7 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
         _historical_queue_posture(),
         _slice_2r7_terminal_closeout(),
         _r8_r10_recovery_terminal_closeout(),
+        _post_r10_compatibility_direction_closeout(),
         _entry_point_alignment(),
         _previous_version_sources(),
         _github_workflows_retired(),

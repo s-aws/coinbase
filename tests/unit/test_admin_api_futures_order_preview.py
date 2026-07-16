@@ -6,6 +6,7 @@ import json
 import hashlib
 import logging
 import re
+import tomllib
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -5960,6 +5961,534 @@ def test_r10_documented_margin_ratio_is_authoritative_when_legacy_keys_coexist(
     }
     assert "current_liquidation_buffer" not in normalized
     assert "projected_liquidation_buffer" not in normalized
+
+
+def _post_r10_compatibility_response() -> dict[str, object]:
+    response = _preview()
+    response["is_max"] = False
+    response["margin_ratio_data"] = {
+        "current_margin_ratio": "0.20",
+        "projected_margin_ratio": "0.25",
+    }
+    return response
+
+
+def test_post_r10_official_schema_requires_is_max_but_not_project_fields():
+    response = _post_r10_compatibility_response()
+    response.pop("is_max")
+
+    with pytest.raises(
+        ValueError,
+        match="futures_preview_response_official_is_max_missing",
+    ):
+        preview_module.validate_post_r10_official_preview_response_schema(
+            response
+        )
+
+    response = _post_r10_compatibility_response()
+    response.pop("preview_id")
+    response.pop("order_margin_total")
+    response.pop("margin_ratio_data")
+
+    evidence = (
+        preview_module.validate_post_r10_official_preview_response_schema(
+            response
+        )
+    )
+
+    assert evidence == {
+        "schema_status": "official_required_shape_valid",
+        "official_required_fields_present": True,
+        "official_optional_project_fields_present": {
+            "preview_id": False,
+            "order_margin_total": False,
+            "margin_ratio_data": False,
+        },
+        "unknown_fields_ignored": True,
+        "raw_response_included": False,
+    }
+
+
+def test_post_r10_project_acceptance_retains_stricter_safety_policy():
+    response = _post_r10_compatibility_response()
+
+    normalized = preview_module.validate_post_r10_preview_response_acceptance(
+        response
+    )
+
+    assert normalized["is_max"] is False
+    assert normalized["order_margin_total"] == "10.00"
+    assert normalized["liquidation_evidence_source"] == "margin_ratio_data"
+    assert "current_liquidation_buffer" not in normalized
+    assert "projected_liquidation_buffer" not in normalized
+
+
+@pytest.mark.parametrize(
+    ("field", "expected_reason"),
+    [
+        (
+            "preview_id",
+            "futures_preview_response_project_preview_id_missing",
+        ),
+        (
+            "order_margin_total",
+            "futures_preview_response_project_order_margin_total_missing",
+        ),
+        (
+            "margin_ratio_data",
+            "futures_preview_response_liquidation_replacement_missing",
+        ),
+    ],
+)
+def test_post_r10_official_optional_fields_remain_project_acceptance_gates(
+    field: str,
+    expected_reason: str,
+):
+    response = _post_r10_compatibility_response()
+    response.pop(field)
+
+    preview_module.validate_post_r10_official_preview_response_schema(response)
+    with pytest.raises(ValueError) as exc_info:
+        preview_module.validate_post_r10_preview_response_acceptance(response)
+
+    assert (
+        preview_module.classify_post_r10_preview_response_rejection(
+            exc_info.value
+        )
+        == expected_reason
+    )
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_reason"),
+    [
+        (
+            lambda response: response.pop("is_max"),
+            "futures_preview_response_official_is_max_missing",
+        ),
+        (
+            lambda response: response.update(is_max="false"),
+            "futures_preview_response_official_is_max_type_invalid",
+        ),
+        (
+            lambda response: response.update(is_max=True),
+            "futures_preview_response_project_is_max_true",
+        ),
+        (
+            lambda response: response.update(order_total="NaN"),
+            "futures_preview_response_order_total_invalid",
+        ),
+        (
+            lambda response: response.update(order_margin_total="NaN"),
+            "futures_preview_response_project_order_margin_total_invalid",
+        ),
+    ],
+)
+def test_post_r10_rejection_categories_are_value_blind(
+    mutation: Callable[[dict[str, object]], object],
+    expected_reason: str,
+):
+    response = _post_r10_compatibility_response()
+    mutation(response)
+
+    with pytest.raises(ValueError) as exc_info:
+        preview_module.validate_post_r10_preview_response_acceptance(response)
+
+    assert (
+        preview_module.classify_post_r10_preview_response_rejection(
+            exc_info.value
+        )
+        == expected_reason
+    )
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "order_total",
+        "commission_total",
+        "errs",
+        "warning",
+        "quote_size",
+        "base_size",
+        "best_bid",
+        "best_ask",
+        "is_max",
+    ],
+)
+def test_post_r10_wire_validator_covers_every_official_required_field(
+    field: str,
+):
+    response = _post_r10_compatibility_response()
+    response.pop(field)
+
+    with pytest.raises(ValueError) as exc_info:
+        preview_module.validate_post_r10_official_preview_response_schema(
+            response
+        )
+
+    assert preview_module.classify_post_r10_preview_response_rejection(
+        exc_info.value
+    ) == f"futures_preview_response_official_{field}_missing"
+
+    response = _post_r10_compatibility_response()
+    response[field] = (
+        "not-a-boolean"
+        if field == "is_max"
+        else []
+        if field not in {"errs", "warning"}
+        else "not-a-list"
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        preview_module.validate_post_r10_official_preview_response_schema(
+            response
+        )
+
+    assert preview_module.classify_post_r10_preview_response_rejection(
+        exc_info.value
+    ) == f"futures_preview_response_official_{field}_type_invalid"
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "expected_reason"),
+    [
+        (
+            "errs",
+            ["PREVIEW_INVALID_ORDER_CONFIG"],
+            "futures_preview_response_exchange_errors_present",
+        ),
+        (
+            "warning",
+            ["BIG_ORDER"],
+            "futures_preview_response_exchange_warnings_present",
+        ),
+    ],
+)
+def test_post_r10_wire_allows_lists_that_project_policy_rejects(
+    field: str,
+    value: list[str],
+    expected_reason: str,
+):
+    response = _post_r10_compatibility_response()
+    response[field] = value
+
+    preview_module.validate_post_r10_official_preview_response_schema(response)
+    with pytest.raises(ValueError) as exc_info:
+        preview_module.validate_post_r10_preview_response_acceptance(response)
+
+    assert (
+        preview_module.classify_post_r10_preview_response_rejection(
+            exc_info.value
+        )
+        == expected_reason
+    )
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["1e1000000", "1" * 129],
+)
+def test_post_r10_project_decimal_tokens_are_bounded(value: str):
+    response = _post_r10_compatibility_response()
+    response["order_total"] = value
+
+    with pytest.raises(ValueError) as exc_info:
+        preview_module.validate_post_r10_preview_response_acceptance(response)
+
+    assert (
+        preview_module.classify_post_r10_preview_response_rejection(
+            exc_info.value
+        )
+        == "futures_preview_response_order_total_invalid"
+    )
+
+
+def test_post_r10_ignores_unknown_and_legacy_values_without_normalizing_them():
+    class ExplosiveLegacyValue:
+        def to_dict(self) -> dict[str, object]:
+            raise AssertionError("legacy value must remain uninspected")
+
+    response = _post_r10_compatibility_response()
+    response["current_liquidation_buffer"] = ExplosiveLegacyValue()
+    response["projected_liquidation_buffer"] = ExplosiveLegacyValue()
+    response["future_unknown_field"] = ExplosiveLegacyValue()
+
+    normalized = preview_module.validate_post_r10_preview_response_acceptance(
+        response
+    )
+
+    assert "current_liquidation_buffer" not in normalized
+    assert "projected_liquidation_buffer" not in normalized
+    assert "future_unknown_field" not in normalized
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_reason"),
+    [
+        (
+            lambda response: response.update(preview_id=[]),
+            "futures_preview_response_official_preview_id_type_invalid",
+        ),
+        (
+            lambda response: response.update(order_margin_total=[]),
+            "futures_preview_response_official_order_margin_total_type_invalid",
+        ),
+        (
+            lambda response: response.update(margin_ratio_data=[]),
+            "futures_preview_response_official_margin_ratio_data_type_invalid",
+        ),
+        (
+            lambda response: response["margin_ratio_data"].pop(  # type: ignore[union-attr]
+                "current_margin_ratio"
+            ),
+            "futures_preview_response_project_current_margin_ratio_missing",
+        ),
+        (
+            lambda response: response["margin_ratio_data"].update(  # type: ignore[union-attr]
+                projected_margin_ratio=[]
+            ),
+            "futures_preview_response_official_projected_margin_ratio_type_invalid",
+        ),
+        (
+            lambda response: response["margin_ratio_data"].update(  # type: ignore[union-attr]
+                current_margin_ratio="-0.01"
+            ),
+            "futures_preview_response_project_current_margin_ratio_not_finite_or_negative",
+        ),
+        (
+            lambda response: response.update(
+                predicted_liquidation_price=[]
+            ),
+            "futures_preview_response_official_predicted_liquidation_price_type_invalid",
+        ),
+        (
+            lambda response: response.update(
+                predicted_liquidation_price="NaN"
+            ),
+            "futures_preview_response_project_predicted_liquidation_price_invalid",
+        ),
+        (
+            lambda response: response.update(
+                predicted_liquidation_price="-1"
+            ),
+            "futures_preview_response_project_predicted_liquidation_price_not_finite_or_positive",
+        ),
+    ],
+)
+def test_post_r10_project_gate_rejections_are_granular_and_value_blind(
+    mutation: Callable[[dict[str, object]], object],
+    expected_reason: str,
+):
+    response = _post_r10_compatibility_response()
+    mutation(response)
+
+    with pytest.raises(ValueError) as exc_info:
+        preview_module.validate_post_r10_preview_response_acceptance(response)
+
+    assert (
+        preview_module.classify_post_r10_preview_response_rejection(
+            exc_info.value
+        )
+        == expected_reason
+    )
+
+
+def test_post_r10_rejection_classifier_rejects_unapproved_exception_text():
+    class DerivedValueError(ValueError):
+        pass
+
+    assert (
+        preview_module.classify_post_r10_preview_response_rejection(
+            ValueError("raw-or-private-exception-text")
+        )
+        is None
+    )
+    assert (
+        preview_module.classify_post_r10_preview_response_rejection(
+            DerivedValueError(
+                "futures_preview_response_project_preview_id_missing"
+            )
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize("field", ["errs", "warning"])
+def test_post_r10_wire_rejects_non_string_error_or_warning_items(field: str):
+    response = _post_r10_compatibility_response()
+    response[field] = [123]
+
+    with pytest.raises(ValueError) as exc_info:
+        preview_module.validate_post_r10_official_preview_response_schema(
+            response
+        )
+
+    assert preview_module.classify_post_r10_preview_response_rejection(
+        exc_info.value
+    ) == f"futures_preview_response_official_{field}_item_type_invalid"
+
+
+def test_official_sdk_184_retains_undeclared_preview_response_fields():
+    from importlib.metadata import version
+
+    from coinbase.rest.types.orders_types import PreviewOrderResponse
+
+    assert version("coinbase-advanced-py") == "1.8.4"
+    project = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+    assert "coinbase-advanced-py==1.8.4" in project["project"][
+        "dependencies"
+    ]
+
+    synthetic = PreviewOrderResponse(
+        {
+            "order_total": "64.50",
+            "is_max": False,
+            "margin_ratio_data": {
+                "current_margin_ratio": "0.20",
+                "projected_margin_ratio": "0.25",
+            },
+            "predicted_liquidation_price": "3.10",
+        }
+    ).to_dict()
+
+    assert synthetic["margin_ratio_data"] == {
+        "current_margin_ratio": "0.20",
+        "projected_margin_ratio": "0.25",
+    }
+    assert synthetic["is_max"] is False
+    assert synthetic["predicted_liquidation_price"] == "3.10"
+
+
+def test_post_r10_acceptance_normalizes_official_sdk_184_response():
+    from coinbase.rest.types.orders_types import PreviewOrderResponse
+
+    response = PreviewOrderResponse(_post_r10_compatibility_response())
+
+    normalized = preview_module.validate_post_r10_preview_response_acceptance(
+        response
+    )
+
+    assert normalized["preview_id"] == "preview-avp-1"
+    assert normalized["is_max"] is False
+    assert normalized["liquidation_evidence_source"] == "margin_ratio_data"
+
+
+def test_post_r10_sdk_unknown_fields_are_not_traversed_by_project_validator():
+    from coinbase.rest.types.orders_types import PreviewOrderResponse
+
+    class ExplosiveUnknownValue:
+        def to_dict(self) -> dict[str, object]:
+            raise AssertionError("unknown SDK field must remain uninspected")
+
+    synthetic = _post_r10_compatibility_response()
+    synthetic["future_unknown_field"] = ExplosiveUnknownValue()
+    response = PreviewOrderResponse(synthetic)
+
+    normalized = preview_module.validate_post_r10_preview_response_acceptance(
+        response
+    )
+
+    assert "future_unknown_field" not in normalized
+
+
+def test_post_r10_rejects_converter_only_envelopes_without_calling_to_dict():
+    class ConverterOnlyEnvelope:
+        __slots__ = ()
+        converter_called = False
+
+        def to_dict(self) -> dict[str, object]:
+            type(self).converter_called = True
+            raise AssertionError("recursive converter must not be called")
+
+    with pytest.raises(
+        ValueError,
+        match="futures_preview_response_official_response_missing",
+    ):
+        preview_module.validate_post_r10_preview_response_acceptance(
+            ConverterOnlyEnvelope()
+        )
+
+    assert ConverterOnlyEnvelope.converter_called is False
+
+
+def test_post_r10_canonicalizes_allowed_negative_zero():
+    response = _post_r10_compatibility_response()
+    response["commission_total"] = "-0.00"
+    response["margin_ratio_data"] = {
+        "current_margin_ratio": "-0",
+        "projected_margin_ratio": "-0.0",
+    }
+
+    normalized = preview_module.validate_post_r10_preview_response_acceptance(
+        response
+    )
+
+    assert normalized["commission_total"] == "0"
+    assert normalized["margin_ratio_data"] == {
+        "current_margin_ratio": "0",
+        "projected_margin_ratio": "0",
+    }
+
+
+def test_post_r10_compatibility_binding_grants_no_attempt_or_live_authority():
+    assert preview_module.FUTURES_PREVIEW_POST_R10_COMPATIBILITY_BINDING == {
+        "schema_version": "3",
+        "policy_id": "post_r10_preview_wire_schema_and_acceptance_policy_v3",
+        "schema_authority": "official_coinbase_advanced_trade_api_docs",
+        "official_spec_url": (
+            "https://docs.cdp.coinbase.com/api-reference/"
+            "advanced-trade-api/rest-api/advanced-trade-spec.yaml"
+        ),
+        "official_spec_sha256": (
+            "7115b6b13132565a0a65371aadc9a0e09c725860ae5119655d8cd4d8c226a6b7"
+        ),
+        "official_spec_retrieved_at": "2026-07-16",
+        "wire_schema_and_project_acceptance_separated": True,
+        "official_required_response_fields": [
+            "order_total",
+            "commission_total",
+            "errs",
+            "warning",
+            "quote_size",
+            "base_size",
+            "best_bid",
+            "best_ask",
+            "is_max",
+        ],
+        "official_optional_project_required_fields": [
+            "preview_id",
+            "order_margin_total",
+            "margin_ratio_data",
+        ],
+        "official_required_margin_ratio_child_fields": [],
+        "policy_relevant_optional_field_types_enforced_when_present": True,
+        "other_optional_fields_policy": (
+            "ignored_uninspected_no_project_policy_relevance"
+        ),
+        "project_required_margin_ratio_child_fields": [
+            "current_margin_ratio",
+            "projected_margin_ratio",
+        ],
+        "is_max_project_policy": "must_be_false_for_exact_one_contract",
+        "decimal_token_policy": "plain_bounded_non_exponent_string",
+        "negative_zero_policy": "canonicalize_to_zero",
+        "official_sdk_version_verified": "1.8.4",
+        "sdk_response_mapping_policy": (
+            "mapping_or_shallow_attributes_before_validation_"
+            "never_recursive_plain"
+        ),
+        "preview_id_handling_policy": (
+            "ephemeral_restricted_hash_or_withhold_before_"
+            "persistence_or_readback"
+        ),
+        "runner_integration_status": "not_wired",
+        "project_acceptance_policy": "fail_closed_no_fallback",
+        "persisted_diagnostic_policy": "fixed_value_blind_category_only",
+        "r11_attempt_authority_granted": False,
+        "coinbase_call_authority_granted": False,
+        "exchange_mutation_authority_granted": False,
+    }
 
 
 @pytest.mark.parametrize(

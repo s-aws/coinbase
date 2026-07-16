@@ -73,8 +73,7 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
     )
     assert AUTONOMOUS_GOAL_ID == (
-        "futures_preview_acceptance_recovery_r8_r10_and_"
-        "conditional_terminal_roundtrip_slice_3"
+        "futures_post_r10_preview_compatibility_and_direction_selection"
     )
     assert AUTONOMOUS_HISTORICAL_PHASES == tuple(range(7961, 7981))
     check_results = {check["name"]: check for check in summary["checks"]}
@@ -85,24 +84,20 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     assert failed_checks == {}
     assert summary["status"] == "passed"
     assert summary["goal_id"] == (
-        "futures_preview_acceptance_recovery_r8_r10_and_"
-        "conditional_terminal_roundtrip_slice_3"
+        "futures_post_r10_preview_compatibility_and_direction_selection"
     )
     assert summary["historical_phase_range"] == "7961-7980"
     assert summary["historical_phase_count"] == 20
     assert summary["phase_range_status"] == "historical_not_work_authority"
     assert summary["slice_status"] == "complete"
-    assert summary["blockers"] == [
-        "r10_consumed_without_accepted_preview_evidence",
-        "slice3_not_run_no_accepted_preview",
-    ]
+    assert summary["blockers"] == []
     assert summary["default_next_action"] == (
-        "await_operator_selection_of_separately_authorized_next_goal"
+        "await_operator_decision_on_one_post_r10_successor_or_official_clarification"
     )
     assert summary["live_coinbase_orders_ran"] is False
     assert summary["live_order_notional_usdc"] == "0"
     assert summary["mvp_scope"] == {
-        "work_mode": "terminal_awaiting_operator_selection",
+        "work_mode": "post_r10_compatibility_complete_awaiting_operator_decision",
         "goal_authority": (
             "/home/developer/coinbase/coinbase-frontend/docs/CURRENT_MVP_GOAL.md"
         ),
@@ -111,22 +106,19 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         "phase_range_policy": "parked_unless_direct_current_slice_blocker",
         "current_vertical_slice": None,
         "direct_blocker_rule": "no_current_slice_no_implicit_work_authority",
-        "scope_posture": "completed_terminal_no_work_authority",
+        "scope_posture": "completed_post_r10_no_live_authority",
         "focused_blast_radius_tests_required": True,
         "full_suite_at_durable_milestone_only": True,
         "active_work_policy": {
             "current_priority": (
-                "await_operator_selection_of_separately_authorized_next_goal"
+                "await_operator_decision_on_one_post_r10_successor_or_official_clarification"
             ),
             "approved_phase_range_status": "historical_not_work_authority",
             "phase_range_work_allowed": False,
             "slice_status": "complete",
-            "blockers": [
-                "r10_consumed_without_accepted_preview_evidence",
-                "slice3_not_run_no_accepted_preview",
-            ],
+            "blockers": [],
             "default_next_action": (
-                "await_operator_selection_of_separately_authorized_next_goal"
+                "await_operator_decision_on_one_post_r10_successor_or_official_clarification"
             ),
             "ordered_successors": [],
             "allow_only_when_directly_blocks": [],
@@ -166,10 +158,40 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     assert check_results["historical_queue_posture"]["passed"] is True
     assert check_results["slice_2r7_terminal_closeout"]["passed"] is True
     assert check_results["r8_r10_recovery_terminal_closeout"]["passed"] is True
+    assert check_results["post_r10_compatibility_direction_closeout"][
+        "passed"
+    ] is True
     assert check_results["github_workflows_retired"]["passed"] is True
     assert check_results["github_workflows_retired"]["evidence"][
         "execution_authority"
     ] == "local_linux_docker"
+
+
+def test_post_r10_closeout_records_integration_invariants_and_gate_evidence():
+    direction = Path(
+        "docs/FUTURES_POST_R10_COMPATIBILITY_DIRECTION.md"
+    ).read_text(encoding="utf-8")
+    backend_goal = Path("genai_data/AGENT_MVP_REBUILD_GOAL.md").read_text(
+        encoding="utf-8"
+    )
+    normalized_direction = " ".join(direction.split())
+    normalized_backend_goal = " ".join(backend_goal.split())
+
+    for text in (
+        "policy-relevant optional field types",
+        "before any recursive `_plain()` normalization",
+        "`preview_id` must remain ephemeral and restricted, then be hashed or withheld before persistence or readback",
+        "1,017 parallel and 456 serial regression cases passed",
+        "604 unit/component tests and 8 Playwright scenarios passed",
+        "Final independent safety and blind-contextless audits passed",
+    ):
+        assert text in normalized_direction
+    assert "before any recursive `_plain()` normalization" in (
+        normalized_backend_goal
+    )
+    assert "`preview_id` must remain ephemeral and restricted" in (
+        normalized_backend_goal
+    )
 
 
 def test_terminal_recovery_docs_do_not_reactivate_consumed_successors():

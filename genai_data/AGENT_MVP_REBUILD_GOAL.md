@@ -1,17 +1,65 @@
 # Coinbase Admin MVP Goal
 
-Goal ID: `futures_preview_acceptance_recovery_r8_r10_and_conditional_terminal_roundtrip_slice_3`
+Goal ID: `futures_post_r10_preview_compatibility_and_direction_selection`
 
 Last reviewed: 2026-07-16 UTC.
 
-Status: `complete — R10 terminally consumed at sanitized Preview-response economics validation; Slice 3 not run; recovery exhausted`
+Status: `complete — official wire schema and stricter project acceptance separated prospectively; R1-R10 immutable; no R11 or live authority`
 
 The canonical cross-repository authority is
 `/home/developer/coinbase/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. This
 backend copy records the behavior-owner interpretation and must remain aligned
 with it.
 
-## Completed Predecessor And Active Slice
+## Completed Post-R10 Compatibility And Direction Selection
+
+The bounded post-R10 goal is complete. Its stable cross-repository alignment
+token is
+`official_wire_schema_and_project_acceptance_separated_prospectively`.
+Coinbase's documented Preview response shape is now treated as a wire-schema
+compatibility boundary, while the project's exact one-contract V3 safety
+requirements remain a separate, stricter acceptance policy. This prospective
+correction does not reinterpret R10's value-blind terminal category and is not
+wired to any consumed R1-R10 claim or runner.
+
+`Official Coinbase Preview wire schema -> prospective project acceptance policy -> ranked no-live direction selection`
+
+A future successor must pass the raw SDK envelope to the shallow validator
+before any recursive `_plain()` normalization. `preview_id` must remain
+ephemeral and restricted, then be hashed or withheld before persistence or
+readback. It must never place that restricted identifier in diagnostics or
+frontend payloads. The SDK dependency is pinned to the verified
+`coinbase-advanced-py 1.8.4` envelope. These are no-live integration
+preconditions, not R11 or runner authority.
+
+All R1-R10 evidence remains immutable. R8 content and hash remain inaccessible;
+only its existing opaque forensic contract may be used. This goal made zero
+Coinbase API or Preview calls, retries, fallbacks, redirects, Create, Cancel,
+Close, Reduce, or other exchange mutations. It grants no R11 authority, no
+Slice 3/4/5 activation, and no other live authority.
+
+No R11 exists.
+
+The evidence-backed direction is:
+
+1. Consider at most one separately authorized future successor only after the
+   prospective compatibility correction passes deployment validation plus
+   independent safety and blind-contextless audit. A successor must retain the
+   exact V3 policy, `AVP-20DEC30-CDE`, one contract, strict
+   `<100 / <150 / <300 USDC` caps, one Preview maximum, and zero retries,
+   fallbacks, redirects, or exchange mutations.
+2. If the remaining wire-policy boundary is still uncertain, seek official
+   Coinbase clarification and reassess before any successor.
+3. Otherwise park the sequence. Ten future attempts are not warranted by the
+   available evidence, so no ten-attempt authorization set was produced.
+
+The current next action is
+`await_operator_decision_on_one_post_r10_successor_or_official_clarification`.
+That action is a decision point, not work or live authority. The durable schema
+mapping, source evidence, safety boundaries, and recommendation are recorded in
+`docs/FUTURES_POST_R10_COMPATIBILITY_DIRECTION.md`.
+
+## Historical Predecessor And Slice Record
 
 `Default-profile Futures account -> authoritative US CFM position list -> exact portfolio-scoped position detail -> operator-visible no-live readback`
 
@@ -35,8 +83,9 @@ Slice 1 made no order, cancel, close, reduce, marker, ledger, runtime, or local
 approval mutation. Live Coinbase execution is `not_run` and notional is
 `0 USDC`.
 
-Slice 2 remains the current slice. The authorized R5 integration and one-use
-attempt are complete, but R5 stopped before Preview because the exact
+Slice 2 was the active slice for the historical record below. The authorized
+R5 integration and one-use attempt are complete, but R5 stopped before Preview
+because the exact
 `retail_regular` margin-window state was the documented but operator-rejected
 `MARGIN_WINDOW_TYPE_UNSPECIFIED`. Its fixed scope is the
 permission-selected `Default`/`DEFAULT` portfolio, configured AVAX perpetual
@@ -440,7 +489,9 @@ R10 was not accepted, so Slice 3 did not run. Its accepted handoff, admission,
 activation, action journal, read journal, and terminal artifacts are absent.
 The standalone and composite R10 entrypoints are permanently hard-false. No
 Preview authority remains and no R11 exists. The default next action is
-`await_operator_selection_of_separately_authorized_next_goal`.
+historically recorded as
+`await_operator_selection_of_separately_authorized_next_goal`; the completed
+post-R10 goal supersedes it with the current decision point above.
 
 `Default-profile Futures readback -> exact AVAX US CFM Coinbase Preview Order -> immutable operator-visible no-live preview readback`
 
@@ -589,8 +640,9 @@ reconciliation, rollback, or traceability failure on it.
 
 A candidate blocker cannot make itself in scope by generating evidence about the candidate blocker.
 
-The recovery goal is complete and no successor is current. Slice 3, Slice 4,
-Slice 5, R11, and every unrelated successor remain unauthorized; exact-hash
+The post-R10 compatibility goal and its historical recovery predecessor are
+complete, and no successor is current. Slice 3, Slice 4, Slice 5, R11, and every
+unrelated successor remain unauthorized; exact-hash
 live gates remain hard stops. Fan-out,
 multi-product automation, schedulers, unattended loops, generic runtime/retry/
 recovery tightening, wallet-ledger expansion, ladders/grids, unrelated domain

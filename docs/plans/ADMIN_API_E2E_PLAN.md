@@ -3,18 +3,17 @@
 Historical planning record; not current work authority.
 
 Use `genai_data/AGENT_MVP_REBUILD_GOAL.md`, goal id
-`futures_preview_acceptance_recovery_r8_r10_and_conditional_terminal_roundtrip_slice_3`,
+`futures_post_r10_preview_compatibility_and_direction_selection`,
 for current scope. Numbered phase
 language below is implementation and regression history only.
 
-Current durable state: R8 is immutable opaque zero-call terminal evidence. R9
-is immutable terminal evidence after all six fixed reads and one returned
-Preview blocked at response validation, with zero retry, fallback, redirect,
-or exchange mutation. R10 is immutable terminal evidence after one returned
-Preview blocked at sanitized economics validation, also with zero retry,
-fallback, redirect, or exchange mutation. Recovery is exhausted, no R11 exists,
-and Slice 3 did not run. There is no default successor; the next action is
-`await_operator_selection_of_separately_authorized_next_goal`.
+Current durable state: the completed post-R10 goal prospectively separates
+official Preview wire compatibility from stricter V3 project acceptance. R1-
+R10 remain immutable, R8 content/hash remain inaccessible, and no R11, Slice
+3/4/5, Preview, or exchange-mutation authority exists. At most one separately
+authorized successor may be considered after all no-live gates pass; official
+clarification or parking rank next. The next action is
+`await_operator_decision_on_one_post_r10_successor_or_official_clarification`.
 
 The active frontend workspace is
 `/home/developer/coinbase/coinbase-frontend` in the local Linux Docker

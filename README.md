@@ -14,19 +14,17 @@ plans.
 ## Current MVP Goal
 
 Current goal id
-`futures_preview_acceptance_recovery_r8_r10_and_conditional_terminal_roundtrip_slice_3`
-records bounded Default-profile AVAX US CFM Preview-acceptance recovery under
-the unchanged one-contract V3 policy and strict `<100 / <150 / <300 USDC`
-limits. R8 is terminal blocked with zero Preview or real Coinbase calls; R9 is
-terminal blocked after one returned Preview failed response validation, with
-zero retries or exchange mutations. R10 is also terminal blocked after its one
-returned Preview reached the sanitized
-`futures_preview_response_economics_invalid` boundary. Recovery is exhausted:
-there is no R11, no remaining Preview or exchange-mutation authority, and Slice
-3 did not run. The exact R10 file/evidence SHA-256 pair is documented in
-[the terminal diagnosis](docs/FUTURES_SLICE_2R10_TERMINAL_DIAGNOSIS.md). See
-[Coinbase Admin MVP Goal](genai_data/AGENT_MVP_REBUILD_GOAL.md). Historical M57
-phase ranges and M58 fan-out/scheduler blockers do not select default work.
+`futures_post_r10_preview_compatibility_and_direction_selection` is complete.
+It prospectively separates Coinbase's official Preview wire schema from the
+project's stricter one-contract V3 acceptance policy while preserving immutable
+R1-R10 history. R10 is not reinterpreted, R8 content/hash remain inaccessible,
+and there is no R11, Slice 3/4/5, Preview, or exchange-mutation authority. The
+ranked result recommends at most one separately authorized future successor
+after all no-live gates pass; official clarification or parking rank next. Ten
+attempts are not warranted. See the
+[post-R10 direction record](docs/FUTURES_POST_R10_COMPATIBILITY_DIRECTION.md)
+and [Coinbase Admin MVP Goal](genai_data/AGENT_MVP_REBUILD_GOAL.md). Historical
+M57 phase ranges and M58 fan-out/scheduler blockers do not select default work.
 
 ## Current Posture
 

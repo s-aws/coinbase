@@ -4,20 +4,19 @@
 
 `genai_data/` contains expanded engineering references and historical analyses.
 Current work authority is `AGENT_MVP_REBUILD_GOAL.md`, goal id
-`futures_preview_acceptance_recovery_r8_r10_and_conditional_terminal_roundtrip_slice_3`,
+`futures_post_r10_preview_compatibility_and_direction_selection`,
 paired with the frontend canonical goal
 at `/home/developer/coinbase/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. An
 individual analysis or implementation note does not become current work merely
 because it lives in this directory.
 
-Current state: R8 is immutable opaque terminal evidence with zero Preview or
-real Coinbase calls. R9 is immutable terminal evidence after one returned
-Preview blocked at response validation, with zero retry, fallback, or exchange
-mutation. R10 is immutable terminal evidence after its one returned Preview
-blocked at sanitized economics validation. Recovery is complete without
-acceptance: no Preview authority remains, no R11 exists, and Slice 3 did not
-run. See `../docs/FUTURES_SLICE_2R10_TERMINAL_DIAGNOSIS.md` for exact immutable
-hashes, accounting, and the localized boundary.
+Current state: post-R10 compatibility work is complete. Coinbase's official
+Preview wire schema and the project's stricter V3 acceptance policy are
+separated prospectively without reinterpreting immutable R10 evidence. R8
+content/hash remain inaccessible. No Preview, R11, Slice 3/4/5, or exchange-
+mutation authority exists. See
+`../docs/FUTURES_POST_R10_COMPATIBILITY_DIRECTION.md` for the source mapping,
+ranked direction, and no-live closeout.
 
 ## Read Order
 

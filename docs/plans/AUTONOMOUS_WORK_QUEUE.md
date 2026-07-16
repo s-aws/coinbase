@@ -3,22 +3,20 @@
 Historical planning record; not current work authority.
 
 Current goal id
-`futures_preview_acceptance_recovery_r8_r10_and_conditional_terminal_roundtrip_slice_3`
-is complete with R8 terminal blocked after zero Preview or real Coinbase calls,
-R9 terminal blocked at response validation after one returned Preview, and R10
-terminal blocked at sanitized economics validation after one returned Preview.
-All three made zero exchange mutations. Recovery is exhausted, Slice 3 did not
-run, and no R11 exists. Its default next action is
-`await_operator_selection_of_separately_authorized_next_goal`,
+`futures_post_r10_preview_compatibility_and_direction_selection` is complete.
+It prospectively separates official Preview wire compatibility from stricter
+project acceptance while preserving immutable R1-R10 history and granting no
+R11, Slice 3/4/5, Preview, or mutation authority. Its default next action is
+`await_operator_decision_on_one_post_r10_successor_or_official_clarification`,
 as documented in `genai_data/AGENT_MVP_REBUILD_GOAL.md` and the frontend
 canonical goal. This
 historical queue does not grant or broaden that authority. The phase range
 below is a frozen compatibility/release artifact and cannot reactivate M57 or
 promote M58 fan-out/scheduler work.
 
-Current machine state is `slice_status=complete`, with terminal blockers for
-non-accepted R10 and unused Slice 3, current-generation Coinbase Preview
-maximum `0`, remaining authorized recovery maximum `0`, and current exchange-
+Current machine state is `slice_status=complete`, with no active work blocker,
+current-generation Coinbase Preview maximum `0`, remaining authorized recovery
+maximum `0`, and current exchange-
 mutation maximum `0`. Product `AVP-20DEC30-CDE`, one-contract scope, V3 policy,
 and strict `<100 / <150 / <300 USDC` caps remain unchanged. There is no R11.
 Slice 3 did not run; Slices 4/5 are unauthorized. Live execution remains
@@ -93,9 +91,9 @@ The former M57 policy and its controlled-live continuous-deployment objective
 are no longer active. Do not execute `complete_current_approved_range`.
 Do not execute `work_mvp_cd_blockers_before_phase_range`. Current work must
 come from goal id
-`futures_preview_acceptance_recovery_r8_r10_and_conditional_terminal_roundtrip_slice_3`,
+`futures_post_r10_preview_compatibility_and_direction_selection`,
 whose next action is
-`await_operator_selection_of_separately_authorized_next_goal`;
+`await_operator_decision_on_one_post_r10_successor_or_official_clarification`;
 this document cannot select or promote a next action.
 
 Durable future plan:

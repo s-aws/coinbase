@@ -131,6 +131,16 @@ create a separate approval class.
 
 ## Current Handoff State
 
+- Current goal
+  `futures_post_r10_preview_compatibility_and_direction_selection` is complete.
+  It prospectively separates the official Preview wire schema from stricter
+  project acceptance while preserving immutable R1-R10 history. R8
+  content/hash remain inaccessible; R10's value-blind terminal category is not
+  reinterpreted. This grants no R11, Slice 3/4/5, Preview, or mutation
+  authority. The ranked recommendation is at most one separately authorized
+  successor after all no-live gates pass, then official clarification or
+  parking. Ten attempts are not warranted. See
+  `docs/FUTURES_POST_R10_COMPATIBILITY_DIRECTION.md`.
 - Historical R7 terminal action was
   `await_operator_scope_change_decision_after_slice_2r7_closeout`. R7 ran
   exactly once after focused validation and independent safety plus blind
@@ -153,8 +163,9 @@ create a separate approval class.
   SHA-256. It does not prove a schema, cap, available-margin, candidate,
   sealing, or other exact cause. See
   `docs/FUTURES_SLICE_2R7_TERMINAL_DIAGNOSIS.md`.
-- Current goal is complete with terminal non-acceptance. R8 is terminal blocked and
-  immutable with zero Preview, real Coinbase, AWS-service, or mutation calls.
+- The historical recovery goal completed with terminal non-acceptance. R8 is
+  terminal blocked and immutable with zero Preview, real Coinbase, AWS-service,
+  or mutation calls.
   R9 is also terminal blocked and immutable. All six fixed read categories ran
   once and exactly one Coinbase Preview returned before the first post-return
   `preview_response_validation` stage blocked. Retry, fallback, redirect,
@@ -209,9 +220,9 @@ create a separate approval class.
   preserves those pairs, hybrid identities are test-rejected, and both
   reviewers re-reviewed the remediation with no remaining findings.
 - Current goal id:
-  `futures_preview_acceptance_recovery_r8_r10_and_conditional_terminal_roundtrip_slice_3`.
+  `futures_post_r10_preview_compatibility_and_direction_selection`.
 - Current next action:
-  `await_operator_selection_of_separately_authorized_next_goal`.
+  `await_operator_decision_on_one_post_r10_successor_or_official_clarification`.
 - Historical predecessor slice: Default-profile Futures readback -> exact AVAX US CFM Coinbase
   Preview Order -> immutable operator-visible no-live preview readback. The
   one-shot R1 artifact terminated before

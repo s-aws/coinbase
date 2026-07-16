@@ -5,7 +5,10 @@ live authority, and a backend-only live runner is not proof that the matching
 HTTP or browser workflow is live-capable.
 
 Current goal id is
-`futures_preview_acceptance_recovery_r8_r10_and_conditional_terminal_roundtrip_slice_3`.
+`futures_post_r10_preview_compatibility_and_direction_selection`. It is a
+completed no-live compatibility/direction goal. The prospective official-wire
+versus strict-project acceptance split grants no Preview, R11, Slice 3/4/5, or
+mutation authority and does not reinterpret R10.
 Slice 1 uses only
 authoritative GET account/position reads. R7 consumed the sole authorized
 non-ordering Coinbase successor call after consumed R6. Exactly one

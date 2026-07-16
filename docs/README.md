@@ -5,10 +5,13 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 ## Project Entry
 
 - [Current MVP Goal](../genai_data/AGENT_MVP_REBUILD_GOAL.md) - goal id
-  `futures_preview_acceptance_recovery_r8_r10_and_conditional_terminal_roundtrip_slice_3`;
-  R8 terminal blocked with opaque zero-call readback, R9 terminal blocked after
-  one returned Preview reached response validation, R10 terminal blocked at
-  sanitized economics validation, recovery exhausted, and Slice 3 not run
+  `futures_post_r10_preview_compatibility_and_direction_selection`; completed
+  prospective separation of official Preview wire compatibility from stricter
+  V3 project acceptance, immutable R1-R10 history, and no successor/live
+  authority
+- [Futures Post-R10 Preview Compatibility And Direction](FUTURES_POST_R10_COMPATIBILITY_DIRECTION.md) -
+  official source mapping, two-layer validator boundary, value-blind safety
+  posture, ranked direction, and the finding that ten attempts are unwarranted
 - [Futures Slice 2R7 Preparation and Closeout](FUTURES_SLICE_2R7_PREPARATION.md) -
   immutable R6 ancestry, corrected response-schema binding, one-use transport
   posture, readiness gates, and terminal record
