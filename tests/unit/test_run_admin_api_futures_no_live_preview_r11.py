@@ -69,6 +69,42 @@ def _sha(label: str) -> str:
     return hashlib.sha256(label.encode("utf-8")).hexdigest()
 
 
+def _synthetic_audit_binding_block(*, active: bool) -> bytes:
+    values = {
+        "R11_PREPARATION_REVISION": _sha("prepared-backend-revision"),
+        "R11_FRONTEND_REVISION": _sha("prepared-frontend-revision"),
+        "R11_NORMALIZED_RUNNER_SHA256": _sha("normalized-runner"),
+        "R11_AUTHORIZATION_SHA256": _sha("bounded-r11-authorization"),
+        "R11_SAFETY_AUDIT_RECEIPT_SHA256": _sha("independent-safety-audit"),
+        "R11_BLIND_AUDIT_RECEIPT_SHA256": _sha("blind-contextless-audit"),
+    }
+    lines = [
+        "# BEGIN R11 AUDIT BINDINGS",
+        f"R11_PREVIEW_CALL_AUTHORITY_ACTIVE = {active!r}",
+        f"R11_FINAL_AUDIT_BINDING_READY = {active!r}",
+    ]
+    lines.extend(
+        f'{name} = "{value if active else ""}"'
+        for name, value in values.items()
+    )
+    lines.append(
+        'R11_ACTIVATION_NOT_AFTER = "2999-01-01T00:00:00Z"'
+        if active
+        else 'R11_ACTIVATION_NOT_AFTER = ""'
+    )
+    if active:
+        lines.append("R11_AUDITED_COMPONENT_SHA256: dict[str, str] = {")
+        lines.extend(
+            f'    "{component}": "{_sha(component)}",'
+            for component in sorted(_EXPECTED_R11_AUDITED_COMPONENTS)
+        )
+        lines.append("}")
+    else:
+        lines.append("R11_AUDITED_COMPONENT_SHA256: dict[str, str] = {}")
+    lines.append("# END R11 AUDIT BINDINGS")
+    return ("\n".join(lines) + "\n").encode("utf-8")
+
+
 def _bind_valid_r11_audit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> tuple[dict[str, str], dict[str, str]]:
@@ -165,15 +201,10 @@ def _bind_valid_r11_audit(
 
 
 def test_r11_normalized_runner_hash_ignores_only_literal_audit_bindings() -> None:
-    first = b"""before\n# BEGIN R11 AUDIT BINDINGS
-R11_PREVIEW_CALL_AUTHORITY_ACTIVE = False
-# END R11 AUDIT BINDINGS
-after\n"""
-    activated = b"""before\n# BEGIN R11 AUDIT BINDINGS
-R11_PREVIEW_CALL_AUTHORITY_ACTIVE = True
-R11_PREPARATION_REVISION = \"0123\"
-# END R11 AUDIT BINDINGS
-after\n"""
+    first = b"before\n" + _synthetic_audit_binding_block(active=False) + b"after\n"
+    activated = (
+        b"before\n" + _synthetic_audit_binding_block(active=True) + b"after\n"
+    )
     logic_changed = activated.replace(b"after\n", b"changed-after\n")
 
     first_normalized = r11_tool._normalized_runner_bytes(first)
@@ -186,9 +217,137 @@ after\n"""
     assert r11_tool._normalized_runner_bytes(logic_changed) != first_normalized
 
 
+@pytest.mark.parametrize(
+    "injected_source",
+    [
+        b'raise RuntimeError("activation-side-effect")\n',
+        b'R11_PREPARATION_REVISION = "duplicate"\n',
+        b'R11_PREPARATION_REVISION = str()\n',
+    ],
+)
+def test_r11_normalized_runner_rejects_nonliteral_or_extra_activation_code(
+    injected_source: bytes,
+) -> None:
+    block = _synthetic_audit_binding_block(active=False)
+    poisoned = block.replace(
+        b"# END R11 AUDIT BINDINGS\n",
+        injected_source + b"# END R11 AUDIT BINDINGS\n",
+    )
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="literal audit binding block is invalid",
+    ):
+        r11_tool._normalized_runner_bytes(b"before\n" + poisoned + b"after\n")
+
+
+def test_r11_normalized_runner_rejects_duplicate_component_literal() -> None:
+    block = _synthetic_audit_binding_block(active=True)
+    component = sorted(_EXPECTED_R11_AUDITED_COMPONENTS)[0]
+    line = f'    "{component}": "{_sha(component)}",\n'.encode("utf-8")
+    poisoned = block.replace(line, line + line)
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="literal audit binding block is invalid",
+    ):
+        r11_tool._normalized_runner_bytes(b"before\n" + poisoned + b"after\n")
+
+
 def test_r11_audited_component_manifest_covers_all_material_surfaces() -> None:
     assert r11_tool._R11_EXPECTED_COMPONENTS == frozenset(
         _EXPECTED_R11_AUDITED_COMPONENTS
+    )
+
+
+def test_r11_production_path_rejects_environment_redirection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_ROOT",
+        str(tmp_path),
+    )
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="fixed production artifact path is invalid",
+    ):
+        r11_tool.production_artifact_path()
+
+
+def test_r11_clean_revision_gate_rejects_untracked_backend_source(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    revision = _sha("backend-main")
+
+    def git_output(_root: Path, *args: str) -> str:
+        if args == ("branch", "--show-current"):
+            return "main"
+        if args == ("rev-parse", "HEAD") or args == (
+            "rev-parse",
+            "origin/main",
+        ):
+            return revision
+        if args == ("status", "--porcelain", "--untracked-files=no"):
+            return ""
+        if args == ("ls-files", "--others", "--exclude-standard"):
+            return "rogue_runtime_override.py"
+        raise AssertionError(args)
+
+    monkeypatch.setattr(r11_tool, "_git_output", git_output)
+
+    assert r11_tool._repository_is_clean_synced_main(r11_tool.REPO_ROOT) is False
+
+
+def test_r11_clean_revision_gate_binds_only_exact_inert_frontend_files(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected = {
+        "coinbase-admin-live-root-child-chain-2026-07-11.png": (
+            "a38b6a6bdca3073cca7245cfece2783b82e9414267bff421fcd97ad7d5e79cec"
+        ),
+        "coinbase-admin-live-root-child-chain-complete-2026-07-12.png": (
+            "5b0057de8d4e9e0757341cdb95dcaace979cef72f12f3da2cda9f1b72c5697b6"
+        ),
+        "coinbase-admin-spot-operations-2026-07-11.png": (
+            "4c65c473dd7cd3ffb155a6623545578f08cd6caf72db43c387b5bcc7da131244"
+        ),
+        "selected-order-execution-closeout-v14.png": (
+            "020fa080228ab52ab3d318fda112e48efb1f27532418e999abfdb4bd54cbbb1d"
+        ),
+    }
+    revision = _sha("frontend-main")
+
+    def git_output(_root: Path, *args: str) -> str:
+        if args == ("branch", "--show-current"):
+            return "main"
+        if args == ("rev-parse", "HEAD") or args == (
+            "rev-parse",
+            "origin/main",
+        ):
+            return revision
+        if args == ("status", "--porcelain", "--untracked-files=no"):
+            return ""
+        if args == ("ls-files", "--others", "--exclude-standard"):
+            return "\n".join(sorted(expected))
+        raise AssertionError(args)
+
+    monkeypatch.setattr(r11_tool, "_git_output", git_output)
+    monkeypatch.setattr(
+        r11_tool,
+        "_file_sha256",
+        lambda path: (
+            _sha("drifted-user-image")
+            if path.name == "selected-order-execution-closeout-v14.png"
+            else expected[path.name]
+        ),
+    )
+
+    assert r11_tool._FRONTEND_INERT_UNTRACKED_SHA256 == expected
+    assert (
+        r11_tool._repository_is_clean_synced_main(r11_tool.FRONTEND_ROOT)
+        is False
     )
 
 
@@ -570,6 +729,100 @@ def test_r11_unknown_preview_is_value_blind_consumed_and_cannot_retry(
     with pytest.raises(FuturesOrderPreviewArtifactError, match="already consumed"):
         producer.run()
     assert len(delegate.preview_calls) == 1
+
+
+def test_r11_claim_reservation_failure_is_value_blind_and_claim_only_consumed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    private_text = "PRIVATE-R11-RESERVATION-FSYNC-TEXT"
+    delegate = _r8_compatible_rest_client()
+    initial_read_calls = list(delegate.read_calls)
+    path = tmp_path / "reservation-failed-r11.jsonl"
+    store = r11_tool.build_r11_store(path)
+    deferred = r11_tool.DeferredR11PreviewRestClient(
+        store=store,
+        prepared_client=r11_tool.FuturesPreviewOnlyRestClient(delegate),
+    )
+    producer = r11_tool.build_r11_producer(
+        rest_client=deferred,
+        store=store,
+        now=lambda: NOW,
+        correlation_id_factory=lambda: (
+            "619cb4b8-b99d-4663-baa8-da9db777e611"
+        ),
+        idempotency_key_factory=lambda: (
+            "cb47c508-d834-44bc-9732-138cf6077118"
+        ),
+    )
+
+    def partial_reservation_then_fail(_claim: object) -> str:
+        path.write_text("partial-sanitized-r11-claim\n", encoding="utf-8")
+        raise OSError(private_text)
+
+    monkeypatch.setattr(store, "reserve", partial_reservation_then_fail)
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="claim persistence unavailable; attempt consumed",
+    ) as caught:
+        producer.run()
+
+    assert private_text not in str(caught.value)
+    assert path.exists()
+    assert delegate.read_calls == initial_read_calls
+    assert delegate.preview_calls == []
+    assert delegate.forbidden_calls == []
+
+
+def test_r11_cli_catches_unexpected_claim_boundary_error_value_blind(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    private_text = "PRIVATE-R11-CLI-CLAIM-BOUNDARY-TEXT"
+    path = tmp_path / "cli-claim-failed-r11.jsonl"
+    monkeypatch.setattr(r11_tool, "R11_PREVIEW_CALL_AUTHORITY_ACTIVE", True)
+    monkeypatch.setattr(r11_tool, "R11_FINAL_AUDIT_BINDING_READY", True)
+    monkeypatch.setattr(r11_tool, "production_artifact_path", lambda: path)
+    monkeypatch.setattr(r11_tool, "_validate_final_audit_binding", lambda: None)
+    monkeypatch.setattr(r11_tool, "_validate_sdk_pin", lambda: None)
+    monkeypatch.setattr(r11_tool, "_validate_fresh_claim_contract", lambda _path: None)
+    monkeypatch.setattr(
+        r11_tool,
+        "validate_production_predecessor",
+        lambda: dict(preview_module.FUTURES_PREVIEW_R10_TERMINAL_BINDING),
+    )
+
+    class FailingProducer:
+        def run(self) -> dict[str, object]:
+            path.write_text("partial-sanitized-r11-claim\n", encoding="utf-8")
+            raise OSError(private_text)
+
+    monkeypatch.setattr(
+        r11_tool,
+        "build_r11_producer",
+        lambda **_kwargs: FailingProducer(),
+    )
+    monkeypatch.setattr(
+        r11_tool,
+        "_build_r11_preview_rest_client",
+        lambda: (_ for _ in ()).throw(
+            AssertionError("credential hydration must remain deferred")
+        ),
+    )
+
+    assert r11_tool.main(["--confirm-one-r11-preview"]) == 2
+
+    captured = capsys.readouterr()
+    assert private_text not in captured.out
+    assert private_text not in captured.err
+    summary = json.loads(captured.err)
+    assert summary["status"] == summary["outcome"] == "unknown"
+    assert summary["blocker"] == "futures_preview_r11_consumed_without_terminal"
+    assert summary["artifact_created"] is True
+    assert summary["attempt_counters"] is None
+    assert summary["exchange_submission_attempt_count"] == 0
 
 
 @pytest.mark.parametrize("preview_outcome", ["accepted", "unknown"])

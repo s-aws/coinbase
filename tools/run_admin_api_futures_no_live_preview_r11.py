@@ -12,11 +12,13 @@ session handoff path.
 from __future__ import annotations
 
 import argparse
+import ast
 from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime, timezone
 import hashlib
 from importlib.metadata import distribution, version
 import json
+import os
 from pathlib import Path
 import re
 import stat
@@ -70,7 +72,22 @@ _AUDIT_BINDING_PLACEHOLDER = (
     "# END R11 AUDIT BINDINGS\n"
 )
 _HEX_SHA256 = re.compile(r"[0-9a-f]{64}\Z")
+_AUDIT_BINDING_SCALAR_NAMES = (
+    "R11_PREVIEW_CALL_AUTHORITY_ACTIVE",
+    "R11_FINAL_AUDIT_BINDING_READY",
+    "R11_PREPARATION_REVISION",
+    "R11_FRONTEND_REVISION",
+    "R11_NORMALIZED_RUNNER_SHA256",
+    "R11_AUTHORIZATION_SHA256",
+    "R11_SAFETY_AUDIT_RECEIPT_SHA256",
+    "R11_BLIND_AUDIT_RECEIPT_SHA256",
+    "R11_ACTIVATION_NOT_AFTER",
+)
+_AUDIT_BINDING_HASH_NAMES = _AUDIT_BINDING_SCALAR_NAMES[2:-1]
 _R11_RUNNER_RELATIVE_PATH = "tools/run_admin_api_futures_no_live_preview_r11.py"
+_FIXED_R11_PRODUCTION_ARTIFACT_PATH = (
+    REPO_ROOT / "artifacts" / "futures_exact_no_live_preview_slice_2r11.jsonl"
+)
 _R11_EXPECTED_COMPONENTS = frozenset(
     {
         "backend:.agents/ownership.yaml",
@@ -114,6 +131,20 @@ _R11_SDK_SOURCE_SHA256 = {
         "19552322d672d194aad8cf91b7a07038360c6d9504ac4fce1e7524b7728317b2"
     ),
 }
+_FRONTEND_INERT_UNTRACKED_SHA256 = {
+    "coinbase-admin-live-root-child-chain-2026-07-11.png": (
+        "a38b6a6bdca3073cca7245cfece2783b82e9414267bff421fcd97ad7d5e79cec"
+    ),
+    "coinbase-admin-live-root-child-chain-complete-2026-07-12.png": (
+        "5b0057de8d4e9e0757341cdb95dcaace979cef72f12f3da2cda9f1b72c5697b6"
+    ),
+    "coinbase-admin-spot-operations-2026-07-11.png": (
+        "4c65c473dd7cd3ffb155a6623545578f08cd6caf72db43c387b5bcc7da131244"
+    ),
+    "selected-order-execution-closeout-v14.png": (
+        "020fa080228ab52ab3d318fda112e48efb1f27532418e999abfdb4bd54cbbb1d"
+    ),
+}
 _R11_DEFERRED_CALLS = (
     "api_key_permissions",
     "portfolio_catalog",
@@ -123,6 +154,96 @@ _R11_DEFERRED_CALLS = (
     "futures_margin_collateral",
     "preview_order",
 )
+
+
+def _validate_literal_audit_binding_block(block: str) -> None:
+    """Accept only the ten named, literal activation assignments."""
+
+    try:
+        parsed = ast.parse(block, mode="exec")
+        if len(parsed.body) != len(_AUDIT_BINDING_SCALAR_NAMES) + 1:
+            raise ValueError("statement_count")
+        values: dict[str, object] = {}
+        for expected_name, statement in zip(
+            _AUDIT_BINDING_SCALAR_NAMES,
+            parsed.body[:-1],
+            strict=True,
+        ):
+            if (
+                not isinstance(statement, ast.Assign)
+                or len(statement.targets) != 1
+                or not isinstance(statement.targets[0], ast.Name)
+                or statement.targets[0].id != expected_name
+                or statement.type_comment is not None
+            ):
+                raise ValueError("scalar_assignment")
+            values[expected_name] = ast.literal_eval(statement.value)
+        component_statement = parsed.body[-1]
+        if (
+            not isinstance(component_statement, ast.AnnAssign)
+            or not isinstance(component_statement.target, ast.Name)
+            or component_statement.target.id != "R11_AUDITED_COMPONENT_SHA256"
+            or ast.unparse(component_statement.annotation) != "dict[str, str]"
+            or component_statement.value is None
+            or component_statement.simple != 1
+            or not isinstance(component_statement.value, ast.Dict)
+        ):
+            raise ValueError("component_assignment")
+        component_keys = [
+            ast.literal_eval(key) for key in component_statement.value.keys
+        ]
+        if (
+            any(not isinstance(key, str) for key in component_keys)
+            or len(component_keys) != len(set(component_keys))
+            or any(
+                not isinstance(value, ast.Constant)
+                or not isinstance(value.value, str)
+                for value in component_statement.value.values
+            )
+        ):
+            raise ValueError("component_literals")
+        components = ast.literal_eval(component_statement.value)
+        values["R11_AUDITED_COMPONENT_SHA256"] = components
+        active = (
+            values["R11_PREVIEW_CALL_AUTHORITY_ACTIVE"] is True
+            and values["R11_FINAL_AUDIT_BINDING_READY"] is True
+            and all(
+                isinstance(values[name], str)
+                and _HEX_SHA256.fullmatch(values[name]) is not None
+                for name in _AUDIT_BINDING_HASH_NAMES
+            )
+            and isinstance(values["R11_ACTIVATION_NOT_AFTER"], str)
+            and bool(values["R11_ACTIVATION_NOT_AFTER"])
+            and isinstance(components, dict)
+            and set(components) == _R11_EXPECTED_COMPONENTS
+            and all(
+                isinstance(key, str)
+                and isinstance(value, str)
+                and _HEX_SHA256.fullmatch(value) is not None
+                for key, value in components.items()
+            )
+        )
+        inactive = (
+            values["R11_PREVIEW_CALL_AUTHORITY_ACTIVE"] is False
+            and values["R11_FINAL_AUDIT_BINDING_READY"] is False
+            and all(values[name] == "" for name in _AUDIT_BINDING_HASH_NAMES)
+            and values["R11_ACTIVATION_NOT_AFTER"] == ""
+            and components == {}
+        )
+        if not active and not inactive:
+            raise ValueError("binding_state")
+        if active:
+            if component_keys != sorted(_R11_EXPECTED_COMPONENTS):
+                raise ValueError("component_order")
+            activation = datetime.fromisoformat(
+                str(values["R11_ACTIVATION_NOT_AFTER"]).replace("Z", "+00:00")
+            )
+            if activation.tzinfo is None:
+                raise ValueError("activation_timezone")
+    except Exception:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R11 literal audit binding block is invalid"
+        ) from None
 
 
 def _normalized_runner_bytes(payload: bytes | None = None) -> bytes:
@@ -140,6 +261,7 @@ def _normalized_runner_bytes(payload: bytes | None = None) -> bytes:
             "futures Preview R11 audit binding markers are invalid"
         )
     end += len(_AUDIT_BINDING_END)
+    _validate_literal_audit_binding_block(text[start:end])
     return (
         text[:start] + _AUDIT_BINDING_PLACEHOLDER + text[end:]
     ).encode("utf-8")
@@ -193,18 +315,61 @@ def _git_output(root: Path, *args: str) -> str:
 
 
 def _repository_is_clean_synced_main(root: Path) -> bool:
-    return (
-        _git_output(root, "branch", "--show-current") == "main"
-        and _git_output(root, "rev-parse", "HEAD")
-        == _git_output(root, "rev-parse", "origin/main")
-        and _git_output(
+    if (
+        _git_output(root, "branch", "--show-current") != "main"
+        or _git_output(root, "rev-parse", "HEAD")
+        != _git_output(root, "rev-parse", "origin/main")
+        or _git_output(
             root,
             "status",
             "--porcelain",
             "--untracked-files=no",
         )
-        == ""
+        != ""
+    ):
+        return False
+    untracked = set(
+        filter(
+            None,
+            _git_output(
+                root,
+                "ls-files",
+                "--others",
+                "--exclude-standard",
+            ).splitlines(),
+        )
     )
+    if root == REPO_ROOT:
+        return not untracked
+    if root != FRONTEND_ROOT or untracked != set(
+        _FRONTEND_INERT_UNTRACKED_SHA256
+    ):
+        return False
+    for relative, expected_sha256 in _FRONTEND_INERT_UNTRACKED_SHA256.items():
+        path = root / relative
+        try:
+            observed = path.lstat()
+            if not stat.S_ISREG(observed.st_mode):
+                return False
+            if _file_sha256(path) != expected_sha256:
+                return False
+        except OSError:
+            return False
+    return True
+
+
+def _validate_fixed_production_artifact_path() -> None:
+    if (
+        os.environ.get(
+            "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_ROOT",
+            "",
+        ).strip()
+        or FUTURES_PREVIEW_R11_ARTIFACT_PATH
+        != _FIXED_R11_PRODUCTION_ARTIFACT_PATH
+    ):
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R11 fixed production artifact path is invalid"
+        )
 
 
 def _validate_sdk_pin() -> None:
@@ -428,7 +593,8 @@ class DeferredR11PreviewRestClient:
 def production_artifact_path() -> Path:
     """Return the fixed R11 path; environment cannot redirect it."""
 
-    return FUTURES_PREVIEW_R11_ARTIFACT_PATH
+    _validate_fixed_production_artifact_path()
+    return _FIXED_R11_PRODUCTION_ARTIFACT_PATH
 
 
 def validate_production_predecessor() -> dict[str, Any]:
@@ -518,7 +684,7 @@ def _fixed_blocked_summary(blocker: str) -> dict[str, object]:
     return _summary_before_attempt(
         status="blocked",
         blocker=blocker,
-        path=FUTURES_PREVIEW_R11_ARTIFACT_PATH,
+        path=_FIXED_R11_PRODUCTION_ARTIFACT_PATH,
         artifact_created=False,
     )
 
@@ -662,10 +828,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         with _suppress_coinbase_sdk_logging():
             evidence = producer.run()
-    except FuturesOrderPreviewArtifactError:
+    except Exception:
         try:
             terminal = store.read_completed()
-        except FuturesOrderPreviewArtifactError:
+        except Exception:
             terminal = None
         if terminal is None:
             summary: dict[str, object] = {

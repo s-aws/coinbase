@@ -91,6 +91,13 @@ existing chain. Claim reservation must occur before credentials or the Coinbase
 client are hydrated. A nonterminal or terminal R11 claim consumes the one-use
 path; it must never fall back to R10 or another artifact.
 
+The production R11 artifact path is fixed to the canonical backend `artifacts`
+directory. A nonempty artifact-root environment override or a mismatched
+imported path fails before predecessor, credential, client, or Coinbase access.
+Reservation write, file-`fsync`, close, or directory-`fsync` ambiguity is
+reported only as the fixed claim-persistence consumed diagnostic. It cannot
+leak an underlying exception or authorize another invocation.
+
 ## Readiness And Audit Gate
 
 The one-call runner remains fail-closed until all of the following are true:
@@ -100,14 +107,18 @@ The one-call runner remains fail-closed until all of the following are true:
 - focused frontend contract and readback tests pass without action controls;
 - local deployment validation passes;
 - backend and frontend tracked worktrees are clean, on `main`, and exactly
-  synchronized with `origin/main`;
+  synchronized with `origin/main`; the backend permits no untracked file, while
+  the frontend permits only the four pre-existing root PNGs bound by exact
+  filename and SHA-256 (all other untracked files fail the gate);
 - the prepared backend and frontend revisions, normalized runner logic hash,
   audited component hashes, exact SDK pin, and bounded activation expiry are
   fixed;
 - one independent safety audit and one independent blind-contextless audit
   return distinct passing receipts;
-- the activation commit changes only the runner's literal audit-binding block
-  relative to the prepared revision;
+- the activation commit changes only the runner relative to the prepared
+  revision, and a strict source parser proves that the normalized audit-binding
+  block contains exactly the ten named literal assignments with no extra
+  statement, call, duplicate, or executable expression;
 - the production R11 path is absent before reservation and the exact R10
   predecessor validates immediately before the attempt.
 

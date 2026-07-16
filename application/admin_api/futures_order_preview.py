@@ -3074,7 +3074,7 @@ class FuturesOrderPreviewProducer:
                 }
                 else claim
             )
-            claim_sha256 = self.store.reserve(reservation_claim)
+            claim_sha256 = self._reserve_claim(reservation_claim)
         else:
             observed_predecessor = dict(self.predecessor_validator())
             if observed_predecessor != self.predecessor_binding:
@@ -3082,7 +3082,7 @@ class FuturesOrderPreviewProducer:
                     "futures Preview predecessor binding changed"
                 )
             claim = self.build_claim()
-            claim_sha256 = self.store.reserve(claim)
+            claim_sha256 = self._reserve_claim(claim)
         counters = _zero_attempt_counters()
         read_counters = _zero_read_counters()
         terminal_context: dict[str, Any] = {}
@@ -3566,6 +3566,21 @@ class FuturesOrderPreviewProducer:
             raise FuturesOrderPreviewArtifactError(
                 "futures Preview preflight blocked; attempt consumed"
             ) from exc
+
+    def _reserve_claim(self, claim: Mapping[str, Any]) -> str:
+        """Reserve R11 value-blindly; persistence ambiguity consumes it."""
+
+        if self.artifact_type != _R11_ARTIFACT_TYPE:
+            return self.store.reserve(claim)
+        try:
+            return self.store.reserve(claim)
+        except FuturesOrderPreviewArtifactError:
+            raise
+        except Exception:
+            raise FuturesOrderPreviewArtifactError(
+                "futures Preview claim persistence unavailable; "
+                "attempt consumed"
+            ) from None
 
     def _append_terminal_result(self, result: Mapping[str, Any]) -> None:
         """Append once; R11 persistence ambiguity consumes without retry."""
