@@ -15,12 +15,13 @@ regular=`UNSPECIFIED` plus intraday-profile=`INTRADAY` pair, one contract,
 strict `<100 / <150 / <300 USDC` caps, and the corrected official
 liquidation-response schema. The repeatable Admin API/UI path now reads exact
 immutable R8 through an opaque hash/stat-only zero-call forensic contract and
-cannot call Coinbase. R9 is the current one-use recovery generation; R10 is
-conditional and an R9 acceptance extinguishes it. Preview
-recovery permits one current-generation call and zero retries, fallbacks,
+cannot call Coinbase. R9 is terminal blocked after all six fixed reads and one
+returned Preview reached response validation; it made zero retries, fallbacks,
 redirects, Create, Cancel, Close, Reduce, marker, ledger, runtime, or exchange
-mutations. Slice 3 is conditional and inactive pending accepted Preview and
-exact readiness gates; Slices 4/5 are unauthorized. Default
+mutations. R10 is the current preparation-only generation, with one remaining
+Preview maximum and no R11. Slice 3 is conditional, but Coinbase documents no
+Preview expiry field or TTL, so the pre-Create mutation boundary remains
+fail-closed even after acceptance; Slices 4/5 are unauthorized. Default
 release and deployment checks remain no-live and report live Coinbase execution
 as not run with notional `0`.
 

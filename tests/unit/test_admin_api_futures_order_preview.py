@@ -101,6 +101,11 @@ def _isolate_fixed_production_successor_paths(
         "FUTURES_PREVIEW_R9_ARTIFACT_PATH",
         tmp_path / "fixed-production-r9-isolated.jsonl",
     )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R10_ARTIFACT_PATH",
+        tmp_path / "fixed-production-r10-isolated.jsonl",
+    )
 
 
 ORIGINAL_SLICE2_BINDING = {
@@ -2066,6 +2071,54 @@ def test_present_invalid_r9_blocks_r8_fallback(
         configured_futures_order_preview_artifact_path()
 
 
+def test_latest_preview_artifact_selector_serves_valid_r10_before_r9(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    producer, _store, r10_path = _r10_producer(
+        tmp_path / "r10",
+        _r8_compatible_rest_client(),
+    )
+    producer.run()
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R10_ARTIFACT_PATH",
+        r10_path,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R9_ARTIFACT_PATH",
+        tmp_path / "r9-must-not-be-selected.jsonl",
+    )
+
+    assert configured_futures_order_preview_artifact_path() == r10_path
+
+
+def test_present_invalid_r10_blocks_r9_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    r10_path = tmp_path / "invalid-r10.jsonl"
+    r10_path.write_bytes(b"synthetic-invalid-r10\n")
+    r10_path.chmod(0o400)
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R10_ARTIFACT_PATH",
+        r10_path,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R9_ARTIFACT_PATH",
+        tmp_path / "r9-fallback-must-not-be-read.jsonl",
+    )
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="R10 terminal readback is invalid",
+    ):
+        configured_futures_order_preview_artifact_path()
+
+
 def test_r8_get_route_withholds_private_identifiers_from_browser_readback(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2295,6 +2348,40 @@ def test_r9_nonblocking_reservation_uses_shared_successor_selector_lock(
             store.reserve(producer.build_claim())
 
     assert not r9_path.exists()
+
+
+def test_r10_nonblocking_reservation_uses_shared_successor_selector_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    producer, store, r10_path = _r10_producer(
+        tmp_path,
+        _r8_compatible_rest_client(),
+    )
+    r8_selector_path = tmp_path / "r8-selector-predecessor.jsonl"
+    store.reservation_lock_nonblocking = True
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R8_ARTIFACT_PATH",
+        r8_selector_path,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R10_ARTIFACT_PATH",
+        r10_path,
+    )
+
+    with preview_module._futures_preview_r8_advisory_lock(
+        r8_selector_path,
+        exclusive=False,
+    ):
+        with pytest.raises(
+            FuturesOrderPreviewArtifactError,
+            match="selector lock is invalid",
+        ):
+            store.reserve(producer.build_claim())
+
+    assert not r10_path.exists()
 
 
 def test_latest_preview_readback_fails_closed_when_r8_is_claimed_after_selection(
@@ -5779,6 +5866,124 @@ def test_preview_accepts_documented_margin_ratio_replacement_without_optional_pr
     assert "predicted_liquidation_price" not in normalized
 
 
+@pytest.mark.parametrize(
+    "legacy_fields",
+    [
+        {
+            "current_liquidation_buffer": "0.80",
+            "projected_liquidation_buffer": "0.75",
+        },
+        {"current_liquidation_buffer": ""},
+        {"projected_liquidation_buffer": None},
+    ],
+)
+def test_r10_documented_margin_ratio_is_authoritative_when_legacy_keys_coexist(
+    legacy_fields: dict[str, object],
+):
+    response = _preview()
+    response.update(legacy_fields)
+    response["margin_ratio_data"] = {
+        "current_margin_ratio": "0.20",
+        "projected_margin_ratio": "0.25",
+    }
+
+    normalized = preview_module.validate_r10_preview_response_schema(response)
+
+    assert normalized["liquidation_evidence_source"] == "margin_ratio_data"
+    assert normalized["margin_ratio_data"] == {
+        "current_margin_ratio": "0.20",
+        "projected_margin_ratio": "0.25",
+    }
+    assert "current_liquidation_buffer" not in normalized
+    assert "projected_liquidation_buffer" not in normalized
+
+
+@pytest.mark.parametrize(
+    "margin_ratio_data",
+    [
+        None,
+        {},
+        {"current_margin_ratio": "0.20"},
+        {
+            "current_margin_ratio": "PRIVATE_R10_VALUE",
+            "projected_margin_ratio": "0.25",
+        },
+    ],
+)
+def test_r10_never_falls_back_to_legacy_liquidation_when_ratio_is_invalid(
+    margin_ratio_data: object,
+):
+    response = _preview()
+    response["margin_ratio_data"] = margin_ratio_data
+
+    with pytest.raises(ValueError, match="futures_preview"):
+        preview_module.validate_r10_preview_response_schema(response)
+
+
+@pytest.mark.parametrize(
+    ("internal_reason", "expected_reason"),
+    [
+        (
+            "futures_preview_response_errors_present",
+            "futures_preview_response_exchange_errors_present",
+        ),
+        (
+            "futures_preview_response_warning_present",
+            "futures_preview_response_exchange_warnings_present",
+        ),
+        (
+            "futures_preview_response_preview_id_missing",
+            "futures_preview_response_envelope_invalid",
+        ),
+        (
+            "futures_preview_response_order_total_not_positive",
+            "futures_preview_response_economics_invalid",
+        ),
+        (
+            "futures_preview_r10_response_schema_liquidation_replacement_missing",
+            "futures_preview_response_liquidation_replacement_missing",
+        ),
+        (
+            "futures_preview_current_margin_ratio_invalid",
+            "futures_preview_response_liquidation_replacement_invalid",
+        ),
+        (
+            "futures_preview_r10_response_schema_liquidation_evidence_invalid",
+            "futures_preview_response_normalization_invariant_invalid",
+        ),
+    ],
+)
+def test_r10_response_diagnostic_maps_only_fixed_internal_codes(
+    internal_reason: str,
+    expected_reason: str,
+):
+    assert (
+        preview_module._classify_r10_preview_response_validation_reason(
+            ValueError(internal_reason)
+        )
+        == expected_reason
+    )
+
+
+@pytest.mark.parametrize(
+    "exception",
+    [
+        ValueError("PRIVATE_R10_RESPONSE_TEXT"),
+        ValueError("futures_preview_response_errors_present", "PRIVATE"),
+        RuntimeError("futures_preview_response_errors_present"),
+    ],
+)
+def test_r10_response_diagnostic_never_persists_unknown_exception_text(
+    exception: Exception,
+):
+    assert (
+        preview_module._classify_r10_preview_response_validation_reason(
+            exception
+        )
+        is None
+    )
+
+
 @pytest.mark.parametrize("value", [None, ""])
 def test_preview_rejects_present_but_empty_optional_liquidation_price(value):
     response = _preview()
@@ -8580,6 +8785,7 @@ def test_openapi_exposes_typed_read_only_preview_contract():
         "futures_exact_no_live_preview_slice_2r7",
         "futures_exact_no_live_preview_slice_2r8",
         "futures_exact_no_live_preview_slice_2r9",
+        "futures_exact_no_live_preview_slice_2r10",
     }
     assert "margin_windows_policy_evidence" in response_schema["properties"]
     assert "predecessor_binding" in response_schema["required"]
@@ -8598,8 +8804,20 @@ def test_openapi_exposes_typed_read_only_preview_contract():
         "#/components/schemas/AdminFuturesPreviewR6PredecessorBinding",
         "#/components/schemas/AdminFuturesPreviewR7PredecessorBinding",
         "#/components/schemas/AdminFuturesPreviewR8PredecessorBinding",
+        "#/components/schemas/AdminFuturesPreviewR9PredecessorBinding",
     }
     assert "preview_response_schema_binding" in response_schema["properties"]
+    response_binding_refs = {
+        item["$ref"]
+        for item in response_schema["properties"][
+            "preview_response_schema_binding"
+        ]["anyOf"]
+        if "$ref" in item
+    }
+    assert response_binding_refs == {
+        "#/components/schemas/AdminFuturesPreviewResponseSchemaBinding",
+        "#/components/schemas/AdminFuturesPreviewResponseSchemaBindingV2",
+    }
     forensic_schema = schema["components"]["schemas"][
         "AdminFuturesPreviewR8ForensicReadback"
     ]
@@ -8610,6 +8828,17 @@ def test_openapi_exposes_typed_read_only_preview_contract():
     assert "post_preview_diagnostic_binding" in response_schema["properties"]
     assert "post_preview_stage_evidence" in response_schema["properties"]
     assert "post_preview_stage_evidence_sha256" in response_schema["properties"]
+    diagnostic_binding_refs = {
+        item["$ref"]
+        for item in response_schema["properties"][
+            "post_preview_diagnostic_binding"
+        ]["anyOf"]
+        if "$ref" in item
+    }
+    assert diagnostic_binding_refs == {
+        "#/components/schemas/AdminFuturesPreviewPostPreviewDiagnosticBinding",
+        "#/components/schemas/AdminFuturesPreviewPostPreviewDiagnosticBindingV2",
+    }
     assert "terminal_diagnostic_classification" in response_schema["required"]
     assert response_schema["properties"]["terminal_diagnostic_classification"] == {
         "anyOf": [
@@ -8719,6 +8948,20 @@ def test_openapi_exposes_typed_read_only_preview_contract():
         preview_module._PRE_PREVIEW_STAGE_FALLBACK_REASONS.values(),
     )
     assert set(reason_enum) == expected_reason_codes
+    post_stage_row_schema = schema["components"]["schemas"][
+        "AdminFuturesPreviewPostStageEvidenceRow"
+    ]
+    post_reason_enum = next(
+        item["enum"]
+        for item in post_stage_row_schema["properties"]["reason_code"]["anyOf"]
+        if "enum" in item
+    )
+    expected_post_reason_codes = set().union(
+        *preview_module._POST_PREVIEW_STAGE_ALLOWLISTED_REASONS.values(),
+        *preview_module._R10_POST_PREVIEW_STAGE_ALLOWLISTED_REASONS.values(),
+        preview_module._POST_PREVIEW_STAGE_FALLBACK_REASONS.values(),
+    )
+    assert set(post_reason_enum) == expected_post_reason_codes
 
 
 @pytest.mark.parametrize("prepare_before_claim", [False, True])
@@ -9024,6 +9267,204 @@ def _r9_producer(
         ),
     )
     return producer, store, path
+
+
+def _r10_producer(
+    tmp_path: Path,
+    rest_client: FakePreviewRestClient,
+) -> tuple[
+    FuturesOrderPreviewProducer,
+    FuturesOrderPreviewArtifactStore,
+    Path,
+]:
+    path = tmp_path / "synthetic-r10.jsonl"
+    store = FuturesOrderPreviewArtifactStore(path)
+    producer = FuturesOrderPreviewProducer(
+        rest_client=rest_client,
+        store=store,
+        predecessor_binding=dict(
+            preview_module.FUTURES_PREVIEW_R9_TERMINAL_BINDING
+        ),
+        predecessor_validator=lambda: dict(
+            preview_module.FUTURES_PREVIEW_R9_TERMINAL_BINDING
+        ),
+        artifact_type=preview_module.FUTURES_PREVIEW_R10_ARTIFACT_TYPE,
+        now=lambda: NOW,
+        correlation_id_factory=lambda: (
+            "18a129f8-59b9-4c04-a393-9c0341691009"
+        ),
+        idempotency_key_factory=lambda: (
+            "c4d4999c-6537-482c-8161-7fc9c60c1036"
+        ),
+    )
+    return producer, store, path
+
+
+def test_r10_coexistent_liquidation_shape_is_sanitized_one_use_and_bounded(
+    tmp_path: Path,
+) -> None:
+    rest_client = _r8_compatible_rest_client()
+    rest_client.preview_response.update(
+        {
+            "current_liquidation_buffer": "PRIVATE_R10_LEGACY_CURRENT",
+            "projected_liquidation_buffer": "PRIVATE_R10_LEGACY_PROJECTED",
+        }
+    )
+    producer, store, path = _r10_producer(tmp_path, rest_client)
+
+    terminal = producer.run()
+
+    assert terminal == store.read_completed()
+    assert terminal["artifact_type"] == (
+        preview_module.FUTURES_PREVIEW_R10_ARTIFACT_TYPE
+    )
+    assert terminal["predecessor_binding"] == (
+        preview_module.FUTURES_PREVIEW_R9_TERMINAL_BINDING
+    )
+    assert terminal["status"] == terminal["outcome"] == "accepted"
+    assert terminal["preview_response"]["liquidation_evidence_source"] == (
+        "margin_ratio_data"
+    )
+    assert "current_liquidation_buffer" not in terminal["preview_response"]
+    assert "projected_liquidation_buffer" not in terminal["preview_response"]
+    assert terminal["read_counters"] == {
+        "api_key_permissions": 1,
+        "portfolio_catalog": 1,
+        "product": 1,
+        "best_bid_ask": 1,
+        "futures_positions": 1,
+        "futures_margin_collateral": 1,
+    }
+    assert terminal["attempt_counters"] == {
+        "preview_order": 1,
+        "retry": 0,
+        "fallback": 0,
+        "create_order": 0,
+        "cancel_order": 0,
+        "close_position": 0,
+        "reduce_position": 0,
+    }
+    persisted = path.read_text(encoding="utf-8")
+    assert "PRIVATE_R10_LEGACY_CURRENT" not in persisted
+    assert "PRIVATE_R10_LEGACY_PROJECTED" not in persisted
+    assert "preview-avp-1" not in persisted
+    assert len(rest_client.preview_calls) == 1
+    assert rest_client.forbidden_calls == []
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="already consumed"):
+        producer.run()
+    assert len(rest_client.preview_calls) == 1
+    AdminFuturesOrderPreviewResponse.model_validate(terminal)
+
+
+@pytest.mark.parametrize(
+    ("response_mutation", "expected_reason"),
+    [
+        (
+            lambda response: response.update(errs=["PRIVATE_R10_ERROR"]),
+            "futures_preview_response_exchange_errors_present",
+        ),
+        (
+            lambda response: response.update(warning=["PRIVATE_R10_WARNING"]),
+            "futures_preview_response_exchange_warnings_present",
+        ),
+        (
+            lambda response: response.pop("preview_id"),
+            "futures_preview_response_envelope_invalid",
+        ),
+        (
+            lambda response: response.update(order_total="PRIVATE_R10_NUMBER"),
+            "futures_preview_response_economics_invalid",
+        ),
+        (
+            lambda response: response.pop("margin_ratio_data"),
+            "futures_preview_response_liquidation_replacement_missing",
+        ),
+        (
+            lambda response: response.update(
+                margin_ratio_data={
+                    "current_margin_ratio": "PRIVATE_R10_RATIO",
+                    "projected_margin_ratio": "0.25",
+                }
+            ),
+            "futures_preview_response_liquidation_replacement_invalid",
+        ),
+    ],
+)
+def test_r10_terminal_response_diagnostic_persists_category_only(
+    tmp_path: Path,
+    response_mutation: Callable[[dict[str, object]], object],
+    expected_reason: str,
+) -> None:
+    rest_client = _r8_compatible_rest_client()
+    response_mutation(rest_client.preview_response)
+    producer, store, path = _r10_producer(tmp_path, rest_client)
+
+    with pytest.raises(FuturesOrderPreviewArtifactError):
+        producer.run()
+
+    terminal = store.read_completed()
+    assert terminal["status"] == terminal["outcome"] == "blocked"
+    assert terminal["blocker"] == "post_preview_stage_blocked"
+    assert terminal["post_preview_stage_evidence"]["stages"] == [
+        {
+            "stage": "preview_response_validation",
+            "status": "blocked",
+            "reason_code": expected_reason,
+        }
+    ]
+    assert "preview_response" not in terminal
+    assert "preview_response_sha256" not in terminal
+    persisted = path.read_text(encoding="utf-8")
+    assert "PRIVATE_R10" not in persisted
+    assert "preview-avp-1" not in persisted
+    assert len(rest_client.preview_calls) == 1
+    assert rest_client.forbidden_calls == []
+    AdminFuturesOrderPreviewResponse.model_validate(terminal)
+
+
+def test_r10_predecessor_hash_stat_model_binding_preserves_r9_bytes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R8_ARTIFACT_PATH",
+        preview_module._PRODUCTION_FUTURES_PREVIEW_R8_ARTIFACT_PATH,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R9_ARTIFACT_PATH",
+        preview_module._PRODUCTION_FUTURES_PREVIEW_R9_ARTIFACT_PATH,
+    )
+    path = preview_module.FUTURES_PREVIEW_R9_ARTIFACT_PATH
+    before = path.stat()
+    with path.open("rb") as stream:
+        before_sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
+
+    binding = (
+        preview_module.validate_production_futures_order_preview_r9_terminal()
+    )
+
+    after = path.stat()
+    with path.open("rb") as stream:
+        after_sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
+    assert binding == preview_module.FUTURES_PREVIEW_R9_TERMINAL_BINDING
+    assert before_sha256 == after_sha256 == binding["file_sha256"]
+    assert (
+        before.st_dev,
+        before.st_ino,
+        before.st_size,
+        before.st_mode,
+        before.st_mtime_ns,
+        before.st_nlink,
+    ) == (
+        after.st_dev,
+        after.st_ino,
+        after.st_size,
+        after.st_mode,
+        after.st_mtime_ns,
+        after.st_nlink,
+    )
+    assert not preview_module.FUTURES_PREVIEW_R10_ARTIFACT_PATH.exists()
 
 
 def test_r9_predecessor_is_opaque_hash_stat_bound_and_never_deserialized(

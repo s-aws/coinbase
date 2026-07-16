@@ -35,8 +35,8 @@ CLOSED_LOOPHOLE_RULE = (
 SLICE_STATUS = "active"
 SLICE_BLOCKERS: tuple[str, ...] = ()
 DEFAULT_NEXT_ACTION = (
-    "complete_r9_slice3_readiness_validation_then_execute_"
-    "authorized_slice_2r9_once"
+    "complete_r10_readiness_validation_then_execute_"
+    "authorized_slice_2r10_once"
 )
 R7_TERMINAL_BLOCKER = "slice_2r7_consumed_without_accepted_preview_evidence"
 R7_TERMINAL_NEXT_ACTION = (
@@ -90,7 +90,7 @@ STANDING_LIMITS = {
         "exposure_and_buffered_close_under_usdc": "150.00",
         "branch_turnover_under_usdc": "300.00",
         "coinbase_preview_attempts_max": 1,
-        "authorized_recovery_preview_attempts_max": 2,
+        "authorized_recovery_preview_attempts_max": 1,
         "exchange_mutation_attempts_max": 0,
         "conditional_slice_3": {
             "status": "conditional_not_active",
@@ -208,7 +208,9 @@ def _r8_r10_recovery_preparation() -> QueueCheck:
         GOAL_ID,
         DEFAULT_NEXT_ACTION,
         "R8 is terminally consumed",
-        "R9 is now the current conditional successor",
+        "R9 is terminally consumed",
+        "R10 is now the current preparation-only successor",
+        "no R11 is authorized",
         "Slice 3 is conditional and inactive",
     )
     documents = [
@@ -220,6 +222,16 @@ def _r8_r10_recovery_preparation() -> QueueCheck:
                 "b32aba4868f08ee7a44f19ceacbcf42cb7e4d70da1552f2d8b333ef59ddc8696",
                 "Preview attempts: `0`",
                 "R9 is the current conditional generation",
+            ),
+        ),
+        _contains_all(
+            PROJECT_ROOT / "docs" / "FUTURES_SLICE_2R9_TERMINAL_DIAGNOSIS.md",
+            (
+                "5c7dd3f27605b623edc910a87dcc4b6c9ea6621aa9ee63dbfcc4b2994990dacf",
+                "2fd73aa0059da49dfe6c836f6dea29b12158fb3dfbe8abdd6d8f4f0f7d702464",
+                "Preview attempts: `1`",
+                "R10 remains preparation-only",
+                "no R11 is authorized",
             ),
         ),
     ]

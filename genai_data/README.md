@@ -11,11 +11,14 @@ individual analysis or implementation note does not become current work merely
 because it lives in this directory.
 
 Current state: R8 is immutable opaque terminal evidence with zero Preview or
-real Coinbase calls. R9 is current, R10 is conditional, Slice 3 is conditional
-and inactive, and Preview recovery permits zero exchange mutations. The next
-action is
-`complete_r9_slice3_readiness_validation_then_execute_authorized_slice_2r9_once`.
-See `../docs/FUTURES_SLICE_2R7_TERMINAL_DIAGNOSIS.md` for predecessor history.
+real Coinbase calls. R9 is immutable terminal evidence after one returned
+Preview blocked at response validation, with zero retry, fallback, or exchange
+mutation. R10 is current and preparation-only, with one remaining Preview and
+no R11. Slice 3 is conditional, but Coinbase documents no Preview expiry field
+or TTL, so pre-Create mutation remains fail-closed. The next action is
+`complete_r10_readiness_validation_then_execute_authorized_slice_2r10_once`.
+See `../docs/FUTURES_SLICE_2R9_TERMINAL_DIAGNOSIS.md` for exact immutable hashes
+and the localized terminal boundary.
 
 ## Read Order
 

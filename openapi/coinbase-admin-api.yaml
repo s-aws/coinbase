@@ -101289,6 +101289,7 @@ components:
           - futures_exact_no_live_preview_slice_2r7
           - futures_exact_no_live_preview_slice_2r8
           - futures_exact_no_live_preview_slice_2r9
+          - futures_exact_no_live_preview_slice_2r10
           title: Artifact Type
         status:
           type: string
@@ -101319,6 +101320,7 @@ components:
           - $ref: '#/components/schemas/AdminFuturesPreviewR6PredecessorBinding'
           - $ref: '#/components/schemas/AdminFuturesPreviewR7PredecessorBinding'
           - $ref: '#/components/schemas/AdminFuturesPreviewR8PredecessorBinding'
+          - $ref: '#/components/schemas/AdminFuturesPreviewR9PredecessorBinding'
           title: Predecessor Binding
         reserved_at:
           type: string
@@ -101491,11 +101493,15 @@ components:
         preview_response_schema_binding:
           anyOf:
           - $ref: '#/components/schemas/AdminFuturesPreviewResponseSchemaBinding'
+          - $ref: '#/components/schemas/AdminFuturesPreviewResponseSchemaBindingV2'
           - type: 'null'
+          title: Preview Response Schema Binding
         post_preview_diagnostic_binding:
           anyOf:
           - $ref: '#/components/schemas/AdminFuturesPreviewPostPreviewDiagnosticBinding'
+          - $ref: '#/components/schemas/AdminFuturesPreviewPostPreviewDiagnosticBindingV2'
           - type: 'null'
+          title: Post Preview Diagnostic Binding
         pre_preview_stage_evidence:
           anyOf:
           - $ref: '#/components/schemas/AdminFuturesPreviewStageEvidence'
@@ -103041,6 +103047,63 @@ components:
       - identifier_values_included
       title: AdminFuturesPreviewPostPreviewDiagnosticBinding
       description: Exact prospective diagnostic contract carried by R8 claims.
+    AdminFuturesPreviewPostPreviewDiagnosticBindingV2:
+      properties:
+        schema_version:
+          type: string
+          const: '2'
+          title: Schema Version
+        policy_id:
+          type: string
+          const: slice2_preview_post_return_stage_diagnostic_v2
+          title: Policy Id
+        stage_order:
+          items:
+            type: string
+            enum:
+            - preview_response_validation
+            - candidate_cap_binding
+            - available_margin_validation
+            - seal_ready_plan_construction
+            - accepted_evidence_construction
+            - terminal_predecessor_validation
+          type: array
+          maxItems: 6
+          minItems: 6
+          title: Stage Order
+        persisted_evidence:
+          type: string
+          const: ordered_sanitized_stage_prefix_only
+          title: Persisted Evidence
+        response_validation_reason_policy:
+          type: string
+          const: fixed_internal_category_allowlist_only
+          title: Response Validation Reason Policy
+        raw_response_included:
+          type: boolean
+          const: false
+          title: Raw Response Included
+        external_exception_text_included:
+          type: boolean
+          const: false
+          title: External Exception Text Included
+        identifier_values_included:
+          type: boolean
+          const: false
+          title: Identifier Values Included
+      additionalProperties: false
+      type: object
+      required:
+      - schema_version
+      - policy_id
+      - stage_order
+      - persisted_evidence
+      - response_validation_reason_policy
+      - raw_response_included
+      - external_exception_text_included
+      - identifier_values_included
+      title: AdminFuturesPreviewPostPreviewDiagnosticBindingV2
+      description: Exact R10 fixed-category post-Preview diagnostic contract.
     AdminFuturesPreviewPostStageEvidence:
       properties:
         schema_version:
@@ -103122,6 +103185,13 @@ components:
             - futures_preview_response_turnover_cap_blocked
             - futures_preview_available_margin_insufficient
             - futures_preview_predecessor_terminal_binding_changed
+            - futures_preview_response_envelope_invalid
+            - futures_preview_response_exchange_errors_present
+            - futures_preview_response_exchange_warnings_present
+            - futures_preview_response_economics_invalid
+            - futures_preview_response_liquidation_replacement_missing
+            - futures_preview_response_liquidation_replacement_invalid
+            - futures_preview_response_normalization_invariant_invalid
           - type: 'null'
           title: Reason Code
       additionalProperties: false
@@ -104264,6 +104334,106 @@ components:
       - branch_turnover_cap
       title: AdminFuturesPreviewR8Scope
       description: Unchanged operator scope carried forward without private identifiers.
+    AdminFuturesPreviewR9PredecessorBinding:
+      allOf:
+      - oneOf:
+        - properties:
+            device:
+              const: '2096'
+            inode:
+              const: '401766'
+          required:
+          - device
+          - inode
+      properties:
+        artifact_name:
+          type: string
+          const: futures_exact_no_live_preview_slice_2r9.jsonl
+          title: Artifact Name
+        file_sha256:
+          type: string
+          const: 5c7dd3f27605b623edc910a87dcc4b6c9ea6621aa9ee63dbfcc4b2994990dacf
+          title: File Sha256
+        evidence_sha256:
+          type: string
+          const: 2fd73aa0059da49dfe6c836f6dea29b12158fb3dfbe8abdd6d8f4f0f7d702464
+          title: Evidence Sha256
+        device:
+          type: string
+          const: '2096'
+          title: Device
+        inode:
+          type: string
+          const: '401766'
+          title: Inode
+        size_bytes:
+          type: integer
+          const: 24406
+          title: Size Bytes
+        mode:
+          type: string
+          const: '0400'
+          title: Mode
+        mtime_ns:
+          type: string
+          const: '1784173141720439487'
+          title: Mtime Ns
+        nlink:
+          type: integer
+          const: 1
+          title: Nlink
+        status:
+          type: string
+          const: blocked
+          title: Status
+        outcome:
+          type: string
+          const: blocked
+          title: Outcome
+        preview_order_attempt_count:
+          type: integer
+          const: 1
+          title: Preview Order Attempt Count
+        exchange_submission_attempt_count:
+          type: integer
+          const: 0
+          title: Exchange Submission Attempt Count
+        submitted_notional_usdc:
+          type: string
+          const: '0'
+          title: Submitted Notional Usdc
+        executed_notional_usdc:
+          type: string
+          const: '0'
+          title: Executed Notional Usdc
+        preservation:
+          type: string
+          const: immutable_no_modify_delete_or_reuse
+          title: Preservation
+        original_predecessor_binding:
+          $ref: '#/components/schemas/AdminFuturesPreviewR8PredecessorBinding'
+      additionalProperties: false
+      type: object
+      required:
+      - artifact_name
+      - file_sha256
+      - evidence_sha256
+      - device
+      - inode
+      - size_bytes
+      - mode
+      - mtime_ns
+      - nlink
+      - status
+      - outcome
+      - preview_order_attempt_count
+      - exchange_submission_attempt_count
+      - submitted_notional_usdc
+      - executed_notional_usdc
+      - preservation
+      - original_predecessor_binding
+      title: AdminFuturesPreviewR9PredecessorBinding
+      description: Exact immutable R9 binding plus its complete predecessor chain.
     AdminFuturesPreviewResponseSchemaBinding:
       properties:
         schema_version:
@@ -104306,6 +104476,64 @@ components:
       - persisted_response_policy
       title: AdminFuturesPreviewResponseSchemaBinding
       description: Exact R7 binding to the corrected Coinbase Preview liquidation
+        schema.
+    AdminFuturesPreviewResponseSchemaBindingV2:
+      properties:
+        schema_version:
+          type: string
+          const: '2'
+          title: Schema Version
+        policy_id:
+          type: string
+          const: slice2_preview_liquidation_evidence_schema_v2
+          title: Policy Id
+        schema_authority:
+          type: string
+          const: official_coinbase_advanced_trade_api_docs
+          title: Schema Authority
+        margin_ratio_data_replaces_legacy_liquidation_buffers:
+          type: boolean
+          const: true
+          title: Margin Ratio Data Replaces Legacy Liquidation Buffers
+        documented_legacy_and_replacement_key_coexistence:
+          type: boolean
+          const: true
+          title: Documented Legacy And Replacement Key Coexistence
+        legacy_liquidation_values_policy:
+          type: string
+          const: ignored_never_parsed_or_persisted
+          title: Legacy Liquidation Values Policy
+        margin_ratio_data_policy:
+          type: string
+          const: required_authoritative_liquidation_evidence
+          title: Margin Ratio Data Policy
+        predicted_liquidation_price_required:
+          type: boolean
+          const: false
+          title: Predicted Liquidation Price Required
+        present_predicted_liquidation_price_policy:
+          type: string
+          const: finite_and_positive
+          title: Present Predicted Liquidation Price Policy
+        persisted_response_policy:
+          type: string
+          const: sanitized_allowlist_only
+          title: Persisted Response Policy
+      additionalProperties: false
+      type: object
+      required:
+      - schema_version
+      - policy_id
+      - schema_authority
+      - margin_ratio_data_replaces_legacy_liquidation_buffers
+      - documented_legacy_and_replacement_key_coexistence
+      - legacy_liquidation_values_policy
+      - margin_ratio_data_policy
+      - predicted_liquidation_price_required
+      - present_predicted_liquidation_price_policy
+      - persisted_response_policy
+      title: AdminFuturesPreviewResponseSchemaBindingV2
+      description: Exact R10 binding to the documented liquidation-key coexistence
         schema.
     AdminFuturesPreviewStageEvidence:
       properties:

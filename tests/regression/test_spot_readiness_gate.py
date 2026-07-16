@@ -94,8 +94,8 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     assert summary["slice_status"] == "active"
     assert summary["blockers"] == []
     assert summary["default_next_action"] == (
-        "complete_r9_slice3_readiness_validation_then_execute_"
-        "authorized_slice_2r9_once"
+        "complete_r10_readiness_validation_then_execute_"
+        "authorized_slice_2r10_once"
     )
     assert summary["live_coinbase_orders_ran"] is False
     assert summary["live_order_notional_usdc"] == "0"
@@ -122,8 +122,8 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
             "slice_status": "active",
             "blockers": [],
             "default_next_action": (
-                "complete_r9_slice3_readiness_validation_then_execute_"
-                "authorized_slice_2r9_once"
+                "complete_r10_readiness_validation_then_execute_"
+                "authorized_slice_2r10_once"
             ),
             "ordered_successors": [
                 (
@@ -158,7 +158,7 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
             "exposure_and_buffered_close_under_usdc": "150.00",
             "branch_turnover_under_usdc": "300.00",
             "coinbase_preview_attempts_max": 1,
-            "authorized_recovery_preview_attempts_max": 2,
+            "authorized_recovery_preview_attempts_max": 1,
             "exchange_mutation_attempts_max": 0,
             "conditional_slice_3": {
                 "status": "conditional_not_active",

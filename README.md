@@ -18,10 +18,14 @@ Current goal id
 records bounded Default-profile AVAX US CFM Preview-acceptance recovery under
 the unchanged one-contract V3 policy and strict `<100 / <150 / <300 USDC`
 limits. R8 is terminal blocked with zero Preview or real Coinbase calls; R9 is
-the current one-use generation and R10 is conditional. An R9 acceptance
-extinguishes R10. Current Preview maximum is one, remaining recovery maximum is
-two, and current exchange-mutation maximum is zero. Slice 3 is conditional and inactive pending accepted Preview
-plus exact readiness gates; Slices 4/5 are unauthorized. See
+terminal blocked after one returned Preview failed response validation, with
+zero retries or exchange mutations. R10 is the current preparation-only
+generation. Its Preview maximum and the remaining recovery maximum are both
+one; there is no R11. Current exchange-mutation maximum is zero. Slice 3 is
+conditional, but Coinbase documents no Preview expiry field or TTL, so its
+pre-Create mutation gate remains fail-closed even after acceptance unless
+authoritative freshness evidence becomes available; Slices 4/5 are
+unauthorized. See
 [Coinbase Admin MVP Goal](genai_data/AGENT_MVP_REBUILD_GOAL.md). Historical M57
 phase ranges and M58 fan-out/scheduler blockers do not select default work.
 

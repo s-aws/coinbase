@@ -18,11 +18,15 @@ audited Preview call occurred and returned control before a sanitized
 post-Preview `ValueError`; no accepted Preview evidence was appended. Default
 operator readback selects exact immutable R8 through a hash/stat-only forensic
 contract and never deserializes its pre-fix content. R8 is terminal blocked
-with zero Preview or real Coinbase calls. R9 is current, R10 is conditional,
-and an R9 acceptance extinguishes R10. Preview recovery has a current maximum
-of one call and zero exchange mutations. Slice 3 is conditional
-and inactive pending first acceptance plus exact readiness gates. Slices 4/5
-are unauthorized and out of scope.
+with zero Preview or real Coinbase calls. R9 is terminal blocked after all six
+fixed reads and one returned Preview reached response validation; retry,
+fallback, redirect, and every exchange mutation remained zero. Its exact
+immutable hashes are recorded in
+`docs/FUTURES_SLICE_2R9_TERMINAL_DIAGNOSIS.md`. R10 is current and
+preparation-only, with one remaining Preview maximum and no R11. Slice 3 is
+conditional, but Coinbase documents no Preview expiry field or TTL, so its
+pre-Create mutation gate remains fail-closed. Slices 4/5 are unauthorized and
+out of scope.
 Fan-out, scheduler, runtime-control,
 retry/recovery, multi-product wallet-ledger work, and ladder/grid order sets
 are parked.

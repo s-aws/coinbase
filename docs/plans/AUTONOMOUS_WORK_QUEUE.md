@@ -4,9 +4,10 @@ Historical planning record; not current work authority.
 
 Current goal id
 `futures_preview_acceptance_recovery_r8_r10_and_conditional_terminal_roundtrip_slice_3`
-is active with R8 terminal blocked after zero Preview or real Coinbase calls.
-R9 is current. Its default next action is
-`complete_r9_slice3_readiness_validation_then_execute_authorized_slice_2r9_once`,
+is active with R8 terminal blocked after zero Preview or real Coinbase calls
+and R9 terminal blocked at response validation after one returned Preview and
+zero mutations. R10 is current and preparation-only. Its default next action is
+`complete_r10_readiness_validation_then_execute_authorized_slice_2r10_once`,
 as documented in `genai_data/AGENT_MVP_REBUILD_GOAL.md` and the frontend
 canonical goal. This
 historical queue does not grant or broaden that authority. The phase range
@@ -14,13 +15,14 @@ below is a frozen compatibility/release artifact and cannot reactivate M57 or
 promote M58 fan-out/scheduler work.
 
 Current machine state is `slice_status=active`, `blockers=[]`, current-generation
-Coinbase Preview maximum `1`, remaining authorized recovery maximum `2`, and
+Coinbase Preview maximum `1`, remaining authorized recovery maximum `1`, and
 current exchange-mutation maximum `0`. Product `AVP-20DEC30-CDE`, one-contract
 scope, V3 policy, and strict `<100 / <150 / <300 USDC` caps remain unchanged.
-R10 is conditional and R9 acceptance extinguishes it. Slice 3 is
-conditional and inactive; Slices 4/5 are unauthorized. Live execution remains
-`not_run`. The R7 sanitized terminal diagnostic remains historical, derived,
-and non-persisted; see `docs/FUTURES_SLICE_2R7_TERMINAL_DIAGNOSIS.md`.
+There is no R11. Slice 3 is conditional, but Coinbase documents no Preview
+expiry field or TTL, so pre-Create mutation remains fail-closed; Slices 4/5 are
+unauthorized. Live execution remains `not_run`. The exact immutable R9 hashes
+and zero-mutation terminal diagnosis are recorded in
+`docs/FUTURES_SLICE_2R9_TERMINAL_DIAGNOSIS.md`.
 
 This document records durable approval for unattended work on this project.
 It exists so a contextless maintainer or agent can continue approved work
@@ -92,7 +94,7 @@ Do not execute `work_mvp_cd_blockers_before_phase_range`. Current work must
 come from goal id
 `futures_preview_acceptance_recovery_r8_r10_and_conditional_terminal_roundtrip_slice_3`,
 whose next action is
-`complete_r9_slice3_readiness_validation_then_execute_authorized_slice_2r9_once`;
+`complete_r10_readiness_validation_then_execute_authorized_slice_2r10_once`;
 this document cannot select or promote a next action.
 
 Durable future plan:
