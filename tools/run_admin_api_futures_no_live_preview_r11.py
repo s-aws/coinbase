@@ -1326,16 +1326,71 @@ except Exception:
 
 # BEGIN R11 AUDIT BINDINGS
 if False:
-    R11_PREVIEW_CALL_AUTHORITY_ACTIVE = False
-    R11_FINAL_AUDIT_BINDING_READY = False
-    R11_PREPARATION_REVISION = ""
-    R11_FRONTEND_REVISION = ""
-    R11_NORMALIZED_RUNNER_SHA256 = ""
-    R11_AUTHORIZATION_SHA256 = ""
-    R11_SAFETY_AUDIT_RECEIPT_SHA256 = ""
-    R11_BLIND_AUDIT_RECEIPT_SHA256 = ""
-    R11_ACTIVATION_NOT_AFTER = ""
-    R11_AUDITED_COMPONENT_SHA256: dict[str, str] = {}
+    R11_PREVIEW_CALL_AUTHORITY_ACTIVE = True
+    R11_FINAL_AUDIT_BINDING_READY = True
+    R11_PREPARATION_REVISION = "d3c449fa54bb328ad76358af0b83c707b750864e"
+    R11_FRONTEND_REVISION = "934d29953edba2c9d4ff5b0d64682d063bf59d49"
+    R11_NORMALIZED_RUNNER_SHA256 = "f52a5c69b7ec9d6348cb8224de09d74b12c69e6055dc047d27dfa8b2ed731495"
+    R11_AUTHORIZATION_SHA256 = "8f65d5f6fd389e2b8be34aa785d6acfac8a86c15114c9499e3fee70ccdedf593"
+    R11_SAFETY_AUDIT_RECEIPT_SHA256 = "cdc6c043a7298989bd52818be61b7347ecb84bc29336f3bfbbd30e0079d7c722"
+    R11_BLIND_AUDIT_RECEIPT_SHA256 = "f00effd241c1e7c52082504221696efc624bb525ebe956dc1a1c95504dcf10cd"
+    R11_ACTIVATION_NOT_AFTER = "2026-07-16T22:55:26Z"
+    R11_AUDITED_COMPONENT_SHA256: dict[str, str] = {
+        "backend:.agents/ownership.yaml": "7bfaf09545980abff01a9c280d7ecb72ff419e4b839d12e985c617e58d333b10",
+        "backend:README.admin-api.md": "bed90bc1a26b9a506bec13b1d8105dec2c2c0d37961226cecd0f37c65566f659",
+        "backend:README.md": "527bceb66acf54d99c3c1c7a8d099c876d00495a6ae65e8e0b497b1e9f5c8fdd",
+        "backend:api/v1/routes/futures.py": "299dbf8aeee7d8e70d248ecfdb41df903d28f724c69788733c2820f019345816",
+        "backend:application/admin_api/futures_order_preview.py": "6489414e8ab42daae2df93015a0dd95769b914d986e8d7bfca28335c4d122e39",
+        "backend:application/admin_api/models.py": "1887c6ceaa330d2d098c94f251139615d7d8cb63c319863b4603f1a7d6ac3e81",
+        "backend:docs/ADMIN_MODULE_CAPABILITY_MATRIX.md": "7405887a508a182c9c737ff7142af6cee7e8e3c37b72f173410800a83ba31b91",
+        "backend:docs/FUTURES_SLICE_2R11_PREPARATION.md": "fdc3d245d7ab97ff89726d2f08fdc9f5e11162079673f7980f7eba36993bfb17",
+        "backend:docs/MAINTAINER_HANDOFF.md": "482dc760b1003d441d95c2d6cd34a20a8010de4b0b26ce9c7361425252a72b13",
+        "backend:docs/README.md": "22dcabf5136fe125e83a5f50e9ce612edd441778cb64bfa34cfccddd6eb4f6e8",
+        "backend:external/coinbase_client.py": "9e1153688071b18e8804b6fa3a635867109a0cb6dba662fee8d179953f3d9017",
+        "backend:genai_data/AGENT_MVP_REBUILD_GOAL.md": "22e20942500bc6cdf651f76d9151e70690064edeb82859ece518cba6e2f8585b",
+        "backend:genai_data/README.md": "69d35e4b751b7264b348c3fcc590ce0b06ff7b52f6ed36ada7c30a45fd9a1733",
+        "backend:openapi/coinbase-admin-api.yaml": "6a45767ed90fd7c617674d5d816710be82776c9e604749e658c2e18bc8f27ea7",
+        "backend:pyproject.toml": "91abf74ad732251e8644aefb78c62ef11a43fab69f1bec67c8cc142b1f28e264",
+        "backend:tests/regression/test_spot_readiness_gate.py": "15c153e3f8f2f80901a76953d9ba1c76ed4fda2ca922aadc7e372b4d4814a656",
+        "backend:tests/unit/test_admin_api_futures_order_preview.py": "a434e5c3b59a5da09c6871ee67bd0e5b6a8de6b1f4a47a575a69d6ab9ceefd80",
+        "backend:tests/unit/test_run_admin_api_futures_no_live_preview_r11.py": "330597537588cd39a0c8e16db35ba0fecbd015f38b316d90bfb437b0c17a69f7",
+        "backend:tools/coinbase_live_credentials.py": "51b9c1c6f68d3f15c5dbe30a90f99f6bcea423ec29f41ce4da893a17f7ae82c2",
+        "backend:tools/run_admin_api_futures_no_live_preview.py": "dace8b0b0d7ba53be2bae4dc9d40d27c37cc8532dd92b6678c2d5944ac419fcc",
+        "backend:tools/run_autonomous_work_queue_check.py": "0f1ea111750921e560b8dd5fb1285e8f36e4e5182be690a832e412c4c045016a",
+        "frontend:AGENTS.md": "af6776cc3823f14587dbcd15bc4f221069d9c90ca805941bddb7178cd78b682c",
+        "frontend:README.admin-frontend.md": "0d5b5d1761f7e7b2d6253e6ea63c91c8655a7cb5457ebf4e7cfe54a1118fe96f",
+        "frontend:docs/ADMIN_MODULE_CAPABILITY_MATRIX.md": "820cd0fe48862f77d3edf7c873df6f31f3fe3f6ff3bd950a2d40e17e8c783ee6",
+        "frontend:docs/API_CONTRACT.md": "186926b3e53fde660fb8ef16c115591f48960bb204301a189e843b34556cc718",
+        "frontend:docs/COMMAND_WORKFLOWS.md": "09156b35fdc917cfc1d027526ad33ba6504d99134c53dd9c62fce4947950064c",
+        "frontend:docs/CURRENT_MVP_GOAL.md": "146491238859f67fad63773025bac2f91209cc5f638c70a4069bf88d1a7cc1d5",
+        "frontend:docs/FUTURES_PERPETUALS_READS.md": "5c4e894fc4822453bbe79ea598ab2ea487c14ed33d507f44518510fb42fd0ade",
+        "frontend:docs/HUMAN_OPERATOR_RUNBOOK.md": "e77fdc754b552cdccab53998498f92c9e29d939bbc7b518cb03df97ffdec9170",
+        "frontend:docs/MAINTAINER_HANDOFF.md": "b9b212742ebfa63eb16ceea049cc32c3aeb3ec5aa9601677e7fdb95d3c019a11",
+        "frontend:docs/ORIGIN_PROD_FEATURE_MVP_MAP.md": "2ac35ded88aa316e9367ae1b7c81bde5929fa29883cb835ccca51739180bfc98",
+        "frontend:docs/TESTING.md": "603fae5616c3d2bd07cfc70c358cc2b37cea32fbdbded2d13d05cc031111eb22",
+        "frontend:docs/examples/futures-perpetuals-reads.md": "0bbfcba4cf9263526836608fab4f7a624f30462438e7b80ccc8667891fc70bd6",
+        "frontend:docs/plans/AUTONOMOUS_WORK_QUEUE.md": "aff33c5a62e1388f12dfb490c5e4fa5ad00e3ceb6f27f3e3ad62194f33a0f123",
+        "frontend:docs/plans/MVP_BLOCKER_LEDGER.md": "097ac1e05db08679171855332ac672cf9959a4d5c476c07273a76dc904d703f3",
+        "frontend:scripts/check-autonomous-work-queue.mjs": "96a5075f421ed2bbebe1d5e85816ba57c007b04a75e6f8121967becb12f669d6",
+        "frontend:scripts/check-deployment-readiness.mjs": "37a780a014528e1745356d8538b9a2c7eb175d0e5dce9f6804094f061b9dd883",
+        "frontend:scripts/check-mvp-goal-alignment.mjs": "6cefe32563ab0c938bf5bff6f541c244d6f2227d65dfa0c2970ac47b2cb35fc6",
+        "frontend:scripts/run-vitest.mjs": "f91135921d62508d15927750871249f6c39ce02821477ff3f82e0fff060b8fdd",
+        "frontend:src/features/admin-shell/AdminShell.tsx": "ad182cb9ee3ad219246115b0c2c535560d73a739ca701543f6f294768b95b7e2",
+        "frontend:src/features/futures-perpetuals/FuturesPerpetualsReadModel.tsx": "14a8741a65858b5d8ec9369069e4e975916f20209905a62471e68c309170a47d",
+        "frontend:src/features/futures-perpetuals/futuresPerpetualsBackendAdapters.ts": "6a13665459596281425d067232e5619e7dfa4b646ad94ecdf3d603f3800bdb62",
+        "frontend:src/shared/api/contracts/adminBffProxy.ts": "01baa52fb03678e614777f25fc5459f2a372c3a808ab6085a873a76c9e23a8b5",
+        "frontend:src/shared/api/contracts/backendApiClient.ts": "80bd805f0f7fea54eceb2338d3fb8ab2b3d5933a5e8cd931c470d7c06900ebb1",
+        "frontend:src/shared/api/contracts/backendRuntime.ts": "58b570901cb9a2176a1506bb70b0eebb4b629b052c118099a945335b133e2075",
+        "frontend:src/shared/api/generated/schema.ts": "e9be5c6a180218e7fd071701bea57fcf64a1b8ef2dcdaf021530abdb3ea17bc4",
+        "frontend:src/shared/quality/artifactContract.json": "e27b52dbdb66d52b8c45a948f8da70b48e03fe5e4f83a0ecd4f34abf588ced10",
+        "frontend:src/shared/quality/deploymentReadiness.ts": "caff421235cd70061c8820dc35d276d514fecbd70826f4e28a9ca1c5a2636352",
+        "frontend:tests/e2e/mvp-bff-command.spec.ts": "dd8dc9967b3c885f68eb80a5786f7e868ba619438768caa0f4b7a436cfd1cc8c",
+        "frontend:tests/unit/FuturesOrderPreviewReadback.test.tsx": "e69b208d7eba1b778bc0be8d1bb39ef86e6ab5601d9ed7504dcbebeb725b9993",
+        "frontend:tests/unit/FuturesPerpetualsReadModel.test.tsx": "177193751b265e9e642f06bcbb7c6d24cf14ecb722f5ff3eb2c868d549979a4f",
+        "frontend:tests/unit/adminBffProxy.test.ts": "c86ca6ab88f0caa3f436d67eddccc773c1ed027c25236181dec1550283664ac1",
+        "frontend:tests/unit/qualityGates.test.tsx": "33c57309c0d858276b7abdbfbf3de6bd43860c51c923833e870165c704c8de91",
+        "frontend:vitest.config.ts": "f7675f01c99982ffec5eb842d894e2b9157e8df5c083279da87c7531d496aa71",
+    }
 # END R11 AUDIT BINDINGS
 
 R11_PREVIEW_CALL_AUTHORITY_ACTIVE = _R11_AUDIT_BINDING_VALUES[
