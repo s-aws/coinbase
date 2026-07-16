@@ -84,6 +84,20 @@ NOW = datetime(2026, 7, 13, 12, 0, tzinfo=timezone.utc)
 MISSING = object()
 
 
+def test_futures_preview_artifact_root_override_is_absolute_and_explicit(
+    tmp_path: Path,
+) -> None:
+    env_name = "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_ROOT"
+
+    assert preview_module._resolve_futures_preview_artifact_root(
+        {env_name: str(tmp_path)}
+    ) == tmp_path
+    with pytest.raises(ValueError, match="must be an absolute path"):
+        preview_module._resolve_futures_preview_artifact_root(
+            {env_name: "relative-artifacts"}
+        )
+
+
 @pytest.fixture(autouse=True)
 def _isolate_fixed_production_successor_paths(
     tmp_path: Path,

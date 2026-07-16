@@ -25,6 +25,12 @@ Expected local Docker layout:
 
 The host `9876` mapping must point to container port `5432`. Mapping `9876->9876` creates a TCP listener that is not a working Postgres endpoint because the stock Postgres image listens on `5432`.
 
+Local packaged Admin API deployments may set
+`COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_ROOT` to an absolute,
+persistent backend artifact directory. This keeps immutable Futures Preview
+evidence outside versioned release payloads while retaining exact hash/stat
+validation; relative paths fail at import and R8 remains metadata-only.
+
 ### Runtime toggles
 - `DISABLE_RECONCILER`
   - values like `1`, `true`, `yes`, `on` disable both startup and periodic reconciliation in `main.py`.

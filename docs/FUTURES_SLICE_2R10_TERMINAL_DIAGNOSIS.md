@@ -70,6 +70,13 @@ bindings are cleared and its readiness bit is permanently hard-false, so a
 future confirmation is rejected before preflight, credential hydration, client
 construction, artifact reservation, or any Coinbase access.
 
+Local packaged deployments do not copy immutable Preview artifacts. They set
+the absolute
+`COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_ROOT` to the persistent
+backend artifact directory and validate the same fixed hashes and filesystem
+metadata in place. This migration-aware indirection never opens or rehashes R8;
+an absent, relative, or drifted binding fails the readback closed.
+
 ## Scope And Stop State
 
 The immutable terminal retains the exact V3 profile/state policy,

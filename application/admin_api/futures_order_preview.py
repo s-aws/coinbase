@@ -42,65 +42,77 @@ FUTURES_PREVIEW_CLOSE_BUFFER = Decimal("1.20")
 FUTURES_PREVIEW_ARTIFACT_ENV = (
     "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_PATH"
 )
+FUTURES_PREVIEW_ARTIFACT_ROOT_ENV = (
+    "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_ROOT"
+)
+
+
+def _resolve_futures_preview_artifact_root(
+    env: Mapping[str, str] | None = None,
+) -> Path:
+    """Resolve the persistent immutable-artifact root for source or deployment."""
+
+    values = os.environ if env is None else env
+    configured = values.get(FUTURES_PREVIEW_ARTIFACT_ROOT_ENV, "").strip()
+    if not configured:
+        return Path(__file__).resolve().parents[2] / "artifacts"
+    candidate = Path(configured).expanduser()
+    if not candidate.is_absolute():
+        raise ValueError(
+            f"{FUTURES_PREVIEW_ARTIFACT_ROOT_ENV} must be an absolute path"
+        )
+    return candidate
+
+
+FUTURES_PREVIEW_ARTIFACT_ROOT = _resolve_futures_preview_artifact_root()
 FUTURES_PREVIEW_ORIGINAL_ARTIFACT_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "artifacts"
+    FUTURES_PREVIEW_ARTIFACT_ROOT
     / "futures_exact_no_live_preview_slice_2.jsonl"
 )
 FUTURES_PREVIEW_R1_ARTIFACT_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "artifacts"
+    FUTURES_PREVIEW_ARTIFACT_ROOT
     / "futures_exact_no_live_preview_slice_2r1.jsonl"
 )
 FUTURES_PREVIEW_PREDECESSOR_ARTIFACT_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "artifacts"
+    FUTURES_PREVIEW_ARTIFACT_ROOT
     / "futures_exact_no_live_preview_slice_2r2.jsonl"
 )
 FUTURES_PREVIEW_R3_ARTIFACT_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "artifacts"
+    FUTURES_PREVIEW_ARTIFACT_ROOT
     / "futures_exact_no_live_preview_slice_2r3.jsonl"
 )
 FUTURES_PREVIEW_R4_ARTIFACT_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "artifacts"
+    FUTURES_PREVIEW_ARTIFACT_ROOT
     / "futures_exact_no_live_preview_slice_2r4.jsonl"
 )
 FUTURES_PREVIEW_R5_ARTIFACT_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "artifacts"
+    FUTURES_PREVIEW_ARTIFACT_ROOT
     / "futures_exact_no_live_preview_slice_2r5.jsonl"
 )
 FUTURES_PREVIEW_R6_ARTIFACT_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "artifacts"
+    FUTURES_PREVIEW_ARTIFACT_ROOT
     / "futures_exact_no_live_preview_slice_2r6.jsonl"
 )
 FUTURES_PREVIEW_R7_ARTIFACT_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "artifacts"
+    FUTURES_PREVIEW_ARTIFACT_ROOT
     / "futures_exact_no_live_preview_slice_2r7.jsonl"
 )
 _PRODUCTION_FUTURES_PREVIEW_R8_ARTIFACT_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "artifacts"
+    FUTURES_PREVIEW_ARTIFACT_ROOT
     / "futures_exact_no_live_preview_slice_2r8.jsonl"
 )
 FUTURES_PREVIEW_R8_ARTIFACT_PATH = (
     _PRODUCTION_FUTURES_PREVIEW_R8_ARTIFACT_PATH
 )
 _PRODUCTION_FUTURES_PREVIEW_R9_ARTIFACT_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "artifacts"
+    FUTURES_PREVIEW_ARTIFACT_ROOT
     / "futures_exact_no_live_preview_slice_2r9.jsonl"
 )
 FUTURES_PREVIEW_R9_ARTIFACT_PATH = (
     _PRODUCTION_FUTURES_PREVIEW_R9_ARTIFACT_PATH
 )
 _PRODUCTION_FUTURES_PREVIEW_R10_ARTIFACT_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "artifacts"
+    FUTURES_PREVIEW_ARTIFACT_ROOT
     / "futures_exact_no_live_preview_slice_2r10.jsonl"
 )
 FUTURES_PREVIEW_R10_ARTIFACT_PATH = (
