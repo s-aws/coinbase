@@ -12,10 +12,18 @@ Maintainer handoff for contextless agents starts at
 
 ## Current Status
 
-Current goal id `selected_order_execution_closeout_slice` records the completed
-selected-root fill-ledger/audit, terminal-child, and read-only recovery
-closeout. Numbered M57 phase material later in this document is historical
-contract evidence, not current work authority.
+Goal `futures_preview_acceptance_recovery_r11` is current. R11 preparation is authorized.
+R11 is unconsumed. The Preview gate remains inactive until focused validation,
+fresh independent safety and blind-contextless audits, and backend-runner-only
+exact-hash activation all confirm readiness. Only then may the backend R11 runner
+make exactly one Preview-only call. The frontend remains readback-only and exposes
+no R11 initiation control. It permits zero retries, fallbacks, redirects, Create,
+Cancel, Close, Reduce, or other exchange mutations. No R12 attempt or Slice 3/4/5 activation is authorized.
+
+Historically, goal `selected_order_execution_closeout_slice` recorded the completed
+selected-root fill-ledger/audit, terminal-child, and read-only recovery closeout.
+Numbered M57 phase material later in this document is also historical contract
+evidence, not current work authority.
 
 The repository now contains an Admin API contract, generated OpenAPI and
 route-inventory artifacts, fail-closed auth/RBAC bootstrap, durable JSONL

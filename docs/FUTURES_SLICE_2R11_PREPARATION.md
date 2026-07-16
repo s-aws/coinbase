@@ -78,7 +78,10 @@ validate, with no symlink, duplicate provider, cross-site shadow, or
 unrecorded executable source or extension. A persistent import-origin guard
 then admits site-package modules only when their origins are in that verified
 `RECORD` file set. It remains installed for lazy imports, and loaded origins
-are swept again after the fixed SDK and project imports. An unexpected
+are content-and-identity revalidated immediately when located and swept again
+after the fixed SDK and project imports. Imported test mode retains the guard
+through those project imports, then removes it because that mode has no live
+factory authority. An unexpected
 non-stdlib import therefore fails closed instead of expanding the manifest at
 runtime.
 
@@ -154,8 +157,13 @@ No ambient `PATH`, `AWS_*`, proxy, endpoint, TLS, config, or credential
 override is inherited. Preflight may validate the executable bundle and
 credential-provider file metadata without reading credential content, but it
 cannot perform a secret lookup. The deferred client first validates the exact
-exclusive persisted R11 claim; only then may its sole client factory invoke
-the fixed Secrets Manager lookup. Any scope, bundle, subprocess, timeout,
+exclusive persisted R11 claim; only then may its sole client factory mint a
+single-use claim-bound lookup capability. The lookup consumes that capability,
+revalidates the claim, the full AWS CLI binding, and the credential file's
+stat-only identity immediately before the subprocess, then revalidates the
+bundle and credential identity again before returning any payload. Direct or
+imported-mode lookup without CLI activation and that persisted-claim capability
+fails before a subprocess. Any scope, bundle, subprocess, timeout,
 exit-status, or bounded-output failure is reduced to the fixed value-blind
 `futures Preview R11 credential preparation failed` diagnostic. It never
 includes AWS stdout, stderr, exception text, credentials, or secret payloads.

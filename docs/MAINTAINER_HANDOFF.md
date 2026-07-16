@@ -131,16 +131,23 @@ create a separate approval class.
 
 ## Current Handoff State
 
-- Current goal
-  `futures_post_r10_preview_compatibility_and_direction_selection` is complete.
-  It prospectively separates the official Preview wire schema from stricter
-  project acceptance while preserving immutable R1-R10 history. R8
-  content/hash remain inaccessible; R10's value-blind terminal category is not
-  reinterpreted. This grants no R11, Slice 3/4/5, Preview, or mutation
-  authority. The ranked recommendation is at most one separately authorized
-  successor after all no-live gates pass, then official clarification or
-  parking. Ten attempts are not warranted. See
-  `docs/FUTURES_POST_R10_COMPATIBILITY_DIRECTION.md`.
+- Current authority: Goal `futures_preview_acceptance_recovery_r11` is current.
+  R11 preparation is authorized. R11 is unconsumed. The Preview gate remains inactive
+  until focused validation, fresh independent safety and blind-contextless audits,
+  and backend-runner-only exact-hash activation all confirm readiness. Only then
+  may the backend R11 runner make exactly one Preview-only call. The frontend
+  remains readback-only and exposes no R11 initiation control. It permits zero
+  retries, fallbacks, redirects, Create, Cancel, Close, Reduce, or other exchange
+  mutations. No R12 attempt or Slice 3/4/5 activation is authorized.
+- Historical post-R10 checkpoint: goal
+  `futures_post_r10_preview_compatibility_and_direction_selection` completed the
+  prospective separation of the official Preview wire schema from stricter
+  project acceptance while preserving immutable R1-R10 history. R8 content/hash
+  remain inaccessible, and R10's value-blind terminal category is not
+  reinterpreted. That checkpoint granted no successor authority by itself. Its
+  ranked recommendation was at most one separately authorized successor after
+  all no-live gates passed, then official clarification or parking; ten attempts
+  were not warranted. See `docs/FUTURES_POST_R10_COMPATIBILITY_DIRECTION.md`.
 - Historical R7 terminal action was
   `await_operator_scope_change_decision_after_slice_2r7_closeout`. R7 ran
   exactly once after focused validation and independent safety plus blind
@@ -188,9 +195,11 @@ create a separate approval class.
   through documented-SHA/stat-metadata-only validation. See
   `docs/FUTURES_SLICE_2R10_TERMINAL_DIAGNOSIS.md`.
 - The standalone and composite R10 entrypoints are permanently hard-false.
-  R10 has no remaining Preview authority, no R11 exists, and Slice 3 did not
-  run. Its handoff, admission, activation, action-journal, read-journal, and
-  terminal artifacts are absent. Never invoke any R7-R10 runner again.
+  R10 has no remaining Preview authority; no R11 existed at that historical
+  checkpoint, and Slice 3 did not run. Its handoff, admission, activation,
+  action-journal, read-journal, and terminal artifacts are absent. Never invoke
+  any R7-R10 runner again. Current R11 authority is separate and remains behind
+  the inactive backend-runner-only gate above.
 - R6 predecessor state: Slice 2 remained blocked after the authorized R6
   attempt was consumed without accepted Preview evidence. The
   consumed immutable R5 file/evidence SHA-256 pair remains
@@ -219,10 +228,9 @@ create a separate approval class.
   remediated models emit correlated `allOf`/`oneOf` pairs, generated TypeScript
   preserves those pairs, hybrid identities are test-rejected, and both
   reviewers re-reviewed the remediation with no remaining findings.
-- Current goal id:
-  `futures_post_r10_preview_compatibility_and_direction_selection`.
+- Current goal id: `futures_preview_acceptance_recovery_r11`.
 - Current next action:
-  `await_operator_decision_on_one_post_r10_successor_or_official_clarification`.
+  `prepare_audit_and_consume_single_r11_preview_then_offline_diagnosis`.
 - Historical predecessor slice: Default-profile Futures readback -> exact AVAX US CFM Coinbase
   Preview Order -> immutable operator-visible no-live preview readback. The
   one-shot R1 artifact terminated before
@@ -456,8 +464,9 @@ create a separate approval class.
 - Historical ordered successor design: exact no-live preview (2), one terminal
   order roundtrip (3), intentional fill/position readback (4), then exact
   closeout (5). This ordering is design history, not work authority. Consumed
-  blocked R10 grants no successor activation or live authority; no R11 exists,
-  and Slice 3 did not run.
+  blocked R10 granted no successor activation or live authority at that
+  historical checkpoint; no R11 existed then, and Slice 3 did not run. Current
+  R11 preparation authority is defined only by the current-authority block above.
 - Previous state: V14 completed the predecessor automatic/live proof for ten
   Test-profile roots and ten first-child submissions under the approved
   `30.00 USDC` reference cap. Every root was authoritatively FILLED, every child

@@ -34,6 +34,7 @@ import base64
 from collections.abc import Callable, Mapping, Sequence
 import csv
 from datetime import datetime, timezone
+from functools import partial
 import hashlib
 import importlib
 import importlib.machinery
@@ -82,11 +83,15 @@ _R11_EXPECTED_COMPONENTS = frozenset(
         "backend:api/v1/routes/futures.py",
         "backend:application/admin_api/futures_order_preview.py",
         "backend:application/admin_api/models.py",
+        "backend:docs/ADMIN_MODULE_CAPABILITY_MATRIX.md",
         "backend:docs/FUTURES_SLICE_2R11_PREPARATION.md",
+        "backend:docs/MAINTAINER_HANDOFF.md",
+        "backend:docs/README.md",
         "backend:external/coinbase_client.py",
         "backend:genai_data/AGENT_MVP_REBUILD_GOAL.md",
         "backend:openapi/coinbase-admin-api.yaml",
         "backend:pyproject.toml",
+        "backend:README.admin-api.md",
         "backend:tests/unit/test_admin_api_futures_order_preview.py",
         "backend:tests/unit/test_run_admin_api_futures_no_live_preview_r11.py",
         "backend:tests/regression/test_spot_readiness_gate.py",
@@ -294,7 +299,9 @@ _R11_RUNTIME_SITE_ROOTS = tuple(
     dict.fromkeys(specification[2] for specification in _R11_RUNTIME_DEPENDENCIES)
 )
 _R11_VERIFIED_DEPENDENCY_FILES: set[str] = set()
+_R11_VERIFIED_DEPENDENCY_BINDINGS: dict[str, tuple[object, ...]] = {}
 _R11_VERIFIED_IMPORT_TOP_LEVELS: set[str] = set()
+_R11_TRACKED_BACKEND_IMPORT_FILES: set[str] = set()
 _R11_MAX_DEPENDENCY_FILE_BYTES = 64 * 1024 * 1024
 _R11_AWS_CLI_VERSION_ROOT = Path(
     "/home/developer/.local/aws-cli/v2/2.35.24"
@@ -571,6 +578,29 @@ def _bootstrap_read_regular(
     return payload
 
 
+def _runtime_file_binding(path: Path) -> tuple[object, ...]:
+    """Bind content plus file identity for immediate import-time rechecks."""
+
+    payload = _bootstrap_read_regular(
+        path,
+        maximum_bytes=_R11_MAX_DEPENDENCY_FILE_BYTES,
+        allow_empty=True,
+    )
+    metadata = path.lstat()
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_mode,
+        metadata.st_uid,
+        metadata.st_gid,
+        metadata.st_nlink,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
+        hashlib.sha256(payload).hexdigest(),
+    )
+
+
 def _runtime_distribution_target(site_root: Path, relative: str) -> Path:
     """Resolve a RECORD row within its fixed installation prefix."""
 
@@ -696,7 +726,11 @@ def _verify_runtime_distribution(
         if observed_encoded != expected_encoded or len(payload) != int(size_text):
             raise ValueError("record_digest")
         hashed_relative_paths.add(relative)
-        _R11_VERIFIED_DEPENDENCY_FILES.add(str(target))
+        absolute_target = str(target)
+        _R11_VERIFIED_DEPENDENCY_FILES.add(absolute_target)
+        _R11_VERIFIED_DEPENDENCY_BINDINGS[absolute_target] = (
+            _runtime_file_binding(target)
+        )
 
     metadata_relative = f"{dist_info_name}/METADATA"
     if record_relative not in seen or metadata_relative not in hashed_relative_paths:
@@ -758,6 +792,7 @@ def _verify_runtime_dependencies() -> bool:
 
     try:
         _R11_VERIFIED_DEPENDENCY_FILES.clear()
+        _R11_VERIFIED_DEPENDENCY_BINDINGS.clear()
         _R11_VERIFIED_IMPORT_TOP_LEVELS.clear()
         packages = [
             _verify_runtime_distribution(specification)
@@ -777,6 +812,7 @@ def _verify_runtime_dependencies() -> bool:
         return digest == _R11_RUNTIME_DEPENDENCY_BINDING_SHA256
     except (OSError, UnicodeError, ValueError):
         _R11_VERIFIED_DEPENDENCY_FILES.clear()
+        _R11_VERIFIED_DEPENDENCY_BINDINGS.clear()
         _R11_VERIFIED_IMPORT_TOP_LEVELS.clear()
         return False
 
@@ -795,6 +831,27 @@ def _runtime_dependency_spec_is_verified(specification: object) -> bool:
                         return False
                 except ValueError:
                     return False
+            try:
+                repository_location = (
+                    os.path.commonpath(
+                        (absolute_location, str(REPO_ROOT))
+                    )
+                    == str(REPO_ROOT)
+                    and any(
+                        candidate.startswith(absolute_location + os.sep)
+                        for candidate in _R11_TRACKED_BACKEND_IMPORT_FILES
+                    )
+                )
+                stdlib_location = (
+                    os.path.commonpath(
+                        (absolute_location, "/usr/local/lib/python3.13")
+                    )
+                    == "/usr/local/lib/python3.13"
+                )
+            except ValueError:
+                return False
+            if not repository_location and not stdlib_location:
+                return False
         return True
     absolute_origin = os.path.abspath(str(origin))
     for root in _R11_RUNTIME_SITE_ROOTS:
@@ -803,11 +860,37 @@ def _runtime_dependency_spec_is_verified(specification: object) -> bool:
         except ValueError:
             return False
         if inside:
+            expected_binding = _R11_VERIFIED_DEPENDENCY_BINDINGS.get(
+                absolute_origin
+            )
+            if (
+                os.path.realpath(absolute_origin) != absolute_origin
+                or absolute_origin not in _R11_VERIFIED_DEPENDENCY_FILES
+                or expected_binding is None
+            ):
+                return False
+            try:
+                return _runtime_file_binding(Path(absolute_origin)) == (
+                    expected_binding
+                )
+            except (OSError, ValueError):
+                return False
+    try:
+        if (
+            os.path.commonpath((absolute_origin, str(REPO_ROOT)))
+            == str(REPO_ROOT)
+        ):
             return (
                 os.path.realpath(absolute_origin) == absolute_origin
-                and absolute_origin in _R11_VERIFIED_DEPENDENCY_FILES
+                and absolute_origin in _R11_TRACKED_BACKEND_IMPORT_FILES
             )
-    return True
+        stdlib_root = "/usr/local/lib/python3.13"
+        return (
+            os.path.commonpath((absolute_origin, stdlib_root)) == stdlib_root
+            and os.path.realpath(absolute_origin) == absolute_origin
+        ) or absolute_origin.startswith("/usr/local/lib/python313.zip/")
+    except ValueError:
+        return False
 
 
 class _R11VerifiedDependencyFinder:
@@ -923,18 +1006,35 @@ def _aws_cli_tree_sha256() -> str:
     return digest.hexdigest()
 
 
+def _credential_file_identity() -> tuple[int, ...]:
+    metadata = Path("/home/developer/.aws/credentials").lstat()
+    if (
+        stat.S_ISLNK(metadata.st_mode)
+        or not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_uid != os.geteuid()
+        or metadata.st_nlink != 1
+        or not 0 < metadata.st_size <= 64 * 1024
+        or stat.S_IMODE(metadata.st_mode) & 0o077
+    ):
+        raise ValueError("credential_file")
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_mode,
+        metadata.st_uid,
+        metadata.st_gid,
+        metadata.st_nlink,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
+    )
+
+
 def _secure_credential_file_present() -> bool:
     try:
-        metadata = Path("/home/developer/.aws/credentials").lstat()
-        return (
-            not stat.S_ISLNK(metadata.st_mode)
-            and stat.S_ISREG(metadata.st_mode)
-            and metadata.st_uid == os.geteuid()
-            and metadata.st_nlink == 1
-            and 0 < metadata.st_size <= 64 * 1024
-            and not stat.S_IMODE(metadata.st_mode) & 0o077
-        )
-    except OSError:
+        _credential_file_identity()
+        return True
+    except (OSError, ValueError):
         return False
 
 
@@ -1108,6 +1208,12 @@ def _backend_import_shadows_absent(
 ) -> bool:
     tracked = set(
         filter(None, output(root, "ls-files", "--cached").splitlines())
+    )
+    _R11_TRACKED_BACKEND_IMPORT_FILES.clear()
+    _R11_TRACKED_BACKEND_IMPORT_FILES.update(
+        os.path.abspath(root.joinpath(*PurePosixPath(relative).parts))
+        for relative in tracked
+        if relative.endswith(".py")
     )
     import_roots = {
         PurePosixPath(relative).parts[0]
@@ -1293,8 +1399,7 @@ def _load_hash_bound_sdk_modules() -> None:
         closure_only=True,
     ):
         raise ValueError("dependency_preloaded_origin")
-    if __name__ == "__main__":
-        _install_runtime_dependency_guard()
+    _install_runtime_dependency_guard()
     for name in _R11_SDK_REQUIRED_MODULES:
         importlib.import_module(name)
     loaded_after = {
@@ -1320,6 +1425,8 @@ except Exception:
         raise SystemExit(2)
     raise RuntimeError("futures Preview R11 SDK source is invalid") from None
 
+_R11_MODULES_BEFORE_PROJECT_IMPORTS = frozenset(sys.modules)
+
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
@@ -1339,9 +1446,15 @@ from application.admin_api import models as _admin_api_models  # noqa: E402,F401
 from tools import run_admin_api_futures_no_live_preview as base_tool  # noqa: E402
 
 
+_R11_PROJECT_IMPORT_MODULES = {
+    name: module
+    for name, module in sys.modules.items()
+    if name not in _R11_MODULES_BEFORE_PROJECT_IMPORTS
+    or name.partition(".")[0] in _R11_VERIFIED_IMPORT_TOP_LEVELS
+}
 if not _runtime_module_origins_are_bound(
-    sys.modules,
-    closure_only=__name__ != "__main__",
+    _R11_PROJECT_IMPORT_MODULES,
+    closure_only=False,
 ):
     if __name__ == "__main__":
         sys.stderr.write(
@@ -1350,6 +1463,8 @@ if not _runtime_module_origins_are_bound(
         )
         raise SystemExit(2)
     raise RuntimeError("futures Preview R11 dependency source is invalid")
+if __name__ != "__main__" and _R11VerifiedDependencyFinder in sys.meta_path:
+    sys.meta_path.remove(_R11VerifiedDependencyFinder)
 
 
 FuturesPreviewOnlyRestClient = base_tool.FuturesPreviewOnlyRestClient
@@ -1558,12 +1673,73 @@ def _require_production_factory_authority() -> None:
         )
 
 
-def _lookup_fixed_r11_secret(secret_id: str, region: str | None) -> str:
+def _assert_exclusive_r11_claim(
+    store: FuturesOrderPreviewArtifactStore,
+) -> None:
+    try:
+        rows = store._read_rows()  # noqa: SLF001
+        artifact_stat = store.path.lstat()
+        claim = rows[0].get("record") if len(rows) == 1 else None
+        if (
+            len(rows) != 1
+            or rows[0].get("record_type") != "claim"
+            or not isinstance(claim, Mapping)
+            or stat.S_IMODE(artifact_stat.st_mode) != 0o600
+            or artifact_stat.st_nlink != 1
+        ):
+            raise ValueError("claim_not_exclusive")
+        _validate_r11_claim_record(claim)
+    except Exception:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R11 claim is unavailable"
+        ) from None
+
+
+class _R11ClaimBoundSecretLookup:
+    """One-use capability minted only for the exclusive production claim."""
+
+    __slots__ = ("__store", "__used")
+
+    def __init__(self, store: FuturesOrderPreviewArtifactStore) -> None:
+        _require_production_factory_authority()
+        if (
+            not isinstance(store, FuturesOrderPreviewArtifactStore)
+            or store.path != _FIXED_R11_PRODUCTION_ARTIFACT_PATH
+        ):
+            raise FuturesOrderPreviewArtifactError(
+                "futures Preview R11 credential preparation failed"
+            )
+        _assert_exclusive_r11_claim(store)
+        self.__store = store
+        self.__used = False
+
+    def _consume_claim(self) -> FuturesOrderPreviewArtifactStore:
+        if self.__used:
+            raise FuturesOrderPreviewArtifactError(
+                "futures Preview R11 credential preparation failed"
+            )
+        self.__used = True
+        _require_production_factory_authority()
+        _assert_exclusive_r11_claim(self.__store)
+        return self.__store
+
+    def __call__(self, secret_id: str, region: str | None) -> str:
+        return _lookup_fixed_r11_secret(
+            secret_id,
+            region,
+            _claim_capability=self,
+        )
+
+
+def _lookup_fixed_r11_secret(
+    secret_id: str,
+    region: str | None,
+    *,
+    _claim_capability: _R11ClaimBoundSecretLookup | None = None,
+) -> str:
     """Resolve only the fixed Default secret with a closed AWS CLI process."""
 
     diagnostic = "futures Preview R11 credential preparation failed"
-    if secret_id != "coinbase" or region != "us-east-1":
-        raise FuturesOrderPreviewArtifactError(diagnostic)
     argv = [
         str(_R11_AWS_CLI_CANONICAL_PATH),
         "secretsmanager",
@@ -1601,6 +1777,16 @@ def _lookup_fixed_r11_secret(secret_id: str, region: str | None) -> str:
         "PATH": str(_R11_AWS_CLI_CANONICAL_PATH.parent),
     }
     try:
+        if (
+            secret_id != "coinbase"
+            or region != "us-east-1"
+            or type(_claim_capability) is not _R11ClaimBoundSecretLookup
+        ):
+            raise FuturesOrderPreviewArtifactError(diagnostic)
+        _claim_capability._consume_claim()  # noqa: SLF001
+        credential_identity = _credential_file_identity()
+        if not _validate_aws_cli_binding():
+            raise FuturesOrderPreviewArtifactError(diagnostic)
         completed = subprocess.run(
             argv,
             cwd=REPO_ROOT,
@@ -1612,11 +1798,17 @@ def _lookup_fixed_r11_secret(secret_id: str, region: str | None) -> str:
             timeout=35,
         )
         payload = completed.stdout
+        binding_still_valid = _validate_aws_cli_binding()
+        credential_still_bound = (
+            _credential_file_identity() == credential_identity
+        )
         if (
             completed.returncode != 0
             or not isinstance(payload, str)
             or not payload.strip()
             or len(payload.encode("utf-8")) > _R11_MAX_AWS_SECRET_RESPONSE_BYTES
+            or not binding_still_valid
+            or not credential_still_bound
         ):
             raise FuturesOrderPreviewArtifactError(diagnostic)
         return payload
@@ -1626,13 +1818,17 @@ def _lookup_fixed_r11_secret(secret_id: str, region: str | None) -> str:
         raise FuturesOrderPreviewArtifactError(diagnostic) from None
 
 
-def _build_r11_preview_rest_client() -> FuturesPreviewOnlyRestClient:
+def _build_r11_preview_rest_client(
+    *,
+    store: FuturesOrderPreviewArtifactStore,
+) -> FuturesPreviewOnlyRestClient:
     """Hydrate one canonical zero-retry client behind the Preview-only facade."""
 
     _require_production_factory_authority()
+    lookup = _R11ClaimBoundSecretLookup(store)
     return FuturesPreviewOnlyRestClient(
         base_tool._build_canonical_default_rest_client(
-            run_secret_lookup=_lookup_fixed_r11_secret,
+            run_secret_lookup=lookup,
         )
     )
 
@@ -1686,23 +1882,7 @@ class DeferredR11PreviewRestClient:
         self.__call_attempts = {name: 0 for name in _R11_DEFERRED_CALLS}
 
     def _assert_r11_claimed(self) -> None:
-        try:
-            rows = self.__store._read_rows()  # noqa: SLF001
-            artifact_stat = self.__store.path.lstat()
-            claim = rows[0].get("record") if len(rows) == 1 else None
-            if (
-                len(rows) != 1
-                or rows[0].get("record_type") != "claim"
-                or not isinstance(claim, Mapping)
-                or stat.S_IMODE(artifact_stat.st_mode) != 0o600
-                or artifact_stat.st_nlink != 1
-            ):
-                raise ValueError("claim_not_exclusive")
-            _validate_r11_claim_record(claim)
-        except Exception:
-            raise FuturesOrderPreviewArtifactError(
-                "futures Preview R11 claim is unavailable"
-            ) from None
+        _assert_exclusive_r11_claim(self.__store)
 
     def _get(self) -> FuturesPreviewOnlyRestClient:
         if not self.__claim_asserted:
@@ -1795,7 +1975,7 @@ def _build_production_r11_deferred_client(
         )
     return DeferredR11PreviewRestClient(
         store=store,
-        client_factory=_build_r11_preview_rest_client,
+        client_factory=partial(_build_r11_preview_rest_client, store=store),
     )
 
 

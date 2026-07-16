@@ -4,14 +4,21 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 
 ## Project Entry
 
-- [Current MVP Goal](../genai_data/AGENT_MVP_REBUILD_GOAL.md) - goal id
-  `futures_post_r10_preview_compatibility_and_direction_selection`; completed
-  prospective separation of official Preview wire compatibility from stricter
-  V3 project acceptance, immutable R1-R10 history, and no successor/live
-  authority
+Goal `futures_preview_acceptance_recovery_r11` is current. R11 preparation is authorized.
+R11 is unconsumed. The Preview gate remains inactive until focused validation,
+fresh independent safety and blind-contextless audits, and backend-runner-only
+exact-hash activation all confirm readiness. Only then may the backend R11 runner
+make exactly one Preview-only call. The frontend remains readback-only and exposes
+no R11 initiation control. It permits zero retries, fallbacks, redirects, Create,
+Cancel, Close, Reduce, or other exchange mutations. No R12 attempt or Slice 3/4/5 activation is authorized.
+
+- [Current MVP Goal](../genai_data/AGENT_MVP_REBUILD_GOAL.md) - authorized R11
+  preparation, inactive readiness and exact-hash gate, immutable R1-R10 history,
+  and automatic bounded offline post-terminal diagnosis/remediation
 - [Futures Post-R10 Preview Compatibility And Direction](FUTURES_POST_R10_COMPATIBILITY_DIRECTION.md) -
-  official source mapping, two-layer validator boundary, value-blind safety
-  posture, ranked direction, and the finding that ten attempts are unwarranted
+  historical official-source mapping, two-layer validator boundary, value-blind
+  safety posture, ranked direction, and the finding that ten attempts were
+  unwarranted at that checkpoint
 - [Futures Slice 2R7 Preparation and Closeout](FUTURES_SLICE_2R7_PREPARATION.md) -
   immutable R6 ancestry, corrected response-schema binding, one-use transport
   posture, readiness gates, and terminal record

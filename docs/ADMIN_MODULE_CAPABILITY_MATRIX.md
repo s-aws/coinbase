@@ -4,11 +4,17 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current goal id:
-`futures_post_r10_preview_compatibility_and_direction_selection`.
-The completed post-R10 goal prospectively separates Coinbase's official
-Preview wire schema from stricter project acceptance. It does not reinterpret
-R10 or authorize R11, Slice 3/4/5, Preview, or mutation work. See
+Goal `futures_preview_acceptance_recovery_r11` is current. R11 preparation is authorized.
+R11 is unconsumed. The Preview gate remains inactive until focused validation,
+fresh independent safety and blind-contextless audits, and backend-runner-only
+exact-hash activation all confirm readiness. Only then may the backend R11 runner
+make exactly one Preview-only call. The frontend remains readback-only and exposes
+no R11 initiation control. It permits zero retries, fallbacks, redirects, Create,
+Cancel, Close, Reduce, or other exchange mutations. No R12 attempt or Slice 3/4/5 activation is authorized.
+
+Historically, the completed post-R10 goal prospectively separated Coinbase's
+official Preview wire schema from stricter project acceptance without
+reinterpreting R10 or granting successor authority by itself. See
 `docs/FUTURES_POST_R10_COMPATIBILITY_DIRECTION.md`.
 Completed Slice 1
 binds authoritative US CFM account, position, margin, and collateral reads to
@@ -30,8 +36,10 @@ immutable hashes are recorded in
 `docs/FUTURES_SLICE_2R9_TERMINAL_DIAGNOSIS.md`. R10 later consumed its only
 Preview and blocked at the first post-return stage with sanitized category
 `futures_preview_response_economics_invalid`. It made zero retries, fallbacks,
-redirects, submissions, or mutations. Historical recovery is exhausted, no
-R11 exists, Slice 3 did not run, and Slices 4/5 are unauthorized. Exact R10 evidence is in
+redirects, submissions, or mutations. That historical recovery sequence is
+exhausted; no R11 existed at that checkpoint, Slice 3 did not run, and Slices
+4/5 were unauthorized. Current R11 preparation is governed only by the
+authorized-but-inactive gate above. Exact R10 evidence is in
 `docs/FUTURES_SLICE_2R10_TERMINAL_DIAGNOSIS.md`.
 Fan-out, scheduler, runtime-control,
 retry/recovery, multi-product wallet-ledger work, and ladder/grid order sets

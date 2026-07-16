@@ -275,6 +275,36 @@ def _synthetic_r11_producer(
     )
 
 
+def _synthetic_claim_bound_secret_lookup(
+    *,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[object, FuturesOrderPreviewArtifactStore]:
+    path = tmp_path / "claim-bound-r11.jsonl"
+    store = _synthetic_r11_store(path)
+    producer = _synthetic_r11_producer(
+        rest_client=object(),
+        store=store,
+        now=lambda: NOW,
+        correlation_id_factory=lambda: (
+            "719cb4b8-b99d-4663-baa8-da9db777e611"
+        ),
+        idempotency_key_factory=lambda: (
+            "db47c508-d834-44bc-9732-138cf6077118"
+        ),
+    )
+    store._reserve_unlocked(producer.build_claim())  # noqa: SLF001
+    monkeypatch.setattr(
+        r11_tool,
+        "_FIXED_R11_PRODUCTION_ARTIFACT_PATH",
+        path,
+    )
+    monkeypatch.setattr(r11_tool, "_R11_CLI_BOOTSTRAP_VALIDATED", True)
+    monkeypatch.setattr(r11_tool, "R11_PREVIEW_CALL_AUTHORITY_ACTIVE", True)
+    monkeypatch.setattr(r11_tool, "R11_FINAL_AUDIT_BINDING_READY", True)
+    return r11_tool._R11ClaimBoundSecretLookup(store), store
+
+
 def test_r11_audit_binding_expression_is_rejected_before_execution(
     tmp_path: Path,
 ) -> None:
@@ -1251,9 +1281,11 @@ def test_r11_import_mode_validates_source_but_has_no_live_factory_authority(
 
 
 def test_r11_fixed_secret_lookup_uses_only_pinned_aws_cli_and_closed_environment(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[tuple[list[str], dict[str, object]]] = []
+    binding_checks = 0
     payload = '{"SecretString":"PRIVATE_EPHEMERAL_SECRET"}'
 
     for name in (
@@ -1275,9 +1307,20 @@ def test_r11_fixed_secret_lookup_uses_only_pinned_aws_cli_and_closed_environment
             stderr="",
         )
 
+    def valid_binding() -> bool:
+        nonlocal binding_checks
+        binding_checks += 1
+        return True
+
+    lookup, _store = _synthetic_claim_bound_secret_lookup(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+    )
+    monkeypatch.setattr(r11_tool, "_validate_aws_cli_binding", valid_binding)
     monkeypatch.setattr(r11_tool.subprocess, "run", fake_run)
 
-    assert r11_tool._lookup_fixed_r11_secret("coinbase", "us-east-1") == payload
+    assert lookup("coinbase", "us-east-1") == payload
+    assert binding_checks == 2
     assert len(calls) == 1
     args, kwargs = calls[0]
     assert args == [
@@ -1324,6 +1367,12 @@ def test_r11_fixed_secret_lookup_uses_only_pinned_aws_cli_and_closed_environment
         "text": True,
         "timeout": 35,
     }
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="^futures Preview R11 credential preparation failed$",
+    ):
+        lookup("coinbase", "us-east-1")
+    assert len(calls) == 1
 
 
 def test_r11_direct_secret_lookup_is_blocked_without_authority_and_claim(
@@ -1373,8 +1422,14 @@ def test_r11_fixed_secret_lookup_rejects_scope_drift_before_subprocess(
 
 
 def test_r11_fixed_secret_lookup_withholds_cli_failure_text(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    lookup, _store = _synthetic_claim_bound_secret_lookup(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+    )
+    monkeypatch.setattr(r11_tool, "_validate_aws_cli_binding", lambda: True)
     monkeypatch.setattr(
         r11_tool.subprocess,
         "run",
@@ -1390,16 +1445,20 @@ def test_r11_fixed_secret_lookup_withholds_cli_failure_text(
         FuturesOrderPreviewArtifactError,
         match="^futures Preview R11 credential preparation failed$",
     ) as captured:
-        r11_tool._lookup_fixed_r11_secret("coinbase", "us-east-1")
+        lookup("coinbase", "us-east-1")
     assert "PRIVATE" not in str(captured.value)
 
 
 def test_r11_production_client_injects_only_fixed_secret_lookup(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     delegate = object()
     calls: list[object] = []
-    monkeypatch.setattr(r11_tool, "_require_production_factory_authority", lambda: None)
+    _lookup, store = _synthetic_claim_bound_secret_lookup(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+    )
     monkeypatch.setattr(
         r11_tool.base_tool,
         "_build_canonical_default_rest_client",
@@ -1411,8 +1470,9 @@ def test_r11_production_client_injects_only_fixed_secret_lookup(
         lambda value: value,
     )
 
-    assert r11_tool._build_r11_preview_rest_client() is delegate
-    assert calls == [r11_tool._lookup_fixed_r11_secret]
+    assert r11_tool._build_r11_preview_rest_client(store=store) is delegate
+    assert len(calls) == 1
+    assert type(calls[0]) is r11_tool._R11ClaimBoundSecretLookup
 
 
 def test_r11_deferred_client_requires_exclusive_r11_claim_before_hydration(
