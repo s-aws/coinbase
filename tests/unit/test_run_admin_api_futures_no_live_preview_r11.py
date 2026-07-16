@@ -293,7 +293,11 @@ def _synthetic_claim_bound_secret_lookup(
             "db47c508-d834-44bc-9732-138cf6077118"
         ),
     )
-    store._reserve_unlocked(producer.build_claim())  # noqa: SLF001
+    store._reserve_unlocked(  # noqa: SLF001
+        preview_module._withhold_r8_private_claim(  # noqa: SLF001
+            producer.build_claim()
+        )
+    )
     monkeypatch.setattr(
         r11_tool,
         "_FIXED_R11_PRODUCTION_ARTIFACT_PATH",
