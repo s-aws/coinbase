@@ -14,7 +14,13 @@ from __future__ import annotations
 import sys
 
 
-if __name__ == "__main__" and not sys.flags.isolated:
+_R11_PYCACHE_PREFIX = "/dev/null/r11"
+if __name__ == "__main__" and (
+    not sys.flags.isolated
+    or not sys.flags.no_site
+    or not sys.flags.dont_write_bytecode
+    or sys.pycache_prefix != _R11_PYCACHE_PREFIX
+):
     sys.stderr.write(
         '{"blocker":"futures_preview_r11_isolated_runtime_required",'
         '"status":"blocked"}\n'
@@ -24,13 +30,17 @@ if __name__ == "__main__" and not sys.flags.isolated:
 
 import argparse
 import ast
+import base64
 from collections.abc import Callable, Mapping, Sequence
+import csv
 from datetime import datetime, timezone
 import hashlib
+import importlib
+import importlib.machinery
 from importlib.metadata import distribution, version
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import stat
 import subprocess
@@ -116,7 +126,19 @@ _R11_SDK_SOURCE_SHA256 = {
 _R11_DEPENDENCY_SITE = Path(
     "/home/developer/.local/lib/python3.13/site-packages"
 )
+_R11_SYSTEM_DEPENDENCY_SITE = Path("/usr/local/lib/python3.13/site-packages")
 _R11_SDK_DIST_INFO_NAME = "coinbase_advanced_py-1.8.4.dist-info"
+_R11_SDK_RECORD_SHA256 = (
+    "40430123aeb0b6b38b333b676c0b5775b86188e5082ee2bbb54f337d48edeba1"
+)
+_R11_SDK_REQUIRED_MODULES = (
+    "coinbase",
+    "coinbase.rest",
+    "coinbase.rest.orders",
+    "coinbase.rest.rest_base",
+    "coinbase.rest.types.base_response",
+    "coinbase.rest.types.orders_types",
+)
 _FRONTEND_INERT_UNTRACKED_SHA256 = {
     "coinbase-admin-live-root-child-chain-2026-07-11.png": (
         "a38b6a6bdca3073cca7245cfece2783b82e9414267bff421fcd97ad7d5e79cec"
@@ -251,10 +273,67 @@ def _bootstrap_file_sha256(path: Path) -> str:
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
+def _recorded_sdk_paths() -> set[str]:
+    metadata_root = _R11_DEPENDENCY_SITE / _R11_SDK_DIST_INFO_NAME
+    record_path = metadata_root / "RECORD"
+    if _bootstrap_file_sha256(record_path) != _R11_SDK_RECORD_SHA256:
+        raise ValueError("record_hash")
+    rows = list(csv.reader(record_path.read_text(encoding="utf-8").splitlines()))
+    record_relative = f"{_R11_SDK_DIST_INFO_NAME}/RECORD"
+    recorded: set[str] = set()
+    for row in rows:
+        if len(row) != 3:
+            raise ValueError("record_row")
+        raw_relative, encoded_hash, encoded_size = row
+        relative = PurePosixPath(raw_relative)
+        if (
+            not raw_relative
+            or relative.is_absolute()
+            or relative.as_posix() != raw_relative
+            or any(part in {"", ".", ".."} for part in relative.parts)
+            or raw_relative in recorded
+        ):
+            raise ValueError("record_path")
+        recorded.add(raw_relative)
+        target = _R11_DEPENDENCY_SITE.joinpath(*relative.parts)
+        current = _R11_DEPENDENCY_SITE
+        for part in relative.parts:
+            current = current / part
+            if current.is_symlink():
+                raise ValueError("record_symlink")
+        if raw_relative == record_relative:
+            if encoded_hash or encoded_size:
+                raise ValueError("record_self_row")
+            continue
+        if not encoded_hash and not encoded_size:
+            if "__pycache__" not in relative.parts:
+                raise ValueError("record_unhashed")
+            continue
+        algorithm, separator, expected_digest = encoded_hash.partition("=")
+        if (
+            algorithm != "sha256"
+            or not separator
+            or not encoded_size.isascii()
+            or not encoded_size.isdigit()
+            or not stat.S_ISREG(target.lstat().st_mode)
+            or target.stat().st_size != int(encoded_size)
+        ):
+            raise ValueError("record_metadata")
+        observed_digest = base64.urlsafe_b64encode(
+            hashlib.sha256(target.read_bytes()).digest()
+        ).rstrip(b"=").decode("ascii")
+        if observed_digest != expected_digest:
+            raise ValueError("record_digest")
+    if record_relative not in recorded:
+        raise ValueError("record_self_missing")
+    return recorded
+
+
 def _bootstrap_dependency_site_is_valid() -> bool:
     try:
         if not stat.S_ISDIR(_R11_DEPENDENCY_SITE.lstat().st_mode):
             return False
+        metadata_root = _R11_DEPENDENCY_SITE / _R11_SDK_DIST_INFO_NAME
         sdk_metadata = {
             path.name
             for path in _R11_DEPENDENCY_SITE.glob(
@@ -262,26 +341,84 @@ def _bootstrap_dependency_site_is_valid() -> bool:
             )
         }
         if sdk_metadata != {_R11_SDK_DIST_INFO_NAME} or not stat.S_ISDIR(
-            (_R11_DEPENDENCY_SITE / _R11_SDK_DIST_INFO_NAME).lstat().st_mode
+            metadata_root.lstat().st_mode
         ):
+            return False
+        recorded = _recorded_sdk_paths()
+        metadata_text = (metadata_root / "METADATA").read_text(encoding="utf-8")
+        if metadata_text.splitlines().count("Name: coinbase-advanced-py") != 1:
+            return False
+        if metadata_text.splitlines().count("Version: 1.8.4") != 1:
             return False
         for relative, expected_sha256 in _R11_SDK_SOURCE_SHA256.items():
             path = _R11_DEPENDENCY_SITE / relative
             if (
-                not stat.S_ISREG(path.lstat().st_mode)
+                relative not in recorded
+                or not stat.S_ISREG(path.lstat().st_mode)
                 or _bootstrap_file_sha256(path) != expected_sha256
             ):
                 return False
-    except OSError:
+        for root in (_R11_DEPENDENCY_SITE / "coinbase", metadata_root):
+            if not stat.S_ISDIR(root.lstat().st_mode):
+                return False
+            for path in root.rglob("*"):
+                if path.is_symlink():
+                    return False
+                if path.is_dir():
+                    continue
+                relative = path.relative_to(_R11_DEPENDENCY_SITE).as_posix()
+                if (
+                    relative not in recorded
+                    or "__pycache__" in path.parts
+                    or path.suffix in {".pyc", ".pyo"}
+                ):
+                    return False
+        for path in _R11_DEPENDENCY_SITE.iterdir():
+            if (
+                path.name.startswith("coinbase_advanced_py-")
+                and path.name.endswith(".dist-info")
+                and path.name != _R11_SDK_DIST_INFO_NAME
+            ):
+                return False
+            if path.name != "coinbase" and path.name.startswith("coinbase."):
+                return False
+    except (OSError, UnicodeError, ValueError):
         return False
     return True
 
 
+def _bootstrap_system_dependency_site_is_valid() -> bool:
+    try:
+        if not stat.S_ISDIR(_R11_SYSTEM_DEPENDENCY_SITE.lstat().st_mode):
+            return False
+        return not any(
+            path.name == "coinbase"
+            or path.name.startswith("coinbase.")
+            or (
+                path.name.startswith("coinbase_advanced_py-")
+                and path.name.endswith(".dist-info")
+            )
+            for path in _R11_SYSTEM_DEPENDENCY_SITE.iterdir()
+        )
+    except OSError:
+        return False
+
+
 def _bootstrap_runtime_is_valid() -> bool:
-    return (
+    base_valid = (
         Path(sys.executable).resolve() == Path("/usr/local/bin/python3.13")
         and sys.version_info[:2] == (3, 13)
         and _bootstrap_dependency_site_is_valid()
+        and _bootstrap_system_dependency_site_is_valid()
+    )
+    if __name__ != "__main__":
+        return base_valid
+    return (
+        base_valid
+        and sys.flags.isolated == 1
+        and sys.flags.no_site == 1
+        and sys.flags.dont_write_bytecode == 1
+        and sys.pycache_prefix == _R11_PYCACHE_PREFIX
     )
 
 
@@ -295,6 +432,42 @@ def _bootstrap_git_output(root: Path, *args: str) -> str:
         timeout=10,
     )
     return completed.stdout.strip()
+
+
+def _backend_import_shadows_absent(
+    root: Path,
+    output: Callable[..., str],
+) -> bool:
+    tracked = set(
+        filter(None, output(root, "ls-files", "--cached").splitlines())
+    )
+    import_roots = {
+        PurePosixPath(relative).parts[0]
+        for relative in tracked
+        if relative.endswith(".py") and "/" in relative
+    }
+    extension_suffixes = tuple(importlib.machinery.EXTENSION_SUFFIXES)
+    for relative in filter(
+        None,
+        output(root, "ls-files", "--others").splitlines(),
+    ):
+        candidate = PurePosixPath(relative)
+        if "__pycache__" in candidate.parts:
+            continue
+        if len(candidate.parts) > 1 and candidate.parts[0] not in import_roots:
+            continue
+        path = root.joinpath(*candidate.parts)
+        try:
+            if path.is_symlink():
+                return False
+        except OSError:
+            return False
+        name = candidate.name
+        if name.endswith((".py", ".pyc", ".pyo", ".pyd", ".so")) or (
+            extension_suffixes and name.endswith(extension_suffixes)
+        ):
+            return False
+    return True
 
 
 def _repository_clean_with_output(
@@ -322,7 +495,7 @@ def _repository_clean_with_output(
         )
     )
     if root == REPO_ROOT:
-        return not untracked
+        return not untracked and _backend_import_shadows_absent(root, output)
     if root != FRONTEND_ROOT or untracked != set(
         _FRONTEND_INERT_UNTRACKED_SHA256
     ):
@@ -342,19 +515,18 @@ def _early_bootstrap() -> tuple[dict[str, object], bool]:
     source = Path(__file__).read_text(encoding="utf-8")
     block, _start, _end = _audit_binding_block(source)
     values = _literal_audit_binding_values(block)
-    if __name__ != "__main__":
-        return values, False
     if not _repository_clean_with_output(
         REPO_ROOT, _bootstrap_git_output
     ) or not _repository_clean_with_output(
         FRONTEND_ROOT, _bootstrap_git_output
     ) or not _bootstrap_runtime_is_valid():
         raise ValueError("source_state")
-    return values, True
+    return values, __name__ == "__main__"
 
 
 try:
     _R11_AUDIT_BINDING_VALUES, _R11_CLI_BOOTSTRAP_VALIDATED = _early_bootstrap()
+    _R11_SOURCE_BOOTSTRAP_VALIDATED = True
 except Exception:
     if __name__ == "__main__":
         sys.stderr.write(
@@ -408,8 +580,70 @@ R11_AUDITED_COMPONENT_SHA256 = dict(
     _R11_AUDIT_BINDING_VALUES["R11_AUDITED_COMPONENT_SHA256"]
 )
 
-if str(_R11_DEPENDENCY_SITE) not in sys.path:
-    sys.path.append(str(_R11_DEPENDENCY_SITE))
+
+def _sdk_module_origins_are_bound(
+    modules: Mapping[str, object],
+) -> bool:
+    try:
+        recorded = _recorded_sdk_paths()
+        for name, module in modules.items():
+            if name != "coinbase" and not name.startswith("coinbase."):
+                continue
+            raw_origin = getattr(module, "__file__", None)
+            if not isinstance(raw_origin, str):
+                return False
+            origin = Path(raw_origin)
+            if origin.is_symlink() or not stat.S_ISREG(origin.lstat().st_mode):
+                return False
+            relative = origin.resolve().relative_to(
+                _R11_DEPENDENCY_SITE.resolve()
+            ).as_posix()
+            if relative not in recorded or "__pycache__" in origin.parts:
+                return False
+    except (OSError, ValueError):
+        return False
+    return True
+
+
+def _load_hash_bound_sdk_modules() -> None:
+    dependency_site = str(_R11_DEPENDENCY_SITE)
+    system_site = str(_R11_SYSTEM_DEPENDENCY_SITE)
+    sys.path[:] = [
+        entry for entry in sys.path if entry not in {dependency_site, system_site}
+    ]
+    sys.path.insert(0, dependency_site)
+    sys.path.insert(1, system_site)
+    loaded_before = {
+        name: module
+        for name, module in sys.modules.items()
+        if name == "coinbase" or name.startswith("coinbase.")
+    }
+    if loaded_before and not _sdk_module_origins_are_bound(loaded_before):
+        raise ValueError("sdk_preloaded_origin")
+    for name in _R11_SDK_REQUIRED_MODULES:
+        importlib.import_module(name)
+    loaded_after = {
+        name: module
+        for name, module in sys.modules.items()
+        if name == "coinbase" or name.startswith("coinbase.")
+    }
+    if not set(_R11_SDK_REQUIRED_MODULES).issubset(loaded_after) or not (
+        _sdk_module_origins_are_bound(loaded_after)
+    ):
+        raise ValueError("sdk_loaded_origin")
+
+
+try:
+    _load_hash_bound_sdk_modules()
+except Exception:
+    if __name__ == "__main__":
+        sys.stderr.write(
+            '{"blocker":"futures_preview_r11_bootstrap_source_invalid",'
+            '"status":"blocked"}\n'
+        )
+        raise SystemExit(2)
+    raise RuntimeError("futures Preview R11 SDK source is invalid") from None
+
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
@@ -530,7 +764,15 @@ def _validate_sdk_pin() -> None:
         version("coinbase-advanced-py") != "1.8.4"
         or "coinbase-advanced-py==1.8.4"
         not in project.get("project", {}).get("dependencies", [])
+        or not _bootstrap_dependency_site_is_valid()
         or _installed_sdk_source_sha256() != _R11_SDK_SOURCE_SHA256
+        or not _sdk_module_origins_are_bound(
+            {
+                name: module
+                for name, module in sys.modules.items()
+                if name == "coinbase" or name.startswith("coinbase.")
+            }
+        )
     ):
         raise FuturesOrderPreviewArtifactError(
             "futures Preview R11 SDK binding is invalid"
@@ -609,9 +851,21 @@ def _validate_final_audit_binding() -> None:
     _validate_sdk_pin()
 
 
+def _require_production_factory_authority() -> None:
+    if (
+        not _R11_CLI_BOOTSTRAP_VALIDATED
+        or not R11_PREVIEW_CALL_AUTHORITY_ACTIVE
+        or not R11_FINAL_AUDIT_BINDING_READY
+    ):
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R11 production factory authority is unavailable"
+        )
+
+
 def _build_r11_preview_rest_client() -> FuturesPreviewOnlyRestClient:
     """Hydrate one canonical zero-retry client behind the Preview-only facade."""
 
+    _require_production_factory_authority()
     return FuturesPreviewOnlyRestClient(
         base_tool._build_canonical_default_rest_client()
     )
@@ -644,6 +898,10 @@ class DeferredR11PreviewRestClient:
             raise FuturesOrderPreviewArtifactError(
                 "futures Preview R11 client source is invalid"
             )
+        if prepared_client is None and client_factory is None:
+            raise FuturesOrderPreviewArtifactError(
+                "futures Preview R11 client source is invalid"
+            )
         if prepared_client is not None and type(
             prepared_client
         ) is not FuturesPreviewOnlyRestClient:
@@ -655,7 +913,7 @@ class DeferredR11PreviewRestClient:
         self.__client_factory = (
             None
             if prepared_client is not None
-            else (client_factory or _build_r11_preview_rest_client)
+            else client_factory
         )
         self.__hydration_attempted = prepared_client is not None
         self.__claim_asserted = False
@@ -753,39 +1011,56 @@ def validate_production_predecessor() -> dict[str, Any]:
     return validate_production_futures_order_preview_r10_terminal()
 
 
-def build_r11_store(
-    path: Path | None = None,
-) -> FuturesOrderPreviewArtifactStore:
+def _build_production_r11_store() -> FuturesOrderPreviewArtifactStore:
+    _require_production_factory_authority()
     return FuturesOrderPreviewArtifactStore(
-        path or FUTURES_PREVIEW_R11_ARTIFACT_PATH,
+        _FIXED_R11_PRODUCTION_ARTIFACT_PATH,
         reservation_lock_nonblocking=True,
     )
 
 
-def build_r11_producer(
-    *,
-    rest_client: object,
+def _build_production_r11_deferred_client(
     store: FuturesOrderPreviewArtifactStore,
-    now: Callable[[], Any] | None = None,
-    correlation_id_factory: Callable[[], str] | None = None,
-    idempotency_key_factory: Callable[[], str] | None = None,
+) -> DeferredR11PreviewRestClient:
+    _require_production_factory_authority()
+    if store.path != _FIXED_R11_PRODUCTION_ARTIFACT_PATH:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R11 production artifact path is invalid"
+        )
+    return DeferredR11PreviewRestClient(
+        store=store,
+        client_factory=_build_r11_preview_rest_client,
+    )
+
+
+def _build_production_r11_producer(
+    store: FuturesOrderPreviewArtifactStore,
+    rest_client: DeferredR11PreviewRestClient,
 ) -> FuturesOrderPreviewProducer:
+    _require_production_factory_authority()
+    if (
+        store.path != _FIXED_R11_PRODUCTION_ARTIFACT_PATH
+        or type(rest_client) is not DeferredR11PreviewRestClient
+    ):
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R11 production boundary is invalid"
+        )
     return FuturesOrderPreviewProducer(
         rest_client=rest_client,
         store=store,
         predecessor_binding=dict(FUTURES_PREVIEW_R10_TERMINAL_BINDING),
         predecessor_validator=validate_production_predecessor,
         artifact_type=FUTURES_PREVIEW_R11_ARTIFACT_TYPE,
-        now=now,
-        correlation_id_factory=correlation_id_factory,
-        idempotency_key_factory=idempotency_key_factory,
     )
 
 
 def _validate_fresh_claim_contract(path: Path) -> None:
-    producer = build_r11_producer(
+    producer = FuturesOrderPreviewProducer(
         rest_client=None,
         store=FuturesOrderPreviewArtifactStore(path),
+        predecessor_binding=dict(FUTURES_PREVIEW_R10_TERMINAL_BINDING),
+        predecessor_validator=validate_production_predecessor,
+        artifact_type=FUTURES_PREVIEW_R11_ARTIFACT_TYPE,
     )
     _validate_r11_ephemeral_claim_record(producer.build_claim())
 
@@ -980,12 +1255,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 2
 
-    store = build_r11_store(path)
-    deferred_client = DeferredR11PreviewRestClient(store=store)
-    producer = build_r11_producer(
-        rest_client=deferred_client,
-        store=store,
-    )
+    store = _build_production_r11_store()
+    deferred_client = _build_production_r11_deferred_client(store)
+    producer = _build_production_r11_producer(store, deferred_client)
     try:
         with _suppress_coinbase_sdk_logging():
             evidence = producer.run()

@@ -109,7 +109,9 @@ The one-call runner remains fail-closed until all of the following are true:
 - backend and frontend tracked worktrees are clean, on `main`, and exactly
   synchronized with `origin/main`; the backend permits no untracked file, while
   the frontend permits only the four pre-existing root PNGs bound by exact
-  filename and SHA-256 (all other untracked files fail the gate);
+  filename and SHA-256 (all other untracked files fail the gate). A second
+  backend closure check also rejects ignored importable source, legacy
+  bytecode, symlinks, or ABI extensions in tracked Python namespaces;
 - the prepared backend and frontend revisions, normalized runner logic hash,
   audited component hashes, exact SDK pin, and bounded activation expiry are
   fixed;
@@ -120,13 +122,23 @@ The one-call runner remains fail-closed until all of the following are true:
   audit-binding suite before execution can reach it; the suite must contain
   exactly the ten named literal assignments with no extra statement, call,
   duplicate, executable expression, or alternate wrapper;
-- direct preflight and confirmation require isolated Python (`python3.13 -I`).
+- direct preflight and confirmation require isolated, site-disabled,
+  bytecode-disabled Python with an impossible adjacent-cache prefix
+  (`python3.13 -I -S -B -X pycache_prefix=/dev/null/r11`).
   Before the runner adds the repository to `sys.path` or imports any project
   module, the bootstrap verifies clean synchronized `main` revisions, zero
   backend untracked files, the exact hash-bound frontend PNG allowlist, the
-  documented Python 3.13 interpreter, and the exact `coinbase-advanced-py`
-  1.8.4 metadata plus Preview-path source hashes. Only then is the fixed local
-  Python 3.13 dependency site added for project imports;
+  documented Python 3.13 interpreter, the exact `coinbase-advanced-py` 1.8.4
+  metadata, the audited complete SDK `RECORD`, every recorded file hash and
+  size, the absence of unrecorded SDK executable files, and the existing
+  Preview-path source hashes. The verified SDK site is made import-authoritative
+  before the fixed system dependency site, and every loaded `coinbase` module
+  origin is rechecked against the recorded tree before project imports;
+- imported mode performs the same source, repository, dependency, and origin
+  checks but has no CLI bootstrap receipt. It cannot confirm R11, construct the
+  fixed production store, or hydrate the canonical client. Synthetic path,
+  client, clock, and producer injection exists only in tests over the underlying
+  non-live producer;
 - the production R11 path is absent before reservation and the exact R10
   predecessor validates immediately before the attempt.
 
@@ -137,8 +149,8 @@ itself consume R11; the exclusive claim reservation does.
 The canonical commands are therefore:
 
 ```bash
-python3.13 -I tools/run_admin_api_futures_no_live_preview_r11.py --preflight
-python3.13 -I tools/run_admin_api_futures_no_live_preview_r11.py --confirm-one-r11-preview
+python3.13 -I -S -B -X pycache_prefix=/dev/null/r11 tools/run_admin_api_futures_no_live_preview_r11.py --preflight
+python3.13 -I -S -B -X pycache_prefix=/dev/null/r11 tools/run_admin_api_futures_no_live_preview_r11.py --confirm-one-r11-preview
 ```
 
 The confirmation command remains single-use and may be invoked only after the
@@ -157,6 +169,14 @@ stricter than the existing read-model grammar. Red tests now prove both exact
 R11 forms remain value-blind and can be validated for Admin API readback; the
 model accepts only those exact R11 constants while retaining the older
 tokenized grammar for predecessor attempts.
+
+The later blind audit rejected the first isolated bootstrap because dependency
+path precedence, four-file-only SDK binding, ignored executable shadows, and
+redirectable imported helpers left alternate pre-import or per-path behavior.
+The complete `RECORD`/origin closure, impossible bytecode cache, ignored-shadow
+gate, imported source validation, and fixed production-only constructors are
+the corresponding fail-closed remediation. No rejected audit receipt is
+eligible for activation binding.
 
 After R11 becomes terminal, the workflow continues automatically with bounded
 offline diagnosis and remediation. That work may update sanitized diagnostic

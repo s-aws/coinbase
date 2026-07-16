@@ -2,25 +2,30 @@
 
 from __future__ import annotations
 
+import base64
+import csv
 import hashlib
+import io
 import json
 from pathlib import Path
 import subprocess
 import sys
+from types import SimpleNamespace
 
 import pytest
 
+from tools import run_admin_api_futures_no_live_preview_r11 as r11_tool
 from application.admin_api import futures_order_preview as preview_module
 from application.admin_api.futures_order_preview import (
     FuturesOrderPreviewArtifactError,
     FuturesOrderPreviewArtifactStore,
+    FuturesOrderPreviewProducer,
 )
 from application.admin_api.models import AdminFuturesOrderPreviewResponse
 from tests.unit.test_admin_api_futures_order_preview import (
     NOW,
     _r8_compatible_rest_client,
 )
-from tools import run_admin_api_futures_no_live_preview_r11 as r11_tool
 
 
 _EXPECTED_R11_AUDITED_COMPONENTS = {
@@ -75,6 +80,48 @@ def _sha(label: str) -> str:
     return hashlib.sha256(label.encode("utf-8")).hexdigest()
 
 
+def _canonical_runner_command(runner: Path, *args: str) -> list[str]:
+    return [
+        sys.executable,
+        "-I",
+        "-S",
+        "-B",
+        "-X",
+        "pycache_prefix=/dev/null/r11",
+        str(runner),
+        *args,
+    ]
+
+
+def _synthetic_r11_store(path: Path) -> FuturesOrderPreviewArtifactStore:
+    return FuturesOrderPreviewArtifactStore(
+        path,
+        reservation_lock_nonblocking=True,
+    )
+
+
+def _synthetic_r11_producer(
+    *,
+    rest_client: object,
+    store: FuturesOrderPreviewArtifactStore,
+    now=None,
+    correlation_id_factory=None,
+    idempotency_key_factory=None,
+) -> FuturesOrderPreviewProducer:
+    return FuturesOrderPreviewProducer(
+        rest_client=rest_client,
+        store=store,
+        predecessor_binding=dict(
+            preview_module.FUTURES_PREVIEW_R10_TERMINAL_BINDING
+        ),
+        predecessor_validator=r11_tool.validate_production_predecessor,
+        artifact_type=preview_module.FUTURES_PREVIEW_R11_ARTIFACT_TYPE,
+        now=now,
+        correlation_id_factory=correlation_id_factory,
+        idempotency_key_factory=idempotency_key_factory,
+    )
+
+
 def test_r11_audit_binding_expression_is_rejected_before_execution(
     tmp_path: Path,
 ) -> None:
@@ -93,7 +140,7 @@ def test_r11_audit_binding_expression_is_rejected_before_execution(
     runner.write_text(poisoned, encoding="utf-8")
 
     completed = subprocess.run(
-        [sys.executable, "-I", str(runner), "--preflight"],
+        _canonical_runner_command(runner, "--preflight"),
         check=False,
         capture_output=True,
         text=True,
@@ -132,6 +179,26 @@ def test_r11_direct_execution_requires_isolated_python_before_stdlib_imports(
     assert marker.exists() is False
 
 
+def test_r11_direct_execution_requires_bytecode_isolation_flags(
+    tmp_path: Path,
+) -> None:
+    tools_dir = tmp_path / "tools"
+    tools_dir.mkdir()
+    runner = tools_dir / "run_admin_api_futures_no_live_preview_r11.py"
+    runner.write_bytes(Path(r11_tool.__file__).read_bytes())
+
+    completed = subprocess.run(
+        [sys.executable, "-I", str(runner), "--preflight"],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+
+    assert completed.returncode == 2
+    assert "futures_preview_r11_isolated_runtime_required" in completed.stderr
+
+
 def test_r11_isolated_bootstrap_rejects_unclean_source_before_project_imports(
     tmp_path: Path,
 ) -> None:
@@ -149,7 +216,7 @@ def test_r11_isolated_bootstrap_rejects_unclean_source_before_project_imports(
     )
 
     completed = subprocess.run(
-        [sys.executable, "-I", str(runner), "--preflight"],
+        _canonical_runner_command(runner, "--preflight"),
         check=False,
         capture_output=True,
         text=True,
@@ -377,7 +444,7 @@ def test_r11_isolated_bootstrap_ignores_local_sitecustomize(
     )
 
     completed = subprocess.run(
-        [sys.executable, "-I", str(runner), "--preflight"],
+        _canonical_runner_command(runner, "--preflight"),
         cwd=tmp_path,
         check=False,
         capture_output=True,
@@ -395,20 +462,116 @@ def test_r11_bootstrap_dependency_site_binds_sdk_before_project_imports(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     expected: dict[str, str] = {}
+    rows: list[list[str]] = []
     for relative in _EXPECTED_SDK_SOURCE_SHA256:
         path = tmp_path / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(f"synthetic:{relative}\n", encoding="utf-8")
-        expected[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
-    (tmp_path / "coinbase_advanced_py-1.8.4.dist-info").mkdir()
+        digest = hashlib.sha256(path.read_bytes()).digest()
+        expected[relative] = digest.hex()
+        rows.append(
+            [
+                relative,
+                "sha256="
+                + base64.urlsafe_b64encode(digest).rstrip(b"=").decode(),
+                str(path.stat().st_size),
+            ]
+        )
+    metadata = tmp_path / "coinbase_advanced_py-1.8.4.dist-info"
+    metadata.mkdir()
+    metadata_file = metadata / "METADATA"
+    metadata_file.write_text(
+        "Name: coinbase-advanced-py\nVersion: 1.8.4\n",
+        encoding="utf-8",
+    )
+    metadata_digest = hashlib.sha256(metadata_file.read_bytes()).digest()
+    rows.append(
+        [
+            "coinbase_advanced_py-1.8.4.dist-info/METADATA",
+            "sha256="
+            + base64.urlsafe_b64encode(metadata_digest)
+            .rstrip(b"=")
+            .decode(),
+            str(metadata_file.stat().st_size),
+        ]
+    )
+    record = metadata / "RECORD"
+    rows.append(["coinbase_advanced_py-1.8.4.dist-info/RECORD", "", ""])
+    output = io.StringIO(newline="")
+    csv.writer(output, lineterminator="\n").writerows(rows)
+    record.write_text(output.getvalue(), encoding="utf-8")
     monkeypatch.setattr(r11_tool, "_R11_DEPENDENCY_SITE", tmp_path)
     monkeypatch.setattr(r11_tool, "_R11_SDK_SOURCE_SHA256", expected)
+    monkeypatch.setattr(
+        r11_tool,
+        "_R11_SDK_RECORD_SHA256",
+        hashlib.sha256(record.read_bytes()).hexdigest(),
+    )
 
     assert r11_tool._bootstrap_dependency_site_is_valid() is True
 
     first = tmp_path / next(iter(expected))
     first.write_text("drifted-sdk-source\n", encoding="utf-8")
     assert r11_tool._bootstrap_dependency_site_is_valid() is False
+
+
+def test_r11_bootstrap_dependency_site_rejects_unrecorded_sdk_code(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    metadata = tmp_path / "coinbase_advanced_py-1.8.4.dist-info"
+    metadata.mkdir(parents=True)
+    metadata_file = metadata / "METADATA"
+    metadata_file.write_text(
+        "Name: coinbase-advanced-py\nVersion: 1.8.4\n",
+        encoding="utf-8",
+    )
+    metadata_digest = hashlib.sha256(metadata_file.read_bytes()).digest()
+    record = metadata / "RECORD"
+    record.write_text(
+        "coinbase_advanced_py-1.8.4.dist-info/METADATA,sha256="
+        + base64.urlsafe_b64encode(metadata_digest).rstrip(b"=").decode()
+        + f",{metadata_file.stat().st_size}\n"
+        "coinbase_advanced_py-1.8.4.dist-info/RECORD,,\n",
+        encoding="utf-8",
+    )
+    unrecorded = tmp_path / "coinbase" / "rogue_import.py"
+    unrecorded.parent.mkdir()
+    unrecorded.write_text("raise RuntimeError('must not execute')\n", encoding="utf-8")
+    monkeypatch.setattr(r11_tool, "_R11_DEPENDENCY_SITE", tmp_path)
+    monkeypatch.setattr(r11_tool, "_R11_SDK_SOURCE_SHA256", {})
+    monkeypatch.setattr(
+        r11_tool,
+        "_R11_SDK_RECORD_SHA256",
+        hashlib.sha256(record.read_bytes()).hexdigest(),
+    )
+
+    assert r11_tool._bootstrap_dependency_site_is_valid() is False
+
+
+def test_r11_loaded_sdk_module_origins_must_be_hash_bound_site(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected_module = tmp_path / "coinbase" / "rest" / "__init__.py"
+    expected_module.parent.mkdir(parents=True)
+    expected_module.write_text("", encoding="utf-8")
+    monkeypatch.setattr(r11_tool, "_R11_DEPENDENCY_SITE", tmp_path)
+    monkeypatch.setattr(
+        r11_tool,
+        "_recorded_sdk_paths",
+        lambda: {"coinbase/rest/__init__.py"},
+    )
+    modules = {
+        "coinbase.rest": SimpleNamespace(__file__=str(expected_module)),
+    }
+
+    assert r11_tool._sdk_module_origins_are_bound(modules) is True
+
+    modules["coinbase.rest"] = SimpleNamespace(
+        __file__="/unbound/site-packages/coinbase/rest/__init__.py"
+    )
+    assert r11_tool._sdk_module_origins_are_bound(modules) is False
 
 
 def test_r11_audited_component_manifest_covers_all_material_surfaces() -> None:
@@ -450,6 +613,39 @@ def test_r11_clean_revision_gate_rejects_untracked_backend_source(
             return ""
         if args == ("ls-files", "--others", "--exclude-standard"):
             return "rogue_runtime_override.py"
+        raise AssertionError(args)
+
+    monkeypatch.setattr(r11_tool, "_git_output", git_output)
+
+    assert r11_tool._repository_is_clean_synced_main(r11_tool.REPO_ROOT) is False
+
+
+@pytest.mark.parametrize(
+    "shadow",
+    ["tools/rogue_loader.so", "application/admin_api/rogue_loader.pyc"],
+)
+def test_r11_clean_revision_gate_rejects_ignored_import_shadows(
+    monkeypatch: pytest.MonkeyPatch,
+    shadow: str,
+) -> None:
+    revision = _sha("backend-main")
+
+    def git_output(_root: Path, *args: str) -> str:
+        if args == ("branch", "--show-current"):
+            return "main"
+        if args == ("rev-parse", "HEAD") or args == (
+            "rev-parse",
+            "origin/main",
+        ):
+            return revision
+        if args == ("status", "--porcelain", "--untracked-files=no"):
+            return ""
+        if args == ("ls-files", "--others", "--exclude-standard"):
+            return ""
+        if args == ("ls-files", "--cached"):
+            return "application/__init__.py\ntools/run_example.py"
+        if args == ("ls-files", "--others"):
+            return shadow
         raise AssertionError(args)
 
     monkeypatch.setattr(r11_tool, "_git_output", git_output)
@@ -774,6 +970,28 @@ def test_r11_imported_confirmation_requires_cli_bootstrap_before_all_boundaries(
     )
 
 
+def test_r11_import_mode_validates_source_but_has_no_live_factory_authority(
+    tmp_path: Path,
+) -> None:
+    assert r11_tool._R11_SOURCE_BOOTSTRAP_VALIDATED is True
+    assert r11_tool._R11_CLI_BOOTSTRAP_VALIDATED is False
+    assert not hasattr(r11_tool, "build_r11_store")
+    assert not hasattr(r11_tool, "build_r11_producer")
+
+    store = FuturesOrderPreviewArtifactStore(tmp_path / "synthetic-r11.jsonl")
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="client source is invalid",
+    ):
+        r11_tool.DeferredR11PreviewRestClient(store=store)
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="production factory authority is unavailable",
+    ):
+        r11_tool._build_production_r11_store()
+
+
 def test_r11_deferred_client_requires_exclusive_r11_claim_before_hydration(
     tmp_path: Path,
 ) -> None:
@@ -805,7 +1023,7 @@ def test_r11_synthetic_accepted_session_is_exactly_bounded_and_sanitized(
     delegate = _r8_compatible_rest_client()
     delegate.preview_response["is_max"] = False
     path = tmp_path / "accepted-r11.jsonl"
-    store = r11_tool.build_r11_store(path)
+    store = _synthetic_r11_store(path)
     preview_client = r11_tool.FuturesPreviewOnlyRestClient(delegate)
     deferred = r11_tool.DeferredR11PreviewRestClient(
         store=store,
@@ -816,7 +1034,7 @@ def test_r11_synthetic_accepted_session_is_exactly_bounded_and_sanitized(
         "validate_production_predecessor",
         lambda: dict(preview_module.FUTURES_PREVIEW_R10_TERMINAL_BINDING),
     )
-    producer = r11_tool.build_r11_producer(
+    producer = _synthetic_r11_producer(
         rest_client=deferred,
         store=store,
         now=lambda: NOW,
@@ -885,7 +1103,7 @@ def test_r11_unknown_preview_is_value_blind_consumed_and_cannot_retry(
     delegate = _r8_compatible_rest_client()
     delegate.preview_error = RuntimeError(private_text)
     path = tmp_path / "unknown-r11.jsonl"
-    store = r11_tool.build_r11_store(path)
+    store = _synthetic_r11_store(path)
     deferred = r11_tool.DeferredR11PreviewRestClient(
         store=store,
         prepared_client=r11_tool.FuturesPreviewOnlyRestClient(delegate),
@@ -895,7 +1113,7 @@ def test_r11_unknown_preview_is_value_blind_consumed_and_cannot_retry(
         "validate_production_predecessor",
         lambda: dict(preview_module.FUTURES_PREVIEW_R10_TERMINAL_BINDING),
     )
-    producer = r11_tool.build_r11_producer(
+    producer = _synthetic_r11_producer(
         rest_client=deferred,
         store=store,
         now=lambda: NOW,
@@ -931,12 +1149,12 @@ def test_r11_claim_reservation_failure_is_value_blind_and_claim_only_consumed(
     delegate = _r8_compatible_rest_client()
     initial_read_calls = list(delegate.read_calls)
     path = tmp_path / "reservation-failed-r11.jsonl"
-    store = r11_tool.build_r11_store(path)
+    store = _synthetic_r11_store(path)
     deferred = r11_tool.DeferredR11PreviewRestClient(
         store=store,
         prepared_client=r11_tool.FuturesPreviewOnlyRestClient(delegate),
     )
-    producer = r11_tool.build_r11_producer(
+    producer = _synthetic_r11_producer(
         rest_client=deferred,
         store=store,
         now=lambda: NOW,
@@ -992,10 +1210,21 @@ def test_r11_cli_catches_unexpected_claim_boundary_error_value_blind(
             path.write_text("partial-sanitized-r11-claim\n", encoding="utf-8")
             raise OSError(private_text)
 
+    store = _synthetic_r11_store(path)
     monkeypatch.setattr(
         r11_tool,
-        "build_r11_producer",
-        lambda **_kwargs: FailingProducer(),
+        "_build_production_r11_store",
+        lambda: store,
+    )
+    monkeypatch.setattr(
+        r11_tool,
+        "_build_production_r11_deferred_client",
+        lambda _store: object(),
+    )
+    monkeypatch.setattr(
+        r11_tool,
+        "_build_production_r11_producer",
+        lambda _store, _client: FailingProducer(),
     )
     monkeypatch.setattr(
         r11_tool,
@@ -1031,7 +1260,7 @@ def test_r11_terminal_append_failure_keeps_claim_consumed_without_second_append(
     else:
         delegate.preview_error = RuntimeError("PRIVATE-R11-TRANSPORT-TEXT")
     path = tmp_path / f"append-failed-{preview_outcome}-r11.jsonl"
-    store = r11_tool.build_r11_store(path)
+    store = _synthetic_r11_store(path)
     deferred = r11_tool.DeferredR11PreviewRestClient(
         store=store,
         prepared_client=r11_tool.FuturesPreviewOnlyRestClient(delegate),
@@ -1041,7 +1270,7 @@ def test_r11_terminal_append_failure_keeps_claim_consumed_without_second_append(
         "validate_production_predecessor",
         lambda: dict(preview_module.FUTURES_PREVIEW_R10_TERMINAL_BINDING),
     )
-    producer = r11_tool.build_r11_producer(
+    producer = _synthetic_r11_producer(
         rest_client=deferred,
         store=store,
         now=lambda: NOW,
@@ -1086,13 +1315,13 @@ def test_r11_fixed_builders_cannot_redirect_predecessor_artifact_type_or_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     path = tmp_path / "r11-claim.jsonl"
-    store = r11_tool.build_r11_store(path)
+    store = _synthetic_r11_store(path)
     monkeypatch.setattr(
         r11_tool,
         "validate_production_predecessor",
         lambda: dict(preview_module.FUTURES_PREVIEW_R10_TERMINAL_BINDING),
     )
-    producer = r11_tool.build_r11_producer(rest_client=object(), store=store)
+    producer = _synthetic_r11_producer(rest_client=object(), store=store)
 
     claim = producer.build_claim()
 
