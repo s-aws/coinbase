@@ -255,6 +255,17 @@ gate, imported source validation, and fixed production-only constructors are
 the corresponding fail-closed remediation. No rejected audit receipt is
 eligible for activation binding.
 
+The first fresh post-validation blind-contextless audit also rejected the
+prepared frontend because confirmed-live Futures place, close/reduce, and
+cancel controls were co-resident with R11 readback and ignored the runtime
+live-action flag. That rejected receipt is likewise ineligible. The bounded
+remediation keeps `BackendRuntime.liveActionsEnabled` fixed false, omits all
+three confirmed-live controls, rejects confirmed-live intent before client
+invocation, preserves only `dry_run=true` drafts and read-only fill evidence,
+and expands the audited component manifest to cover the complete Admin-shell,
+runtime, canonical client/BFF, unit, e2e, and documentation boundary. Fresh
+validation and two new passing receipts remain mandatory.
+
 After R11 becomes terminal, the workflow continues automatically with bounded
 offline diagnosis and remediation. That work may update sanitized diagnostic
 classification, backend models and tests, generated contracts, frontend
