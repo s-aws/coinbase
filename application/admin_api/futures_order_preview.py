@@ -2024,6 +2024,65 @@ def _validate_opaque_preview_artifact(
         ) from None
 
 
+def _validate_opaque_preview_artifact_metadata_only(
+    path: Path,
+    *,
+    expected_device: int,
+    expected_inode: int,
+    expected_size: int,
+    expected_mode: int,
+    expected_mtime_ns: int,
+) -> None:
+    """Validate fixed metadata without opening an opaque artifact."""
+
+    artifact = Path(path)
+    try:
+        before = artifact.lstat()
+        if (
+            stat.S_ISLNK(before.st_mode)
+            or not stat.S_ISREG(before.st_mode)
+            or before.st_uid != os.geteuid()
+            or before.st_nlink != 1
+            or before.st_dev != expected_device
+            or before.st_ino != expected_inode
+            or before.st_size != expected_size
+            or stat.S_IMODE(before.st_mode) != expected_mode
+            or before.st_mtime_ns != expected_mtime_ns
+            or before.st_size <= 0
+            or before.st_size > _MAX_ARTIFACT_BYTES
+        ):
+            raise ValueError("metadata")
+        before_tuple = (
+            before.st_dev,
+            before.st_ino,
+            before.st_mode,
+            before.st_uid,
+            before.st_gid,
+            before.st_nlink,
+            before.st_size,
+            before.st_mtime_ns,
+            before.st_ctime_ns,
+        )
+        after = artifact.lstat()
+        after_tuple = (
+            after.st_dev,
+            after.st_ino,
+            after.st_mode,
+            after.st_uid,
+            after.st_gid,
+            after.st_nlink,
+            after.st_size,
+            after.st_mtime_ns,
+            after.st_ctime_ns,
+        )
+        if before_tuple != after_tuple:
+            raise ValueError("metadata changed")
+    except Exception:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview opaque predecessor metadata is invalid"
+        ) from None
+
+
 def validate_production_futures_order_preview_r7_opaque_chain() -> dict[str, Any]:
     """Hash-bind original through R7 without deserializing prior evidence."""
 
@@ -2123,16 +2182,15 @@ def validate_production_futures_order_preview_r7_opaque_chain() -> dict[str, Any
 
 
 def validate_production_futures_order_preview_r8_opaque_chain() -> dict[str, Any]:
-    """Hash/stat-bind original through consumed R8 without parsing R8."""
+    """Hash-bind through R7 and stat-bind R8 without opening R8."""
 
     r7_binding = validate_production_futures_order_preview_r7_opaque_chain()
     if r7_binding != FUTURES_PREVIEW_R7_TERMINAL_BINDING:
         raise FuturesOrderPreviewArtifactError(
             "futures Preview R7 opaque predecessor binding changed"
         )
-    _validate_opaque_preview_artifact(
+    _validate_opaque_preview_artifact_metadata_only(
         FUTURES_PREVIEW_R8_ARTIFACT_PATH,
-        expected_file_sha256=FUTURES_PREVIEW_R8_FILE_SHA256,
         expected_device=FUTURES_PREVIEW_R8_DEVICE,
         expected_inode=FUTURES_PREVIEW_R8_INODE,
         expected_size=FUTURES_PREVIEW_R8_SIZE,

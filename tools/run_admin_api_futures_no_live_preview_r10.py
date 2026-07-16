@@ -470,7 +470,7 @@ def production_artifact_path() -> Path:
 
 
 def validate_production_predecessor() -> dict[str, object]:
-    """Model/hash/stat-bind consumed R9 and all immutable predecessors."""
+    """Bind R9 and predecessors while never opening opaque R8 bytes."""
 
     return validate_production_futures_order_preview_r9_terminal()
 

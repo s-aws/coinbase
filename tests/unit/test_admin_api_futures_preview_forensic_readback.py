@@ -23,10 +23,10 @@ def _readback() -> AdminFuturesPreviewR8ForensicReadback:
     )
 
 
-def test_r8_forensic_readback_is_exact_hash_stat_only_and_zero_call() -> None:
+def test_r8_forensic_readback_uses_documented_sha_stat_only_and_zero_call() -> None:
     payload = _readback().model_dump(mode="json")
 
-    assert payload["schema_version"] == "futures-preview-r8-forensic-readback-v1"
+    assert payload["schema_version"] == "futures-preview-r8-forensic-readback-v2"
     assert payload["artifact_type"] == "futures_exact_no_live_preview_slice_2r8"
     assert payload["generation"] == "R8"
     assert payload["status"] == payload["outcome"] == "blocked"
@@ -69,6 +69,12 @@ def test_r8_forensic_readback_is_exact_hash_stat_only_and_zero_call() -> None:
     assert payload["exchange_submission_attempt_count"] == 0
     assert payload["live_coinbase_execution"] == "not_run"
     assert payload["slice3_activated"] is False
+    assert payload["documented_sha256_stat_metadata_validated"] is True
+    assert payload["artifact_file_sha256_source"] == (
+        "documented_preexisting_binding_not_recomputed"
+    )
+    assert payload["artifact_bytes_opened"] is False
+    assert "opaque_hash_stat_validated" not in payload
     assert payload["raw_response_included"] is False
     assert payload["private_identifier_values_included"] is False
     assert payload["withheld_exception_text_included"] is False

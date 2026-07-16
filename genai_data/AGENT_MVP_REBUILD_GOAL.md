@@ -385,8 +385,9 @@ Independent sanitized diagnosis localizes the boundary to the first
 API-key-permissions read boundary. It records one entered read boundary, zero
 AWS service calls, zero real Coinbase requests, zero Preview attempts, zero
 exchange submissions or mutations, and no accepted evidence. R8 content
-remains opaque: only its exact hash/stat binding and this allowlisted forensic
-classification may be read back.
+remains opaque: only its documented SHA-256, exact stat metadata, and this
+allowlisted forensic classification may be read back. Runtime must never open,
+read, or recompute the hash of R8.
 
 R9 is terminally consumed and cannot be retried. All six fixed read categories
 ran once and exactly one Coinbase Preview returned. The first post-return

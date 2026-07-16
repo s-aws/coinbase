@@ -6825,7 +6825,7 @@ class AdminFuturesPreviewR7PredecessorBinding(
 class AdminFuturesPreviewR8PredecessorBinding(
     _AdminFuturesPreviewFilesystemBoundModel
 ):
-    """Opaque immutable R8 hash/stat binding plus known R7 chain."""
+    """Documented R8 SHA/stat binding; runtime never opens R8 bytes."""
 
     model_config = ConfigDict(extra="forbid")
 

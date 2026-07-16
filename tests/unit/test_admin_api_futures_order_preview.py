@@ -9467,7 +9467,7 @@ def test_r10_predecessor_hash_stat_model_binding_preserves_r9_bytes(
     assert not preview_module.FUTURES_PREVIEW_R10_ARTIFACT_PATH.exists()
 
 
-def test_r9_predecessor_is_opaque_hash_stat_bound_and_never_deserialized(
+def test_r9_predecessor_uses_documented_hash_and_stat_without_opening_r8(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -9477,9 +9477,12 @@ def test_r9_predecessor_is_opaque_hash_stat_bound_and_never_deserialized(
     )
     predecessor = preview_module.FUTURES_PREVIEW_R8_ARTIFACT_PATH
     successor = preview_module.FUTURES_PREVIEW_R9_ARTIFACT_PATH
-    before_stat = predecessor.stat()
-    with predecessor.open("rb") as stream:
-        before_sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
+    before_stat = predecessor.lstat()
+    monkeypatch.setattr(
+        preview_module,
+        "validate_production_futures_order_preview_r7_opaque_chain",
+        lambda: dict(preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING),
+    )
     monkeypatch.setattr(
         preview_module.FuturesOrderPreviewArtifactStore,
         "read_completed",
@@ -9487,20 +9490,37 @@ def test_r9_predecessor_is_opaque_hash_stat_bound_and_never_deserialized(
             AssertionError("R8 JSON was deserialized")
         ),
     )
+    original_os_open = preview_module.os.open
+
+    def reject_r8_os_open(path: object, *args: object, **kwargs: object) -> int:
+        if Path(path) == predecessor:
+            raise AssertionError("R8 bytes were opened")
+        return original_os_open(path, *args, **kwargs)  # type: ignore[arg-type]
+
+    original_path_open = Path.open
+
+    def reject_r8_path_open(
+        path: Path,
+        *args: object,
+        **kwargs: object,
+    ) -> object:
+        if path == predecessor:
+            raise AssertionError("R8 bytes were opened")
+        return original_path_open(path, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(preview_module.os, "open", reject_r8_os_open)
+    monkeypatch.setattr(Path, "open", reject_r8_path_open)
 
     binding = (
         preview_module.validate_production_futures_order_preview_r8_opaque_chain()
     )
 
-    after_stat = predecessor.stat()
-    with predecessor.open("rb") as stream:
-        after_sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
+    after_stat = predecessor.lstat()
     assert binding == preview_module.FUTURES_PREVIEW_R8_TERMINAL_BINDING
     assert binding["file_sha256"] == (
         "b32aba4868f08ee7a44f19ceacbcf42cb7e4d70da1552f2d8b333ef59ddc8696"
     )
     assert binding["opaque_hash_stat_binding"] is True
-    assert before_sha256 == after_sha256 == binding["file_sha256"]
     assert (
         before_stat.st_dev,
         before_stat.st_ino,

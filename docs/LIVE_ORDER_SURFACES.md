@@ -13,9 +13,10 @@ Preview-only call returned control before a sanitized post-Preview `ValueError`
 and no accepted Preview evidence was appended. It retained the V3
 regular=`UNSPECIFIED` plus intraday-profile=`INTRADAY` pair, one contract,
 strict `<100 / <150 / <300 USDC` caps, and the corrected official
-liquidation-response schema. The repeatable Admin API/UI path now reads exact
-immutable R8 through an opaque hash/stat-only zero-call forensic contract and
-cannot call Coinbase. R9 is terminal blocked after all six fixed reads and one
+liquidation-response schema. The repeatable Admin API/UI path exposes exact
+immutable R8 through a documented-SHA/stat-metadata-only zero-call forensic
+contract, never opens R8, and cannot call Coinbase. R9 is terminal blocked
+after all six fixed reads and one
 returned Preview reached response validation; it made zero retries, fallbacks,
 redirects, Create, Cancel, Close, Reduce, marker, ledger, runtime, or exchange
 mutations. R10 is the current preparation-only generation, with one remaining

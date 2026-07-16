@@ -168,8 +168,9 @@ create a separate approval class.
 - R10 is current and preparation-only. Its Preview maximum and the remaining
   authorized recovery maximum are both `1`; its exchange-mutation maximum is
   `0`, and no R11 is authorized. Default API/UI readback selects the valid R9
-  terminal while preserving R8 through its exact opaque hash/stat forensic
-  contract. Never invoke the R7, R8, or R9 runner again.
+  terminal while preserving R8 through its documented-SHA/stat-metadata-only
+  forensic contract. The documented R8 SHA is not recomputed and runtime never
+  opens R8. Never invoke the R7, R8, or R9 runner again.
 - R10 credential readiness is fail-closed before claim consumption. The
   confirmed composition root performs one bounded Secrets Manager lookup for
   fixed secret `coinbase` in `us-east-1` through the pinned signed AWS CLI and

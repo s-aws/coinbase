@@ -16,8 +16,9 @@ binds the corrected official liquidation-response schema, immutable R6
 ancestry, one contract, and the `$100/$150/$300` slice-local scope. Exactly one
 audited Preview call occurred and returned control before a sanitized
 post-Preview `ValueError`; no accepted Preview evidence was appended. Default
-operator readback selects exact immutable R8 through a hash/stat-only forensic
-contract and never deserializes its pre-fix content. R8 is terminal blocked
+operator readback selects exact immutable R8 through a documented-SHA/stat-
+metadata-only forensic contract and never opens or deserializes its pre-fix
+content. R8 is terminal blocked
 with zero Preview or real Coinbase calls. R9 is terminal blocked after all six
 fixed reads and one returned Preview reached response validation; retry,
 fallback, redirect, and every exchange mutation remained zero. Its exact

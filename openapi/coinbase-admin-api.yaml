@@ -104014,7 +104014,7 @@ components:
       properties:
         schema_version:
           type: string
-          const: futures-preview-r8-forensic-readback-v1
+          const: futures-preview-r8-forensic-readback-v2
           title: Schema Version
         artifact_type:
           type: string
@@ -104096,10 +104096,18 @@ components:
           type: boolean
           const: false
           title: Slice3 Activated
-        opaque_hash_stat_validated:
+        documented_sha256_stat_metadata_validated:
           type: boolean
           const: true
-          title: Opaque Hash Stat Validated
+          title: Documented Sha256 Stat Metadata Validated
+        artifact_file_sha256_source:
+          type: string
+          const: documented_preexisting_binding_not_recomputed
+          title: Artifact File Sha256 Source
+        artifact_bytes_opened:
+          type: boolean
+          const: false
+          title: Artifact Bytes Opened
         raw_response_included:
           type: boolean
           const: false
@@ -104142,7 +104150,9 @@ components:
       - executed_notional_usdc
       - live_coinbase_execution
       - slice3_activated
-      - opaque_hash_stat_validated
+      - documented_sha256_stat_metadata_validated
+      - artifact_file_sha256_source
+      - artifact_bytes_opened
       - raw_response_included
       - private_identifier_values_included
       - withheld_exception_text_included
@@ -104248,7 +104258,7 @@ components:
       - preservation
       - original_predecessor_binding
       title: AdminFuturesPreviewR8PredecessorBinding
-      description: Opaque immutable R8 hash/stat binding plus known R7 chain.
+      description: Documented R8 SHA/stat binding; runtime never opens R8 bytes.
     AdminFuturesPreviewR8ReadBoundaryCounters:
       properties:
         api_key_permissions:

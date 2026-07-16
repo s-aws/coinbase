@@ -1,9 +1,9 @@
 """Opaque, sanitized readback for the accidentally consumed R8 generation.
 
 The fixed R8 artifact predates the persistence-safe successor schema.  It is
-therefore never deserialized by this module.  The operator-visible readback is
-built only from its audited hash/stat binding and the independently localized,
-strictly allowlisted failure boundary.
+therefore never opened or deserialized by this module.  The operator-visible
+readback is built only from its documented SHA-256, verified stat metadata,
+and the independently localized, strictly allowlisted failure boundary.
 """
 
 from __future__ import annotations
@@ -90,7 +90,7 @@ class AdminFuturesPreviewR8ForensicReadback(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: Literal["futures-preview-r8-forensic-readback-v1"]
+    schema_version: Literal["futures-preview-r8-forensic-readback-v2"]
     artifact_type: Literal["futures_exact_no_live_preview_slice_2r8"]
     generation: Literal["R8"]
     status: Literal["blocked"]
@@ -117,7 +117,11 @@ class AdminFuturesPreviewR8ForensicReadback(BaseModel):
     executed_notional_usdc: Literal["0"]
     live_coinbase_execution: Literal["not_run"]
     slice3_activated: Literal[False]
-    opaque_hash_stat_validated: Literal[True]
+    documented_sha256_stat_metadata_validated: Literal[True]
+    artifact_file_sha256_source: Literal[
+        "documented_preexisting_binding_not_recomputed"
+    ]
+    artifact_bytes_opened: Literal[False]
     raw_response_included: Literal[False]
     private_identifier_values_included: Literal[False]
     withheld_exception_text_included: Literal[False]
@@ -140,7 +144,7 @@ def build_r8_forensic_readback(
             "futures Preview R8 forensic binding changed"
         )
     return AdminFuturesPreviewR8ForensicReadback(
-        schema_version="futures-preview-r8-forensic-readback-v1",
+        schema_version="futures-preview-r8-forensic-readback-v2",
         artifact_type="futures_exact_no_live_preview_slice_2r8",
         generation="R8",
         status="blocked",
@@ -195,7 +199,11 @@ def build_r8_forensic_readback(
         executed_notional_usdc="0",
         live_coinbase_execution="not_run",
         slice3_activated=False,
-        opaque_hash_stat_validated=True,
+        documented_sha256_stat_metadata_validated=True,
+        artifact_file_sha256_source=(
+            "documented_preexisting_binding_not_recomputed"
+        ),
+        artifact_bytes_opened=False,
         raw_response_included=False,
         private_identifier_values_included=False,
         withheld_exception_text_included=False,

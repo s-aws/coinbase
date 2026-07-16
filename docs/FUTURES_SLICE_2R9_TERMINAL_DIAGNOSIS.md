@@ -14,8 +14,9 @@ Status: terminal blocked; R9 is consumed and must never be retried.
 - Exchange submission attempts and submitted/executed notional: `0`
 
 The artifact is persistence-safe and may be model/hash/stat validated. It must
-remain byte-for-byte immutable. R8 remains opaque and is still validated only
-through its documented hash/stat binding.
+remain byte-for-byte immutable. R8 remains opaque: its recorded SHA-256 is a
+documented preexisting binding that is not recomputed, and runtime validation
+uses stat metadata only without opening R8.
 
 ## Localized boundary
 
@@ -72,3 +73,10 @@ R10 remains preparation-only until focused validation, independent safety
 audit, and a fresh blind contextless audit bind a clean implementation commit.
 At most one R10 Preview call is authorized, with zero retries, fallbacks,
 redirects, or mutations. If R10 is not accepted, no R11 is authorized.
+
+The first R10 safety audit found that predecessor validation still opened R8
+to recompute its SHA-256. That base revision is a release-blocking `NO-GO` and
+must never be bound for execution. The remediation retains the documented R8
+SHA-256 and exact metadata in successor evidence but validates R8 through
+stable `lstat` metadata only. Focused tests intercept both descriptor-level and
+`Path`-level opens and fail if runtime attempts to read R8 bytes.

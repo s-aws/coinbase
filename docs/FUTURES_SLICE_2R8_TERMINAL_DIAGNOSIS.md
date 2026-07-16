@@ -23,10 +23,12 @@ The fixed artifact must remain byte-for-byte unchanged:
 - link count: `1`
 - mtime ns: `1784160315297279427`
 
-R8 is validated only as the opaque hash/stat successor of the exact immutable
-R1-R7 chain. Its JSONL records must not be deserialized, exposed, normalized,
-or reconstructed. The Admin API synthesizes a separately typed forensic
-readback only after the exact opaque binding validates.
+R8's SHA-256 remains a documented preexisting binding and is not recomputed.
+Runtime validation hash-binds the exact immutable R1-R7 chain, then verifies
+R8 only through two stable `lstat` metadata snapshots. R8 is never opened,
+read, hashed again, deserialized, exposed, normalized, or reconstructed. The
+Admin API synthesizes a separately typed forensic readback only after that
+documented-SHA/stat-metadata binding validates.
 
 ## Sanitized Failure Boundary
 
