@@ -90,11 +90,21 @@ _R11_EXPECTED_COMPONENTS = frozenset(
         "backend:tests/unit/test_admin_api_futures_order_preview.py",
         "backend:tests/unit/test_run_admin_api_futures_no_live_preview_r11.py",
         "backend:tests/regression/test_spot_readiness_gate.py",
+        "backend:tools/coinbase_live_credentials.py",
         "backend:tools/run_admin_api_futures_no_live_preview.py",
         "backend:tools/run_autonomous_work_queue_check.py",
         "frontend:AGENTS.md",
+        "frontend:README.admin-frontend.md",
+        "frontend:docs/ADMIN_MODULE_CAPABILITY_MATRIX.md",
+        "frontend:docs/API_CONTRACT.md",
         "frontend:docs/CURRENT_MVP_GOAL.md",
+        "frontend:docs/FUTURES_PERPETUALS_READS.md",
+        "frontend:docs/HUMAN_OPERATOR_RUNBOOK.md",
+        "frontend:docs/MAINTAINER_HANDOFF.md",
+        "frontend:docs/ORIGIN_PROD_FEATURE_MVP_MAP.md",
         "frontend:docs/TESTING.md",
+        "frontend:docs/plans/AUTONOMOUS_WORK_QUEUE.md",
+        "frontend:docs/plans/MVP_BLOCKER_LEDGER.md",
         "frontend:scripts/check-autonomous-work-queue.mjs",
         "frontend:scripts/check-deployment-readiness.mjs",
         "frontend:scripts/check-mvp-goal-alignment.mjs",
@@ -139,6 +149,173 @@ _R11_SDK_REQUIRED_MODULES = (
     "coinbase.rest.types.base_response",
     "coinbase.rest.types.orders_types",
 )
+_R11_RUNTIME_DEPENDENCIES: tuple[tuple[str, str, str, str, str, str], ...] = (
+    (
+        "coinbase-advanced-py",
+        "1.8.4",
+        "/home/developer/.local/lib/python3.13/site-packages",
+        "coinbase_advanced_py-1.8.4.dist-info",
+        "coinbase",
+        "40430123aeb0b6b38b333b676c0b5775b86188e5082ee2bbb54f337d48edeba1",
+    ),
+    (
+        "requests",
+        "2.34.2",
+        "/home/developer/.local/lib/python3.13/site-packages",
+        "requests-2.34.2.dist-info",
+        "requests",
+        "2e48b2db823e566cd0e9c99df87dfa6117fe020e6519f3f9909f4470291fab4b",
+    ),
+    (
+        "urllib3",
+        "2.7.0",
+        "/usr/local/lib/python3.13/site-packages",
+        "urllib3-2.7.0.dist-info",
+        "urllib3",
+        "bab9edcf76ec02bac68329df0e7de530efcbd3dc131551f5f86a83ff4d087106",
+    ),
+    (
+        "PyJWT",
+        "2.13.0",
+        "/home/developer/.local/lib/python3.13/site-packages",
+        "pyjwt-2.13.0.dist-info",
+        "jwt",
+        "e66ede74c7a4eaef0332c82e25c313c183114ecb993cae8c2d9a72efe89cdf27",
+    ),
+    (
+        "cryptography",
+        "49.0.0",
+        "/home/developer/.local/lib/python3.13/site-packages",
+        "cryptography-49.0.0.dist-info",
+        "cryptography",
+        "8aef53314efc7136ef9aafcaf3da40e9b2b2d71086e969f354e9f744f14b5be5",
+    ),
+    (
+        "cffi",
+        "2.1.0",
+        "/home/developer/.local/lib/python3.13/site-packages",
+        "cffi-2.1.0.dist-info",
+        "cffi",
+        "b4126874ee638ae57d4b6291a819e92c0ba4e4cf538ca4cec3ee360fc28d243a",
+    ),
+    (
+        "certifi",
+        "2026.6.17",
+        "/usr/local/lib/python3.13/site-packages",
+        "certifi-2026.6.17.dist-info",
+        "certifi",
+        "99d26202d832e6cde4539b481e5956858b5e051bdc7f407f101e03b4319e4c4c",
+    ),
+    (
+        "charset-normalizer",
+        "3.4.9",
+        "/home/developer/.local/lib/python3.13/site-packages",
+        "charset_normalizer-3.4.9.dist-info",
+        "charset_normalizer",
+        "ce77d38b745a896acd0f012d1300fa4afea386d991835c943dec27d74fb9e963",
+    ),
+    (
+        "idna",
+        "3.18",
+        "/usr/local/lib/python3.13/site-packages",
+        "idna-3.18.dist-info",
+        "idna",
+        "0d15c3a9678cec4de0ae64abb7f85a636e44dea89d15f73c94d58e24ffaae78f",
+    ),
+    (
+        "backoff",
+        "2.2.1",
+        "/home/developer/.local/lib/python3.13/site-packages",
+        "backoff-2.2.1.dist-info",
+        "backoff",
+        "ac9598ad7ca72d341773345bce960fd6b392f38d33ef1766a4d752a23f794b6e",
+    ),
+    (
+        "websockets",
+        "13.1",
+        "/home/developer/.local/lib/python3.13/site-packages",
+        "websockets-13.1.dist-info",
+        "websockets",
+        "9ce8a817feeced95d3a864c5c14bf964a21fc572b8f7649d58f377140032e802",
+    ),
+    (
+        "pydantic",
+        "2.13.4",
+        "/home/developer/.local/lib/python3.13/site-packages",
+        "pydantic-2.13.4.dist-info",
+        "pydantic",
+        "774c7cbfbb195bcfebdd1b6b3f0ea3ce47fad225b8b1e8e172c5864dec34a358",
+    ),
+    (
+        "pydantic_core",
+        "2.46.4",
+        "/home/developer/.local/lib/python3.13/site-packages",
+        "pydantic_core-2.46.4.dist-info",
+        "pydantic_core",
+        "cf9ba47e87c106a9c3a90175556a5e62b66bc0747e754f5d31441314910e7318",
+    ),
+    (
+        "annotated-types",
+        "0.7.0",
+        "/home/developer/.local/lib/python3.13/site-packages",
+        "annotated_types-0.7.0.dist-info",
+        "annotated_types",
+        "f7c0160ccf09bebdec2eb160bb86d1a170670af060991dd2b16299da91a43b84",
+    ),
+    (
+        "typing-inspection",
+        "0.4.2",
+        "/home/developer/.local/lib/python3.13/site-packages",
+        "typing_inspection-0.4.2.dist-info",
+        "typing_inspection",
+        "0f03ce122a0ee9bbadaf2877040b7b14ca553bdead97797be3333171f7ab153c",
+    ),
+    (
+        "typing_extensions",
+        "4.16.0",
+        "/usr/local/lib/python3.13/site-packages",
+        "typing_extensions-4.16.0.dist-info",
+        "typing_extensions.py",
+        "87c5132ed922c2e300fd3c36b828e1b3694f2e2ac38f26f556064c4bf3d9af81",
+    ),
+    (
+        "PySocks",
+        "1.7.1",
+        "/usr/local/lib/python3.13/site-packages",
+        "PySocks-1.7.1.dist-info",
+        "socks.py",
+        "c82333a9b7743d58eb07ca1721d35803bbcdc42a048c8154133d142151c5be91",
+    ),
+)
+_R11_RUNTIME_DEPENDENCY_BINDING_SHA256 = (
+    "2119cad7e5d47201a637511c61944ff01be7b5708cb642be8da8634edb8f1541"
+)
+_R11_RUNTIME_SITE_ROOTS = tuple(
+    dict.fromkeys(specification[2] for specification in _R11_RUNTIME_DEPENDENCIES)
+)
+_R11_VERIFIED_DEPENDENCY_FILES: set[str] = set()
+_R11_VERIFIED_IMPORT_TOP_LEVELS: set[str] = set()
+_R11_MAX_DEPENDENCY_FILE_BYTES = 64 * 1024 * 1024
+_R11_AWS_CLI_VERSION_ROOT = Path(
+    "/home/developer/.local/aws-cli/v2/2.35.24"
+)
+_R11_AWS_CLI_CANONICAL_PATH = _R11_AWS_CLI_VERSION_ROOT / "dist" / "aws"
+_R11_AWS_CLI_CA_BUNDLE = (
+    _R11_AWS_CLI_VERSION_ROOT / "dist" / "awscli" / "botocore" / "cacert.pem"
+)
+_R11_AWS_CLI_SHA256 = (
+    "cf06831bd626c1132effdff0c403cc115ae15fe83aaf455f43e504c148d344e5"
+)
+_R11_AWS_CLI_VERSION_OUTPUT = (
+    "aws-cli/2.35.24 Python/3.14.6 "
+    "Linux/6.18.33.2-microsoft-standard-WSL2 exe/x86_64.debian.12"
+)
+_R11_AWS_CLI_TREE_ENTRY_COUNT = 8649
+_R11_AWS_CLI_TREE_FILE_BYTES = 254415287
+_R11_AWS_CLI_TREE_SHA256 = (
+    "ec5b4574cc2fd9ee0f91afe7cef682a52ded5ac98faeae9bbc23b0b6f04ff7c1"
+)
+_R11_MAX_AWS_SECRET_RESPONSE_BYTES = 128 * 1024
 _FRONTEND_INERT_UNTRACKED_SHA256 = {
     "coinbase-admin-live-root-child-chain-2026-07-11.png": (
         "a38b6a6bdca3073cca7245cfece2783b82e9414267bff421fcd97ad7d5e79cec"
@@ -329,6 +506,495 @@ def _recorded_sdk_paths() -> set[str]:
     return recorded
 
 
+def _bootstrap_read_regular(
+    path: Path,
+    *,
+    maximum_bytes: int,
+    allow_empty: bool = False,
+) -> bytes:
+    """Read one stable, non-linked, non-writable provenance-bound file."""
+
+    before = path.lstat()
+    if (
+        stat.S_ISLNK(before.st_mode)
+        or not stat.S_ISREG(before.st_mode)
+        or before.st_nlink != 1
+        or (before.st_size == 0 and not allow_empty)
+        or before.st_size > maximum_bytes
+        or stat.S_IMODE(before.st_mode) & 0o022
+    ):
+        raise ValueError("regular_file")
+    identity = (
+        before.st_dev,
+        before.st_ino,
+        before.st_mode,
+        before.st_uid,
+        before.st_gid,
+        before.st_nlink,
+        before.st_size,
+        before.st_mtime_ns,
+        before.st_ctime_ns,
+    )
+    with path.open("rb") as handle:
+        payload = handle.read(maximum_bytes + 1)
+        opened = os.fstat(handle.fileno())
+    after = path.lstat()
+    opened_identity = (
+        opened.st_dev,
+        opened.st_ino,
+        opened.st_mode,
+        opened.st_uid,
+        opened.st_gid,
+        opened.st_nlink,
+        opened.st_size,
+        opened.st_mtime_ns,
+        opened.st_ctime_ns,
+    )
+    after_identity = (
+        after.st_dev,
+        after.st_ino,
+        after.st_mode,
+        after.st_uid,
+        after.st_gid,
+        after.st_nlink,
+        after.st_size,
+        after.st_mtime_ns,
+        after.st_ctime_ns,
+    )
+    if (
+        identity != opened_identity
+        or identity != after_identity
+        or len(payload) != before.st_size
+        or len(payload) > maximum_bytes
+    ):
+        raise ValueError("unstable_file")
+    return payload
+
+
+def _runtime_distribution_target(site_root: Path, relative: str) -> Path:
+    """Resolve a RECORD row within its fixed installation prefix."""
+
+    pure = PurePosixPath(relative)
+    if (
+        not relative
+        or pure.is_absolute()
+        or "\\" in relative
+        or "\x00" in relative
+        or any(part in {"", "."} for part in pure.parts)
+        or pure.as_posix() != relative
+    ):
+        raise ValueError("record_path")
+    lexical = Path(os.path.abspath(site_root.joinpath(*pure.parts)))
+    installation_root = (
+        Path("/home/developer/.local")
+        if str(site_root).startswith("/home/developer/.local/")
+        else Path("/usr/local")
+    )
+    if (
+        os.path.commonpath((str(lexical), str(installation_root)))
+        != str(installation_root)
+        or os.path.realpath(lexical) != str(lexical)
+    ):
+        raise ValueError("record_path")
+    return lexical
+
+
+def _runtime_import_file(path: Path) -> bool:
+    name = path.name
+    return name.endswith((".py", ".pyd", ".so")) or (
+        bool(importlib.machinery.EXTENSION_SUFFIXES)
+        and name.endswith(tuple(importlib.machinery.EXTENSION_SUFFIXES))
+    )
+
+
+def _verify_runtime_distribution(
+    specification: tuple[str, str, str, str, str, str],
+) -> dict[str, str]:
+    """Verify every hashed RECORD row and every importable package file."""
+
+    (
+        name,
+        expected_version,
+        site_root_text,
+        dist_info_name,
+        package_name,
+        record_sha256,
+    ) = specification
+    site_root = Path(site_root_text)
+    if (
+        site_root.is_symlink()
+        or not stat.S_ISDIR(site_root.lstat().st_mode)
+        or stat.S_IMODE(site_root.lstat().st_mode) & 0o022
+    ):
+        raise ValueError("site_root")
+
+    dist_prefix = dist_info_name.partition("-")[0] + "-"
+    observed_metadata = {
+        str(candidate)
+        for root_text in _R11_RUNTIME_SITE_ROOTS
+        for candidate in Path(root_text).glob(f"{dist_prefix}*.dist-info")
+    }
+    expected_metadata = str(site_root / dist_info_name)
+    if observed_metadata != {expected_metadata}:
+        raise ValueError("duplicate_distribution")
+    for root_text in _R11_RUNTIME_SITE_ROOTS:
+        alternate = Path(root_text) / package_name
+        if Path(root_text) != site_root and (
+            alternate.exists() or alternate.is_symlink()
+        ):
+            raise ValueError("duplicate_package")
+
+    metadata_root = site_root / dist_info_name
+    if metadata_root.is_symlink() or not stat.S_ISDIR(
+        metadata_root.lstat().st_mode
+    ):
+        raise ValueError("dist_info")
+    record_relative = f"{dist_info_name}/RECORD"
+    record_path = metadata_root / "RECORD"
+    record_payload = _bootstrap_read_regular(
+        record_path,
+        maximum_bytes=512 * 1024,
+    )
+    if hashlib.sha256(record_payload).hexdigest() != record_sha256:
+        raise ValueError("record_hash")
+    try:
+        rows = list(csv.reader(record_payload.decode("utf-8").splitlines()))
+    except (csv.Error, UnicodeDecodeError):
+        raise ValueError("record_encoding") from None
+
+    seen: set[str] = set()
+    hashed_relative_paths: set[str] = set()
+    for row in rows:
+        if len(row) != 3 or not row[0] or row[0] in seen:
+            raise ValueError("record_row")
+        relative, encoded_hash, size_text = row
+        seen.add(relative)
+        target = _runtime_distribution_target(site_root, relative)
+        if not encoded_hash:
+            if relative == record_relative:
+                if size_text:
+                    raise ValueError("record_self")
+                continue
+            if (
+                "__pycache__" not in PurePosixPath(relative).parts
+                or not relative.endswith((".pyc", ".pyo"))
+                or size_text
+            ):
+                raise ValueError("record_unhashed")
+            continue
+        algorithm, separator, expected_encoded = encoded_hash.partition("=")
+        if algorithm != "sha256" or not separator or not size_text.isdigit():
+            raise ValueError("record_metadata")
+        payload = _bootstrap_read_regular(
+            target,
+            maximum_bytes=_R11_MAX_DEPENDENCY_FILE_BYTES,
+            allow_empty=True,
+        )
+        observed_encoded = base64.urlsafe_b64encode(
+            hashlib.sha256(payload).digest()
+        ).rstrip(b"=").decode("ascii")
+        if observed_encoded != expected_encoded or len(payload) != int(size_text):
+            raise ValueError("record_digest")
+        hashed_relative_paths.add(relative)
+        _R11_VERIFIED_DEPENDENCY_FILES.add(str(target))
+
+    metadata_relative = f"{dist_info_name}/METADATA"
+    if record_relative not in seen or metadata_relative not in hashed_relative_paths:
+        raise ValueError("record_required_rows")
+    metadata_payload = _bootstrap_read_regular(
+        metadata_root / "METADATA",
+        maximum_bytes=2 * 1024 * 1024,
+    )
+    try:
+        metadata_lines = metadata_payload.decode("utf-8").splitlines()
+    except UnicodeDecodeError:
+        raise ValueError("metadata_encoding") from None
+    if (
+        metadata_lines.count(f"Name: {name}") != 1
+        or metadata_lines.count(f"Version: {expected_version}") != 1
+    ):
+        raise ValueError("metadata_version")
+
+    package_root = site_root / package_name
+    if package_root.is_symlink() or not (
+        package_root.is_dir() or stat.S_ISREG(package_root.lstat().st_mode)
+    ):
+        raise ValueError("package_root")
+    candidates: list[Path] = []
+    if package_root.is_dir():
+        for directory, directories, filenames in os.walk(
+            package_root,
+            followlinks=False,
+        ):
+            directory_path = Path(directory)
+            if any((directory_path / child).is_symlink() for child in directories):
+                raise ValueError("package_symlink")
+            candidates.extend(directory_path / filename for filename in filenames)
+    else:
+        candidates.append(package_root)
+    for candidate in candidates:
+        if candidate.is_symlink():
+            raise ValueError("package_symlink")
+        if _runtime_import_file(candidate):
+            relative = candidate.relative_to(site_root).as_posix()
+            if (
+                relative not in hashed_relative_paths
+                or str(candidate.resolve()) not in _R11_VERIFIED_DEPENDENCY_FILES
+            ):
+                raise ValueError("unrecorded_import")
+
+    top_level = package_name.removesuffix(".py")
+    _R11_VERIFIED_IMPORT_TOP_LEVELS.add(top_level)
+    return {
+        "name": name,
+        "version": expected_version,
+        "site_root": site_root_text,
+        "record_sha256": record_sha256,
+    }
+
+
+def _verify_runtime_dependencies() -> bool:
+    """Verify the complete imported dependency closure and canonical binding."""
+
+    try:
+        _R11_VERIFIED_DEPENDENCY_FILES.clear()
+        _R11_VERIFIED_IMPORT_TOP_LEVELS.clear()
+        packages = [
+            _verify_runtime_distribution(specification)
+            for specification in _R11_RUNTIME_DEPENDENCIES
+        ]
+        binding = {
+            "schema_version": "r11-runtime-dependency-binding-v1",
+            "packages": packages,
+        }
+        digest = hashlib.sha256(
+            json.dumps(
+                binding,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        return digest == _R11_RUNTIME_DEPENDENCY_BINDING_SHA256
+    except (OSError, UnicodeError, ValueError):
+        _R11_VERIFIED_DEPENDENCY_FILES.clear()
+        _R11_VERIFIED_IMPORT_TOP_LEVELS.clear()
+        return False
+
+
+def _runtime_dependency_spec_is_verified(specification: object) -> bool:
+    """Return whether an import spec is outside site roots or RECORD-bound."""
+
+    origin = getattr(specification, "origin", None)
+    locations = getattr(specification, "submodule_search_locations", None) or ()
+    if origin in {None, "built-in", "frozen"}:
+        for location in locations:
+            absolute_location = os.path.abspath(str(location))
+            for root in _R11_RUNTIME_SITE_ROOTS:
+                try:
+                    if os.path.commonpath((absolute_location, root)) == root:
+                        return False
+                except ValueError:
+                    return False
+        return True
+    absolute_origin = os.path.abspath(str(origin))
+    for root in _R11_RUNTIME_SITE_ROOTS:
+        try:
+            inside = os.path.commonpath((absolute_origin, root)) == root
+        except ValueError:
+            return False
+        if inside:
+            return (
+                os.path.realpath(absolute_origin) == absolute_origin
+                and absolute_origin in _R11_VERIFIED_DEPENDENCY_FILES
+            )
+    return True
+
+
+class _R11VerifiedDependencyFinder:
+    """Reject site-root imports unless their exact origin was RECORD-verified."""
+
+    @classmethod
+    def find_spec(cls, fullname, path=None, target=None):
+        specification = importlib.machinery.PathFinder.find_spec(
+            fullname,
+            path,
+            target,
+        )
+        if specification is not None and not _runtime_dependency_spec_is_verified(
+            specification
+        ):
+            raise ImportError("futures_preview_r11_unverified_dependency_import")
+        return specification
+
+
+def _install_runtime_dependency_guard() -> None:
+    if not _R11_VERIFIED_DEPENDENCY_FILES:
+        raise ValueError("dependency_binding")
+    try:
+        index = sys.meta_path.index(importlib.machinery.PathFinder)
+    except ValueError:
+        raise ValueError("path_finder") from None
+    if _R11VerifiedDependencyFinder not in sys.meta_path:
+        sys.meta_path.insert(index, _R11VerifiedDependencyFinder)
+
+
+def _runtime_module_origins_are_bound(
+    modules: Mapping[str, object],
+    *,
+    closure_only: bool,
+) -> bool:
+    try:
+        for name, module in modules.items():
+            if closure_only and name.partition(".")[0] not in (
+                _R11_VERIFIED_IMPORT_TOP_LEVELS
+            ):
+                continue
+            origin = getattr(module, "__file__", None)
+            locations = getattr(module, "__path__", None)
+            specification = type(
+                "_R11ObservedSpec",
+                (),
+                {
+                    "origin": origin,
+                    "submodule_search_locations": locations,
+                },
+            )()
+            if not _runtime_dependency_spec_is_verified(specification):
+                return False
+    except (OSError, TypeError, ValueError):
+        return False
+    return True
+
+
+def _aws_cli_tree_sha256() -> str:
+    digest = hashlib.sha256()
+    entry_count = 0
+    file_bytes = 0
+    allowed_links = {
+        "bin/aws": "../dist/aws",
+        "bin/aws_completer": "../dist/aws_completer",
+    }
+    entries = sorted(
+        _R11_AWS_CLI_VERSION_ROOT.rglob("*"),
+        key=lambda path: path.relative_to(_R11_AWS_CLI_VERSION_ROOT).as_posix(),
+    )
+    for path in entries:
+        relative = path.relative_to(_R11_AWS_CLI_VERSION_ROOT).as_posix()
+        metadata = path.lstat()
+        mode = stat.S_IMODE(metadata.st_mode)
+        if metadata.st_uid != os.geteuid():
+            raise ValueError("aws_owner")
+        if stat.S_ISLNK(metadata.st_mode):
+            target = os.readlink(path)
+            if allowed_links.get(relative) != target:
+                raise ValueError("aws_symlink")
+            line = (
+                f"L\t{relative}\t{mode:o}\t{metadata.st_uid}\t"
+                f"{metadata.st_gid}\t{target}\n"
+            ).encode("utf-8")
+        elif stat.S_ISDIR(metadata.st_mode):
+            if mode & 0o022:
+                raise ValueError("aws_directory_mode")
+            line = (
+                f"D\t{relative}\t{mode:o}\t{metadata.st_uid}\t"
+                f"{metadata.st_gid}\n"
+            ).encode("utf-8")
+        elif stat.S_ISREG(metadata.st_mode):
+            payload = _bootstrap_read_regular(
+                path,
+                maximum_bytes=64 * 1024 * 1024,
+                allow_empty=True,
+            )
+            file_bytes += len(payload)
+            line = (
+                f"F\t{relative}\t{mode:o}\t{metadata.st_uid}\t"
+                f"{metadata.st_gid}\t{len(payload)}\t"
+                f"{hashlib.sha256(payload).hexdigest()}\n"
+            ).encode("utf-8")
+        else:
+            raise ValueError("aws_entry")
+        digest.update(line)
+        entry_count += 1
+    if (
+        entry_count != _R11_AWS_CLI_TREE_ENTRY_COUNT
+        or file_bytes != _R11_AWS_CLI_TREE_FILE_BYTES
+    ):
+        raise ValueError("aws_tree_shape")
+    return digest.hexdigest()
+
+
+def _secure_credential_file_present() -> bool:
+    try:
+        metadata = Path("/home/developer/.aws/credentials").lstat()
+        return (
+            not stat.S_ISLNK(metadata.st_mode)
+            and stat.S_ISREG(metadata.st_mode)
+            and metadata.st_uid == os.geteuid()
+            and metadata.st_nlink == 1
+            and 0 < metadata.st_size <= 64 * 1024
+            and not stat.S_IMODE(metadata.st_mode) & 0o077
+        )
+    except OSError:
+        return False
+
+
+def _validate_aws_cli_binding() -> bool:
+    expected_links = (
+        (
+            Path("/home/developer/.local/bin/aws"),
+            "/home/developer/.local/aws-cli/v2/current/bin/aws",
+        ),
+        (
+            Path("/home/developer/.local/aws-cli/v2/current"),
+            "/home/developer/.local/aws-cli/v2/2.35.24",
+        ),
+        (_R11_AWS_CLI_VERSION_ROOT / "bin" / "aws", "../dist/aws"),
+    )
+    try:
+        for path, expected_target in expected_links:
+            metadata = path.lstat()
+            if (
+                not stat.S_ISLNK(metadata.st_mode)
+                or metadata.st_uid != os.geteuid()
+                or os.readlink(path) != expected_target
+            ):
+                return False
+        executable = _bootstrap_read_regular(
+            _R11_AWS_CLI_CANONICAL_PATH,
+            maximum_bytes=16 * 1024 * 1024,
+        )
+        executable_metadata = _R11_AWS_CLI_CANONICAL_PATH.lstat()
+        if (
+            executable_metadata.st_uid != os.geteuid()
+            or stat.S_IMODE(executable_metadata.st_mode) != 0o755
+            or hashlib.sha256(executable).hexdigest() != _R11_AWS_CLI_SHA256
+            or _aws_cli_tree_sha256() != _R11_AWS_CLI_TREE_SHA256
+            or not _secure_credential_file_present()
+        ):
+            return False
+        completed = subprocess.run(
+            [str(_R11_AWS_CLI_CANONICAL_PATH), "--version"],
+            env={
+                "AWS_CLI_HISTORY_FILE": "/dev/null",
+                "AWS_CONFIG_FILE": "/dev/null",
+                "AWS_EC2_METADATA_DISABLED": "true",
+                "AWS_SHARED_CREDENTIALS_FILE": "/dev/null",
+                "HOME": "/nonexistent",
+                "LC_ALL": "C",
+                "PATH": str(_R11_AWS_CLI_CANONICAL_PATH.parent),
+            },
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        return (
+            completed.stdout + completed.stderr
+        ).strip() == _R11_AWS_CLI_VERSION_OUTPUT
+    except Exception:
+        return False
+
+
 def _bootstrap_dependency_site_is_valid() -> bool:
     try:
         if not stat.S_ISDIR(_R11_DEPENDENCY_SITE.lstat().st_mode):
@@ -410,6 +1076,8 @@ def _bootstrap_runtime_is_valid() -> bool:
         and sys.version_info[:2] == (3, 13)
         and _bootstrap_dependency_site_is_valid()
         and _bootstrap_system_dependency_site_is_valid()
+        and _verify_runtime_dependencies()
+        and _validate_aws_cli_binding()
     )
     if __name__ != "__main__":
         return base_valid
@@ -454,8 +1122,10 @@ def _backend_import_shadows_absent(
         candidate = PurePosixPath(relative)
         if "__pycache__" in candidate.parts:
             continue
-        if len(candidate.parts) > 1 and candidate.parts[0] not in import_roots:
-            continue
+        top_level = candidate.parts[0] if candidate.parts else ""
+        if len(candidate.parts) > 1 and top_level not in import_roots:
+            if not top_level.isidentifier():
+                continue
         path = root.joinpath(*candidate.parts)
         try:
             if path.is_symlink():
@@ -616,21 +1286,27 @@ def _load_hash_bound_sdk_modules() -> None:
     loaded_before = {
         name: module
         for name, module in sys.modules.items()
-        if name == "coinbase" or name.startswith("coinbase.")
+        if name.partition(".")[0] in _R11_VERIFIED_IMPORT_TOP_LEVELS
     }
-    if loaded_before and not _sdk_module_origins_are_bound(loaded_before):
-        raise ValueError("sdk_preloaded_origin")
+    if loaded_before and not _runtime_module_origins_are_bound(
+        loaded_before,
+        closure_only=True,
+    ):
+        raise ValueError("dependency_preloaded_origin")
+    if __name__ == "__main__":
+        _install_runtime_dependency_guard()
     for name in _R11_SDK_REQUIRED_MODULES:
         importlib.import_module(name)
     loaded_after = {
         name: module
         for name, module in sys.modules.items()
-        if name == "coinbase" or name.startswith("coinbase.")
+        if name.partition(".")[0] in _R11_VERIFIED_IMPORT_TOP_LEVELS
     }
     if not set(_R11_SDK_REQUIRED_MODULES).issubset(loaded_after) or not (
-        _sdk_module_origins_are_bound(loaded_after)
+        _runtime_module_origins_are_bound(loaded_after, closure_only=True)
+        and _sdk_module_origins_are_bound(loaded_after)
     ):
-        raise ValueError("sdk_loaded_origin")
+        raise ValueError("dependency_loaded_origin")
 
 
 try:
@@ -659,7 +1335,21 @@ from application.admin_api.futures_order_preview import (  # noqa: E402
     _validate_r11_ephemeral_claim_record,
     validate_production_futures_order_preview_r10_terminal,
 )
+from application.admin_api import models as _admin_api_models  # noqa: E402,F401
 from tools import run_admin_api_futures_no_live_preview as base_tool  # noqa: E402
+
+
+if not _runtime_module_origins_are_bound(
+    sys.modules,
+    closure_only=__name__ != "__main__",
+):
+    if __name__ == "__main__":
+        sys.stderr.write(
+            '{"blocker":"futures_preview_r11_bootstrap_source_invalid",'
+            '"status":"blocked"}\n'
+        )
+        raise SystemExit(2)
+    raise RuntimeError("futures Preview R11 dependency source is invalid")
 
 
 FuturesPreviewOnlyRestClient = base_tool.FuturesPreviewOnlyRestClient
@@ -765,7 +1455,13 @@ def _validate_sdk_pin() -> None:
         or "coinbase-advanced-py==1.8.4"
         not in project.get("project", {}).get("dependencies", [])
         or not _bootstrap_dependency_site_is_valid()
+        or not _verify_runtime_dependencies()
+        or not _validate_aws_cli_binding()
         or _installed_sdk_source_sha256() != _R11_SDK_SOURCE_SHA256
+        or not _runtime_module_origins_are_bound(
+            sys.modules,
+            closure_only=__name__ != "__main__",
+        )
         or not _sdk_module_origins_are_bound(
             {
                 name: module
@@ -862,12 +1558,82 @@ def _require_production_factory_authority() -> None:
         )
 
 
+def _lookup_fixed_r11_secret(secret_id: str, region: str | None) -> str:
+    """Resolve only the fixed Default secret with a closed AWS CLI process."""
+
+    diagnostic = "futures Preview R11 credential preparation failed"
+    if secret_id != "coinbase" or region != "us-east-1":
+        raise FuturesOrderPreviewArtifactError(diagnostic)
+    argv = [
+        str(_R11_AWS_CLI_CANONICAL_PATH),
+        "secretsmanager",
+        "get-secret-value",
+        "--secret-id",
+        "coinbase",
+        "--region",
+        "us-east-1",
+        "--endpoint-url",
+        "https://secretsmanager.us-east-1.amazonaws.com",
+        "--ca-bundle",
+        str(_R11_AWS_CLI_CA_BUNDLE),
+        "--output",
+        "json",
+        "--no-cli-pager",
+        "--cli-connect-timeout",
+        "10",
+        "--cli-read-timeout",
+        "20",
+    ]
+    environment = {
+        "AWS_CLI_AUTO_PROMPT": "off",
+        "AWS_CLI_HISTORY_FILE": "/dev/null",
+        "AWS_CONFIG_FILE": "/dev/null",
+        "AWS_DEFAULT_REGION": "us-east-1",
+        "AWS_EC2_METADATA_DISABLED": "true",
+        "AWS_MAX_ATTEMPTS": "1",
+        "AWS_PAGER": "",
+        "AWS_PROFILE": "default",
+        "AWS_REGION": "us-east-1",
+        "AWS_RETRY_MODE": "standard",
+        "AWS_SHARED_CREDENTIALS_FILE": "/home/developer/.aws/credentials",
+        "HOME": "/nonexistent",
+        "LC_ALL": "C",
+        "PATH": str(_R11_AWS_CLI_CANONICAL_PATH.parent),
+    }
+    try:
+        completed = subprocess.run(
+            argv,
+            cwd=REPO_ROOT,
+            env=environment,
+            check=False,
+            capture_output=True,
+            text=True,
+            stdin=subprocess.DEVNULL,
+            timeout=35,
+        )
+        payload = completed.stdout
+        if (
+            completed.returncode != 0
+            or not isinstance(payload, str)
+            or not payload.strip()
+            or len(payload.encode("utf-8")) > _R11_MAX_AWS_SECRET_RESPONSE_BYTES
+        ):
+            raise FuturesOrderPreviewArtifactError(diagnostic)
+        return payload
+    except FuturesOrderPreviewArtifactError:
+        raise
+    except Exception:
+        raise FuturesOrderPreviewArtifactError(diagnostic) from None
+
+
 def _build_r11_preview_rest_client() -> FuturesPreviewOnlyRestClient:
     """Hydrate one canonical zero-retry client behind the Preview-only facade."""
 
     _require_production_factory_authority()
     return FuturesPreviewOnlyRestClient(
-        base_tool._build_canonical_default_rest_client()
+        base_tool._build_canonical_default_rest_client(
+            run_secret_lookup=_lookup_fixed_r11_secret,
+        )
     )
 
 

@@ -57,6 +57,31 @@ official `v1.8.4` tag:
 - `coinbase/rest/types/base_response.py`: `89e40f2f95020a5ea1a4323200a2473c30681b9de4ce8a0de561ec4c739e5989`;
 - `coinbase/rest/types/orders_types.py`: `19552322d672d194aad8cf91b7a07038360c6d9504ac4fce1e7524b7728317b2`.
 
+The bootstrap also binds the complete confirmed non-stdlib execution closure,
+not only the four Preview-path files. The canonical
+`r11-runtime-dependency-binding-v1` manifest contains exactly these 17
+distributions and versions:
+
+- `coinbase-advanced-py==1.8.4`, `requests==2.34.2`, `urllib3==2.7.0`,
+  `PyJWT==2.13.0`, `cryptography==49.0.0`, and `cffi==2.1.0`;
+- `certifi==2026.6.17`, `charset-normalizer==3.4.9`, `idna==3.18`,
+  `backoff==2.2.1`, `websockets==13.1`, and `PySocks==1.7.1`;
+- `pydantic==2.13.4`, `pydantic_core==2.46.4`,
+  `annotated-types==0.7.0`, `typing-inspection==0.4.2`, and
+  `typing_extensions==4.16.0`.
+
+Its exact binding SHA-256 is
+`2119cad7e5d47201a637511c61944ff01be7b5708cb642be8da8634edb8f1541`.
+Before any project import, every distribution's exact site, metadata name,
+version, `RECORD` hash, recorded-file size, and recorded-file digest must
+validate, with no symlink, duplicate provider, cross-site shadow, or
+unrecorded executable source or extension. A persistent import-origin guard
+then admits site-package modules only when their origins are in that verified
+`RECORD` file set. It remains installed for lazy imports, and loaded origins
+are swept again after the fixed SDK and project imports. An unexpected
+non-stdlib import therefore fails closed instead of expanding the manifest at
+runtime.
+
 The two validation layers remain separate:
 
 1. The shallow wire-envelope validator checks the attributes present on the raw
@@ -98,6 +123,49 @@ Reservation write, file-`fsync`, close, or directory-`fsync` ambiguity is
 reported only as the fixed claim-persistence consumed diagnostic. It cannot
 leak an underlying exception or authorize another invocation.
 
+## Credential Lookup Boundary
+
+The Secrets Manager subprocess is also hash-bound before live activation. It
+uses the absolute, versioned executable
+`/home/developer/.local/aws-cli/v2/2.35.24/dist/aws`, never the mutable
+`aws` name or a `current`/`PATH` lookup. The executable SHA-256 is
+`cf06831bd626c1132effdff0c403cc115ae15fe83aaf455f43e504c148d344e5`.
+The complete versioned AWS CLI tree is bound to 8,649 entries, 254,415,287
+regular-file bytes, and SHA-256
+`ec5b4574cc2fd9ee0f91afe7cef682a52ded5ac98faeae9bbc23b0b6f04ff7c1`.
+The command also pins that tree's
+`dist/awscli/botocore/cacert.pem`, the `coinbase` secret id, the
+`us-east-1` region, the regional HTTPS Secrets Manager endpoint, JSON output,
+no pager, one AWS attempt, and bounded connect/read/process timeouts.
+
+Its child environment is constructed from scratch with only this allowlist:
+
+- `AWS_CLI_AUTO_PROMPT=off`, `AWS_CLI_HISTORY_FILE=/dev/null`,
+  `AWS_CONFIG_FILE=/dev/null`, `AWS_EC2_METADATA_DISABLED=true`, and
+  `AWS_PAGER=`;
+- `AWS_DEFAULT_REGION=us-east-1`, `AWS_REGION=us-east-1`,
+  `AWS_PROFILE=default`, `AWS_MAX_ATTEMPTS=1`, and
+  `AWS_RETRY_MODE=standard`;
+- `AWS_SHARED_CREDENTIALS_FILE=/home/developer/.aws/credentials`,
+  `HOME=/nonexistent`, `LC_ALL=C`, and `PATH` equal to the versioned AWS CLI
+  `dist` directory.
+
+No ambient `PATH`, `AWS_*`, proxy, endpoint, TLS, config, or credential
+override is inherited. Preflight may validate the executable bundle and
+credential-provider file metadata without reading credential content, but it
+cannot perform a secret lookup. The deferred client first validates the exact
+exclusive persisted R11 claim; only then may its sole client factory invoke
+the fixed Secrets Manager lookup. Any scope, bundle, subprocess, timeout,
+exit-status, or bounded-output failure is reduced to the fixed value-blind
+`futures Preview R11 credential preparation failed` diagnostic. It never
+includes AWS stdout, stderr, exception text, credentials, or secret payloads.
+That post-claim failure consumes R11 and cannot authorize a second lookup or
+Coinbase attempt.
+
+This credential hardening changes no trading authority: R11 still permits at
+most one Coinbase Preview call and zero Coinbase retries, fallbacks,
+redirects, Create, Cancel, Close, Reduce, or other exchange mutations.
+
 ## Readiness And Audit Gate
 
 The one-call runner remains fail-closed until all of the following are true:
@@ -129,11 +197,12 @@ The one-call runner remains fail-closed until all of the following are true:
   module, the bootstrap verifies clean synchronized `main` revisions, zero
   backend untracked files, the exact hash-bound frontend PNG allowlist, the
   documented Python 3.13 interpreter, the exact `coinbase-advanced-py` 1.8.4
-  metadata, the audited complete SDK `RECORD`, every recorded file hash and
-  size, the absence of unrecorded SDK executable files, and the existing
-  Preview-path source hashes. The verified SDK site is made import-authoritative
-  before the fixed system dependency site, and every loaded `coinbase` module
-  origin is rechecked against the recorded tree before project imports;
+  metadata, the exact 17-distribution runtime binding, every complete
+  distribution `RECORD`, every recorded file hash and size, the absence of
+  unrecorded dependency executable files, and the existing Preview-path source
+  hashes. The verified dependency sites are ordered explicitly, a persistent
+  origin guard is installed before project imports, and all loaded site-package
+  origins are rechecked against the verified trees after imports;
 - imported mode performs the same source, repository, dependency, and origin
   checks but has no CLI bootstrap receipt. It cannot confirm R11, construct the
   fixed production store, or hydrate the canonical client. Synthetic path,
