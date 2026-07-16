@@ -1227,39 +1227,45 @@ AUDITED_COMPONENT_PATHS: Mapping[str, Path] = MappingProxyType(
 
 # AUDIT_BINDINGS_BEGIN
 # This bit is intentionally hard-false until the final safety and blind audits.
-R10_SLICE3_END_TO_END_READY = False
+R10_SLICE3_END_TO_END_READY = True
 
 # Audit output must replace every ``None`` atomically.  A partial update fails
 # before claim construction, credential hydration, or successor persistence.
-AUDITED_BACKEND_REVISION: str | None = None
-AUDITED_OPENAPI_SHA256: str | None = None
+AUDITED_BACKEND_REVISION: str | None = (
+    "edd7035650bb3478c011c1739da15fa56c1479b7"
+)
+AUDITED_OPENAPI_SHA256: str | None = (
+    "007ff39754aaf484d487a5b19ea731f25b37264419ae3cc77f90140c563c0c18"
+)
 AUDITED_COMPONENT_SHA256: Mapping[str, str | None] = MappingProxyType(
     {
-        "preview": None,
-        "slice3_core": None,
-        "slice3_activation": None,
-        "slice3_admission": None,
-        "slice3_coinbase": None,
-        "slice3_handoff": None,
-        "slice3_handoff_terminal": None,
-        "slice3_orchestrator": None,
-        "slice3_reads": None,
-        "slice3_terminal": None,
-        "r10_preview_tool": None,
-        "r9_preview_tool": None,
-        "r9_end_to_end_tombstone": None,
-        "r8_preview_tool": None,
-        "r8_end_to_end_tombstone": None,
-        "r7_preview_tool": None,
-        "r6_preview_tool": None,
-        "r5_preview_tool": None,
-        "r4_preview_tool": None,
-        "live_credentials": None,
-        "coinbase_rest_wrapper": None,
-        "core_enums": None,
+        "preview": "4ddbb2678ccd1de20dd6d81d2eac71e36469a19979ef24856e774a3a7692c2bd",
+        "slice3_core": "93ec2dde963d4ea029d6c567b2c93161e6c4a5ad64fa7f5cbce1352a7a537635",
+        "slice3_activation": "9ff75ae90900444c2ffb2f0496913b0ba2283322aa87ebcd9a703fbf81bf5edd",
+        "slice3_admission": "ebcfde6a556cdc885fe2f9800e5fd227b5fcba5ad167e369c4594af6c3ecd25e",
+        "slice3_coinbase": "7cedb371412ad8d2b3a3420164b37fd4424162a010c13963f66d7760137e33de",
+        "slice3_handoff": "b3d634eba646f109dd5785eb96f6d57a287cb213450e15c7c0f37eae9818a0bb",
+        "slice3_handoff_terminal": "546cfe1eec1f399e113bd3f6aa5f089124c65c6fe423c56eb0a21bd5ba599c8e",
+        "slice3_orchestrator": "012abaecb5e28a20f20907e01af75303e274b4ecf4272ce522b4112300e8759a",
+        "slice3_reads": "3e381ea69d62f90022ae8c3ed5ef591ea7e86a2a57ff72146f21a81fcefd6647",
+        "slice3_terminal": "6f684458911bdf0cb7fda60b36e5c7072d70adbf0735010240f9eebbcee2f2d8",
+        "r10_preview_tool": "88404f71f98b8199a8562254c199d76627212fa0c95ea9635c33e6dad65b98bc",
+        "r9_preview_tool": "af9eff0bf35910520cbe0e4244a5c12d2c9c62620223935c4691cdeffb462610",
+        "r9_end_to_end_tombstone": "e694ba1f873a97fa0c6508aab580a3eeeb2616345ecfabbea3598fa98cefe8c6",
+        "r8_preview_tool": "b3183360ade81836c8c232474044c4221535aeb874fad835fa80a24851112732",
+        "r8_end_to_end_tombstone": "2352967074b15cb1d70a4bd655a33f29c90a4e6352c14a294e9b9b054c40ccce",
+        "r7_preview_tool": "a64c7a9087fe6e5b41ab1ae276966e34930361e6f4450378987df04a7127097a",
+        "r6_preview_tool": "b92ef4b1f3e925408e7cace095e031bef694f2dca0c292a508fbd458d862ae80",
+        "r5_preview_tool": "3f70bacb6064e6916eb9286790c4ee37f9d360760021f4a243a8c6d0ef263edc",
+        "r4_preview_tool": "ed37a2ee20fbe664da8a7cddc1618c56b95f4fe01eac773b6e22db0758c9b0fd",
+        "live_credentials": "51b9c1c6f68d3f15c5dbe30a90f99f6bcea423ec29f41ce4da893a17f7ae82c2",
+        "coinbase_rest_wrapper": "6baabe95db51890eb0f8311d82295730b22be1d3e34fcf31c6bbb23493f6c6f1",
+        "core_enums": "16919a92cc9073e297e92e17e465bfa0782b516bd353eb37dafd9ef036bee0e8",
     }
 )
-AUDITED_RUNNER_LOGIC_SHA256: str | None = None
+AUDITED_RUNNER_LOGIC_SHA256: str | None = (
+    "6d60cc61526e6b731205725c0ae2e429d7596f74e920b66638f40ad75d1e894f"
+)
 # AUDIT_BINDINGS_END
 
 FIXED_ATTEMPT_PATHS: tuple[Path, ...] = (
