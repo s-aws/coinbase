@@ -1,17 +1,63 @@
 # Coinbase Admin MVP Goal
 
-Goal ID: `futures_post_r10_preview_compatibility_and_direction_selection`
+Goal ID: `futures_preview_acceptance_recovery_r11`
 
 Last reviewed: 2026-07-16 UTC.
 
-Status: `complete — official wire schema and stricter project acceptance separated prospectively; R1-R10 immutable; no R11 or live authority`
+Status: `authorized — Slice 2R11 preparing/audit gate inactive; R11 is unconsumed; exactly one Preview remains gated`
 
 The canonical cross-repository authority is
 `/home/developer/coinbase/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. This
 backend copy records the behavior-owner interpretation and must remain aligned
 with it.
 
-## Completed Post-R10 Compatibility And Direction Selection
+## Active Slice 2R11 Successor Workflow
+
+The current cross-repository alignment token is
+`authorized_r11_preparation_live_gate_inactive`. The current next action is
+`prepare_audit_and_consume_single_r11_preview_then_offline_diagnosis`.
+Preparation, integration, remediation, testing, local deployment validation,
+and independent safety plus blind-contextless audits may run for at most ten
+bounded offline or online-official-documentation-only cycles. The Preview call
+gate remains inactive until the prepared revisions and audit receipts are
+bound and every focused readiness check passes.
+
+R11 is unconsumed. No R11 terminal claim or result is asserted by this
+preparation posture. Once readiness is independently established, the workflow
+may consume exactly one Coinbase Preview-only R11 call. There are zero retries,
+fallbacks, redirects, Create, Cancel, Close, Reduce, or other exchange
+mutations. An unknown result consumes R11 and cannot be retried. A failed
+preparation, audit, or terminal result continues into the already authorized
+bounded offline diagnosis and remediation; it does not create a second call.
+
+The fixed scope remains the exact V3 policy, product `AVP-20DEC30-CDE`, one
+contract, and strict `<100 / <150 / <300 USDC` caps. The integration is pinned
+to `coinbase-advanced-py==1.8.4`. It must validate the raw SDK envelope before
+any recursive `_plain()` normalization, reject converter-only envelopes, and
+keep `preview_id` ephemeral by making it hashed or withheld before persistence
+or readback. Diagnostics are fixed value-blind diagnostics: they never expose
+raw response values, exception text, secrets, private identifiers, or the
+restricted Preview identifier.
+
+Every R1-R10 artifact byte and documented hash remains immutable. R8 content
+and hash remain inaccessible; only the existing opaque forensic contract may
+be used. The audit gate must revalidate the exact R10 predecessor binding,
+prepared backend/frontend revisions, normalized runner hash, SDK pin, and
+audited component hashes before the single call. The fixed V3 authoritative
+preflight reads remain bounded to one invocation per category and cannot be
+used as another Preview, retry, fallback, redirect, or mutation path.
+
+This goal grants no R12 attempt, no Slice 3, Slice 4, or Slice 5 activation,
+and no other live authority. It stops only after R11 is terminal and the
+authorized offline diagnosis/remediation is complete, or when proceeding would
+require changing the product, contract count, V3 policy, caps, or one-call
+limit. The durable preparation contract is
+`docs/FUTURES_SLICE_2R11_PREPARATION.md`.
+
+## Historical Completed Post-R10 Compatibility And Direction Selection
+
+Historical goal id:
+`futures_post_r10_preview_compatibility_and_direction_selection`.
 
 The bounded post-R10 goal is complete. Its stable cross-repository alignment
 token is
@@ -53,7 +99,7 @@ The evidence-backed direction is:
 3. Otherwise park the sequence. Ten future attempts are not warranted by the
    available evidence, so no ten-attempt authorization set was produced.
 
-The current next action is
+The historical next action was
 `await_operator_decision_on_one_post_r10_successor_or_official_clarification`.
 That action is a decision point, not work or live authority. The durable schema
 mapping, source evidence, safety boundaries, and recommendation are recorded in
@@ -641,9 +687,10 @@ reconciliation, rollback, or traceability failure on it.
 A candidate blocker cannot make itself in scope by generating evidence about the candidate blocker.
 
 The post-R10 compatibility goal and its historical recovery predecessor are
-complete, and no successor is current. Slice 3, Slice 4, Slice 5, R11, and every
-unrelated successor remain unauthorized; exact-hash
-live gates remain hard stops. Fan-out,
+complete. Slice 2R11 is the only current successor, remains unconsumed, and is
+still in preparation with its audited one-Preview activation gate inactive.
+R12, Slice 3, Slice 4, Slice 5, and every unrelated successor remain
+unauthorized; exact-hash live gates remain hard stops. Fan-out,
 multi-product automation, schedulers, unattended loops, generic runtime/retry/
 recovery tightening, wallet-ledger expansion, ladders/grids, unrelated domain
 work, and broad cleanup remain parked.
@@ -662,5 +709,8 @@ broad cross-cutting changes, or when explicitly requested.
 
 R7, R8, R9, and R10 are terminal and their authorized offline
 diagnosis/remediation is complete; never invoke any of those runners again.
-No R11 exists and Slice 3 did not run. Any future work requires a separately
-selected and explicitly authorized goal.
+R11 is unconsumed and Slice 3 did not run. Current work is limited to the
+authorized R11 preparation, independent gates, exactly one Preview after those
+gates, and bounded offline post-terminal diagnosis/remediation. Any R12 attempt,
+second R11 call, Slice 3/4/5 activation, product/policy/cap change, or exchange
+mutation requires distinct authority.

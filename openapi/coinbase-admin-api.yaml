@@ -101290,6 +101290,7 @@ components:
           - futures_exact_no_live_preview_slice_2r8
           - futures_exact_no_live_preview_slice_2r9
           - futures_exact_no_live_preview_slice_2r10
+          - futures_exact_no_live_preview_slice_2r11
           title: Artifact Type
         status:
           type: string
@@ -101321,6 +101322,7 @@ components:
           - $ref: '#/components/schemas/AdminFuturesPreviewR7PredecessorBinding'
           - $ref: '#/components/schemas/AdminFuturesPreviewR8PredecessorBinding'
           - $ref: '#/components/schemas/AdminFuturesPreviewR9PredecessorBinding'
+          - $ref: '#/components/schemas/AdminFuturesPreviewR10PredecessorBinding'
           title: Predecessor Binding
         reserved_at:
           type: string
@@ -101494,12 +101496,14 @@ components:
           anyOf:
           - $ref: '#/components/schemas/AdminFuturesPreviewResponseSchemaBinding'
           - $ref: '#/components/schemas/AdminFuturesPreviewResponseSchemaBindingV2'
+          - $ref: '#/components/schemas/AdminFuturesPreviewResponseSchemaBindingV3'
           - type: 'null'
           title: Preview Response Schema Binding
         post_preview_diagnostic_binding:
           anyOf:
           - $ref: '#/components/schemas/AdminFuturesPreviewPostPreviewDiagnosticBinding'
           - $ref: '#/components/schemas/AdminFuturesPreviewPostPreviewDiagnosticBindingV2'
+          - $ref: '#/components/schemas/AdminFuturesPreviewPostPreviewDiagnosticBindingV3'
           - type: 'null'
           title: Post Preview Diagnostic Binding
         pre_preview_stage_evidence:
@@ -103104,6 +103108,68 @@ components:
       - identifier_values_included
       title: AdminFuturesPreviewPostPreviewDiagnosticBindingV2
       description: Exact R10 fixed-category post-Preview diagnostic contract.
+    AdminFuturesPreviewPostPreviewDiagnosticBindingV3:
+      properties:
+        schema_version:
+          type: string
+          const: '3'
+          title: Schema Version
+        policy_id:
+          type: string
+          const: slice2_preview_post_return_stage_diagnostic_v3
+          title: Policy Id
+        stage_order:
+          items:
+            type: string
+            enum:
+            - preview_response_validation
+            - candidate_cap_binding
+            - available_margin_validation
+            - seal_ready_plan_construction
+            - accepted_evidence_construction
+            - terminal_predecessor_validation
+          type: array
+          maxItems: 6
+          minItems: 6
+          title: Stage Order
+        persisted_evidence:
+          type: string
+          const: ordered_sanitized_stage_prefix_only
+          title: Persisted Evidence
+        response_validation_reason_policy:
+          type: string
+          const: fixed_post_r10_value_blind_reason_allowlist_only
+          title: Response Validation Reason Policy
+        unknown_preview_reason_policy:
+          type: string
+          const: fixed_value_blind_constant_only
+          title: Unknown Preview Reason Policy
+        raw_response_included:
+          type: boolean
+          const: false
+          title: Raw Response Included
+        external_exception_text_included:
+          type: boolean
+          const: false
+          title: External Exception Text Included
+        identifier_values_included:
+          type: boolean
+          const: false
+          title: Identifier Values Included
+      additionalProperties: false
+      type: object
+      required:
+      - schema_version
+      - policy_id
+      - stage_order
+      - persisted_evidence
+      - response_validation_reason_policy
+      - unknown_preview_reason_policy
+      - raw_response_included
+      - external_exception_text_included
+      - identifier_values_included
+      title: AdminFuturesPreviewPostPreviewDiagnosticBindingV3
+      description: Exact R11 fixed value-blind post-Preview diagnostic contract.
     AdminFuturesPreviewPostStageEvidence:
       properties:
         schema_version:
@@ -103192,6 +103258,59 @@ components:
             - futures_preview_response_liquidation_replacement_missing
             - futures_preview_response_liquidation_replacement_invalid
             - futures_preview_response_normalization_invariant_invalid
+            - futures_preview_response_base_size_invalid
+            - futures_preview_response_base_size_not_positive
+            - futures_preview_response_best_ask_invalid
+            - futures_preview_response_best_ask_not_positive
+            - futures_preview_response_best_bid_invalid
+            - futures_preview_response_best_bid_not_positive
+            - futures_preview_response_commission_total_invalid
+            - futures_preview_response_commission_total_negative
+            - futures_preview_response_official_base_size_missing
+            - futures_preview_response_official_base_size_type_invalid
+            - futures_preview_response_official_best_ask_missing
+            - futures_preview_response_official_best_ask_type_invalid
+            - futures_preview_response_official_best_bid_missing
+            - futures_preview_response_official_best_bid_type_invalid
+            - futures_preview_response_official_commission_total_missing
+            - futures_preview_response_official_commission_total_type_invalid
+            - futures_preview_response_official_current_margin_ratio_type_invalid
+            - futures_preview_response_official_errs_item_type_invalid
+            - futures_preview_response_official_errs_missing
+            - futures_preview_response_official_errs_type_invalid
+            - futures_preview_response_official_is_max_missing
+            - futures_preview_response_official_is_max_type_invalid
+            - futures_preview_response_official_margin_ratio_data_type_invalid
+            - futures_preview_response_official_order_margin_total_type_invalid
+            - futures_preview_response_official_order_total_missing
+            - futures_preview_response_official_order_total_type_invalid
+            - futures_preview_response_official_predicted_liquidation_price_type_invalid
+            - futures_preview_response_official_preview_id_type_invalid
+            - futures_preview_response_official_projected_margin_ratio_type_invalid
+            - futures_preview_response_official_quote_size_missing
+            - futures_preview_response_official_quote_size_type_invalid
+            - futures_preview_response_official_response_missing
+            - futures_preview_response_official_warning_item_type_invalid
+            - futures_preview_response_official_warning_missing
+            - futures_preview_response_official_warning_type_invalid
+            - futures_preview_response_order_total_invalid
+            - futures_preview_response_order_total_not_positive
+            - futures_preview_response_project_current_margin_ratio_invalid
+            - futures_preview_response_project_current_margin_ratio_missing
+            - futures_preview_response_project_current_margin_ratio_not_finite_or_negative
+            - futures_preview_response_project_is_max_true
+            - futures_preview_response_project_order_margin_total_invalid
+            - futures_preview_response_project_order_margin_total_missing
+            - futures_preview_response_project_order_margin_total_not_finite_or_positive
+            - futures_preview_response_project_predicted_liquidation_price_invalid
+            - futures_preview_response_project_predicted_liquidation_price_not_finite_or_positive
+            - futures_preview_response_project_preview_id_invalid
+            - futures_preview_response_project_preview_id_missing
+            - futures_preview_response_project_projected_margin_ratio_invalid
+            - futures_preview_response_project_projected_margin_ratio_missing
+            - futures_preview_response_project_projected_margin_ratio_not_finite_or_negative
+            - futures_preview_response_quote_size_invalid
+            - futures_preview_response_quote_size_not_positive
           - type: 'null'
           title: Reason Code
       additionalProperties: false
@@ -103308,6 +103427,106 @@ components:
       - original_predecessor_binding
       title: AdminFuturesPreviewPredecessorBinding
       description: Exact immutable R1 binding plus its original Slice 2 parent.
+    AdminFuturesPreviewR10PredecessorBinding:
+      allOf:
+      - oneOf:
+        - properties:
+            device:
+              const: '2096'
+            inode:
+              const: '221388'
+          required:
+          - device
+          - inode
+      properties:
+        artifact_name:
+          type: string
+          const: futures_exact_no_live_preview_slice_2r10.jsonl
+          title: Artifact Name
+        file_sha256:
+          type: string
+          const: 5dd010a706c61e78454caeec478e05cafb1a50761e9e5a9a3d485051c4efee64
+          title: File Sha256
+        evidence_sha256:
+          type: string
+          const: 5121e980ec9da81f44d9a3b14b9bbcaa7bdaf41c99189cd9234cedc08d652005
+          title: Evidence Sha256
+        device:
+          type: string
+          const: '2096'
+          title: Device
+        inode:
+          type: string
+          const: '221388'
+          title: Inode
+        size_bytes:
+          type: integer
+          const: 26144
+          title: Size Bytes
+        mode:
+          type: string
+          const: '0400'
+          title: Mode
+        mtime_ns:
+          type: string
+          const: '1784179469052389092'
+          title: Mtime Ns
+        nlink:
+          type: integer
+          const: 1
+          title: Nlink
+        status:
+          type: string
+          const: blocked
+          title: Status
+        outcome:
+          type: string
+          const: blocked
+          title: Outcome
+        preview_order_attempt_count:
+          type: integer
+          const: 1
+          title: Preview Order Attempt Count
+        exchange_submission_attempt_count:
+          type: integer
+          const: 0
+          title: Exchange Submission Attempt Count
+        submitted_notional_usdc:
+          type: string
+          const: '0'
+          title: Submitted Notional Usdc
+        executed_notional_usdc:
+          type: string
+          const: '0'
+          title: Executed Notional Usdc
+        preservation:
+          type: string
+          const: immutable_no_modify_delete_or_reuse
+          title: Preservation
+        original_predecessor_binding:
+          $ref: '#/components/schemas/AdminFuturesPreviewR9PredecessorBinding'
+      additionalProperties: false
+      type: object
+      required:
+      - artifact_name
+      - file_sha256
+      - evidence_sha256
+      - device
+      - inode
+      - size_bytes
+      - mode
+      - mtime_ns
+      - nlink
+      - status
+      - outcome
+      - preview_order_attempt_count
+      - exchange_submission_attempt_count
+      - submitted_notional_usdc
+      - executed_notional_usdc
+      - preservation
+      - original_predecessor_binding
+      title: AdminFuturesPreviewR10PredecessorBinding
+      description: Exact immutable R10 binding plus its complete predecessor chain.
     AdminFuturesPreviewR2PredecessorBinding:
       allOf:
       - oneOf:
@@ -104545,6 +104764,159 @@ components:
       title: AdminFuturesPreviewResponseSchemaBindingV2
       description: Exact R10 binding to the documented liquidation-key coexistence
         schema.
+    AdminFuturesPreviewResponseSchemaBindingV3:
+      properties:
+        schema_version:
+          type: string
+          const: '3'
+          title: Schema Version
+        policy_id:
+          type: string
+          const: post_r10_preview_wire_schema_and_acceptance_policy_v3
+          title: Policy Id
+        schema_authority:
+          type: string
+          const: official_coinbase_advanced_trade_api_docs
+          title: Schema Authority
+        official_spec_url:
+          type: string
+          const: https://docs.cdp.coinbase.com/api-reference/advanced-trade-api/rest-api/advanced-trade-spec.yaml
+          title: Official Spec Url
+        official_spec_sha256:
+          type: string
+          const: 7115b6b13132565a0a65371aadc9a0e09c725860ae5119655d8cd4d8c226a6b7
+          title: Official Spec Sha256
+        official_spec_retrieved_at:
+          type: string
+          const: '2026-07-16'
+          title: Official Spec Retrieved At
+        wire_schema_and_project_acceptance_separated:
+          type: boolean
+          const: true
+          title: Wire Schema And Project Acceptance Separated
+        official_required_response_fields:
+          items:
+            type: string
+          type: array
+          maxItems: 9
+          minItems: 9
+          title: Official Required Response Fields
+        official_optional_project_required_fields:
+          items:
+            type: string
+          type: array
+          maxItems: 3
+          minItems: 3
+          title: Official Optional Project Required Fields
+        official_required_margin_ratio_child_fields:
+          items:
+            type: string
+          type: array
+          maxItems: 0
+          title: Official Required Margin Ratio Child Fields
+        policy_relevant_optional_field_types_enforced_when_present:
+          type: boolean
+          const: true
+          title: Policy Relevant Optional Field Types Enforced When Present
+        other_optional_fields_policy:
+          type: string
+          const: ignored_uninspected_no_project_policy_relevance
+          title: Other Optional Fields Policy
+        project_required_margin_ratio_child_fields:
+          items:
+            type: string
+          type: array
+          maxItems: 2
+          minItems: 2
+          title: Project Required Margin Ratio Child Fields
+        is_max_project_policy:
+          type: string
+          const: must_be_false_for_exact_one_contract
+          title: Is Max Project Policy
+        decimal_token_policy:
+          type: string
+          const: plain_bounded_non_exponent_string
+          title: Decimal Token Policy
+        negative_zero_policy:
+          type: string
+          const: canonicalize_to_zero
+          title: Negative Zero Policy
+        official_sdk_version_verified:
+          type: string
+          const: 1.8.4
+          title: Official Sdk Version Verified
+        sdk_response_mapping_policy:
+          type: string
+          const: mapping_or_shallow_attributes_before_validation_never_recursive_plain
+          title: Sdk Response Mapping Policy
+        preview_id_handling_policy:
+          type: string
+          const: ephemeral_restricted_hash_or_withhold_before_persistence_or_readback
+          title: Preview Id Handling Policy
+        runner_integration_status:
+          type: string
+          const: wired_r11_shallow_raw_before_recursive_plain
+          title: Runner Integration Status
+        project_acceptance_policy:
+          type: string
+          const: fail_closed_no_fallback
+          title: Project Acceptance Policy
+        persisted_diagnostic_policy:
+          type: string
+          const: fixed_value_blind_category_only
+          title: Persisted Diagnostic Policy
+        r11_attempt_authority_granted:
+          type: boolean
+          const: true
+          title: R11 Attempt Authority Granted
+        coinbase_call_authority_granted:
+          type: boolean
+          const: true
+          title: Coinbase Call Authority Granted
+        preview_call_limit:
+          type: integer
+          const: 1
+          title: Preview Call Limit
+        retry_call_limit:
+          type: integer
+          const: 0
+          title: Retry Call Limit
+        exchange_mutation_authority_granted:
+          type: boolean
+          const: false
+          title: Exchange Mutation Authority Granted
+      additionalProperties: false
+      type: object
+      required:
+      - schema_version
+      - policy_id
+      - schema_authority
+      - official_spec_url
+      - official_spec_sha256
+      - official_spec_retrieved_at
+      - wire_schema_and_project_acceptance_separated
+      - official_required_response_fields
+      - official_optional_project_required_fields
+      - official_required_margin_ratio_child_fields
+      - policy_relevant_optional_field_types_enforced_when_present
+      - other_optional_fields_policy
+      - project_required_margin_ratio_child_fields
+      - is_max_project_policy
+      - decimal_token_policy
+      - negative_zero_policy
+      - official_sdk_version_verified
+      - sdk_response_mapping_policy
+      - preview_id_handling_policy
+      - runner_integration_status
+      - project_acceptance_policy
+      - persisted_diagnostic_policy
+      - r11_attempt_authority_granted
+      - coinbase_call_authority_granted
+      - preview_call_limit
+      - retry_call_limit
+      - exchange_mutation_authority_granted
+      title: AdminFuturesPreviewResponseSchemaBindingV3
+      description: Exact R11 shallow-SDK-envelope compatibility and acceptance binding.
     AdminFuturesPreviewStageEvidence:
       properties:
         schema_version:

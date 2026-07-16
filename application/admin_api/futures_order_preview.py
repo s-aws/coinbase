@@ -118,6 +118,13 @@ _PRODUCTION_FUTURES_PREVIEW_R10_ARTIFACT_PATH = (
 FUTURES_PREVIEW_R10_ARTIFACT_PATH = (
     _PRODUCTION_FUTURES_PREVIEW_R10_ARTIFACT_PATH
 )
+_PRODUCTION_FUTURES_PREVIEW_R11_ARTIFACT_PATH = (
+    FUTURES_PREVIEW_ARTIFACT_ROOT
+    / "futures_exact_no_live_preview_slice_2r11.jsonl"
+)
+FUTURES_PREVIEW_R11_ARTIFACT_PATH = (
+    _PRODUCTION_FUTURES_PREVIEW_R11_ARTIFACT_PATH
+)
 _PRODUCTION_FUTURES_PREVIEW_R8_LOCK_PATH = (
     Path(__file__).resolve().parents[2]
     / "runtime_state"
@@ -282,6 +289,10 @@ FUTURES_PREVIEW_R10_ARTIFACT_TYPE = (
     "futures_exact_no_live_preview_slice_2r10"
 )
 _R10_ARTIFACT_TYPE = FUTURES_PREVIEW_R10_ARTIFACT_TYPE
+FUTURES_PREVIEW_R11_ARTIFACT_TYPE = (
+    "futures_exact_no_live_preview_slice_2r11"
+)
+_R11_ARTIFACT_TYPE = FUTURES_PREVIEW_R11_ARTIFACT_TYPE
 _SANITIZED_PREVIEW_ARTIFACT_TYPES = frozenset(
     {
         _R5_ARTIFACT_TYPE,
@@ -290,6 +301,7 @@ _SANITIZED_PREVIEW_ARTIFACT_TYPES = frozenset(
         _R8_ARTIFACT_TYPE,
         _R9_ARTIFACT_TYPE,
         _R10_ARTIFACT_TYPE,
+        _R11_ARTIFACT_TYPE,
     }
 )
 _V3_MARGIN_WINDOW_ARTIFACT_TYPES = frozenset(
@@ -299,12 +311,27 @@ _V3_MARGIN_WINDOW_ARTIFACT_TYPES = frozenset(
         _R8_ARTIFACT_TYPE,
         _R9_ARTIFACT_TYPE,
         _R10_ARTIFACT_TYPE,
+        _R11_ARTIFACT_TYPE,
     }
 )
 _CORRECTED_RESPONSE_SCHEMA_ARTIFACT_TYPES = frozenset(
-    {_R7_ARTIFACT_TYPE, _R8_ARTIFACT_TYPE, _R9_ARTIFACT_TYPE, _R10_ARTIFACT_TYPE}
+    {
+        _R7_ARTIFACT_TYPE,
+        _R8_ARTIFACT_TYPE,
+        _R9_ARTIFACT_TYPE,
+        _R10_ARTIFACT_TYPE,
+        _R11_ARTIFACT_TYPE,
+    }
 )
 _POST_PREVIEW_DIAGNOSTIC_ARTIFACT_TYPES = frozenset(
+    {
+        _R8_ARTIFACT_TYPE,
+        _R9_ARTIFACT_TYPE,
+        _R10_ARTIFACT_TYPE,
+        _R11_ARTIFACT_TYPE,
+    }
+)
+_ACCEPTED_HANDOFF_ARTIFACT_TYPES = frozenset(
     {_R8_ARTIFACT_TYPE, _R9_ARTIFACT_TYPE, _R10_ARTIFACT_TYPE}
 )
 _MAX_ARTIFACT_BYTES = 2 * 1024 * 1024
@@ -669,6 +696,9 @@ _R10_CONSUMED_PREVIEW_IDENTIFIER_SHA256 = (
         }
     )
 )
+_R11_CONSUMED_PREVIEW_IDENTIFIER_SHA256 = (
+    _R10_CONSUMED_PREVIEW_IDENTIFIER_SHA256
+)
 
 
 def _preview_identifier_was_consumed(
@@ -687,6 +717,7 @@ def _preview_identifier_was_consumed(
         _R8_ARTIFACT_TYPE: _R7_CONSUMED_PREVIEW_IDENTIFIER_SHA256,
         _R9_ARTIFACT_TYPE: _R7_CONSUMED_PREVIEW_IDENTIFIER_SHA256,
         _R10_ARTIFACT_TYPE: _R10_CONSUMED_PREVIEW_IDENTIFIER_SHA256,
+        _R11_ARTIFACT_TYPE: _R11_CONSUMED_PREVIEW_IDENTIFIER_SHA256,
     }.get(artifact_type, _CONSUMED_PREVIEW_IDENTIFIER_SHA256)
     return identifier_sha256 in consumed_sha256
 
@@ -794,6 +825,17 @@ FUTURES_PREVIEW_POST_R10_COMPATIBILITY_BINDING = {
     "persisted_diagnostic_policy": "fixed_value_blind_category_only",
     "r11_attempt_authority_granted": False,
     "coinbase_call_authority_granted": False,
+    "exchange_mutation_authority_granted": False,
+}
+FUTURES_PREVIEW_R11_RESPONSE_SCHEMA_BINDING = {
+    **deepcopy(FUTURES_PREVIEW_POST_R10_COMPATIBILITY_BINDING),
+    "runner_integration_status": (
+        "wired_r11_shallow_raw_before_recursive_plain"
+    ),
+    "r11_attempt_authority_granted": True,
+    "coinbase_call_authority_granted": True,
+    "preview_call_limit": 1,
+    "retry_call_limit": 0,
     "exchange_mutation_authority_granted": False,
 }
 _POST_R10_OFFICIAL_REQUIRED_STRING_FIELDS = (
@@ -967,6 +1009,10 @@ _R10_POST_PREVIEW_STAGE_ALLOWLISTED_REASONS = {
     **_POST_PREVIEW_STAGE_ALLOWLISTED_REASONS,
     "preview_response_validation": _R10_PREVIEW_RESPONSE_DIAGNOSTIC_REASONS,
 }
+_R11_POST_PREVIEW_STAGE_ALLOWLISTED_REASONS = {
+    **_POST_PREVIEW_STAGE_ALLOWLISTED_REASONS,
+    "preview_response_validation": _POST_R10_PREVIEW_RESPONSE_REJECTION_REASONS,
+}
 FUTURES_PREVIEW_R8_POST_PREVIEW_DIAGNOSTIC_BINDING = {
     "schema_version": "1",
     "policy_id": "slice2_preview_post_return_stage_diagnostic_v1",
@@ -984,6 +1030,19 @@ FUTURES_PREVIEW_R10_POST_PREVIEW_DIAGNOSTIC_BINDING = {
     "response_validation_reason_policy": (
         "fixed_internal_category_allowlist_only"
     ),
+    "raw_response_included": False,
+    "external_exception_text_included": False,
+    "identifier_values_included": False,
+}
+FUTURES_PREVIEW_R11_POST_PREVIEW_DIAGNOSTIC_BINDING = {
+    "schema_version": "3",
+    "policy_id": "slice2_preview_post_return_stage_diagnostic_v3",
+    "stage_order": list(_POST_PREVIEW_STAGE_ORDER),
+    "persisted_evidence": "ordered_sanitized_stage_prefix_only",
+    "response_validation_reason_policy": (
+        "fixed_post_r10_value_blind_reason_allowlist_only"
+    ),
+    "unknown_preview_reason_policy": "fixed_value_blind_constant_only",
     "raw_response_included": False,
     "external_exception_text_included": False,
     "identifier_values_included": False,
@@ -1131,6 +1190,12 @@ class FuturesOrderPreviewAcceptedHandoffError(
     """Accepted evidence persisted, but the ephemeral handoff did not finish."""
 
 
+class _FuturesOrderPreviewTerminalPersistenceError(
+    FuturesOrderPreviewArtifactError
+):
+    """The one-use claim exists but terminal evidence could not be appended."""
+
+
 _R10_RESPONSE_ENVELOPE_INTERNAL_REASONS = frozenset(
     {
         "futures_preview_response_missing",
@@ -1267,6 +1332,13 @@ def _post_preview_stage_failure_context(
 
     reason = _POST_PREVIEW_STAGE_FALLBACK_REASONS[blocked_stage]
     if (
+        artifact_type == _R11_ARTIFACT_TYPE
+        and blocked_stage == "preview_response_validation"
+    ):
+        classified_reason = classify_post_r10_preview_response_rejection(exc)
+        if classified_reason is not None:
+            reason = classified_reason
+    elif (
         artifact_type == _R10_ARTIFACT_TYPE
         and blocked_stage == "preview_response_validation"
     ):
@@ -1587,8 +1659,47 @@ def _configured_futures_order_preview_r10_artifact_path() -> Path | None:
     return FUTURES_PREVIEW_R10_ARTIFACT_PATH
 
 
+def _configured_futures_order_preview_r11_artifact_path() -> Path | None:
+    """Return a completed valid R11 terminal, or ``None`` only if absent."""
+
+    try:
+        FUTURES_PREVIEW_R11_ARTIFACT_PATH.lstat()
+    except FileNotFoundError:
+        return None
+    except OSError:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R11 terminal readback is invalid"
+        ) from None
+    try:
+        payload = FuturesOrderPreviewArtifactStore(
+            FUTURES_PREVIEW_R11_ARTIFACT_PATH
+        ).read_completed()
+        if (
+            payload.get("artifact_type") != _R11_ARTIFACT_TYPE
+            or payload.get("predecessor_binding")
+            != FUTURES_PREVIEW_R10_TERMINAL_BINDING
+        ):
+            raise FuturesOrderPreviewArtifactError(
+                "futures Preview R11 terminal generation is invalid"
+            )
+        from application.admin_api.models import (
+            AdminFuturesOrderPreviewResponse,
+        )
+
+        AdminFuturesOrderPreviewResponse.model_validate(payload)
+    except Exception:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R11 terminal readback is invalid"
+        ) from None
+    return FUTURES_PREVIEW_R11_ARTIFACT_PATH
+
+
 def _configured_futures_order_preview_artifact_path_unlocked() -> Path:
     """Select the latest terminal while the shared successor lock is held."""
+
+    r11_path = _configured_futures_order_preview_r11_artifact_path()
+    if r11_path is not None:
+        return r11_path
 
     r10_path = _configured_futures_order_preview_r10_artifact_path()
     if r10_path is not None:
@@ -1641,7 +1752,7 @@ def _configured_futures_order_preview_artifact_path_unlocked() -> Path:
 
 
 def configured_futures_order_preview_artifact_path() -> Path:
-    """Fail-closed select R10, R9, R8, configured evidence, or immutable R7."""
+    """Fail-closed select R11 through R7 without constructing a client."""
 
     with _futures_preview_r8_advisory_lock(
         FUTURES_PREVIEW_R8_ARTIFACT_PATH,
@@ -1672,10 +1783,12 @@ class FuturesOrderPreviewArtifactStore:
             _R8_ARTIFACT_TYPE,
             _R9_ARTIFACT_TYPE,
             _R10_ARTIFACT_TYPE,
+            _R11_ARTIFACT_TYPE,
         }:
             selector_artifact_path = (
                 FUTURES_PREVIEW_R8_ARTIFACT_PATH
                 if artifact_type in {_R9_ARTIFACT_TYPE, _R10_ARTIFACT_TYPE}
+                or artifact_type == _R11_ARTIFACT_TYPE
                 else self.path
             )
             with _futures_preview_r8_advisory_lock(
@@ -1852,6 +1965,11 @@ class FuturesOrderPreviewArtifactStore:
             and claim_record.get("artifact_type") == _R10_ARTIFACT_TYPE
         ):
             _validate_r10_claim_record(claim_record)
+        elif (
+            isinstance(claim_record, Mapping)
+            and claim_record.get("artifact_type") == _R11_ARTIFACT_TYPE
+        ):
+            _validate_r11_claim_record(claim_record)
         if not isinstance(claim_record, Mapping) or any(
             record.get(key) != claim_record.get(key)
             for key in (
@@ -2793,6 +2911,7 @@ class FuturesOrderPreviewProducer:
             _R8_ARTIFACT_TYPE,
             _R9_ARTIFACT_TYPE,
             _R10_ARTIFACT_TYPE,
+            _R11_ARTIFACT_TYPE,
         }:
             raise FuturesOrderPreviewArtifactError(
                 "futures Preview artifact generation is invalid"
@@ -2806,6 +2925,7 @@ class FuturesOrderPreviewProducer:
             _R8_ARTIFACT_TYPE: "futures_exact_no_live_preview_slice_2r7.jsonl",
             _R9_ARTIFACT_TYPE: "futures_exact_no_live_preview_slice_2r8.jsonl",
             _R10_ARTIFACT_TYPE: "futures_exact_no_live_preview_slice_2r9.jsonl",
+            _R11_ARTIFACT_TYPE: "futures_exact_no_live_preview_slice_2r10.jsonl",
         }[artifact_type]
         if predecessor_binding.get("artifact_name") != expected_predecessor_name:
             raise FuturesOrderPreviewArtifactError(
@@ -2902,15 +3022,23 @@ class FuturesOrderPreviewProducer:
             )
         if self.artifact_type in _CORRECTED_RESPONSE_SCHEMA_ARTIFACT_TYPES:
             claim["preview_response_schema_binding"] = deepcopy(
-                FUTURES_PREVIEW_R10_RESPONSE_SCHEMA_BINDING
-                if self.artifact_type == _R10_ARTIFACT_TYPE
-                else FUTURES_PREVIEW_R7_RESPONSE_SCHEMA_BINDING
+                FUTURES_PREVIEW_R11_RESPONSE_SCHEMA_BINDING
+                if self.artifact_type == _R11_ARTIFACT_TYPE
+                else (
+                    FUTURES_PREVIEW_R10_RESPONSE_SCHEMA_BINDING
+                    if self.artifact_type == _R10_ARTIFACT_TYPE
+                    else FUTURES_PREVIEW_R7_RESPONSE_SCHEMA_BINDING
+                )
             )
         if self.artifact_type in _POST_PREVIEW_DIAGNOSTIC_ARTIFACT_TYPES:
             claim["post_preview_diagnostic_binding"] = deepcopy(
-                FUTURES_PREVIEW_R10_POST_PREVIEW_DIAGNOSTIC_BINDING
-                if self.artifact_type == _R10_ARTIFACT_TYPE
-                else FUTURES_PREVIEW_R8_POST_PREVIEW_DIAGNOSTIC_BINDING
+                FUTURES_PREVIEW_R11_POST_PREVIEW_DIAGNOSTIC_BINDING
+                if self.artifact_type == _R11_ARTIFACT_TYPE
+                else (
+                    FUTURES_PREVIEW_R10_POST_PREVIEW_DIAGNOSTIC_BINDING
+                    if self.artifact_type == _R10_ARTIFACT_TYPE
+                    else FUTURES_PREVIEW_R8_POST_PREVIEW_DIAGNOSTIC_BINDING
+                )
             )
         return claim
 
@@ -2925,8 +3053,9 @@ class FuturesOrderPreviewProducer:
     ) -> dict[str, Any]:
         """Reserve once, preflight, and make at most one Preview call."""
 
-        if accepted_callback is not None and self.artifact_type not in (
-            _POST_PREVIEW_DIAGNOSTIC_ARTIFACT_TYPES
+        if (
+            accepted_callback is not None
+            and self.artifact_type not in _ACCEPTED_HANDOFF_ARTIFACT_TYPES
         ):
             raise FuturesOrderPreviewArtifactError(
                 "futures Preview accepted handoff is not enabled"
@@ -2937,7 +3066,12 @@ class FuturesOrderPreviewProducer:
             reservation_claim = (
                 _withhold_r8_private_claim(claim)
                 if self.artifact_type
-                in {_R8_ARTIFACT_TYPE, _R9_ARTIFACT_TYPE, _R10_ARTIFACT_TYPE}
+                in {
+                    _R8_ARTIFACT_TYPE,
+                    _R9_ARTIFACT_TYPE,
+                    _R10_ARTIFACT_TYPE,
+                    _R11_ARTIFACT_TYPE,
+                }
                 else claim
             )
             claim_sha256 = self.store.reserve(reservation_claim)
@@ -3147,12 +3281,16 @@ class FuturesOrderPreviewProducer:
             passed_pre_preview_stages.append("terminal_context_sanitization")
             counters["preview_order"] = 1
             try:
-                preview_response = _plain(
-                    self.rest_client.preview_order(**preview_request)
+                raw_preview_response = self.rest_client.preview_order(
+                    **preview_request
                 )
             except Exception as exc:
                 transition_blocker = self._terminal_predecessor_blocker()
-                blocker = f"preview_order_unknown:{type(exc).__name__}"
+                blocker = (
+                    "preview_order_unknown_consumed"
+                    if self.artifact_type == _R11_ARTIFACT_TYPE
+                    else f"preview_order_unknown:{type(exc).__name__}"
+                )
                 if transition_blocker is not None:
                     blocker = f"{blocker};{transition_blocker}"
                 result = _terminal_failure_record(
@@ -3165,26 +3303,38 @@ class FuturesOrderPreviewProducer:
                     context=terminal_context,
                 )
                 result = _withhold_r8_private_accepted_evidence(result)
-                self.store.append_result(result)
+                self._append_terminal_result(result)
                 raise FuturesOrderPreviewArtifactError(
                     "futures Preview outcome is unknown; attempt consumed"
                 ) from exc
             try:
-                if self.artifact_type == _R10_ARTIFACT_TYPE:
-                    normalized_preview = validate_r10_preview_response_schema(
-                        preview_response
-                    )
-                elif (
-                    self.artifact_type
-                    in _CORRECTED_RESPONSE_SCHEMA_ARTIFACT_TYPES
-                ):
-                    normalized_preview = validate_r7_preview_response_schema(
-                        preview_response
+                if self.artifact_type == _R11_ARTIFACT_TYPE:
+                    normalized_preview = (
+                        validate_post_r10_preview_response_acceptance(
+                            raw_preview_response
+                        )
                     )
                 else:
-                    normalized_preview = validate_preview_response(
-                        preview_response
-                    )
+                    preview_response = _plain(raw_preview_response)
+                    if self.artifact_type == _R10_ARTIFACT_TYPE:
+                        normalized_preview = (
+                            validate_r10_preview_response_schema(
+                                preview_response
+                            )
+                        )
+                    elif (
+                        self.artifact_type
+                        in _CORRECTED_RESPONSE_SCHEMA_ARTIFACT_TYPES
+                    ):
+                        normalized_preview = (
+                            validate_r7_preview_response_schema(
+                                preview_response
+                            )
+                        )
+                    else:
+                        normalized_preview = validate_preview_response(
+                            preview_response
+                        )
             except Exception as exc:
                 if (
                     self.artifact_type
@@ -3339,7 +3489,7 @@ class FuturesOrderPreviewProducer:
             persisted_evidence = _withhold_r8_private_accepted_evidence(
                 evidence
             )
-            self.store.append_result(persisted_evidence)
+            self._append_terminal_result(persisted_evidence)
             terminal = self.store.read_completed()
             if accepted_callback is not None:
                 handoff_failed = False
@@ -3356,6 +3506,11 @@ class FuturesOrderPreviewProducer:
                     ) from None
             return terminal
         except Exception as exc:
+            if isinstance(
+                exc,
+                _FuturesOrderPreviewTerminalPersistenceError,
+            ):
+                raise
             if isinstance(exc, FuturesOrderPreviewAcceptedHandoffError):
                 raise
             if isinstance(exc, FuturesOrderPreviewArtifactError):
@@ -3380,7 +3535,11 @@ class FuturesOrderPreviewProducer:
                 else (
                     "post_preview_stage_blocked"
                     if post_stage_failure
-                    else _redacted_preflight_blocker(exc)
+                    else (
+                        "preflight_or_preview_blocked"
+                        if self.artifact_type == _R11_ARTIFACT_TYPE
+                        else _redacted_preflight_blocker(exc)
+                    )
                 )
             )
             if (
@@ -3403,10 +3562,24 @@ class FuturesOrderPreviewProducer:
                 context=terminal_context,
             )
             result = _withhold_r8_private_accepted_evidence(result)
-            self.store.append_result(result)
+            self._append_terminal_result(result)
             raise FuturesOrderPreviewArtifactError(
                 "futures Preview preflight blocked; attempt consumed"
             ) from exc
+
+    def _append_terminal_result(self, result: Mapping[str, Any]) -> None:
+        """Append once; R11 persistence ambiguity consumes without retry."""
+
+        if self.artifact_type != _R11_ARTIFACT_TYPE:
+            self.store.append_result(result)
+            return
+        try:
+            self.store.append_result(result)
+        except Exception:
+            raise _FuturesOrderPreviewTerminalPersistenceError(
+                "futures Preview terminal persistence unavailable; "
+                "attempt consumed"
+            ) from None
 
     def _terminal_predecessor_blocker(self) -> str | None:
         """Return a redacted transition blocker immediately before append."""
@@ -3414,6 +3587,10 @@ class FuturesOrderPreviewProducer:
         try:
             observed = dict(self.predecessor_validator())
         except Exception as exc:
+            if self.artifact_type == _R11_ARTIFACT_TYPE:
+                return (
+                    "futures_preview_predecessor_terminal_validation_blocked"
+                )
             return (
                 "futures_preview_predecessor_terminal_validation_blocked:"
                 f"{type(exc).__name__}"
@@ -4386,17 +4563,20 @@ def _withhold_r8_private_claim(
         FUTURES_PREVIEW_R8_ARTIFACT_TYPE,
         FUTURES_PREVIEW_R9_ARTIFACT_TYPE,
         FUTURES_PREVIEW_R10_ARTIFACT_TYPE,
+        FUTURES_PREVIEW_R11_ARTIFACT_TYPE,
     }:
         return result
     claim_validator = {
         FUTURES_PREVIEW_R8_ARTIFACT_TYPE: _validate_r8_ephemeral_claim_record,
         FUTURES_PREVIEW_R9_ARTIFACT_TYPE: _validate_r9_ephemeral_claim_record,
         FUTURES_PREVIEW_R10_ARTIFACT_TYPE: _validate_r10_ephemeral_claim_record,
+        FUTURES_PREVIEW_R11_ARTIFACT_TYPE: _validate_r11_ephemeral_claim_record,
     }[artifact_type]
     persisted_validator = {
         FUTURES_PREVIEW_R8_ARTIFACT_TYPE: _validate_r8_claim_record,
         FUTURES_PREVIEW_R9_ARTIFACT_TYPE: _validate_r9_claim_record,
         FUTURES_PREVIEW_R10_ARTIFACT_TYPE: _validate_r10_claim_record,
+        FUTURES_PREVIEW_R11_ARTIFACT_TYPE: _validate_r11_claim_record,
     }[artifact_type]
     claim_validator(result)
     for field in ("correlation_id", "idempotency_key"):
@@ -4423,6 +4603,7 @@ def _withhold_r8_private_accepted_evidence(
         FUTURES_PREVIEW_R8_ARTIFACT_TYPE,
         FUTURES_PREVIEW_R9_ARTIFACT_TYPE,
         FUTURES_PREVIEW_R10_ARTIFACT_TYPE,
+        FUTURES_PREVIEW_R11_ARTIFACT_TYPE,
     }:
         return result
     accepted = result.get("outcome") == "accepted"
@@ -6321,6 +6502,80 @@ def _validate_r10_claim_record(claim: Mapping[str, Any]) -> None:
     equivalent["correlation_id"] = "00000000-0000-4000-8000-000000001001"
     equivalent["idempotency_key"] = "00000000-0000-4000-8000-000000001002"
     _validate_r10_ephemeral_claim_record(equivalent)
+
+
+def _validate_r11_ephemeral_claim_record(claim: Mapping[str, Any]) -> None:
+    """Reject in-memory R11 drift from R10 or the audited V3 policy."""
+
+    if (
+        claim.get("artifact_type") != _R11_ARTIFACT_TYPE
+        or claim.get("predecessor_binding")
+        != FUTURES_PREVIEW_R10_TERMINAL_BINDING
+        or claim.get("preview_response_schema_binding")
+        != FUTURES_PREVIEW_R11_RESPONSE_SCHEMA_BINDING
+        or claim.get("post_preview_diagnostic_binding")
+        != FUTURES_PREVIEW_R11_POST_PREVIEW_DIAGNOSTIC_BINDING
+        or _preview_identifier_was_consumed(
+            claim.get("correlation_id"),
+            artifact_type=_R11_ARTIFACT_TYPE,
+        )
+        or _preview_identifier_was_consumed(
+            claim.get("idempotency_key"),
+            artifact_type=_R11_ARTIFACT_TYPE,
+        )
+    ):
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R11 claim authority is invalid"
+        )
+    r10_equivalent = dict(claim)
+    r10_equivalent["artifact_type"] = _R10_ARTIFACT_TYPE
+    r10_equivalent["predecessor_binding"] = FUTURES_PREVIEW_R9_TERMINAL_BINDING
+    r10_equivalent["preview_response_schema_binding"] = (
+        FUTURES_PREVIEW_R10_RESPONSE_SCHEMA_BINDING
+    )
+    r10_equivalent["post_preview_diagnostic_binding"] = (
+        FUTURES_PREVIEW_R10_POST_PREVIEW_DIAGNOSTIC_BINDING
+    )
+    try:
+        _validate_r10_ephemeral_claim_record(r10_equivalent)
+    except FuturesOrderPreviewArtifactError as exc:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R11 claim authority is invalid"
+        ) from exc
+
+
+def _validate_r11_claim_record(claim: Mapping[str, Any]) -> None:
+    """Validate one persistence-safe R11 claim without raw identifiers."""
+
+    correlation_sha256 = claim.get("correlation_id_sha256")
+    idempotency_sha256 = claim.get("idempotency_key_sha256")
+    if (
+        claim.get("artifact_type") != _R11_ARTIFACT_TYPE
+        or claim.get("predecessor_binding")
+        != FUTURES_PREVIEW_R10_TERMINAL_BINDING
+        or claim.get("preview_response_schema_binding")
+        != FUTURES_PREVIEW_R11_RESPONSE_SCHEMA_BINDING
+        or claim.get("post_preview_diagnostic_binding")
+        != FUTURES_PREVIEW_R11_POST_PREVIEW_DIAGNOSTIC_BINDING
+        or claim.get("correlation_id") != "withheld"
+        or claim.get("idempotency_key") != "withheld"
+        or not isinstance(correlation_sha256, str)
+        or not isinstance(idempotency_sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", correlation_sha256) is None
+        or re.fullmatch(r"[0-9a-f]{64}", idempotency_sha256) is None
+        or correlation_sha256 == idempotency_sha256
+        or correlation_sha256 in _R11_CONSUMED_PREVIEW_IDENTIFIER_SHA256
+        or idempotency_sha256 in _R11_CONSUMED_PREVIEW_IDENTIFIER_SHA256
+    ):
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R11 claim authority is invalid"
+        )
+    equivalent = dict(claim)
+    equivalent.pop("correlation_id_sha256", None)
+    equivalent.pop("idempotency_key_sha256", None)
+    equivalent["correlation_id"] = "00000000-0000-4000-8000-000000001101"
+    equivalent["idempotency_key"] = "00000000-0000-4000-8000-000000001102"
+    _validate_r11_ephemeral_claim_record(equivalent)
 
 
 def _zero_read_counters() -> dict[str, int]:

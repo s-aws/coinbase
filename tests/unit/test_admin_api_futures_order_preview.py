@@ -6928,6 +6928,8 @@ def test_store_rejects_self_consistent_terminal_chain_contradictions(
 
 
 def test_coinbase_wrapper_preview_call_shape_and_count():
+    preview_converter_called = False
+
     class FakeSdk:
         def __init__(self) -> None:
             self.calls: list[dict[str, object]] = []
@@ -6937,8 +6939,17 @@ def test_coinbase_wrapper_preview_call_shape_and_count():
             return SimpleNamespace(to_dict=lambda: _book())
 
         def preview_order(self, **kwargs: object) -> SimpleNamespace:
+            nonlocal preview_converter_called
             self.calls.append({"method": "preview_order", **kwargs})
-            return SimpleNamespace(to_dict=lambda: _preview())
+            response = SimpleNamespace()
+
+            def forbidden_converter() -> dict[str, object]:
+                nonlocal preview_converter_called
+                preview_converter_called = True
+                raise AssertionError("Preview response must remain raw")
+
+            response.to_dict = forbidden_converter
+            return response
 
     sdk = FakeSdk()
     client = CoinbaseRestClient(sdk)
@@ -6955,7 +6966,9 @@ def test_coinbase_wrapper_preview_call_shape_and_count():
     }
 
     assert client.get_best_bid_ask(product_ids=[FUTURES_PREVIEW_PRODUCT_ID]) == _book()
-    assert client.preview_order(**request) == _preview()
+    raw_preview = client.preview_order(**request)
+    assert isinstance(raw_preview, SimpleNamespace)
+    assert preview_converter_called is False
     assert sdk.calls == [
         {
             "method": "get_best_bid_ask",
@@ -9379,6 +9392,7 @@ def test_openapi_exposes_typed_read_only_preview_contract():
         "futures_exact_no_live_preview_slice_2r8",
         "futures_exact_no_live_preview_slice_2r9",
         "futures_exact_no_live_preview_slice_2r10",
+        "futures_exact_no_live_preview_slice_2r11",
     }
     assert "margin_windows_policy_evidence" in response_schema["properties"]
     assert "predecessor_binding" in response_schema["required"]
@@ -9398,6 +9412,7 @@ def test_openapi_exposes_typed_read_only_preview_contract():
         "#/components/schemas/AdminFuturesPreviewR7PredecessorBinding",
         "#/components/schemas/AdminFuturesPreviewR8PredecessorBinding",
         "#/components/schemas/AdminFuturesPreviewR9PredecessorBinding",
+        "#/components/schemas/AdminFuturesPreviewR10PredecessorBinding",
     }
     assert "preview_response_schema_binding" in response_schema["properties"]
     response_binding_refs = {
@@ -9410,6 +9425,7 @@ def test_openapi_exposes_typed_read_only_preview_contract():
     assert response_binding_refs == {
         "#/components/schemas/AdminFuturesPreviewResponseSchemaBinding",
         "#/components/schemas/AdminFuturesPreviewResponseSchemaBindingV2",
+        "#/components/schemas/AdminFuturesPreviewResponseSchemaBindingV3",
     }
     forensic_schema = schema["components"]["schemas"][
         "AdminFuturesPreviewR8ForensicReadback"
@@ -9431,6 +9447,7 @@ def test_openapi_exposes_typed_read_only_preview_contract():
     assert diagnostic_binding_refs == {
         "#/components/schemas/AdminFuturesPreviewPostPreviewDiagnosticBinding",
         "#/components/schemas/AdminFuturesPreviewPostPreviewDiagnosticBindingV2",
+        "#/components/schemas/AdminFuturesPreviewPostPreviewDiagnosticBindingV3",
     }
     assert "terminal_diagnostic_classification" in response_schema["required"]
     assert response_schema["properties"]["terminal_diagnostic_classification"] == {
@@ -9552,6 +9569,7 @@ def test_openapi_exposes_typed_read_only_preview_contract():
     expected_post_reason_codes = set().union(
         *preview_module._POST_PREVIEW_STAGE_ALLOWLISTED_REASONS.values(),
         *preview_module._R10_POST_PREVIEW_STAGE_ALLOWLISTED_REASONS.values(),
+        *preview_module._R11_POST_PREVIEW_STAGE_ALLOWLISTED_REASONS.values(),
         preview_module._POST_PREVIEW_STAGE_FALLBACK_REASONS.values(),
     )
     assert set(post_reason_enum) == expected_post_reason_codes
@@ -9891,6 +9909,329 @@ def _r10_producer(
         ),
     )
     return producer, store, path
+
+
+def _r11_producer(
+    tmp_path: Path,
+    rest_client: FakePreviewRestClient,
+) -> tuple[
+    FuturesOrderPreviewProducer,
+    FuturesOrderPreviewArtifactStore,
+    Path,
+]:
+    path = tmp_path / "synthetic-r11.jsonl"
+    store = FuturesOrderPreviewArtifactStore(path)
+    producer = FuturesOrderPreviewProducer(
+        rest_client=rest_client,
+        store=store,
+        predecessor_binding=dict(
+            preview_module.FUTURES_PREVIEW_R10_TERMINAL_BINDING
+        ),
+        predecessor_validator=lambda: dict(
+            preview_module.FUTURES_PREVIEW_R10_TERMINAL_BINDING
+        ),
+        artifact_type=preview_module.FUTURES_PREVIEW_R11_ARTIFACT_TYPE,
+        now=lambda: NOW,
+        correlation_id_factory=lambda: (
+            "18a129f8-59b9-4c04-a393-9c0341691109"
+        ),
+        idempotency_key_factory=lambda: (
+            "c4d4999c-6537-482c-8161-7fc9c60c1136"
+        ),
+    )
+    return producer, store, path
+
+
+def test_r11_claim_is_fresh_hash_only_exactly_bounded_and_binds_r10(
+    tmp_path: Path,
+) -> None:
+    producer, store, path = _r11_producer(
+        tmp_path,
+        _r8_compatible_rest_client(),
+    )
+
+    claim = producer.build_claim()
+    preview_module._validate_r11_ephemeral_claim_record(claim)
+    persisted = preview_module._withhold_r8_private_claim(claim)
+    preview_module._validate_r11_claim_record(persisted)
+
+    assert claim["predecessor_binding"] == (
+        preview_module.FUTURES_PREVIEW_R10_TERMINAL_BINDING
+    )
+    assert claim["preview_response_schema_binding"] == (
+        preview_module.FUTURES_PREVIEW_R11_RESPONSE_SCHEMA_BINDING
+    )
+    assert claim["post_preview_diagnostic_binding"] == (
+        preview_module.FUTURES_PREVIEW_R11_POST_PREVIEW_DIAGNOSTIC_BINDING
+    )
+    assert claim["product_id"] == "AVP-20DEC30-CDE"
+    assert claim["contract_count"] == "1"
+    assert claim["preview_order_attempt_max"] == 1
+    assert claim["retry_attempt_max"] == 0
+    assert claim["fallback_attempt_max"] == 0
+    assert claim["create_order_attempt_max"] == 0
+    assert claim["cancel_order_attempt_max"] == 0
+    assert claim["close_position_attempt_max"] == 0
+    assert claim["reduce_position_attempt_max"] == 0
+    assert persisted["correlation_id"] == "withheld"
+    assert persisted["idempotency_key"] == "withheld"
+    assert path.exists() is False
+    assert store.path == path
+
+
+@pytest.mark.parametrize(
+    "field",
+    ("correlation_id_sha256", "idempotency_key_sha256"),
+)
+def test_r11_claim_rejects_every_consumed_predecessor_identifier_hash(
+    tmp_path: Path,
+    field: str,
+) -> None:
+    producer, _store, _path = _r11_producer(
+        tmp_path,
+        _r8_compatible_rest_client(),
+    )
+    persisted = preview_module._withhold_r8_private_claim(
+        producer.build_claim()
+    )
+
+    for consumed_sha256 in (
+        preview_module._R11_CONSUMED_PREVIEW_IDENTIFIER_SHA256
+    ):
+        candidate = dict(persisted)
+        candidate[field] = consumed_sha256
+
+        with pytest.raises(
+            FuturesOrderPreviewArtifactError,
+            match="R11 claim authority is invalid",
+        ):
+            preview_module._validate_r11_claim_record(candidate)
+
+
+def test_r11_raw_sdk_envelope_is_validated_before_plain_and_persisted_hash_only(
+    tmp_path: Path,
+) -> None:
+    from coinbase.rest.types.orders_types import PreviewOrderResponse
+
+    class TrapPreviewOrderResponse(PreviewOrderResponse):
+        converter_called = False
+
+        def to_dict(self) -> dict[str, object]:
+            type(self).converter_called = True
+            raise AssertionError("R11 must validate the shallow raw envelope")
+
+    rest_client = _r8_compatible_rest_client()
+    rest_client.preview_response["is_max"] = False
+    raw_response = TrapPreviewOrderResponse(dict(rest_client.preview_response))
+
+    def preview_order(**kwargs: object) -> object:
+        rest_client.read_calls.append("preview_order")
+        rest_client.preview_calls.append(dict(kwargs))
+        return raw_response
+
+    rest_client.preview_order = preview_order  # type: ignore[method-assign]
+    producer, store, path = _r11_producer(tmp_path, rest_client)
+
+    terminal = producer.run()
+
+    assert terminal == store.read_completed()
+    assert terminal["artifact_type"] == (
+        preview_module.FUTURES_PREVIEW_R11_ARTIFACT_TYPE
+    )
+    assert terminal["predecessor_binding"] == (
+        preview_module.FUTURES_PREVIEW_R10_TERMINAL_BINDING
+    )
+    assert terminal["status"] == terminal["outcome"] == "accepted"
+    assert terminal["preview_response"]["preview_id"] == "withheld"
+    assert len(terminal["preview_id_sha256"]) == 64
+    assert TrapPreviewOrderResponse.converter_called is False
+    persisted_text = path.read_text(encoding="utf-8")
+    assert "preview-avp-1" not in persisted_text
+    assert "current_liquidation_buffer" not in persisted_text
+    assert "projected_liquidation_buffer" not in persisted_text
+    assert terminal["attempt_counters"] == {
+        "preview_order": 1,
+        "retry": 0,
+        "fallback": 0,
+        "create_order": 0,
+        "cancel_order": 0,
+        "close_position": 0,
+        "reduce_position": 0,
+    }
+    assert len(rest_client.preview_calls) == 1
+    assert rest_client.forbidden_calls == []
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="already consumed"):
+        producer.run()
+    assert len(rest_client.preview_calls) == 1
+
+
+def test_r11_converter_only_envelope_is_value_blind_and_consumed(
+    tmp_path: Path,
+) -> None:
+    class ConverterOnlyEnvelope:
+        __slots__ = ()
+        converter_called = False
+
+        def to_dict(self) -> dict[str, object]:
+            type(self).converter_called = True
+            raise AssertionError("converter-only envelope must not be traversed")
+
+    rest_client = _r8_compatible_rest_client()
+
+    def preview_order(**kwargs: object) -> object:
+        rest_client.read_calls.append("preview_order")
+        rest_client.preview_calls.append(dict(kwargs))
+        return ConverterOnlyEnvelope()
+
+    rest_client.preview_order = preview_order  # type: ignore[method-assign]
+    producer, store, path = _r11_producer(tmp_path, rest_client)
+
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="attempt consumed"):
+        producer.run()
+
+    terminal = store.read_completed()
+    assert terminal["status"] == terminal["outcome"] == "blocked"
+    assert terminal["blocker"] == "post_preview_stage_blocked"
+    assert terminal["post_preview_stage_evidence"]["stages"] == [
+        {
+            "stage": "preview_response_validation",
+            "status": "blocked",
+            "reason_code": (
+                "futures_preview_response_official_response_missing"
+            ),
+        }
+    ]
+    assert ConverterOnlyEnvelope.converter_called is False
+    assert "preview_response" not in terminal
+    assert "preview_response_sha256" not in terminal
+    assert "converter" not in path.read_text(encoding="utf-8").lower()
+    assert len(rest_client.preview_calls) == 1
+
+
+def test_r11_early_preflight_failure_uses_only_fixed_value_blind_diagnostic(
+    tmp_path: Path,
+) -> None:
+    class PrivateR11PreflightFailure(RuntimeError):
+        pass
+
+    rest_client = _r8_compatible_rest_client()
+
+    def get_api_key_permissions() -> object:
+        raise PrivateR11PreflightFailure("PRIVATE_R11_EXCEPTION_TEXT")
+
+    rest_client.get_api_key_permissions = (  # type: ignore[method-assign]
+        get_api_key_permissions
+    )
+    producer, store, path = _r11_producer(tmp_path, rest_client)
+
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="attempt consumed"):
+        producer.run()
+
+    terminal = store.read_completed()
+    assert terminal["status"] == terminal["outcome"] == "blocked"
+    assert terminal["blocker"] == "preflight_or_preview_blocked"
+    assert terminal["attempt_counters"]["preview_order"] == 0
+    persisted_text = path.read_text(encoding="utf-8")
+    assert "PrivateR11PreflightFailure" not in persisted_text
+    assert "PRIVATE_R11_EXCEPTION_TEXT" not in persisted_text
+
+
+def test_r11_terminal_predecessor_failure_uses_fixed_value_blind_diagnostic(
+    tmp_path: Path,
+) -> None:
+    producer, _store, _path = _r11_producer(
+        tmp_path,
+        _r8_compatible_rest_client(),
+    )
+
+    def private_predecessor_failure() -> dict[str, object]:
+        raise RuntimeError("PRIVATE_R11_PREDECESSOR_TEXT")
+
+    producer.predecessor_validator = private_predecessor_failure
+
+    assert producer._terminal_predecessor_blocker() == (
+        "futures_preview_predecessor_terminal_validation_blocked"
+    )
+
+
+def test_r11_rejects_accepted_callback_before_reservation(
+    tmp_path: Path,
+) -> None:
+    producer, _store, path = _r11_producer(
+        tmp_path,
+        _r8_compatible_rest_client(),
+    )
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="accepted handoff is not enabled",
+    ):
+        producer.run(accepted_callback=lambda *_args: None)
+
+    assert path.exists() is False
+
+
+def test_latest_preview_selector_serves_valid_r11_before_r10(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rest_client = _r8_compatible_rest_client()
+    rest_client.preview_response["is_max"] = False
+    producer, _store, path = _r11_producer(tmp_path, rest_client)
+    producer.run()
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R11_ARTIFACT_PATH",
+        path,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "_configured_futures_order_preview_r10_artifact_path",
+        lambda: (_ for _ in ()).throw(AssertionError("R10 fallback selected")),
+    )
+
+    selected = (
+        preview_module._configured_futures_order_preview_artifact_path_unlocked()
+    )
+
+    assert selected == path
+
+
+def test_present_nonterminal_r11_claim_blocks_r10_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    producer, store, path = _r11_producer(
+        tmp_path,
+        _r8_compatible_rest_client(),
+    )
+    claim = preview_module._withhold_r8_private_claim(producer.build_claim())
+    store.reserve(claim)
+    fallback_called = False
+
+    def forbidden_fallback() -> None:
+        nonlocal fallback_called
+        fallback_called = True
+        raise AssertionError("R10 fallback selected")
+
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R11_ARTIFACT_PATH",
+        path,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "_configured_futures_order_preview_r10_artifact_path",
+        forbidden_fallback,
+    )
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="R11 terminal readback is invalid",
+    ):
+        preview_module._configured_futures_order_preview_artifact_path_unlocked()
+
+    assert fallback_called is False
 
 
 def test_r10_coexistent_liquidation_shape_is_sanitized_one_use_and_bounded(

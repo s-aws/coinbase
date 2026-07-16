@@ -327,7 +327,7 @@ class CoinbaseRestClient:
         order_configuration: Dict[str, Any],
         leverage: Optional[str] = None,
         margin_type: Optional[str] = None,
-    ) -> Dict[str, Any]:
+    ) -> Any:
         """Call Coinbase Preview Order without creating an order.
 
         Optional values are omitted rather than serialized as null.  CDP key
@@ -344,9 +344,12 @@ class CoinbaseRestClient:
             kwargs["leverage"] = leverage
         if margin_type is not None:
             kwargs["margin_type"] = margin_type
-        response = self._client.preview_order(**kwargs)
-        data = coinbase_sdk_response_to_dict(response)
-        return data if isinstance(data, dict) else {}
+        # The R11 Preview boundary must inspect the SDK's shallow raw envelope
+        # before any recursive ``to_dict`` conversion.  Older producer
+        # generations still normalize this return value themselves, so keeping
+        # this one canonical method raw preserves their behavior while making
+        # the ordering invariant enforceable for R11.
+        return self._client.preview_order(**kwargs)
     
     # ========================================================================
     # Order Methods

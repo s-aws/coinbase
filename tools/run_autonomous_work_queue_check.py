@@ -18,9 +18,15 @@ BACKEND_E2E_PLAN = PROJECT_ROOT / "docs" / "plans" / "ADMIN_API_E2E_PLAN.md"
 POST_R10_DIRECTION_DOC = (
     PROJECT_ROOT / "docs" / "FUTURES_POST_R10_COMPATIBILITY_DIRECTION.md"
 )
+R11_PREPARATION_DOC = (
+    PROJECT_ROOT / "docs" / "FUTURES_SLICE_2R11_PREPARATION.md"
+)
 FRONTEND_QUEUE_DOC = FRONTEND_ROOT / "docs" / "plans" / "AUTONOMOUS_WORK_QUEUE.md"
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-GOAL_ID = "futures_post_r10_preview_compatibility_and_direction_selection"
+GOAL_ID = "futures_preview_acceptance_recovery_r11"
+HISTORICAL_POST_R10_GOAL_ID = (
+    "futures_post_r10_preview_compatibility_and_direction_selection"
+)
 HISTORICAL_R8_R10_GOAL_ID = (
     "futures_preview_acceptance_recovery_r8_r10_and_"
     "conditional_terminal_roundtrip_slice_3"
@@ -28,17 +34,18 @@ HISTORICAL_R8_R10_GOAL_ID = (
 HISTORICAL_PHASE_RANGE = "7961-7980"
 HISTORICAL_PHASES = tuple(range(7961, 7981))
 PHASE_RANGE_STATUS = "historical_not_work_authority"
-COMPLETION_ALIGNMENT_TOKEN = (
+POST_R10_COMPLETION_ALIGNMENT_TOKEN = (
     "official_wire_schema_and_project_acceptance_separated_prospectively"
 )
+R11_ALIGNMENT_TOKEN = "authorized_r11_preparation_live_gate_inactive"
 CLOSED_LOOPHOLE_RULE = (
     "A candidate blocker cannot make itself in scope by generating evidence "
     "about the candidate blocker."
 )
-SLICE_STATUS = "complete"
+SLICE_STATUS = "preparing_audit_gate_inactive"
 SLICE_BLOCKERS: tuple[str, ...] = ()
 DEFAULT_NEXT_ACTION = (
-    "await_operator_decision_on_one_post_r10_successor_or_official_clarification"
+    "prepare_audit_and_consume_single_r11_preview_then_offline_diagnosis"
 )
 SUCCESSOR_MAPPING_INVARIANT = (
     "A future successor must pass the raw SDK envelope to the shallow "
@@ -56,14 +63,14 @@ R7_TERMINAL_DIAGNOSTIC = (
     "sdk_returned__post_preview_value_error__before_acceptance"
 )
 MVP_SCOPE = {
-    "work_mode": "post_r10_compatibility_complete_awaiting_operator_decision",
+    "work_mode": "authorized_r11_preparation_and_single_preview_workflow",
     "goal_authority": str(FRONTEND_GOAL_DOC),
     "frontend_authority": "operator_ui_only",
     "live_action_path": "auditable_backend_admin_interfaces_only",
     "phase_range_policy": "parked_unless_direct_current_slice_blocker",
-    "current_vertical_slice": None,
-    "direct_blocker_rule": "no_current_slice_no_implicit_work_authority",
-    "scope_posture": "completed_post_r10_no_live_authority",
+    "current_vertical_slice": "Slice 2R11",
+    "direct_blocker_rule": "only_r11_scope_or_immediate_r11_safety_blocker",
+    "scope_posture": R11_ALIGNMENT_TOKEN,
     "focused_blast_radius_tests_required": True,
     "full_suite_at_durable_milestone_only": True,
     "active_work_policy": {
@@ -74,8 +81,16 @@ MVP_SCOPE = {
         "blockers": list(SLICE_BLOCKERS),
         "default_next_action": DEFAULT_NEXT_ACTION,
         "ordered_successors": [],
-        "allow_only_when_directly_blocks": [],
+        "allow_only_when_directly_blocks": [
+            "slice_2r11_preparation_integration_validation_and_audit",
+            "single_slice_2r11_preview_after_all_readiness_gates",
+            "slice_2r11_post_terminal_offline_diagnosis_and_remediation",
+        ],
         "forbidden_default_actions": [
+            "second_r11_preview_or_retry",
+            "r12_attempt",
+            "slice_3_4_5_activation",
+            "exchange_mutations",
             "complete_current_approved_range",
             "candidate_blocker_self_justification",
             "fanout_or_scheduler_expansion",
@@ -88,7 +103,29 @@ MVP_SCOPE = {
 STANDING_LIMITS = {
     "preferred_spot_notional_under_usdc": "10.00",
     "preferred_perpetual_notional_under_usdc": "30.00",
-    "active_futures_slice": None,
+    "active_futures_slice": {
+        "slice": "2R11",
+        "status": SLICE_STATUS,
+        "policy": "V3",
+        "product_id": "AVP-20DEC30-CDE",
+        "contract_count": "1",
+        "opening_reference_notional_under_usdc": "100.00",
+        "exposure_and_buffered_close_under_usdc": "150.00",
+        "branch_turnover_under_usdc": "300.00",
+        "sdk_package": "coinbase-advanced-py==1.8.4",
+        "response_envelope_ordering": (
+            "shallow_raw_sdk_envelope_before_recursive_plain"
+        ),
+        "converter_only_envelopes_allowed": False,
+        "preview_id_persistence": "sha256_or_withheld",
+        "diagnostics": "fixed_value_blind",
+        "coinbase_preview_attempts_max": 1,
+        "coinbase_preview_attempts_consumed": 0,
+        "retry_attempts_max": 0,
+        "fallback_attempts_max": 0,
+        "redirect_attempts_max": 0,
+        "exchange_mutation_attempts_max": 0,
+    },
     "terminal_futures_slice": {
         "product_id": "AVP-20DEC30-CDE",
         "contract_count": "1",
@@ -160,10 +197,15 @@ def _current_goal_alignment() -> QueueCheck:
         BACKEND_GOAL_DOC,
         (
             GOAL_ID,
-            COMPLETION_ALIGNMENT_TOKEN,
+            R11_ALIGNMENT_TOKEN,
+            DEFAULT_NEXT_ACTION,
             CLOSED_LOOPHOLE_RULE,
             SUCCESSOR_MAPPING_INVARIANT,
             PREVIEW_ID_INVARIANT,
+            "preparing/audit gate inactive",
+            "R11 is unconsumed",
+            "no R12 attempt",
+            "no Slice 3, Slice 4, or Slice 5 activation",
             "Use focused tests",
         ),
     )
@@ -171,10 +213,13 @@ def _current_goal_alignment() -> QueueCheck:
         FRONTEND_GOAL_DOC,
         (
             GOAL_ID,
-            COMPLETION_ALIGNMENT_TOKEN,
+            DEFAULT_NEXT_ACTION,
             CLOSED_LOOPHOLE_RULE,
             SUCCESSOR_MAPPING_INVARIANT,
             PREVIEW_ID_INVARIANT,
+            "live activation gate remains inactive",
+            "R11 has not been consumed",
+            "No R12 attempt",
             "Focused tests are the default",
         ),
     )
@@ -232,7 +277,6 @@ def _r8_r10_recovery_terminal_closeout() -> QueueCheck:
         "R8 is terminally consumed",
         "R9 is terminally consumed",
         "R10 is terminally consumed",
-        "no R11 exists",
         "Slice 3 did not run",
     )
     documents = [
@@ -281,16 +325,19 @@ def _r8_r10_recovery_terminal_closeout() -> QueueCheck:
 
 
 def _post_r10_compatibility_direction_closeout() -> QueueCheck:
-    required = (
-        GOAL_ID,
-        COMPLETION_ALIGNMENT_TOKEN,
-        DEFAULT_NEXT_ACTION,
-        "No R11 exists",
+    historical_next_action = (
+        "await_operator_decision_on_one_post_r10_successor_or_official_clarification"
+    )
+    historical_record_required = (
+        HISTORICAL_POST_R10_GOAL_ID,
+        POST_R10_COMPLETION_ALIGNMENT_TOKEN,
+        historical_next_action,
     )
     direction = _contains_all(
         POST_R10_DIRECTION_DOC,
         (
-            *required,
+            *historical_record_required,
+            "No R11 exists",
             "https://docs.cdp.coinbase.com/api-reference/advanced-trade-api/rest-api/orders/preview-orders",
             "https://docs.cdp.coinbase.com/api-reference/advanced-trade-api/rest-api/advanced-trade-spec.yaml",
             "7115b6b13132565a0a65371aadc9a0e09c725860ae5119655d8cd4d8c226a6b7",
@@ -302,8 +349,14 @@ def _post_r10_compatibility_direction_closeout() -> QueueCheck:
             "Ten future attempts are not warranted",
         ),
     )
-    backend = _contains_all(BACKEND_GOAL_DOC, required)
-    frontend = _contains_all(FRONTEND_GOAL_DOC, required)
+    backend = _contains_all(BACKEND_GOAL_DOC, historical_record_required)
+    frontend = _contains_all(
+        FRONTEND_GOAL_DOC,
+        (
+            POST_R10_COMPLETION_ALIGNMENT_TOKEN,
+            historical_next_action,
+        ),
+    )
     return QueueCheck(
         name="post_r10_compatibility_direction_closeout",
         passed=direction.passed and backend.passed and frontend.passed,
@@ -315,21 +368,67 @@ def _post_r10_compatibility_direction_closeout() -> QueueCheck:
     )
 
 
+def _slice_2r11_preparation_posture() -> QueueCheck:
+    required = (
+        GOAL_ID,
+        R11_ALIGNMENT_TOKEN,
+        DEFAULT_NEXT_ACTION,
+        "coinbase-advanced-py==1.8.4",
+        "raw SDK envelope before any recursive `_plain()` normalization",
+        "converter-only envelopes",
+        "hashed or withheld",
+        "fixed value-blind diagnostics",
+        "AVP-20DEC30-CDE",
+        "<100 / <150 / <300 USDC",
+        "exactly one Coinbase Preview-only R11 call",
+        "R11 is unconsumed",
+        "no R12 attempt",
+        "no Slice 3, Slice 4, or Slice 5 activation",
+    )
+    preparation = _contains_all(R11_PREPARATION_DOC, required)
+    backend = _contains_all(BACKEND_GOAL_DOC, required)
+    frontend = _contains_all(
+        FRONTEND_GOAL_DOC,
+        (
+            GOAL_ID,
+            DEFAULT_NEXT_ACTION,
+            "live activation gate remains inactive",
+            "R11 has not been consumed",
+            "No R12 attempt",
+        ),
+    )
+    return QueueCheck(
+        name="slice_2r11_preparation_posture",
+        passed=preparation.passed and backend.passed and frontend.passed,
+        evidence={
+            "preparation": preparation.evidence,
+            "backend": backend.evidence,
+            "frontend": frontend.evidence,
+        },
+    )
+
+
 def _entry_point_alignment() -> QueueCheck:
     documents = [
-        _contains_all(PROJECT_ROOT / "README.md", (GOAL_ID, "Current MVP Goal")),
-        _contains_all(PROJECT_ROOT / "docs" / "README.md", (GOAL_ID, "Current MVP Goal")),
+        _contains_all(
+            PROJECT_ROOT / "README.md",
+            (HISTORICAL_POST_R10_GOAL_ID, "Current MVP Goal"),
+        ),
+        _contains_all(
+            PROJECT_ROOT / "docs" / "README.md",
+            (HISTORICAL_POST_R10_GOAL_ID, "Current MVP Goal"),
+        ),
         _contains_all(
             PROJECT_ROOT / "docs" / "MAINTAINER_HANDOFF.md",
-            (GOAL_ID, "Current Handoff State"),
+            (HISTORICAL_POST_R10_GOAL_ID, "Current Handoff State"),
         ),
         _contains_all(
             PROJECT_ROOT / "genai_data" / "README.md",
-            (GOAL_ID, "Current work authority"),
+            (HISTORICAL_POST_R10_GOAL_ID, "Current work authority"),
         ),
     ]
     return QueueCheck(
-        name="entry_point_alignment",
+        name="historical_entry_point_record",
         passed=all(document.passed for document in documents),
         evidence={"documents": [document.evidence for document in documents]},
     )
@@ -378,6 +477,7 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
         _slice_2r7_terminal_closeout(),
         _r8_r10_recovery_terminal_closeout(),
         _post_r10_compatibility_direction_closeout(),
+        _slice_2r11_preparation_posture(),
         _entry_point_alignment(),
         _previous_version_sources(),
         _github_workflows_retired(),
@@ -394,6 +494,9 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
         "default_next_action": DEFAULT_NEXT_ACTION,
         "mvp_scope": MVP_SCOPE,
         "standing_limits": STANDING_LIMITS,
+        "r11_preview_attempts_consumed": 0,
+        "r11_terminal": False,
+        "live_coinbase_preview_ran": False,
         "live_coinbase_orders_ran": False,
         "live_order_notional_usdc": "0",
         "checks": [check.to_dict() for check in checks],
@@ -416,7 +519,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         print(f"Default next action: {DEFAULT_NEXT_ACTION}")
         print("Validation: focused local Linux Docker blast-radius tests")
-        print("Live Coinbase execution: not run; notional $0")
+        print("R11 Preview: unconsumed; audit activation gate inactive")
+        print("Live Coinbase order execution: not run; notional $0")
     print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
     return 0 if summary["status"] == "passed" else 1
 

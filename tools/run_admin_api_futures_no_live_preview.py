@@ -104,7 +104,7 @@ class FuturesPreviewOnlyRestClient:
         order_configuration: dict[str, Any],
         leverage: str | None = None,
         margin_type: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> Any:
         if self.__preview_attempted:
             raise FuturesOrderPreviewArtifactError(
                 "futures Preview was already attempted"

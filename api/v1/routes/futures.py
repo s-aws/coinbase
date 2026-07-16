@@ -793,6 +793,7 @@ def get_futures_order_preview(
         "futures_exact_no_live_preview_slice_2r8",
         "futures_exact_no_live_preview_slice_2r9",
         "futures_exact_no_live_preview_slice_2r10",
+        "futures_exact_no_live_preview_slice_2r11",
     }:
         response_payload = _withhold_private_preview_readback_identifiers(
             response_payload
