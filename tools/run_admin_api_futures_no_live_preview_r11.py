@@ -104,10 +104,13 @@ _R11_EXPECTED_COMPONENTS = frozenset(
         "backend:tests/regression/test_spot_readiness_gate.py",
         "backend:tools/run_admin_api_futures_no_live_preview.py",
         "backend:tools/run_autonomous_work_queue_check.py",
+        "frontend:AGENTS.md",
         "frontend:docs/CURRENT_MVP_GOAL.md",
+        "frontend:docs/TESTING.md",
         "frontend:scripts/check-autonomous-work-queue.mjs",
         "frontend:scripts/check-deployment-readiness.mjs",
         "frontend:scripts/check-mvp-goal-alignment.mjs",
+        "frontend:scripts/run-vitest.mjs",
         "frontend:src/features/futures-perpetuals/FuturesPerpetualsReadModel.tsx",
         "frontend:src/features/futures-perpetuals/futuresPerpetualsBackendAdapters.ts",
         "frontend:src/shared/api/generated/schema.ts",
@@ -115,6 +118,7 @@ _R11_EXPECTED_COMPONENTS = frozenset(
         "frontend:src/shared/quality/deploymentReadiness.ts",
         "frontend:tests/unit/FuturesOrderPreviewReadback.test.tsx",
         "frontend:tests/unit/qualityGates.test.tsx",
+        "frontend:vitest.config.ts",
     }
 )
 _R11_SDK_SOURCE_SHA256 = {

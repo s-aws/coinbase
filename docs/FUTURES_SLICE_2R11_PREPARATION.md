@@ -152,6 +152,10 @@ contract count, V3 policy, caps, or one-call limit.
 Use focused tests during ordinary preparation and remediation. Before live
 activation, run the canonical backend and frontend release gates required by
 their repository contracts. All fixtures must be synthetic and sanitized.
+The frontend gate's measured four-worker Vitest configuration, runner, policy,
+and resource record are part of the audited component manifest; changing any
+of them invalidates activation. The measured 606-test run remained below the
+operator's 60% whole-host CPU and memory threshold.
 Tests must prove converter-only rejection, shallow-before-recursive ordering,
 hash-or-withhold privacy, fixed value-blind diagnostics, claim-before-client
 hydration, exactly one Preview maximum, zero retry/fallback/redirect/mutation
