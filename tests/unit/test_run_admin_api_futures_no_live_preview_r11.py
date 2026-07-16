@@ -390,6 +390,27 @@ def test_r11_isolated_bootstrap_ignores_local_sitecustomize(
     assert marker.exists() is False
 
 
+def test_r11_bootstrap_dependency_site_binds_sdk_before_project_imports(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected: dict[str, str] = {}
+    for relative in _EXPECTED_SDK_SOURCE_SHA256:
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"synthetic:{relative}\n", encoding="utf-8")
+        expected[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
+    (tmp_path / "coinbase_advanced_py-1.8.4.dist-info").mkdir()
+    monkeypatch.setattr(r11_tool, "_R11_DEPENDENCY_SITE", tmp_path)
+    monkeypatch.setattr(r11_tool, "_R11_SDK_SOURCE_SHA256", expected)
+
+    assert r11_tool._bootstrap_dependency_site_is_valid() is True
+
+    first = tmp_path / next(iter(expected))
+    first.write_text("drifted-sdk-source\n", encoding="utf-8")
+    assert r11_tool._bootstrap_dependency_site_is_valid() is False
+
+
 def test_r11_audited_component_manifest_covers_all_material_surfaces() -> None:
     assert r11_tool._R11_EXPECTED_COMPONENTS == frozenset(
         _EXPECTED_R11_AUDITED_COMPONENTS

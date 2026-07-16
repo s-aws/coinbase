@@ -123,7 +123,10 @@ The one-call runner remains fail-closed until all of the following are true:
 - direct preflight and confirmation require isolated Python (`python3.13 -I`).
   Before the runner adds the repository to `sys.path` or imports any project
   module, the bootstrap verifies clean synchronized `main` revisions, zero
-  backend untracked files, and the exact hash-bound frontend PNG allowlist;
+  backend untracked files, the exact hash-bound frontend PNG allowlist, the
+  documented Python 3.13 interpreter, and the exact `coinbase-advanced-py`
+  1.8.4 metadata plus Preview-path source hashes. Only then is the fixed local
+  Python 3.13 dependency site added for project imports;
 - the production R11 path is absent before reservation and the exact R10
   predecessor validates immediately before the attempt.
 

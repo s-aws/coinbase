@@ -113,6 +113,10 @@ _R11_SDK_SOURCE_SHA256 = {
         "19552322d672d194aad8cf91b7a07038360c6d9504ac4fce1e7524b7728317b2"
     ),
 }
+_R11_DEPENDENCY_SITE = Path(
+    "/home/developer/.local/lib/python3.13/site-packages"
+)
+_R11_SDK_DIST_INFO_NAME = "coinbase_advanced_py-1.8.4.dist-info"
 _FRONTEND_INERT_UNTRACKED_SHA256 = {
     "coinbase-admin-live-root-child-chain-2026-07-11.png": (
         "a38b6a6bdca3073cca7245cfece2783b82e9414267bff421fcd97ad7d5e79cec"
@@ -247,6 +251,40 @@ def _bootstrap_file_sha256(path: Path) -> str:
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
+def _bootstrap_dependency_site_is_valid() -> bool:
+    try:
+        if not stat.S_ISDIR(_R11_DEPENDENCY_SITE.lstat().st_mode):
+            return False
+        sdk_metadata = {
+            path.name
+            for path in _R11_DEPENDENCY_SITE.glob(
+                "coinbase_advanced_py-*.dist-info"
+            )
+        }
+        if sdk_metadata != {_R11_SDK_DIST_INFO_NAME} or not stat.S_ISDIR(
+            (_R11_DEPENDENCY_SITE / _R11_SDK_DIST_INFO_NAME).lstat().st_mode
+        ):
+            return False
+        for relative, expected_sha256 in _R11_SDK_SOURCE_SHA256.items():
+            path = _R11_DEPENDENCY_SITE / relative
+            if (
+                not stat.S_ISREG(path.lstat().st_mode)
+                or _bootstrap_file_sha256(path) != expected_sha256
+            ):
+                return False
+    except OSError:
+        return False
+    return True
+
+
+def _bootstrap_runtime_is_valid() -> bool:
+    return (
+        Path(sys.executable).resolve() == Path("/usr/local/bin/python3.13")
+        and sys.version_info[:2] == (3, 13)
+        and _bootstrap_dependency_site_is_valid()
+    )
+
+
 def _bootstrap_git_output(root: Path, *args: str) -> str:
     completed = subprocess.run(
         ["/usr/bin/git", "-c", "core.fsmonitor=false", *args],
@@ -310,7 +348,7 @@ def _early_bootstrap() -> tuple[dict[str, object], bool]:
         REPO_ROOT, _bootstrap_git_output
     ) or not _repository_clean_with_output(
         FRONTEND_ROOT, _bootstrap_git_output
-    ):
+    ) or not _bootstrap_runtime_is_valid():
         raise ValueError("source_state")
     return values, True
 
@@ -370,6 +408,8 @@ R11_AUDITED_COMPONENT_SHA256 = dict(
     _R11_AUDIT_BINDING_VALUES["R11_AUDITED_COMPONENT_SHA256"]
 )
 
+if str(_R11_DEPENDENCY_SITE) not in sys.path:
+    sys.path.append(str(_R11_DEPENDENCY_SITE))
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
