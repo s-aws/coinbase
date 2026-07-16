@@ -39,8 +39,10 @@ _EXPECTED_R11_AUDITED_COMPONENTS = {
     "backend:docs/README.md",
     "backend:external/coinbase_client.py",
     "backend:genai_data/AGENT_MVP_REBUILD_GOAL.md",
+    "backend:genai_data/README.md",
     "backend:openapi/coinbase-admin-api.yaml",
     "backend:pyproject.toml",
+    "backend:README.md",
     "backend:README.admin-api.md",
     "backend:tests/unit/test_admin_api_futures_order_preview.py",
     "backend:tests/unit/test_run_admin_api_futures_no_live_preview_r11.py",
@@ -859,10 +861,12 @@ def test_r11_backend_contextless_authority_entry_points_are_consistent() -> None
         "No R12 attempt or Slice 3/4/5 activation is authorized.",
     )
     for relative in (
+        "README.md",
         "README.admin-api.md",
         "docs/README.md",
         "docs/ADMIN_MODULE_CAPABILITY_MATRIX.md",
         "docs/MAINTAINER_HANDOFF.md",
+        "genai_data/README.md",
     ):
         payload = (r11_tool.REPO_ROOT / relative).read_text(encoding="utf-8")
         assert all(token in payload for token in required), relative

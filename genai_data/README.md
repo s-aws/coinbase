@@ -4,17 +4,26 @@
 
 `genai_data/` contains expanded engineering references and historical analyses.
 Current work authority is `AGENT_MVP_REBUILD_GOAL.md`, goal id
-`futures_post_r10_preview_compatibility_and_direction_selection`,
+`futures_preview_acceptance_recovery_r11`,
 paired with the frontend canonical goal
 at `/home/developer/coinbase/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. An
 individual analysis or implementation note does not become current work merely
 because it lives in this directory.
 
-Current state: post-R10 compatibility work is complete. Coinbase's official
-Preview wire schema and the project's stricter V3 acceptance policy are
-separated prospectively without reinterpreting immutable R10 evidence. R8
-content/hash remain inaccessible. No Preview, R11, Slice 3/4/5, or exchange-
-mutation authority exists. See
+Goal `futures_preview_acceptance_recovery_r11` is current. R11 preparation is authorized.
+R11 is unconsumed. The Preview gate remains inactive until focused validation,
+fresh independent safety and blind-contextless audits, and backend-runner-only
+exact-hash activation all confirm readiness. Only then may the backend R11 runner
+make exactly one Preview-only call. The frontend remains readback-only and exposes
+no R11 initiation control. It permits zero retries, fallbacks, redirects, Create,
+Cancel, Close, Reduce, or other exchange mutations. No R12 attempt or Slice 3/4/5 activation is authorized.
+
+Historically, goal
+`futures_post_r10_preview_compatibility_and_direction_selection` completed the
+prospective separation of Coinbase's official Preview wire schema from the
+project's stricter V3 acceptance policy without reinterpreting immutable R10
+evidence. R8 content/hash remain inaccessible. That checkpoint granted no
+successor or live authority. See
 `../docs/FUTURES_POST_R10_COMPATIBILITY_DIRECTION.md` for the source mapping,
 ranked direction, and no-live closeout.
 

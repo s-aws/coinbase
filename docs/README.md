@@ -12,6 +12,9 @@ make exactly one Preview-only call. The frontend remains readback-only and expos
 no R11 initiation control. It permits zero retries, fallbacks, redirects, Create,
 Cancel, Close, Reduce, or other exchange mutations. No R12 attempt or Slice 3/4/5 activation is authorized.
 
+Historical goal `futures_post_r10_preview_compatibility_and_direction_selection`
+is a completed compatibility/direction record, not current work authority.
+
 - [Current MVP Goal](../genai_data/AGENT_MVP_REBUILD_GOAL.md) - authorized R11
   preparation, inactive readiness and exact-hash gate, immutable R1-R10 history,
   and automatic bounded offline post-terminal diagnosis/remediation

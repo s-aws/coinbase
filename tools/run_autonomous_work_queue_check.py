@@ -412,19 +412,35 @@ def _entry_point_alignment() -> QueueCheck:
     documents = [
         _contains_all(
             PROJECT_ROOT / "README.md",
-            (HISTORICAL_POST_R10_GOAL_ID, "Current MVP Goal"),
+            (
+                GOAL_ID,
+                HISTORICAL_POST_R10_GOAL_ID,
+                "Current MVP Goal",
+            ),
         ),
         _contains_all(
             PROJECT_ROOT / "docs" / "README.md",
-            (HISTORICAL_POST_R10_GOAL_ID, "Current MVP Goal"),
+            (
+                GOAL_ID,
+                HISTORICAL_POST_R10_GOAL_ID,
+                "Current MVP Goal",
+            ),
         ),
         _contains_all(
             PROJECT_ROOT / "docs" / "MAINTAINER_HANDOFF.md",
-            (HISTORICAL_POST_R10_GOAL_ID, "Current Handoff State"),
+            (
+                GOAL_ID,
+                HISTORICAL_POST_R10_GOAL_ID,
+                "Current Handoff State",
+            ),
         ),
         _contains_all(
             PROJECT_ROOT / "genai_data" / "README.md",
-            (HISTORICAL_POST_R10_GOAL_ID, "Current work authority"),
+            (
+                GOAL_ID,
+                HISTORICAL_POST_R10_GOAL_ID,
+                "Current work authority",
+            ),
         ),
     ]
     return QueueCheck(

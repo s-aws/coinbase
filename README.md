@@ -13,15 +13,21 @@ plans.
 
 ## Current MVP Goal
 
-Current goal id
-`futures_post_r10_preview_compatibility_and_direction_selection` is complete.
-It prospectively separates Coinbase's official Preview wire schema from the
-project's stricter one-contract V3 acceptance policy while preserving immutable
-R1-R10 history. R10 is not reinterpreted, R8 content/hash remain inaccessible,
-and there is no R11, Slice 3/4/5, Preview, or exchange-mutation authority. The
-ranked result recommends at most one separately authorized future successor
-after all no-live gates pass; official clarification or parking rank next. Ten
-attempts are not warranted. See the
+Goal `futures_preview_acceptance_recovery_r11` is current. R11 preparation is authorized.
+R11 is unconsumed. The Preview gate remains inactive until focused validation,
+fresh independent safety and blind-contextless audits, and backend-runner-only
+exact-hash activation all confirm readiness. Only then may the backend R11 runner
+make exactly one Preview-only call. The frontend remains readback-only and exposes
+no R11 initiation control. It permits zero retries, fallbacks, redirects, Create,
+Cancel, Close, Reduce, or other exchange mutations. No R12 attempt or Slice 3/4/5 activation is authorized.
+
+Historically, goal
+`futures_post_r10_preview_compatibility_and_direction_selection` completed the
+prospective separation of Coinbase's official Preview wire schema from the
+project's stricter one-contract V3 acceptance policy. Immutable R1-R10 history
+is preserved, R10 is not reinterpreted, and R8 content/hash remain inaccessible.
+That historical checkpoint granted no successor or live authority and found ten
+attempts unwarranted. See the
 [post-R10 direction record](docs/FUTURES_POST_R10_COMPATIBILITY_DIRECTION.md)
 and [Coinbase Admin MVP Goal](genai_data/AGENT_MVP_REBUILD_GOAL.md). Historical
 M57 phase ranges and M58 fan-out/scheduler blockers do not select default work.
