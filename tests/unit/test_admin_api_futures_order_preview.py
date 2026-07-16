@@ -2133,6 +2133,56 @@ def test_present_invalid_r10_blocks_r9_fallback(
         configured_futures_order_preview_artifact_path()
 
 
+def test_missing_production_r10_blocks_valid_r9_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    producer, _store, r9_path = _r9_producer(
+        tmp_path / "r9",
+        _r8_compatible_rest_client(),
+    )
+    producer.run()
+    missing_r10_path = tmp_path / "missing-production-r10.jsonl"
+    monkeypatch.setattr(
+        preview_module,
+        "_PRODUCTION_FUTURES_PREVIEW_R10_ARTIFACT_PATH",
+        missing_r10_path,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R10_ARTIFACT_PATH",
+        missing_r10_path,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R9_ARTIFACT_PATH",
+        r9_path,
+    )
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="R10 terminal readback is missing",
+    ):
+        configured_futures_order_preview_artifact_path()
+
+    monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-token")
+    response = TestClient(create_app(), raise_server_exceptions=False).get(
+        "/api/v1/futures/order-preview",
+        headers={
+            "Authorization": "Bearer test-token",
+            "X-Admin-Actor": "operator-1",
+            "X-Admin-Roles": "viewer",
+        },
+    )
+    assert response.status_code == 503
+    assert response.json()["code"] == "backend_unavailable"
+    assert response.json()["message"] == (
+        "Futures Preview evidence is unavailable or invalid"
+    )
+    assert "R9" not in response.text
+    assert "R10" not in response.text
+
+
 def test_r8_get_route_withholds_private_identifiers_from_browser_readback(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

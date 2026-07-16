@@ -212,7 +212,7 @@ create a separate approval class.
   `futures_preview_acceptance_recovery_r8_r10_and_conditional_terminal_roundtrip_slice_3`.
 - Current next action:
   `await_operator_selection_of_separately_authorized_next_goal`.
-- Current slice: Default-profile Futures readback -> exact AVAX US CFM Coinbase
+- Historical predecessor slice: Default-profile Futures readback -> exact AVAX US CFM Coinbase
   Preview Order -> immutable operator-visible no-live preview readback. The
   one-shot R1 artifact terminated before
   Preview on `futures_preview_margin_setting_ambiguous`; Preview and every
@@ -442,11 +442,11 @@ create a separate approval class.
   safety and blind contextless re-reviews plus the consumed terminal artifact
   integrity/retry audit completed with `PASS`, and no required validation agent
   remains running.
-- Ordered successors: exact no-live preview (2), one terminal order roundtrip
-  (3), intentional fill/position readback (4), then exact closeout (5). The
-  sequence is retained as historical design context only. Consumed blocked R7
-  grants no successor activation or live authority; a distinct operator
-  scope-change decision is required before any later work.
+- Historical ordered successor design: exact no-live preview (2), one terminal
+  order roundtrip (3), intentional fill/position readback (4), then exact
+  closeout (5). This ordering is design history, not work authority. Consumed
+  blocked R10 grants no successor activation or live authority; no R11 exists,
+  and Slice 3 did not run.
 - Previous state: V14 completed the predecessor automatic/live proof for ten
   Test-profile roots and ten first-child submissions under the approved
   `30.00 USDC` reference cap. Every root was authoritatively FILLED, every child

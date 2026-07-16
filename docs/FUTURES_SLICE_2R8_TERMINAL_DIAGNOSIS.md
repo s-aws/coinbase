@@ -47,6 +47,15 @@ Independent diagnosis records only this allowlisted classification:
 No raw response, secret, private identifier, or exception text is part of this
 classification or browser readback.
 
+## Terminal Successor Update
+
+The successor preparation narrative below is retained only as historical
+context. R9 is terminally consumed and cannot be retried.
+R10 is terminally consumed and cannot be retried; it ended `blocked` at the
+sanitized Preview-response economics-validation boundary. Recovery is
+exhausted; no R11 exists; Slice 3 did not run. This document grants no current
+successor, Preview, mutation, or live authority.
+
 ## Remediation And Successor
 
 All Preview unit tests now replace both the generation selector and concrete
@@ -54,12 +63,13 @@ fixed artifact constant with temporary paths, and they snapshot production R8
 metadata before and after focused execution. R8 call authority and its
 end-to-end entry point are permanently retired.
 
-R9 is the current conditional generation under the unchanged V3 policy,
+Historical preparation record: R9 was the next conditional generation under
+the unchanged V3 policy,
 `AVP-20DEC30-CDE`, one-contract scope, and strict `<100 / <150 / <300 USDC`
-caps. It remains dormant until focused validation and fresh independent safety
-plus blind contextless audits pass. R10 remains conditional on a terminal
-non-accepted R9 and the same remediation/audit gates. Slice 3 remains inactive
-without accepted, unexpired Preview evidence and its separate readiness gates.
+caps. It was dormant until focused validation and fresh independent safety plus
+blind contextless audits passed. R10 was conditional on a terminal non-accepted
+R9 and the same remediation/audit gates. Neither generation retains authority;
+Slice 3 is terminally inactive because no accepted Preview evidence exists.
 
 Coinbase's public Preview contract currently has no documented Preview expiry
 field or TTL. Therefore, even if R9 returns accepted evidence, the current

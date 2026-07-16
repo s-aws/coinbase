@@ -172,6 +172,24 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     ] == "local_linux_docker"
 
 
+def test_terminal_recovery_docs_do_not_reactivate_consumed_successors():
+    r8_diagnosis = Path(
+        "docs/FUTURES_SLICE_2R8_TERMINAL_DIAGNOSIS.md"
+    ).read_text(encoding="utf-8")
+    maintainer_handoff = Path("docs/MAINTAINER_HANDOFF.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "## Terminal Successor Update" in r8_diagnosis
+    assert "R10 is terminally consumed" in r8_diagnosis
+    assert "no R11 exists" in r8_diagnosis
+    assert "R9 is the current conditional generation" not in r8_diagnosis
+    assert "- Current slice:" not in maintainer_handoff
+    assert "- Ordered successors:" not in maintainer_handoff
+    assert "- Historical predecessor slice:" in maintainer_handoff
+    assert "- Historical ordered successor design:" in maintainer_handoff
+
+
 def test_spot_release_gate_coinbase_readonly_includes_cost_basis_checks():
     parser = build_parser()
     args = parser.parse_args(["--include-coinbase-readonly"])

@@ -217,7 +217,9 @@ def _r8_r10_recovery_terminal_closeout() -> QueueCheck:
             (
                 "b32aba4868f08ee7a44f19ceacbcf42cb7e4d70da1552f2d8b333ef59ddc8696",
                 "Preview attempts: `0`",
-                "R9 is the current conditional generation",
+                "## Terminal Successor Update",
+                "R10 is terminally consumed",
+                "no R11 exists",
             ),
         ),
         _contains_all(

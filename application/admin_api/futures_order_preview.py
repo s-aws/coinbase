@@ -1367,11 +1367,18 @@ def _configured_futures_order_preview_r9_artifact_path() -> Path | None:
 
 
 def _configured_futures_order_preview_r10_artifact_path() -> Path | None:
-    """Return a validated R10 terminal, or ``None`` only when it is absent."""
+    """Return a validated R10 terminal or an absent nonproduction override."""
 
     try:
         FUTURES_PREVIEW_R10_ARTIFACT_PATH.lstat()
     except FileNotFoundError:
+        if _same_artifact_path(
+            FUTURES_PREVIEW_R10_ARTIFACT_PATH,
+            _PRODUCTION_FUTURES_PREVIEW_R10_ARTIFACT_PATH,
+        ):
+            raise FuturesOrderPreviewArtifactError(
+                "futures Preview R10 terminal readback is missing"
+            ) from None
         return None
     except OSError:
         raise FuturesOrderPreviewArtifactError(
