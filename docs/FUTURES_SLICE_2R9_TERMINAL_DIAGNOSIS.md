@@ -2,6 +2,11 @@
 
 Status: terminal blocked; R9 is consumed and must never be retried.
 
+Successor update: R10 later ran once and is now terminal blocked and consumed.
+The preparation wording below is retained as historical R9-closeout context;
+current terminal authority is documented in
+`docs/FUTURES_SLICE_2R10_TERMINAL_DIAGNOSIS.md`. There is no R11.
+
 ## Immutable terminal binding
 
 - Artifact: `artifacts/futures_exact_no_live_preview_slice_2r9.jsonl`

@@ -1,10 +1,9 @@
-"""Prepare the fixed Slice 2R10 Preview producer with live authority disabled.
+"""Permanent tombstone for the consumed Slice 2R10 Preview generation.
 
-Preflight validates only the immutable sanitized R9 predecessor and a
-disposable claim in memory.  It never hydrates credentials, constructs a
-Coinbase client, reserves R10, or performs a network call.  The confirmation
-path stays hard-disabled until a separate final audit binding activates both
-gates.
+The historical preflight remains available for local regression evidence only.
+It never hydrates credentials, constructs a Coinbase client, reserves R10, or
+performs a network call.  R10 is terminally consumed, both production gates are
+permanently hard-disabled, and no audit binding may reactivate confirmation.
 """
 
 from __future__ import annotations
@@ -53,8 +52,8 @@ from tools import run_admin_api_futures_no_live_preview as base_tool  # noqa: E4
 FuturesPreviewOnlyRestClient = r9_tool.FuturesPreviewOnlyRestClient
 _suppress_coinbase_sdk_logging = r9_tool._suppress_coinbase_sdk_logging
 
-# R9 is terminally consumed.  R10 remains preparation-only until these two
-# independent R10 values are changed by a final audited binding.
+# R9 and R10 are terminally consumed.  These historical gate constants are
+# permanently false and must never be changed by a later audit binding.
 R9_PREVIEW_CALL_AUTHORITY_ACTIVE = False
 R10_PREVIEW_CALL_AUTHORITY_ACTIVE = False
 R10_FINAL_AUDIT_BINDING_READY = False
@@ -519,24 +518,24 @@ _build_r10_producer = build_r10_producer
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Build the option-minimal R10 preparation CLI."""
+    """Build the option-minimal permanent R10 tombstone CLI."""
 
     parser = argparse.ArgumentParser(
         description=(
-            "Prepare one fixed Default-profile AVAX Futures R10 Preview. "
-            "Live authority and final audit binding remain disabled."
+            "Inspect the permanently disabled Default-profile AVAX Futures "
+            "R10 tombstone. R10 is consumed and has no live authority."
         )
     )
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument(
         "--preflight",
         action="store_true",
-        help="Validate R10 preparation without credentials or Coinbase access.",
+        help="Validate historical R10 local evidence without Coinbase access.",
     )
     mode.add_argument(
         "--confirm-one-r10-preview",
         action="store_true",
-        help="Consume R10 only after a separate final audited gate activation.",
+        help="Historical confirmation flag; permanently rejects consumed R10.",
     )
     return parser
 

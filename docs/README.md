@@ -7,9 +7,8 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - [Current MVP Goal](../genai_data/AGENT_MVP_REBUILD_GOAL.md) - goal id
   `futures_preview_acceptance_recovery_r8_r10_and_conditional_terminal_roundtrip_slice_3`;
   R8 terminal blocked with opaque zero-call readback, R9 terminal blocked after
-  one returned Preview reached response validation, R10 current and
-  preparation-only, and Slice 3 pre-Create mutation fail-closed because no
-  Coinbase Preview expiry/TTL is documented
+  one returned Preview reached response validation, R10 terminal blocked at
+  sanitized economics validation, recovery exhausted, and Slice 3 not run
 - [Futures Slice 2R7 Preparation and Closeout](FUTURES_SLICE_2R7_PREPARATION.md) -
   immutable R6 ancestry, corrected response-schema binding, one-use transport
   posture, readiness gates, and terminal record
@@ -21,7 +20,10 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
   remediation, and conditional R9 successor posture
 - [Futures Slice 2R9 Terminal Diagnosis](FUTURES_SLICE_2R9_TERMINAL_DIAGNOSIS.md) -
   exact immutable file/evidence hashes, one-Preview response-validation
-  boundary, zero-mutation proof, and preparation-only R10 posture
+  boundary, zero-mutation proof, and historical R10 preparation posture
+- [Futures Slice 2R10 Terminal Diagnosis](FUTURES_SLICE_2R10_TERMINAL_DIAGNOSIS.md) -
+  exact immutable terminal binding, sanitized economics-validation boundary,
+  zero-mutation accounting, permanent runner disablement, and no-successor state
 - [Root README](../README.md)
 - [Expanded AI Context](../genai_data/README.md)
 - [Architecture](../genai_data/ARCHITECTURE.md)

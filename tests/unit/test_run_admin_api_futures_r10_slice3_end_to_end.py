@@ -45,17 +45,17 @@ def _artifact_metadata(path: Path) -> tuple[int, ...] | None:
 
 @pytest.fixture(autouse=True)
 def _preserve_production_preview_artifacts():
-    """Prove focused tests neither touch consumed R9 nor reserve fixed R10."""
+    """Prove focused tests preserve consumed R9 and terminal R10 metadata."""
 
     r9_path = runner.r10_tool.r9_tool.FUTURES_PREVIEW_R9_ARTIFACT_PATH
     r10_path = runner.FUTURES_PREVIEW_R10_ARTIFACT_PATH
     r9_before = _artifact_metadata(r9_path)
     r10_before = _artifact_metadata(r10_path)
     assert r9_before is not None
-    assert r10_before is None
+    assert r10_before is not None
     yield
     assert _artifact_metadata(r9_path) == r9_before
-    assert _artifact_metadata(r10_path) is None
+    assert _artifact_metadata(r10_path) == r10_before
 
 
 def _terminal_envelope(
@@ -1148,6 +1148,15 @@ def test_confirmation_gate_blocks_before_preflight_or_client(
     summary = json.loads(capsys.readouterr().err)
     assert summary["blocker"] == "futures_r10_slice3_workflow_not_ready"
     assert summary["coinbase_client_constructed"] is False
+
+
+def test_composite_cli_help_is_a_permanent_r10_slice3_tombstone() -> None:
+    help_text = " ".join(runner.build_parser().format_help().split())
+
+    assert "permanent R10/Slice 3 tombstone" in help_text
+    assert "R10 is consumed" in help_text
+    assert "Slice 3 did not run" in help_text
+    assert "confirmation always rejects" in help_text
 
 
 def test_callable_execution_runs_preflight_before_store_or_client(

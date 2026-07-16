@@ -32,12 +32,12 @@ CLOSED_LOOPHOLE_RULE = (
     "A candidate blocker cannot make itself in scope by generating evidence "
     "about the candidate blocker."
 )
-SLICE_STATUS = "active"
-SLICE_BLOCKERS: tuple[str, ...] = ()
-DEFAULT_NEXT_ACTION = (
-    "complete_r10_readiness_validation_then_execute_"
-    "authorized_slice_2r10_once"
+SLICE_STATUS = "complete"
+SLICE_BLOCKERS: tuple[str, ...] = (
+    "r10_consumed_without_accepted_preview_evidence",
+    "slice3_not_run_no_accepted_preview",
 )
+DEFAULT_NEXT_ACTION = "await_operator_selection_of_separately_authorized_next_goal"
 R7_TERMINAL_BLOCKER = "slice_2r7_consumed_without_accepted_preview_evidence"
 R7_TERMINAL_NEXT_ACTION = (
     "await_operator_scope_change_decision_after_slice_2r7_closeout"
@@ -46,30 +46,25 @@ R7_TERMINAL_DIAGNOSTIC = (
     "sdk_returned__post_preview_value_error__before_acceptance"
 )
 MVP_SCOPE = {
-    "work_mode": GOAL_ID,
+    "work_mode": "terminal_awaiting_operator_selection",
     "goal_authority": str(FRONTEND_GOAL_DOC),
     "frontend_authority": "operator_ui_only",
     "live_action_path": "auditable_backend_admin_interfaces_only",
     "phase_range_policy": "parked_unless_direct_current_slice_blocker",
+    "current_vertical_slice": None,
+    "direct_blocker_rule": "no_current_slice_no_implicit_work_authority",
+    "scope_posture": "completed_terminal_no_work_authority",
     "focused_blast_radius_tests_required": True,
     "full_suite_at_durable_milestone_only": True,
     "active_work_policy": {
-        "current_priority": GOAL_ID,
+        "current_priority": DEFAULT_NEXT_ACTION,
         "approved_phase_range_status": PHASE_RANGE_STATUS,
         "phase_range_work_allowed": False,
         "slice_status": SLICE_STATUS,
         "blockers": list(SLICE_BLOCKERS),
         "default_next_action": DEFAULT_NEXT_ACTION,
-        "ordered_successors": [
-            GOAL_ID,
-            "futures_terminal_order_roundtrip_slice_3",
-        ],
-        "allow_only_when_directly_blocks": [
-            "current vertical slice runtime behavior",
-            "current vertical slice focused test",
-            "live-safety or duplicate-order prevention",
-            "cap, wallet, authorization, data-loss, or traceability prevention",
-        ],
+        "ordered_successors": [],
+        "allow_only_when_directly_blocks": [],
         "forbidden_default_actions": [
             "complete_current_approved_range",
             "candidate_blocker_self_justification",
@@ -83,17 +78,18 @@ MVP_SCOPE = {
 STANDING_LIMITS = {
     "preferred_spot_notional_under_usdc": "10.00",
     "preferred_perpetual_notional_under_usdc": "30.00",
-    "active_futures_slice": {
+    "active_futures_slice": None,
+    "terminal_futures_slice": {
         "product_id": "AVP-20DEC30-CDE",
         "contract_count": "1",
         "opening_reference_notional_under_usdc": "100.00",
         "exposure_and_buffered_close_under_usdc": "150.00",
         "branch_turnover_under_usdc": "300.00",
-        "coinbase_preview_attempts_max": 1,
-        "authorized_recovery_preview_attempts_max": 1,
+        "coinbase_preview_attempts_max": 0,
+        "authorized_recovery_preview_attempts_max": 0,
         "exchange_mutation_attempts_max": 0,
         "conditional_slice_3": {
-            "status": "conditional_not_active",
+            "status": "not_run_terminally_inactive",
             "exchange_mutation_attempts_max": 0,
         },
     },
@@ -203,15 +199,15 @@ def _slice_2r7_terminal_closeout() -> QueueCheck:
     )
 
 
-def _r8_r10_recovery_preparation() -> QueueCheck:
+def _r8_r10_recovery_terminal_closeout() -> QueueCheck:
     required = (
         GOAL_ID,
         DEFAULT_NEXT_ACTION,
         "R8 is terminally consumed",
         "R9 is terminally consumed",
-        "R10 is now the current preparation-only successor",
-        "no R11 is authorized",
-        "Slice 3 is conditional and inactive",
+        "R10 is terminally consumed",
+        "no R11 exists",
+        "Slice 3 did not run",
     )
     documents = [
         _contains_all(BACKEND_GOAL_DOC, required),
@@ -234,9 +230,20 @@ def _r8_r10_recovery_preparation() -> QueueCheck:
                 "no R11 is authorized",
             ),
         ),
+        _contains_all(
+            PROJECT_ROOT / "docs" / "FUTURES_SLICE_2R10_TERMINAL_DIAGNOSIS.md",
+            (
+                "5dd010a706c61e78454caeec478e05cafb1a50761e9e5a9a3d485051c4efee64",
+                "5121e980ec9da81f44d9a3b14b9bbcaa7bdaf41c99189cd9234cedc08d652005",
+                "futures_preview_response_economics_invalid",
+                "Preview: `1`",
+                "Slice 3 was",
+                "no R11 authority exists",
+            ),
+        ),
     ]
     return QueueCheck(
-        name="r8_r10_recovery_preparation",
+        name="r8_r10_recovery_terminal_closeout",
         passed=all(document.passed for document in documents),
         evidence={"documents": [document.evidence for document in documents]},
     )
@@ -303,7 +310,7 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
         _current_goal_alignment(),
         _historical_queue_posture(),
         _slice_2r7_terminal_closeout(),
-        _r8_r10_recovery_preparation(),
+        _r8_r10_recovery_terminal_closeout(),
         _entry_point_alignment(),
         _previous_version_sources(),
         _github_workflows_retired(),

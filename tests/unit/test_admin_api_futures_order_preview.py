@@ -9464,7 +9464,275 @@ def test_r10_predecessor_hash_stat_model_binding_preserves_r9_bytes(
         after.st_mtime_ns,
         after.st_nlink,
     )
+    # This predecessor-only test keeps the fixed successor path isolated. The
+    # consumed production R10 artifact is exercised by the dedicated terminal
+    # binding test below.
     assert not preview_module.FUTURES_PREVIEW_R10_ARTIFACT_PATH.exists()
+
+
+def test_consumed_r10_terminal_is_exactly_bound_selected_and_diagnosed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(
+        "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_PATH",
+        raising=False,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R8_ARTIFACT_PATH",
+        preview_module._PRODUCTION_FUTURES_PREVIEW_R8_ARTIFACT_PATH,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R9_ARTIFACT_PATH",
+        preview_module._PRODUCTION_FUTURES_PREVIEW_R9_ARTIFACT_PATH,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R10_ARTIFACT_PATH",
+        preview_module._PRODUCTION_FUTURES_PREVIEW_R10_ARTIFACT_PATH,
+    )
+    path = preview_module.FUTURES_PREVIEW_R10_ARTIFACT_PATH
+    before = path.lstat()
+    with path.open("rb") as stream:
+        before_sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
+
+    binding = (
+        preview_module.validate_production_futures_order_preview_r10_terminal()
+    )
+
+    after = path.lstat()
+    with path.open("rb") as stream:
+        after_sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
+    assert binding == preview_module.FUTURES_PREVIEW_R10_TERMINAL_BINDING
+    assert before_sha256 == after_sha256 == (
+        "5dd010a706c61e78454caeec478e05cafb1a50761e9e5a9a3d485051c4efee64"
+    )
+    assert binding["evidence_sha256"] == (
+        "5121e980ec9da81f44d9a3b14b9bbcaa7bdaf41c99189cd9234cedc08d652005"
+    )
+    assert (
+        after.st_dev,
+        after.st_ino,
+        after.st_size,
+        after.st_mode & 0o777,
+        after.st_mtime_ns,
+        after.st_nlink,
+    ) == (2096, 221388, 26144, 0o400, 1784179469052389092, 1)
+    assert (
+        before.st_dev,
+        before.st_ino,
+        before.st_size,
+        before.st_mode,
+        before.st_mtime_ns,
+        before.st_nlink,
+    ) == (
+        after.st_dev,
+        after.st_ino,
+        after.st_size,
+        after.st_mode,
+        after.st_mtime_ns,
+        after.st_nlink,
+    )
+    assert configured_futures_order_preview_artifact_path() == path
+
+    terminal = FuturesOrderPreviewArtifactStore(path).read_completed()
+    validated = AdminFuturesOrderPreviewResponse.model_validate(terminal)
+    assert validated.status == validated.outcome == "blocked"
+    assert validated.blocker == "post_preview_stage_blocked"
+    assert validated.read_counters == {
+        "api_key_permissions": 1,
+        "portfolio_catalog": 1,
+        "product": 1,
+        "best_bid_ask": 1,
+        "futures_positions": 1,
+        "futures_margin_collateral": 1,
+    }
+    assert validated.attempt_counters == {
+        "preview_order": 1,
+        "retry": 0,
+        "fallback": 0,
+        "create_order": 0,
+        "cancel_order": 0,
+        "close_position": 0,
+        "reduce_position": 0,
+    }
+    assert validated.post_preview_stage_evidence is not None
+    assert validated.post_preview_stage_evidence.model_dump(mode="json") == {
+        "schema_version": "1",
+        "source": "backend_futures_preview_producer",
+        "stages": [
+            {
+                "stage": "preview_response_validation",
+                "status": "blocked",
+                "reason_code": "futures_preview_response_economics_invalid",
+            }
+        ],
+        "sanitized": True,
+        "raw_response_included": False,
+        "external_exception_text_included": False,
+        "identifier_values_included": False,
+    }
+    assert validated.preview_response is None
+    assert validated.preview_id_sha256 is None
+    assert validated.seal_ready_plan is None
+    assert validated.exchange_submission_attempt_count == 0
+    assert validated.submitted_notional_usdc == "0"
+    assert validated.executed_notional_usdc == "0"
+    assert validated.live_coinbase_execution == "not_run"
+
+
+@pytest.mark.parametrize(
+    ("constant_name", "invalid_value"),
+    [
+        ("FUTURES_PREVIEW_R10_INODE", 221389),
+        ("FUTURES_PREVIEW_R10_SIZE", 26145),
+        ("FUTURES_PREVIEW_R10_MODE", 0o600),
+        ("FUTURES_PREVIEW_R10_MTIME_NS", 1784179469052389093),
+        ("FUTURES_PREVIEW_R10_NLINK", 2),
+    ],
+)
+def test_consumed_r10_terminal_binding_fails_closed_on_metadata_drift(
+    monkeypatch: pytest.MonkeyPatch,
+    constant_name: str,
+    invalid_value: int,
+) -> None:
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R8_ARTIFACT_PATH",
+        preview_module._PRODUCTION_FUTURES_PREVIEW_R8_ARTIFACT_PATH,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R9_ARTIFACT_PATH",
+        preview_module._PRODUCTION_FUTURES_PREVIEW_R9_ARTIFACT_PATH,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R10_ARTIFACT_PATH",
+        preview_module._PRODUCTION_FUTURES_PREVIEW_R10_ARTIFACT_PATH,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        constant_name,
+        invalid_value,
+    )
+
+    with pytest.raises(FuturesOrderPreviewArtifactError):
+        preview_module.validate_production_futures_order_preview_r10_terminal()
+
+
+def test_consumed_r10_terminal_binding_rejects_symlink(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R8_ARTIFACT_PATH",
+        preview_module._PRODUCTION_FUTURES_PREVIEW_R8_ARTIFACT_PATH,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R9_ARTIFACT_PATH",
+        preview_module._PRODUCTION_FUTURES_PREVIEW_R9_ARTIFACT_PATH,
+    )
+    symlink = tmp_path / "r10-terminal-symlink.jsonl"
+    symlink.symlink_to(
+        preview_module._PRODUCTION_FUTURES_PREVIEW_R10_ARTIFACT_PATH
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R10_ARTIFACT_PATH",
+        symlink,
+    )
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="not a safe regular file",
+    ):
+        preview_module.validate_production_futures_order_preview_r10_terminal()
+
+
+def test_consumed_r10_terminal_validation_never_opens_or_rehashes_r8(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R8_ARTIFACT_PATH",
+        preview_module._PRODUCTION_FUTURES_PREVIEW_R8_ARTIFACT_PATH,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R9_ARTIFACT_PATH",
+        preview_module._PRODUCTION_FUTURES_PREVIEW_R9_ARTIFACT_PATH,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R10_ARTIFACT_PATH",
+        preview_module._PRODUCTION_FUTURES_PREVIEW_R10_ARTIFACT_PATH,
+    )
+    protected = preview_module.FUTURES_PREVIEW_R8_ARTIFACT_PATH
+    before = protected.lstat()
+    original_os_open = preview_module.os.open
+    original_path_open = Path.open
+    original_read_completed = (
+        preview_module.FuturesOrderPreviewArtifactStore.read_completed
+    )
+
+    def reject_r8_os_open(
+        path: object,
+        *args: object,
+        **kwargs: object,
+    ) -> int:
+        if Path(path) == protected:
+            raise AssertionError("R8 bytes were opened")
+        return original_os_open(path, *args, **kwargs)  # type: ignore[arg-type]
+
+    def reject_r8_path_open(
+        path: Path,
+        *args: object,
+        **kwargs: object,
+    ) -> object:
+        if path == protected:
+            raise AssertionError("R8 bytes were opened")
+        return original_path_open(path, *args, **kwargs)  # type: ignore[arg-type]
+
+    def reject_r8_deserialization(
+        store: FuturesOrderPreviewArtifactStore,
+    ) -> dict[str, object]:
+        if store.path == protected:
+            raise AssertionError("R8 JSON was deserialized")
+        return original_read_completed(store)
+
+    monkeypatch.setattr(preview_module.os, "open", reject_r8_os_open)
+    monkeypatch.setattr(Path, "open", reject_r8_path_open)
+    monkeypatch.setattr(
+        preview_module.FuturesOrderPreviewArtifactStore,
+        "read_completed",
+        reject_r8_deserialization,
+    )
+
+    binding = (
+        preview_module.validate_production_futures_order_preview_r10_terminal()
+    )
+
+    after = protected.lstat()
+    assert binding == preview_module.FUTURES_PREVIEW_R10_TERMINAL_BINDING
+    assert (
+        before.st_dev,
+        before.st_ino,
+        before.st_size,
+        before.st_mode,
+        before.st_mtime_ns,
+        before.st_nlink,
+    ) == (
+        after.st_dev,
+        after.st_ino,
+        after.st_size,
+        after.st_mode,
+        after.st_mtime_ns,
+        after.st_nlink,
+    )
 
 
 def test_r9_predecessor_uses_documented_hash_and_stat_without_opening_r8(

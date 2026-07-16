@@ -91,53 +91,45 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     assert summary["historical_phase_range"] == "7961-7980"
     assert summary["historical_phase_count"] == 20
     assert summary["phase_range_status"] == "historical_not_work_authority"
-    assert summary["slice_status"] == "active"
-    assert summary["blockers"] == []
+    assert summary["slice_status"] == "complete"
+    assert summary["blockers"] == [
+        "r10_consumed_without_accepted_preview_evidence",
+        "slice3_not_run_no_accepted_preview",
+    ]
     assert summary["default_next_action"] == (
-        "complete_r10_readiness_validation_then_execute_"
-        "authorized_slice_2r10_once"
+        "await_operator_selection_of_separately_authorized_next_goal"
     )
     assert summary["live_coinbase_orders_ran"] is False
     assert summary["live_order_notional_usdc"] == "0"
     assert summary["mvp_scope"] == {
-        "work_mode": (
-            "futures_preview_acceptance_recovery_r8_r10_and_"
-            "conditional_terminal_roundtrip_slice_3"
-        ),
+        "work_mode": "terminal_awaiting_operator_selection",
         "goal_authority": (
             "/home/developer/coinbase/coinbase-frontend/docs/CURRENT_MVP_GOAL.md"
         ),
         "frontend_authority": "operator_ui_only",
         "live_action_path": "auditable_backend_admin_interfaces_only",
         "phase_range_policy": "parked_unless_direct_current_slice_blocker",
+        "current_vertical_slice": None,
+        "direct_blocker_rule": "no_current_slice_no_implicit_work_authority",
+        "scope_posture": "completed_terminal_no_work_authority",
         "focused_blast_radius_tests_required": True,
         "full_suite_at_durable_milestone_only": True,
         "active_work_policy": {
             "current_priority": (
-                "futures_preview_acceptance_recovery_r8_r10_and_"
-                "conditional_terminal_roundtrip_slice_3"
+                "await_operator_selection_of_separately_authorized_next_goal"
             ),
             "approved_phase_range_status": "historical_not_work_authority",
             "phase_range_work_allowed": False,
-            "slice_status": "active",
-            "blockers": [],
+            "slice_status": "complete",
+            "blockers": [
+                "r10_consumed_without_accepted_preview_evidence",
+                "slice3_not_run_no_accepted_preview",
+            ],
             "default_next_action": (
-                "complete_r10_readiness_validation_then_execute_"
-                "authorized_slice_2r10_once"
+                "await_operator_selection_of_separately_authorized_next_goal"
             ),
-            "ordered_successors": [
-                (
-                    "futures_preview_acceptance_recovery_r8_r10_and_"
-                    "conditional_terminal_roundtrip_slice_3"
-                ),
-                "futures_terminal_order_roundtrip_slice_3",
-            ],
-            "allow_only_when_directly_blocks": [
-                "current vertical slice runtime behavior",
-                "current vertical slice focused test",
-                "live-safety or duplicate-order prevention",
-                "cap, wallet, authorization, data-loss, or traceability prevention",
-            ],
+            "ordered_successors": [],
+            "allow_only_when_directly_blocks": [],
             "forbidden_default_actions": [
                 "complete_current_approved_range",
                 "candidate_blocker_self_justification",
@@ -151,17 +143,18 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     assert summary["standing_limits"] == {
         "preferred_spot_notional_under_usdc": "10.00",
         "preferred_perpetual_notional_under_usdc": "30.00",
-        "active_futures_slice": {
+        "active_futures_slice": None,
+        "terminal_futures_slice": {
             "product_id": "AVP-20DEC30-CDE",
             "contract_count": "1",
             "opening_reference_notional_under_usdc": "100.00",
             "exposure_and_buffered_close_under_usdc": "150.00",
             "branch_turnover_under_usdc": "300.00",
-            "coinbase_preview_attempts_max": 1,
-            "authorized_recovery_preview_attempts_max": 1,
+            "coinbase_preview_attempts_max": 0,
+            "authorized_recovery_preview_attempts_max": 0,
             "exchange_mutation_attempts_max": 0,
             "conditional_slice_3": {
-                "status": "conditional_not_active",
+                "status": "not_run_terminally_inactive",
                 "exchange_mutation_attempts_max": 0,
             },
         },
@@ -172,6 +165,7 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     assert check_results["current_goal_alignment"]["passed"] is True
     assert check_results["historical_queue_posture"]["passed"] is True
     assert check_results["slice_2r7_terminal_closeout"]["passed"] is True
+    assert check_results["r8_r10_recovery_terminal_closeout"]["passed"] is True
     assert check_results["github_workflows_retired"]["passed"] is True
     assert check_results["github_workflows_retired"]["evidence"][
         "execution_authority"

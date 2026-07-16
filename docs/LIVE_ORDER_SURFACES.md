@@ -19,10 +19,10 @@ contract, never opens R8, and cannot call Coinbase. R9 is terminal blocked
 after all six fixed reads and one
 returned Preview reached response validation; it made zero retries, fallbacks,
 redirects, Create, Cancel, Close, Reduce, marker, ledger, runtime, or exchange
-mutations. R10 is the current preparation-only generation, with one remaining
-Preview maximum and no R11. Slice 3 is conditional, but Coinbase documents no
-Preview expiry field or TTL, so the pre-Create mutation boundary remains
-fail-closed even after acceptance; Slices 4/5 are unauthorized. Default
+mutations. R10 later consumed its one Preview and blocked at sanitized
+economics validation, again with zero retries, fallbacks, redirects,
+submissions, or mutations. R10 is permanently disabled, no Preview or R11
+authority remains, Slice 3 did not run, and Slices 4/5 are unauthorized. Default
 release and deployment checks remain no-live and report live Coinbase execution
 as not run with notional `0`.
 

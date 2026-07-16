@@ -261,6 +261,7 @@ owners:
       - docs/FUTURES_SLICE_2R7_TERMINAL_DIAGNOSIS.md
       - docs/FUTURES_SLICE_2R8_TERMINAL_DIAGNOSIS.md
       - docs/FUTURES_SLICE_2R9_TERMINAL_DIAGNOSIS.md
+      - docs/FUTURES_SLICE_2R10_TERMINAL_DIAGNOSIS.md
       - openapi/**
       - tools/export_admin_api_route_inventory.py
       - tests/regression/test_admin_api_*.py

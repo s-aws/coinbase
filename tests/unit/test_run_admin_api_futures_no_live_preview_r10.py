@@ -132,6 +132,15 @@ def test_r10_confirmation_is_blocked_before_path_predecessor_or_client(
     }
 
 
+def test_r10_cli_help_is_a_permanent_consumed_tombstone() -> None:
+    help_text = " ".join(r10_tool.build_parser().format_help().split())
+
+    assert "permanently disabled" in help_text
+    assert "R10 is consumed and has no live authority" in help_text
+    assert "permanently rejects consumed R10" in help_text
+    assert "after a separate final audited gate activation" not in help_text
+
+
 def test_r10_deferred_client_requires_exclusive_r10_claim_before_hydration(
     tmp_path: Path,
 ) -> None:

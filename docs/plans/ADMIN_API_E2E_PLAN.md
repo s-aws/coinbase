@@ -10,11 +10,11 @@ language below is implementation and regression history only.
 Current durable state: R8 is immutable opaque zero-call terminal evidence. R9
 is immutable terminal evidence after all six fixed reads and one returned
 Preview blocked at response validation, with zero retry, fallback, redirect,
-or exchange mutation. R10 is current and preparation-only, with one remaining
-Preview maximum and no R11. Slice 3 is conditional, but Coinbase documents no
-Preview expiry field or TTL, so the pre-Create mutation boundary remains
-fail-closed. The next action is
-`complete_r10_readiness_validation_then_execute_authorized_slice_2r10_once`.
+or exchange mutation. R10 is immutable terminal evidence after one returned
+Preview blocked at sanitized economics validation, also with zero retry,
+fallback, redirect, or exchange mutation. Recovery is exhausted, no R11 exists,
+and Slice 3 did not run. There is no default successor; the next action is
+`await_operator_selection_of_separately_authorized_next_goal`.
 
 The active frontend workspace is
 `/home/developer/coinbase/coinbase-frontend` in the local Linux Docker

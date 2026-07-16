@@ -209,6 +209,18 @@ FUTURES_PREVIEW_R9_SIZE = 24406
 FUTURES_PREVIEW_R9_MODE = 0o400
 FUTURES_PREVIEW_R9_MTIME_NS = 1784173141720439487
 FUTURES_PREVIEW_R9_NLINK = 1
+FUTURES_PREVIEW_R10_FILE_SHA256 = (
+    "5dd010a706c61e78454caeec478e05cafb1a50761e9e5a9a3d485051c4efee64"
+)
+FUTURES_PREVIEW_R10_EVIDENCE_SHA256 = (
+    "5121e980ec9da81f44d9a3b14b9bbcaa7bdaf41c99189cd9234cedc08d652005"
+)
+FUTURES_PREVIEW_R10_DEVICE = 2096
+FUTURES_PREVIEW_R10_INODE = 221388
+FUTURES_PREVIEW_R10_SIZE = 26144
+FUTURES_PREVIEW_R10_MODE = 0o400
+FUTURES_PREVIEW_R10_MTIME_NS = 1784179469052389092
+FUTURES_PREVIEW_R10_NLINK = 1
 FUTURES_PREVIEW_ORIGINAL_FILE_SHA256 = (
     "9b15da86c172eca46d4b3dc0fc2b81e9b325df9a1e2f75fef79362f538e2d5ff"
 )
@@ -548,6 +560,25 @@ FUTURES_PREVIEW_R9_TERMINAL_BINDING = {
     "executed_notional_usdc": "0",
     "preservation": "immutable_no_modify_delete_or_reuse",
     "original_predecessor_binding": FUTURES_PREVIEW_R8_TERMINAL_BINDING,
+}
+FUTURES_PREVIEW_R10_TERMINAL_BINDING = {
+    "artifact_name": "futures_exact_no_live_preview_slice_2r10.jsonl",
+    "file_sha256": FUTURES_PREVIEW_R10_FILE_SHA256,
+    "evidence_sha256": FUTURES_PREVIEW_R10_EVIDENCE_SHA256,
+    "device": str(FUTURES_PREVIEW_R10_DEVICE),
+    "inode": str(FUTURES_PREVIEW_R10_INODE),
+    "size_bytes": FUTURES_PREVIEW_R10_SIZE,
+    "mode": f"{FUTURES_PREVIEW_R10_MODE:04o}",
+    "mtime_ns": str(FUTURES_PREVIEW_R10_MTIME_NS),
+    "nlink": FUTURES_PREVIEW_R10_NLINK,
+    "status": "blocked",
+    "outcome": "blocked",
+    "preview_order_attempt_count": 1,
+    "exchange_submission_attempt_count": 0,
+    "submitted_notional_usdc": "0",
+    "executed_notional_usdc": "0",
+    "preservation": "immutable_no_modify_delete_or_reuse",
+    "original_predecessor_binding": FUTURES_PREVIEW_R9_TERMINAL_BINDING,
 }
 
 
@@ -1334,6 +1365,21 @@ def _configured_futures_order_preview_r10_artifact_path() -> Path | None:
         raise FuturesOrderPreviewArtifactError(
             "futures Preview R10 terminal readback is invalid"
         ) from None
+    if _same_artifact_path(
+        FUTURES_PREVIEW_R10_ARTIFACT_PATH,
+        _PRODUCTION_FUTURES_PREVIEW_R10_ARTIFACT_PATH,
+    ):
+        try:
+            observed = validate_production_futures_order_preview_r10_terminal()
+            if observed != FUTURES_PREVIEW_R10_TERMINAL_BINDING:
+                raise FuturesOrderPreviewArtifactError(
+                    "futures Preview R10 terminal binding changed"
+                )
+        except Exception:
+            raise FuturesOrderPreviewArtifactError(
+                "futures Preview R10 terminal readback is invalid"
+            ) from None
+        return FUTURES_PREVIEW_R10_ARTIFACT_PATH
     try:
         payload = FuturesOrderPreviewArtifactStore(
             FUTURES_PREVIEW_R10_ARTIFACT_PATH
@@ -2251,6 +2297,86 @@ def validate_production_futures_order_preview_r9_terminal() -> dict[str, Any]:
             "futures Preview R9 terminal binding changed"
         )
     return dict(FUTURES_PREVIEW_R9_TERMINAL_BINDING)
+
+
+def validate_production_futures_order_preview_r10_terminal() -> dict[str, Any]:
+    """Model/hash/stat-bind consumed R10 and its immutable predecessor chain."""
+
+    r9_binding = validate_production_futures_order_preview_r9_terminal()
+    if r9_binding != FUTURES_PREVIEW_R9_TERMINAL_BINDING:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R9 predecessor binding changed"
+        )
+    r10_binding = validate_futures_order_preview_predecessor(
+        FUTURES_PREVIEW_R10_ARTIFACT_PATH,
+        expected_file_sha256=FUTURES_PREVIEW_R10_FILE_SHA256,
+        expected_evidence_sha256=FUTURES_PREVIEW_R10_EVIDENCE_SHA256,
+        expected_device=FUTURES_PREVIEW_R10_DEVICE,
+        expected_inode=FUTURES_PREVIEW_R10_INODE,
+        expected_size=FUTURES_PREVIEW_R10_SIZE,
+        expected_mode=FUTURES_PREVIEW_R10_MODE,
+        expected_mtime_ns=FUTURES_PREVIEW_R10_MTIME_NS,
+        expected_nlink=FUTURES_PREVIEW_R10_NLINK,
+        expected_artifact_type=FUTURES_PREVIEW_R10_ARTIFACT_TYPE,
+        expected_blocker="post_preview_stage_blocked",
+        expected_predecessor_binding=r9_binding,
+        expected_preview_order_attempt_count=1,
+    )
+    try:
+        from application.admin_api.models import (
+            AdminFuturesOrderPreviewResponse,
+        )
+
+        payload = FuturesOrderPreviewArtifactStore(
+            FUTURES_PREVIEW_R10_ARTIFACT_PATH
+        ).read_completed()
+        validated = AdminFuturesOrderPreviewResponse.model_validate(payload)
+        post_preview = validated.post_preview_stage_evidence
+        if (
+            post_preview is None
+            or post_preview.model_dump(mode="json")
+            != {
+                "schema_version": "1",
+                "source": "backend_futures_preview_producer",
+                "stages": [
+                    {
+                        "stage": "preview_response_validation",
+                        "status": "blocked",
+                        "reason_code": (
+                            "futures_preview_response_economics_invalid"
+                        ),
+                    }
+                ],
+                "sanitized": True,
+                "raw_response_included": False,
+                "external_exception_text_included": False,
+                "identifier_values_included": False,
+            }
+            or validated.preview_response is not None
+            or validated.preview_id_sha256 is not None
+            or validated.seal_ready_plan is not None
+        ):
+            raise FuturesOrderPreviewArtifactError(
+                "futures Preview R10 terminal diagnosis changed"
+            )
+        _validate_opaque_preview_artifact(
+            FUTURES_PREVIEW_R10_ARTIFACT_PATH,
+            expected_file_sha256=FUTURES_PREVIEW_R10_FILE_SHA256,
+            expected_device=FUTURES_PREVIEW_R10_DEVICE,
+            expected_inode=FUTURES_PREVIEW_R10_INODE,
+            expected_size=FUTURES_PREVIEW_R10_SIZE,
+            expected_mode=FUTURES_PREVIEW_R10_MODE,
+            expected_mtime_ns=FUTURES_PREVIEW_R10_MTIME_NS,
+        )
+    except Exception:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R10 terminal model validation failed"
+        ) from None
+    if r10_binding != FUTURES_PREVIEW_R10_TERMINAL_BINDING:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R10 terminal binding changed"
+        )
+    return dict(FUTURES_PREVIEW_R10_TERMINAL_BINDING)
 
 
 def validate_production_futures_order_preview_predecessor() -> dict[str, Any]:

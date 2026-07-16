@@ -153,7 +153,7 @@ create a separate approval class.
   SHA-256. It does not prove a schema, cap, available-margin, candidate,
   sealing, or other exact cause. See
   `docs/FUTURES_SLICE_2R7_TERMINAL_DIAGNOSIS.md`.
-- Current goal is active with `blockers=[]`. R8 is terminal blocked and
+- Current goal is complete with terminal non-acceptance. R8 is terminal blocked and
   immutable with zero Preview, real Coinbase, AWS-service, or mutation calls.
   R9 is also terminal blocked and immutable. All six fixed read categories ran
   once and exactly one Coinbase Preview returned before the first post-return
@@ -165,28 +165,21 @@ create a separate approval class.
   `2fd73aa0059da49dfe6c836f6dea29b12158fb3dfbe8abdd6d8f4f0f7d702464`.
   See `docs/FUTURES_SLICE_2R9_TERMINAL_DIAGNOSIS.md` for the complete immutable
   binding and value-blind diagnosis.
-- R10 is current and preparation-only. Its Preview maximum and the remaining
-  authorized recovery maximum are both `1`; its exchange-mutation maximum is
-  `0`, and no R11 is authorized. Default API/UI readback selects the valid R9
-  terminal while preserving R8 through its documented-SHA/stat-metadata-only
-  forensic contract. The documented R8 SHA is not recomputed and runtime never
-  opens R8. Never invoke the R7, R8, or R9 runner again.
-- R10 credential readiness is fail-closed before claim consumption. The
-  confirmed composition root performs one bounded Secrets Manager lookup for
-  fixed secret `coinbase` in `us-east-1` through the pinned signed AWS CLI and
-  default owner-only credential files, then constructs the canonical
-  zero-retry/zero-redirect session locally. Lookup, parsing, or client
-  construction failure leaves R10 and all Slice 3 paths absent with zero
-  Coinbase reads/Preview calls. A successful preparation injects that exact
-  delegate into the claim-gated Preview facade; it cannot perform a second
-  lookup or construct a second client.
-- Coinbase currently documents no Preview expiry field or TTL. An accepted R10
-  therefore terminalizes at the runner's `PLAN` boundary before admission,
-  activation, port construction, or mutation and cannot activate Slice 3. The
-  dormant risk-off continuation is same-process only and cannot survive
-  `SIGKILL`, container loss, or host loss; keep Slice 3 mutation authority
-  disabled until both authoritative expiry evidence and independently audited
-  durable recovery exist.
+- R10 is terminal blocked and immutable. Its one Preview returned before the
+  first post-return stage blocked with sanitized category
+  `futures_preview_response_economics_invalid`. The file/evidence SHA-256 pair
+  is `5dd010a706c61e78454caeec478e05cafb1a50761e9e5a9a3d485051c4efee64` /
+  `5121e980ec9da81f44d9a3b14b9bbcaa7bdaf41c99189cd9234cedc08d652005`.
+  All six reads and Preview are `1`; retry, fallback, redirect, Create, Cancel,
+  Close, Reduce, exchange submission, and submitted/executed notional are zero.
+  No normalized Preview, Preview identifier, or seal-ready plan was persisted.
+  Default API/UI readback selects this exact terminal while preserving R8
+  through documented-SHA/stat-metadata-only validation. See
+  `docs/FUTURES_SLICE_2R10_TERMINAL_DIAGNOSIS.md`.
+- The standalone and composite R10 entrypoints are permanently hard-false.
+  R10 has no remaining Preview authority, no R11 exists, and Slice 3 did not
+  run. Its handoff, admission, activation, action-journal, read-journal, and
+  terminal artifacts are absent. Never invoke any R7-R10 runner again.
 - R6 predecessor state: Slice 2 remained blocked after the authorized R6
   attempt was consumed without accepted Preview evidence. The
   consumed immutable R5 file/evidence SHA-256 pair remains
@@ -218,7 +211,7 @@ create a separate approval class.
 - Current goal id:
   `futures_preview_acceptance_recovery_r8_r10_and_conditional_terminal_roundtrip_slice_3`.
 - Current next action:
-  `complete_r10_readiness_validation_then_execute_authorized_slice_2r10_once`.
+  `await_operator_selection_of_separately_authorized_next_goal`.
 - Current slice: Default-profile Futures readback -> exact AVAX US CFM Coinbase
   Preview Order -> immutable operator-visible no-live preview readback. The
   one-shot R1 artifact terminated before

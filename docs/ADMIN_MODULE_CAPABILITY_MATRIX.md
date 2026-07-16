@@ -23,11 +23,12 @@ with zero Preview or real Coinbase calls. R9 is terminal blocked after all six
 fixed reads and one returned Preview reached response validation; retry,
 fallback, redirect, and every exchange mutation remained zero. Its exact
 immutable hashes are recorded in
-`docs/FUTURES_SLICE_2R9_TERMINAL_DIAGNOSIS.md`. R10 is current and
-preparation-only, with one remaining Preview maximum and no R11. Slice 3 is
-conditional, but Coinbase documents no Preview expiry field or TTL, so its
-pre-Create mutation gate remains fail-closed. Slices 4/5 are unauthorized and
-out of scope.
+`docs/FUTURES_SLICE_2R9_TERMINAL_DIAGNOSIS.md`. R10 later consumed its only
+Preview and blocked at the first post-return stage with sanitized category
+`futures_preview_response_economics_invalid`. It made zero retries, fallbacks,
+redirects, submissions, or mutations. Recovery is exhausted, no R11 exists,
+Slice 3 did not run, and Slices 4/5 are unauthorized. Exact R10 evidence is in
+`docs/FUTURES_SLICE_2R10_TERMINAL_DIAGNOSIS.md`.
 Fan-out, scheduler, runtime-control,
 retry/recovery, multi-product wallet-ledger work, and ladder/grid order sets
 are parked.

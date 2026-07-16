@@ -13,12 +13,11 @@ because it lives in this directory.
 Current state: R8 is immutable opaque terminal evidence with zero Preview or
 real Coinbase calls. R9 is immutable terminal evidence after one returned
 Preview blocked at response validation, with zero retry, fallback, or exchange
-mutation. R10 is current and preparation-only, with one remaining Preview and
-no R11. Slice 3 is conditional, but Coinbase documents no Preview expiry field
-or TTL, so pre-Create mutation remains fail-closed. The next action is
-`complete_r10_readiness_validation_then_execute_authorized_slice_2r10_once`.
-See `../docs/FUTURES_SLICE_2R9_TERMINAL_DIAGNOSIS.md` for exact immutable hashes
-and the localized terminal boundary.
+mutation. R10 is immutable terminal evidence after its one returned Preview
+blocked at sanitized economics validation. Recovery is complete without
+acceptance: no Preview authority remains, no R11 exists, and Slice 3 did not
+run. See `../docs/FUTURES_SLICE_2R10_TERMINAL_DIAGNOSIS.md` for exact immutable
+hashes, accounting, and the localized boundary.
 
 ## Read Order
 

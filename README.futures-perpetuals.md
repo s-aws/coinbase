@@ -6,10 +6,10 @@ snapshot. Current goal id is
 R7 remains immutable historical evidence. R8 is immutable opaque terminal
 evidence with zero Preview or real Coinbase calls. R9 is immutable terminal
 evidence after one returned Preview blocked at response validation, with zero
-retry, fallback, or exchange mutation. R10 is current and preparation-only,
-with at most one remaining Preview and no R11. Slice 3 is conditional, but
-Coinbase documents no Preview expiry field or TTL, so pre-Create mutation
-remains fail-closed. Slices 4/5 remain unauthorized.
+retry, fallback, or exchange mutation. R10 is immutable terminal evidence after
+one returned Preview blocked at sanitized economics validation. Recovery has no
+remaining Preview, R11, or mutation authority; Slice 3 did not run and Slices
+4/5 remain unauthorized.
 
 This feature exposes read-only futures and perpetual account, risk, and
 position evidence through the enterprise Admin API. It is a separate module,
