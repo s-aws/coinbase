@@ -42,10 +42,20 @@ _EXPECTED_R11_AUDITED_COMPONENTS = {
     "backend:tests/unit/test_run_admin_api_futures_no_live_preview_r11.py",
     "backend:tests/regression/test_spot_readiness_gate.py",
     "backend:tools/run_admin_api_futures_no_live_preview.py",
+    "backend:tools/coinbase_live_credentials.py",
     "backend:tools/run_autonomous_work_queue_check.py",
     "frontend:AGENTS.md",
+    "frontend:README.admin-frontend.md",
+    "frontend:docs/ADMIN_MODULE_CAPABILITY_MATRIX.md",
+    "frontend:docs/API_CONTRACT.md",
     "frontend:docs/CURRENT_MVP_GOAL.md",
+    "frontend:docs/FUTURES_PERPETUALS_READS.md",
+    "frontend:docs/HUMAN_OPERATOR_RUNBOOK.md",
+    "frontend:docs/MAINTAINER_HANDOFF.md",
+    "frontend:docs/ORIGIN_PROD_FEATURE_MVP_MAP.md",
     "frontend:docs/TESTING.md",
+    "frontend:docs/plans/AUTONOMOUS_WORK_QUEUE.md",
+    "frontend:docs/plans/MVP_BLOCKER_LEDGER.md",
     "frontend:scripts/check-autonomous-work-queue.mjs",
     "frontend:scripts/check-deployment-readiness.mjs",
     "frontend:scripts/check-mvp-goal-alignment.mjs",
@@ -74,6 +84,145 @@ _EXPECTED_SDK_SOURCE_SHA256 = {
         "19552322d672d194aad8cf91b7a07038360c6d9504ac4fce1e7524b7728317b2"
     ),
 }
+
+_EXPECTED_RUNTIME_DEPENDENCIES = (
+    (
+        "coinbase-advanced-py",
+        "1.8.4",
+        "/home/developer/.local/lib/python3.13/site-packages",
+        "coinbase_advanced_py-1.8.4.dist-info",
+        "coinbase",
+        "40430123aeb0b6b38b333b676c0b5775b86188e5082ee2bbb54f337d48edeba1",
+    ),
+    (
+        "requests",
+        "2.34.2",
+        "/home/developer/.local/lib/python3.13/site-packages",
+        "requests-2.34.2.dist-info",
+        "requests",
+        "2e48b2db823e566cd0e9c99df87dfa6117fe020e6519f3f9909f4470291fab4b",
+    ),
+    (
+        "urllib3",
+        "2.7.0",
+        "/usr/local/lib/python3.13/site-packages",
+        "urllib3-2.7.0.dist-info",
+        "urllib3",
+        "bab9edcf76ec02bac68329df0e7de530efcbd3dc131551f5f86a83ff4d087106",
+    ),
+    (
+        "PyJWT",
+        "2.13.0",
+        "/home/developer/.local/lib/python3.13/site-packages",
+        "pyjwt-2.13.0.dist-info",
+        "jwt",
+        "e66ede74c7a4eaef0332c82e25c313c183114ecb993cae8c2d9a72efe89cdf27",
+    ),
+    (
+        "cryptography",
+        "49.0.0",
+        "/home/developer/.local/lib/python3.13/site-packages",
+        "cryptography-49.0.0.dist-info",
+        "cryptography",
+        "8aef53314efc7136ef9aafcaf3da40e9b2b2d71086e969f354e9f744f14b5be5",
+    ),
+    (
+        "cffi",
+        "2.1.0",
+        "/home/developer/.local/lib/python3.13/site-packages",
+        "cffi-2.1.0.dist-info",
+        "cffi",
+        "b4126874ee638ae57d4b6291a819e92c0ba4e4cf538ca4cec3ee360fc28d243a",
+    ),
+    (
+        "certifi",
+        "2026.6.17",
+        "/usr/local/lib/python3.13/site-packages",
+        "certifi-2026.6.17.dist-info",
+        "certifi",
+        "99d26202d832e6cde4539b481e5956858b5e051bdc7f407f101e03b4319e4c4c",
+    ),
+    (
+        "charset-normalizer",
+        "3.4.9",
+        "/home/developer/.local/lib/python3.13/site-packages",
+        "charset_normalizer-3.4.9.dist-info",
+        "charset_normalizer",
+        "ce77d38b745a896acd0f012d1300fa4afea386d991835c943dec27d74fb9e963",
+    ),
+    (
+        "idna",
+        "3.18",
+        "/usr/local/lib/python3.13/site-packages",
+        "idna-3.18.dist-info",
+        "idna",
+        "0d15c3a9678cec4de0ae64abb7f85a636e44dea89d15f73c94d58e24ffaae78f",
+    ),
+    (
+        "backoff",
+        "2.2.1",
+        "/home/developer/.local/lib/python3.13/site-packages",
+        "backoff-2.2.1.dist-info",
+        "backoff",
+        "ac9598ad7ca72d341773345bce960fd6b392f38d33ef1766a4d752a23f794b6e",
+    ),
+    (
+        "websockets",
+        "13.1",
+        "/home/developer/.local/lib/python3.13/site-packages",
+        "websockets-13.1.dist-info",
+        "websockets",
+        "9ce8a817feeced95d3a864c5c14bf964a21fc572b8f7649d58f377140032e802",
+    ),
+    (
+        "pydantic",
+        "2.13.4",
+        "/home/developer/.local/lib/python3.13/site-packages",
+        "pydantic-2.13.4.dist-info",
+        "pydantic",
+        "774c7cbfbb195bcfebdd1b6b3f0ea3ce47fad225b8b1e8e172c5864dec34a358",
+    ),
+    (
+        "pydantic_core",
+        "2.46.4",
+        "/home/developer/.local/lib/python3.13/site-packages",
+        "pydantic_core-2.46.4.dist-info",
+        "pydantic_core",
+        "cf9ba47e87c106a9c3a90175556a5e62b66bc0747e754f5d31441314910e7318",
+    ),
+    (
+        "annotated-types",
+        "0.7.0",
+        "/home/developer/.local/lib/python3.13/site-packages",
+        "annotated_types-0.7.0.dist-info",
+        "annotated_types",
+        "f7c0160ccf09bebdec2eb160bb86d1a170670af060991dd2b16299da91a43b84",
+    ),
+    (
+        "typing-inspection",
+        "0.4.2",
+        "/home/developer/.local/lib/python3.13/site-packages",
+        "typing_inspection-0.4.2.dist-info",
+        "typing_inspection",
+        "0f03ce122a0ee9bbadaf2877040b7b14ca553bdead97797be3333171f7ab153c",
+    ),
+    (
+        "typing_extensions",
+        "4.16.0",
+        "/usr/local/lib/python3.13/site-packages",
+        "typing_extensions-4.16.0.dist-info",
+        "typing_extensions.py",
+        "87c5132ed922c2e300fd3c36b828e1b3694f2e2ac38f26f556064c4bf3d9af81",
+    ),
+    (
+        "PySocks",
+        "1.7.1",
+        "/usr/local/lib/python3.13/site-packages",
+        "PySocks-1.7.1.dist-info",
+        "socks.py",
+        "c82333a9b7743d58eb07ca1721d35803bbcdc42a048c8154133d142151c5be91",
+    ),
+)
 
 
 def _sha(label: str) -> str:
@@ -515,6 +664,39 @@ def test_r11_bootstrap_dependency_site_binds_sdk_before_project_imports(
     assert r11_tool._bootstrap_dependency_site_is_valid() is False
 
 
+def test_r11_runtime_dependency_manifest_binds_complete_loaded_closure() -> None:
+    assert r11_tool._R11_RUNTIME_DEPENDENCIES == _EXPECTED_RUNTIME_DEPENDENCIES
+    assert r11_tool._R11_RUNTIME_DEPENDENCY_BINDING_SHA256 == (
+        "2119cad7e5d47201a637511c61944ff01be7b5708cb642be8da8634edb8f1541"
+    )
+
+
+def test_r11_runtime_dependency_guard_rejects_unverified_site_origin(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    site = tmp_path / "site-packages"
+    site.mkdir()
+    verified = site / "requests" / "__init__.py"
+    verified.parent.mkdir()
+    verified.write_text("", encoding="utf-8")
+    rogue = site / "pydantic" / "__init__.py"
+    rogue.parent.mkdir()
+    rogue.write_text("", encoding="utf-8")
+    monkeypatch.setattr(r11_tool, "_R11_RUNTIME_SITE_ROOTS", (str(site),))
+    monkeypatch.setattr(
+        r11_tool,
+        "_R11_VERIFIED_DEPENDENCY_FILES",
+        {str(verified.resolve())},
+    )
+
+    bound = SimpleNamespace(origin=str(verified), submodule_search_locations=None)
+    unbound = SimpleNamespace(origin=str(rogue), submodule_search_locations=None)
+
+    assert r11_tool._runtime_dependency_spec_is_verified(bound) is True
+    assert r11_tool._runtime_dependency_spec_is_verified(unbound) is False
+
+
 def test_r11_bootstrap_dependency_site_rejects_unrecorded_sdk_code(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -622,7 +804,11 @@ def test_r11_clean_revision_gate_rejects_untracked_backend_source(
 
 @pytest.mark.parametrize(
     "shadow",
-    ["tools/rogue_loader.so", "application/admin_api/rogue_loader.pyc"],
+    [
+        "tools/rogue_loader.so",
+        "application/admin_api/rogue_loader.pyc",
+        "pydantic/rogue_loader.py",
+    ],
 )
 def test_r11_clean_revision_gate_rejects_ignored_import_shadows(
     monkeypatch: pytest.MonkeyPatch,
@@ -990,6 +1176,149 @@ def test_r11_import_mode_validates_source_but_has_no_live_factory_authority(
         match="production factory authority is unavailable",
     ):
         r11_tool._build_production_r11_store()
+
+
+def test_r11_fixed_secret_lookup_uses_only_pinned_aws_cli_and_closed_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[list[str], dict[str, object]]] = []
+    payload = '{"SecretString":"PRIVATE_EPHEMERAL_SECRET"}'
+
+    for name in (
+        "PATH",
+        "AWS_ENDPOINT_URL",
+        "AWS_PROFILE",
+        "AWS_CONFIG_FILE",
+        "HTTPS_PROXY",
+        "REQUESTS_CA_BUNDLE",
+    ):
+        monkeypatch.setenv(name, "/hostile/ambient/override")
+
+    def fake_run(args, **kwargs):
+        calls.append((list(args), dict(kwargs)))
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout=payload,
+            stderr="",
+        )
+
+    monkeypatch.setattr(r11_tool.subprocess, "run", fake_run)
+
+    assert r11_tool._lookup_fixed_r11_secret("coinbase", "us-east-1") == payload
+    assert len(calls) == 1
+    args, kwargs = calls[0]
+    assert args == [
+        str(r11_tool._R11_AWS_CLI_CANONICAL_PATH),
+        "secretsmanager",
+        "get-secret-value",
+        "--secret-id",
+        "coinbase",
+        "--region",
+        "us-east-1",
+        "--endpoint-url",
+        "https://secretsmanager.us-east-1.amazonaws.com",
+        "--ca-bundle",
+        str(r11_tool._R11_AWS_CLI_CA_BUNDLE),
+        "--output",
+        "json",
+        "--no-cli-pager",
+        "--cli-connect-timeout",
+        "10",
+        "--cli-read-timeout",
+        "20",
+    ]
+    assert kwargs == {
+        "capture_output": True,
+        "check": False,
+        "cwd": r11_tool.REPO_ROOT,
+        "env": {
+            "AWS_CLI_AUTO_PROMPT": "off",
+            "AWS_CLI_HISTORY_FILE": "/dev/null",
+            "AWS_CONFIG_FILE": "/dev/null",
+            "AWS_DEFAULT_REGION": "us-east-1",
+            "AWS_EC2_METADATA_DISABLED": "true",
+            "AWS_MAX_ATTEMPTS": "1",
+            "AWS_PAGER": "",
+            "AWS_PROFILE": "default",
+            "AWS_REGION": "us-east-1",
+            "AWS_RETRY_MODE": "standard",
+            "AWS_SHARED_CREDENTIALS_FILE": "/home/developer/.aws/credentials",
+            "HOME": "/nonexistent",
+            "LC_ALL": "C",
+            "PATH": str(r11_tool._R11_AWS_CLI_CANONICAL_PATH.parent),
+        },
+        "stdin": subprocess.DEVNULL,
+        "text": True,
+        "timeout": 35,
+    }
+
+
+@pytest.mark.parametrize(
+    ("secret_id", "region"),
+    [("other", "us-east-1"), ("coinbase", "us-west-2"), ("coinbase", None)],
+)
+def test_r11_fixed_secret_lookup_rejects_scope_drift_before_subprocess(
+    secret_id: str,
+    region: str | None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        r11_tool.subprocess,
+        "run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("AWS CLI invoked")
+        ),
+    )
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="^futures Preview R11 credential preparation failed$",
+    ):
+        r11_tool._lookup_fixed_r11_secret(secret_id, region)
+
+
+def test_r11_fixed_secret_lookup_withholds_cli_failure_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        r11_tool.subprocess,
+        "run",
+        lambda args, **_kwargs: subprocess.CompletedProcess(
+            args=args,
+            returncode=1,
+            stdout="",
+            stderr="PRIVATE AWS FAILURE CONTEXT",
+        ),
+    )
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="^futures Preview R11 credential preparation failed$",
+    ) as captured:
+        r11_tool._lookup_fixed_r11_secret("coinbase", "us-east-1")
+    assert "PRIVATE" not in str(captured.value)
+
+
+def test_r11_production_client_injects_only_fixed_secret_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    delegate = object()
+    calls: list[object] = []
+    monkeypatch.setattr(r11_tool, "_require_production_factory_authority", lambda: None)
+    monkeypatch.setattr(
+        r11_tool.base_tool,
+        "_build_canonical_default_rest_client",
+        lambda *, run_secret_lookup: calls.append(run_secret_lookup) or delegate,
+    )
+    monkeypatch.setattr(
+        r11_tool,
+        "FuturesPreviewOnlyRestClient",
+        lambda value: value,
+    )
+
+    assert r11_tool._build_r11_preview_rest_client() is delegate
+    assert calls == [r11_tool._lookup_fixed_r11_secret]
 
 
 def test_r11_deferred_client_requires_exclusive_r11_claim_before_hydration(
