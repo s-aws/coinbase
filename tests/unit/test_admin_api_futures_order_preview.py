@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from copy import deepcopy
 import json
 import hashlib
 import logging
+import re
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
+from threading import Event, Lock
 from types import SimpleNamespace
 
 import pytest
@@ -79,6 +82,27 @@ from tools import run_admin_api_futures_no_live_preview_r6 as r6_preview_tool
 
 NOW = datetime(2026, 7, 13, 12, 0, tzinfo=timezone.utc)
 MISSING = object()
+
+
+@pytest.fixture(autouse=True)
+def _isolate_fixed_production_successor_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No unit test may select, deserialize, or write the fixed R8 artifact."""
+
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R8_ARTIFACT_PATH",
+        tmp_path / "fixed-production-r8-isolated.jsonl",
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R9_ARTIFACT_PATH",
+        tmp_path / "fixed-production-r9-isolated.jsonl",
+    )
+
+
 ORIGINAL_SLICE2_BINDING = {
     "artifact_name": "futures_exact_no_live_preview_slice_2.jsonl",
     "file_sha256": "9b15da86c172eca46d4b3dc0fc2b81e9b325df9a1e2f75fef79362f538e2d5ff",
@@ -330,6 +354,28 @@ def _preview() -> dict[str, object]:
     }
 
 
+def _r8_compatible_rest_client() -> "FakePreviewRestClient":
+    """Return synthetic R8 evidence matching the fixed V3/schema bindings."""
+
+    rest_client = FakePreviewRestClient()
+    snapshot = rest_client.get_futures_margin_collateral_snapshot()
+    snapshot["current_margin_windows"][0]["margin_window"][  # type: ignore[index]
+        "margin_window_type"
+    ] = "MARGIN_WINDOW_TYPE_UNSPECIFIED"
+    rest_client.get_futures_margin_collateral_snapshot = (  # type: ignore[method-assign]
+        lambda: snapshot
+    )
+    response = _preview()
+    response.pop("current_liquidation_buffer")
+    response.pop("projected_liquidation_buffer")
+    response["margin_ratio_data"] = {
+        "current_margin_ratio": "0.20",
+        "projected_margin_ratio": "0.25",
+    }
+    rest_client.preview_response = response
+    return rest_client
+
+
 class FakePreviewRestClient:
     def __init__(
         self,
@@ -458,6 +504,7 @@ def _producer(
     *,
     artifact_type: str = "futures_exact_no_live_preview_slice_2r3",
     predecessor_binding: dict[str, object] | None = None,
+    now: Callable[[], datetime] | None = None,
 ):
     path = tmp_path / "futures-preview.jsonl"
     store = FuturesOrderPreviewArtifactStore(path)
@@ -468,7 +515,7 @@ def _producer(
         predecessor_binding=bound_predecessor,
         predecessor_validator=lambda: dict(bound_predecessor),
         artifact_type=artifact_type,
-        now=lambda: NOW,
+        now=now or (lambda: NOW),
         correlation_id_factory=lambda: "8f604e56-0a23-4bda-b244-11ebc0194241",
         idempotency_key_factory=lambda: "2d8327f6-826c-4f73-82a4-822e29f73065",
     )
@@ -823,29 +870,22 @@ def test_producer_reserves_before_first_coinbase_read(tmp_path: Path):
 
 
 @pytest.mark.parametrize(
-    ("identifier_field", "consumed_identifier"),
-    [
-        (identifier_field, consumed_identifier)
-        for identifier_field in ("correlation_id", "idempotency_key")
-        for consumed_identifier in (
-            "9c26aed6-fce5-470b-b57e-b89423ecc0ed",
-            "1396cd8f-d258-446f-92e1-fc53f6b93c71",
-            "5dcd3d52-95bf-4fd3-93ca-83e8be28f132",
-            "d1a930f2-0e91-42e0-8a22-a20444575585",
-            "6cfffc61-2d69-4559-8729-ad3c5a8f9751",
-            "f26dbcc6-4336-4bb1-a317-6c5a3d87d2d0",
-            "5eaffbc0-4db9-40d5-b17a-3ec7c56bf700",
-            "f5285420-6891-4daf-885d-f3ffeacd7218",
-            "f32948c1-6bf1-421a-9267-6138ec2228ae",
-            "77016c90-d1e1-4344-84c7-53b3c2dca70b",
-        )
-    ],
+    "identifier_field",
+    ["correlation_id", "idempotency_key"],
 )
-def test_r3_rejects_every_consumed_identifier_before_claim_or_coinbase_read(
+def test_r3_rejects_hash_bound_consumed_identifier_before_coinbase_read(
     tmp_path: Path,
     identifier_field: str,
-    consumed_identifier: str,
+    monkeypatch: pytest.MonkeyPatch,
 ):
+    consumed_identifier = "11111111-1111-4111-8111-111111111111"
+    monkeypatch.setattr(
+        preview_module,
+        "_CONSUMED_PREVIEW_IDENTIFIER_SHA256",
+        frozenset(
+            {hashlib.sha256(consumed_identifier.encode("ascii")).hexdigest()}
+        ),
+    )
     path = tmp_path / "slice2r3.jsonl"
     rest_client = FakePreviewRestClient()
     fresh_correlation_id = "8f604e56-0a23-4bda-b244-11ebc0194241"
@@ -873,6 +913,29 @@ def test_r3_rejects_every_consumed_identifier_before_claim_or_coinbase_read(
 
     assert rest_client.read_calls == []
     assert not path.exists()
+
+
+def test_consumed_preview_identity_registry_is_hash_only() -> None:
+    source = Path(preview_module.__file__).read_text(encoding="utf-8")
+    registry = source.split(
+        "_CONSUMED_PREVIEW_IDENTIFIER_SHA256 =",
+        maxsplit=1,
+    )[1].split("def _preview_identifier_was_consumed", maxsplit=1)[0]
+    uuid_literal = re.compile(
+        r"[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-"
+        r"[89ab][0-9a-f]{3}-[0-9a-f]{12}"
+    )
+
+    assert uuid_literal.search(registry) is None
+    assert not hasattr(preview_module, "_CONSUMED_PREVIEW_IDENTIFIERS")
+    assert not hasattr(preview_module, "_R6_CONSUMED_PREVIEW_IDENTIFIERS")
+    assert len(preview_module._CONSUMED_PREVIEW_IDENTIFIER_SHA256) == 10
+    assert len(preview_module._R6_CONSUMED_PREVIEW_IDENTIFIER_SHA256) == 12
+    assert len(preview_module._R7_CONSUMED_PREVIEW_IDENTIFIER_SHA256) == 14
+    assert all(
+        re.fullmatch(r"[0-9a-f]{64}", value)
+        for value in preview_module._R7_CONSUMED_PREVIEW_IDENTIFIER_SHA256
+    )
 
 
 def test_missing_default_trade_permission_and_margin_ambiguity_block_pre_preview(
@@ -1886,6 +1949,475 @@ def test_consumed_r7_terminal_is_exactly_bound_selected_and_diagnosed(
     }
 
 
+def test_r8_predecessor_chain_is_opaque_hash_bound_without_json_readback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        preview_module.FuturesOrderPreviewArtifactStore,
+        "read_completed",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("prior terminal JSON was deserialized")
+        ),
+    )
+
+    assert (
+        preview_module.validate_production_futures_order_preview_r7_opaque_chain()
+        == preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING
+    )
+
+
+def test_latest_preview_artifact_selector_serves_exact_r7_when_r8_is_absent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    r8_path = tmp_path / "absent-r8.jsonl"
+    monkeypatch.delenv(
+        "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_PATH",
+        raising=False,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R8_ARTIFACT_PATH",
+        r8_path,
+    )
+
+    assert configured_futures_order_preview_artifact_path() == (
+        preview_module.FUTURES_PREVIEW_R7_ARTIFACT_PATH
+    )
+    assert not r8_path.exists()
+
+
+def test_latest_preview_artifact_selector_serves_valid_r8_without_r7_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    producer, _store, r8_path = _producer(
+        tmp_path,
+        _r8_compatible_rest_client(),
+        artifact_type=preview_module.FUTURES_PREVIEW_R8_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING,
+    )
+    producer.run()
+    monkeypatch.delenv(
+        "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_PATH",
+        raising=False,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R8_ARTIFACT_PATH",
+        r8_path,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R7_ARTIFACT_PATH",
+        tmp_path / "r7-fallback-must-not-be-read.jsonl",
+    )
+
+    assert configured_futures_order_preview_artifact_path() == r8_path
+
+
+def test_latest_preview_artifact_selector_serves_valid_r9_before_r8(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    producer, _store, r9_path = _producer(
+        tmp_path / "r9",
+        _r8_compatible_rest_client(),
+        artifact_type=preview_module.FUTURES_PREVIEW_R9_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R8_TERMINAL_BINDING,
+    )
+    producer.run()
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R9_ARTIFACT_PATH",
+        r9_path,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R8_ARTIFACT_PATH",
+        tmp_path / "r8-must-not-be-selected.jsonl",
+    )
+
+    assert configured_futures_order_preview_artifact_path() == r9_path
+
+
+def test_present_invalid_r9_blocks_r8_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    r9_path = tmp_path / "invalid-r9.jsonl"
+    r9_path.write_bytes(b"synthetic-invalid-r9\n")
+    r9_path.chmod(0o400)
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R9_ARTIFACT_PATH",
+        r9_path,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R8_ARTIFACT_PATH",
+        tmp_path / "r8-fallback-must-not-be-read.jsonl",
+    )
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="R9 terminal readback is invalid",
+    ):
+        configured_futures_order_preview_artifact_path()
+
+
+def test_r8_get_route_withholds_private_identifiers_from_browser_readback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    producer, store, r8_path = _producer(
+        tmp_path,
+        _r8_compatible_rest_client(),
+        artifact_type=preview_module.FUTURES_PREVIEW_R8_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING,
+    )
+    ephemeral_claim = producer.build_claim()
+    producer.run()
+    terminal = store.read_completed()
+    private_values = {
+        "correlation_id": ephemeral_claim["correlation_id"],
+        "idempotency_key": ephemeral_claim["idempotency_key"],
+        "portfolio_id": "default-portfolio-uuid",
+        "preview_id": "preview-avp-1",
+    }
+    monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-token")
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_PATH",
+        str(r8_path),
+    )
+
+    response = TestClient(create_app()).get(
+        "/api/v1/futures/order-preview",
+        headers={
+            "Authorization": "Bearer test-token",
+            "X-Admin-Actor": "operator-1",
+            "X-Admin-Roles": "viewer",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["artifact_type"] == (
+        preview_module.FUTURES_PREVIEW_R8_ARTIFACT_TYPE
+    )
+    assert payload["correlation_id"] == "withheld"
+    assert payload["idempotency_key"] == "withheld"
+    assert payload["portfolio_id"] == "withheld"
+    assert payload["portfolio_binding"]["observed_portfolio_id"] == "withheld"
+    assert payload["permission_evidence"]["portfolio_id"] == "withheld"
+    assert (
+        payload["portfolio_catalog_evidence"]["selected_portfolio_id"]
+        == "withheld"
+    )
+    assert payload["preview_response"]["preview_id"] == "withheld"
+    assert (
+        payload["seal_ready_plan"]["authoritative_preview"]["preview_id"]
+        == "withheld"
+    )
+    assert (
+        payload["seal_ready_plan"]["profile_binding"]["portfolio_id"]
+        == "withheld"
+    )
+    assert [
+        name
+        for name, value in private_values.items()
+        if value in response.text
+    ] == []
+
+
+def test_latest_preview_artifact_selector_linearizes_concurrent_r8_reservation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    producer, store, r8_path = _producer(
+        tmp_path,
+        _r8_compatible_rest_client(),
+        artifact_type=preview_module.FUTURES_PREVIEW_R8_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING,
+    )
+
+    started = Event()
+    executor = ThreadPoolExecutor(max_workers=1)
+    reservation = None
+
+    def reserve_r8() -> str:
+        started.set()
+        return store.reserve(producer.build_claim())
+
+    def start_r8_reservation_during_r7_validation() -> dict[str, object]:
+        nonlocal reservation
+        reservation = executor.submit(reserve_r8)
+        assert started.wait(timeout=2)
+        assert not reservation.done()
+        return dict(preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING)
+
+    monkeypatch.delenv(
+        "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_PATH",
+        raising=False,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R8_ARTIFACT_PATH",
+        r8_path,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "validate_production_futures_order_preview_r7_terminal",
+        start_r8_reservation_during_r7_validation,
+    )
+
+    try:
+        assert configured_futures_order_preview_artifact_path() == (
+            preview_module.FUTURES_PREVIEW_R7_ARTIFACT_PATH
+        )
+        assert reservation is not None
+        reservation.result(timeout=5)
+        with pytest.raises(
+            FuturesOrderPreviewArtifactError,
+            match="R8 terminal readback is invalid",
+        ):
+            configured_futures_order_preview_artifact_path()
+    finally:
+        executor.shutdown(wait=True, cancel_futures=True)
+
+
+def test_latest_preview_artifact_selector_linearizes_concurrent_r9_reservation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    producer, store, r9_path = _producer(
+        tmp_path,
+        _r8_compatible_rest_client(),
+        artifact_type=preview_module.FUTURES_PREVIEW_R9_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R8_TERMINAL_BINDING,
+    )
+    r8_selector_path = tmp_path / "r8-selector-predecessor.jsonl"
+    started = Event()
+    entered_unlocked_reservation = Event()
+    release_unlocked_reservation = Event()
+    executor = ThreadPoolExecutor(max_workers=1)
+    reservation = None
+    claim = producer.build_claim()
+    reserve_unlocked = store._reserve_unlocked
+
+    def observed_reserve_unlocked(value: dict[str, object]) -> str:
+        entered_unlocked_reservation.set()
+        assert release_unlocked_reservation.wait(timeout=5)
+        return reserve_unlocked(value)
+
+    monkeypatch.setattr(store, "_reserve_unlocked", observed_reserve_unlocked)
+
+    def reserve_r9() -> str:
+        started.set()
+        return store.reserve(claim)
+
+    def start_r9_reservation_during_r7_validation() -> dict[str, object]:
+        nonlocal reservation
+        reservation = executor.submit(reserve_r9)
+        assert started.wait(timeout=2)
+        assert not entered_unlocked_reservation.wait(timeout=0.25)
+        assert not reservation.done()
+        return dict(preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING)
+
+    monkeypatch.delenv(
+        "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_PATH",
+        raising=False,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R8_ARTIFACT_PATH",
+        r8_selector_path,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R9_ARTIFACT_PATH",
+        r9_path,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "validate_production_futures_order_preview_r7_terminal",
+        start_r9_reservation_during_r7_validation,
+    )
+
+    try:
+        assert configured_futures_order_preview_artifact_path() == (
+            preview_module.FUTURES_PREVIEW_R7_ARTIFACT_PATH
+        )
+        assert reservation is not None
+        release_unlocked_reservation.set()
+        reservation.result(timeout=5)
+        with pytest.raises(
+            FuturesOrderPreviewArtifactError,
+            match="R9 terminal readback is invalid",
+        ):
+            configured_futures_order_preview_artifact_path()
+    finally:
+        release_unlocked_reservation.set()
+        executor.shutdown(wait=True, cancel_futures=True)
+
+
+def test_r9_nonblocking_reservation_uses_shared_successor_selector_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    producer, store, r9_path = _producer(
+        tmp_path,
+        _r8_compatible_rest_client(),
+        artifact_type=preview_module.FUTURES_PREVIEW_R9_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R8_TERMINAL_BINDING,
+    )
+    r8_selector_path = tmp_path / "r8-selector-predecessor.jsonl"
+    store.reservation_lock_nonblocking = True
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R8_ARTIFACT_PATH",
+        r8_selector_path,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R9_ARTIFACT_PATH",
+        r9_path,
+    )
+
+    with preview_module._futures_preview_r8_advisory_lock(
+        r8_selector_path,
+        exclusive=False,
+    ):
+        with pytest.raises(
+            FuturesOrderPreviewArtifactError,
+            match="selector lock is invalid",
+        ):
+            store.reserve(producer.build_claim())
+
+    assert not r9_path.exists()
+
+
+def test_latest_preview_readback_fails_closed_when_r8_is_claimed_after_selection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from api.v1.routes.futures import get_futures_order_preview_store
+
+    producer, r8_store, r8_path = _producer(
+        tmp_path,
+        _r8_compatible_rest_client(),
+        artifact_type=preview_module.FUTURES_PREVIEW_R8_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING,
+    )
+    monkeypatch.delenv(
+        "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_PATH",
+        raising=False,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R8_ARTIFACT_PATH",
+        r8_path,
+    )
+
+    selected_store = get_futures_order_preview_store()
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        claim = executor.submit(r8_store.reserve, producer.build_claim())
+        claim.result(timeout=5)
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="R8 terminal readback is invalid",
+    ):
+        selected_store.read_completed()
+
+
+def test_configured_preview_path_cannot_bypass_present_r8_claim(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    producer, r8_store, r8_path = _producer(
+        tmp_path,
+        _r8_compatible_rest_client(),
+        artifact_type=preview_module.FUTURES_PREVIEW_R8_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING,
+    )
+    r8_store.reserve(producer.build_claim())
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R8_ARTIFACT_PATH",
+        r8_path,
+    )
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_PATH",
+        str(preview_module.FUTURES_PREVIEW_R7_ARTIFACT_PATH),
+    )
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="R8 terminal readback is invalid",
+    ):
+        configured_futures_order_preview_artifact_path()
+
+
+@pytest.mark.parametrize("artifact_state", ["reserved", "malformed", "corrupt"])
+def test_latest_preview_artifact_selector_rejects_present_invalid_r8_without_r7_fallback(
+    artifact_state: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    producer, store, r8_path = _producer(
+        tmp_path,
+        _r8_compatible_rest_client(),
+        artifact_type=preview_module.FUTURES_PREVIEW_R8_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING,
+    )
+    if artifact_state == "reserved":
+        store.reserve(producer.build_claim())
+    elif artifact_state == "malformed":
+        r8_path.write_bytes(b"synthetic-malformed-r8\n")
+        r8_path.chmod(0o400)
+    else:
+        producer.run()
+        r8_path.chmod(0o600)
+
+    monkeypatch.delenv(
+        "COINBASE_ADMIN_API_FUTURES_ORDER_PREVIEW_ARTIFACT_PATH",
+        raising=False,
+    )
+    monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-token")
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R8_ARTIFACT_PATH",
+        r8_path,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R7_ARTIFACT_PATH",
+        tmp_path / "r7-fallback-must-not-be-read.jsonl",
+    )
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="R8 terminal readback is invalid",
+    ):
+        configured_futures_order_preview_artifact_path()
+
+    response = TestClient(create_app(), raise_server_exceptions=False).get(
+        "/api/v1/futures/order-preview",
+        headers={
+            "Authorization": "Bearer test-token",
+            "X-Admin-Actor": "operator-1",
+            "X-Admin-Roles": "viewer",
+        },
+    )
+    assert response.status_code == 503
+    assert response.json()["message"] == (
+        "Futures Preview evidence is unavailable or invalid"
+    )
+    assert response.json()["code"] == "backend_unavailable"
+    assert artifact_state not in response.text
+
+
 def test_synthetic_consumed_r7_route_serializes_sanitized_terminal_diagnostic(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2257,6 +2789,7 @@ def test_r6_policy_rejects_and_withholds_every_nonexact_regular_token(
 
 def test_r6_claim_binds_v3_policy_and_rejects_consumed_r5_identifiers(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     producer, _store, _path = _producer(
         tmp_path,
@@ -2280,9 +2813,15 @@ def test_r6_claim_binds_v3_policy_and_rejects_consumed_r5_identifiers(
     ):
         preview_module._validate_r6_claim_record(tampered)
 
-    producer.correlation_id_factory = (
-        lambda: "aafa0078-be77-4b41-a2aa-672c8b26ecb3"
+    consumed_identifier = "22222222-2222-4222-8222-222222222222"
+    monkeypatch.setattr(
+        preview_module,
+        "_R6_CONSUMED_PREVIEW_IDENTIFIER_SHA256",
+        frozenset(
+            {hashlib.sha256(consumed_identifier.encode("ascii")).hexdigest()}
+        ),
     )
+    producer.correlation_id_factory = lambda: consumed_identifier
     with pytest.raises(
         FuturesOrderPreviewArtifactError,
         match="identifiers are not fresh",
@@ -2461,6 +3000,759 @@ def test_r7_fake_preview_binds_consumed_r6_v3_and_corrected_response_schema(
     assert evidence["executed_notional_usdc"] == "0"
     assert rest_client.forbidden_calls == []
     AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
+def test_r8_claim_binds_exact_r7_v3_schema_caps_and_zero_mutations(
+    tmp_path: Path,
+):
+    rest_client = _r8_compatible_rest_client()
+    producer, store, _path = _producer(
+        tmp_path,
+        rest_client,
+        artifact_type=preview_module.FUTURES_PREVIEW_R8_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING,
+    )
+
+    claim = producer.build_claim()
+    preview_module._validate_r8_ephemeral_claim_record(claim)
+    evidence = producer.run()
+
+    assert evidence == store.read_completed()
+    assert evidence["artifact_type"] == (
+        preview_module.FUTURES_PREVIEW_R8_ARTIFACT_TYPE
+    )
+    assert evidence["predecessor_binding"] == (
+        preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING
+    )
+    assert claim["margin_window_policy_binding"] == (
+        preview_module.FUTURES_PREVIEW_R6_MARGIN_WINDOW_POLICY_BINDING
+    )
+    assert claim["preview_response_schema_binding"] == (
+        preview_module.FUTURES_PREVIEW_R7_RESPONSE_SCHEMA_BINDING
+    )
+    assert claim["post_preview_diagnostic_binding"] == (
+        preview_module.FUTURES_PREVIEW_R8_POST_PREVIEW_DIAGNOSTIC_BINDING
+    )
+    assert claim["caps"] == {
+        "opening_reference_notional_usdc": "100",
+        "concurrent_exposure_usdc": "150",
+        "buffered_close_reference_notional_usdc": "150",
+        "branch_turnover_reference_notional_usdc": "300",
+        "close_buffer_multiplier": "1.20",
+        "comparison": "strictly_less_than",
+    }
+    assert claim["preview_order_attempt_max"] == 1
+    assert claim["retry_attempt_max"] == 0
+    assert claim["fallback_attempt_max"] == 0
+    assert claim["create_order_attempt_max"] == 0
+    assert claim["cancel_order_attempt_max"] == 0
+    assert claim["close_position_attempt_max"] == 0
+    assert claim["reduce_position_attempt_max"] == 0
+    assert evidence["status"] == "accepted"
+    assert evidence["preview_response"]["preview_id"] == "withheld"
+    assert evidence["preview_id_sha256"] == hashlib.sha256(
+        b"preview-avp-1"
+    ).hexdigest()
+    assert evidence["portfolio_id"] == "withheld"
+    assert evidence["portfolio_id_sha256"] == hashlib.sha256(
+        b"default-portfolio-uuid"
+    ).hexdigest()
+    assert evidence["post_preview_stage_evidence"] is None
+    assert evidence["post_preview_stage_evidence_sha256"] is None
+    assert evidence["attempt_counters"] == {
+        "preview_order": 1,
+        "retry": 0,
+        "fallback": 0,
+        "create_order": 0,
+        "cancel_order": 0,
+        "close_position": 0,
+        "reduce_position": 0,
+    }
+    assert len(rest_client.preview_calls) == 1
+    assert rest_client.forbidden_calls == []
+    assert evidence["read_counters"] == {
+        "api_key_permissions": 1,
+        "portfolio_catalog": 1,
+        "product": 1,
+        "best_bid_ask": 1,
+        "futures_positions": 1,
+        "futures_margin_collateral": 1,
+    }
+    assert all(count <= 1 for count in evidence["read_counters"].values())
+    persisted = _path.read_text(encoding="utf-8")
+    assert "preview-avp-1" not in persisted
+    assert "default-portfolio-uuid" not in persisted
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
+def test_r8_private_identifiers_are_ephemeral_only_for_accepted_handoff(
+    tmp_path: Path,
+):
+    producer, store, path = _producer(
+        tmp_path,
+        _r8_compatible_rest_client(),
+        artifact_type=preview_module.FUTURES_PREVIEW_R8_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING,
+    )
+    observed: dict[str, object] = {}
+
+    def handoff(
+        ephemeral: dict[str, object],
+        persisted: dict[str, object],
+    ) -> None:
+        observed["preview_id"] = ephemeral["preview_response"]["preview_id"]  # type: ignore[index]
+        observed["portfolio_id"] = ephemeral["portfolio_id"]
+        observed["persisted_preview_id"] = persisted["preview_response"][  # type: ignore[index]
+            "preview_id"
+        ]
+
+    terminal = producer.run(accepted_callback=handoff)
+
+    assert observed == {
+        "preview_id": "preview-avp-1",
+        "portfolio_id": "default-portfolio-uuid",
+        "persisted_preview_id": "withheld",
+    }
+    assert terminal == store.read_completed()
+    raw = path.read_text(encoding="utf-8")
+    assert "preview-avp-1" not in raw
+    assert "default-portfolio-uuid" not in raw
+
+
+def test_r8_failed_accepted_handoff_cannot_reenter_terminalization_or_retry(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "futures-preview.jsonl"
+
+    class HandoffProbeStore(FuturesOrderPreviewArtifactStore):
+        def __init__(self, artifact_path: Path) -> None:
+            super().__init__(artifact_path)
+            self.append_attempts: list[str] = []
+            self.completed_reads = 0
+
+        def append_result(self, result: dict[str, object]) -> str:
+            self.append_attempts.append(str(result.get("outcome")))
+            return super().append_result(result)
+
+        def read_completed(self) -> dict[str, object]:
+            self.completed_reads += 1
+            if self.completed_reads > 1:
+                raise FuturesOrderPreviewArtifactError(
+                    "synthetic post-handoff read failure"
+                )
+            return super().read_completed()
+
+    rest_client = _r8_compatible_rest_client()
+    store = HandoffProbeStore(path)
+    producer = FuturesOrderPreviewProducer(
+        rest_client=rest_client,
+        store=store,
+        predecessor_binding=dict(
+            preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING
+        ),
+        predecessor_validator=lambda: dict(
+            preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING
+        ),
+        artifact_type=preview_module.FUTURES_PREVIEW_R8_ARTIFACT_TYPE,
+        now=lambda: NOW,
+        correlation_id_factory=lambda: (
+            "8f604e56-0a23-4bda-b244-11ebc0194241"
+        ),
+        idempotency_key_factory=lambda: (
+            "2d8327f6-826c-4f73-82a4-822e29f73065"
+        ),
+    )
+    callback_snapshots: list[bytes] = []
+    callback_calls = 0
+
+    def failed_handoff(
+        _ephemeral: dict[str, object],
+        _persisted: dict[str, object],
+    ) -> None:
+        nonlocal callback_calls
+        callback_calls += 1
+        callback_snapshots.append(path.read_bytes())
+        assert path.stat().st_mode & 0o777 == 0o400
+        accepted = FuturesOrderPreviewArtifactStore(path).read_completed()
+        assert accepted["outcome"] == "accepted"
+        assert len(callback_snapshots[-1].splitlines()) == 2
+        raise RuntimeError("PRIVATE_R8_HANDOFF_FAILURE")
+
+    with pytest.raises(
+        preview_module.FuturesOrderPreviewAcceptedHandoffError,
+        match="^futures Preview accepted handoff did not complete$",
+    ) as captured:
+        producer.run(accepted_callback=failed_handoff)
+
+    assert captured.value.__cause__ is None
+    assert captured.value.__context__ is None
+    assert callback_calls == 1
+    assert store.append_attempts == ["accepted"]
+    assert store.completed_reads == 1
+    assert path.read_bytes() == callback_snapshots[0]
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 2
+    assert len(rest_client.preview_calls) == 1
+    assert "PRIVATE_R8_HANDOFF_FAILURE" not in path.read_text(encoding="utf-8")
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="already consumed",
+    ):
+        producer.run(accepted_callback=failed_handoff)
+
+    assert callback_calls == 1
+    assert store.append_attempts == ["accepted"]
+    assert len(rest_client.preview_calls) == 1
+    assert path.read_bytes() == callback_snapshots[0]
+
+
+@pytest.mark.parametrize("terminal_outcome", ["accepted", "blocked", "unknown"])
+def test_r8_private_identifiers_never_persist_in_claim_or_terminal_result(
+    tmp_path: Path,
+    terminal_outcome: str,
+) -> None:
+    private_preview_id = "PRIVATE-R8-PREVIEW-ID-ONLY-FOR-HANDOFF"
+    private_portfolio_id = "PRIVATE-R8-PORTFOLIO-ID-ONLY-FOR-HANDOFF"
+    rest_client = _r8_compatible_rest_client()
+    rest_client.permissions_response["portfolio_uuid"] = private_portfolio_id
+    rest_client.portfolios_response[0]["uuid"] = private_portfolio_id
+    rest_client.preview_response["preview_id"] = private_preview_id
+    if terminal_outcome == "blocked":
+        rest_client.preview_response["base_size"] = "2"
+    elif terminal_outcome == "unknown":
+        rest_client.preview_error = TimeoutError(
+            "PRIVATE_R8_PREVIEW_EXCEPTION"
+        )
+    producer, store, path = _producer(
+        tmp_path,
+        rest_client,
+        artifact_type=preview_module.FUTURES_PREVIEW_R8_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING,
+    )
+    ephemeral_claim = producer.build_claim()
+    private_trace_ids = (
+        str(ephemeral_claim["correlation_id"]),
+        str(ephemeral_claim["idempotency_key"]),
+    )
+    callback_evidence: list[dict[str, object]] = []
+
+    def handoff(
+        ephemeral: dict[str, object],
+        persisted: dict[str, object],
+    ) -> None:
+        callback_evidence.append(deepcopy(ephemeral))
+        preview = ephemeral["preview_response"]
+        assert isinstance(preview, dict)
+        assert preview["preview_id"] == private_preview_id
+        assert preview["liquidation_evidence_source"] == "margin_ratio_data"
+        assert set(preview["margin_ratio_data"]) == {
+            "current_margin_ratio",
+            "projected_margin_ratio",
+        }
+        assert preview["candidate_binding"]["status"] == "matched"  # type: ignore[index]
+        assert "current_liquidation_buffer" not in preview
+        assert "projected_liquidation_buffer" not in preview
+        assert ephemeral["preview_response_sha256"] == canonical_sha256(
+            preview
+        )
+        assert ephemeral["portfolio_id"] == private_portfolio_id
+        assert persisted["portfolio_id"] == "withheld"
+        assert persisted["preview_response"]["preview_id"] == "withheld"  # type: ignore[index]
+        preview["preview_id"] = "callback-mutated-preview-id"
+        ephemeral["portfolio_id"] = "callback-mutated-portfolio-id"
+        persisted["portfolio_id"] = "callback-mutated-persisted-copy"
+
+    if terminal_outcome == "accepted":
+        terminal = producer.run(accepted_callback=handoff)
+    else:
+        with pytest.raises(FuturesOrderPreviewArtifactError):
+            producer.run()
+        terminal = store.read_completed()
+
+    assert terminal["outcome"] == terminal_outcome
+    assert terminal["correlation_id"] == "withheld"
+    assert terminal["idempotency_key"] == "withheld"
+    assert terminal["correlation_id_sha256"] == hashlib.sha256(
+        private_trace_ids[0].encode("utf-8")
+    ).hexdigest()
+    assert terminal["idempotency_key_sha256"] == hashlib.sha256(
+        private_trace_ids[1].encode("utf-8")
+    ).hexdigest()
+    assert terminal["portfolio_id"] == "withheld"
+    assert terminal["portfolio_id_sha256"] == hashlib.sha256(
+        private_portfolio_id.encode("utf-8")
+    ).hexdigest()
+    if terminal_outcome == "accepted":
+        assert len(callback_evidence) == 1
+        assert callback_evidence[0]["portfolio_id"] == private_portfolio_id
+        assert terminal["preview_id_sha256"] == hashlib.sha256(
+            private_preview_id.encode("utf-8")
+        ).hexdigest()
+        assert terminal["preview_response"]["preview_id"] == "withheld"
+    else:
+        assert callback_evidence == []
+        assert terminal.get("preview_id_sha256") is None
+        assert terminal.get("preview_response") is None
+
+    rows = path.read_text(encoding="utf-8").splitlines()
+    assert len(rows) == 2
+    for row in rows:
+        assert private_preview_id not in row
+        assert private_portfolio_id not in row
+        assert private_trace_ids[0] not in row
+        assert private_trace_ids[1] not in row
+    persisted = store.read_completed()
+    assert private_preview_id not in json.dumps(persisted, sort_keys=True)
+    assert private_portfolio_id not in json.dumps(persisted, sort_keys=True)
+    assert persisted == terminal
+
+    raw_identifier_payload = deepcopy(terminal)
+    raw_identifier_payload["portfolio_id"] = private_portfolio_id
+    raw_identifier_payload["evidence_sha256"] = canonical_sha256(
+        {
+            key: value
+            for key, value in raw_identifier_payload.items()
+            if key != "evidence_sha256"
+        }
+    )
+    with pytest.raises(
+        ValidationError,
+        match="futures_preview_r8_private_identifier_binding_invalid",
+    ):
+        AdminFuturesOrderPreviewResponse.model_validate(
+            raw_identifier_payload
+        )
+
+
+def test_r8_each_fixed_read_and_preview_method_is_called_at_most_once(
+    tmp_path: Path,
+):
+    target = _r8_compatible_rest_client()
+    method_names = {
+        "get_api_key_permissions",
+        "list_portfolios",
+        "get_product_dict",
+        "get_best_bid_ask",
+        "get_futures_positions",
+        "get_futures_margin_collateral_snapshot",
+        "preview_order",
+    }
+    calls = {name: 0 for name in method_names}
+
+    class CountingClient:
+        def __getattr__(self, name: str):
+            attribute = getattr(target, name)
+            if name not in method_names:
+                return attribute
+
+            def invoke(*args: object, **kwargs: object):
+                calls[name] += 1
+                return attribute(*args, **kwargs)
+
+            return invoke
+
+    path = tmp_path / "futures-preview.jsonl"
+    producer = FuturesOrderPreviewProducer(
+        rest_client=CountingClient(),
+        store=FuturesOrderPreviewArtifactStore(path),
+        predecessor_binding=dict(
+            preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING
+        ),
+        predecessor_validator=lambda: dict(
+            preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING
+        ),
+        artifact_type=preview_module.FUTURES_PREVIEW_R8_ARTIFACT_TYPE,
+        now=lambda: NOW,
+        correlation_id_factory=lambda: (
+            "8f604e56-0a23-4bda-b244-11ebc0194241"
+        ),
+        idempotency_key_factory=lambda: (
+            "2d8327f6-826c-4f73-82a4-822e29f73065"
+        ),
+    )
+
+    producer.run()
+
+    assert calls == {name: 1 for name in method_names}
+    assert target.forbidden_calls == []
+
+
+def test_r8_two_contenders_allow_only_one_client_hydration_and_preview(
+    tmp_path: Path,
+):
+    path = tmp_path / "futures-preview.jsonl"
+    hydration_count = 0
+    hydration_lock = Lock()
+    clients = [_r8_compatible_rest_client(), _r8_compatible_rest_client()]
+
+    class LazyClient:
+        def __init__(self, target: FakePreviewRestClient) -> None:
+            self.target = target
+            self.hydrated = False
+
+        def __getattr__(self, name: str):
+            attribute = getattr(self.target, name)
+
+            def invoke(*args: object, **kwargs: object):
+                nonlocal hydration_count
+                if not self.hydrated:
+                    with hydration_lock:
+                        if not self.hydrated:
+                            hydration_count += 1
+                            self.hydrated = True
+                return attribute(*args, **kwargs)
+
+            return invoke
+
+    producers = [
+        FuturesOrderPreviewProducer(
+            rest_client=LazyClient(client),
+            store=FuturesOrderPreviewArtifactStore(path),
+            predecessor_binding=dict(
+                preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING
+            ),
+            predecessor_validator=lambda: dict(
+                preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING
+            ),
+            artifact_type=preview_module.FUTURES_PREVIEW_R8_ARTIFACT_TYPE,
+            now=lambda: NOW,
+        )
+        for client in clients
+    ]
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [executor.submit(producer.run) for producer in producers]
+        outcomes: list[dict[str, object]] = []
+        errors: list[Exception] = []
+        for future in futures:
+            try:
+                outcomes.append(future.result(timeout=10))
+            except Exception as exc:  # test captures the losing claim only
+                errors.append(exc)
+
+    assert len(outcomes) == 1
+    assert len(errors) == 1
+    assert isinstance(errors[0], FuturesOrderPreviewArtifactError)
+    assert hydration_count == 1
+    assert sum(len(client.preview_calls) for client in clients) == 1
+    assert all(client.forbidden_calls == [] for client in clients)
+
+
+def test_r8_post_preview_response_failure_persists_only_sanitized_stage(
+    tmp_path: Path,
+):
+    rest_client = _r8_compatible_rest_client()
+    rest_client.preview_response["margin_ratio_data"] = {
+        "current_margin_ratio": "PRIVATE_R8_VALUE",
+        "projected_margin_ratio": "0.25",
+    }
+    producer, store, path = _producer(
+        tmp_path,
+        rest_client,
+        artifact_type=preview_module.FUTURES_PREVIEW_R8_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING,
+    )
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="preflight blocked; attempt consumed",
+    ):
+        producer.run()
+
+    evidence = store.read_completed()
+    assert evidence["outcome"] == "blocked"
+    assert evidence["blocker"] == "post_preview_stage_blocked"
+    assert evidence["post_preview_stage_evidence"] == {
+        "schema_version": "1",
+        "source": "backend_futures_preview_producer",
+        "stages": [
+            {
+                "stage": "preview_response_validation",
+                "status": "blocked",
+                "reason_code": (
+                    "futures_preview_response_validation_unclassified"
+                ),
+            }
+        ],
+        "sanitized": True,
+        "raw_response_included": False,
+        "external_exception_text_included": False,
+        "identifier_values_included": False,
+    }
+    assert evidence["post_preview_stage_evidence_sha256"] == canonical_sha256(
+        evidence["post_preview_stage_evidence"]
+    )
+    assert evidence["attempt_counters"]["preview_order"] == 1
+    assert evidence["attempt_counters"]["retry"] == 0
+    assert "preview_response" not in evidence
+    persisted = path.read_text(encoding="utf-8")
+    assert "PRIVATE_R8_VALUE" not in persisted
+    assert "preview-avp-1" not in persisted
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
+def test_r8_post_preview_candidate_cap_failure_localizes_exact_stage(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    rest_client = _r8_compatible_rest_client()
+    producer, store, path = _producer(
+        tmp_path,
+        rest_client,
+        artifact_type=preview_module.FUTURES_PREVIEW_R8_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING,
+    )
+
+    def blocked_candidate_binding(*_args: object, **_kwargs: object):
+        raise ValueError("futures_preview_response_opening_cap_blocked")
+
+    monkeypatch.setattr(
+        preview_module,
+        "validate_preview_against_candidate",
+        blocked_candidate_binding,
+    )
+
+    with pytest.raises(FuturesOrderPreviewArtifactError):
+        producer.run()
+
+    evidence = store.read_completed()
+    assert evidence["blocker"] == "post_preview_stage_blocked"
+    assert evidence["post_preview_stage_evidence"]["stages"] == [
+        {
+            "stage": "preview_response_validation",
+            "status": "passed",
+            "reason_code": None,
+        },
+        {
+            "stage": "candidate_cap_binding",
+            "status": "blocked",
+            "reason_code": "futures_preview_response_opening_cap_blocked",
+        },
+    ]
+    assert "preview_response" not in evidence
+    assert "preview-avp-1" not in path.read_text(encoding="utf-8")
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
+def test_r8_post_preview_available_margin_failure_localizes_exact_stage(
+    tmp_path: Path,
+):
+    rest_client = _r8_compatible_rest_client()
+    rest_client.preview_response["order_margin_total"] = "251.00"
+    producer, store, path = _producer(
+        tmp_path,
+        rest_client,
+        artifact_type=preview_module.FUTURES_PREVIEW_R8_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING,
+    )
+
+    with pytest.raises(FuturesOrderPreviewArtifactError):
+        producer.run()
+
+    evidence = store.read_completed()
+    assert evidence["blocker"] == "post_preview_stage_blocked"
+    assert evidence["post_preview_stage_evidence"]["stages"][-1] == {
+        "stage": "available_margin_validation",
+        "status": "blocked",
+        "reason_code": "futures_preview_available_margin_insufficient",
+    }
+    assert len(evidence["post_preview_stage_evidence"]["stages"]) == 3
+    assert "preview_response" not in evidence
+    assert "preview-avp-1" not in path.read_text(encoding="utf-8")
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
+def test_r8_post_preview_seal_failure_uses_stage_fallback_without_private_text(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    rest_client = _r8_compatible_rest_client()
+    producer, store, path = _producer(
+        tmp_path,
+        rest_client,
+        artifact_type=preview_module.FUTURES_PREVIEW_R8_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING,
+    )
+
+    def blocked_seal(*_args: object, **_kwargs: object):
+        raise RuntimeError("PRIVATE_R8_SEAL_TEXT")
+
+    monkeypatch.setattr(preview_module, "_seal_ready_plan", blocked_seal)
+
+    with pytest.raises(FuturesOrderPreviewArtifactError):
+        producer.run()
+
+    evidence = store.read_completed()
+    assert evidence["post_preview_stage_evidence"]["stages"][-1] == {
+        "stage": "seal_ready_plan_construction",
+        "status": "blocked",
+        "reason_code": (
+            "futures_preview_seal_ready_plan_construction_unclassified"
+        ),
+    }
+    persisted = path.read_text(encoding="utf-8")
+    assert "PRIVATE_R8_SEAL_TEXT" not in persisted
+
+
+def test_r8_accepted_evidence_failure_is_sanitized_at_exact_stage(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    producer, store, path = _producer(
+        tmp_path,
+        _r8_compatible_rest_client(),
+        artifact_type=preview_module.FUTURES_PREVIEW_R8_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING,
+    )
+
+    def fail_evidence(*_args: object, **_kwargs: object):
+        raise RuntimeError("PRIVATE_ACCEPTED_EVIDENCE_TEXT")
+
+    monkeypatch.setattr(preview_module, "_accepted_evidence", fail_evidence)
+
+    with pytest.raises(FuturesOrderPreviewArtifactError):
+        producer.run()
+
+    evidence = store.read_completed()
+    assert evidence["post_preview_stage_evidence"]["stages"][-1] == {
+        "stage": "accepted_evidence_construction",
+        "status": "blocked",
+        "reason_code": (
+            "futures_preview_accepted_evidence_construction_unclassified"
+        ),
+    }
+    assert len(evidence["post_preview_stage_evidence"]["stages"]) == 5
+    persisted = path.read_text(encoding="utf-8")
+    assert "PRIVATE_ACCEPTED_EVIDENCE_TEXT" not in persisted
+    assert "preview-avp-1" not in persisted
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
+def test_r8_terminal_predecessor_failure_is_sanitized_at_exact_stage(
+    tmp_path: Path,
+):
+    producer, store, path = _producer(
+        tmp_path,
+        _r8_compatible_rest_client(),
+        artifact_type=preview_module.FUTURES_PREVIEW_R8_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING,
+    )
+    validations = 0
+
+    def predecessor() -> dict[str, object]:
+        nonlocal validations
+        validations += 1
+        if validations <= 3:
+            return dict(preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING)
+        changed = dict(preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING)
+        changed["evidence_sha256"] = "0" * 64
+        return changed
+
+    producer.predecessor_validator = predecessor
+
+    with pytest.raises(FuturesOrderPreviewArtifactError):
+        producer.run()
+
+    evidence = store.read_completed()
+    assert evidence["post_preview_stage_evidence"]["stages"][-1] == {
+        "stage": "terminal_predecessor_validation",
+        "status": "blocked",
+        "reason_code": "futures_preview_predecessor_terminal_binding_changed",
+    }
+    assert len(evidence["post_preview_stage_evidence"]["stages"]) == 6
+    persisted = path.read_text(encoding="utf-8")
+    assert "preview-avp-1" not in persisted
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+    assert "preview-avp-1" not in persisted
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
+def test_r8_sdk_unknown_has_no_post_preview_diagnostic_and_consumes_once(
+    tmp_path: Path,
+):
+    rest_client = _r8_compatible_rest_client()
+    rest_client.preview_error = TimeoutError("PRIVATE_R8_TIMEOUT")
+    producer, store, path = _producer(
+        tmp_path,
+        rest_client,
+        artifact_type=preview_module.FUTURES_PREVIEW_R8_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING,
+    )
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="outcome is unknown; attempt consumed",
+    ):
+        producer.run()
+
+    evidence = store.read_completed()
+    assert evidence["outcome"] == "unknown"
+    assert evidence["attempt_counters"]["preview_order"] == 1
+    assert evidence["attempt_counters"]["retry"] == 0
+    assert evidence.get("post_preview_stage_evidence") is None
+    assert evidence.get("post_preview_stage_evidence_sha256") is None
+    assert "preview_response" not in evidence
+    assert "PRIVATE_R8_TIMEOUT" not in path.read_text(encoding="utf-8")
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="already consumed"):
+        producer.run()
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
+def test_r8_post_preview_stage_evidence_rejects_tampering(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    rest_client = _r8_compatible_rest_client()
+    producer, store, _path = _producer(
+        tmp_path,
+        rest_client,
+        artifact_type=preview_module.FUTURES_PREVIEW_R8_ARTIFACT_TYPE,
+        predecessor_binding=preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING,
+    )
+
+    def blocked_candidate_binding(*_args: object, **_kwargs: object):
+        raise ValueError("futures_preview_response_opening_cap_blocked")
+
+    monkeypatch.setattr(
+        preview_module,
+        "validate_preview_against_candidate",
+        blocked_candidate_binding,
+    )
+    with pytest.raises(FuturesOrderPreviewArtifactError):
+        producer.run()
+    evidence = store.read_completed()
+
+    attacks = []
+    wrong_hash = deepcopy(evidence)
+    wrong_hash["post_preview_stage_evidence_sha256"] = "0" * 64
+    wrong_hash["evidence_sha256"] = canonical_sha256(
+        {key: value for key, value in wrong_hash.items() if key != "evidence_sha256"}
+    )
+    attacks.append(wrong_hash)
+
+    reordered = deepcopy(evidence)
+    reordered["post_preview_stage_evidence"]["stages"].reverse()
+    reordered["post_preview_stage_evidence_sha256"] = canonical_sha256(
+        reordered["post_preview_stage_evidence"]
+    )
+    reordered["evidence_sha256"] = canonical_sha256(
+        {key: value for key, value in reordered.items() if key != "evidence_sha256"}
+    )
+    attacks.append(reordered)
+
+    privacy = deepcopy(evidence)
+    privacy["post_preview_stage_evidence"]["raw_response_included"] = True
+    privacy["post_preview_stage_evidence_sha256"] = canonical_sha256(
+        privacy["post_preview_stage_evidence"]
+    )
+    privacy["evidence_sha256"] = canonical_sha256(
+        {key: value for key, value in privacy.items() if key != "evidence_sha256"}
+    )
+    attacks.append(privacy)
+
+    for attack in attacks:
+        with pytest.raises(ValidationError):
+            AdminFuturesOrderPreviewResponse.model_validate(attack)
 
 
 def test_r7_legacy_only_liquidation_response_is_blocked_and_consumed_once(
@@ -3878,7 +5170,18 @@ def test_r5_response_recomputes_candidate_from_sanitized_exchange_evidence(
 
 def test_r5_claim_and_response_reject_consumed_identifiers_and_bad_timestamps(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ):
+    consumed_correlation_id = "33333333-3333-4333-8333-333333333333"
+    consumed_idempotency_key = "44444444-4444-4444-8444-444444444444"
+    monkeypatch.setattr(
+        preview_module,
+        "_CONSUMED_PREVIEW_IDENTIFIER_SHA256",
+        frozenset(
+            hashlib.sha256(value.encode("ascii")).hexdigest()
+            for value in (consumed_correlation_id, consumed_idempotency_key)
+        ),
+    )
     producer, _store, _path = _producer(
         tmp_path,
         FakePreviewRestClient(),
@@ -3886,7 +5189,7 @@ def test_r5_claim_and_response_reject_consumed_identifiers_and_bad_timestamps(
         predecessor_binding=TEST_R4_PREDECESSOR_BINDING,
     )
     claim = producer.build_claim()
-    claim["correlation_id"] = "f32948c1-6bf1-421a-9267-6138ec2228ae"
+    claim["correlation_id"] = consumed_correlation_id
     with pytest.raises(FuturesOrderPreviewArtifactError, match="identifier"):
         preview_module._validate_r5_claim_record(claim)
 
@@ -3894,8 +5197,8 @@ def test_r5_claim_and_response_reject_consumed_identifiers_and_bad_timestamps(
     attacks: list[dict[str, object]] = []
 
     consumed_ids = deepcopy(accepted)
-    consumed_ids["correlation_id"] = "f32948c1-6bf1-421a-9267-6138ec2228ae"
-    consumed_ids["idempotency_key"] = "77016c90-d1e1-4344-84c7-53b3c2dca70b"
+    consumed_ids["correlation_id"] = consumed_correlation_id
+    consumed_ids["idempotency_key"] = consumed_idempotency_key
     attacks.append(consumed_ids)
 
     noncanonical_time = deepcopy(accepted)
@@ -5475,6 +6778,13 @@ def _install_fixed_preview_sdk_surface(instance: object) -> None:
         "preview_order",
     ):
         setattr(instance, method, lambda *_args, **_kwargs: None)
+    setattr(
+        instance,
+        "set_headers",
+        lambda *_args, **_kwargs: {
+            "Authorization": "Bearer synthetic-local-signature"
+        },
+    )
 
 
 def test_tool_binds_one_shot_coinbase_client_to_finite_timeout(
@@ -5488,6 +6798,9 @@ def test_tool_binds_one_shot_coinbase_client_to_finite_timeout(
         def __init__(self, **kwargs: object) -> None:
             captured.update(kwargs)
             _install_fixed_preview_sdk_surface(self)
+            self.base_url = kwargs.get("base_url")
+            self.timeout = kwargs.get("timeout")
+            self.rate_limit_headers = kwargs.get("rate_limit_headers")
             adapter = SimpleNamespace(max_retries=SimpleNamespace(total=0))
             self.session = SimpleNamespace(
                 adapters={"https://": adapter, "http://": adapter}
@@ -5499,6 +6812,9 @@ def test_tool_binds_one_shot_coinbase_client_to_finite_timeout(
         assert "COINBASE_API_SECRET" not in environment
         assert environment["COINBASE_SECRETS_MANAGER_SECRET_ID"] == "coinbase"
         assert environment["COINBASE_SECRETS_MANAGER_REGION"] == "us-east-1"
+        assert environment["PATH"] == (
+            "/home/developer/.local/bin:/usr/bin:/bin"
+        )
         environment["COINBASE_API_KEY"] = "organizations/test/apiKeys/key"
         environment["COINBASE_API_SECRET"] = "test-secret"
         return SimpleNamespace(
@@ -5515,9 +6831,73 @@ def test_tool_binds_one_shot_coinbase_client_to_finite_timeout(
 
     assert isinstance(client, preview_tool.FuturesPreviewOnlyRestClient)
     assert captured["timeout"] == preview_tool.COINBASE_PREVIEW_HTTP_TIMEOUT_SECONDS
+    assert captured["base_url"] == "api.coinbase.com"
+    assert captured["rate_limit_headers"] is False
     assert 0 < preview_tool.COINBASE_PREVIEW_HTTP_TIMEOUT_SECONDS <= 30
     assert captured["sdk"].session.max_redirects == 0
+    assert captured["sdk"].session.trust_env is False
+    assert captured["sdk"].session.proxies == {}
+    assert captured["sdk"].session.verify == preview_tool.COINBASE_CA_BUNDLE
     assert not hasattr(client, "get_sdk_client")
+
+
+def test_canonical_sdk_transport_ignores_environment_and_signs_without_network(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import requests
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    private_key = ec.generate_private_key(ec.SECP256R1())
+    synthetic_secret = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode("utf-8")
+
+    def hydrate(environment: dict[str, str]) -> SimpleNamespace:
+        environment["COINBASE_API_KEY"] = "organizations/test/apiKeys/key"
+        environment["COINBASE_API_SECRET"] = synthetic_secret
+        return SimpleNamespace(
+            source="secrets_manager",
+            secret_id_env="COINBASE_SECRETS_MANAGER_SECRET_ID",
+        )
+
+    for name, value in {
+        "https_proxy": "http://127.0.0.1:1",
+        "REQUESTS_CA_BUNDLE": "/private/inherited-ca.pem",
+        "CURL_CA_BUNDLE": "/private/inherited-curl-ca.pem",
+        "NETRC": "/private/inherited-netrc",
+    }.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setattr(preview_tool, "ensure_live_coinbase_credentials", hydrate)
+    monkeypatch.setattr(
+        requests.Session,
+        "request",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("local signing probe attempted network access")
+        ),
+    )
+
+    delegate = preview_tool._build_canonical_default_rest_client()
+    sdk = delegate._client  # noqa: SLF001 - exact transport seal proof
+
+    assert sdk.base_url == "api.coinbase.com"
+    assert sdk.timeout == preview_tool.COINBASE_PREVIEW_HTTP_TIMEOUT_SECONDS
+    assert sdk.rate_limit_headers is False
+    assert sdk.session.trust_env is False
+    assert sdk.session.verify == preview_tool.COINBASE_CA_BUNDLE
+    assert sdk.session.proxies == {}
+    assert set(sdk.session.adapters) == {"http://", "https://"}
+    merged = sdk.session.merge_environment_settings(
+        "https://api.coinbase.com",
+        {},
+        None,
+        None,
+        None,
+    )
+    assert merged["proxies"] == {}
+    assert merged["verify"] == preview_tool.COINBASE_CA_BUNDLE
 
 
 def test_preview_only_client_allows_at_most_one_preview_and_no_mutations():
@@ -5667,16 +7047,37 @@ def test_tool_suppresses_secret_bearing_coinbase_sdk_error_logs(
     assert sdk_logger.disabled is previously_disabled
 
 
+def test_tool_suppresses_all_python_logging_and_restores_global_threshold(
+    caplog: pytest.LogCaptureFixture,
+):
+    secret = "PRIVATE_URL_QUERY_AND_IDENTIFIER_MUST_NOT_BE_LOGGED"
+    urllib_logger = logging.getLogger("urllib3.connectionpool")
+    previous_threshold = logging.root.manager.disable
+
+    with caplog.at_level(logging.CRITICAL, logger="urllib3.connectionpool"):
+        with preview_tool._suppress_coinbase_sdk_logging():
+            assert logging.root.manager.disable > logging.CRITICAL
+            urllib_logger.critical(secret)
+
+    assert secret not in caplog.text
+    assert logging.root.manager.disable == previous_threshold
+
+
 def test_build_rest_client_rejects_nonzero_transport_retries(
     monkeypatch: pytest.MonkeyPatch,
 ):
     import coinbase.rest as coinbase_rest
 
     class RetryingSdk:
-        def __init__(self, **_kwargs: object) -> None:
+        def __init__(self, **kwargs: object) -> None:
             _install_fixed_preview_sdk_surface(self)
+            self.base_url = kwargs.get("base_url")
+            self.timeout = kwargs.get("timeout")
+            self.rate_limit_headers = kwargs.get("rate_limit_headers")
             adapter = SimpleNamespace(max_retries=SimpleNamespace(total=1))
-            self.session = SimpleNamespace(adapters={"https://": adapter})
+            self.session = SimpleNamespace(
+                adapters={"https://": adapter, "http://": adapter}
+            )
 
     def hydrate(environment: dict[str, str]) -> SimpleNamespace:
         environment["COINBASE_API_KEY"] = "organizations/test/apiKeys/key"
@@ -5722,8 +7123,11 @@ def test_build_rest_client_blocks_redirect_replay_after_first_response(
     sdk_instances: list[object] = []
 
     class RedirectingSdk:
-        def __init__(self, **_kwargs: object) -> None:
+        def __init__(self, **kwargs: object) -> None:
             _install_fixed_preview_sdk_surface(self)
+            self.base_url = kwargs.get("base_url")
+            self.timeout = kwargs.get("timeout")
+            self.rate_limit_headers = kwargs.get("rate_limit_headers")
             self.session = requests.Session()
             self.session.mount("https://", adapter)
             self.session.mount("http://", adapter)
@@ -5770,8 +7174,11 @@ def test_build_rest_client_transport_timeout_is_not_retried(
     sdk_instances: list[object] = []
 
     class TimingOutSdk:
-        def __init__(self, **_kwargs: object) -> None:
+        def __init__(self, **kwargs: object) -> None:
             _install_fixed_preview_sdk_surface(self)
+            self.base_url = kwargs.get("base_url")
+            self.timeout = kwargs.get("timeout")
+            self.rate_limit_headers = kwargs.get("rate_limit_headers")
             self.session = requests.Session()
             self.session.mount("https://", adapter)
             self.session.mount("http://", adapter)
@@ -6998,12 +8405,165 @@ def test_r7_tool_confirmation_uses_one_corrected_fake_preview_and_no_mutation(
     AdminFuturesOrderPreviewResponse.model_validate(evidence)
 
 
+def test_r8_tool_preflight_validates_claim_without_client_or_artifact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    from tools import run_admin_api_futures_no_live_preview_r8 as r8_preview_tool
+
+    path = tmp_path / "fixed-r8-preview.jsonl"
+    monkeypatch.setattr(r8_preview_tool, "production_artifact_path", lambda: path)
+    monkeypatch.setattr(
+        r8_preview_tool,
+        "validate_production_predecessor",
+        lambda: dict(preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING),
+    )
+    monkeypatch.setattr(
+        r8_preview_tool,
+        "_build_r8_canonical_preview_session",
+        lambda: (_ for _ in ()).throw(AssertionError("Coinbase client constructed")),
+    )
+    monkeypatch.setattr(r8_preview_tool, "R8_PREVIEW_CALL_AUTHORITY_ACTIVE", True)
+
+    assert r8_preview_tool.main(["--preflight"]) == 0
+
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["status"] == "ready"
+    assert summary["predecessor_binding"] == (
+        preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING
+    )
+    assert summary["preview_response_schema_binding"] == (
+        preview_module.FUTURES_PREVIEW_R7_RESPONSE_SCHEMA_BINDING
+    )
+    assert summary["post_preview_diagnostic_binding"] == (
+        preview_module.FUTURES_PREVIEW_R8_POST_PREVIEW_DIAGNOSTIC_BINDING
+    )
+    assert summary["claim_contract_ready"] is True
+    assert summary["end_to_end_workflow_ready"] is False
+    assert summary["artifact_created"] is False
+    assert summary["coinbase_read_ran"] is False
+    assert not path.exists()
+
+
+def test_r8_tool_consumed_gate_blocks_before_path_or_client(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    from tools import run_admin_api_futures_no_live_preview_r8 as r8_preview_tool
+
+    monkeypatch.setattr(
+        r8_preview_tool,
+        "production_artifact_path",
+        lambda: (_ for _ in ()).throw(AssertionError("path inspected")),
+    )
+    monkeypatch.setattr(
+        r8_preview_tool,
+        "_build_r8_canonical_preview_session",
+        lambda: (_ for _ in ()).throw(AssertionError("client constructed")),
+    )
+
+    assert r8_preview_tool.R8_PREVIEW_CALL_AUTHORITY_ACTIVE is False
+    assert r8_preview_tool.main(["--confirm-one-r8-preview"]) == 2
+
+    summary = json.loads(capsys.readouterr().err)
+    assert summary["status"] == "blocked"
+    assert summary["blocker"] == "futures_preview_r8_call_authority_consumed"
+    assert summary["artifact_created"] is False
+    assert summary["coinbase_read_ran"] is False
+    assert summary["preview_order_attempt_count"] == 0
+
+
+def test_r8_tool_workflow_gate_blocks_confirmation_before_path_or_client(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    from tools import run_admin_api_futures_no_live_preview_r8 as r8_preview_tool
+
+    monkeypatch.setattr(
+        r8_preview_tool,
+        "R8_END_TO_END_WORKFLOW_READY",
+        False,
+    )
+    monkeypatch.setattr(r8_preview_tool, "R8_PREVIEW_CALL_AUTHORITY_ACTIVE", True)
+    monkeypatch.setattr(
+        r8_preview_tool,
+        "production_artifact_path",
+        lambda: (_ for _ in ()).throw(AssertionError("path inspected")),
+    )
+    monkeypatch.setattr(
+        r8_preview_tool,
+        "_build_r8_canonical_preview_session",
+        lambda: (_ for _ in ()).throw(AssertionError("client constructed")),
+    )
+
+    assert r8_preview_tool.main(["--confirm-one-r8-preview"]) == 2
+
+    summary = json.loads(capsys.readouterr().err)
+    assert summary["status"] == "blocked"
+    assert summary["blocker"] == "futures_preview_r8_workflow_not_ready"
+    assert summary["artifact_created"] is False
+    assert summary["coinbase_read_ran"] is False
+
+
+def test_r8_tool_confirmation_uses_one_fake_preview_and_zero_mutations(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    from tools import run_admin_api_futures_no_live_preview_r8 as r8_preview_tool
+
+    path = tmp_path / "fixed-r8-preview.jsonl"
+    monkeypatch.setattr(r8_preview_tool, "R8_PREVIEW_CALL_AUTHORITY_ACTIVE", True)
+    monkeypatch.setattr(r8_preview_tool, "R8_END_TO_END_WORKFLOW_READY", True)
+    rest_client = _r8_compatible_rest_client()
+    live_book = _book()
+    live_book["pricebooks"][0]["time"] = datetime.now(  # type: ignore[index]
+        timezone.utc
+    ).isoformat()
+    rest_client.get_best_bid_ask = lambda **_kwargs: live_book  # type: ignore[method-assign]
+    monkeypatch.setattr(r8_preview_tool, "production_artifact_path", lambda: path)
+    monkeypatch.setattr(
+        r8_preview_tool,
+        "validate_production_predecessor",
+        lambda: dict(preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING),
+    )
+    monkeypatch.setattr(
+        r8_preview_tool,
+        "_build_r8_canonical_preview_session",
+        lambda: r8_preview_tool._R8CanonicalPreviewSession(rest_client),
+    )
+
+    assert r8_preview_tool.main(["--confirm-one-r8-preview"]) == 0
+
+    summary = json.loads(capsys.readouterr().out)
+    evidence = FuturesOrderPreviewArtifactStore(path).read_completed()
+    assert summary["status"] == "accepted"
+    assert "preview_id" not in summary
+    assert evidence["artifact_type"] == (
+        preview_module.FUTURES_PREVIEW_R8_ARTIFACT_TYPE
+    )
+    assert evidence["predecessor_binding"] == (
+        preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING
+    )
+    assert evidence["attempt_counters"]["preview_order"] == 1
+    assert evidence["attempt_counters"]["retry"] == 0
+    assert evidence["exchange_submission_attempt_count"] == 0
+    assert len(rest_client.preview_calls) == 1
+    assert rest_client.forbidden_calls == []
+    AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
 def test_openapi_exposes_typed_read_only_preview_contract():
     schema = create_app().openapi()
     operation = schema["paths"]["/api/v1/futures/order-preview"]["get"]
 
-    assert operation["responses"]["200"]["content"]["application/json"]["schema"] == {
-        "$ref": "#/components/schemas/AdminFuturesOrderPreviewResponse"
+    response_union = operation["responses"]["200"]["content"][
+        "application/json"
+    ]["schema"]
+    assert {item["$ref"] for item in response_union["anyOf"]} == {
+        "#/components/schemas/AdminFuturesOrderPreviewResponse",
+        "#/components/schemas/AdminFuturesPreviewR8ForensicReadback",
     }
     assert "401" in operation["responses"]
     assert "403" in operation["responses"]
@@ -7018,6 +8578,8 @@ def test_openapi_exposes_typed_read_only_preview_contract():
         "futures_exact_no_live_preview_slice_2r5",
         "futures_exact_no_live_preview_slice_2r6",
         "futures_exact_no_live_preview_slice_2r7",
+        "futures_exact_no_live_preview_slice_2r8",
+        "futures_exact_no_live_preview_slice_2r9",
     }
     assert "margin_windows_policy_evidence" in response_schema["properties"]
     assert "predecessor_binding" in response_schema["required"]
@@ -7034,8 +8596,20 @@ def test_openapi_exposes_typed_read_only_preview_contract():
         "#/components/schemas/AdminFuturesPreviewR4PredecessorBinding",
         "#/components/schemas/AdminFuturesPreviewR5PredecessorBinding",
         "#/components/schemas/AdminFuturesPreviewR6PredecessorBinding",
+        "#/components/schemas/AdminFuturesPreviewR7PredecessorBinding",
+        "#/components/schemas/AdminFuturesPreviewR8PredecessorBinding",
     }
     assert "preview_response_schema_binding" in response_schema["properties"]
+    forensic_schema = schema["components"]["schemas"][
+        "AdminFuturesPreviewR8ForensicReadback"
+    ]
+    assert forensic_schema["properties"]["artifact_type"]["const"] == (
+        "futures_exact_no_live_preview_slice_2r8"
+    )
+    assert "preview_response" not in forensic_schema["properties"]
+    assert "post_preview_diagnostic_binding" in response_schema["properties"]
+    assert "post_preview_stage_evidence" in response_schema["properties"]
+    assert "post_preview_stage_evidence_sha256" in response_schema["properties"]
     assert "terminal_diagnostic_classification" in response_schema["required"]
     assert response_schema["properties"]["terminal_diagnostic_classification"] == {
         "anyOf": [
@@ -7064,6 +8638,16 @@ def test_openapi_exposes_typed_read_only_preview_contract():
     assert terminal_diagnostic_schema["properties"][
         "additional_coinbase_call_allowed"
     ]["const"] is False
+    post_stage_schema = schema["components"]["schemas"][
+        "AdminFuturesPreviewPostStageEvidence"
+    ]
+    assert post_stage_schema["properties"]["sanitized"]["const"] is True
+    assert post_stage_schema["properties"]["raw_response_included"][
+        "const"
+    ] is False
+    assert post_stage_schema["properties"]["external_exception_text_included"][
+        "const"
+    ] is False
     predecessor_schema = schema["components"]["schemas"][
         "AdminFuturesPreviewPredecessorBinding"
     ]
@@ -7135,3 +8719,598 @@ def test_openapi_exposes_typed_read_only_preview_contract():
         preview_module._PRE_PREVIEW_STAGE_FALLBACK_REASONS.values(),
     )
     assert set(reason_enum) == expected_reason_codes
+
+
+@pytest.mark.parametrize("prepare_before_claim", [False, True])
+def test_r8_same_session_handoff_reuses_one_factory_or_prepared_session_once(
+    prepare_before_claim: bool,
+    tmp_path: Path,
+) -> None:
+    from tools import run_admin_api_futures_no_live_preview_r8 as r8_preview_tool
+
+    path = tmp_path / "fixed-r8-preview.jsonl"
+
+    class ClaimProbeStore(FuturesOrderPreviewArtifactStore):
+        claimed = False
+
+        def reserve(self, claim: dict[str, object]) -> str:
+            claim_sha256 = super().reserve(claim)
+            self.claimed = True
+            return claim_sha256
+
+    store = ClaimProbeStore(path)
+    delegate = _r8_compatible_rest_client()
+    factory_calls = 0
+
+    def session_factory():
+        nonlocal factory_calls
+        assert store.claimed is True
+        factory_calls += 1
+        return r8_preview_tool._R8CanonicalPreviewSession(delegate)
+
+    if prepare_before_claim:
+        deferred = r8_preview_tool.DeferredR8PreviewRestClient(
+            store=store,
+            prepared_session=r8_preview_tool._R8CanonicalPreviewSession(delegate),
+        )
+    else:
+        deferred = r8_preview_tool.DeferredR8PreviewRestClient(
+            store=store,
+            session_factory=session_factory,
+        )
+    for forbidden_method in (
+        "create_order",
+        "cancel_orders",
+        "close_position",
+        "reduce_position",
+    ):
+        assert not hasattr(deferred, forbidden_method)
+    assert factory_calls == 0
+
+    producer = FuturesOrderPreviewProducer(
+        rest_client=deferred,
+        store=store,
+        predecessor_binding=dict(
+            preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING
+        ),
+        predecessor_validator=lambda: dict(
+            preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING
+        ),
+        artifact_type=preview_module.FUTURES_PREVIEW_R8_ARTIFACT_TYPE,
+        now=lambda: NOW,
+        correlation_id_factory=lambda: (
+            "8f604e56-0a23-4bda-b244-11ebc0194241"
+        ),
+        idempotency_key_factory=lambda: (
+            "2d8327f6-826c-4f73-82a4-822e29f73065"
+        ),
+    )
+    accepted_pairs: list[tuple[dict[str, object], dict[str, object]]] = []
+    released: list[r8_preview_tool.R8AcceptedSessionHandoff] = []
+
+    def accepted_callback(
+        ephemeral: dict[str, object],
+        persisted: dict[str, object],
+    ) -> None:
+        accepted_pairs.append((deepcopy(ephemeral), deepcopy(persisted)))
+        released.append(
+            deferred.take_accepted_session(ephemeral, persisted)
+        )
+
+    terminal = producer.run(accepted_callback=accepted_callback)
+
+    assert factory_calls == (0 if prepare_before_claim else 1)
+    assert len(delegate.preview_calls) == 1
+    assert terminal == store.read_completed()
+    assert len(released) == 1
+    handoff = released[0]
+    assert handoff.delegate is delegate
+    account_binding = handoff.account_binding
+    ephemeral, persisted = accepted_pairs[0]
+    assert account_binding.portfolio_id == ephemeral["portfolio_id"]
+    assert account_binding.portfolio_id_sha256 == persisted[
+        "portfolio_id_sha256"
+    ]
+    assert account_binding.permission_evidence_sha256 == ephemeral[
+        "permission_evidence_sha256"
+    ]
+    assert account_binding.portfolio_catalog_sha256 == ephemeral[
+        "portfolio_catalog_sha256"
+    ]
+    assert account_binding.sanitized_evidence()[
+        "same_session_preview_and_slice3"
+    ] is True
+    account_binding.validate()
+    assert "default-portfolio-uuid" not in repr(handoff)
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="^futures Preview R8 accepted session was already released$",
+    ):
+        deferred.take_accepted_session(ephemeral, persisted)
+    assert factory_calls == (0 if prepare_before_claim else 1)
+
+
+def test_r8_deferred_session_accepts_one_exact_prepared_session_without_hydration(
+    tmp_path: Path,
+) -> None:
+    from tools import run_admin_api_futures_no_live_preview_r8 as r8_preview_tool
+
+    store = FuturesOrderPreviewArtifactStore(tmp_path / "r8.jsonl")
+    delegate = _r8_compatible_rest_client()
+    baseline_reads = list(delegate.read_calls)
+    prepared = r8_preview_tool._R8CanonicalPreviewSession(delegate)
+    deferred = r8_preview_tool.DeferredR8PreviewRestClient(
+        store=store,
+        prepared_session=prepared,
+    )
+
+    assert getattr(
+        deferred,
+        "_DeferredR8PreviewRestClient__session",
+    ) is prepared
+    assert delegate.preview_calls == []
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="^futures Preview R8 claim is unavailable$",
+    ):
+        deferred.get_api_key_permissions()
+    assert delegate.read_calls == baseline_reads
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="^futures Preview R8 canonical session source is invalid$",
+    ):
+        r8_preview_tool.DeferredR8PreviewRestClient(
+            store=store,
+            prepared_session=prepared,
+            session_factory=lambda: prepared,
+        )
+
+
+def test_r8_same_session_handoff_cannot_hydrate_or_release_before_acceptance(
+    tmp_path: Path,
+) -> None:
+    from tools import run_admin_api_futures_no_live_preview_r8 as r8_preview_tool
+
+    store = FuturesOrderPreviewArtifactStore(tmp_path / "r8.jsonl")
+    factory_calls = 0
+
+    def forbidden_factory():
+        nonlocal factory_calls
+        factory_calls += 1
+        raise AssertionError("credential/client hydration was attempted")
+
+    deferred = r8_preview_tool.DeferredR8PreviewRestClient(
+        store=store,
+        session_factory=forbidden_factory,
+    )
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="^futures Preview R8 claim is unavailable$",
+    ):
+        deferred.get_api_key_permissions()
+    assert factory_calls == 0
+
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="^futures Preview R8 accepted session is unavailable$",
+    ):
+        deferred.take_accepted_session({}, {})
+    assert factory_calls == 0
+
+
+def test_r8_same_session_handoff_rejects_tampered_callback_pair_fail_closed(
+    tmp_path: Path,
+) -> None:
+    from tools import run_admin_api_futures_no_live_preview_r8 as r8_preview_tool
+
+    store = FuturesOrderPreviewArtifactStore(tmp_path / "r8.jsonl")
+    delegate = _r8_compatible_rest_client()
+    deferred = r8_preview_tool.DeferredR8PreviewRestClient(
+        store=store,
+        session_factory=lambda: r8_preview_tool._R8CanonicalPreviewSession(
+            delegate
+        ),
+    )
+    producer = FuturesOrderPreviewProducer(
+        rest_client=deferred,
+        store=store,
+        predecessor_binding=dict(
+            preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING
+        ),
+        predecessor_validator=lambda: dict(
+            preview_module.FUTURES_PREVIEW_R7_TERMINAL_BINDING
+        ),
+        artifact_type=preview_module.FUTURES_PREVIEW_R8_ARTIFACT_TYPE,
+        now=lambda: NOW,
+        correlation_id_factory=lambda: (
+            "8f604e56-0a23-4bda-b244-11ebc0194241"
+        ),
+        idempotency_key_factory=lambda: (
+            "2d8327f6-826c-4f73-82a4-822e29f73065"
+        ),
+    )
+    exact_pair: list[tuple[dict[str, object], dict[str, object]]] = []
+
+    def tampered_callback(
+        ephemeral: dict[str, object],
+        persisted: dict[str, object],
+    ) -> None:
+        exact_pair.append((ephemeral, persisted))
+        attack = deepcopy(ephemeral)
+        attack["permission_evidence_sha256"] = "0" * 64
+        deferred.take_accepted_session(attack, persisted)
+
+    with pytest.raises(
+        preview_module.FuturesOrderPreviewAcceptedHandoffError,
+        match="^futures Preview accepted handoff did not complete$",
+    ):
+        producer.run(accepted_callback=tampered_callback)
+
+    ephemeral, persisted = exact_pair[0]
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="^futures Preview R8 accepted session was already released$",
+    ):
+        deferred.take_accepted_session(ephemeral, persisted)
+    assert len(delegate.preview_calls) == 1
+
+
+def test_only_r8_deferred_facade_can_release_an_accepted_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools import run_admin_api_futures_no_live_preview_r7 as r7_preview_tool
+    from tools import run_admin_api_futures_no_live_preview_r8 as r8_preview_tool
+
+    assert hasattr(
+        r8_preview_tool.DeferredR8PreviewRestClient,
+        "take_accepted_session",
+    )
+    assert not hasattr(
+        r7_preview_tool.DeferredR7PreviewRestClient,
+        "take_accepted_session",
+    )
+    assert not hasattr(
+        r8_preview_tool.FuturesPreviewOnlyRestClient,
+        "take_accepted_session",
+    )
+
+    preview_only = r8_preview_tool.FuturesPreviewOnlyRestClient(
+        _r8_compatible_rest_client()
+    )
+    monkeypatch.setattr(
+        r8_preview_tool.r7_tool,
+        "build_rest_client",
+        lambda: preview_only,
+    )
+    monkeypatch.setattr(
+        r8_preview_tool.base_tool,
+        "_build_canonical_default_rest_client",
+        lambda: (_ for _ in ()).throw(
+            AssertionError("public builder released a canonical delegate")
+        ),
+    )
+    assert r8_preview_tool.build_rest_client() is preview_only
+
+
+def _r9_producer(
+    tmp_path: Path,
+    rest_client: FakePreviewRestClient,
+) -> tuple[
+    FuturesOrderPreviewProducer,
+    FuturesOrderPreviewArtifactStore,
+    Path,
+]:
+    path = tmp_path / "synthetic-r9.jsonl"
+    store = FuturesOrderPreviewArtifactStore(path)
+    producer = FuturesOrderPreviewProducer(
+        rest_client=rest_client,
+        store=store,
+        predecessor_binding=dict(
+            preview_module.FUTURES_PREVIEW_R8_TERMINAL_BINDING
+        ),
+        predecessor_validator=lambda: dict(
+            preview_module.FUTURES_PREVIEW_R8_TERMINAL_BINDING
+        ),
+        artifact_type=preview_module.FUTURES_PREVIEW_R9_ARTIFACT_TYPE,
+        now=lambda: NOW,
+        correlation_id_factory=lambda: (
+            "18a129f8-59b9-4c04-a393-9c0341690f09"
+        ),
+        idempotency_key_factory=lambda: (
+            "c4d4999c-6537-482c-8161-7fc9c60ca36c"
+        ),
+    )
+    return producer, store, path
+
+
+def test_r9_predecessor_is_opaque_hash_stat_bound_and_never_deserialized(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        preview_module,
+        "FUTURES_PREVIEW_R8_ARTIFACT_PATH",
+        preview_module._PRODUCTION_FUTURES_PREVIEW_R8_ARTIFACT_PATH,
+    )
+    predecessor = preview_module.FUTURES_PREVIEW_R8_ARTIFACT_PATH
+    successor = preview_module.FUTURES_PREVIEW_R9_ARTIFACT_PATH
+    before_stat = predecessor.stat()
+    with predecessor.open("rb") as stream:
+        before_sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
+    monkeypatch.setattr(
+        preview_module.FuturesOrderPreviewArtifactStore,
+        "read_completed",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("R8 JSON was deserialized")
+        ),
+    )
+
+    binding = (
+        preview_module.validate_production_futures_order_preview_r8_opaque_chain()
+    )
+
+    after_stat = predecessor.stat()
+    with predecessor.open("rb") as stream:
+        after_sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
+    assert binding == preview_module.FUTURES_PREVIEW_R8_TERMINAL_BINDING
+    assert binding["file_sha256"] == (
+        "b32aba4868f08ee7a44f19ceacbcf42cb7e4d70da1552f2d8b333ef59ddc8696"
+    )
+    assert binding["opaque_hash_stat_binding"] is True
+    assert before_sha256 == after_sha256 == binding["file_sha256"]
+    assert (
+        before_stat.st_dev,
+        before_stat.st_ino,
+        before_stat.st_size,
+        before_stat.st_mode,
+        before_stat.st_mtime_ns,
+        before_stat.st_nlink,
+    ) == (
+        after_stat.st_dev,
+        after_stat.st_ino,
+        after_stat.st_size,
+        after_stat.st_mode,
+        after_stat.st_mtime_ns,
+        after_stat.st_nlink,
+    )
+    assert not successor.exists()
+
+
+def test_r9_claim_is_fresh_hash_only_one_use_and_exactly_bounded(
+    tmp_path: Path,
+) -> None:
+    rest_client = _r8_compatible_rest_client()
+    producer, store, path = _r9_producer(tmp_path, rest_client)
+
+    ephemeral_claim = producer.build_claim()
+    preview_module._validate_r9_ephemeral_claim_record(ephemeral_claim)
+    terminal = producer.run()
+
+    assert terminal == store.read_completed()
+    assert terminal["artifact_type"] == (
+        preview_module.FUTURES_PREVIEW_R9_ARTIFACT_TYPE
+    )
+    assert terminal["predecessor_binding"] == (
+        preview_module.FUTURES_PREVIEW_R8_TERMINAL_BINDING
+    )
+    assert terminal["status"] == terminal["outcome"] == "accepted"
+    assert terminal["correlation_id"] == "withheld"
+    assert terminal["idempotency_key"] == "withheld"
+    assert terminal["portfolio_id"] == "withheld"
+    assert terminal["preview_response"]["preview_id"] == "withheld"
+    assert terminal["read_counters"] == {
+        "api_key_permissions": 1,
+        "portfolio_catalog": 1,
+        "product": 1,
+        "best_bid_ask": 1,
+        "futures_positions": 1,
+        "futures_margin_collateral": 1,
+    }
+    assert terminal["attempt_counters"] == {
+        "preview_order": 1,
+        "retry": 0,
+        "fallback": 0,
+        "create_order": 0,
+        "cancel_order": 0,
+        "close_position": 0,
+        "reduce_position": 0,
+    }
+    assert len(rest_client.preview_calls) == 1
+    assert rest_client.forbidden_calls == []
+    assert path.stat().st_mode & 0o777 == 0o400
+    AdminFuturesOrderPreviewResponse.model_validate(terminal)
+
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="already consumed"):
+        producer.run()
+    assert len(rest_client.preview_calls) == 1
+
+
+@pytest.mark.parametrize(
+    ("synthetic_case", "expected_outcome", "expected_blocker"),
+    [
+        ("accepted", "accepted", None),
+        ("malformed", "blocked", "post_preview_stage_blocked"),
+        ("blocked", "blocked", "post_preview_stage_blocked"),
+        ("unknown", "unknown", "preview_order_unknown:TimeoutError"),
+    ],
+)
+def test_r9_synthetic_terminal_paths_are_sanitized_and_never_mutate_exchange(
+    tmp_path: Path,
+    synthetic_case: str,
+    expected_outcome: str,
+    expected_blocker: str | None,
+) -> None:
+    private_preview_id = "PRIVATE-R9-PREVIEW-ID"
+    private_portfolio_id = "PRIVATE-R9-PORTFOLIO-ID"
+    private_failure_text = "PRIVATE-R9-FAILURE-TEXT"
+    rest_client = _r8_compatible_rest_client()
+    rest_client.permissions_response["portfolio_uuid"] = private_portfolio_id
+    rest_client.portfolios_response[0]["uuid"] = private_portfolio_id
+    rest_client.preview_response["preview_id"] = private_preview_id
+    if synthetic_case == "malformed":
+        rest_client.preview_response["margin_ratio_data"] = {
+            "current_margin_ratio": private_failure_text,
+            "projected_margin_ratio": "0.25",
+        }
+    elif synthetic_case == "blocked":
+        rest_client.preview_response["base_size"] = "2"
+    elif synthetic_case == "unknown":
+        rest_client.preview_error = TimeoutError(private_failure_text)
+    producer, store, path = _r9_producer(tmp_path, rest_client)
+    trace_ids = producer.build_claim()
+
+    if expected_outcome == "accepted":
+        terminal = producer.run()
+    else:
+        with pytest.raises(FuturesOrderPreviewArtifactError):
+            producer.run()
+        terminal = store.read_completed()
+
+    assert terminal["outcome"] == expected_outcome
+    assert terminal.get("blocker") == expected_blocker
+    assert terminal["correlation_id"] == "withheld"
+    assert terminal["idempotency_key"] == "withheld"
+    assert terminal["correlation_id_sha256"] == hashlib.sha256(
+        str(trace_ids["correlation_id"]).encode("utf-8")
+    ).hexdigest()
+    assert terminal["idempotency_key_sha256"] == hashlib.sha256(
+        str(trace_ids["idempotency_key"]).encode("utf-8")
+    ).hexdigest()
+    persisted = path.read_text(encoding="utf-8")
+    for private_value in (
+        private_preview_id,
+        private_portfolio_id,
+        private_failure_text,
+        str(trace_ids["correlation_id"]),
+        str(trace_ids["idempotency_key"]),
+    ):
+        assert private_value not in persisted
+    assert len(rest_client.preview_calls) == 1
+    assert rest_client.forbidden_calls == []
+    assert all(value <= 1 for value in terminal["read_counters"].values())
+    assert terminal["attempt_counters"]["preview_order"] == 1
+    assert terminal["attempt_counters"]["retry"] == 0
+    assert terminal["attempt_counters"]["fallback"] == 0
+    AdminFuturesOrderPreviewResponse.model_validate(terminal)
+    assert not preview_module.FUTURES_PREVIEW_R9_ARTIFACT_PATH.exists()
+
+
+def test_r9_tool_preflight_is_offline_preparation_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from tools import run_admin_api_futures_no_live_preview_r9 as r9_preview_tool
+
+    path = tmp_path / "fixed-r9-preview.jsonl"
+    monkeypatch.setattr(r9_preview_tool, "production_artifact_path", lambda: path)
+    monkeypatch.setattr(
+        r9_preview_tool,
+        "validate_production_predecessor",
+        lambda: dict(preview_module.FUTURES_PREVIEW_R8_TERMINAL_BINDING),
+    )
+    monkeypatch.setattr(
+        r9_preview_tool,
+        "build_rest_client",
+        lambda: (_ for _ in ()).throw(AssertionError("Coinbase client constructed")),
+    )
+
+    assert r9_preview_tool.R8_PREVIEW_CALL_AUTHORITY_ACTIVE is False
+    assert r9_preview_tool.R9_PREVIEW_CALL_AUTHORITY_ACTIVE is False
+    assert r9_preview_tool.R9_FINAL_AUDIT_BINDING_READY is False
+    assert r9_preview_tool.main(["--preflight"]) == 0
+
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["status"] == "prepared"
+    assert summary["claim_contract_ready"] is True
+    assert summary["live_authority_active"] is False
+    assert summary["final_audit_binding_ready"] is False
+    assert summary["coinbase_read_ran"] is False
+    assert summary["preview_order_attempt_count"] == 0
+    assert summary["artifact_created"] is False
+    assert not path.exists()
+
+
+def test_r9_accepted_callback_preserves_ephemeral_persisted_same_session_split(
+    tmp_path: Path,
+) -> None:
+    from tools import run_admin_api_futures_no_live_preview_r9 as r9_preview_tool
+
+    delegate = _r8_compatible_rest_client()
+    store = FuturesOrderPreviewArtifactStore(tmp_path / "r9-handoff.jsonl")
+    deferred = r9_preview_tool.DeferredR9PreviewRestClient(
+        store=store,
+        prepared_session=r9_preview_tool._R9CanonicalPreviewSession(delegate),
+    )
+    producer = FuturesOrderPreviewProducer(
+        rest_client=deferred,
+        store=store,
+        predecessor_binding=dict(
+            preview_module.FUTURES_PREVIEW_R8_TERMINAL_BINDING
+        ),
+        predecessor_validator=lambda: dict(
+            preview_module.FUTURES_PREVIEW_R8_TERMINAL_BINDING
+        ),
+        artifact_type=preview_module.FUTURES_PREVIEW_R9_ARTIFACT_TYPE,
+        now=lambda: NOW,
+        correlation_id_factory=lambda: (
+            "0da90c23-7b66-4478-aac8-45f84ed2dd62"
+        ),
+        idempotency_key_factory=lambda: (
+            "72741ec9-1597-44b8-8909-146cc9399657"
+        ),
+    )
+    released: list[r9_preview_tool.R9AcceptedSessionHandoff] = []
+
+    def accepted_callback(
+        ephemeral: dict[str, object],
+        persisted: dict[str, object],
+    ) -> None:
+        assert ephemeral["portfolio_id"] == "default-portfolio-uuid"
+        assert persisted["portfolio_id"] == "withheld"
+        assert ephemeral["preview_response"]["preview_id"] == "preview-avp-1"  # type: ignore[index]
+        assert persisted["preview_response"]["preview_id"] == "withheld"  # type: ignore[index]
+        released.append(deferred.take_accepted_session(ephemeral, persisted))
+
+    terminal = producer.run(accepted_callback=accepted_callback)
+
+    assert terminal["outcome"] == "accepted"
+    assert len(released) == 1
+    assert released[0].delegate is delegate
+    released[0].account_binding.validate()
+    with pytest.raises(
+        FuturesOrderPreviewArtifactError,
+        match="accepted session was already released",
+    ):
+        deferred.take_accepted_session(terminal, terminal)
+
+
+def test_r9_tool_confirmation_is_hard_blocked_before_path_or_client(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from tools import run_admin_api_futures_no_live_preview_r9 as r9_preview_tool
+
+    monkeypatch.setattr(
+        r9_preview_tool,
+        "production_artifact_path",
+        lambda: (_ for _ in ()).throw(AssertionError("R9 path inspected")),
+    )
+    monkeypatch.setattr(
+        r9_preview_tool,
+        "build_rest_client",
+        lambda: (_ for _ in ()).throw(AssertionError("Coinbase client constructed")),
+    )
+
+    assert r9_preview_tool.R9_PREVIEW_CALL_AUTHORITY_ACTIVE is False
+    assert r9_preview_tool.R9_FINAL_AUDIT_BINDING_READY is False
+    assert r9_preview_tool.main(["--confirm-one-r9-preview"]) == 2
+
+    summary = json.loads(capsys.readouterr().err)
+    assert summary["status"] == "blocked"
+    assert summary["blocker"] == "futures_preview_r9_call_authority_inactive"
+    assert summary["coinbase_read_ran"] is False
+    assert summary["preview_order_attempt_count"] == 0
+    assert summary["artifact_created"] is False

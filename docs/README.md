@@ -5,14 +5,18 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 ## Project Entry
 
 - [Current MVP Goal](../genai_data/AGENT_MVP_REBUILD_GOAL.md) - goal id
-  `futures_exact_no_live_preview_slice_2`; consumed blocked R7, zero remaining
-  Coinbase-call authority, immutable readback, and the operator-decision stop
+  `futures_preview_acceptance_recovery_r8_r10_and_conditional_terminal_roundtrip_slice_3`;
+  R8 terminal blocked with opaque zero-call readback, R9 current, R10
+  conditional, and Slice 3 conditional and inactive
 - [Futures Slice 2R7 Preparation and Closeout](FUTURES_SLICE_2R7_PREPARATION.md) -
   immutable R6 ancestry, corrected response-schema binding, one-use transport
   posture, readiness gates, and terminal record
 - [Futures Slice 2R7 Terminal Diagnosis](FUTURES_SLICE_2R7_TERMINAL_DIAGNOSIS.md) -
   derived sanitized failure boundary, hash semantics, terminal machine state,
   and no-retry/no-successor authority
+- [Futures Slice 2R8 Terminal Diagnosis](FUTURES_SLICE_2R8_TERMINAL_DIAGNOSIS.md) -
+  opaque fixed-artifact binding, zero-call forensic classification, test-path
+  remediation, and conditional R9 successor posture
 - [Root README](../README.md)
 - [Expanded AI Context](../genai_data/README.md)
 - [Architecture](../genai_data/ARCHITECTURE.md)

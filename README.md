@@ -13,12 +13,15 @@ plans.
 
 ## Current MVP Goal
 
-Current goal id `futures_exact_no_live_preview_slice_2` records the current
-Default-profile AVAX US CFM no-live Preview slice under strict
-`<100 / <150 / <300 USDC` slice-local limits. Its one-use R7 Preview call is consumed
-without accepted Preview evidence, the slice is blocked, and the remaining
-Coinbase-call maximum is zero. No R8, Slice 3 activation, or other live action
-is authorized; the next action is an operator scope-change decision. See
+Current goal id
+`futures_preview_acceptance_recovery_r8_r10_and_conditional_terminal_roundtrip_slice_3`
+records bounded Default-profile AVAX US CFM Preview-acceptance recovery under
+the unchanged one-contract V3 policy and strict `<100 / <150 / <300 USDC`
+limits. R8 is terminal blocked with zero Preview or real Coinbase calls; R9 is
+the current one-use generation and R10 is conditional. An R9 acceptance
+extinguishes R10. Current Preview maximum is one, remaining recovery maximum is
+two, and current exchange-mutation maximum is zero. Slice 3 is conditional and inactive pending accepted Preview
+plus exact readiness gates; Slices 4/5 are unauthorized. See
 [Coinbase Admin MVP Goal](genai_data/AGENT_MVP_REBUILD_GOAL.md). Historical M57
 phase ranges and M58 fan-out/scheduler blockers do not select default work.
 

@@ -5941,7 +5941,11 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AdminFuturesOrderPreviewResponse'
+                anyOf:
+                - $ref: '#/components/schemas/AdminFuturesOrderPreviewResponse'
+                - $ref: '#/components/schemas/AdminFuturesPreviewR8ForensicReadback'
+                title: Response Get Futures Order Preview Api V1 Futures Order Preview
+                  Get
         '401':
           description: Missing or invalid Admin API authentication.
           content:
@@ -101283,6 +101287,8 @@ components:
           - futures_exact_no_live_preview_slice_2r5
           - futures_exact_no_live_preview_slice_2r6
           - futures_exact_no_live_preview_slice_2r7
+          - futures_exact_no_live_preview_slice_2r8
+          - futures_exact_no_live_preview_slice_2r9
           title: Artifact Type
         status:
           type: string
@@ -101311,6 +101317,8 @@ components:
           - $ref: '#/components/schemas/AdminFuturesPreviewR4PredecessorBinding'
           - $ref: '#/components/schemas/AdminFuturesPreviewR5PredecessorBinding'
           - $ref: '#/components/schemas/AdminFuturesPreviewR6PredecessorBinding'
+          - $ref: '#/components/schemas/AdminFuturesPreviewR7PredecessorBinding'
+          - $ref: '#/components/schemas/AdminFuturesPreviewR8PredecessorBinding'
           title: Predecessor Binding
         reserved_at:
           type: string
@@ -101335,9 +101343,21 @@ components:
         correlation_id:
           type: string
           title: Correlation Id
+        correlation_id_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Correlation Id Sha256
         idempotency_key:
           type: string
           title: Idempotency Key
+        idempotency_key_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Idempotency Key Sha256
         profile_label:
           type: string
           const: Default
@@ -101351,6 +101371,12 @@ components:
           - type: string
           - type: 'null'
           title: Portfolio Id
+        portfolio_id_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Portfolio Id Sha256
         portfolio_binding:
           anyOf:
           - $ref: '#/components/schemas/AdminFuturesPortfolioBindingEvidence'
@@ -101466,6 +101492,10 @@ components:
           anyOf:
           - $ref: '#/components/schemas/AdminFuturesPreviewResponseSchemaBinding'
           - type: 'null'
+        post_preview_diagnostic_binding:
+          anyOf:
+          - $ref: '#/components/schemas/AdminFuturesPreviewPostPreviewDiagnosticBinding'
+          - type: 'null'
         pre_preview_stage_evidence:
           anyOf:
           - $ref: '#/components/schemas/AdminFuturesPreviewStageEvidence'
@@ -101476,6 +101506,16 @@ components:
             pattern: ^[0-9a-f]{64}$
           - type: 'null'
           title: Pre Preview Stage Evidence Sha256
+        post_preview_stage_evidence:
+          anyOf:
+          - $ref: '#/components/schemas/AdminFuturesPreviewPostStageEvidence'
+          - type: 'null'
+        post_preview_stage_evidence_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Post Preview Stage Evidence Sha256
         candidate:
           anyOf:
           - additionalProperties: true
@@ -101512,6 +101552,12 @@ components:
             pattern: ^[0-9a-f]{64}$
           - type: 'null'
           title: Preview Response Sha256
+        preview_id_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Preview Id Sha256
         seal_ready_plan:
           anyOf:
           - additionalProperties: true
@@ -102943,6 +102989,148 @@ components:
       - preservation
       title: AdminFuturesPreviewOriginalPredecessorBinding
       description: Exact immutable binding to the consumed original Slice 2 artifact.
+    AdminFuturesPreviewPostPreviewDiagnosticBinding:
+      properties:
+        schema_version:
+          type: string
+          const: '1'
+          title: Schema Version
+        policy_id:
+          type: string
+          const: slice2_preview_post_return_stage_diagnostic_v1
+          title: Policy Id
+        stage_order:
+          items:
+            type: string
+            enum:
+            - preview_response_validation
+            - candidate_cap_binding
+            - available_margin_validation
+            - seal_ready_plan_construction
+            - accepted_evidence_construction
+            - terminal_predecessor_validation
+          type: array
+          maxItems: 6
+          minItems: 6
+          title: Stage Order
+        persisted_evidence:
+          type: string
+          const: ordered_sanitized_stage_prefix_only
+          title: Persisted Evidence
+        raw_response_included:
+          type: boolean
+          const: false
+          title: Raw Response Included
+        external_exception_text_included:
+          type: boolean
+          const: false
+          title: External Exception Text Included
+        identifier_values_included:
+          type: boolean
+          const: false
+          title: Identifier Values Included
+      additionalProperties: false
+      type: object
+      required:
+      - schema_version
+      - policy_id
+      - stage_order
+      - persisted_evidence
+      - raw_response_included
+      - external_exception_text_included
+      - identifier_values_included
+      title: AdminFuturesPreviewPostPreviewDiagnosticBinding
+      description: Exact prospective diagnostic contract carried by R8 claims.
+    AdminFuturesPreviewPostStageEvidence:
+      properties:
+        schema_version:
+          type: string
+          const: '1'
+          title: Schema Version
+        source:
+          type: string
+          const: backend_futures_preview_producer
+          title: Source
+        stages:
+          items:
+            $ref: '#/components/schemas/AdminFuturesPreviewPostStageEvidenceRow'
+          type: array
+          maxItems: 6
+          minItems: 1
+          title: Stages
+        sanitized:
+          type: boolean
+          const: true
+          title: Sanitized
+        raw_response_included:
+          type: boolean
+          const: false
+          title: Raw Response Included
+        external_exception_text_included:
+          type: boolean
+          const: false
+          title: External Exception Text Included
+        identifier_values_included:
+          type: boolean
+          const: false
+          title: Identifier Values Included
+      additionalProperties: false
+      type: object
+      required:
+      - schema_version
+      - source
+      - stages
+      - sanitized
+      - raw_response_included
+      - external_exception_text_included
+      - identifier_values_included
+      title: AdminFuturesPreviewPostStageEvidence
+      description: Ordered post-return stage prefix containing no response material.
+    AdminFuturesPreviewPostStageEvidenceRow:
+      properties:
+        stage:
+          type: string
+          enum:
+          - preview_response_validation
+          - candidate_cap_binding
+          - available_margin_validation
+          - seal_ready_plan_construction
+          - accepted_evidence_construction
+          - terminal_predecessor_validation
+          title: Stage
+        status:
+          type: string
+          enum:
+          - passed
+          - blocked
+          title: Status
+        reason_code:
+          anyOf:
+          - type: string
+            enum:
+            - futures_preview_response_validation_unclassified
+            - futures_preview_candidate_cap_binding_unclassified
+            - futures_preview_available_margin_validation_unclassified
+            - futures_preview_seal_ready_plan_construction_unclassified
+            - futures_preview_accepted_evidence_construction_unclassified
+            - futures_preview_terminal_predecessor_validation_unclassified
+            - futures_preview_base_size_candidate_mismatch
+            - futures_preview_response_book_ambiguous
+            - futures_preview_response_opening_cap_blocked
+            - futures_preview_response_exposure_cap_blocked
+            - futures_preview_response_buffered_close_cap_blocked
+            - futures_preview_response_turnover_cap_blocked
+            - futures_preview_available_margin_insufficient
+            - futures_preview_predecessor_terminal_binding_changed
+          - type: 'null'
+          title: Reason Code
+      additionalProperties: false
+      type: object
+      required:
+      - stage
+      - status
+      title: AdminFuturesPreviewPostStageEvidenceRow
+      description: One sanitized stage after the Preview method returned.
     AdminFuturesPreviewPredecessorBinding:
       allOf:
       - oneOf:
@@ -103573,6 +103761,509 @@ components:
       - original_predecessor_binding
       title: AdminFuturesPreviewR6PredecessorBinding
       description: Exact immutable R6 binding plus its complete predecessor chain.
+    AdminFuturesPreviewR7PredecessorBinding:
+      allOf:
+      - oneOf:
+        - properties:
+            device:
+              const: '2096'
+            inode:
+              const: '400397'
+          required:
+          - device
+          - inode
+      properties:
+        artifact_name:
+          type: string
+          const: futures_exact_no_live_preview_slice_2r7.jsonl
+          title: Artifact Name
+        file_sha256:
+          type: string
+          const: 8e7bdf1a1efa67df9b1081cc8270dc9607e0b8c7285053d06985dcab195115e4
+          title: File Sha256
+        evidence_sha256:
+          type: string
+          const: 65791ec5aae8bd9db7c623042e3238f80a54067209aeeb1916801ca1d02369c3
+          title: Evidence Sha256
+        device:
+          type: string
+          const: '2096'
+          title: Device
+        inode:
+          type: string
+          const: '400397'
+          title: Inode
+        size_bytes:
+          type: integer
+          const: 20548
+          title: Size Bytes
+        mode:
+          type: string
+          const: '0400'
+          title: Mode
+        mtime_ns:
+          type: string
+          const: '1784133682760886913'
+          title: Mtime Ns
+        status:
+          type: string
+          const: blocked
+          title: Status
+        outcome:
+          type: string
+          const: blocked
+          title: Outcome
+        preview_order_attempt_count:
+          type: integer
+          const: 1
+          title: Preview Order Attempt Count
+        exchange_submission_attempt_count:
+          type: integer
+          const: 0
+          title: Exchange Submission Attempt Count
+        submitted_notional_usdc:
+          type: string
+          const: '0'
+          title: Submitted Notional Usdc
+        executed_notional_usdc:
+          type: string
+          const: '0'
+          title: Executed Notional Usdc
+        preservation:
+          type: string
+          const: immutable_no_modify_delete_or_reuse
+          title: Preservation
+        original_predecessor_binding:
+          $ref: '#/components/schemas/AdminFuturesPreviewR6PredecessorBinding'
+      additionalProperties: false
+      type: object
+      required:
+      - artifact_name
+      - file_sha256
+      - evidence_sha256
+      - device
+      - inode
+      - size_bytes
+      - mode
+      - mtime_ns
+      - status
+      - outcome
+      - preview_order_attempt_count
+      - exchange_submission_attempt_count
+      - submitted_notional_usdc
+      - executed_notional_usdc
+      - preservation
+      - original_predecessor_binding
+      title: AdminFuturesPreviewR7PredecessorBinding
+      description: Exact immutable R7 binding plus its complete predecessor chain.
+    AdminFuturesPreviewR8ArtifactMetadata:
+      properties:
+        artifact_name:
+          type: string
+          const: futures_exact_no_live_preview_slice_2r8.jsonl
+          title: Artifact Name
+        device:
+          type: string
+          const: '2096'
+          title: Device
+        inode:
+          type: string
+          const: '400341'
+          title: Inode
+        size_bytes:
+          type: integer
+          const: 14921
+          title: Size Bytes
+        mode:
+          type: string
+          const: '0400'
+          title: Mode
+        mtime_ns:
+          type: string
+          const: '1784160315297279427'
+          title: Mtime Ns
+        nlink:
+          type: integer
+          const: 1
+          title: Nlink
+      additionalProperties: false
+      type: object
+      required:
+      - artifact_name
+      - device
+      - inode
+      - size_bytes
+      - mode
+      - mtime_ns
+      - nlink
+      title: AdminFuturesPreviewR8ArtifactMetadata
+      description: Exact non-content filesystem metadata for immutable R8.
+    AdminFuturesPreviewR8AttemptCounters:
+      properties:
+        preview_order:
+          type: integer
+          const: 0
+          title: Preview Order
+        retry:
+          type: integer
+          const: 0
+          title: Retry
+        fallback:
+          type: integer
+          const: 0
+          title: Fallback
+        create_order:
+          type: integer
+          const: 0
+          title: Create Order
+        cancel_order:
+          type: integer
+          const: 0
+          title: Cancel Order
+        close_position:
+          type: integer
+          const: 0
+          title: Close Position
+        reduce_position:
+          type: integer
+          const: 0
+          title: Reduce Position
+      additionalProperties: false
+      type: object
+      required:
+      - preview_order
+      - retry
+      - fallback
+      - create_order
+      - cancel_order
+      - close_position
+      - reduce_position
+      title: AdminFuturesPreviewR8AttemptCounters
+      description: Exact zero-call, zero-mutation R8 terminal counters.
+    AdminFuturesPreviewR8ForensicReadback:
+      properties:
+        schema_version:
+          type: string
+          const: futures-preview-r8-forensic-readback-v1
+          title: Schema Version
+        artifact_type:
+          type: string
+          const: futures_exact_no_live_preview_slice_2r8
+          title: Artifact Type
+        generation:
+          type: string
+          const: R8
+          title: Generation
+        status:
+          type: string
+          const: blocked
+          title: Status
+        outcome:
+          type: string
+          const: blocked
+          title: Outcome
+        blocker:
+          type: string
+          const: preflight_or_preview_blocked:Exception
+          title: Blocker
+        localized_failure_boundary:
+          type: string
+          const: api_key_permissions_read_boundary
+          title: Localized Failure Boundary
+        evidence_origin:
+          type: string
+          const: independent_sanitized_forensic_classification
+          title: Evidence Origin
+        generation_consumed:
+          type: boolean
+          const: true
+          title: Generation Consumed
+        authorization_sha256:
+          type: string
+          const: 5c9c2432179989446d79da2e8f173729103844a96f00e1eeec56dcf5c8e2dc51
+          title: Authorization Sha256
+        artifact_file_sha256:
+          type: string
+          const: b32aba4868f08ee7a44f19ceacbcf42cb7e4d70da1552f2d8b333ef59ddc8696
+          title: Artifact File Sha256
+        artifact_binding_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Artifact Binding Sha256
+        artifact_metadata:
+          $ref: '#/components/schemas/AdminFuturesPreviewR8ArtifactMetadata'
+        scope:
+          $ref: '#/components/schemas/AdminFuturesPreviewR8Scope'
+        read_boundary_counters:
+          $ref: '#/components/schemas/AdminFuturesPreviewR8ReadBoundaryCounters'
+        attempt_counters:
+          $ref: '#/components/schemas/AdminFuturesPreviewR8AttemptCounters'
+        real_aws_service_call_count:
+          type: integer
+          const: 0
+          title: Real Aws Service Call Count
+        real_coinbase_request_count:
+          type: integer
+          const: 0
+          title: Real Coinbase Request Count
+        exchange_submission_attempt_count:
+          type: integer
+          const: 0
+          title: Exchange Submission Attempt Count
+        submitted_notional_usdc:
+          type: string
+          const: '0'
+          title: Submitted Notional Usdc
+        executed_notional_usdc:
+          type: string
+          const: '0'
+          title: Executed Notional Usdc
+        live_coinbase_execution:
+          type: string
+          const: not_run
+          title: Live Coinbase Execution
+        slice3_activated:
+          type: boolean
+          const: false
+          title: Slice3 Activated
+        opaque_hash_stat_validated:
+          type: boolean
+          const: true
+          title: Opaque Hash Stat Validated
+        raw_response_included:
+          type: boolean
+          const: false
+          title: Raw Response Included
+        private_identifier_values_included:
+          type: boolean
+          const: false
+          title: Private Identifier Values Included
+        withheld_exception_text_included:
+          type: boolean
+          const: false
+          title: Withheld Exception Text Included
+        preservation:
+          type: string
+          const: immutable_no_modify_delete_or_reuse
+          title: Preservation
+      additionalProperties: false
+      type: object
+      required:
+      - schema_version
+      - artifact_type
+      - generation
+      - status
+      - outcome
+      - blocker
+      - localized_failure_boundary
+      - evidence_origin
+      - generation_consumed
+      - authorization_sha256
+      - artifact_file_sha256
+      - artifact_binding_sha256
+      - artifact_metadata
+      - scope
+      - read_boundary_counters
+      - attempt_counters
+      - real_aws_service_call_count
+      - real_coinbase_request_count
+      - exchange_submission_attempt_count
+      - submitted_notional_usdc
+      - executed_notional_usdc
+      - live_coinbase_execution
+      - slice3_activated
+      - opaque_hash_stat_validated
+      - raw_response_included
+      - private_identifier_values_included
+      - withheld_exception_text_included
+      - preservation
+      title: AdminFuturesPreviewR8ForensicReadback
+      description: Sanitized terminal classification that contains no R8 record content.
+    AdminFuturesPreviewR8PredecessorBinding:
+      allOf:
+      - oneOf:
+        - properties:
+            device:
+              const: '2096'
+            inode:
+              const: '400341'
+          required:
+          - device
+          - inode
+      properties:
+        artifact_name:
+          type: string
+          const: futures_exact_no_live_preview_slice_2r8.jsonl
+          title: Artifact Name
+        file_sha256:
+          type: string
+          const: b32aba4868f08ee7a44f19ceacbcf42cb7e4d70da1552f2d8b333ef59ddc8696
+          title: File Sha256
+        device:
+          type: string
+          const: '2096'
+          title: Device
+        inode:
+          type: string
+          const: '400341'
+          title: Inode
+        size_bytes:
+          type: integer
+          const: 14921
+          title: Size Bytes
+        mode:
+          type: string
+          const: '0400'
+          title: Mode
+        mtime_ns:
+          type: string
+          const: '1784160315297279427'
+          title: Mtime Ns
+        nlink:
+          type: integer
+          const: 1
+          title: Nlink
+        status:
+          type: string
+          const: blocked
+          title: Status
+        outcome:
+          type: string
+          const: blocked
+          title: Outcome
+        preview_order_attempt_count:
+          type: integer
+          const: 0
+          title: Preview Order Attempt Count
+        exchange_submission_attempt_count:
+          type: integer
+          const: 0
+          title: Exchange Submission Attempt Count
+        submitted_notional_usdc:
+          type: string
+          const: '0'
+          title: Submitted Notional Usdc
+        executed_notional_usdc:
+          type: string
+          const: '0'
+          title: Executed Notional Usdc
+        opaque_hash_stat_binding:
+          type: boolean
+          const: true
+          title: Opaque Hash Stat Binding
+        preservation:
+          type: string
+          const: immutable_no_modify_delete_or_reuse
+          title: Preservation
+        original_predecessor_binding:
+          $ref: '#/components/schemas/AdminFuturesPreviewR7PredecessorBinding'
+      additionalProperties: false
+      type: object
+      required:
+      - artifact_name
+      - file_sha256
+      - device
+      - inode
+      - size_bytes
+      - mode
+      - mtime_ns
+      - nlink
+      - status
+      - outcome
+      - preview_order_attempt_count
+      - exchange_submission_attempt_count
+      - submitted_notional_usdc
+      - executed_notional_usdc
+      - opaque_hash_stat_binding
+      - preservation
+      - original_predecessor_binding
+      title: AdminFuturesPreviewR8PredecessorBinding
+      description: Opaque immutable R8 hash/stat binding plus known R7 chain.
+    AdminFuturesPreviewR8ReadBoundaryCounters:
+      properties:
+        api_key_permissions:
+          type: integer
+          const: 1
+          title: Api Key Permissions
+        portfolio_catalog:
+          type: integer
+          const: 0
+          title: Portfolio Catalog
+        product:
+          type: integer
+          const: 0
+          title: Product
+        best_bid_ask:
+          type: integer
+          const: 0
+          title: Best Bid Ask
+        futures_positions:
+          type: integer
+          const: 0
+          title: Futures Positions
+        futures_margin_collateral:
+          type: integer
+          const: 0
+          title: Futures Margin Collateral
+      additionalProperties: false
+      type: object
+      required:
+      - api_key_permissions
+      - portfolio_catalog
+      - product
+      - best_bid_ask
+      - futures_positions
+      - futures_margin_collateral
+      title: AdminFuturesPreviewR8ReadBoundaryCounters
+      description: Boundaries entered by the isolated synthetic test, not network
+        calls.
+    AdminFuturesPreviewR8Scope:
+      properties:
+        profile_label:
+          type: string
+          const: Default
+          title: Profile Label
+        portfolio_type:
+          type: string
+          const: DEFAULT
+          title: Portfolio Type
+        product_id:
+          type: string
+          const: AVP-20DEC30-CDE
+          title: Product Id
+        side:
+          type: string
+          const: BUY
+          title: Side
+        contract_count:
+          type: string
+          const: '1'
+          title: Contract Count
+        opening_cap:
+          type: string
+          const: <100 USDC
+          title: Opening Cap
+        exposure_and_buffered_close_cap:
+          type: string
+          const: <150 USDC
+          title: Exposure And Buffered Close Cap
+        branch_turnover_cap:
+          type: string
+          const: <300 USDC
+          title: Branch Turnover Cap
+      additionalProperties: false
+      type: object
+      required:
+      - profile_label
+      - portfolio_type
+      - product_id
+      - side
+      - contract_count
+      - opening_cap
+      - exposure_and_buffered_close_cap
+      - branch_turnover_cap
+      title: AdminFuturesPreviewR8Scope
+      description: Unchanged operator scope carried forward without private identifiers.
     AdminFuturesPreviewResponseSchemaBinding:
       properties:
         schema_version:

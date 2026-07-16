@@ -6791,6 +6791,67 @@ class AdminFuturesPreviewR6PredecessorBinding(
     filesystem_identities = (("2096", "400333"),)
 
 
+class AdminFuturesPreviewR7PredecessorBinding(
+    _AdminFuturesPreviewFilesystemBoundModel
+):
+    """Exact immutable R7 binding plus its complete predecessor chain."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    artifact_name: Literal["futures_exact_no_live_preview_slice_2r7.jsonl"]
+    file_sha256: Literal[
+        "8e7bdf1a1efa67df9b1081cc8270dc9607e0b8c7285053d06985dcab195115e4"
+    ]
+    evidence_sha256: Literal[
+        "65791ec5aae8bd9db7c623042e3238f80a54067209aeeb1916801ca1d02369c3"
+    ]
+    device: Literal["2096"]
+    inode: Literal["400397"]
+    size_bytes: Literal[20548]
+    mode: Literal["0400"]
+    mtime_ns: Literal["1784133682760886913"]
+    status: Literal["blocked"]
+    outcome: Literal["blocked"]
+    preview_order_attempt_count: Literal[1]
+    exchange_submission_attempt_count: Literal[0]
+    submitted_notional_usdc: Literal["0"]
+    executed_notional_usdc: Literal["0"]
+    preservation: Literal["immutable_no_modify_delete_or_reuse"]
+    original_predecessor_binding: AdminFuturesPreviewR6PredecessorBinding
+
+    filesystem_identities = (("2096", "400397"),)
+
+
+class AdminFuturesPreviewR8PredecessorBinding(
+    _AdminFuturesPreviewFilesystemBoundModel
+):
+    """Opaque immutable R8 hash/stat binding plus known R7 chain."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    artifact_name: Literal["futures_exact_no_live_preview_slice_2r8.jsonl"]
+    file_sha256: Literal[
+        "b32aba4868f08ee7a44f19ceacbcf42cb7e4d70da1552f2d8b333ef59ddc8696"
+    ]
+    device: Literal["2096"]
+    inode: Literal["400341"]
+    size_bytes: Literal[14921]
+    mode: Literal["0400"]
+    mtime_ns: Literal["1784160315297279427"]
+    nlink: Literal[1]
+    status: Literal["blocked"]
+    outcome: Literal["blocked"]
+    preview_order_attempt_count: Literal[0]
+    exchange_submission_attempt_count: Literal[0]
+    submitted_notional_usdc: Literal["0"]
+    executed_notional_usdc: Literal["0"]
+    opaque_hash_stat_binding: Literal[True]
+    preservation: Literal["immutable_no_modify_delete_or_reuse"]
+    original_predecessor_binding: AdminFuturesPreviewR7PredecessorBinding
+
+    filesystem_identities = (("2096", "400341"),)
+
+
 class AdminFuturesPreviewMarginSettingEvidence(BaseModel):
     """Allowlisted, secret-minimized pre-Preview margin-setting evidence."""
 
@@ -7669,6 +7730,107 @@ class AdminFuturesPreviewResponseSchemaBinding(BaseModel):
     persisted_response_policy: Literal["sanitized_allowlist_only"]
 
 
+class AdminFuturesPreviewPostPreviewDiagnosticBinding(BaseModel):
+    """Exact prospective diagnostic contract carried by R8 claims."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["1"]
+    policy_id: Literal["slice2_preview_post_return_stage_diagnostic_v1"]
+    stage_order: list[
+        Literal[
+            "preview_response_validation",
+            "candidate_cap_binding",
+            "available_margin_validation",
+            "seal_ready_plan_construction",
+            "accepted_evidence_construction",
+            "terminal_predecessor_validation",
+        ]
+    ] = Field(min_length=6, max_length=6)
+    persisted_evidence: Literal["ordered_sanitized_stage_prefix_only"]
+    raw_response_included: Literal[False]
+    external_exception_text_included: Literal[False]
+    identifier_values_included: Literal[False]
+
+
+AdminFuturesPreviewPostStageReasonCode = Literal[
+    "futures_preview_response_validation_unclassified",
+    "futures_preview_candidate_cap_binding_unclassified",
+    "futures_preview_available_margin_validation_unclassified",
+    "futures_preview_seal_ready_plan_construction_unclassified",
+    "futures_preview_accepted_evidence_construction_unclassified",
+    "futures_preview_terminal_predecessor_validation_unclassified",
+    "futures_preview_base_size_candidate_mismatch",
+    "futures_preview_response_book_ambiguous",
+    "futures_preview_response_opening_cap_blocked",
+    "futures_preview_response_exposure_cap_blocked",
+    "futures_preview_response_buffered_close_cap_blocked",
+    "futures_preview_response_turnover_cap_blocked",
+    "futures_preview_available_margin_insufficient",
+    "futures_preview_predecessor_terminal_binding_changed",
+]
+
+
+class AdminFuturesPreviewPostStageEvidenceRow(BaseModel):
+    """One sanitized stage after the Preview method returned."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    stage: Literal[
+        "preview_response_validation",
+        "candidate_cap_binding",
+        "available_margin_validation",
+        "seal_ready_plan_construction",
+        "accepted_evidence_construction",
+        "terminal_predecessor_validation",
+    ]
+    status: Literal["passed", "blocked"]
+    reason_code: AdminFuturesPreviewPostStageReasonCode | None = None
+
+
+class AdminFuturesPreviewPostStageEvidence(BaseModel):
+    """Ordered post-return stage prefix containing no response material."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["1"]
+    source: Literal["backend_futures_preview_producer"]
+    stages: list[AdminFuturesPreviewPostStageEvidenceRow] = Field(
+        min_length=1,
+        max_length=6,
+    )
+    sanitized: Literal[True]
+    raw_response_included: Literal[False]
+    external_exception_text_included: Literal[False]
+    identifier_values_included: Literal[False]
+
+    @model_validator(mode="after")
+    def validate_stage_prefix(self) -> Self:
+        from application.admin_api.futures_order_preview import (
+            _POST_PREVIEW_STAGE_ALLOWLISTED_REASONS,
+            _POST_PREVIEW_STAGE_FALLBACK_REASONS,
+            _POST_PREVIEW_STAGE_ORDER,
+        )
+
+        observed_stages = tuple(row.stage for row in self.stages)
+        if observed_stages != _POST_PREVIEW_STAGE_ORDER[: len(self.stages)]:
+            raise ValueError("futures_preview_post_stage_order_invalid")
+        for row in self.stages[:-1]:
+            if row.status != "passed" or row.reason_code is not None:
+                raise ValueError("futures_preview_post_stage_prefix_invalid")
+        final = self.stages[-1]
+        allowed_final_reasons = (
+            _POST_PREVIEW_STAGE_ALLOWLISTED_REASONS[final.stage]
+            | {_POST_PREVIEW_STAGE_FALLBACK_REASONS[final.stage]}
+        )
+        if (
+            final.status != "blocked"
+            or final.reason_code not in allowed_final_reasons
+        ):
+            raise ValueError("futures_preview_post_stage_blocker_invalid")
+        return self
+
+
 class AdminFuturesPreviewTerminalDiagnosticClassification(BaseModel):
     """Derived sanitized boundary for a consumed post-Preview ValueError."""
 
@@ -7837,6 +7999,8 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
         "futures_exact_no_live_preview_slice_2r5",
         "futures_exact_no_live_preview_slice_2r6",
         "futures_exact_no_live_preview_slice_2r7",
+        "futures_exact_no_live_preview_slice_2r8",
+        "futures_exact_no_live_preview_slice_2r9",
     ]
     status: Literal["accepted", "blocked", "unknown"]
     outcome: Literal["accepted", "blocked", "unknown"]
@@ -7848,6 +8012,8 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
         | AdminFuturesPreviewR4PredecessorBinding
         | AdminFuturesPreviewR5PredecessorBinding
         | AdminFuturesPreviewR6PredecessorBinding
+        | AdminFuturesPreviewR7PredecessorBinding
+        | AdminFuturesPreviewR8PredecessorBinding
     )
     reserved_at: str
     completed_at: str
@@ -7855,10 +8021,22 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
     actor_id: Literal["operator-controlled-futures-proof"]
     roles: list[Literal["trader"]]
     correlation_id: str
+    correlation_id_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
     idempotency_key: str
+    idempotency_key_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
     profile_label: Literal["Default"]
     portfolio_type: Literal["DEFAULT"]
     portfolio_id: str | None = None
+    portfolio_id_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
     portfolio_binding: AdminFuturesPortfolioBindingEvidence | None = None
     permission_evidence: FlexibleDict | None = None
     permission_evidence_sha256: str | None = Field(
@@ -7904,8 +8082,18 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
     preview_response_schema_binding: (
         AdminFuturesPreviewResponseSchemaBinding | None
     ) = None
+    post_preview_diagnostic_binding: (
+        AdminFuturesPreviewPostPreviewDiagnosticBinding | None
+    ) = None
     pre_preview_stage_evidence: AdminFuturesPreviewStageEvidence | None = None
     pre_preview_stage_evidence_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
+    post_preview_stage_evidence: (
+        AdminFuturesPreviewPostStageEvidence | None
+    ) = None
+    post_preview_stage_evidence_sha256: str | None = Field(
         default=None,
         pattern=r"^[0-9a-f]{64}$",
     )
@@ -7915,6 +8103,10 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
     preview_request_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     preview_response: FlexibleDict | None = None
     preview_response_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    preview_id_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
     seal_ready_plan: FlexibleDict | None = None
     seal_ready_plan_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     attempt_counters: FlexibleDict
@@ -8012,6 +8204,7 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
         from application.admin_api.futures_order_preview import (
             FUTURES_PREVIEW_R6_MARGIN_WINDOW_POLICY_BINDING,
             FUTURES_PREVIEW_R7_RESPONSE_SCHEMA_BINDING,
+            FUTURES_PREVIEW_R8_POST_PREVIEW_DIAGNOSTIC_BINDING,
             _margin_setting_terminal_context,
             _preview_identifier_was_consumed,
             _timestamp,
@@ -8059,6 +8252,16 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
                 return False
             if outcome == "blocked" and value == "preflight_or_preview_stage_blocked":
                 return True
+            if (
+                self.artifact_type
+                in {
+                    "futures_exact_no_live_preview_slice_2r8",
+                    "futures_exact_no_live_preview_slice_2r9",
+                }
+                and outcome == "blocked"
+                and value == "post_preview_stage_blocked"
+            ):
+                return True
             prefix = (
                 "preview_order_unknown:"
                 if outcome == "unknown"
@@ -8084,30 +8287,48 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
             "futures_exact_no_live_preview_slice_2r5",
             "futures_exact_no_live_preview_slice_2r6",
             "futures_exact_no_live_preview_slice_2r7",
+            "futures_exact_no_live_preview_slice_2r8",
+            "futures_exact_no_live_preview_slice_2r9",
         }
         r5_candidate_observed_at: datetime | None = None
         if modern_policy_artifact:
-            try:
-                parsed_correlation_id = UUID(self.correlation_id)
-                parsed_idempotency_key = UUID(self.idempotency_key)
-            except (AttributeError, TypeError, ValueError) as exc:
-                raise ValueError("futures_preview_r5_identifier_invalid") from exc
-            if (
-                parsed_correlation_id.version != 4
-                or parsed_idempotency_key.version != 4
-                or str(parsed_correlation_id) != self.correlation_id
-                or str(parsed_idempotency_key) != self.idempotency_key
-                or self.correlation_id == self.idempotency_key
-                or _preview_identifier_was_consumed(
-                    self.correlation_id,
-                    artifact_type=self.artifact_type,
-                )
-                or _preview_identifier_was_consumed(
-                    self.idempotency_key,
-                    artifact_type=self.artifact_type,
-                )
-            ):
-                raise ValueError("futures_preview_r5_identifier_invalid")
+            if self.artifact_type in {
+                "futures_exact_no_live_preview_slice_2r8",
+                "futures_exact_no_live_preview_slice_2r9",
+            }:
+                if (
+                    self.correlation_id != "withheld"
+                    or self.idempotency_key != "withheld"
+                    or self.correlation_id_sha256 is None
+                    or self.idempotency_key_sha256 is None
+                    or self.correlation_id_sha256
+                    == self.idempotency_key_sha256
+                ):
+                    raise ValueError("futures_preview_r5_identifier_invalid")
+            else:
+                try:
+                    parsed_correlation_id = UUID(self.correlation_id)
+                    parsed_idempotency_key = UUID(self.idempotency_key)
+                except (AttributeError, TypeError, ValueError) as exc:
+                    raise ValueError(
+                        "futures_preview_r5_identifier_invalid"
+                    ) from exc
+                if (
+                    parsed_correlation_id.version != 4
+                    or parsed_idempotency_key.version != 4
+                    or str(parsed_correlation_id) != self.correlation_id
+                    or str(parsed_idempotency_key) != self.idempotency_key
+                    or self.correlation_id == self.idempotency_key
+                    or _preview_identifier_was_consumed(
+                        self.correlation_id,
+                        artifact_type=self.artifact_type,
+                    )
+                    or _preview_identifier_was_consumed(
+                        self.idempotency_key,
+                        artifact_type=self.artifact_type,
+                    )
+                ):
+                    raise ValueError("futures_preview_r5_identifier_invalid")
             reserved_at = canonical_utc_timestamp(self.reserved_at)
             completed_at = canonical_utc_timestamp(self.completed_at)
             if completed_at < reserved_at:
@@ -8147,6 +8368,8 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
                 in {
                     "futures_exact_no_live_preview_slice_2r6",
                     "futures_exact_no_live_preview_slice_2r7",
+                    "futures_exact_no_live_preview_slice_2r8",
+                    "futures_exact_no_live_preview_slice_2r9",
                 }
                 and type(policy)
                 is not AdminFuturesPreviewMarginWindowsPolicyEvidenceV3
@@ -8188,6 +8411,8 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
                 in {
                     "futures_exact_no_live_preview_slice_2r6",
                     "futures_exact_no_live_preview_slice_2r7",
+                    "futures_exact_no_live_preview_slice_2r8",
+                    "futures_exact_no_live_preview_slice_2r9",
                 }
                 and policy_tokens
                 != {
@@ -8229,9 +8454,21 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
             self.artifact_type == "futures_exact_no_live_preview_slice_2r7"
             and type(self.predecessor_binding)
             is not AdminFuturesPreviewR6PredecessorBinding
+        ) or (
+            self.artifact_type == "futures_exact_no_live_preview_slice_2r8"
+            and type(self.predecessor_binding)
+            is not AdminFuturesPreviewR7PredecessorBinding
+        ) or (
+            self.artifact_type == "futures_exact_no_live_preview_slice_2r9"
+            and type(self.predecessor_binding)
+            is not AdminFuturesPreviewR8PredecessorBinding
         ):
             raise ValueError("futures_preview_predecessor_generation_invalid")
-        if self.artifact_type == "futures_exact_no_live_preview_slice_2r7":
+        if self.artifact_type in {
+            "futures_exact_no_live_preview_slice_2r7",
+            "futures_exact_no_live_preview_slice_2r8",
+            "futures_exact_no_live_preview_slice_2r9",
+        }:
             if (
                 self.preview_response_schema_binding is None
                 or self.preview_response_schema_binding.model_dump(mode="json")
@@ -8242,6 +8479,20 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
                 )
         elif self.preview_response_schema_binding is not None:
             raise ValueError("futures_preview_response_schema_binding_invalid")
+        if self.artifact_type in {
+            "futures_exact_no_live_preview_slice_2r8",
+            "futures_exact_no_live_preview_slice_2r9",
+        }:
+            if (
+                self.post_preview_diagnostic_binding is None
+                or self.post_preview_diagnostic_binding.model_dump(mode="json")
+                != FUTURES_PREVIEW_R8_POST_PREVIEW_DIAGNOSTIC_BINDING
+            ):
+                raise ValueError(
+                    "futures_preview_post_diagnostic_binding_invalid"
+                )
+        elif self.post_preview_diagnostic_binding is not None:
+            raise ValueError("futures_preview_post_diagnostic_binding_invalid")
         expected_zero_mutation_counters = {
             "retry": 0,
             "fallback": 0,
@@ -8320,6 +8571,43 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
             raise ValueError(
                 "futures_preview_margin_windows_policy_evidence_generation_invalid"
             )
+        if (self.post_preview_stage_evidence is None) != (
+            self.post_preview_stage_evidence_sha256 is None
+        ):
+            raise ValueError("futures_preview_post_stage_evidence_pair_invalid")
+        if self.post_preview_stage_evidence is not None:
+            if (
+                self.artifact_type
+                not in {
+                    "futures_exact_no_live_preview_slice_2r8",
+                    "futures_exact_no_live_preview_slice_2r9",
+                }
+                or canonical_sha256(
+                    self.post_preview_stage_evidence.model_dump(mode="json")
+                )
+                != self.post_preview_stage_evidence_sha256
+                or self.status != "blocked"
+                or self.outcome != "blocked"
+                or self.blocker != "post_preview_stage_blocked"
+                or self.attempt_counters.get("preview_order") != 1
+                or self.pre_preview_stage_evidence is not None
+                or self.pre_preview_stage_evidence_sha256 is not None
+                or self.preview_response is not None
+                or self.preview_response_sha256 is not None
+                or self.seal_ready_plan is not None
+                or self.seal_ready_plan_sha256 is not None
+            ):
+                raise ValueError("futures_preview_post_stage_evidence_invalid")
+        elif (
+            self.artifact_type
+            in {
+                "futures_exact_no_live_preview_slice_2r8",
+                "futures_exact_no_live_preview_slice_2r9",
+            }
+            and self.outcome == "blocked"
+            and self.blocker == "post_preview_stage_blocked"
+        ):
+            raise ValueError("futures_preview_post_stage_evidence_missing")
         if (self.pre_preview_stage_evidence is None) != (
             self.pre_preview_stage_evidence_sha256 is None
         ):
@@ -8481,6 +8769,8 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
                 "futures_exact_no_live_preview_slice_2r5",
                 "futures_exact_no_live_preview_slice_2r6",
                 "futures_exact_no_live_preview_slice_2r7",
+                "futures_exact_no_live_preview_slice_2r8",
+                "futures_exact_no_live_preview_slice_2r9",
             }
             and self.outcome == "blocked"
             and preview_attempts == 0
@@ -8921,6 +9211,90 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
                     raise ValueError(
                         "futures_preview_attempt_response_hash_invalid"
                     )
+        if self.artifact_type in {
+            "futures_exact_no_live_preview_slice_2r8",
+            "futures_exact_no_live_preview_slice_2r9",
+        }:
+            binding_payload = (
+                self.portfolio_binding.model_dump(mode="json")
+                if self.portfolio_binding is not None
+                else {}
+            )
+            plan = self.seal_ready_plan or {}
+            profile_binding = plan.get("profile_binding")
+            authoritative_preview = plan.get("authoritative_preview")
+            authoritative_response = (
+                authoritative_preview.get("preview_response")
+                if isinstance(authoritative_preview, dict)
+                else None
+            )
+            portfolio_identifier_values = tuple(
+                value
+                for value in (
+                    self.portfolio_id,
+                    binding_payload.get("observed_portfolio_id"),
+                    binding_payload.get("portfolio_id"),
+                    (self.permission_evidence or {}).get("portfolio_id"),
+                    (self.portfolio_catalog_evidence or {}).get(
+                        "selected_portfolio_id"
+                    ),
+                    (
+                        profile_binding.get("portfolio_id")
+                        if isinstance(profile_binding, dict)
+                        else None
+                    ),
+                )
+                if value is not None
+            )
+            preview_identifier_values = tuple(
+                value
+                for value in (
+                    (self.preview_response or {}).get("preview_id"),
+                    (
+                        authoritative_preview.get("preview_id")
+                        if isinstance(authoritative_preview, dict)
+                        else None
+                    ),
+                    (
+                        authoritative_response.get("preview_id")
+                        if isinstance(authoritative_response, dict)
+                        else None
+                    ),
+                )
+                if value is not None
+            )
+            if (
+                portfolio_identifier_values
+                and (
+                    self.portfolio_id_sha256 is None
+                    or any(
+                        value != "withheld"
+                        for value in portfolio_identifier_values
+                    )
+                )
+            ) or (
+                not portfolio_identifier_values
+                and self.portfolio_id_sha256 is not None
+            ):
+                raise ValueError(
+                    "futures_preview_r8_private_identifier_binding_invalid"
+                )
+            if (
+                preview_identifier_values
+                and (
+                    self.preview_id_sha256 is None
+                    or any(
+                        value != "withheld"
+                        for value in preview_identifier_values
+                    )
+                )
+            ) or (
+                not preview_identifier_values
+                and self.preview_id_sha256 is not None
+            ):
+                raise ValueError(
+                    "futures_preview_r8_private_identifier_binding_invalid"
+                )
         if self.outcome != "accepted":
             if not self.blocker or self.status != self.outcome:
                 raise ValueError("futures_preview_terminal_blocker_invalid")
@@ -8959,6 +9333,51 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
         )
         if any(value is None for value in required_accepted):
             raise ValueError("futures_preview_accepted_evidence_incomplete")
+        if self.artifact_type in {
+            "futures_exact_no_live_preview_slice_2r8",
+            "futures_exact_no_live_preview_slice_2r9",
+        }:
+            binding_payload = (
+                self.portfolio_binding.model_dump(mode="json")
+                if self.portfolio_binding is not None
+                else {}
+            )
+            authoritative_preview = (
+                (self.seal_ready_plan or {}).get("authoritative_preview")
+            )
+            profile_binding = (self.seal_ready_plan or {}).get(
+                "profile_binding"
+            )
+            if not (
+                self.preview_id_sha256 is not None
+                and self.portfolio_id_sha256 is not None
+                and self.portfolio_id == "withheld"
+                and binding_payload.get("observed_portfolio_id")
+                == "withheld"
+                and binding_payload.get("portfolio_id") == "withheld"
+                and (self.permission_evidence or {}).get("portfolio_id")
+                == "withheld"
+                and (self.portfolio_catalog_evidence or {}).get(
+                    "selected_portfolio_id"
+                )
+                == "withheld"
+                and (self.preview_response or {}).get("preview_id")
+                == "withheld"
+                and isinstance(authoritative_preview, dict)
+                and authoritative_preview.get("preview_id") == "withheld"
+                and isinstance(profile_binding, dict)
+                and profile_binding.get("portfolio_id") == "withheld"
+            ):
+                raise ValueError(
+                    "futures_preview_r8_private_identifier_binding_invalid"
+                )
+        elif (
+            self.preview_id_sha256 is not None
+            or self.portfolio_id_sha256 is not None
+        ):
+            raise ValueError(
+                "futures_preview_private_identifier_generation_invalid"
+            )
         if (
             modern_policy_artifact
             and (
@@ -9095,6 +9514,8 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
                 in {
                     "futures_exact_no_live_preview_slice_2r6",
                     "futures_exact_no_live_preview_slice_2r7",
+                    "futures_exact_no_live_preview_slice_2r8",
+                    "futures_exact_no_live_preview_slice_2r9",
                 }
                 else {
                     "MARGIN_WINDOW_TYPE_OVERNIGHT",
@@ -9213,7 +9634,11 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
                 raise ValueError("futures_preview_nested_hash_invalid")
         preview = self.preview_response or {}
         try:
-            if self.artifact_type == "futures_exact_no_live_preview_slice_2r7":
+            if self.artifact_type in {
+                "futures_exact_no_live_preview_slice_2r7",
+                "futures_exact_no_live_preview_slice_2r8",
+                "futures_exact_no_live_preview_slice_2r9",
+            }:
                 normalized_preview = validate_r7_preview_response_schema(
                     preview
                 )
@@ -9224,7 +9649,11 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
                 candidate,
             )
         except (KeyError, TypeError, ValueError) as exc:
-            if self.artifact_type == "futures_exact_no_live_preview_slice_2r7":
+            if self.artifact_type in {
+                "futures_exact_no_live_preview_slice_2r7",
+                "futures_exact_no_live_preview_slice_2r8",
+                "futures_exact_no_live_preview_slice_2r9",
+            }:
                 raise ValueError(
                     "futures_preview_r7_response_schema_invalid"
                 ) from exc
@@ -9313,10 +9742,27 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
             if self.artifact_type in {
                 "futures_exact_no_live_preview_slice_2r6",
                 "futures_exact_no_live_preview_slice_2r7",
+                "futures_exact_no_live_preview_slice_2r8",
+                "futures_exact_no_live_preview_slice_2r9",
             }:
                 expected_plan_keys.add("margin_window_policy_binding")
-            if self.artifact_type == "futures_exact_no_live_preview_slice_2r7":
+            if self.artifact_type in {
+                "futures_exact_no_live_preview_slice_2r7",
+                "futures_exact_no_live_preview_slice_2r8",
+                "futures_exact_no_live_preview_slice_2r9",
+            }:
                 expected_plan_keys.add("preview_response_schema_binding")
+            if self.artifact_type in {
+                "futures_exact_no_live_preview_slice_2r8",
+                "futures_exact_no_live_preview_slice_2r9",
+            }:
+                expected_plan_keys.update(
+                    {
+                        "correlation_id_sha256",
+                        "idempotency_key_sha256",
+                        "post_preview_diagnostic_binding",
+                    }
+                )
             if (
                 set(plan) != expected_plan_keys
                 or set(authoritative_preview)
@@ -9379,15 +9825,30 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
                     in {
                         "futures_exact_no_live_preview_slice_2r6",
                         "futures_exact_no_live_preview_slice_2r7",
+                        "futures_exact_no_live_preview_slice_2r8",
+                        "futures_exact_no_live_preview_slice_2r9",
                     }
                     and plan.get("margin_window_policy_binding")
                     != FUTURES_PREVIEW_R6_MARGIN_WINDOW_POLICY_BINDING
                 )
                 or (
                     self.artifact_type
-                    == "futures_exact_no_live_preview_slice_2r7"
+                    in {
+                        "futures_exact_no_live_preview_slice_2r7",
+                        "futures_exact_no_live_preview_slice_2r8",
+                        "futures_exact_no_live_preview_slice_2r9",
+                    }
                     and plan.get("preview_response_schema_binding")
                     != FUTURES_PREVIEW_R7_RESPONSE_SCHEMA_BINDING
+                )
+                or (
+                    self.artifact_type
+                    in {
+                        "futures_exact_no_live_preview_slice_2r8",
+                        "futures_exact_no_live_preview_slice_2r9",
+                    }
+                    and plan.get("post_preview_diagnostic_binding")
+                    != FUTURES_PREVIEW_R8_POST_PREVIEW_DIAGNOSTIC_BINDING
                 )
             ):
                 raise ValueError("futures_preview_r5_seal_plan_invalid")
@@ -9420,7 +9881,11 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
             != self.predecessor_binding.model_dump(mode="json")
             or plan.get("roles") != self.roles
             or plan.get("correlation_id") != self.correlation_id
+            or plan.get("correlation_id_sha256")
+            != self.correlation_id_sha256
             or plan.get("idempotency_key") != self.idempotency_key
+            or plan.get("idempotency_key_sha256")
+            != self.idempotency_key_sha256
             or plan.get("product_id") != self.product_id
             or plan.get("contract_count") != "1"
             or plan.get("profile_binding")

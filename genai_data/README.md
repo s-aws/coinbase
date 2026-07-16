@@ -4,15 +4,18 @@
 
 `genai_data/` contains expanded engineering references and historical analyses.
 Current work authority is `AGENT_MVP_REBUILD_GOAL.md`, goal id
-`futures_exact_no_live_preview_slice_2`, paired with the frontend canonical goal
+`futures_preview_acceptance_recovery_r8_r10_and_conditional_terminal_roundtrip_slice_3`,
+paired with the frontend canonical goal
 at `/home/developer/coinbase/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. An
 individual analysis or implementation note does not become current work merely
 because it lives in this directory.
 
-Current terminal state: Slice 2R7 is consumed and blocked without accepted
-Preview evidence; remaining Coinbase-call authority is zero. The next action is
-`await_operator_scope_change_decision_after_slice_2r7_closeout`. See
-`../docs/FUTURES_SLICE_2R7_TERMINAL_DIAGNOSIS.md`.
+Current state: R8 is immutable opaque terminal evidence with zero Preview or
+real Coinbase calls. R9 is current, R10 is conditional, Slice 3 is conditional
+and inactive, and Preview recovery permits zero exchange mutations. The next
+action is
+`complete_r9_slice3_readiness_validation_then_execute_authorized_slice_2r9_once`.
+See `../docs/FUTURES_SLICE_2R7_TERMINAL_DIAGNOSIS.md` for predecessor history.
 
 ## Read Order
 

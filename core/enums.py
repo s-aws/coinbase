@@ -23,7 +23,8 @@ class OrderSide(str, Enum):
 class OrderStatus(str, Enum):
     """Status of an order throughout its lifecycle.
     
-    From Coinbase API: PENDING, OPEN, FILLED, CANCELLED, EXPIRED, FAILED
+    From Coinbase API: PENDING, OPEN, FILLED, CANCELLED, EXPIRED, FAILED,
+    QUEUED, CANCEL_QUEUED, EDIT_QUEUED
 
     Engine event statuses also routed through order processing:
     - UPDATE: Incremental websocket update for an existing order
@@ -37,7 +38,9 @@ class OrderStatus(str, Enum):
     CANCELLED = "CANCELLED"
     EXPIRED = "EXPIRED"
     FAILED = "FAILED"
+    QUEUED = "QUEUED"
     CANCEL_QUEUED = "CANCEL_QUEUED"
+    EDIT_QUEUED = "EDIT_QUEUED"
     UPDATE = "UPDATE"
     SNAPSHOT = "SNAPSHOT"
 

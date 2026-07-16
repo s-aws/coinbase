@@ -2,21 +2,25 @@
 
 Historical planning record; not current work authority.
 
-Current goal id `futures_exact_no_live_preview_slice_2` is terminally blocked
-after the one-use R7 workflow. Its default next action is
-`await_operator_scope_change_decision_after_slice_2r7_closeout`, as documented in
-`genai_data/AGENT_MVP_REBUILD_GOAL.md` and the frontend canonical goal. This
+Current goal id
+`futures_preview_acceptance_recovery_r8_r10_and_conditional_terminal_roundtrip_slice_3`
+is active with R8 terminal blocked after zero Preview or real Coinbase calls.
+R9 is current. Its default next action is
+`complete_r9_slice3_readiness_validation_then_execute_authorized_slice_2r9_once`,
+as documented in `genai_data/AGENT_MVP_REBUILD_GOAL.md` and the frontend
+canonical goal. This
 historical queue does not grant or broaden that authority. The phase range
 below is a frozen compatibility/release artifact and cannot reactivate M57 or
 promote M58 fan-out/scheduler work.
 
-Current machine state is `slice_status=blocked`, blocker
-`slice_2r7_consumed_without_accepted_preview_evidence`, and remaining Coinbase
-Preview-attempt maximum `0`. Product `AVP-20DEC30-CDE`, one-contract scope, V3
-policy, and strict `<100 / <150 / <300 USDC` caps remain unchanged. Live
-execution is `not_run`; there is no R8, Slice 3, Coinbase-call, or other live
-authority. The sanitized terminal diagnostic is derived and non-persisted;
-see `docs/FUTURES_SLICE_2R7_TERMINAL_DIAGNOSIS.md`.
+Current machine state is `slice_status=active`, `blockers=[]`, current-generation
+Coinbase Preview maximum `1`, remaining authorized recovery maximum `2`, and
+current exchange-mutation maximum `0`. Product `AVP-20DEC30-CDE`, one-contract
+scope, V3 policy, and strict `<100 / <150 / <300 USDC` caps remain unchanged.
+R10 is conditional and R9 acceptance extinguishes it. Slice 3 is
+conditional and inactive; Slices 4/5 are unauthorized. Live execution remains
+`not_run`. The R7 sanitized terminal diagnostic remains historical, derived,
+and non-persisted; see `docs/FUTURES_SLICE_2R7_TERMINAL_DIAGNOSIS.md`.
 
 This document records durable approval for unattended work on this project.
 It exists so a contextless maintainer or agent can continue approved work
@@ -86,9 +90,10 @@ The former M57 policy and its controlled-live continuous-deployment objective
 are no longer active. Do not execute `complete_current_approved_range`.
 Do not execute `work_mvp_cd_blockers_before_phase_range`. Current work must
 come from goal id
-`futures_exact_no_live_preview_slice_2`, whose terminal next action is
-`await_operator_scope_change_decision_after_slice_2r7_closeout`; this document
-cannot select or promote a next action.
+`futures_preview_acceptance_recovery_r8_r10_and_conditional_terminal_roundtrip_slice_3`,
+whose next action is
+`complete_r9_slice3_readiness_validation_then_execute_authorized_slice_2r9_once`;
+this document cannot select or promote a next action.
 
 Durable future plan:
 [USDC Pair Snapshot Limit Automation MVP](USDC_PAIR_SNAPSHOT_LIMIT_AUTOMATION_MVP.md)

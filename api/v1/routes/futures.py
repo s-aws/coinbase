@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Annotated, Any, TypeVar
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request, status
@@ -19,6 +20,11 @@ from application.admin_api.futures_order_preview import (
     FuturesOrderPreviewArtifactError,
     FuturesOrderPreviewArtifactStore,
     configured_futures_order_preview_artifact_path,
+)
+from application.admin_api.futures_preview_forensic_readback import (
+    AdminFuturesPreviewR8ForensicReadback,
+    build_r8_forensic_readback,
+    is_fixed_r8_forensic_artifact_path,
 )
 from application.admin_api.idempotency import FileIdempotencyStore
 from application.admin_api.live_execution import (
@@ -165,7 +171,10 @@ def get_futures_order_preview_store() -> FuturesOrderPreviewArtifactStore:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Futures Preview evidence is unavailable or invalid",
         ) from exc
-    return FuturesOrderPreviewArtifactStore(path)
+    return FuturesOrderPreviewArtifactStore(
+        path,
+        enforce_latest_selection=True,
+    )
 
 
 TReadModel = TypeVar("TReadModel", bound=BaseModel)
@@ -735,7 +744,10 @@ def record_futures_risk_proof(
 
 @router.get(
     "/futures/order-preview",
-    response_model=AdminFuturesOrderPreviewResponse,
+    response_model=(
+        AdminFuturesOrderPreviewResponse
+        | AdminFuturesPreviewR8ForensicReadback
+    ),
     responses={
         **READ_ONLY_ROUTE_RESPONSES,
         503: {
@@ -755,6 +767,15 @@ def get_futures_order_preview(
     """Read the terminal artifact without constructing a Coinbase client."""
 
     require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    if is_fixed_r8_forensic_artifact_path(store.path):
+        try:
+            forensic = build_r8_forensic_readback()
+        except FuturesOrderPreviewArtifactError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Futures Preview evidence is unavailable or invalid",
+            ) from exc
+        return JSONResponse(content=jsonable_encoder(forensic))
     try:
         payload = store.read_completed()
         validated = AdminFuturesOrderPreviewResponse.model_validate(payload)
@@ -768,7 +789,57 @@ def get_futures_order_preview(
     response_payload["terminal_diagnostic_classification"] = (
         diagnostic.model_dump(mode="json") if diagnostic is not None else None
     )
+    if response_payload.get("artifact_type") in {
+        "futures_exact_no_live_preview_slice_2r8",
+        "futures_exact_no_live_preview_slice_2r9",
+        "futures_exact_no_live_preview_slice_2r10",
+    }:
+        response_payload = _withhold_private_preview_readback_identifiers(
+            response_payload
+        )
     return JSONResponse(content=jsonable_encoder(response_payload))
+
+
+def _withhold_private_preview_readback_identifiers(
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Return browser-safe successor evidence without private identifier values."""
+
+    public = deepcopy(payload)
+    for field in ("correlation_id", "idempotency_key", "portfolio_id"):
+        if public.get(field) is not None:
+            public[field] = "withheld"
+
+    nested_fields = (
+        ("portfolio_binding", "observed_portfolio_id"),
+        ("portfolio_binding", "portfolio_id"),
+        ("permission_evidence", "portfolio_id"),
+        ("portfolio_catalog_evidence", "selected_portfolio_id"),
+        ("preview_response", "preview_id"),
+    )
+    for parent, field in nested_fields:
+        value = public.get(parent)
+        if isinstance(value, dict) and value.get(field) is not None:
+            value[field] = "withheld"
+
+    plan = public.get("seal_ready_plan")
+    if isinstance(plan, dict):
+        for field in ("correlation_id", "idempotency_key"):
+            if plan.get(field) is not None:
+                plan[field] = "withheld"
+        profile = plan.get("profile_binding")
+        if isinstance(profile, dict) and profile.get("portfolio_id") is not None:
+            profile["portfolio_id"] = "withheld"
+        authoritative_preview = plan.get("authoritative_preview")
+        if isinstance(authoritative_preview, dict):
+            if authoritative_preview.get("preview_id") is not None:
+                authoritative_preview["preview_id"] = "withheld"
+            nested_preview = authoritative_preview.get("preview_response")
+            if isinstance(nested_preview, dict) and nested_preview.get(
+                "preview_id"
+            ) is not None:
+                nested_preview["preview_id"] = "withheld"
+    return public
 
 
 @router.get(

@@ -9,7 +9,7 @@ cancels, closes, or reduces an exchange order.
 from __future__ import annotations
 
 import argparse
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 import json
 import logging
@@ -39,6 +39,10 @@ from tools.coinbase_live_credentials import (  # noqa: E402
 
 
 COINBASE_PREVIEW_HTTP_TIMEOUT_SECONDS = 30
+COINBASE_API_BASE_URL = "api.coinbase.com"
+COINBASE_CA_BUNDLE = (
+    "/usr/local/lib/python3.13/site-packages/certifi/cacert.pem"
+)
 FUTURES_PREVIEW_CREDENTIAL_SECRET_ID = "coinbase"
 FUTURES_PREVIEW_CREDENTIAL_REGION = "us-east-1"
 _DIRECT_CREDENTIAL_ENV_NAMES = (
@@ -60,6 +64,11 @@ class FuturesPreviewOnlyRestClient:
     def __init__(self, delegate: Any) -> None:
         self.__delegate = delegate
         self.__preview_attempted = False
+
+    def _uses_exact_delegate(self, delegate: object) -> bool:
+        """Prove object identity without exposing the private delegate."""
+
+        return self.__delegate is delegate
 
     def get_api_key_permissions(self) -> dict[str, Any]:
         return self.__delegate.get_api_key_permissions()
@@ -110,8 +119,7 @@ class FuturesPreviewOnlyRestClient:
             product_id != FUTURES_PREVIEW_PRODUCT_ID
             or side != "BUY"
             or not isinstance(limit_configuration, dict)
-            or set(limit_configuration)
-            != {"base_size", "limit_price", "post_only"}
+            or set(limit_configuration) != {"base_size", "limit_price", "post_only"}
             or limit_configuration.get("base_size") != "1"
             or not isinstance(limit_configuration.get("limit_price"), str)
             or not str(limit_configuration["limit_price"]).strip()
@@ -156,8 +164,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--preflight",
         action="store_true",
         help=(
-            "Report fixed-path consumption state without credentials or "
-            "Coinbase calls."
+            "Report fixed-path consumption state without credentials or Coinbase calls."
         ),
     )
     mode.add_argument(
@@ -174,33 +181,64 @@ def _controlled_default_credential_environment() -> dict[str, str]:
     controlled = dict(os.environ)
     for name in (*_DIRECT_CREDENTIAL_ENV_NAMES, *_SECRET_ID_ENV_NAMES):
         controlled.pop(name, None)
+    for name in tuple(controlled):
+        if name.startswith("AWS_") or name in {
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "NO_PROXY",
+        }:
+            controlled.pop(name, None)
     controlled["COINBASE_SECRETS_MANAGER_SECRET_ID"] = (
         FUTURES_PREVIEW_CREDENTIAL_SECRET_ID
     )
-    controlled["COINBASE_SECRETS_MANAGER_REGION"] = (
-        FUTURES_PREVIEW_CREDENTIAL_REGION
+    controlled["COINBASE_SECRETS_MANAGER_REGION"] = FUTURES_PREVIEW_CREDENTIAL_REGION
+    controlled["AWS_CONFIG_FILE"] = "/home/developer/.aws/config"
+    controlled["AWS_SHARED_CREDENTIALS_FILE"] = (
+        "/home/developer/.aws/credentials"
     )
+    controlled["PATH"] = "/home/developer/.local/bin:/usr/bin:/bin"
     return controlled
 
 
 @contextmanager
 def _suppress_coinbase_sdk_logging() -> Iterator[None]:
-    """Prevent the Coinbase SDK from logging raw HTTP response bodies."""
+    """Prevent any Python logger from emitting network-scope private data."""
 
     logger = logging.getLogger("coinbase.RESTClient")
     previously_disabled = logger.disabled
+    previous_global_threshold = logging.root.manager.disable
     logger.disabled = True
+    logging.disable(sys.maxsize)
     try:
         yield
     finally:
+        logging.disable(previous_global_threshold)
         logger.disabled = previously_disabled
 
 
-def build_rest_client() -> FuturesPreviewOnlyRestClient:
-    """Hydrate Default credentials and return a mutation-incapable facade."""
+def _build_canonical_default_rest_client(
+    *,
+    run_secret_lookup: Callable[[str, str | None], str] | None = None,
+) -> CoinbaseRestClient:
+    """Hydrate the one canonical zero-retry, zero-redirect Default client.
+
+    This private constructor exists so the R8-only accepted handoff can retain
+    the exact delegate already used through its Preview-only facade. Historical
+    Preview tools still receive only :class:`FuturesPreviewOnlyRestClient` and
+    have no delegate-release API.
+    """
 
     credential_environment = _controlled_default_credential_environment()
-    resolution = ensure_live_coinbase_credentials(credential_environment)
+    lookup_kwargs = (
+        {}
+        if run_secret_lookup is None
+        else {"run_secret_lookup": run_secret_lookup}
+    )
+    resolution = ensure_live_coinbase_credentials(
+        credential_environment,
+        **lookup_kwargs,
+    )
     if (
         resolution.source != "secrets_manager"
         or resolution.secret_id_env != "COINBASE_SECRETS_MANAGER_SECRET_ID"
@@ -210,17 +248,26 @@ def build_rest_client() -> FuturesPreviewOnlyRestClient:
         )
     from coinbase.rest import RESTClient
 
-    sdk_client = RESTClient(
-        api_key=credential_environment["COINBASE_API_KEY"],
-        api_secret=credential_environment["COINBASE_API_SECRET"],
-        timeout=COINBASE_PREVIEW_HTTP_TIMEOUT_SECONDS,
-        rate_limit_headers=True,
-    )
+    with _suppress_coinbase_sdk_logging():
+        sdk_client = RESTClient(
+            api_key=credential_environment["COINBASE_API_KEY"],
+            api_secret=credential_environment["COINBASE_API_SECRET"],
+            base_url=COINBASE_API_BASE_URL,
+            timeout=COINBASE_PREVIEW_HTTP_TIMEOUT_SECONDS,
+            rate_limit_headers=False,
+        )
     session = getattr(sdk_client, "session", None)
     adapters = getattr(session, "adapters", None)
-    if not isinstance(adapters, dict) or not adapters:
+    if (
+        getattr(sdk_client, "base_url", None) != COINBASE_API_BASE_URL
+        or type(getattr(sdk_client, "timeout", None)) is not int
+        or sdk_client.timeout != COINBASE_PREVIEW_HTTP_TIMEOUT_SECONDS
+        or getattr(sdk_client, "rate_limit_headers", None) is not False
+        or not isinstance(adapters, dict)
+        or set(adapters) != {"http://", "https://"}
+    ):
         raise FuturesOrderPreviewArtifactError(
-            "futures Preview transport retry policy is unavailable"
+            "futures Preview transport policy is unavailable"
         )
     if any(
         getattr(getattr(adapter, "max_retries", None), "total", None) != 0
@@ -230,16 +277,53 @@ def build_rest_client() -> FuturesPreviewOnlyRestClient:
             "futures Preview transport retry policy is not zero"
         )
     try:
+        session.trust_env = False
+        session.verify = COINBASE_CA_BUNDLE
+        session.proxies = {}
         session.max_redirects = 0
     except Exception as exc:
         raise FuturesOrderPreviewArtifactError(
-            "futures Preview transport redirect policy is unavailable"
+            "futures Preview transport policy is unavailable"
         ) from exc
-    if getattr(session, "max_redirects", None) != 0:
+    if (
+        getattr(session, "trust_env", None) is not False
+        or getattr(session, "verify", None) != COINBASE_CA_BUNDLE
+        or getattr(session, "proxies", None) != {}
+        or type(getattr(session, "max_redirects", None)) is not int
+        or session.max_redirects != 0
+    ):
         raise FuturesOrderPreviewArtifactError(
-            "futures Preview transport redirect policy is not zero"
+            "futures Preview transport policy is invalid"
         )
-    return FuturesPreviewOnlyRestClient(CoinbaseRestClient(sdk_client))
+    try:
+        with _suppress_coinbase_sdk_logging():
+            headers = sdk_client.set_headers(
+                "GET",
+                "/api/v3/brokerage/key_permissions",
+            )
+        authorization = (
+            headers.get("Authorization") if isinstance(headers, dict) else None
+        )
+        if (
+            not isinstance(authorization, str)
+            or not authorization.startswith("Bearer ")
+            or len(authorization) <= len("Bearer ")
+        ):
+            raise ValueError("invalid_local_signing_probe")
+    except Exception:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview credential signing probe failed"
+        ) from None
+    finally:
+        headers = None
+        authorization = None
+    return CoinbaseRestClient(sdk_client)
+
+
+def build_rest_client() -> FuturesPreviewOnlyRestClient:
+    """Hydrate Default credentials and return a mutation-incapable facade."""
+
+    return FuturesPreviewOnlyRestClient(_build_canonical_default_rest_client())
 
 
 def main(argv: Sequence[str] | None = None) -> int:

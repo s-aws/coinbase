@@ -1,11 +1,12 @@
 # Futures/Perpetuals Admin Reads
 
 The M57 phase statements in this document are a historical implementation
-snapshot. Current goal id is `futures_exact_no_live_preview_slice_2`; Slice 1
-is complete and Slice 2 is terminally blocked after its one-use R7 Preview call
-was consumed without accepted Preview evidence. No R8, Slice 3 activation,
-additional Coinbase call, or other live authority exists; continuing requires
-an operator scope-change decision.
+snapshot. Current goal id is
+`futures_preview_acceptance_recovery_r8_r10_and_conditional_terminal_roundtrip_slice_3`.
+R7 remains immutable historical evidence. R8 is immutable opaque terminal
+evidence with zero Preview or real Coinbase calls; R9 is current, R10 remains
+conditional, and Slice 3 is conditional and inactive. Preview recovery permits zero exchange mutations,
+and Slices 4/5 remain unauthorized.
 
 This feature exposes read-only futures and perpetual account, risk, and
 position evidence through the enterprise Admin API. It is a separate module,

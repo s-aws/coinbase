@@ -131,7 +131,7 @@ create a separate approval class.
 
 ## Current Handoff State
 
-- Terminal action is
+- Historical R7 terminal action was
   `await_operator_scope_change_decision_after_slice_2r7_closeout`. R7 ran
   exactly once after focused validation and independent safety plus blind
   audits. Its sole Preview call returned control, then the backend stopped
@@ -153,12 +153,33 @@ create a separate approval class.
   SHA-256. It does not prove a schema, cap, available-margin, candidate,
   sealing, or other exact cause. See
   `docs/FUTURES_SLICE_2R7_TERMINAL_DIAGNOSIS.md`.
-- Current `slice_status` is `blocked`, blocker is
-  `slice_2r7_consumed_without_accepted_preview_evidence`, and remaining
-  Coinbase Preview-attempt maximum is `0`. Default API/UI readback selects the
-  exact statically bound R7 terminal and fails closed without R6 fallback on
-  any invalid R7 state. Never invoke the R7 runner again. No second Coinbase
-  call, R8, Slice 3 activation, or other live authority exists.
+- Current goal is active with `blockers=[]`. R8 is terminal blocked and
+  immutable with zero Preview, real Coinbase, AWS-service, or mutation calls.
+  R9 is current with Preview maximum `1`; the remaining recovery maximum is
+  `2` across R9-R10. R10 is conditional on R9 non-acceptance, concrete
+  remediation, focused validation, and fresh independent safety plus blind
+  contextless audits; R9 acceptance extinguishes it. Preview recovery permits zero exchange mutations. Slice 3
+  is conditional and inactive pending accepted Preview plus exact readiness
+  gates. Default API/UI readback exposes R8 only through the exact opaque
+  hash/stat forensic contract until a completed valid R9 exists. Never invoke
+  the R7 or R8 runner again. See
+  `docs/FUTURES_SLICE_2R8_TERMINAL_DIAGNOSIS.md`.
+- R9 credential readiness is fail-closed before claim consumption. The
+  confirmed composition root performs one bounded Secrets Manager lookup for
+  fixed secret `coinbase` in `us-east-1` through the pinned signed AWS CLI and
+  default owner-only credential files, then constructs the canonical
+  zero-retry/zero-redirect session locally. Lookup, parsing, or client
+  construction failure leaves R9 and all Slice 3 paths absent with zero
+  Coinbase reads/Preview calls. A successful preparation injects that exact
+  delegate into the claim-gated Preview facade; it cannot perform a second
+  lookup or construct a second client.
+- Coinbase currently documents no Preview expiry field or TTL. An accepted R9
+  therefore terminalizes at the runner's `PLAN` boundary before admission,
+  activation, port construction, or mutation and cannot activate Slice 3. The
+  dormant risk-off continuation is same-process only and cannot survive
+  `SIGKILL`, container loss, or host loss; keep Slice 3 mutation authority
+  disabled until both authoritative expiry evidence and independently audited
+  durable recovery exist.
 - R6 predecessor state: Slice 2 remained blocked after the authorized R6
   attempt was consumed without accepted Preview evidence. The
   consumed immutable R5 file/evidence SHA-256 pair remains
@@ -187,7 +208,10 @@ create a separate approval class.
   remediated models emit correlated `allOf`/`oneOf` pairs, generated TypeScript
   preserves those pairs, hybrid identities are test-rejected, and both
   reviewers re-reviewed the remediation with no remaining findings.
-- Current goal id: `futures_exact_no_live_preview_slice_2`.
+- Current goal id:
+  `futures_preview_acceptance_recovery_r8_r10_and_conditional_terminal_roundtrip_slice_3`.
+- Current next action:
+  `complete_r9_slice3_readiness_validation_then_execute_authorized_slice_2r9_once`.
 - Current slice: Default-profile Futures readback -> exact AVAX US CFM Coinbase
   Preview Order -> immutable operator-visible no-live preview readback. The
   one-shot R1 artifact terminated before

@@ -65,6 +65,8 @@ def test_list_orders_forwards_exact_retail_portfolio_scope():
         order_ids=None,
         product_ids=None,
         limit=100,
+        start_date=None,
+        end_date=None,
         cursor=None,
         product_type="SPOT",
         retail_portfolio_id="test-portfolio-id",

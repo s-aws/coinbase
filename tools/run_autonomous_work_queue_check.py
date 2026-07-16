@@ -17,7 +17,10 @@ BACKEND_QUEUE_DOC = PROJECT_ROOT / "docs" / "plans" / "AUTONOMOUS_WORK_QUEUE.md"
 BACKEND_E2E_PLAN = PROJECT_ROOT / "docs" / "plans" / "ADMIN_API_E2E_PLAN.md"
 FRONTEND_QUEUE_DOC = FRONTEND_ROOT / "docs" / "plans" / "AUTONOMOUS_WORK_QUEUE.md"
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-GOAL_ID = "futures_exact_no_live_preview_slice_2"
+GOAL_ID = (
+    "futures_preview_acceptance_recovery_r8_r10_and_"
+    "conditional_terminal_roundtrip_slice_3"
+)
 HISTORICAL_PHASE_RANGE = "7961-7980"
 HISTORICAL_PHASES = tuple(range(7961, 7981))
 PHASE_RANGE_STATUS = "historical_not_work_authority"
@@ -29,9 +32,14 @@ CLOSED_LOOPHOLE_RULE = (
     "A candidate blocker cannot make itself in scope by generating evidence "
     "about the candidate blocker."
 )
-SLICE_STATUS = "blocked"
-SLICE_BLOCKER = "slice_2r7_consumed_without_accepted_preview_evidence"
+SLICE_STATUS = "active"
+SLICE_BLOCKERS: tuple[str, ...] = ()
 DEFAULT_NEXT_ACTION = (
+    "complete_r9_slice3_readiness_validation_then_execute_"
+    "authorized_slice_2r9_once"
+)
+R7_TERMINAL_BLOCKER = "slice_2r7_consumed_without_accepted_preview_evidence"
+R7_TERMINAL_NEXT_ACTION = (
     "await_operator_scope_change_decision_after_slice_2r7_closeout"
 )
 R7_TERMINAL_DIAGNOSTIC = (
@@ -50,13 +58,11 @@ MVP_SCOPE = {
         "approved_phase_range_status": PHASE_RANGE_STATUS,
         "phase_range_work_allowed": False,
         "slice_status": SLICE_STATUS,
-        "blocker": SLICE_BLOCKER,
+        "blockers": list(SLICE_BLOCKERS),
         "default_next_action": DEFAULT_NEXT_ACTION,
         "ordered_successors": [
-            "futures_exact_no_live_preview_slice_2",
+            GOAL_ID,
             "futures_terminal_order_roundtrip_slice_3",
-            "futures_intentional_fill_position_readback_slice_4",
-            "futures_position_closeout_slice_5",
         ],
         "allow_only_when_directly_blocks": [
             "current vertical slice runtime behavior",
@@ -83,8 +89,13 @@ STANDING_LIMITS = {
         "opening_reference_notional_under_usdc": "100.00",
         "exposure_and_buffered_close_under_usdc": "150.00",
         "branch_turnover_under_usdc": "300.00",
-        "coinbase_preview_attempts_max": 0,
+        "coinbase_preview_attempts_max": 1,
+        "authorized_recovery_preview_attempts_max": 2,
         "exchange_mutation_attempts_max": 0,
+        "conditional_slice_3": {
+            "status": "conditional_not_active",
+            "exchange_mutation_attempts_max": 0,
+        },
     },
     "max_fan_out_notional_usdc": "100.00",
     "default_max_orders_per_second": 5,
@@ -169,8 +180,8 @@ def _historical_queue_posture() -> QueueCheck:
 
 def _slice_2r7_terminal_closeout() -> QueueCheck:
     required = (
-        SLICE_BLOCKER,
-        DEFAULT_NEXT_ACTION,
+        R7_TERMINAL_BLOCKER,
+        R7_TERMINAL_NEXT_ACTION,
         R7_TERMINAL_DIAGNOSTIC,
         "not_persisted_and_unrecoverable",
     )
@@ -187,6 +198,33 @@ def _slice_2r7_terminal_closeout() -> QueueCheck:
     ]
     return QueueCheck(
         name="slice_2r7_terminal_closeout",
+        passed=all(document.passed for document in documents),
+        evidence={"documents": [document.evidence for document in documents]},
+    )
+
+
+def _r8_r10_recovery_preparation() -> QueueCheck:
+    required = (
+        GOAL_ID,
+        DEFAULT_NEXT_ACTION,
+        "R8 is terminally consumed",
+        "R9 is now the current conditional successor",
+        "Slice 3 is conditional and inactive",
+    )
+    documents = [
+        _contains_all(BACKEND_GOAL_DOC, required),
+        _contains_all(FRONTEND_GOAL_DOC, required),
+        _contains_all(
+            PROJECT_ROOT / "docs" / "FUTURES_SLICE_2R8_TERMINAL_DIAGNOSIS.md",
+            (
+                "b32aba4868f08ee7a44f19ceacbcf42cb7e4d70da1552f2d8b333ef59ddc8696",
+                "Preview attempts: `0`",
+                "R9 is the current conditional generation",
+            ),
+        ),
+    ]
+    return QueueCheck(
+        name="r8_r10_recovery_preparation",
         passed=all(document.passed for document in documents),
         evidence={"documents": [document.evidence for document in documents]},
     )
@@ -253,6 +291,7 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
         _current_goal_alignment(),
         _historical_queue_posture(),
         _slice_2r7_terminal_closeout(),
+        _r8_r10_recovery_preparation(),
         _entry_point_alignment(),
         _previous_version_sources(),
         _github_workflows_retired(),
@@ -265,7 +304,7 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
         "historical_phase_count": len(HISTORICAL_PHASES),
         "phase_range_status": PHASE_RANGE_STATUS,
         "slice_status": SLICE_STATUS,
-        "blocker": SLICE_BLOCKER,
+        "blockers": list(SLICE_BLOCKERS),
         "default_next_action": DEFAULT_NEXT_ACTION,
         "mvp_scope": MVP_SCOPE,
         "standing_limits": STANDING_LIMITS,
@@ -285,7 +324,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"Historical phases: {HISTORICAL_PHASE_RANGE} "
             "(not work authority)"
         )
-        print(f"Slice status: {SLICE_STATUS}; blocker: {SLICE_BLOCKER}")
+        print(
+            f"Slice status: {SLICE_STATUS}; blockers: "
+            f"{list(SLICE_BLOCKERS)}"
+        )
         print(f"Default next action: {DEFAULT_NEXT_ACTION}")
         print("Validation: focused local Linux Docker blast-radius tests")
         print("Live Coinbase execution: not run; notional $0")

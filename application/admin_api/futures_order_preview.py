@@ -9,12 +9,14 @@ client.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from copy import deepcopy
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 import hashlib
 import hmac
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -79,6 +81,27 @@ FUTURES_PREVIEW_R7_ARTIFACT_PATH = (
     Path(__file__).resolve().parents[2]
     / "artifacts"
     / "futures_exact_no_live_preview_slice_2r7.jsonl"
+)
+_PRODUCTION_FUTURES_PREVIEW_R8_ARTIFACT_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "artifacts"
+    / "futures_exact_no_live_preview_slice_2r8.jsonl"
+)
+FUTURES_PREVIEW_R8_ARTIFACT_PATH = (
+    _PRODUCTION_FUTURES_PREVIEW_R8_ARTIFACT_PATH
+)
+_PRODUCTION_FUTURES_PREVIEW_R9_ARTIFACT_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "artifacts"
+    / "futures_exact_no_live_preview_slice_2r9.jsonl"
+)
+FUTURES_PREVIEW_R9_ARTIFACT_PATH = (
+    _PRODUCTION_FUTURES_PREVIEW_R9_ARTIFACT_PATH
+)
+_PRODUCTION_FUTURES_PREVIEW_R8_LOCK_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "runtime_state"
+    / "futures_preview_r8_selector.lock"
 )
 DEFAULT_FUTURES_PREVIEW_ARTIFACT_PATH = FUTURES_PREVIEW_R4_ARTIFACT_PATH
 FUTURES_PREVIEW_R1_FILE_SHA256 = (
@@ -158,6 +181,14 @@ FUTURES_PREVIEW_R7_INODE = 400397
 FUTURES_PREVIEW_R7_SIZE = 20548
 FUTURES_PREVIEW_R7_MODE = 0o400
 FUTURES_PREVIEW_R7_MTIME_NS = 1784133682760886913
+FUTURES_PREVIEW_R8_FILE_SHA256 = (
+    "b32aba4868f08ee7a44f19ceacbcf42cb7e4d70da1552f2d8b333ef59ddc8696"
+)
+FUTURES_PREVIEW_R8_DEVICE = 2096
+FUTURES_PREVIEW_R8_INODE = 400341
+FUTURES_PREVIEW_R8_SIZE = 14921
+FUTURES_PREVIEW_R8_MODE = 0o400
+FUTURES_PREVIEW_R8_MTIME_NS = 1784160315297279427
 FUTURES_PREVIEW_ORIGINAL_FILE_SHA256 = (
     "9b15da86c172eca46d4b3dc0fc2b81e9b325df9a1e2f75fef79362f538e2d5ff"
 )
@@ -195,11 +226,36 @@ FUTURES_PREVIEW_R7_ARTIFACT_TYPE = (
     "futures_exact_no_live_preview_slice_2r7"
 )
 _R7_ARTIFACT_TYPE = FUTURES_PREVIEW_R7_ARTIFACT_TYPE
+FUTURES_PREVIEW_R8_ARTIFACT_TYPE = (
+    "futures_exact_no_live_preview_slice_2r8"
+)
+_R8_ARTIFACT_TYPE = FUTURES_PREVIEW_R8_ARTIFACT_TYPE
+FUTURES_PREVIEW_R9_ARTIFACT_TYPE = (
+    "futures_exact_no_live_preview_slice_2r9"
+)
+_R9_ARTIFACT_TYPE = FUTURES_PREVIEW_R9_ARTIFACT_TYPE
 _SANITIZED_PREVIEW_ARTIFACT_TYPES = frozenset(
-    {_R5_ARTIFACT_TYPE, _R6_ARTIFACT_TYPE, _R7_ARTIFACT_TYPE}
+    {
+        _R5_ARTIFACT_TYPE,
+        _R6_ARTIFACT_TYPE,
+        _R7_ARTIFACT_TYPE,
+        _R8_ARTIFACT_TYPE,
+        _R9_ARTIFACT_TYPE,
+    }
 )
 _V3_MARGIN_WINDOW_ARTIFACT_TYPES = frozenset(
-    {_R6_ARTIFACT_TYPE, _R7_ARTIFACT_TYPE}
+    {
+        _R6_ARTIFACT_TYPE,
+        _R7_ARTIFACT_TYPE,
+        _R8_ARTIFACT_TYPE,
+        _R9_ARTIFACT_TYPE,
+    }
+)
+_CORRECTED_RESPONSE_SCHEMA_ARTIFACT_TYPES = frozenset(
+    {_R7_ARTIFACT_TYPE, _R8_ARTIFACT_TYPE, _R9_ARTIFACT_TYPE}
+)
+_POST_PREVIEW_DIAGNOSTIC_ARTIFACT_TYPES = frozenset(
+    {_R8_ARTIFACT_TYPE, _R9_ARTIFACT_TYPE}
 )
 _MAX_ARTIFACT_BYTES = 2 * 1024 * 1024
 _NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
@@ -429,6 +485,25 @@ FUTURES_PREVIEW_R7_TERMINAL_BINDING = {
     "preservation": "immutable_no_modify_delete_or_reuse",
     "original_predecessor_binding": FUTURES_PREVIEW_R6_TERMINAL_BINDING,
 }
+FUTURES_PREVIEW_R8_TERMINAL_BINDING = {
+    "artifact_name": "futures_exact_no_live_preview_slice_2r8.jsonl",
+    "file_sha256": FUTURES_PREVIEW_R8_FILE_SHA256,
+    "device": str(FUTURES_PREVIEW_R8_DEVICE),
+    "inode": str(FUTURES_PREVIEW_R8_INODE),
+    "size_bytes": FUTURES_PREVIEW_R8_SIZE,
+    "mode": f"{FUTURES_PREVIEW_R8_MODE:04o}",
+    "mtime_ns": str(FUTURES_PREVIEW_R8_MTIME_NS),
+    "nlink": 1,
+    "status": "blocked",
+    "outcome": "blocked",
+    "preview_order_attempt_count": 0,
+    "exchange_submission_attempt_count": 0,
+    "submitted_notional_usdc": "0",
+    "executed_notional_usdc": "0",
+    "opaque_hash_stat_binding": True,
+    "preservation": "immutable_no_modify_delete_or_reuse",
+    "original_predecessor_binding": FUTURES_PREVIEW_R7_TERMINAL_BINDING,
+}
 
 
 def _rebind_preview_filesystem_identity(
@@ -472,30 +547,30 @@ _FUTURES_PREVIEW_EC2_R4_BINDING = _rebind_preview_filesystem_identity(
     identity=_FUTURES_PREVIEW_EC2_IDENTITIES["r4"],
     predecessor_binding=_FUTURES_PREVIEW_EC2_R3_BINDING,
 )
-_CONSUMED_PREVIEW_IDENTIFIERS = frozenset(
+_CONSUMED_PREVIEW_IDENTIFIER_SHA256 = frozenset(
     {
-        "9c26aed6-fce5-470b-b57e-b89423ecc0ed",
-        "1396cd8f-d258-446f-92e1-fc53f6b93c71",
-        "5dcd3d52-95bf-4fd3-93ca-83e8be28f132",
-        "d1a930f2-0e91-42e0-8a22-a20444575585",
-        "6cfffc61-2d69-4559-8729-ad3c5a8f9751",
-        "f26dbcc6-4336-4bb1-a317-6c5a3d87d2d0",
-        "5eaffbc0-4db9-40d5-b17a-3ec7c56bf700",
-        "f5285420-6891-4daf-885d-f3ffeacd7218",
-        "f32948c1-6bf1-421a-9267-6138ec2228ae",
-        "77016c90-d1e1-4344-84c7-53b3c2dca70b",
+        "4f4d5fc1c11bf9d1d974f91dbd9977e74be88f64a63f93ab206e4e744dd264c0",
+        "a6165a6c75e29dce7c080d989272ee78abd0c04ca5db60659067487dc6b08f96",
+        "973555423899d7e9156fcee19aa09eba05b05a1402d9a4665894a161bedddda3",
+        "a0ab3501ea96ee35fcd5594000df704b191e5d2daf2a014bebd7781a0819e876",
+        "8821931a9ff34ee20cefb29b9e92d4cccf7fc638ea5e19d720417359ebd7c210",
+        "8b5153010623f913c4e56434db957fe6a8772809827eb6f0519e43d80fd10d9a",
+        "760776f0a189825f6151c8d4ebe232e22f2fddd05939308377586eaab7a92e10",
+        "87432ff9181eca9605ade3ac21ce4995370afbf359f7d00055339d5035004d41",
+        "560704840dfb2fe08cc2fb1cf3d91286f19162d3d16d037f285213db0d8b8790",
+        "e5ff88abcc817355117e563d7164cfa89bb6a9358da405d0681d13effe5c6476",
     }
 )
-_R6_CONSUMED_PREVIEW_IDENTIFIERS = _CONSUMED_PREVIEW_IDENTIFIERS | {
-    "aafa0078-be77-4b41-a2aa-672c8b26ecb3",
-    "054682fc-3e55-46f5-8661-868f5f9c32cd",
+_R6_CONSUMED_PREVIEW_IDENTIFIER_SHA256 = _CONSUMED_PREVIEW_IDENTIFIER_SHA256 | {
+    "713661e32ef51bafdb3039fdfd70d5d6ffb672b58ff75e64de1aaa637c89a70c",
+    "5d2fe0644770aef26a3fd1c4cab138c589138aba671b249dfbeedf13ea71e1ad",
 }
-_R7_CONSUMED_PREVIEW_IDENTIFIERS = _R6_CONSUMED_PREVIEW_IDENTIFIERS
-_R7_CONSUMED_PREVIEW_IDENTIFIER_SHA256 = frozenset(
-    {
+_R7_CONSUMED_PREVIEW_IDENTIFIER_SHA256 = (
+    _R6_CONSUMED_PREVIEW_IDENTIFIER_SHA256
+    | frozenset({
         "525928d556e0ad5461b4dee7424a4bb5040d9c3d224da5e91746a6587bed4115",
         "b9177e87cec7b31c35e66a1281aaa5e36c404efa8cc52558388cc0aaa37938d9",
-    }
+    })
 )
 
 
@@ -506,16 +581,16 @@ def _preview_identifier_was_consumed(
 ) -> bool:
     """Reject predecessor UUID reuse without exposing the latest raw IDs."""
 
-    consumed_identifiers = {
-        _R6_ARTIFACT_TYPE: _R6_CONSUMED_PREVIEW_IDENTIFIERS,
-        _R7_ARTIFACT_TYPE: _R7_CONSUMED_PREVIEW_IDENTIFIERS,
-    }.get(artifact_type, _CONSUMED_PREVIEW_IDENTIFIERS)
-    if isinstance(identifier, str) and identifier in consumed_identifiers:
-        return True
-    if artifact_type != _R7_ARTIFACT_TYPE or not isinstance(identifier, str):
+    if not isinstance(identifier, str):
         return False
     identifier_sha256 = hashlib.sha256(identifier.encode("utf-8")).hexdigest()
-    return identifier_sha256 in _R7_CONSUMED_PREVIEW_IDENTIFIER_SHA256
+    consumed_sha256 = {
+        _R6_ARTIFACT_TYPE: _R6_CONSUMED_PREVIEW_IDENTIFIER_SHA256,
+        _R7_ARTIFACT_TYPE: _R7_CONSUMED_PREVIEW_IDENTIFIER_SHA256,
+        _R8_ARTIFACT_TYPE: _R7_CONSUMED_PREVIEW_IDENTIFIER_SHA256,
+        _R9_ARTIFACT_TYPE: _R7_CONSUMED_PREVIEW_IDENTIFIER_SHA256,
+    }.get(artifact_type, _CONSUMED_PREVIEW_IDENTIFIER_SHA256)
+    return identifier_sha256 in consumed_sha256
 
 
 FUTURES_PREVIEW_R6_MARGIN_WINDOW_POLICY_BINDING = {
@@ -553,6 +628,64 @@ FUTURES_PREVIEW_R7_RESPONSE_SCHEMA_BINDING = {
     "predicted_liquidation_price_required": False,
     "present_predicted_liquidation_price_policy": "finite_and_positive",
     "persisted_response_policy": "sanitized_allowlist_only",
+}
+_POST_PREVIEW_STAGE_ORDER = (
+    "preview_response_validation",
+    "candidate_cap_binding",
+    "available_margin_validation",
+    "seal_ready_plan_construction",
+    "accepted_evidence_construction",
+    "terminal_predecessor_validation",
+)
+_POST_PREVIEW_STAGE_FALLBACK_REASONS = {
+    "preview_response_validation": (
+        "futures_preview_response_validation_unclassified"
+    ),
+    "candidate_cap_binding": (
+        "futures_preview_candidate_cap_binding_unclassified"
+    ),
+    "available_margin_validation": (
+        "futures_preview_available_margin_validation_unclassified"
+    ),
+    "seal_ready_plan_construction": (
+        "futures_preview_seal_ready_plan_construction_unclassified"
+    ),
+    "accepted_evidence_construction": (
+        "futures_preview_accepted_evidence_construction_unclassified"
+    ),
+    "terminal_predecessor_validation": (
+        "futures_preview_terminal_predecessor_validation_unclassified"
+    ),
+}
+_POST_PREVIEW_STAGE_ALLOWLISTED_REASONS = {
+    "preview_response_validation": frozenset(),
+    "candidate_cap_binding": frozenset(
+        {
+            "futures_preview_base_size_candidate_mismatch",
+            "futures_preview_response_book_ambiguous",
+            "futures_preview_response_opening_cap_blocked",
+            "futures_preview_response_exposure_cap_blocked",
+            "futures_preview_response_buffered_close_cap_blocked",
+            "futures_preview_response_turnover_cap_blocked",
+        }
+    ),
+    "available_margin_validation": frozenset(
+        {"futures_preview_available_margin_insufficient"}
+    ),
+    "seal_ready_plan_construction": frozenset(),
+    "accepted_evidence_construction": frozenset(),
+    "terminal_predecessor_validation": frozenset(
+        {"futures_preview_predecessor_terminal_binding_changed"}
+    ),
+}
+FUTURES_PREVIEW_R8_POST_PREVIEW_DIAGNOSTIC_BINDING = {
+    "schema_version": "1",
+    "policy_id": "slice2_preview_post_return_stage_diagnostic_v1",
+    "stage_order": list(_POST_PREVIEW_STAGE_ORDER),
+    "persisted_evidence": "ordered_sanitized_stage_prefix_only",
+    "raw_response_included": False,
+    "external_exception_text_included": False,
+    "identifier_values_included": False,
 }
 _SAFE_MARGIN_SETTING_TOKEN = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
 _SAFE_MARGIN_WINDOW_TOKEN = re.compile(r"^[A-Z][A-Z0-9_]{0,95}$")
@@ -681,12 +814,20 @@ _TERMINAL_FAILURE_CONTEXT_ALLOWED_KEYS = frozenset(
         "preview_request_sha256",
         "preview_response",
         "preview_response_sha256",
+        "post_preview_stage_evidence",
+        "post_preview_stage_evidence_sha256",
     }
 )
 
 
 class FuturesOrderPreviewArtifactError(RuntimeError):
     """Raised when one-shot Preview evidence is unavailable or unsafe."""
+
+
+class FuturesOrderPreviewAcceptedHandoffError(
+    FuturesOrderPreviewArtifactError
+):
+    """Accepted evidence persisted, but the ephemeral handoff did not finish."""
 
 
 def _redacted_preflight_blocker(exc: Exception) -> str:
@@ -738,6 +879,49 @@ def _pre_preview_stage_failure_context(
     }
 
 
+def _post_preview_stage_failure_context(
+    *,
+    passed_stages: Sequence[str],
+    blocked_stage: str,
+    exc: Exception,
+) -> dict[str, Any]:
+    """Return a strict stage prefix without response or exception content."""
+
+    reason = _POST_PREVIEW_STAGE_FALLBACK_REASONS[blocked_stage]
+    if (
+        type(exc) is ValueError
+        and len(exc.args) == 1
+        and isinstance(exc.args[0], str)
+        and exc.args[0]
+        in _POST_PREVIEW_STAGE_ALLOWLISTED_REASONS[blocked_stage]
+    ):
+        reason = exc.args[0]
+    stages = [
+        {"stage": stage, "status": "passed", "reason_code": None}
+        for stage in passed_stages
+    ]
+    stages.append(
+        {
+            "stage": blocked_stage,
+            "status": "blocked",
+            "reason_code": reason,
+        }
+    )
+    diagnostic = {
+        "schema_version": "1",
+        "source": "backend_futures_preview_producer",
+        "stages": stages,
+        "sanitized": True,
+        "raw_response_included": False,
+        "external_exception_text_included": False,
+        "identifier_values_included": False,
+    }
+    return {
+        "post_preview_stage_evidence": diagnostic,
+        "post_preview_stage_evidence_sha256": canonical_sha256(diagnostic),
+    }
+
+
 def _plain(value: Any) -> Any:
     if isinstance(value, Mapping):
         return {str(key): _plain(item) for key, item in value.items()}
@@ -778,9 +962,181 @@ def canonical_sha256(value: Any) -> str:
     return hashlib.sha256(canonical_json(value).encode("utf-8")).hexdigest()
 
 
-def configured_futures_order_preview_artifact_path() -> Path:
-    """Expose only the consumed R7 terminal, failing closed if it is absent."""
+def _same_artifact_path(left: Path, right: Path) -> bool:
+    """Compare paths lexically without following an artifact symlink."""
 
+    return os.path.abspath(os.fspath(left)) == os.path.abspath(os.fspath(right))
+
+
+def _futures_preview_r8_lock_path(artifact_path: Path) -> Path:
+    """Keep the production lock in runtime state and test locks beside fixtures."""
+
+    if _same_artifact_path(
+        artifact_path,
+        _PRODUCTION_FUTURES_PREVIEW_R8_ARTIFACT_PATH,
+    ):
+        return _PRODUCTION_FUTURES_PREVIEW_R8_LOCK_PATH
+    return artifact_path.with_name(f".{artifact_path.name}.selector.lock")
+
+
+@contextmanager
+def _futures_preview_r8_advisory_lock(
+    artifact_path: Path,
+    *,
+    exclusive: bool,
+    nonblocking: bool = False,
+) -> Iterator[None]:
+    """Hold the shared selector/read or exclusive R8/R9 reservation lock."""
+
+    lock_path = _futures_preview_r8_lock_path(Path(artifact_path))
+    try:
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        parent = lock_path.parent.lstat()
+    except OSError:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview successor selector lock is invalid"
+        ) from None
+    if stat.S_ISLNK(parent.st_mode) or not stat.S_ISDIR(parent.st_mode):
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview successor selector lock is invalid"
+        )
+    flags = os.O_RDWR | os.O_CREAT | os.O_CLOEXEC | _NOFOLLOW
+    try:
+        descriptor = os.open(lock_path, flags, 0o600)
+    except OSError:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview successor selector lock is invalid"
+        ) from None
+    try:
+        opened = os.fstat(descriptor)
+        current = lock_path.lstat()
+        if not (
+            stat.S_ISREG(opened.st_mode)
+            and opened.st_uid == os.getuid()
+            and stat.S_IMODE(opened.st_mode) == 0o600
+            and opened.st_size == 0
+            and (opened.st_dev, opened.st_ino)
+            == (current.st_dev, current.st_ino)
+        ):
+            raise FuturesOrderPreviewArtifactError(
+                "futures Preview successor selector lock is invalid"
+            )
+        operation = fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH
+        if nonblocking:
+            operation |= fcntl.LOCK_NB
+        fcntl.flock(descriptor, operation)
+        yield
+    except OSError:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview successor selector lock is invalid"
+        ) from None
+    finally:
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+        finally:
+            os.close(descriptor)
+
+
+def _configured_futures_order_preview_r8_artifact_path() -> Path | None:
+    """Return a validated R8 terminal, or ``None`` only when it is absent."""
+
+    try:
+        FUTURES_PREVIEW_R8_ARTIFACT_PATH.lstat()
+    except FileNotFoundError:
+        return None
+    except OSError:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R8 terminal readback is invalid"
+        ) from None
+    else:
+        if _same_artifact_path(
+            FUTURES_PREVIEW_R8_ARTIFACT_PATH,
+            _PRODUCTION_FUTURES_PREVIEW_R8_ARTIFACT_PATH,
+        ):
+            try:
+                observed = (
+                    validate_production_futures_order_preview_r8_opaque_chain()
+                )
+                if observed != FUTURES_PREVIEW_R8_TERMINAL_BINDING:
+                    raise FuturesOrderPreviewArtifactError(
+                        "futures Preview R8 forensic binding changed"
+                    )
+            except Exception:
+                raise FuturesOrderPreviewArtifactError(
+                    "futures Preview R8 terminal readback is invalid"
+                ) from None
+            return FUTURES_PREVIEW_R8_ARTIFACT_PATH
+        try:
+            payload = FuturesOrderPreviewArtifactStore(
+                FUTURES_PREVIEW_R8_ARTIFACT_PATH
+            ).read_completed()
+            if payload.get("artifact_type") != _R8_ARTIFACT_TYPE:
+                raise FuturesOrderPreviewArtifactError(
+                    "futures Preview R8 terminal generation is invalid"
+                )
+            if (
+                payload.get("predecessor_binding")
+                != FUTURES_PREVIEW_R7_TERMINAL_BINDING
+            ):
+                raise FuturesOrderPreviewArtifactError(
+                    "futures Preview R8 predecessor binding changed"
+                )
+            from application.admin_api.models import (
+                AdminFuturesOrderPreviewResponse,
+            )
+
+            AdminFuturesOrderPreviewResponse.model_validate(payload)
+        except Exception:
+            raise FuturesOrderPreviewArtifactError(
+                "futures Preview R8 terminal readback is invalid"
+            ) from None
+        return FUTURES_PREVIEW_R8_ARTIFACT_PATH
+
+
+def _configured_futures_order_preview_r9_artifact_path() -> Path | None:
+    """Return a validated R9 terminal, or ``None`` only when it is absent."""
+
+    try:
+        FUTURES_PREVIEW_R9_ARTIFACT_PATH.lstat()
+    except FileNotFoundError:
+        return None
+    except OSError:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R9 terminal readback is invalid"
+        ) from None
+    try:
+        payload = FuturesOrderPreviewArtifactStore(
+            FUTURES_PREVIEW_R9_ARTIFACT_PATH
+        ).read_completed()
+        if (
+            payload.get("artifact_type") != _R9_ARTIFACT_TYPE
+            or payload.get("predecessor_binding")
+            != FUTURES_PREVIEW_R8_TERMINAL_BINDING
+        ):
+            raise FuturesOrderPreviewArtifactError(
+                "futures Preview R9 terminal generation is invalid"
+            )
+        from application.admin_api.models import (
+            AdminFuturesOrderPreviewResponse,
+        )
+
+        AdminFuturesOrderPreviewResponse.model_validate(payload)
+    except Exception:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R9 terminal readback is invalid"
+        ) from None
+    return FUTURES_PREVIEW_R9_ARTIFACT_PATH
+
+
+def _configured_futures_order_preview_artifact_path_unlocked() -> Path:
+    """Select the latest terminal while the shared successor lock is held."""
+
+    r9_path = _configured_futures_order_preview_r9_artifact_path()
+    if r9_path is not None:
+        return r9_path
+    r8_path = _configured_futures_order_preview_r8_artifact_path()
+    if r8_path is not None:
+        return r8_path
     configured = os.environ.get(FUTURES_PREVIEW_ARTIFACT_ENV, "").strip()
     if configured:
         return Path(configured)
@@ -822,14 +1178,50 @@ def configured_futures_order_preview_artifact_path() -> Path:
         return FUTURES_PREVIEW_R7_ARTIFACT_PATH
 
 
+def configured_futures_order_preview_artifact_path() -> Path:
+    """Fail-closed select R9, R8, configured evidence, or immutable R7."""
+
+    with _futures_preview_r8_advisory_lock(
+        FUTURES_PREVIEW_R8_ARTIFACT_PATH,
+        exclusive=False,
+    ):
+        return _configured_futures_order_preview_artifact_path_unlocked()
+
+
 class FuturesOrderPreviewArtifactStore:
     """One-file append-only claim/result store with fail-closed reads."""
 
-    def __init__(self, path: Path) -> None:
+    def __init__(
+        self,
+        path: Path,
+        *,
+        enforce_latest_selection: bool = False,
+        reservation_lock_nonblocking: bool = False,
+    ) -> None:
         self.path = Path(path)
+        self.enforce_latest_selection = enforce_latest_selection
+        self.reservation_lock_nonblocking = reservation_lock_nonblocking
 
     def reserve(self, claim: Mapping[str, Any]) -> str:
         """Exclusively create and fsync the one-use attempt claim."""
+
+        artifact_type = claim.get("artifact_type")
+        if artifact_type in {_R8_ARTIFACT_TYPE, _R9_ARTIFACT_TYPE}:
+            selector_artifact_path = (
+                FUTURES_PREVIEW_R8_ARTIFACT_PATH
+                if artifact_type == _R9_ARTIFACT_TYPE
+                else self.path
+            )
+            with _futures_preview_r8_advisory_lock(
+                selector_artifact_path,
+                exclusive=True,
+                nonblocking=self.reservation_lock_nonblocking,
+            ):
+                return self._reserve_unlocked(claim)
+        return self._reserve_unlocked(claim)
+
+    def _reserve_unlocked(self, claim: Mapping[str, Any]) -> str:
+        """Create the claim after any required generation lock is held."""
 
         self._prepare_parent()
         try:
@@ -910,6 +1302,24 @@ class FuturesOrderPreviewArtifactStore:
     def read_completed(self) -> dict[str, Any]:
         """Return a valid terminal accepted, blocked, or unknown record."""
 
+        if self.enforce_latest_selection:
+            with _futures_preview_r8_advisory_lock(
+                FUTURES_PREVIEW_R8_ARTIFACT_PATH,
+                exclusive=False,
+            ):
+                selected = (
+                    _configured_futures_order_preview_artifact_path_unlocked()
+                )
+                if not _same_artifact_path(self.path, selected):
+                    raise FuturesOrderPreviewArtifactError(
+                        "futures Preview latest selection changed"
+                    )
+                return self._read_completed_unlocked()
+        return self._read_completed_unlocked()
+
+    def _read_completed_unlocked(self) -> dict[str, Any]:
+        """Read one terminal after the caller has established lock context."""
+
         rows = self._read_rows()
         if len(rows) != 2:
             raise FuturesOrderPreviewArtifactError(
@@ -961,6 +1371,16 @@ class FuturesOrderPreviewArtifactStore:
             and claim_record.get("artifact_type") == _R7_ARTIFACT_TYPE
         ):
             _validate_r7_claim_record(claim_record)
+        elif (
+            isinstance(claim_record, Mapping)
+            and claim_record.get("artifact_type") == _R8_ARTIFACT_TYPE
+        ):
+            _validate_r8_claim_record(claim_record)
+        elif (
+            isinstance(claim_record, Mapping)
+            and claim_record.get("artifact_type") == _R9_ARTIFACT_TYPE
+        ):
+            _validate_r9_claim_record(claim_record)
         if not isinstance(claim_record, Mapping) or any(
             record.get(key) != claim_record.get(key)
             for key in (
@@ -970,7 +1390,9 @@ class FuturesOrderPreviewArtifactStore:
                 "actor_id",
                 "roles",
                 "correlation_id",
+                "correlation_id_sha256",
                 "idempotency_key",
+                "idempotency_key_sha256",
                 "profile_label",
                 "portfolio_type",
                 "product_id",
@@ -1279,6 +1701,198 @@ def validate_futures_order_preview_predecessor(
     return binding
 
 
+def _validate_opaque_preview_artifact(
+    path: Path,
+    *,
+    expected_file_sha256: str,
+    expected_device: int,
+    expected_inode: int,
+    expected_size: int,
+    expected_mode: int,
+    expected_mtime_ns: int,
+) -> None:
+    """Bind immutable bytes and metadata without parsing prior JSON records."""
+
+    artifact = Path(path)
+    try:
+        before = artifact.lstat()
+        if (
+            stat.S_ISLNK(before.st_mode)
+            or not stat.S_ISREG(before.st_mode)
+            or before.st_uid != os.geteuid()
+            or before.st_nlink != 1
+            or before.st_dev != expected_device
+            or before.st_ino != expected_inode
+            or before.st_size != expected_size
+            or stat.S_IMODE(before.st_mode) != expected_mode
+            or before.st_mtime_ns != expected_mtime_ns
+            or before.st_size <= 0
+            or before.st_size > _MAX_ARTIFACT_BYTES
+        ):
+            raise ValueError("metadata")
+        descriptor = os.open(artifact, os.O_RDONLY | _NOFOLLOW)
+        try:
+            opened = os.fstat(descriptor)
+            if (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino):
+                raise ValueError("identity")
+            digest = hashlib.sha256()
+            remaining = before.st_size
+            while remaining:
+                chunk = os.read(descriptor, min(65536, remaining))
+                if not chunk:
+                    raise ValueError("truncated")
+                digest.update(chunk)
+                remaining -= len(chunk)
+            if os.read(descriptor, 1):
+                raise ValueError("grew")
+        finally:
+            os.close(descriptor)
+        after = artifact.lstat()
+        if (
+            after.st_dev,
+            after.st_ino,
+            after.st_size,
+            after.st_mode,
+            after.st_uid,
+            after.st_nlink,
+            after.st_mtime_ns,
+        ) != (
+            before.st_dev,
+            before.st_ino,
+            before.st_size,
+            before.st_mode,
+            before.st_uid,
+            before.st_nlink,
+            before.st_mtime_ns,
+        ) or not hmac.compare_digest(
+            digest.hexdigest(),
+            expected_file_sha256,
+        ):
+            raise ValueError("binding")
+    except Exception:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview opaque predecessor binding is invalid"
+        ) from None
+
+
+def validate_production_futures_order_preview_r7_opaque_chain() -> dict[str, Any]:
+    """Hash-bind original through R7 without deserializing prior evidence."""
+
+    for values in (
+        (
+            FUTURES_PREVIEW_ORIGINAL_ARTIFACT_PATH,
+            FUTURES_PREVIEW_ORIGINAL_FILE_SHA256,
+            FUTURES_PREVIEW_ORIGINAL_DEVICE,
+            FUTURES_PREVIEW_ORIGINAL_INODE,
+            FUTURES_PREVIEW_ORIGINAL_SIZE,
+            FUTURES_PREVIEW_ORIGINAL_MODE,
+            FUTURES_PREVIEW_ORIGINAL_MTIME_NS,
+        ),
+        (
+            FUTURES_PREVIEW_R1_ARTIFACT_PATH,
+            FUTURES_PREVIEW_R1_FILE_SHA256,
+            FUTURES_PREVIEW_R1_DEVICE,
+            FUTURES_PREVIEW_R1_INODE,
+            FUTURES_PREVIEW_R1_SIZE,
+            FUTURES_PREVIEW_R1_MODE,
+            FUTURES_PREVIEW_R1_MTIME_NS,
+        ),
+        (
+            FUTURES_PREVIEW_PREDECESSOR_ARTIFACT_PATH,
+            FUTURES_PREVIEW_PREDECESSOR_FILE_SHA256,
+            FUTURES_PREVIEW_PREDECESSOR_DEVICE,
+            FUTURES_PREVIEW_PREDECESSOR_INODE,
+            FUTURES_PREVIEW_PREDECESSOR_SIZE,
+            FUTURES_PREVIEW_PREDECESSOR_MODE,
+            FUTURES_PREVIEW_PREDECESSOR_MTIME_NS,
+        ),
+        (
+            FUTURES_PREVIEW_R3_ARTIFACT_PATH,
+            FUTURES_PREVIEW_R3_FILE_SHA256,
+            FUTURES_PREVIEW_R3_DEVICE,
+            FUTURES_PREVIEW_R3_INODE,
+            FUTURES_PREVIEW_R3_SIZE,
+            FUTURES_PREVIEW_R3_MODE,
+            FUTURES_PREVIEW_R3_MTIME_NS,
+        ),
+        (
+            FUTURES_PREVIEW_R4_ARTIFACT_PATH,
+            FUTURES_PREVIEW_R4_FILE_SHA256,
+            FUTURES_PREVIEW_R4_DEVICE,
+            FUTURES_PREVIEW_R4_INODE,
+            FUTURES_PREVIEW_R4_SIZE,
+            FUTURES_PREVIEW_R4_MODE,
+            FUTURES_PREVIEW_R4_MTIME_NS,
+        ),
+        (
+            FUTURES_PREVIEW_R5_ARTIFACT_PATH,
+            FUTURES_PREVIEW_R5_FILE_SHA256,
+            FUTURES_PREVIEW_R5_DEVICE,
+            FUTURES_PREVIEW_R5_INODE,
+            FUTURES_PREVIEW_R5_SIZE,
+            FUTURES_PREVIEW_R5_MODE,
+            FUTURES_PREVIEW_R5_MTIME_NS,
+        ),
+        (
+            FUTURES_PREVIEW_R6_ARTIFACT_PATH,
+            FUTURES_PREVIEW_R6_FILE_SHA256,
+            FUTURES_PREVIEW_R6_DEVICE,
+            FUTURES_PREVIEW_R6_INODE,
+            FUTURES_PREVIEW_R6_SIZE,
+            FUTURES_PREVIEW_R6_MODE,
+            FUTURES_PREVIEW_R6_MTIME_NS,
+        ),
+        (
+            FUTURES_PREVIEW_R7_ARTIFACT_PATH,
+            FUTURES_PREVIEW_R7_FILE_SHA256,
+            FUTURES_PREVIEW_R7_DEVICE,
+            FUTURES_PREVIEW_R7_INODE,
+            FUTURES_PREVIEW_R7_SIZE,
+            FUTURES_PREVIEW_R7_MODE,
+            FUTURES_PREVIEW_R7_MTIME_NS,
+        ),
+    ):
+        (
+            artifact_path,
+            file_sha256,
+            device,
+            inode,
+            size,
+            mode,
+            mtime_ns,
+        ) = values
+        _validate_opaque_preview_artifact(
+            artifact_path,
+            expected_file_sha256=file_sha256,
+            expected_device=device,
+            expected_inode=inode,
+            expected_size=size,
+            expected_mode=mode,
+            expected_mtime_ns=mtime_ns,
+        )
+    return dict(FUTURES_PREVIEW_R7_TERMINAL_BINDING)
+
+
+def validate_production_futures_order_preview_r8_opaque_chain() -> dict[str, Any]:
+    """Hash/stat-bind original through consumed R8 without parsing R8."""
+
+    r7_binding = validate_production_futures_order_preview_r7_opaque_chain()
+    if r7_binding != FUTURES_PREVIEW_R7_TERMINAL_BINDING:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R7 opaque predecessor binding changed"
+        )
+    _validate_opaque_preview_artifact(
+        FUTURES_PREVIEW_R8_ARTIFACT_PATH,
+        expected_file_sha256=FUTURES_PREVIEW_R8_FILE_SHA256,
+        expected_device=FUTURES_PREVIEW_R8_DEVICE,
+        expected_inode=FUTURES_PREVIEW_R8_INODE,
+        expected_size=FUTURES_PREVIEW_R8_SIZE,
+        expected_mode=FUTURES_PREVIEW_R8_MODE,
+        expected_mtime_ns=FUTURES_PREVIEW_R8_MTIME_NS,
+    )
+    return dict(FUTURES_PREVIEW_R8_TERMINAL_BINDING)
+
+
 def validate_production_futures_order_preview_predecessor() -> dict[str, Any]:
     """Validate the exact R2 -> R1 -> original Slice 2 predecessor chain."""
 
@@ -1507,6 +2121,8 @@ class FuturesOrderPreviewProducer:
             _R5_ARTIFACT_TYPE,
             _R6_ARTIFACT_TYPE,
             _R7_ARTIFACT_TYPE,
+            _R8_ARTIFACT_TYPE,
+            _R9_ARTIFACT_TYPE,
         }:
             raise FuturesOrderPreviewArtifactError(
                 "futures Preview artifact generation is invalid"
@@ -1517,6 +2133,8 @@ class FuturesOrderPreviewProducer:
             _R5_ARTIFACT_TYPE: "futures_exact_no_live_preview_slice_2r4.jsonl",
             _R6_ARTIFACT_TYPE: "futures_exact_no_live_preview_slice_2r5.jsonl",
             _R7_ARTIFACT_TYPE: "futures_exact_no_live_preview_slice_2r6.jsonl",
+            _R8_ARTIFACT_TYPE: "futures_exact_no_live_preview_slice_2r7.jsonl",
+            _R9_ARTIFACT_TYPE: "futures_exact_no_live_preview_slice_2r8.jsonl",
         }[artifact_type]
         if predecessor_binding.get("artifact_name") != expected_predecessor_name:
             raise FuturesOrderPreviewArtifactError(
@@ -1611,18 +2229,43 @@ class FuturesOrderPreviewProducer:
             claim["margin_window_policy_binding"] = deepcopy(
                 FUTURES_PREVIEW_R6_MARGIN_WINDOW_POLICY_BINDING
             )
-        if self.artifact_type == _R7_ARTIFACT_TYPE:
+        if self.artifact_type in _CORRECTED_RESPONSE_SCHEMA_ARTIFACT_TYPES:
             claim["preview_response_schema_binding"] = deepcopy(
                 FUTURES_PREVIEW_R7_RESPONSE_SCHEMA_BINDING
             )
+        if self.artifact_type in _POST_PREVIEW_DIAGNOSTIC_ARTIFACT_TYPES:
+            claim["post_preview_diagnostic_binding"] = deepcopy(
+                FUTURES_PREVIEW_R8_POST_PREVIEW_DIAGNOSTIC_BINDING
+            )
         return claim
 
-    def run(self) -> dict[str, Any]:
+    def run(
+        self,
+        *,
+        accepted_callback: Callable[
+            [dict[str, Any], dict[str, Any]],
+            None,
+        ]
+        | None = None,
+    ) -> dict[str, Any]:
         """Reserve once, preflight, and make at most one Preview call."""
+
+        if accepted_callback is not None and self.artifact_type not in (
+            _POST_PREVIEW_DIAGNOSTIC_ARTIFACT_TYPES
+        ):
+            raise FuturesOrderPreviewArtifactError(
+                "futures Preview accepted handoff is not enabled"
+            )
 
         if self.artifact_type in _SANITIZED_PREVIEW_ARTIFACT_TYPES:
             claim = self.build_claim()
-            claim_sha256 = self.store.reserve(claim)
+            reservation_claim = (
+                _withhold_r8_private_claim(claim)
+                if self.artifact_type
+                in {_R8_ARTIFACT_TYPE, _R9_ARTIFACT_TYPE}
+                else claim
+            )
+            claim_sha256 = self.store.reserve(reservation_claim)
         else:
             observed_predecessor = dict(self.predecessor_validator())
             if observed_predecessor != self.predecessor_binding:
@@ -1635,6 +2278,7 @@ class FuturesOrderPreviewProducer:
         read_counters = _zero_read_counters()
         terminal_context: dict[str, Any] = {}
         passed_pre_preview_stages: list[str] = []
+        passed_post_preview_stages: list[str] = []
         try:
             if self.artifact_type in _SANITIZED_PREVIEW_ARTIFACT_TYPES:
                 try:
@@ -1845,71 +2489,190 @@ class FuturesOrderPreviewProducer:
                     blocker=blocker,
                     context=terminal_context,
                 )
+                result = _withhold_r8_private_accepted_evidence(result)
                 self.store.append_result(result)
                 raise FuturesOrderPreviewArtifactError(
                     "futures Preview outcome is unknown; attempt consumed"
                 ) from exc
-            if self.artifact_type == _R7_ARTIFACT_TYPE:
-                normalized_preview = validate_r7_preview_response_schema(
-                    preview_response
+            try:
+                if (
+                    self.artifact_type
+                    in _CORRECTED_RESPONSE_SCHEMA_ARTIFACT_TYPES
+                ):
+                    normalized_preview = validate_r7_preview_response_schema(
+                        preview_response
+                    )
+                else:
+                    normalized_preview = validate_preview_response(
+                        preview_response
+                    )
+            except Exception as exc:
+                if (
+                    self.artifact_type
+                    in _POST_PREVIEW_DIAGNOSTIC_ARTIFACT_TYPES
+                ):
+                    terminal_context.update(
+                        _post_preview_stage_failure_context(
+                            passed_stages=passed_post_preview_stages,
+                            blocked_stage="preview_response_validation",
+                            exc=exc,
+                        )
+                    )
+                raise
+            passed_post_preview_stages.append("preview_response_validation")
+            terminal_context["preview_response"] = normalized_preview
+            terminal_context["preview_response_sha256"] = canonical_sha256(
+                normalized_preview
+            )
+            try:
+                normalized_preview = validate_preview_against_candidate(
+                    normalized_preview,
+                    candidate,
                 )
-            else:
-                normalized_preview = validate_preview_response(preview_response)
+            except Exception as exc:
+                if (
+                    self.artifact_type
+                    in _POST_PREVIEW_DIAGNOSTIC_ARTIFACT_TYPES
+                ):
+                    terminal_context.update(
+                        _post_preview_stage_failure_context(
+                            passed_stages=passed_post_preview_stages,
+                            blocked_stage="candidate_cap_binding",
+                            exc=exc,
+                        )
+                    )
+                raise
+            passed_post_preview_stages.append("candidate_cap_binding")
             terminal_context["preview_response"] = normalized_preview
             terminal_context["preview_response_sha256"] = canonical_sha256(
                 normalized_preview
             )
-            normalized_preview = validate_preview_against_candidate(
-                normalized_preview,
-                candidate,
+            try:
+                preview_margin = _decimal(
+                    normalized_preview["order_margin_total"],
+                    "order_margin_total",
+                )
+                if preview_margin > available_margin:
+                    raise ValueError(
+                        "futures_preview_available_margin_insufficient"
+                    )
+            except Exception as exc:
+                if (
+                    self.artifact_type
+                    in _POST_PREVIEW_DIAGNOSTIC_ARTIFACT_TYPES
+                ):
+                    terminal_context.update(
+                        _post_preview_stage_failure_context(
+                            passed_stages=passed_post_preview_stages,
+                            blocked_stage="available_margin_validation",
+                            exc=exc,
+                        )
+                    )
+                raise
+            passed_post_preview_stages.append("available_margin_validation")
+            try:
+                seal_ready_plan = _seal_ready_plan(
+                    claim=claim,
+                    binding=binding.to_dict(),
+                    candidate=candidate,
+                    preview_request=preview_request,
+                    preview_response=normalized_preview,
+                    permissions=permissions,
+                    portfolios=portfolios,
+                    product=product,
+                    book=book,
+                    positions=positions,
+                    margin_collateral=margin_collateral,
+                )
+            except Exception as exc:
+                if (
+                    self.artifact_type
+                    in _POST_PREVIEW_DIAGNOSTIC_ARTIFACT_TYPES
+                ):
+                    terminal_context.update(
+                        _post_preview_stage_failure_context(
+                            passed_stages=passed_post_preview_stages,
+                            blocked_stage="seal_ready_plan_construction",
+                            exc=exc,
+                        )
+                    )
+                raise
+            passed_post_preview_stages.append("seal_ready_plan_construction")
+            try:
+                evidence = _accepted_evidence(
+                    claim=claim,
+                    claim_sha256=claim_sha256,
+                    counters=counters,
+                    read_counters=read_counters,
+                    binding=binding.to_dict(),
+                    permissions=permissions,
+                    portfolios=portfolios,
+                    product=product,
+                    book=book,
+                    positions=positions,
+                    margin_collateral=margin_collateral,
+                    candidate=candidate,
+                    preview_request=preview_request,
+                    preview_response=normalized_preview,
+                    seal_ready_plan=seal_ready_plan,
+                    completed_at=self.now(),
+                )
+            except Exception as exc:
+                if (
+                    self.artifact_type
+                    in _POST_PREVIEW_DIAGNOSTIC_ARTIFACT_TYPES
+                ):
+                    terminal_context.update(
+                        _post_preview_stage_failure_context(
+                            passed_stages=passed_post_preview_stages,
+                            blocked_stage="accepted_evidence_construction",
+                            exc=exc,
+                        )
+                    )
+                raise
+            passed_post_preview_stages.append("accepted_evidence_construction")
+            try:
+                transition_blocker = self._terminal_predecessor_blocker()
+                if transition_blocker is not None:
+                    raise ValueError(transition_blocker)
+            except Exception as exc:
+                if (
+                    self.artifact_type
+                    in _POST_PREVIEW_DIAGNOSTIC_ARTIFACT_TYPES
+                ):
+                    terminal_context.update(
+                        _post_preview_stage_failure_context(
+                            passed_stages=passed_post_preview_stages,
+                            blocked_stage="terminal_predecessor_validation",
+                            exc=exc,
+                        )
+                    )
+                raise
+            passed_post_preview_stages.append(
+                "terminal_predecessor_validation"
             )
-            terminal_context["preview_response"] = normalized_preview
-            terminal_context["preview_response_sha256"] = canonical_sha256(
-                normalized_preview
+            persisted_evidence = _withhold_r8_private_accepted_evidence(
+                evidence
             )
-            preview_margin = _decimal(
-                normalized_preview["order_margin_total"],
-                "order_margin_total",
-            )
-            if preview_margin > available_margin:
-                raise ValueError("futures_preview_available_margin_insufficient")
-            seal_ready_plan = _seal_ready_plan(
-                claim=claim,
-                binding=binding.to_dict(),
-                candidate=candidate,
-                preview_request=preview_request,
-                preview_response=normalized_preview,
-                permissions=permissions,
-                portfolios=portfolios,
-                product=product,
-                book=book,
-                positions=positions,
-                margin_collateral=margin_collateral,
-            )
-            evidence = _accepted_evidence(
-                claim=claim,
-                claim_sha256=claim_sha256,
-                counters=counters,
-                read_counters=read_counters,
-                binding=binding.to_dict(),
-                permissions=permissions,
-                portfolios=portfolios,
-                product=product,
-                book=book,
-                positions=positions,
-                margin_collateral=margin_collateral,
-                candidate=candidate,
-                preview_request=preview_request,
-                preview_response=normalized_preview,
-                seal_ready_plan=seal_ready_plan,
-                completed_at=self.now(),
-            )
-            transition_blocker = self._terminal_predecessor_blocker()
-            if transition_blocker is not None:
-                raise ValueError(transition_blocker)
-            self.store.append_result(evidence)
-            return self.store.read_completed()
+            self.store.append_result(persisted_evidence)
+            terminal = self.store.read_completed()
+            if accepted_callback is not None:
+                handoff_failed = False
+                try:
+                    accepted_callback(
+                        deepcopy(evidence),
+                        deepcopy(terminal),
+                    )
+                except Exception:
+                    handoff_failed = True
+                if handoff_failed:
+                    raise FuturesOrderPreviewAcceptedHandoffError(
+                        "futures Preview accepted handoff did not complete"
+                    ) from None
+            return terminal
         except Exception as exc:
+            if isinstance(exc, FuturesOrderPreviewAcceptedHandoffError):
+                raise
             if isinstance(exc, FuturesOrderPreviewArtifactError):
                 if self.artifact_type not in _SANITIZED_PREVIEW_ARTIFACT_TYPES:
                     raise
@@ -1920,15 +2683,25 @@ class FuturesOrderPreviewProducer:
                 else:
                     raise
             transition_blocker = self._terminal_predecessor_blocker()
-            stage_failure = "pre_preview_stage_evidence" in terminal_context
+            pre_stage_failure = (
+                "pre_preview_stage_evidence" in terminal_context
+            )
+            post_stage_failure = (
+                "post_preview_stage_evidence" in terminal_context
+            )
             blocker = (
                 "preflight_or_preview_stage_blocked"
-                if stage_failure
-                else _redacted_preflight_blocker(exc)
+                if pre_stage_failure
+                else (
+                    "post_preview_stage_blocked"
+                    if post_stage_failure
+                    else _redacted_preflight_blocker(exc)
+                )
             )
             if (
                 transition_blocker is not None
-                and not stage_failure
+                and not pre_stage_failure
+                and not post_stage_failure
                 and transition_blocker not in blocker
             ):
                 blocker = f"{blocker};{transition_blocker}"
@@ -1944,6 +2717,7 @@ class FuturesOrderPreviewProducer:
                 blocker=blocker,
                 context=terminal_context,
             )
+            result = _withhold_r8_private_accepted_evidence(result)
             self.store.append_result(result)
             raise FuturesOrderPreviewArtifactError(
                 "futures Preview preflight blocked; attempt consumed"
@@ -2570,12 +3344,187 @@ def _accepted_evidence(
                 margin_collateral
             )
         )
-    if claim["artifact_type"] == _R7_ARTIFACT_TYPE:
+    if claim["artifact_type"] in _CORRECTED_RESPONSE_SCHEMA_ARTIFACT_TYPES:
         evidence["preview_response_schema_binding"] = deepcopy(
             claim["preview_response_schema_binding"]
         )
+    if claim["artifact_type"] in _POST_PREVIEW_DIAGNOSTIC_ARTIFACT_TYPES:
+        evidence["post_preview_diagnostic_binding"] = deepcopy(
+            claim["post_preview_diagnostic_binding"]
+        )
+        evidence["post_preview_stage_evidence"] = None
+        evidence["post_preview_stage_evidence_sha256"] = None
     evidence["evidence_sha256"] = canonical_sha256(evidence)
     return evidence
+
+
+def _withhold_r8_private_claim(
+    claim: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Return an R8+ reservation claim with trace values hash-only."""
+
+    result = deepcopy(dict(claim))
+    artifact_type = result.get("artifact_type")
+    if artifact_type not in {
+        FUTURES_PREVIEW_R8_ARTIFACT_TYPE,
+        FUTURES_PREVIEW_R9_ARTIFACT_TYPE,
+    }:
+        return result
+    claim_validator = (
+        _validate_r9_ephemeral_claim_record
+        if artifact_type == FUTURES_PREVIEW_R9_ARTIFACT_TYPE
+        else _validate_r8_ephemeral_claim_record
+    )
+    persisted_validator = (
+        _validate_r9_claim_record
+        if artifact_type == FUTURES_PREVIEW_R9_ARTIFACT_TYPE
+        else _validate_r8_claim_record
+    )
+    claim_validator(result)
+    for field in ("correlation_id", "idempotency_key"):
+        value = result.get(field)
+        if not isinstance(value, str) or not value or value == "withheld":
+            raise FuturesOrderPreviewArtifactError(
+                "futures Preview R8 private trace binding is unavailable"
+            )
+        result[f"{field}_sha256"] = hashlib.sha256(
+            value.encode("utf-8")
+        ).hexdigest()
+        result[field] = "withheld"
+    persisted_validator(result)
+    return result
+
+
+def _withhold_r8_private_accepted_evidence(
+    evidence: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Return a persistence-safe R8+ terminal with private values withheld."""
+
+    result = deepcopy(dict(evidence))
+    if result.get("artifact_type") not in {
+        FUTURES_PREVIEW_R8_ARTIFACT_TYPE,
+        FUTURES_PREVIEW_R9_ARTIFACT_TYPE,
+    }:
+        return result
+    accepted = result.get("outcome") == "accepted"
+    preview_present = isinstance(result.get("preview_response"), Mapping)
+    preview = _mapping(result.get("preview_response"))
+    preview_id = preview.get("preview_id")
+    portfolio_id = result.get("portfolio_id")
+    for field in ("correlation_id", "idempotency_key"):
+        value = result.get(field)
+        if isinstance(value, str) and value and value != "withheld":
+            result[f"{field}_sha256"] = hashlib.sha256(
+                value.encode("utf-8")
+            ).hexdigest()
+            result[field] = "withheld"
+    if accepted and (
+        not isinstance(preview_id, str)
+        or not preview_id
+        or preview_id == "withheld"
+    ):
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R8 private Preview binding is unavailable"
+        )
+    if accepted and (
+        not isinstance(portfolio_id, str)
+        or not portfolio_id
+        or portfolio_id == "withheld"
+    ):
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R8 private portfolio binding is unavailable"
+        )
+    if (
+        isinstance(portfolio_id, str)
+        and portfolio_id
+        and portfolio_id != "withheld"
+    ):
+        result["portfolio_id_sha256"] = hashlib.sha256(
+            portfolio_id.encode("utf-8")
+        ).hexdigest()
+        result["portfolio_id"] = "withheld"
+
+        if isinstance(result.get("portfolio_binding"), Mapping):
+            portfolio_binding = _mapping(result["portfolio_binding"])
+            portfolio_binding["observed_portfolio_id"] = "withheld"
+            portfolio_binding["portfolio_id"] = "withheld"
+            result["portfolio_binding"] = portfolio_binding
+
+        if isinstance(result.get("permission_evidence"), Mapping):
+            permission_evidence = _mapping(result["permission_evidence"])
+            permission_evidence["portfolio_id"] = "withheld"
+            result["permission_evidence"] = permission_evidence
+            result["permission_evidence_sha256"] = canonical_sha256(
+                permission_evidence
+            )
+
+        if isinstance(result.get("portfolio_catalog_evidence"), Mapping):
+            portfolio_catalog = _mapping(
+                result["portfolio_catalog_evidence"]
+            )
+            portfolio_catalog["selected_portfolio_id"] = "withheld"
+            result["portfolio_catalog_evidence"] = portfolio_catalog
+            result["portfolio_catalog_sha256"] = canonical_sha256(
+                portfolio_catalog
+            )
+
+    if (
+        preview_present
+        and isinstance(preview_id, str)
+        and preview_id
+        and preview_id != "withheld"
+    ):
+        result["preview_id_sha256"] = hashlib.sha256(
+            preview_id.encode("utf-8")
+        ).hexdigest()
+        preview["preview_id"] = "withheld"
+        result["preview_response"] = preview
+        result["preview_response_sha256"] = canonical_sha256(preview)
+
+    if isinstance(result.get("seal_ready_plan"), Mapping):
+        plan = _mapping(result["seal_ready_plan"])
+        for field in ("correlation_id", "idempotency_key"):
+            value = plan.get(field)
+            if isinstance(value, str) and value and value != "withheld":
+                plan[f"{field}_sha256"] = hashlib.sha256(
+                    value.encode("utf-8")
+                ).hexdigest()
+                plan[field] = "withheld"
+        if isinstance(plan.get("profile_binding"), Mapping):
+            profile_binding = _mapping(plan["profile_binding"])
+            profile_binding["portfolio_id"] = "withheld"
+            plan["profile_binding"] = profile_binding
+        if isinstance(plan.get("authoritative_preview"), Mapping):
+            authoritative_preview = _mapping(
+                plan["authoritative_preview"]
+            )
+            authoritative_preview["preview_id"] = "withheld"
+            authoritative_preview["preview_response"] = deepcopy(preview)
+            authoritative_preview["preview_response_sha256"] = (
+                canonical_sha256(preview)
+            )
+            plan["authoritative_preview"] = authoritative_preview
+        if isinstance(plan.get("preflight_evidence_hashes"), Mapping):
+            preflight_hashes = _mapping(plan["preflight_evidence_hashes"])
+            if "permission_evidence_sha256" in result:
+                preflight_hashes["permissions"] = result[
+                    "permission_evidence_sha256"
+                ]
+            if "portfolio_catalog_sha256" in result:
+                preflight_hashes["portfolio_catalog"] = result[
+                    "portfolio_catalog_sha256"
+                ]
+            plan["preflight_evidence_hashes"] = preflight_hashes
+        result["seal_ready_plan"] = plan
+        result["seal_ready_plan_sha256"] = canonical_sha256(plan)
+    result["evidence_sha256"] = canonical_sha256(
+        {
+            key: value
+            for key, value in result.items()
+            if key != "evidence_sha256"
+        }
+    )
+    return result
 
 
 def _terminal_failure_record(
@@ -2647,9 +3596,13 @@ def _terminal_failure_record(
             evidence["pre_preview_stage_evidence_sha256"] = (
                 stage_evidence_sha256
             )
-    if claim["artifact_type"] == _R7_ARTIFACT_TYPE:
+    if claim["artifact_type"] in _CORRECTED_RESPONSE_SCHEMA_ARTIFACT_TYPES:
         evidence["preview_response_schema_binding"] = deepcopy(
             claim["preview_response_schema_binding"]
+        )
+    if claim["artifact_type"] in _POST_PREVIEW_DIAGNOSTIC_ARTIFACT_TYPES:
+        evidence["post_preview_diagnostic_binding"] = deepcopy(
+            claim["post_preview_diagnostic_binding"]
         )
     evidence["evidence_sha256"] = canonical_sha256(evidence)
     return evidence
@@ -3744,9 +4697,13 @@ def _seal_ready_plan(
         plan["margin_window_policy_binding"] = deepcopy(
             claim["margin_window_policy_binding"]
         )
-    if claim["artifact_type"] == _R7_ARTIFACT_TYPE:
+    if claim["artifact_type"] in _CORRECTED_RESPONSE_SCHEMA_ARTIFACT_TYPES:
         plan["preview_response_schema_binding"] = deepcopy(
             claim["preview_response_schema_binding"]
+        )
+    if claim["artifact_type"] in _POST_PREVIEW_DIAGNOSTIC_ARTIFACT_TYPES:
+        plan["post_preview_diagnostic_binding"] = deepcopy(
+            claim["post_preview_diagnostic_binding"]
         )
     return plan
 
@@ -3781,8 +4738,14 @@ def _validate_r5_claim_record(claim: Mapping[str, Any]) -> None:
         or str(parsed_correlation_id) != correlation_id
         or str(parsed_idempotency_key) != idempotency_key
         or correlation_id == idempotency_key
-        or correlation_id in _CONSUMED_PREVIEW_IDENTIFIERS
-        or idempotency_key in _CONSUMED_PREVIEW_IDENTIFIERS
+        or _preview_identifier_was_consumed(
+            correlation_id,
+            artifact_type=_R5_ARTIFACT_TYPE,
+        )
+        or _preview_identifier_was_consumed(
+            idempotency_key,
+            artifact_type=_R5_ARTIFACT_TYPE,
+        )
     ):
         raise FuturesOrderPreviewArtifactError(
             "futures Preview R5 claim identifier is invalid"
@@ -3904,8 +4867,14 @@ def _validate_r6_claim_record(claim: Mapping[str, Any]) -> None:
         or str(parsed_correlation_id) != correlation_id
         or str(parsed_idempotency_key) != idempotency_key
         or correlation_id == idempotency_key
-        or correlation_id in _R6_CONSUMED_PREVIEW_IDENTIFIERS
-        or idempotency_key in _R6_CONSUMED_PREVIEW_IDENTIFIERS
+        or _preview_identifier_was_consumed(
+            correlation_id,
+            artifact_type=_R6_ARTIFACT_TYPE,
+        )
+        or _preview_identifier_was_consumed(
+            idempotency_key,
+            artifact_type=_R6_ARTIFACT_TYPE,
+        )
     ):
         raise FuturesOrderPreviewArtifactError(
             "futures Preview R6 claim identifier is invalid"
@@ -4074,6 +5043,195 @@ def _validate_r7_claim_record(claim: Mapping[str, Any]) -> None:
         raise FuturesOrderPreviewArtifactError(
             "futures Preview R7 claim authority is invalid"
         ) from exc
+
+
+def _validate_r8_ephemeral_claim_record(claim: Mapping[str, Any]) -> None:
+    """Reject in-memory R8 drift before private trace identifiers are withheld."""
+
+    expected_r8_keys = {
+        "artifact_type",
+        "claim_status",
+        "predecessor_binding",
+        "reserved_at",
+        "actor_id",
+        "roles",
+        "correlation_id",
+        "idempotency_key",
+        "profile_label",
+        "portfolio_type",
+        "product_id",
+        "contract_count",
+        "caps",
+        "allowed_coinbase_methods",
+        "preview_order_attempt_max",
+        "retry_attempt_max",
+        "fallback_attempt_max",
+        "create_order_attempt_max",
+        "cancel_order_attempt_max",
+        "close_position_attempt_max",
+        "reduce_position_attempt_max",
+        "marker_created",
+        "ledger_created",
+        "runtime_created",
+        "margin_window_policy_binding",
+        "preview_response_schema_binding",
+        "post_preview_diagnostic_binding",
+    }
+    correlation_id = claim.get("correlation_id")
+    idempotency_key = claim.get("idempotency_key")
+    if (
+        set(claim) != expected_r8_keys
+        or claim.get("artifact_type") != _R8_ARTIFACT_TYPE
+        or claim.get("predecessor_binding")
+        != FUTURES_PREVIEW_R7_TERMINAL_BINDING
+        or claim.get("margin_window_policy_binding")
+        != FUTURES_PREVIEW_R6_MARGIN_WINDOW_POLICY_BINDING
+        or claim.get("preview_response_schema_binding")
+        != FUTURES_PREVIEW_R7_RESPONSE_SCHEMA_BINDING
+        or claim.get("post_preview_diagnostic_binding")
+        != FUTURES_PREVIEW_R8_POST_PREVIEW_DIAGNOSTIC_BINDING
+        or _preview_identifier_was_consumed(
+            correlation_id,
+            artifact_type=_R8_ARTIFACT_TYPE,
+        )
+        or _preview_identifier_was_consumed(
+            idempotency_key,
+            artifact_type=_R8_ARTIFACT_TYPE,
+        )
+    ):
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R8 claim authority is invalid"
+        )
+
+    r7_equivalent = dict(claim)
+    r7_equivalent.pop("post_preview_diagnostic_binding")
+    r7_equivalent["artifact_type"] = _R7_ARTIFACT_TYPE
+    r7_equivalent["predecessor_binding"] = FUTURES_PREVIEW_R6_TERMINAL_BINDING
+    try:
+        _validate_r7_claim_record(r7_equivalent)
+    except FuturesOrderPreviewArtifactError as exc:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R8 claim authority is invalid"
+        ) from exc
+
+
+def _validate_r8_claim_record(claim: Mapping[str, Any]) -> None:
+    """Validate the persistence-safe R8 claim without raw identifiers."""
+
+    expected_keys = {
+        "artifact_type",
+        "claim_status",
+        "predecessor_binding",
+        "reserved_at",
+        "actor_id",
+        "roles",
+        "correlation_id",
+        "correlation_id_sha256",
+        "idempotency_key",
+        "idempotency_key_sha256",
+        "profile_label",
+        "portfolio_type",
+        "product_id",
+        "contract_count",
+        "caps",
+        "allowed_coinbase_methods",
+        "preview_order_attempt_max",
+        "retry_attempt_max",
+        "fallback_attempt_max",
+        "create_order_attempt_max",
+        "cancel_order_attempt_max",
+        "close_position_attempt_max",
+        "reduce_position_attempt_max",
+        "marker_created",
+        "ledger_created",
+        "runtime_created",
+        "margin_window_policy_binding",
+        "preview_response_schema_binding",
+        "post_preview_diagnostic_binding",
+    }
+    correlation_sha256 = claim.get("correlation_id_sha256")
+    idempotency_sha256 = claim.get("idempotency_key_sha256")
+    if (
+        set(claim) != expected_keys
+        or claim.get("correlation_id") != "withheld"
+        or claim.get("idempotency_key") != "withheld"
+        or not isinstance(correlation_sha256, str)
+        or not isinstance(idempotency_sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", correlation_sha256) is None
+        or re.fullmatch(r"[0-9a-f]{64}", idempotency_sha256) is None
+        or correlation_sha256 == idempotency_sha256
+        or correlation_sha256 in _R7_CONSUMED_PREVIEW_IDENTIFIER_SHA256
+        or idempotency_sha256 in _R7_CONSUMED_PREVIEW_IDENTIFIER_SHA256
+    ):
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R8 claim authority is invalid"
+        )
+    equivalent = dict(claim)
+    equivalent.pop("correlation_id_sha256")
+    equivalent.pop("idempotency_key_sha256")
+    equivalent["correlation_id"] = "00000000-0000-4000-8000-000000000801"
+    equivalent["idempotency_key"] = "00000000-0000-4000-8000-000000000802"
+    _validate_r8_ephemeral_claim_record(equivalent)
+
+
+def _validate_r9_ephemeral_claim_record(claim: Mapping[str, Any]) -> None:
+    """Reject in-memory R9 drift from the corrected bounded Preview scope."""
+
+    if (
+        claim.get("artifact_type") != _R9_ARTIFACT_TYPE
+        or claim.get("predecessor_binding")
+        != FUTURES_PREVIEW_R8_TERMINAL_BINDING
+        or _preview_identifier_was_consumed(
+            claim.get("correlation_id"),
+            artifact_type=_R9_ARTIFACT_TYPE,
+        )
+        or _preview_identifier_was_consumed(
+            claim.get("idempotency_key"),
+            artifact_type=_R9_ARTIFACT_TYPE,
+        )
+    ):
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R9 claim authority is invalid"
+        )
+    r8_equivalent = dict(claim)
+    r8_equivalent["artifact_type"] = _R8_ARTIFACT_TYPE
+    r8_equivalent["predecessor_binding"] = FUTURES_PREVIEW_R7_TERMINAL_BINDING
+    try:
+        _validate_r8_ephemeral_claim_record(r8_equivalent)
+    except FuturesOrderPreviewArtifactError as exc:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R9 claim authority is invalid"
+        ) from exc
+
+
+def _validate_r9_claim_record(claim: Mapping[str, Any]) -> None:
+    """Validate a persistence-safe R9 claim without raw trace identifiers."""
+
+    correlation_sha256 = claim.get("correlation_id_sha256")
+    idempotency_sha256 = claim.get("idempotency_key_sha256")
+    if (
+        claim.get("artifact_type") != _R9_ARTIFACT_TYPE
+        or claim.get("predecessor_binding")
+        != FUTURES_PREVIEW_R8_TERMINAL_BINDING
+        or claim.get("correlation_id") != "withheld"
+        or claim.get("idempotency_key") != "withheld"
+        or not isinstance(correlation_sha256, str)
+        or not isinstance(idempotency_sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", correlation_sha256) is None
+        or re.fullmatch(r"[0-9a-f]{64}", idempotency_sha256) is None
+        or correlation_sha256 == idempotency_sha256
+        or correlation_sha256 in _R7_CONSUMED_PREVIEW_IDENTIFIER_SHA256
+        or idempotency_sha256 in _R7_CONSUMED_PREVIEW_IDENTIFIER_SHA256
+    ):
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R9 claim authority is invalid"
+        )
+    equivalent = dict(claim)
+    equivalent.pop("correlation_id_sha256", None)
+    equivalent.pop("idempotency_key_sha256", None)
+    equivalent["correlation_id"] = "00000000-0000-4000-8000-000000000901"
+    equivalent["idempotency_key"] = "00000000-0000-4000-8000-000000000902"
+    _validate_r9_ephemeral_claim_record(equivalent)
 
 
 def _zero_read_counters() -> dict[str, int]:

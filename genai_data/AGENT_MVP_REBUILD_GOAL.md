@@ -1,10 +1,10 @@
 # Coinbase Admin MVP Goal
 
-Goal ID: `futures_exact_no_live_preview_slice_2`
+Goal ID: `futures_preview_acceptance_recovery_r8_r10_and_conditional_terminal_roundtrip_slice_3`
 
-Last reviewed: 2026-07-15 UTC.
+Last reviewed: 2026-07-16 UTC.
 
-Status: `blocked — Slice 2R7 consumed without accepted Preview evidence; offline terminal closeout complete`
+Status: `active — R8 terminal blocked with zero Preview calls; R9 readiness validation in progress`
 
 The canonical cross-repository authority is
 `/home/developer/coinbase/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. This
@@ -365,30 +365,80 @@ artifact's evidence hash. It is not proof that the corrected response schema,
 a cap, available margin, candidate binding, seal construction, or any other
 specific post-Preview check caused the failure.
 
-R7 is consumed and cannot be retried. The remaining Coinbase Preview-attempt
-maximum is `0`. Slice 2 remains unaccepted and blocked by
-`slice_2r7_consumed_without_accepted_preview_evidence`. The default next action
-is `await_operator_scope_change_decision_after_slice_2r7_closeout`. No R8,
-Slice 3 activation, Coinbase call, or other live authority exists.
+R7 is consumed and cannot be retried. Its historical terminal facts, artifact
+bytes, and documented hashes remain unchanged. The operator has since activated
+the bounded R8-R10 Preview-acceptance recovery and a conditional Slice 3
+terminal roundtrip without changing the product, contract count, V3 policy, or
+strict caps.
+
+At R7 closeout, the historical blocker was
+`slice_2r7_consumed_without_accepted_preview_evidence` and the then-default
+action was `await_operator_scope_change_decision_after_slice_2r7_closeout`.
+Those literals remain predecessor evidence, not current work authority.
+
+R8 is terminally consumed and cannot be retried. On 2026-07-16 UTC, an
+otherwise synthetic malformed-key test escaped its temporary-path isolation
+and created the fixed R8 artifact before failing locally. The preserved file is
+mode `0400`, size `14921`, device/inode `2096/400341`, and SHA-256
+`b32aba4868f08ee7a44f19ceacbcf42cb7e4d70da1552f2d8b333ef59ddc8696`.
+Independent sanitized diagnosis localizes the boundary to the first
+API-key-permissions read boundary. It records one entered read boundary, zero
+AWS service calls, zero real Coinbase requests, zero Preview attempts, zero
+exchange submissions or mutations, and no accepted evidence. R8 content
+remains opaque: only its exact hash/stat binding and this allowlisted forensic
+classification may be read back.
+
+R9 is now the current conditional successor. Its Coinbase Preview maximum is
+`1`; the remaining authorized recovery maximum is `2` across R9 and R10. R10
+may be prepared only after R9 terminates without accepted Preview evidence,
+concrete offline remediation is complete, and focused validation plus fresh
+independent safety and blind contextless audits pass. The first accepted
+Preview extinguishes every later recovery revision. An unknown outcome
+consumes only the active revision and is never retried.
+
+The sealed R9 composition root must complete exactly one backend-only Default
+credential resolution and construct the canonical zero-retry, zero-redirect
+Coinbase session before reserving the R9 claim. It uses the pinned, signed AWS
+CLI version with the fixed `default` credential files, `coinbase` secret id,
+`us-east-1` region, official regional endpoint, bounded timeout, and no
+inherited AWS endpoint/profile/proxy overrides. Any credential lookup, parsing,
+or SDK-construction failure leaves R8 and every Slice 3 successor path absent
+and makes zero Coinbase reads or Preview attempts. After preparation, the exact
+same in-memory delegate is injected into the claim-gated Preview facade and,
+only after exact accepted evidence, into conditional Slice 3. Secret material
+and raw responses remain ephemeral and are never printed or persisted.
+
+During Preview recovery, Create, Cancel, Close, Reduce, and every other exchange
+mutation have a current maximum of `0`. Slice 3 is conditional and inactive; it
+is represented separately from the Preview budget and cannot activate unless
+the first accepted R9-R10 Preview and the exact Slice 3 readiness gates both
+pass. R9 has no terminal outcome, counters, artifact, Preview response, or
+accepted-evidence claim yet, and none may be invented. The default next action
+is
+`complete_r9_slice3_readiness_validation_then_execute_authorized_slice_2r9_once`.
 
 `Default-profile Futures readback -> exact AVAX US CFM Coinbase Preview Order -> immutable operator-visible no-live preview readback`
 
-## Ordered Sequence — Slice 2R7 Terminally Blocked
+## Ordered Sequence — R8-R10 Recovery And Conditional Slice 3
 
-The sequence below is retained as design context only. Step 1 is terminally
-blocked, and no later step is active or authorized by the R7 closeout:
+The active order is Preview acceptance recovery followed by conditional Slice
+3. R8 is terminal blocked; R9 is current and R10 exists only under its
+predecessor-failure, remediation, validation, and fresh-audit conditions. The first accepted Preview
+ends recovery and is the necessary predecessor for Slice 3 activation. Slice 4
+and Slice 5 remain unauthorized historical design context:
 
-1. `futures_exact_no_live_preview_slice_2`: the sole R7 backend-derived
-   Default-profile US CFM Coinbase Preview Order call for AVAX perpetual
+1. `futures_preview_acceptance_recovery_r8_r10_and_conditional_terminal_roundtrip_slice_3`:
+   the R8-R10 backend-derived Default-profile US CFM Coinbase Preview Order
+   recovery for AVAX perpetual
    `AVP-20DEC30-CDE` and exactly one contract/order candidate under the strict
    `<100.00 USDC` opening, `<150.00 USDC` exposure/buffered-close, and
    `<300.00 USDC` branch-turnover limits. Bind product
    metadata, exact decimals, market freshness, fees, margin/collateral,
    liquidation, caps, idempotency, and correlation. Zero create/cancel/close
-   submissions, marker, ledger, or runtime. The one-shot backend tool consumed
-   its call and must never run again; the repeatable Admin API/UI path reads
-   immutable evidence and calls Coinbase zero times. R7 is terminally blocked
-   with no retry or successor-call authority.
+   submissions, marker, ledger, or runtime. R9 is the only current generation;
+   R10 remains conditional and an R9 acceptance extinguishes it. Repeatable
+   Admin API/UI readback remains non-calling, exposes R8 only through its opaque
+   forensic contract, and selects a valid R9 terminal when one exists.
 2. `futures_terminal_order_roundtrip_slice_3`: separately implement, audit,
    seal, and exactly approve one resting order, authoritative OPEN readback,
    at most one exchange-ID cancel resolved from its `client_order_id`, and
@@ -404,7 +454,9 @@ blocked, and no later step is active or authorized by the R7 closeout:
    `<150.00 USDC`, the fresh exact-position close reference times `1.20` is
    `<150.00 USDC`, and opening-plus-conservative-close branch turnover is
    `<300.00 USDC`; an ineligible branch prevents placement.
-3. `futures_intentional_fill_position_readback_slice_4`: implement and audit,
+3. `futures_intentional_fill_position_readback_slice_4`: unauthorized and out
+   of scope; retained only as historical dependency design. If separately
+   activated in the future, it would implement and audit
    with zero live execution, one marketable contract plus authoritative
    fill/fee/position-delta readback. The later live proof requires a Coinbase
    Preview Order-accepted, exchange-auto-terminal FOK or IOC configuration; GTC
@@ -413,8 +465,10 @@ blocked, and no later step is active or authorized by the R7 closeout:
    concrete order authority; this is not a separate fill-testing permission.
    Stop and activate Slice 5 implementation; the live Slice 4 checkpoint
    remains pending.
-4. `futures_position_closeout_slice_5`: implement and audit, with zero live
-   execution, exact-position closeout derived from fresh authoritative
+4. `futures_position_closeout_slice_5`: unauthorized and out of scope; retained
+   only as historical dependency design. If separately activated in the future,
+   it would implement and audit, with zero live execution, exact-position
+   closeout derived from fresh authoritative
    readback. After acceptance, stop. Only a later combined sealed plan may run
    the Slice 4 opening/fill checkpoint followed immediately, without an
    approval pause, by the Slice 5 one-attempt close. Exit requires flat/absent
@@ -430,12 +484,13 @@ explicitly acknowledges the unpriced Coinbase Close Position policy. A proven
 price-protected replacement requires a revised seal. One opening and one
 conditional close are the maxima, with zero retries.
 
-Earlier successor planning described Slices 3, 4, and 5 in order only after
-each predecessor is accepted. R7 did not accept Slice 2, and its controlling
-authorization expressly granted no Slice 3 activation. Therefore no successor
-implementation or live checkpoint may start from this closeout. No planning
-statement authorizes a marker, ledger, runtime, Create, Cancel, Close, Reduce,
-or any other exchange mutation.
+Slice 3 is conditional and inactive while Preview recovery is underway. Its
+readiness work may proceed only inside the exact current goal, and current
+exchange-mutation authority remains zero. Slice 4 and Slice 5 are unauthorized
+and out of scope. Their retained design text is historical dependency context,
+not an ordered authorized successor list. No planning statement authorizes a
+marker, ledger, runtime, Create, Cancel, Close, Reduce, or other exchange
+mutation outside the conditional Slice 3 boundary.
 
 ## Shared Successor Safety
 
@@ -504,11 +559,12 @@ reconciliation, rollback, or traceability failure on it.
 
 A candidate blocker cannot make itself in scope by generating evidence about the candidate blocker.
 
-Slice 2 is terminally blocked after consumed R7. Successor work may continue
-only after a distinct operator scope-change decision and documented predecessor
-acceptance; exact-hash live gates remain hard stops. Fan-out, multi-product automation, schedulers, unattended
-loops, generic runtime/retry/recovery tightening, wallet-ledger expansion,
-ladders/grids, unrelated domain work, and broad cleanup remain parked.
+Only R9 readiness/execution, the strictly conditional R10 recovery path, and
+conditional Slice 3 readiness are current. Slice 4, Slice 5, and every unrelated
+successor remain unauthorized; exact-hash live gates remain hard stops. Fan-out,
+multi-product automation, schedulers, unattended loops, generic runtime/retry/
+recovery tightening, wallet-ledger expansion, ladders/grids, unrelated domain
+work, and broad cleanup remain parked.
 
 Standing order-level limits constrain later approved plans but do not activate
 them. The operator explicitly authorized the AVAX sequence-local exception of
@@ -522,7 +578,10 @@ Use focused tests for ordinary changes. Run full backend/frontend suites only
 at durable milestone, release/deployment, cross-repository closeout, after
 broad cross-cutting changes, or when explicitly requested.
 
-R7 is terminal and its authorized offline diagnosis/remediation is complete.
-Do not invoke its runner again or make any Coinbase call. Continue only after
-an operator decision explicitly changes scope; the present authority does not
-permit R8, Slice 3 activation, or any other live action.
+R7 and R8 are terminal and their authorized offline diagnosis/remediation is
+complete; never invoke either runner again. Stop R9 before its sole call if readiness or
+either fresh audit fails. After any terminal non-accepted recovery result,
+perform only the authorized bounded offline diagnosis/remediation and fresh
+gates before a conditional successor. Never retry a consumed revision, run a
+later recovery revision after acceptance, or activate Slice 3 before both its
+acceptance and readiness conditions are satisfied.

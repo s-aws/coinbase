@@ -72,7 +72,10 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     assert AUTONOMOUS_WORK_QUEUE_SUMMARY_PREFIX == (
         "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
     )
-    assert AUTONOMOUS_GOAL_ID == "futures_exact_no_live_preview_slice_2"
+    assert AUTONOMOUS_GOAL_ID == (
+        "futures_preview_acceptance_recovery_r8_r10_and_"
+        "conditional_terminal_roundtrip_slice_3"
+    )
     assert AUTONOMOUS_HISTORICAL_PHASES == tuple(range(7961, 7981))
     check_results = {check["name"]: check for check in summary["checks"]}
     failed_checks = {
@@ -81,21 +84,26 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
 
     assert failed_checks == {}
     assert summary["status"] == "passed"
-    assert summary["goal_id"] == "futures_exact_no_live_preview_slice_2"
+    assert summary["goal_id"] == (
+        "futures_preview_acceptance_recovery_r8_r10_and_"
+        "conditional_terminal_roundtrip_slice_3"
+    )
     assert summary["historical_phase_range"] == "7961-7980"
     assert summary["historical_phase_count"] == 20
     assert summary["phase_range_status"] == "historical_not_work_authority"
-    assert summary["slice_status"] == "blocked"
-    assert summary["blocker"] == (
-        "slice_2r7_consumed_without_accepted_preview_evidence"
-    )
+    assert summary["slice_status"] == "active"
+    assert summary["blockers"] == []
     assert summary["default_next_action"] == (
-        "await_operator_scope_change_decision_after_slice_2r7_closeout"
+        "complete_r9_slice3_readiness_validation_then_execute_"
+        "authorized_slice_2r9_once"
     )
     assert summary["live_coinbase_orders_ran"] is False
     assert summary["live_order_notional_usdc"] == "0"
     assert summary["mvp_scope"] == {
-        "work_mode": "futures_exact_no_live_preview_slice_2",
+        "work_mode": (
+            "futures_preview_acceptance_recovery_r8_r10_and_"
+            "conditional_terminal_roundtrip_slice_3"
+        ),
         "goal_authority": (
             "/home/developer/coinbase/coinbase-frontend/docs/CURRENT_MVP_GOAL.md"
         ),
@@ -105,19 +113,24 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         "focused_blast_radius_tests_required": True,
         "full_suite_at_durable_milestone_only": True,
         "active_work_policy": {
-            "current_priority": "futures_exact_no_live_preview_slice_2",
+            "current_priority": (
+                "futures_preview_acceptance_recovery_r8_r10_and_"
+                "conditional_terminal_roundtrip_slice_3"
+            ),
             "approved_phase_range_status": "historical_not_work_authority",
             "phase_range_work_allowed": False,
-            "slice_status": "blocked",
-            "blocker": "slice_2r7_consumed_without_accepted_preview_evidence",
+            "slice_status": "active",
+            "blockers": [],
             "default_next_action": (
-                "await_operator_scope_change_decision_after_slice_2r7_closeout"
+                "complete_r9_slice3_readiness_validation_then_execute_"
+                "authorized_slice_2r9_once"
             ),
             "ordered_successors": [
-                "futures_exact_no_live_preview_slice_2",
+                (
+                    "futures_preview_acceptance_recovery_r8_r10_and_"
+                    "conditional_terminal_roundtrip_slice_3"
+                ),
                 "futures_terminal_order_roundtrip_slice_3",
-                "futures_intentional_fill_position_readback_slice_4",
-                "futures_position_closeout_slice_5",
             ],
             "allow_only_when_directly_blocks": [
                 "current vertical slice runtime behavior",
@@ -144,8 +157,13 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
             "opening_reference_notional_under_usdc": "100.00",
             "exposure_and_buffered_close_under_usdc": "150.00",
             "branch_turnover_under_usdc": "300.00",
-            "coinbase_preview_attempts_max": 0,
+            "coinbase_preview_attempts_max": 1,
+            "authorized_recovery_preview_attempts_max": 2,
             "exchange_mutation_attempts_max": 0,
+            "conditional_slice_3": {
+                "status": "conditional_not_active",
+                "exchange_mutation_attempts_max": 0,
+            },
         },
         "max_fan_out_notional_usdc": "100.00",
         "default_max_orders_per_second": 5,

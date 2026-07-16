@@ -4,7 +4,9 @@ This project has several operator and test surfaces. They do not have equal
 live authority, and a backend-only live runner is not proof that the matching
 HTTP or browser workflow is live-capable.
 
-Current goal id is `futures_exact_no_live_preview_slice_2`. Slice 1 uses only
+Current goal id is
+`futures_preview_acceptance_recovery_r8_r10_and_conditional_terminal_roundtrip_slice_3`.
+Slice 1 uses only
 authoritative GET account/position reads. R7 consumed the sole authorized
 non-ordering Coinbase successor call after consumed R6. Exactly one
 Preview-only call returned control before a sanitized post-Preview `ValueError`
@@ -12,10 +14,13 @@ and no accepted Preview evidence was appended. It retained the V3
 regular=`UNSPECIFIED` plus intraday-profile=`INTRADAY` pair, one contract,
 strict `<100 / <150 / <300 USDC` caps, and the corrected official
 liquidation-response schema. The repeatable Admin API/UI path now reads exact
-immutable R7, derives only the non-persisted sanitized terminal boundary, and
-cannot call Coinbase. Remaining Coinbase-call authority is zero. No retry,
-fallback, redirect, Create, Cancel, Close, Reduce, marker, ledger, runtime, R8,
-Slice 3 activation, or other exchange mutation/live authority exists. Default
+immutable R8 through an opaque hash/stat-only zero-call forensic contract and
+cannot call Coinbase. R9 is the current one-use recovery generation; R10 is
+conditional and an R9 acceptance extinguishes it. Preview
+recovery permits one current-generation call and zero retries, fallbacks,
+redirects, Create, Cancel, Close, Reduce, marker, ledger, runtime, or exchange
+mutations. Slice 3 is conditional and inactive pending accepted Preview and
+exact readiness gates; Slices 4/5 are unauthorized. Default
 release and deployment checks remain no-live and report live Coinbase execution
 as not run with notional `0`.
 

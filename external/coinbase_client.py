@@ -785,6 +785,8 @@ class CoinbaseRestClient:
         order_ids: Optional[List[str]] = None,
         product_ids: Optional[List[str]] = None,
         limit: Optional[int] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
         cursor: Optional[str] = None,
         product_type: Optional[str] = None,
         retail_portfolio_id: Optional[str] = None,
@@ -796,6 +798,8 @@ class CoinbaseRestClient:
             order_ids: Optional exchange-assigned order ids for exact readback.
             product_ids: Optional product scope.
             limit: Optional Coinbase page size.
+            start_date: Optional inclusive UTC order-history window start.
+            end_date: Optional UTC order-history window end.
             cursor: Optional Coinbase pagination cursor.
             product_type: Optional Coinbase product-type scope.
             retail_portfolio_id: Optional exact Coinbase profile scope.
@@ -811,6 +815,8 @@ class CoinbaseRestClient:
             order_ids=order_ids,
             product_ids=product_ids,
             limit=limit,
+            start_date=start_date,
+            end_date=end_date,
             cursor=cursor,
             product_type=product_type,
             retail_portfolio_id=retail_portfolio_id,
