@@ -12,8 +12,9 @@ make exactly one Preview-only call. The frontend remains readback-only and expos
 no R11 initiation control. It permits zero retries, fallbacks, redirects, Create,
 Cancel, Close, Reduce, or other exchange mutations. No R12 attempt or Slice 3/4/5 activation is authorized.
 
-Historically, the completed post-R10 goal prospectively separated Coinbase's
-official Preview wire schema from stricter project acceptance without
+Historically, goal
+`futures_post_r10_preview_compatibility_and_direction_selection` prospectively
+separated Coinbase's official Preview wire schema from stricter project acceptance without
 reinterpreting R10 or granting successor authority by itself. See
 `docs/FUTURES_POST_R10_COMPATIBILITY_DIRECTION.md`.
 Completed Slice 1
