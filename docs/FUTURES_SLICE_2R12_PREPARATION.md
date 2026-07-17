@@ -10,18 +10,22 @@ Alignment token: `r12_separate_eligibility_and_single_use_attempt_v1`
 
 ## Current Posture
 
-Slice 2R12 has a prepared backend workflow, but production Coinbase access is
-source-disabled. `tools/run_admin_api_futures_r12_workflow.py` binds
-`R12_RELEASE_READY` to literal `False`; neither environment variables nor CLI
-arguments can activate it. The only CLI confirmation flag is not an activation
-mechanism.
+Slice 2R12 has a prepared backend workflow. One reviewed release ran
+eligibility cycle 1, which used the six authorized categories and exactly nine
+authenticated GETs, completed
+`product_or_market_or_position_ineligible`, and stopped before any R12
+idempotency key, claim, or Preview. R12 remains unconsumed and nine eligibility
+cycles remain. Production Coinbase access is source-disabled again:
+`tools/run_admin_api_futures_r12_workflow.py` binds `R12_RELEASE_READY` to
+literal `False`; neither environment variables nor CLI arguments can activate
+it. The only CLI confirmation flag is not an activation mechanism.
 
 This preparation record grants no readiness conclusion. Before that literal
 can be changed in a separately reviewed release step, focused validation,
 local deployment validation, an independent safety audit, and a blind
-contextless audit must all pass against the final bytes. This documentation
-change performs no Coinbase call, state-refresh read, claim creation, or
-Preview attempt.
+contextless audit must all pass against the final bytes. The diagnostic split
+and documentation changes perform no additional Coinbase call, state-refresh
+read, claim creation, or Preview attempt.
 
 The existing R1-R11 artifacts remain immutable. Their bytes and documented
 hashes must not change. R8 remains a metadata-only restricted predecessor: its

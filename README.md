@@ -19,7 +19,9 @@ eligibility cycles from one durable single-use R12 claim and at most one
 Preview-only call. The source-bound `R12_RELEASE_READY` gate remains `False`;
 focused validation, local deployment validation, independent safety audit, and
 blind contextless audit must pass before a separately reviewed toggle. No R12
-eligibility read, claim, or Preview is implied by preparation. See
+eligibility read beyond the durably consumed ineligible cycle 1, claim, or
+Preview is implied by the current release-disabled posture. R12 remains
+unconsumed with nine eligibility cycles available. See
 [R12 preparation](docs/FUTURES_SLICE_2R12_PREPARATION.md).
 
 The predecessor goal `futures_preview_acceptance_recovery_r11` is complete.

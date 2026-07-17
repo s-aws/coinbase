@@ -137,8 +137,9 @@ audit ids. Expected fill status does not create a separate approval class.
   are limited to six categories, with no Futures sweep. The production runner
   is source-bound to `R12_RELEASE_READY=False`; focused validation, local
   deployment validation, independent safety audit, and blind contextless audit
-  must pass before any separately reviewed toggle. Preparation itself creates
-  no eligibility read, claim, or Preview. See
+  must pass before any separately reviewed toggle. Cycle 1 used nine authorized
+  GETs and failed closed before claim; the current preparation creates no
+  additional eligibility read, claim, or Preview. See
   `docs/FUTURES_SLICE_2R12_PREPARATION.md`.
 - Historical predecessor: Goal `futures_preview_acceptance_recovery_r11` is complete.
   R11 is consumed, terminal `blocked`, immutable, and cannot be retried. It

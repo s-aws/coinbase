@@ -6,7 +6,9 @@ Last reviewed: 2026-07-17 UTC.
 
 Status: `prepared_release_disabled`.
 
-Readiness: Slice 2R12 validation and independent audits are pending; no
+Readiness: eligibility cycle 1 completed ineligible before claim after exactly
+nine authorized GETs. The source gate is closed while its value-blind
+diagnostic split, validation, and independent audits complete. No further
 eligibility read, claim, or Preview is implied.
 
 Machine alignment: `r12_separate_eligibility_and_single_use_attempt_v1`.
@@ -26,6 +28,22 @@ source-bound to `R12_RELEASE_READY=False`; no environment variable or CLI flag
 can activate it. Do not claim final readiness until focused validation, local
 deployment validation, independent safety audit, and blind contextless audit
 all pass against the final bytes.
+
+One reviewed release enabled eligibility cycle 1. It durably consumed one of
+the ten non-attempt cycles and completed
+`product_or_market_or_position_ineligible` after all six categories and nine
+authenticated GETs. It created no R12 idempotency key or claim and invoked no
+Preview or mutation, so R12 remains unconsumed. The source gate was closed
+before remediation; nine eligibility cycles remain.
+
+The remediation maps exact built-in candidate failure constants to
+`product_contract_ineligible`, `market_book_ineligible`,
+`position_exposure_ineligible`, or `candidate_caps_ineligible`. Unknown
+exception shapes and request-construction failures remain
+`internal_validation_blocked`. The cycle-1 umbrella classification is
+legacy-readable only and cannot be emitted as a new result. No endpoint, call
+count, product, contract count, V3 policy, cap, claim, Preview, retry, or
+mutation authority changed.
 
 The eligibility phase has a distinct owner-only hash-chained ledger and may
 durably count at most ten state-refresh cycles. Each cycle has a separate

@@ -96,10 +96,10 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     )
     assert summary["r12_workflow_claims_consumed"] == 0
     assert summary["r12_claim_created"] is False
-    assert summary["r12_eligibility_cycles_consumed"] == 0
+    assert summary["r12_eligibility_cycles_consumed"] == 1
     assert summary["r12_preview_attempts_consumed"] == 0
     assert summary["r12_release_gate_ready"] is False
-    assert summary["live_coinbase_eligibility_reads_ran"] is False
+    assert summary["live_coinbase_eligibility_reads_ran"] is True
     assert summary["live_coinbase_preview_ran"] is False
     assert summary["live_coinbase_orders_ran"] is False
     assert summary["live_order_notional_usdc"] == "0"
@@ -112,10 +112,10 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         "historical_successor_authorized": False,
     }
     assert summary["mvp_scope"] == {
-        "work_mode": "r12_prepared_release_disabled_validation_and_audit",
+        "work_mode": "r12_cycle_1_ineligible_release_disabled_remediation",
         "product_goal": (
-            "Prepared R12 eligibility/attempt separation -> release-disabled "
-            "validation and audits -> no calls yet."
+            "R12 cycle 1 ineligible before claim -> value-blind diagnostic "
+            "split -> release-disabled validation and audits."
         ),
         "compatibility_result": (
             "official_wire_schema_and_project_acceptance_separated_"
@@ -134,7 +134,7 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         "scope_posture": (
             "r12_separate_eligibility_and_single_use_attempt_v1"
         ),
-        "operator_progress_wording": "prepared/release disabled",
+        "operator_progress_wording": "cycle 1 ineligible; release disabled",
         "focused_blast_radius_tests_required": True,
         "full_suite_at_durable_milestone_only": True,
         "active_work_policy": {
@@ -176,9 +176,11 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
             "workflow_claims_consumed": 0,
             "claim_created": False,
             "release_gate_ready": False,
-            "eligibility_evidence_status": "not_run",
+            "eligibility_evidence_status": (
+                "cycle_1_ineligible_legacy_umbrella"
+            ),
             "eligibility_cycles_authorized_max": 10,
-            "eligibility_cycles_consumed": 0,
+            "eligibility_cycles_consumed": 1,
             "eligibility_read_categories_per_cycle_max": 6,
             "eligibility_authenticated_gets_per_cycle_max": 9,
             "futures_sweep_reads_max": 0,
@@ -300,7 +302,7 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         "live_coinbase_execution": "not_run",
         "blockers": [],
         "next_action": "complete_no_live_validation_and_independent_audits",
-        "operator_wording": "prepared/release disabled",
+        "operator_wording": "cycle 1 ineligible; release disabled",
     }
     assert check_results["current_goal_alignment"]["passed"] is True
     assert check_results["slice_2r12_prepared_posture"]["passed"] is True

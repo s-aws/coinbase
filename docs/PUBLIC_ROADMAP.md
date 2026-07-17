@@ -7,8 +7,9 @@ private model routing, private release planning, or internal research notes.
 
 - Keep goal id `futures_preview_acceptance_recovery_r12` as current authority
   through its exact terminal closeout. Its prepared release-disabled validation
-  and audit work remains ahead of every successor; this roadmap grants no extra
-  eligibility read, claim, Preview, or exchange mutation.
+  and audit work after an ineligible pre-claim cycle 1 remains ahead of every
+  successor; this roadmap grants no extra eligibility read, claim, Preview, or
+  exchange mutation.
 - Preserve `selected_order_execution_closeout_slice` as completed historical
   selected-root fill-ledger/audit, terminal-child, and read-only recovery
   evidence rather than current work authority.

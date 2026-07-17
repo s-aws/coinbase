@@ -15,8 +15,10 @@ Goal `futures_preview_acceptance_recovery_r12` is
 `r12_separate_eligibility_and_single_use_attempt_v1`. Its source-bound
 `R12_RELEASE_READY` gate remains `False`. Current work is limited to no-live
 focused validation, local deployment validation, independent safety audit, and
-blind contextless audit. Preparation creates no eligibility read, R12 claim,
-idempotency key, or Preview attempt.
+blind contextless audit. Cycle 1 used nine authorized GETs and failed closed
+before claim; the current preparation creates no additional eligibility read,
+R12 claim, idempotency key, or Preview attempt. R12 remains unconsumed with nine
+eligibility cycles available.
 
 The prepared workflow separates at most ten durably counted non-attempt
 eligibility refreshes from the single-use attempt. A complete refresh permits

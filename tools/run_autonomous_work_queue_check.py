@@ -57,7 +57,7 @@ CLOSED_LOOPHOLE_RULE = (
 SLICE_STATUS = "prepared_release_disabled"
 SLICE_BLOCKERS: tuple[str, ...] = ()
 DEFAULT_NEXT_ACTION = "complete_no_live_validation_and_independent_audits"
-OPERATOR_PROGRESS_WORDING = "prepared/release disabled"
+OPERATOR_PROGRESS_WORDING = "cycle 1 ineligible; release disabled"
 HISTORICAL_R11_STATUS = "complete_terminal_no_retry"
 HISTORICAL_R11_NEXT_ACTION = "stop_and_await_operator_direction"
 SUCCESSOR_MAPPING_INVARIANT = (
@@ -76,10 +76,10 @@ R7_TERMINAL_DIAGNOSTIC = (
     "sdk_returned__post_preview_value_error__before_acceptance"
 )
 MVP_SCOPE = {
-    "work_mode": "r12_prepared_release_disabled_validation_and_audit",
+    "work_mode": "r12_cycle_1_ineligible_release_disabled_remediation",
     "product_goal": (
-        "Prepared R12 eligibility/attempt separation -> release-disabled "
-        "validation and audits -> no calls yet."
+        "R12 cycle 1 ineligible before claim -> value-blind diagnostic "
+        "split -> release-disabled validation and audits."
     ),
     "compatibility_result": POST_R10_COMPLETION_ALIGNMENT_TOKEN,
     "goal_authority": str(FRONTEND_GOAL_DOC),
@@ -129,9 +129,9 @@ STANDING_LIMITS = {
         "workflow_claims_consumed": 0,
         "claim_created": False,
         "release_gate_ready": False,
-        "eligibility_evidence_status": "not_run",
+        "eligibility_evidence_status": "cycle_1_ineligible_legacy_umbrella",
         "eligibility_cycles_authorized_max": 10,
-        "eligibility_cycles_consumed": 0,
+        "eligibility_cycles_consumed": 1,
         "eligibility_read_categories_per_cycle_max": 6,
         "eligibility_authenticated_gets_per_cycle_max": 9,
         "futures_sweep_reads_max": 0,
@@ -307,7 +307,7 @@ def _current_goal_alignment() -> QueueCheck:
             PREVIEW_ID_INVARIANT,
             SLICE_STATUS,
             "R12_RELEASE_READY=False",
-            "no eligibility read, claim, or Preview is implied",
+            "No further eligibility read, claim, or Preview is implied",
             "at most ten state-refresh cycles",
             "six categories at most once",
             "nine authenticated GETs",
@@ -334,8 +334,8 @@ def _current_goal_alignment() -> QueueCheck:
             SLICE_STATUS,
             "R12_RELEASE_READY = False",
             (
-                "no Coinbase call, state-refresh read, R12 claim creation, "
-                "or Preview attempt"
+                "no further Coinbase call, state-refresh read, R12 claim "
+                "creation, or Preview attempt"
             ),
             "at most ten durably counted state-refresh cycles",
             "six authorized read-only categories at most once",
@@ -735,10 +735,10 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
         "standing_limits": STANDING_LIMITS,
         "r12_workflow_claims_consumed": 0,
         "r12_claim_created": False,
-        "r12_eligibility_cycles_consumed": 0,
+        "r12_eligibility_cycles_consumed": 1,
         "r12_preview_attempts_consumed": 0,
         "r12_release_gate_ready": False,
-        "live_coinbase_eligibility_reads_ran": False,
+        "live_coinbase_eligibility_reads_ran": True,
         "live_coinbase_preview_ran": False,
         "live_coinbase_orders_ran": False,
         "live_order_notional_usdc": "0",
@@ -781,7 +781,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"Default next action: {DEFAULT_NEXT_ACTION}")
         print("Validation: focused local Linux Docker blast-radius tests")
         print(
-            "R12: prepared/release disabled; eligibility reads 0; "
+            "R12: cycle 1 ineligible/release disabled; eligibility cycles 1; "
             "workflow claims 0; Preview calls 0"
         )
         print(
