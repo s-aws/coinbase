@@ -58,6 +58,9 @@ _R12_ARTIFACT_NAME = "futures_exact_no_live_preview_slice_2r12.jsonl"
 _R12_ELIGIBILITY_NAME = (
     "futures_exact_no_live_preview_slice_2r12_eligibility.jsonl"
 )
+_R12_SOURCE_BOUND_ARTIFACT_ROOT = (
+    Path(__file__).resolve().parents[1] / "artifacts"
+)
 _R12_AWS_CLI_VERSION_ROOT = Path(
     "/home/developer/.local/aws-cli/v2/2.35.24"
 )
@@ -463,9 +466,9 @@ def build_parser() -> argparse.ArgumentParser:
 def _validate_production_singleton_paths() -> None:
     """Reject any drift from the two imported production singleton paths."""
 
-    expected_artifact = FUTURES_PREVIEW_ARTIFACT_ROOT / _R12_ARTIFACT_NAME
+    expected_artifact = _R12_SOURCE_BOUND_ARTIFACT_ROOT / _R12_ARTIFACT_NAME
     expected_eligibility = (
-        FUTURES_PREVIEW_ARTIFACT_ROOT / _R12_ELIGIBILITY_NAME
+        _R12_SOURCE_BOUND_ARTIFACT_ROOT / _R12_ELIGIBILITY_NAME
     )
     paths = (
         FUTURES_PREVIEW_R12_ARTIFACT_PATH,
@@ -477,6 +480,7 @@ def _validate_production_singleton_paths() -> None:
     )
     if (
         any(not isinstance(path, Path) or not path.is_absolute() for path in paths)
+        or FUTURES_PREVIEW_ARTIFACT_ROOT != _R12_SOURCE_BOUND_ARTIFACT_ROOT
         or FUTURES_PREVIEW_R12_ARTIFACT_PATH
         != _PRODUCTION_FUTURES_PREVIEW_R12_ARTIFACT_PATH
         or FUTURES_PREVIEW_R12_ARTIFACT_PATH != expected_artifact

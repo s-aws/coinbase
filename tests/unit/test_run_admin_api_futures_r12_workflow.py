@@ -500,6 +500,47 @@ def test_r12_runner_has_no_path_or_scope_override_and_rejects_path_drift(
         r12_tool._validate_production_singleton_paths()
 
 
+def test_r12_runner_rejects_consistent_environment_root_rebinding(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    alternate_root = tmp_path.resolve()
+    alternate_artifact = alternate_root / r12_tool._R12_ARTIFACT_NAME
+    alternate_eligibility = alternate_root / r12_tool._R12_ELIGIBILITY_NAME
+
+    monkeypatch.setattr(
+        r12_tool,
+        "FUTURES_PREVIEW_ARTIFACT_ROOT",
+        alternate_root,
+    )
+    monkeypatch.setattr(
+        r12_tool,
+        "FUTURES_PREVIEW_R12_ARTIFACT_PATH",
+        alternate_artifact,
+    )
+    monkeypatch.setattr(
+        r12_tool,
+        "_PRODUCTION_FUTURES_PREVIEW_R12_ARTIFACT_PATH",
+        alternate_artifact,
+    )
+    monkeypatch.setattr(
+        r12_tool,
+        "FUTURES_PREVIEW_R12_ELIGIBILITY_PATH",
+        alternate_eligibility,
+    )
+    monkeypatch.setattr(
+        r12_tool,
+        "_PRODUCTION_FUTURES_PREVIEW_R12_ELIGIBILITY_PATH",
+        alternate_eligibility,
+    )
+
+    with pytest.raises(
+        r12_tool.FuturesPreviewR12RunnerError,
+        match="R12 production singleton paths are invalid",
+    ):
+        r12_tool._validate_production_singleton_paths()
+
+
 def test_r12_claim_only_recovery_precedes_factory_even_with_release_disabled(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
