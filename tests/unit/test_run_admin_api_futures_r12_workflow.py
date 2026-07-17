@@ -373,14 +373,13 @@ def _terminal_summary() -> dict[str, object]:
     }
 
 
-def test_r12_source_release_is_active_and_false_gate_blocks_before_any_factory(
+def test_r12_source_release_is_closed_and_blocks_before_any_factory(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     events: list[str] = []
 
-    assert r12_tool.R12_RELEASE_READY is True
-    monkeypatch.setattr(r12_tool, "R12_RELEASE_READY", False)
+    assert r12_tool.R12_RELEASE_READY is False
 
     monkeypatch.setattr(
         r12_tool,
