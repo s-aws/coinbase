@@ -87,7 +87,10 @@ _R12_MAX_AWS_SECRET_RESPONSE_BYTES = 128 * 1024
 _ELIGIBILITY_CLASSIFICATIONS = frozenset(
     {
         "permission_or_portfolio_ineligible",
-        "product_or_market_or_position_ineligible",
+        "product_contract_ineligible",
+        "market_book_ineligible",
+        "position_exposure_ineligible",
+        "candidate_caps_ineligible",
         "margin_collateral_ineligible",
         "read_outcome_unknown",
         "internal_validation_blocked",

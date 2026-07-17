@@ -373,6 +373,51 @@ def _terminal_summary() -> dict[str, object]:
     }
 
 
+@pytest.mark.parametrize(
+    "classification",
+    [
+        "product_contract_ineligible",
+        "market_book_ineligible",
+        "position_exposure_ineligible",
+        "candidate_caps_ineligible",
+    ],
+)
+def test_r12_runner_projects_split_value_blind_eligibility_classifications(
+    classification: str,
+) -> None:
+    summary = r12_tool._eligibility_summary(
+        {
+            "status": "ineligible",
+            "classification": classification,
+            "cycle_number": 2,
+            "r12_claim_created": False,
+            "r12_idempotency_key_created": False,
+            "r12_attempt_consumed": False,
+        }
+    )
+
+    assert summary["classification"] == classification
+    assert summary["eligibility_cycle_number"] == 2
+    assert summary["artifact_created"] is False
+    assert summary["r12_attempt_consumed"] is False
+
+
+def test_r12_runner_rejects_legacy_combined_classification_as_new_result() -> None:
+    with pytest.raises(r12_tool.FuturesPreviewR12RunnerError, match="invalid"):
+        r12_tool._eligibility_summary(
+            {
+                "status": "ineligible",
+                "classification": (
+                    "product_or_market_or_position_ineligible"
+                ),
+                "cycle_number": 2,
+                "r12_claim_created": False,
+                "r12_idempotency_key_created": False,
+                "r12_attempt_consumed": False,
+            }
+        )
+
+
 def test_r12_source_release_is_closed_and_blocks_before_any_factory(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

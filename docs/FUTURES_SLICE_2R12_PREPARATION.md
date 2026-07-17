@@ -129,10 +129,15 @@ The ledger provides these fail-closed properties:
 The only successful eligibility classification is `exact_v3_eligible`.
 Fail-closed completion classifications are fixed to
 `permission_or_portfolio_ineligible`,
-`product_or_market_or_position_ineligible`,
+`product_contract_ineligible`, `market_book_ineligible`,
+`position_exposure_ineligible`, `candidate_caps_ineligible`,
 `margin_collateral_ineligible`, `read_outcome_unknown`, and
 `internal_validation_blocked`. They contain no external exception text or raw
-values.
+values. The earlier `product_or_market_or_position_ineligible` umbrella remains
+accepted only so an already durable pre-remediation completion row stays
+readable; new candidate-validation failures map exact internal reason constants
+to one of the four fixed boundaries above. Unknown or nonconstant exception
+shapes collapse to `internal_validation_blocked` without persisting their text.
 
 ### Nine Authenticated GETs Across Six Categories
 

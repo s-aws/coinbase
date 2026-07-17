@@ -17,6 +17,7 @@ import api.v1.routes.futures as futures_routes
 import application.admin_api.futures_order_preview_r12 as r12_module
 from application.admin_api.futures_order_preview import (
     FUTURES_PREVIEW_PRODUCT_ID,
+    canonical_json,
     canonical_sha256,
 )
 from application.admin_api.futures_order_preview_r12 import (
@@ -589,6 +590,81 @@ class _ReadyDelegate(_Delegate):
         return self.attempt_delegate.preview_order(**kwargs)
 
 
+@pytest.mark.parametrize(
+    ("reason", "expected"),
+    [
+        ("futures_preview_product_identity_blocked", "product_contract_ineligible"),
+        ("futures_preview_avp_display_name_blocked", "product_contract_ineligible"),
+        ("futures_preview_product_type_blocked", "product_contract_ineligible"),
+        ("futures_preview_product_status_blocked", "product_contract_ineligible"),
+        ("futures_preview_product_trading_blocked", "product_contract_ineligible"),
+        (
+            "futures_preview_avp_perp_style_identity_blocked",
+            "product_contract_ineligible",
+        ),
+        ("futures_preview_contract_size_invalid", "product_contract_ineligible"),
+        ("futures_preview_avp_contract_size_blocked", "product_contract_ineligible"),
+        ("futures_preview_product_price_invalid", "product_contract_ineligible"),
+        ("futures_preview_price_increment_invalid", "product_contract_ineligible"),
+        ("futures_preview_base_increment_invalid", "product_contract_ineligible"),
+        ("futures_preview_base_min_size_invalid", "product_contract_ineligible"),
+        ("futures_preview_one_contract_rule_blocked", "product_contract_ineligible"),
+        ("futures_preview_pricebook_missing", "market_book_ineligible"),
+        ("futures_preview_pricebook_ambiguous", "market_book_ineligible"),
+        ("futures_preview_market_time_missing", "market_book_ineligible"),
+        ("futures_preview_market_time_invalid", "market_book_ineligible"),
+        ("futures_preview_market_time_unzoned", "market_book_ineligible"),
+        ("futures_preview_market_stale", "market_book_ineligible"),
+        ("futures_preview_bids_missing", "market_book_ineligible"),
+        ("futures_preview_bids_price_invalid", "market_book_ineligible"),
+        ("futures_preview_asks_missing", "market_book_ineligible"),
+        ("futures_preview_asks_price_invalid", "market_book_ineligible"),
+        ("futures_preview_crossed_or_ambiguous_book", "market_book_ineligible"),
+        ("futures_preview_best_bid_tick_misaligned", "market_book_ineligible"),
+        ("futures_preview_limit_tick_blocked", "market_book_ineligible"),
+        ("futures_preview_positions_ambiguous", "position_exposure_ineligible"),
+        ("futures_preview_position_contracts_invalid", "position_exposure_ineligible"),
+        (
+            "futures_preview_existing_product_exposure_blocked",
+            "position_exposure_ineligible",
+        ),
+        ("futures_preview_opening_cap_blocked", "candidate_caps_ineligible"),
+        ("futures_preview_exposure_cap_blocked", "candidate_caps_ineligible"),
+        ("futures_preview_buffered_close_cap_blocked", "candidate_caps_ineligible"),
+        ("futures_preview_turnover_cap_blocked", "candidate_caps_ineligible"),
+    ],
+)
+def test_r12_candidate_reason_classifier_is_exhaustive_and_value_blind(
+    reason: str,
+    expected: str,
+) -> None:
+    assert r12_module._candidate_failure_classification(ValueError(reason)) == (
+        expected
+    )
+
+
+class _DerivedCandidateValueError(ValueError):
+    pass
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        RuntimeError("futures_preview_opening_cap_blocked"),
+        _DerivedCandidateValueError("futures_preview_opening_cap_blocked"),
+        ValueError("futures_preview_opening_cap_blocked", "second"),
+        ValueError(123),
+        ValueError("withheld-private-exception-text"),
+    ],
+)
+def test_r12_candidate_reason_classifier_rejects_unknown_shapes(
+    error: BaseException,
+) -> None:
+    assert r12_module._candidate_failure_classification(error) == (
+        "internal_validation_blocked"
+    )
+
+
 def test_r12_eligibility_workflow_reserves_before_reads_and_returns_safe_success(
     tmp_path: Path,
 ) -> None:
@@ -634,6 +710,198 @@ def test_r12_eligibility_workflow_reserves_before_reads_and_returns_safe_success
     assert "df4a5e3e-a227-4eb2-9980-1c6d2d2a7a34" not in serialized
     assert len(serialized.splitlines()) == 2
     assert not (tmp_path / "futures_exact_no_live_preview_slice_2r12.jsonl").exists()
+
+
+@pytest.mark.parametrize(
+    ("boundary", "expected_classification"),
+    [
+        ("product", "product_contract_ineligible"),
+        ("market", "market_book_ineligible"),
+        ("position", "position_exposure_ineligible"),
+        ("caps", "candidate_caps_ineligible"),
+    ],
+)
+def test_r12_eligibility_localizes_candidate_failure_without_values(
+    tmp_path: Path,
+    boundary: str,
+    expected_classification: str,
+) -> None:
+    path = tmp_path / "eligibility.jsonl"
+    delegate = _ReadyDelegate(store_path=path)
+    if boundary in {"product", "caps"}:
+        product = _product()
+        if boundary == "product":
+            product["status"] = "offline-private-value"
+        else:
+            product["price"] = "10"
+
+        def get_product_dict(product_id: str) -> dict[str, object]:
+            assert product_id == FUTURES_PREVIEW_PRODUCT_ID
+            delegate.calls.append("get_product_dict")
+            return deepcopy(product)
+
+        delegate.get_product_dict = get_product_dict  # type: ignore[method-assign]
+    elif boundary == "market":
+        book = _book()
+        book["pricebooks"][0]["time"] = "2026-07-16T11:00:00Z"  # type: ignore[index]
+
+        def get_best_bid_ask(*, product_ids: list[str]) -> dict[str, object]:
+            assert product_ids == [FUTURES_PREVIEW_PRODUCT_ID]
+            delegate.calls.append("get_best_bid_ask")
+            return deepcopy(book)
+
+        delegate.get_best_bid_ask = get_best_bid_ask  # type: ignore[method-assign]
+    else:
+
+        def get_futures_positions() -> list[dict[str, object]]:
+            delegate.calls.append("get_futures_positions")
+            return [
+                {
+                    "product_id": FUTURES_PREVIEW_PRODUCT_ID,
+                    "number_of_contracts": "1",
+                }
+            ]
+
+        delegate.get_futures_positions = (  # type: ignore[method-assign]
+            get_futures_positions
+        )
+    workflow = FuturesPreviewR12EligibilityWorkflow(
+        store=FuturesPreviewR12EligibilityStore(path),
+        attempt_artifact_path=tmp_path / "attempt.jsonl",
+        rest_client_factory=lambda: delegate,
+        now=lambda: datetime(2026, 7, 16, 12, 0, tzinfo=timezone.utc),
+        correlation_id_factory=lambda: "62a5916c-d90c-440d-873e-dc4399ef1596",
+    )
+
+    result = workflow.run_cycle()
+
+    assert result["status"] == "ineligible"
+    assert result["classification"] == expected_classification
+    serialized = path.read_text(encoding="utf-8")
+    assert expected_classification in serialized
+    assert "offline-private-value" not in serialized
+    assert result["r12_claim_created"] is False
+    assert result["r12_idempotency_key_created"] is False
+    assert result["r12_attempt_consumed"] is False
+    assert not (tmp_path / "attempt.jsonl").exists()
+
+
+def test_r12_eligibility_unknown_candidate_reason_is_value_blind(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "eligibility.jsonl"
+    delegate = _ReadyDelegate(store_path=path)
+    monkeypatch.setattr(
+        r12_module,
+        "build_futures_order_preview_candidate",
+        lambda **_kwargs: (_ for _ in ()).throw(
+            ValueError("withheld-private-exception-text")
+        ),
+    )
+    workflow = FuturesPreviewR12EligibilityWorkflow(
+        store=FuturesPreviewR12EligibilityStore(path),
+        attempt_artifact_path=tmp_path / "attempt.jsonl",
+        rest_client_factory=lambda: delegate,
+        now=lambda: datetime(2026, 7, 16, 12, 0, tzinfo=timezone.utc),
+        correlation_id_factory=lambda: "7e9bb51a-bb6c-4c0e-b57b-4f9f6af4ef21",
+    )
+
+    result = workflow.run_cycle()
+
+    assert result["status"] == "ineligible"
+    assert result["classification"] == "internal_validation_blocked"
+    assert "withheld-private-exception-text" not in repr(result)
+    assert "withheld-private-exception-text" not in path.read_text(
+        encoding="utf-8"
+    )
+    assert result["r12_attempt_consumed"] is False
+    assert not (tmp_path / "attempt.jsonl").exists()
+
+
+def test_r12_request_construction_cannot_reuse_candidate_classification(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "eligibility.jsonl"
+    delegate = _ReadyDelegate(store_path=path)
+    monkeypatch.setattr(
+        r12_module,
+        "_preview_request",
+        lambda _candidate: (_ for _ in ()).throw(
+            ValueError("futures_preview_opening_cap_blocked")
+        ),
+    )
+    workflow = FuturesPreviewR12EligibilityWorkflow(
+        store=FuturesPreviewR12EligibilityStore(path),
+        attempt_artifact_path=tmp_path / "attempt.jsonl",
+        rest_client_factory=lambda: delegate,
+        now=lambda: datetime(2026, 7, 16, 12, 0, tzinfo=timezone.utc),
+        correlation_id_factory=lambda: "f6064f83-a4b7-40ec-a812-cf23e20b3011",
+    )
+
+    result = workflow.run_cycle()
+
+    assert result["status"] == "ineligible"
+    assert result["classification"] == "internal_validation_blocked"
+    assert result["r12_attempt_consumed"] is False
+    assert not (tmp_path / "attempt.jsonl").exists()
+
+
+def test_r12_legacy_combined_failure_remains_readable_for_next_cycle(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "eligibility.jsonl"
+    store = FuturesPreviewR12EligibilityStore(path)
+    started = store.begin_cycle(
+        correlation_id="106eb77f-a3a7-41d8-8fac-01d1c5a2108a",
+        started_at=datetime(2026, 7, 16, 12, 0, tzinfo=timezone.utc),
+    )
+    attempts = {
+        category: 1 for category in r12_module._ELIGIBILITY_CATEGORIES
+    }
+    with pytest.raises(FuturesPreviewR12EligibilityError, match="invalid"):
+        store.complete_cycle(
+            cycle_number=started["cycle_number"],
+            completed_at=datetime(
+                2026, 7, 16, 12, 0, 1, tzinfo=timezone.utc
+            ),
+            outcome="ineligible",
+            classification="product_or_market_or_position_ineligible",
+            call_attempts=attempts,
+            eligibility_evidence_sha256=None,
+        )
+    legacy_completion = {
+        "schema_version": "1",
+        "record_type": "eligibility_cycle_completed",
+        "cycle_number": 1,
+        "started_record_sha256": started["record_sha256"],
+        "completed_at": "2026-07-16T12:00:01Z",
+        "outcome": "ineligible",
+        "classification": "product_or_market_or_position_ineligible",
+        "call_attempts": attempts,
+        "margin_source_read_limits": dict(
+            FUTURES_PREVIEW_R12_ELIGIBILITY_MARGIN_SOURCE_READS
+        ),
+        "eligibility_evidence_sha256": None,
+        "r12_claim_created": False,
+        "r12_idempotency_key_created": False,
+        "r12_attempt_consumed": False,
+        "raw_response_included": False,
+        "external_exception_text_included": False,
+        "private_identifier_values_included": False,
+        "previous_record_sha256": started["record_sha256"],
+    }
+    legacy_completion["record_sha256"] = canonical_sha256(legacy_completion)
+    with path.open("a", encoding="utf-8") as ledger:
+        ledger.write(canonical_json(legacy_completion) + "\n")
+
+    assert FuturesPreviewR12EligibilityStore(path).cycle_count == 1
+    second = store.begin_cycle(
+        correlation_id="4b65040c-e038-460a-bc46-7abdfd0eb093",
+        started_at=datetime(2026, 7, 16, 12, 1, tzinfo=timezone.utc),
+    )
+    assert second["cycle_number"] == 2
 
 
 def test_r12_eligibility_workflow_fails_closed_without_claim_on_nonexact_v3(

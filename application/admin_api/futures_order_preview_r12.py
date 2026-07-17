@@ -173,16 +173,101 @@ _COMPLETION_CLASSIFICATIONS = frozenset(
     {
         "exact_v3_eligible",
         "permission_or_portfolio_ineligible",
-        "product_or_market_or_position_ineligible",
+        "product_contract_ineligible",
+        "market_book_ineligible",
+        "position_exposure_ineligible",
+        "candidate_caps_ineligible",
         "margin_collateral_ineligible",
         "read_outcome_unknown",
         "internal_validation_blocked",
+    }
+)
+_PERSISTED_COMPLETION_CLASSIFICATIONS = _COMPLETION_CLASSIFICATIONS | {
+    "product_or_market_or_position_ineligible"
+}
+_CANDIDATE_FAILURE_CLASSIFICATIONS = MappingProxyType(
+    {
+        "futures_preview_product_identity_blocked": (
+            "product_contract_ineligible"
+        ),
+        "futures_preview_avp_display_name_blocked": (
+            "product_contract_ineligible"
+        ),
+        "futures_preview_product_type_blocked": "product_contract_ineligible",
+        "futures_preview_product_status_blocked": (
+            "product_contract_ineligible"
+        ),
+        "futures_preview_product_trading_blocked": (
+            "product_contract_ineligible"
+        ),
+        "futures_preview_avp_perp_style_identity_blocked": (
+            "product_contract_ineligible"
+        ),
+        "futures_preview_contract_size_invalid": "product_contract_ineligible",
+        "futures_preview_avp_contract_size_blocked": (
+            "product_contract_ineligible"
+        ),
+        "futures_preview_product_price_invalid": "product_contract_ineligible",
+        "futures_preview_price_increment_invalid": (
+            "product_contract_ineligible"
+        ),
+        "futures_preview_base_increment_invalid": (
+            "product_contract_ineligible"
+        ),
+        "futures_preview_base_min_size_invalid": (
+            "product_contract_ineligible"
+        ),
+        "futures_preview_one_contract_rule_blocked": (
+            "product_contract_ineligible"
+        ),
+        "futures_preview_pricebook_missing": "market_book_ineligible",
+        "futures_preview_pricebook_ambiguous": "market_book_ineligible",
+        "futures_preview_market_time_missing": "market_book_ineligible",
+        "futures_preview_market_time_invalid": "market_book_ineligible",
+        "futures_preview_market_time_unzoned": "market_book_ineligible",
+        "futures_preview_market_stale": "market_book_ineligible",
+        "futures_preview_bids_missing": "market_book_ineligible",
+        "futures_preview_asks_missing": "market_book_ineligible",
+        "futures_preview_bids_price_invalid": "market_book_ineligible",
+        "futures_preview_asks_price_invalid": "market_book_ineligible",
+        "futures_preview_crossed_or_ambiguous_book": (
+            "market_book_ineligible"
+        ),
+        "futures_preview_best_bid_tick_misaligned": "market_book_ineligible",
+        "futures_preview_limit_tick_blocked": "market_book_ineligible",
+        "futures_preview_positions_ambiguous": "position_exposure_ineligible",
+        "futures_preview_position_contracts_invalid": (
+            "position_exposure_ineligible"
+        ),
+        "futures_preview_existing_product_exposure_blocked": (
+            "position_exposure_ineligible"
+        ),
+        "futures_preview_opening_cap_blocked": "candidate_caps_ineligible",
+        "futures_preview_exposure_cap_blocked": "candidate_caps_ineligible",
+        "futures_preview_buffered_close_cap_blocked": (
+            "candidate_caps_ineligible"
+        ),
+        "futures_preview_turnover_cap_blocked": "candidate_caps_ineligible",
     }
 )
 
 
 class FuturesPreviewR12EligibilityError(ValueError):
     """Fixed, value-blind failure at the R12 non-attempt boundary."""
+
+
+def _candidate_failure_classification(error: BaseException) -> str:
+    """Map only exact internal reason constants to value-blind boundaries."""
+
+    if type(error) is not ValueError or len(error.args) != 1:
+        return "internal_validation_blocked"
+    reason = error.args[0]
+    if type(reason) is not str:
+        return "internal_validation_blocked"
+    return _CANDIDATE_FAILURE_CLASSIFICATIONS.get(
+        reason,
+        "internal_validation_blocked",
+    )
 
 
 _R12_CLAIM_STAGING_MAX_BYTES = 256 * 1024
@@ -2067,7 +2152,8 @@ class FuturesPreviewR12EligibilityStore:
                         > FUTURES_PREVIEW_R12_ELIGIBILITY_MAX_CYCLE_AGE_SECONDS
                     )
                     or outcome not in {"eligible", "ineligible", "unknown"}
-                    or classification not in _COMPLETION_CLASSIFICATIONS
+                    or classification
+                    not in _PERSISTED_COMPLETION_CLASSIFICATIONS
                     or not self._valid_completion_pair(outcome, classification)
                     or not isinstance(attempts, dict)
                     or set(attempts) != set(_ELIGIBILITY_CATEGORIES)
@@ -2218,6 +2304,10 @@ class FuturesPreviewR12EligibilityStore:
         return classification in {
             "permission_or_portfolio_ineligible",
             "product_or_market_or_position_ineligible",
+            "product_contract_ineligible",
+            "market_book_ineligible",
+            "position_exposure_ineligible",
+            "candidate_caps_ineligible",
             "margin_collateral_ineligible",
             "internal_validation_blocked",
         }
@@ -2404,15 +2494,22 @@ class FuturesPreviewR12EligibilityWorkflow:
                     positions=positions,
                     observed_at=observed_at,
                 )
+            except Exception as exc:
+                return self._complete_failure(
+                    cycle_number=cycle_number,
+                    correlation_sha256=correlation_sha256,
+                    outcome="ineligible",
+                    classification=_candidate_failure_classification(exc),
+                    call_attempts=client.call_attempts,
+                )
+            try:
                 preview_request = _preview_request(candidate)
             except Exception:
                 return self._complete_failure(
                     cycle_number=cycle_number,
                     correlation_sha256=correlation_sha256,
                     outcome="ineligible",
-                    classification=(
-                        "product_or_market_or_position_ineligible"
-                    ),
+                    classification="internal_validation_blocked",
                     call_attempts=client.call_attempts,
                 )
 
