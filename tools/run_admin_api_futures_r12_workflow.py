@@ -52,7 +52,7 @@ from tools import (  # noqa: E402
 
 # Deliberately source-bound.  Environment variables and CLI flags cannot
 # activate it.  A later audited release must change this exact source value.
-R12_RELEASE_READY: Final[bool] = False
+R12_RELEASE_READY: Final[bool] = True
 
 _R12_ARTIFACT_NAME = "futures_exact_no_live_preview_slice_2r12.jsonl"
 _R12_ELIGIBILITY_NAME = (
