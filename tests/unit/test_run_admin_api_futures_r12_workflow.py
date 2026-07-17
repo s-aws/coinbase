@@ -418,21 +418,20 @@ def test_r12_runner_rejects_legacy_combined_classification_as_new_result() -> No
         )
 
 
-def test_r12_source_release_is_open_and_false_override_blocks_before_any_factory(
+def test_r12_source_release_is_closed_and_blocks_before_any_factory(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     events: list[str] = []
 
-    assert r12_tool.R12_RELEASE_READY is True
-
-    monkeypatch.setattr(r12_tool, "R12_RELEASE_READY", False)
+    assert r12_tool.R12_RELEASE_READY is False
 
     monkeypatch.setattr(
         r12_tool,
         "_recover_existing_attempt",
         lambda _workflow: events.append("recovery") or None,
     )
+    monkeypatch.setattr(r12_tool, "_artifact_present", lambda: False)
     monkeypatch.setattr(
         r12_tool,
         "validate_production_futures_order_preview_r12_predecessor",
