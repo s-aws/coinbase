@@ -11,22 +11,24 @@ individual analysis or implementation note does not become current work merely
 because it lives in this directory.
 
 Goal `futures_preview_acceptance_recovery_r12` is
-`prepared_release_disabled` with alignment
+`complete_terminal_unknown_consumed` with alignment
 `r12_separate_eligibility_and_single_use_attempt_v1`. Its source-bound
-`R12_RELEASE_READY` gate remains `False`. Current work is limited to no-live
-focused validation, local deployment validation, independent safety audit, and
-blind contextless audit. Cycle 1 used nine authorized GETs and failed closed
-before claim; the current preparation creates no additional eligibility read,
-R12 claim, idempotency key, or Preview attempt. R12 remains unconsumed with nine
-eligibility cycles available.
+`R12_RELEASE_READY` gate is `False`. Eligibility cycle 2 completed
+`exact_v3_eligible`, created the one durable claim, and left claim-only
+evidence. Offline claim recovery appended
+`claim_only_recovery_unknown_consumed` with no client or factory. The generic
+Preview-attempt counter is conservative: its consumed value `1` does not prove
+network reach, which remains unknown. No further Coinbase call is permitted.
 
-The prepared workflow separates at most ten durably counted non-attempt
-eligibility refreshes from the single-use attempt. A complete refresh permits
-only nine authenticated GETs across six fixed categories, excludes Futures
-sweeps, and retains the exact V3 pair, `AVP-20DEC30-CDE`, one contract, and
-strict `<100 / <150 / <300 USDC` caps. Only a fresh exact-V3 success plus all
-validation and audits can reach one durable claim and at most one Preview.
-Retries, fallbacks, redirects, submissions, and exchange mutations remain zero.
+Two of the at most ten durably counted non-attempt eligibility refreshes ran.
+Each complete refresh used exactly nine authenticated GETs across six fixed
+categories, excluded Futures sweeps, and retained the exact V3 pair,
+`AVP-20DEC30-CDE`, one contract, and strict `<100 / <150 / <300 USDC` caps.
+The fractional external market timestamp mismatch was remediated without
+changing the policy or call boundary. Retries, fallbacks, redirects,
+submissions, exchange mutations, orders, and submitted/executed notional remain
+zero. Next action:
+`await_operator_authorization_for_operator_attach_single_follow_up_intent`.
 See `../docs/FUTURES_SLICE_2R12_PREPARATION.md`.
 
 Historical goal `futures_preview_acceptance_recovery_r11` is complete with
@@ -45,8 +47,8 @@ its evidence SHA-256 is
 `548bbb02709c70dc320219bc15520b40ed948309ad09ec0f8af8f812d63bedea`.
 R11 itself grants no retry, independent successor authority, or Slice 3,
 Slice 4, or Slice 5 activation. Its historical default action was
-`stop_and_await_operator_direction`. R12 now exists only under the separate
-prepared, source-disabled boundary above; it grants no Slice 3/4/5 activation.
+`stop_and_await_operator_direction`. R12 is governed by the completed terminal,
+source-disabled boundary above; it grants no Slice 3/4/5 activation.
 
 Historically, goal
 `futures_post_r10_preview_compatibility_and_direction_selection` completed the

@@ -4,95 +4,64 @@ Goal ID: `futures_preview_acceptance_recovery_r12`
 
 Last reviewed: 2026-07-17 UTC.
 
-Status: `prepared_release_disabled`.
+Status: `complete_terminal_unknown_consumed`.
 
-Readiness: eligibility cycle 1 completed ineligible before claim after exactly
-nine authorized GETs. The source gate is closed while its value-blind
-diagnostic split, validation, and independent audits complete. No further
-eligibility read, claim, or Preview is implied.
+Readiness: terminal closeout complete. Eligibility cycle 2 completed
+`exact_v3_eligible`, the one durable claim was created and consumed, and
+offline claim recovery appended terminal blocker
+`claim_only_recovery_unknown_consumed` without a Coinbase client or factory.
+The source gate is closed and no further Coinbase call is permitted.
 
 Machine alignment: `r12_separate_eligibility_and_single_use_attempt_v1`.
-Slice status: `prepared_release_disabled`. Default action:
-`complete_no_live_validation_and_independent_audits`.
+Slice status: `complete_terminal_unknown_consumed`. Work mode:
+`r12_terminal_unknown_consumed_offline_closeout_complete`. Default action:
+`await_operator_authorization_for_operator_attach_single_follow_up_intent`.
 
 The canonical cross-repository authority is
 `/home/developer/coinbase/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. This
 backend copy records the behavior-owner interpretation and must remain aligned
 with it.
 
-## Current Slice 2R12 Prepared Release-Disabled Workflow
+## Completed Slice 2R12 Terminal Workflow
 
-Slice 2R12 is authorized as one bounded successor workflow with eligibility and
-attempt phases kept structurally separate. The production runner remains
-source-bound to `R12_RELEASE_READY=False`; no environment variable or CLI flag
-can activate it. Do not claim final readiness until focused validation, local
-deployment validation, independent safety audit, and blind contextless audit
-all pass against the final bytes.
+Slice 2R12 kept eligibility and attempt phases structurally separate. Two of
+the authorized at most ten state-refresh cycles were durably counted. Each
+complete cycle used six categories at most once and exactly nine authenticated
+GETs, with Futures sweeps and every other endpoint excluded. Cycle 1 completed
+the legacy-readable pre-claim ineligible class without a claim. Cycle 2
+completed `exact_v3_eligible` under the unchanged V3 pair,
+`AVP-20DEC30-CDE`, one contract, and strict `<100 / <150 / <300 USDC` caps.
 
-One reviewed release enabled eligibility cycle 1. It durably consumed one of
-the ten non-attempt cycles and completed
-`product_or_market_or_position_ineligible` after all six categories and nine
-authenticated GETs. It created no R12 idempotency key or claim and invoked no
-Preview or mutation, so R12 remains unconsumed. The source gate was closed
-before remediation; nine eligibility cycles remain.
+Before cycle 2, the fractional external market timestamp mismatch was
+remediated: external market evidence accepts canonical whole seconds or
+exactly six fractional digits, internal timestamp contracts remain
+whole-second, and the fixed skew window is unchanged. No endpoint, read count,
+policy, product, contract count, cap, retry, or mutation authority changed.
 
-The remediation maps exact built-in candidate failure constants to
-`product_contract_ineligible`, `market_book_ineligible`,
-`position_exposure_ineligible`, or `candidate_caps_ineligible`. Unknown
-exception shapes and request-construction failures remain
-`internal_validation_blocked`. The cycle-1 umbrella classification is
-legacy-readable only and cannot be emitted as a new result. No endpoint, call
-count, product, contract count, V3 policy, cap, claim, Preview, retry, or
-mutation authority changed.
+Cycle 2 created and consumed the one durable R12 claim. The run left claim-only
+evidence. Offline claim recovery appended
+`claim_only_recovery_unknown_consumed` without constructing a Coinbase client
+or factory. The generic Preview-attempt counter is conservative: `1` records
+the consumed post-claim attempt boundary but does not prove network reach.
+Preview network reach is unknown, so this record does not claim Preview
+definitely ran. Retry, fallback, redirect, Create, Cancel, Close, Reduce,
+submission, other exchange-mutation, order, and submitted/executed-notional
+counts are zero.
 
-The eligibility phase has a distinct owner-only hash-chained ledger and may
-durably count at most ten state-refresh cycles. Each cycle has a separate
-non-attempt correlation and may invoke each of six categories at most once:
-API-key permissions, portfolio catalog, product, best bid/ask, Futures
-positions, and Futures margin/collateral. The last category is exactly one
-balance-summary read, one intraday-margin-setting read, and two current-window
-reads for the fixed official profiles. A complete cycle therefore has nine
-authenticated GETs. Futures sweeps and every other endpoint are excluded.
+The production runner is source-bound to `R12_RELEASE_READY=False`; no
+environment variable or CLI flag can activate it. Startup recovery runs before
+that gate, uses no client or factory, and returns the strict sanitized terminal
+without another Coinbase call. All evidence and diagnostics remain fixed,
+sanitized, and value-blind. Raw responses, secrets, private identifiers, raw
+Preview identifiers, and withheld exception text are never persisted or
+exposed. Existing evidence bytes and documented hashes remain immutable, and
+restricted predecessor material remains inaccessible.
 
-Eligibility preserves the exact V3 operator-defined pair, the Default/`DEFAULT`
-portfolio binding, `AVP-20DEC30-CDE`, one contract, and strict
-`<100 / <150 / <300 USDC` caps. It uses exactly
-`coinbase-advanced-py==1.8.4`, one canonical cached Default delegate, zero
-transport retries, zero redirects, `trust_env=false`, and no proxy map. Each
-cycle may hydrate credentials through one fixed, closed-environment Secrets
-Manager `GetSecretValue` process with `AWS_MAX_ATTEMPTS=1`; that single-use
-lookup cannot be retried. The exact AWS CLI 2.35.24 executable, complete
-installation tree, symlink chain, CA bundle, and value-blind version output are
-verified before and after that process. The owner-only shared-credentials file
-identity is also compared across the process using metadata only; credential
-content is never read or logged by this binding check. An ineligible,
-incomplete, ambiguous, stale, or internally blocked cycle consumes only its
-eligibility-cycle budget; it creates no R12 claim or idempotency key and leaves
-R12 unconsumed.
-
-Only a fresh `exact_v3_eligible` completion under the still-active workflow
-lease can create the durable R12 claim. Claim creation begins and consumes the
-single-use attempt. After claim creation, no Coinbase read is allowed except at
-most one Preview call through that same delegate. Retries, fallbacks,
-redirects, Create, Cancel, Close, Reduce, submissions, and every other exchange
-mutation remain zero. An unknown post-claim outcome consumes R12 and cannot be
-retried.
-
-Startup recovery runs before the release gate or client factory and is
-serialized by the same workflow lease used for eligibility and the
-eligible-to-claim transition. A claim-only artifact is terminalized offline as
-unknown-consumed. Every R12 terminal is strict-validated by
-`AdminFuturesOrderPreviewR12Response` before the R12-specific store atomically
-replaces the mutable claim with its sealed claim-plus-result artifact and
-verifies readback. Recovery cannot race another refresh, claim transition, or
-terminal write and cannot call Coinbase.
-
-All evidence and diagnostics remain fixed, sanitized, and value-blind. Raw
-responses, secrets, private identifiers, raw Preview identifiers, and withheld
-exception text are never persisted or exposed. R1-R11 bytes and documented
-hashes remain immutable; the restricted predecessor's content and hash remain
-inaccessible. This authority grants no R13 attempt, second Preview, or Slice 3,
-Slice 4, or Slice 5 activation. The detailed boundary is
+R12 is terminally consumed and cannot be retried. No further eligibility read,
+Coinbase call, Preview attempt, R13 attempt, or Slice 3, Slice 4, or Slice 5
+activation is authorized. The next MVP is
+`operator_attach_single_follow_up_intent`, pending distinct operator
+authorization. The detailed boundary is
 `docs/FUTURES_SLICE_2R12_PREPARATION.md`.
 
 ## Historical Completed Slice 2R11 Successor Workflow
@@ -121,8 +90,7 @@ The immutable R11 file/evidence SHA-256 pair is
 `548bbb02709c70dc320219bc15520b40ed948309ad09ec0f8af8f812d63bedea`.
 While R12 is the active successor, default API/UI readback never selects or
 opens the historical R11 terminal. It binds directly to the fixed R12
-singleton and returns a fixed sanitized `503` until a strict R12 terminal is
-available.
+singleton and now returns the strict recovered R12 terminal.
 R1-R10 remain byte-for-byte unchanged, and R8 content/hash remain inaccessible.
 The runner is permanently tombstoned. Synthetic backend/frontend remediation
 now foregrounds the exact policy boundary without exposing raw responses,
@@ -131,8 +99,8 @@ restricted identifiers, secrets, private identifiers, or exception text.
 The R11 workflow and offline terminal diagnosis are complete. R11 grants no
 second R11 call, independent successor authority, Slice 3, Slice 4, or Slice 5
 activation, or other live authority. Its historical default next action was
-`stop_and_await_operator_direction`. R12 is governed only by the separate
-prepared, source-disabled workflow above.
+`stop_and_await_operator_direction`. R12 is governed by the completed terminal,
+source-disabled workflow above.
 Details are in `docs/FUTURES_SLICE_2R11_PREPARATION.md` and
 `docs/FUTURES_SLICE_2R11_TERMINAL_DIAGNOSIS.md`.
 
@@ -765,11 +733,10 @@ service/runtime. Evidence:
 
 Goal ID: `operator_attach_single_follow_up_intent`.
 
-This is the next MVP only after Slice 2R12 reaches terminal closeout. Before
-that boundary it is planning-only and must not interrupt, alter, release,
-consume, or broaden R12. It grants no implementation, schema or local-state
-mutation, Coinbase read or call, automatic trigger, child creation, Preview,
-Create, Cancel, Close, Reduce, R13, or other live authority.
+Slice 2R12 has reached terminal closeout, so this is the next MVP pending
+distinct operator authorization. This planning record grants no implementation,
+schema or local-state mutation, Coinbase read or call, automatic trigger, child
+creation, Preview, Create, Cancel, Close, Reduce, R13, or other live authority.
 
 The planned backend command lets an authorized human attach exactly one
 durable future follow-up intent to a system-owned source order identified by
@@ -804,24 +771,20 @@ or claim owner.
 
 ## Scope And Validation
 
-The active implementation slice is bounded R12 preparation under the hard
-source-disabled release gate. Current work is no-live focused validation,
-generated-contract and local-deployment validation, remediation, independent
-safety audit, and blind contextless audit. It does not create eligibility
-evidence, a claim, an idempotency key, or a Preview attempt. A safety defect
-involving authorization, duplicate prevention, caps, data loss, audit,
-reconciliation, rollback, privacy, or traceability may be remediated within
-that boundary without granting itself Coinbase-call authority.
+R12 terminal closeout is complete under the hard source-disabled release gate.
+The active work mode is
+`r12_terminal_unknown_consumed_offline_closeout_complete`; it grants no new
+eligibility evidence, claim, idempotency key, Preview attempt, or Coinbase
+call. The next action is
+`await_operator_authorization_for_operator_attach_single_follow_up_intent`.
 
 A candidate blocker cannot make itself in scope by generating evidence about the candidate blocker.
 
 The post-R10 compatibility goal, its historical recovery predecessor, and the
-Slice 2R11 workflow are complete. R11 is consumed, immutable, and terminally
-blocked at `remaining_margin_validation` before Preview. R12 is separately
-authorized only under its prepared, source-disabled eligibility/attempt
-boundary; final readiness has not been established. R13, Slice 3, Slice 4,
-Slice 5, and every unrelated successor remain unauthorized. The default action
-is `complete_no_live_validation_and_independent_audits`. Fan-out,
+Slice 2R11 and Slice 2R12 workflows are complete. R12 is consumed, immutable,
+and terminal unknown after offline claim-only recovery; no Preview network
+reach is asserted. R13, Slice 3, Slice 4, Slice 5, and every unrelated
+successor remain unauthorized. Fan-out,
 multi-product automation, schedulers, unattended loops, generic runtime/retry/
 recovery tightening, wallet-ledger expansion, ladders/grids, unrelated domain
 work, and broad cleanup remain parked.
@@ -838,11 +801,8 @@ Use focused tests for ordinary changes. Run full backend/frontend suites only
 at durable milestone, release/deployment, cross-repository closeout, after
 broad cross-cutting changes, or when explicitly requested.
 
-R7, R8, R9, R10, and R11 are terminal and their authorized offline
-diagnosis/remediation is complete; never invoke any of those runners again.
-R11 stopped before Preview after all six reads, and Slice 3 did not run. Current
-work is the separately authorized R12 prepared-release-disabled validation and
-audit boundary. Keep `R12_RELEASE_READY=False` until the final bytes pass all
-required gates. A second R12 call, R13 attempt, second R11 call, Slice 3/4/5
+All predecessor workflows through R12 are terminal and their authorized offline
+diagnosis/remediation is complete; never invoke any consumed runner again.
+Keep `R12_RELEASE_READY=False`. A second R12 call, R13 attempt, Slice 3/4/5
 activation, product/policy/cap change, unenumerated endpoint, or exchange
 mutation remains outside authority.

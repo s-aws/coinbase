@@ -89,20 +89,24 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     assert summary["historical_phase_range"] == "7961-7980"
     assert summary["historical_phase_count"] == 20
     assert summary["phase_range_status"] == "historical_not_work_authority"
-    assert summary["slice_status"] == "prepared_release_disabled"
-    assert summary["blockers"] == []
+    assert summary["slice_status"] == "complete_terminal_unknown_consumed"
+    assert summary["blockers"] == ["claim_only_recovery_unknown_consumed"]
     assert summary["default_next_action"] == (
-        "complete_no_live_validation_and_independent_audits"
+        "await_operator_authorization_for_operator_attach_single_follow_up_intent"
     )
-    assert summary["r12_workflow_claims_consumed"] == 0
-    assert summary["r12_claim_created"] is False
-    assert summary["r12_eligibility_cycles_consumed"] == 1
-    assert summary["r12_preview_attempts_consumed"] == 0
+    assert summary["r12_workflow_claims_consumed"] == 1
+    assert summary["r12_claim_created"] is True
+    assert summary["r12_eligibility_cycles_consumed"] == 2
+    assert summary["r12_preview_attempts_consumed"] == 1
     assert summary["r12_release_gate_ready"] is False
     assert summary["live_coinbase_eligibility_reads_ran"] is True
-    assert summary["live_coinbase_preview_ran"] is False
+    assert summary["live_coinbase_preview_ran"] is None
+    assert summary["live_coinbase_preview_outcome"] == "unknown_consumed"
     assert summary["live_coinbase_orders_ran"] is False
+    assert summary["live_coinbase_mutations_ran"] is False
     assert summary["live_order_notional_usdc"] == "0"
+    assert summary["submitted_notional_usdc"] == "0"
+    assert summary["executed_notional_usdc"] == "0"
     assert summary["historical_r11"] == {
         "status": "complete_terminal_no_retry",
         "workflow_claims_consumed": 1,
@@ -112,10 +116,10 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         "historical_successor_authorized": False,
     }
     assert summary["mvp_scope"] == {
-        "work_mode": "r12_cycle_1_ineligible_release_disabled_remediation",
+        "work_mode": "r12_terminal_unknown_consumed_offline_closeout_complete",
         "product_goal": (
-            "R12 cycle 1 ineligible before claim -> value-blind diagnostic "
-            "split -> release-disabled validation and audits."
+            "R12 cycle 2 exact V3 eligible -> durable single-use claim -> "
+            "offline claim-only recovery terminal unknown-consumed."
         ),
         "compatibility_result": (
             "official_wire_schema_and_project_acceptance_separated_"
@@ -129,26 +133,28 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         "phase_range_policy": "parked_unless_direct_current_slice_blocker",
         "current_vertical_slice": "futures_exact_no_live_preview_slice_2r12",
         "direct_blocker_rule": (
-            "r12_release_gate_false_until_validation_and_audits"
+            "r12_terminal_consumed_no_further_coinbase_calls"
         ),
         "scope_posture": (
             "r12_separate_eligibility_and_single_use_attempt_v1"
         ),
-        "operator_progress_wording": "cycle 1 ineligible; release disabled",
+        "operator_progress_wording": (
+            "R12 terminal unknown-consumed; offline closeout complete"
+        ),
         "focused_blast_radius_tests_required": True,
         "full_suite_at_durable_milestone_only": True,
         "active_work_policy": {
             "current_priority": (
-                "complete_no_live_validation_and_independent_audits"
+                "await_operator_authorization_for_operator_attach_single_follow_up_intent"
             ),
             "approved_phase_range_status": "historical_not_work_authority",
             "phase_range_work_allowed": False,
-            "slice_status": "prepared_release_disabled",
-            "blockers": [],
+            "slice_status": "complete_terminal_unknown_consumed",
+            "blockers": ["claim_only_recovery_unknown_consumed"],
             "default_next_action": (
-                "complete_no_live_validation_and_independent_audits"
+                "await_operator_authorization_for_operator_attach_single_follow_up_intent"
             ),
-            "ordered_successors": [],
+            "ordered_successors": ["operator_attach_single_follow_up_intent"],
             "allow_only_when_directly_blocks": [],
             "forbidden_default_actions": [
                 "complete_current_approved_range",
@@ -166,28 +172,34 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         "active_futures_slice": {
             "slice_id": "futures_exact_no_live_preview_slice_2r12",
             "recovery_id": "R12",
-            "status": "prepared_release_disabled",
+            "status": "complete_terminal_unknown_consumed",
             "policy": "V3",
             "product_id": "AVP-20DEC30-CDE",
             "contract_count": "1",
             "opening_reference_notional_under_usdc": "100.00",
             "exposure_and_buffered_close_under_usdc": "150.00",
             "branch_turnover_under_usdc": "300.00",
-            "workflow_claims_consumed": 0,
-            "claim_created": False,
+            "workflow_claims_consumed": 1,
+            "claim_created": True,
             "release_gate_ready": False,
             "eligibility_evidence_status": (
-                "cycle_1_ineligible_legacy_umbrella"
+                "cycle_2_exact_v3_eligible"
             ),
             "eligibility_cycles_authorized_max": 10,
-            "eligibility_cycles_consumed": 1,
+            "eligibility_cycles_consumed": 2,
             "eligibility_read_categories_per_cycle_max": 6,
             "eligibility_authenticated_gets_per_cycle_max": 9,
             "futures_sweep_reads_max": 0,
             "other_coinbase_endpoint_calls_max": 0,
             "authorized_coinbase_preview_attempts_max": 1,
-            "coinbase_preview_attempts_max": 0,
-            "coinbase_preview_attempts_consumed": 0,
+            "coinbase_preview_attempts_max": 1,
+            "coinbase_preview_attempts_consumed": 1,
+            "preview_attempt_counter_policy": (
+                "conservative_consumed_not_network_reach_proof"
+            ),
+            "preview_network_reach": "unknown",
+            "terminal_outcome": "unknown",
+            "terminal_blocker": "claim_only_recovery_unknown_consumed",
             "post_claim_non_preview_coinbase_calls_max": 0,
             "bounded_read_counts_per_cycle": {
                 "api_key_permissions": 1,
@@ -211,34 +223,47 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
             "diagnostic_policy": "fixed_value_blind_only",
             "unknown_outcome_policy": "consumes_r12_after_claim_no_retry",
             "retry_attempts_max": 0,
+            "retry_attempts_consumed": 0,
             "fallback_attempts_max": 0,
+            "fallback_attempts_consumed": 0,
             "redirect_attempts_max": 0,
+            "redirect_attempts_consumed": 0,
             "create_attempts_max": 0,
             "cancel_attempts_max": 0,
             "close_attempts_max": 0,
             "reduce_attempts_max": 0,
             "exchange_mutation_attempts_max": 0,
-            "successor_authority": "none_after_r12",
+            "exchange_mutation_attempts_consumed": 0,
+            "orders_submitted": 0,
+            "submitted_notional_usdc": "0",
+            "executed_notional_usdc": "0",
+            "successor_authority": "distinct_operator_authorization_required",
             "successor_authorized": False,
             "r13_attempt_allowed": False,
             "slice3_through_5_activation_allowed": False,
         },
         "terminal_futures_slice": {
-            "slice": "2R11",
-            "status": "complete_terminal_no_retry",
+            "slice": "2R12",
+            "status": "complete_terminal_unknown_consumed",
             "product_id": "AVP-20DEC30-CDE",
             "contract_count": "1",
             "opening_reference_notional_under_usdc": "100.00",
             "exposure_and_buffered_close_under_usdc": "150.00",
             "branch_turnover_under_usdc": "300.00",
-            "coinbase_preview_attempts_max": 0,
-            "coinbase_preview_attempts_observed": 0,
-            "r11_workflow_attempts_consumed": 1,
-            "authorized_recovery_preview_attempts_max": 0,
+            "eligibility_cycles_consumed": 2,
+            "eligibility_evidence_status": "cycle_2_exact_v3_eligible",
+            "coinbase_preview_attempts_max": 1,
+            "coinbase_preview_attempts_consumed": 1,
+            "preview_network_reach": "unknown",
+            "workflow_claims_consumed": 1,
+            "claim_created": True,
             "exchange_mutation_attempts_max": 0,
             "successor_authorized": False,
-            "terminal_before_preview": True,
-            "terminal_reason_code": "futures_preview_margin_windows_ambiguous",
+            "terminal": True,
+            "terminal_outcome": "unknown",
+            "terminal_reason_code": "claim_only_recovery_unknown_consumed",
+            "submitted_notional_usdc": "0",
+            "executed_notional_usdc": "0",
             "conditional_slice_3": {
                 "status": "not_run_terminally_inactive",
                 "exchange_mutation_attempts_max": 0,
@@ -272,8 +297,11 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
             "candidate blocker requires evidence generation unrelated to "
             "the current vertical slice"
         ),
-        "all ten eligibility cycles are exhausted with R12 unconsumed",
-        "R12 is terminal and its authorized offline closeout is complete",
+        "R12 is terminal; no further Coinbase call is permitted",
+        (
+            "operator_attach_single_follow_up_intent requires distinct "
+            "operator authorization before implementation"
+        ),
         (
             "proceeding would change the product, contract count, exact V3 "
             "policy, caps, enumerated read endpoints, or exchange-call limit"
@@ -285,11 +313,12 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     ]
     assert summary["required_gates"] == [
         "npm run mvp:goal:check",
-        "focused tests for the changed blast radius",
-        "local R12 deployment validation",
-        "independent R12 safety audit",
-        "blind-contextless R12 audit",
-        "reviewed source release gate before any eligibility or attempt call",
+        "focused tests for the R12 terminal closeout blast radius",
+        "R12_RELEASE_READY remains source-false",
+        "offline claim-only recovery creates no client or factory",
+        "independent R12 terminal safety audit",
+        "blind-contextless R12 terminal audit",
+        "distinct operator authorization before the queued successor MVP",
         "npm run release:gate only at durable milestone closeout",
         (
             "python3.13 tools/run_parallel_regression.py --workers 4 only at "
@@ -298,11 +327,16 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     ]
     assert summary["progress"] == {
         "goal_id": "futures_preview_acceptance_recovery_r12",
-        "slice_status": "prepared_release_disabled",
-        "live_coinbase_execution": "not_run",
-        "blockers": [],
-        "next_action": "complete_no_live_validation_and_independent_audits",
-        "operator_wording": "cycle 1 ineligible; release disabled",
+        "slice_status": "complete_terminal_unknown_consumed",
+        "work_mode": "r12_terminal_unknown_consumed_offline_closeout_complete",
+        "live_coinbase_execution": "unknown_preview_reach_no_order_execution",
+        "blockers": ["claim_only_recovery_unknown_consumed"],
+        "next_action": (
+            "await_operator_authorization_for_operator_attach_single_follow_up_intent"
+        ),
+        "operator_wording": (
+            "R12 terminal unknown-consumed; offline closeout complete"
+        ),
     }
     assert check_results["current_goal_alignment"]["passed"] is True
     assert check_results["slice_2r12_prepared_posture"]["passed"] is True
@@ -325,6 +359,68 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     assert check_results["github_workflows_retired"]["evidence"][
         "execution_authority"
     ] == "local_linux_docker"
+
+
+def test_autonomous_work_queue_check_reports_terminal_r12_without_inventing_preview_network_reach():
+    summary = build_autonomous_work_queue_summary()
+    active_slice = summary["standing_limits"]["active_futures_slice"]
+
+    assert summary["slice_status"] == "complete_terminal_unknown_consumed"
+    assert summary["blockers"] == ["claim_only_recovery_unknown_consumed"]
+    assert summary["default_next_action"] == (
+        "await_operator_authorization_for_operator_attach_single_follow_up_intent"
+    )
+    assert summary["r12_eligibility_cycles_consumed"] == 2
+    assert summary["r12_workflow_claims_consumed"] == 1
+    assert summary["r12_claim_created"] is True
+    assert summary["r12_preview_attempts_consumed"] == 1
+    assert summary["r12_release_gate_ready"] is False
+    assert summary["live_coinbase_eligibility_reads_ran"] is True
+    assert summary["live_coinbase_preview_ran"] is None
+    assert summary["live_coinbase_preview_outcome"] == "unknown_consumed"
+    assert summary["live_coinbase_orders_ran"] is False
+    assert summary["live_coinbase_mutations_ran"] is False
+    assert summary["live_order_notional_usdc"] == "0"
+    assert summary["submitted_notional_usdc"] == "0"
+    assert summary["executed_notional_usdc"] == "0"
+
+    assert active_slice["status"] == "complete_terminal_unknown_consumed"
+    assert active_slice["eligibility_evidence_status"] == (
+        "cycle_2_exact_v3_eligible"
+    )
+    assert active_slice["eligibility_cycles_consumed"] == 2
+    assert active_slice["workflow_claims_consumed"] == 1
+    assert active_slice["claim_created"] is True
+    assert active_slice["terminal_outcome"] == "unknown"
+    assert active_slice["terminal_blocker"] == (
+        "claim_only_recovery_unknown_consumed"
+    )
+    assert active_slice["coinbase_preview_attempts_consumed"] == 1
+    assert active_slice["preview_attempt_counter_policy"] == (
+        "conservative_consumed_not_network_reach_proof"
+    )
+    assert active_slice["preview_network_reach"] == "unknown"
+    assert active_slice["retry_attempts_consumed"] == 0
+    assert active_slice["fallback_attempts_consumed"] == 0
+    assert active_slice["redirect_attempts_consumed"] == 0
+    assert active_slice["exchange_mutation_attempts_consumed"] == 0
+    assert active_slice["orders_submitted"] == 0
+    assert active_slice["submitted_notional_usdc"] == "0"
+    assert active_slice["executed_notional_usdc"] == "0"
+
+    assert summary["progress"] == {
+        "goal_id": "futures_preview_acceptance_recovery_r12",
+        "slice_status": "complete_terminal_unknown_consumed",
+        "work_mode": "r12_terminal_unknown_consumed_offline_closeout_complete",
+        "live_coinbase_execution": "unknown_preview_reach_no_order_execution",
+        "blockers": ["claim_only_recovery_unknown_consumed"],
+        "next_action": (
+            "await_operator_authorization_for_operator_attach_single_follow_up_intent"
+        ),
+        "operator_wording": (
+            "R12 terminal unknown-consumed; offline closeout complete"
+        ),
+    }
 
 
 def test_post_r10_closeout_records_integration_invariants_and_gate_evidence():

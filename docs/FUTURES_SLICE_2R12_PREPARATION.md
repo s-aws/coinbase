@@ -1,44 +1,58 @@
-# Futures Slice 2R12 Preparation
+# Futures Slice 2R12 Preparation And Terminal Closeout
 
 Goal id: `futures_preview_acceptance_recovery_r12`
 
-Current action: `complete_no_live_validation_and_independent_audits`
+Current action:
+`await_operator_authorization_for_operator_attach_single_follow_up_intent`
 
-Status: `prepared_release_disabled`
+Status: `complete_terminal_unknown_consumed`
 
 Alignment token: `r12_separate_eligibility_and_single_use_attempt_v1`
 
 ## Current Posture
 
-Slice 2R12 has a prepared backend workflow. One reviewed release ran
-eligibility cycle 1, which used the six authorized categories and exactly nine
-authenticated GETs, completed
-`product_or_market_or_position_ineligible`, and stopped before any R12
-idempotency key, claim, or Preview. R12 remains unconsumed and nine eligibility
-cycles remain. Production Coinbase access is source-disabled again:
+Slice 2R12 is terminal unknown-consumed. Eligibility cycle 1 used all six
+authorized categories and exactly nine authenticated GETs, completed the
+legacy-readable pre-claim ineligible classification, and created no claim.
+After focused remediation, eligibility cycle 2 again used the bounded six
+categories and exactly nine GETs and completed `exact_v3_eligible`. Two durably
+counted cycles were consumed in total.
+
+The fractional external market timestamp mismatch was remediated before cycle
+2: the external market observation accepts only canonical whole seconds or
+exactly six fractional digits, while internal timestamps retain their existing
+whole-second contract and the fixed skew window remains unchanged. That
+compatibility correction did not change an endpoint, read count, V3 policy,
+product, contract count, cap, or mutation boundary.
+
+Cycle 2 created the one durable single-use R12 claim. The run left claim-only
+evidence, so offline claim recovery appended the strict terminal blocker
+`claim_only_recovery_unknown_consumed` without constructing a Coinbase client
+or factory. The generic Preview-attempt counter is conservative: it records the
+consumed post-claim attempt boundary as `1` but does not prove network reach.
+It is therefore incorrect to claim that Preview definitely ran; network reach
+is unknown. Retry, fallback, redirect, Create, Cancel, Close, Reduce,
+submission, other exchange-mutation, order, and submitted/executed-notional
+counts are zero.
+
+Production Coinbase access is source-disabled:
 `tools/run_admin_api_futures_r12_workflow.py` binds `R12_RELEASE_READY` to
 literal `False`; neither environment variables nor CLI arguments can activate
-it. The only CLI confirmation flag is not an activation mechanism.
-
-This preparation record grants no readiness conclusion. Before that literal
-can be changed in a separately reviewed release step, focused validation,
-local deployment validation, an independent safety audit, and a blind
-contextless audit must all pass against the final bytes. The diagnostic split
-and documentation changes perform no additional Coinbase call, state-refresh
-read, claim creation, or Preview attempt.
+it. R12 is consumed and terminal. No further Coinbase call, eligibility read,
+claim, Preview attempt, R13 attempt, or Slice 3/4/5 activation is permitted.
+The next MVP remains `operator_attach_single_follow_up_intent`, but it requires
+distinct operator authorization before implementation.
 
 The existing R1-R11 artifacts remain immutable. Their bytes and documented
 hashes must not change. R8 remains a metadata-only restricted predecessor: its
 content and hash must not be read, recomputed, compared, copied, displayed, or
 logged.
 
-The default Admin API/UI Preview readback is R12-singleton-only while this
-successor is active. Its dependency constructs the fixed R12 store with latest
-historical selection disabled. Before a complete R12 terminal exists, including
-when R12 is absent or claim-only, the route returns one fixed sanitized `503`;
-it does not select, open, parse, model-validate, copy, or project R11 or any
-earlier artifact. A complete terminal is serialized only through the strict R12
-response model.
+The default Admin API/UI Preview readback remains R12-singleton-only. Its
+dependency constructs the fixed R12 store with latest historical selection
+disabled. The complete recovered terminal is serialized only through the
+strict R12 response model; readback does not select, open, parse,
+model-validate, copy, or project an earlier artifact.
 
 ## Cross-Layer Contract Hardening
 
@@ -335,9 +349,9 @@ The official endpoint documentation defines the wire endpoints and token
 allowlists. It does not define or authorize this project's V3 profile/state
 pair, caps, attempt count, or release decision.
 
-## Required Gate Before Any Toggle
+## Historical Release Gate And Current Tombstone
 
-The final prepared bytes must pass, at minimum:
+The prepared bytes were validated with, at minimum:
 
 ```bash
 pytest -q \
@@ -352,42 +366,35 @@ npm --prefix ../coinbase-frontend run test -- \
   tests/unit/FuturesOrderPreviewR12Readback.test.tsx
 ```
 
-The release review must also prove generated OpenAPI/client consistency,
+The release review also proved generated OpenAPI/client consistency,
 focused Admin API route/readback coverage, local deployment behavior, no-sweep
 accounting, source-disabled no-factory behavior, exact predecessor/path
 bindings, claim-only offline recovery, and zero retry/fallback/redirect/mutation
-posture. Independent safety and blind contextless auditors must review the same
-final bytes and return no unresolved finding.
+posture. Independent safety and blind contextless auditors reviewed the release
+bytes before cycle 2.
 
-Only then may a separate audited source change consider setting
-`R12_RELEASE_READY` to `True`. Authorization alone does not bypass this hard
-gate. Until that change is reviewed and validated, invoking the runner can only
-recover an existing local attempt artifact or return
-`futures_preview_r12_release_gate_inactive`; it cannot reach a Coinbase client
-factory.
+The terminal source binds `R12_RELEASE_READY` to `False`. Because the durable
+claim is consumed, no later review or authorization may toggle R12 back on.
+Invoking the runner can only return the validated terminal through startup
+recovery; recovery creates no client or factory and makes no Coinbase call.
 
 ## Post-Terminal Offline Closeout
 
-If R12 becomes terminal, the authorized workflow continues only with bounded
-offline diagnosis and remediation. That work may update fixed sanitized
+R12 became terminal and the authorized workflow continued only with bounded
+offline diagnosis and remediation. That work updated fixed sanitized
 classification, tests, backend models, generated contracts, frontend readback,
-and documentation, but it may not alter the immutable R1-R12 evidence or make
-another Coinbase call. It must not reconstruct a raw response, identifier,
-secret, or withheld exception. A future terminal-diagnosis document may be
-created only from the validated sanitized terminal after it exists.
+and documentation without altering immutable evidence or making another
+Coinbase call. It did not reconstruct a raw response, identifier, secret, or
+withheld exception.
 
-Offline closeout does not grant R13, a second Preview, or any exchange mutation.
+Offline closeout is complete and does not grant R13, a second Preview, or any
+exchange mutation.
 
 ## Stop Conditions
 
-The prepared workflow stops when any of these conditions applies:
-
-- R12 is terminal and its authorized offline closeout is complete;
-- ten eligibility state-refresh cycles are exhausted with R12 unconsumed;
-- proceeding would change the product, contract count, exact V3 policy, caps,
-  enumerated GET endpoints, or exchange-call limit;
-- a required validation or audit remains unresolved.
-
-This preparation grants no R13 attempt, no second R12 call, no Slice 3, Slice
-4, or Slice 5 activation, and no other live authority. Do not create an R12
-terminal-diagnosis document until R12 is actually terminal.
+The R12 workflow has stopped because it is terminal and its authorized offline
+closeout is complete. No further Coinbase call is permitted. Proceeding with
+`operator_attach_single_follow_up_intent`, changing the product, contract
+count, exact V3 policy, caps, endpoint set, exchange-call limit, or granting an
+R13 attempt or Slice 3, Slice 4, or Slice 5 activation requires distinct
+operator authorization.

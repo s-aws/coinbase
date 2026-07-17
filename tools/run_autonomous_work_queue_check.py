@@ -54,10 +54,16 @@ CLOSED_LOOPHOLE_RULE = (
     "A candidate blocker cannot make itself in scope by generating evidence "
     "about the candidate blocker."
 )
-SLICE_STATUS = "prepared_release_disabled"
-SLICE_BLOCKERS: tuple[str, ...] = ()
-DEFAULT_NEXT_ACTION = "complete_no_live_validation_and_independent_audits"
-OPERATOR_PROGRESS_WORDING = "cycle 1 ineligible; release disabled"
+SLICE_STATUS = "complete_terminal_unknown_consumed"
+SLICE_BLOCKERS: tuple[str, ...] = (
+    "claim_only_recovery_unknown_consumed",
+)
+DEFAULT_NEXT_ACTION = (
+    "await_operator_authorization_for_operator_attach_single_follow_up_intent"
+)
+OPERATOR_PROGRESS_WORDING = (
+    "R12 terminal unknown-consumed; offline closeout complete"
+)
 HISTORICAL_R11_STATUS = "complete_terminal_no_retry"
 HISTORICAL_R11_NEXT_ACTION = "stop_and_await_operator_direction"
 SUCCESSOR_MAPPING_INVARIANT = (
@@ -76,10 +82,10 @@ R7_TERMINAL_DIAGNOSTIC = (
     "sdk_returned__post_preview_value_error__before_acceptance"
 )
 MVP_SCOPE = {
-    "work_mode": "r12_cycle_1_ineligible_release_disabled_remediation",
+    "work_mode": "r12_terminal_unknown_consumed_offline_closeout_complete",
     "product_goal": (
-        "R12 cycle 1 ineligible before claim -> value-blind diagnostic "
-        "split -> release-disabled validation and audits."
+        "R12 cycle 2 exact V3 eligible -> durable single-use claim -> "
+        "offline claim-only recovery terminal unknown-consumed."
     ),
     "compatibility_result": POST_R10_COMPLETION_ALIGNMENT_TOKEN,
     "goal_authority": str(FRONTEND_GOAL_DOC),
@@ -88,7 +94,7 @@ MVP_SCOPE = {
     "phase_range_policy": "parked_unless_direct_current_slice_blocker",
     "current_vertical_slice": "futures_exact_no_live_preview_slice_2r12",
     "direct_blocker_rule": (
-        "r12_release_gate_false_until_validation_and_audits"
+        "r12_terminal_consumed_no_further_coinbase_calls"
     ),
     "scope_posture": R12_ALIGNMENT_TOKEN,
     "operator_progress_wording": OPERATOR_PROGRESS_WORDING,
@@ -101,7 +107,7 @@ MVP_SCOPE = {
         "slice_status": SLICE_STATUS,
         "blockers": list(SLICE_BLOCKERS),
         "default_next_action": DEFAULT_NEXT_ACTION,
-        "ordered_successors": [],
+        "ordered_successors": ["operator_attach_single_follow_up_intent"],
         "allow_only_when_directly_blocks": [],
         "forbidden_default_actions": [
             "complete_current_approved_range",
@@ -126,19 +132,25 @@ STANDING_LIMITS = {
         "opening_reference_notional_under_usdc": "100.00",
         "exposure_and_buffered_close_under_usdc": "150.00",
         "branch_turnover_under_usdc": "300.00",
-        "workflow_claims_consumed": 0,
-        "claim_created": False,
+        "workflow_claims_consumed": 1,
+        "claim_created": True,
         "release_gate_ready": False,
-        "eligibility_evidence_status": "cycle_1_ineligible_legacy_umbrella",
+        "eligibility_evidence_status": "cycle_2_exact_v3_eligible",
         "eligibility_cycles_authorized_max": 10,
-        "eligibility_cycles_consumed": 1,
+        "eligibility_cycles_consumed": 2,
         "eligibility_read_categories_per_cycle_max": 6,
         "eligibility_authenticated_gets_per_cycle_max": 9,
         "futures_sweep_reads_max": 0,
         "other_coinbase_endpoint_calls_max": 0,
         "authorized_coinbase_preview_attempts_max": 1,
-        "coinbase_preview_attempts_max": 0,
-        "coinbase_preview_attempts_consumed": 0,
+        "coinbase_preview_attempts_max": 1,
+        "coinbase_preview_attempts_consumed": 1,
+        "preview_attempt_counter_policy": (
+            "conservative_consumed_not_network_reach_proof"
+        ),
+        "preview_network_reach": "unknown",
+        "terminal_outcome": "unknown",
+        "terminal_blocker": "claim_only_recovery_unknown_consumed",
         "post_claim_non_preview_coinbase_calls_max": 0,
         "bounded_read_counts_per_cycle": {
             "api_key_permissions": 1,
@@ -162,34 +174,47 @@ STANDING_LIMITS = {
         "diagnostic_policy": "fixed_value_blind_only",
         "unknown_outcome_policy": "consumes_r12_after_claim_no_retry",
         "retry_attempts_max": 0,
+        "retry_attempts_consumed": 0,
         "fallback_attempts_max": 0,
+        "fallback_attempts_consumed": 0,
         "redirect_attempts_max": 0,
+        "redirect_attempts_consumed": 0,
         "create_attempts_max": 0,
         "cancel_attempts_max": 0,
         "close_attempts_max": 0,
         "reduce_attempts_max": 0,
         "exchange_mutation_attempts_max": 0,
-        "successor_authority": "none_after_r12",
+        "exchange_mutation_attempts_consumed": 0,
+        "orders_submitted": 0,
+        "submitted_notional_usdc": "0",
+        "executed_notional_usdc": "0",
+        "successor_authority": "distinct_operator_authorization_required",
         "successor_authorized": False,
         "r13_attempt_allowed": False,
         "slice3_through_5_activation_allowed": False,
     },
     "terminal_futures_slice": {
-        "slice": "2R11",
-        "status": HISTORICAL_R11_STATUS,
+        "slice": "2R12",
+        "status": SLICE_STATUS,
         "product_id": "AVP-20DEC30-CDE",
         "contract_count": "1",
         "opening_reference_notional_under_usdc": "100.00",
         "exposure_and_buffered_close_under_usdc": "150.00",
         "branch_turnover_under_usdc": "300.00",
-        "coinbase_preview_attempts_max": 0,
-        "coinbase_preview_attempts_observed": 0,
-        "r11_workflow_attempts_consumed": 1,
-        "authorized_recovery_preview_attempts_max": 0,
+        "eligibility_cycles_consumed": 2,
+        "eligibility_evidence_status": "cycle_2_exact_v3_eligible",
+        "coinbase_preview_attempts_max": 1,
+        "coinbase_preview_attempts_consumed": 1,
+        "preview_network_reach": "unknown",
+        "workflow_claims_consumed": 1,
+        "claim_created": True,
         "exchange_mutation_attempts_max": 0,
         "successor_authorized": False,
-        "terminal_before_preview": True,
-        "terminal_reason_code": "futures_preview_margin_windows_ambiguous",
+        "terminal": True,
+        "terminal_outcome": "unknown",
+        "terminal_reason_code": "claim_only_recovery_unknown_consumed",
+        "submitted_notional_usdc": "0",
+        "executed_notional_usdc": "0",
         "conditional_slice_3": {
             "status": "not_run_terminally_inactive",
             "exchange_mutation_attempts_max": 0,
@@ -223,8 +248,11 @@ REQUIRED_STOP_CONDITIONS = [
         "candidate blocker requires evidence generation unrelated to the "
         "current vertical slice"
     ),
-    "all ten eligibility cycles are exhausted with R12 unconsumed",
-    "R12 is terminal and its authorized offline closeout is complete",
+    "R12 is terminal; no further Coinbase call is permitted",
+    (
+        "operator_attach_single_follow_up_intent requires distinct operator "
+        "authorization before implementation"
+    ),
     (
         "proceeding would change the product, contract count, exact V3 policy, "
         "caps, enumerated read endpoints, or exchange-call limit"
@@ -236,11 +264,12 @@ REQUIRED_STOP_CONDITIONS = [
 ]
 REQUIRED_GATES = [
     "npm run mvp:goal:check",
-    "focused tests for the changed blast radius",
-    "local R12 deployment validation",
-    "independent R12 safety audit",
-    "blind-contextless R12 audit",
-    "reviewed source release gate before any eligibility or attempt call",
+    "focused tests for the R12 terminal closeout blast radius",
+    "R12_RELEASE_READY remains source-false",
+    "offline claim-only recovery creates no client or factory",
+    "independent R12 terminal safety audit",
+    "blind-contextless R12 terminal audit",
+    "distinct operator authorization before the queued successor MVP",
     "npm run release:gate only at durable milestone closeout",
     (
         "python3.13 tools/run_parallel_regression.py --workers 4 only at "
@@ -307,18 +336,17 @@ def _current_goal_alignment() -> QueueCheck:
             PREVIEW_ID_INVARIANT,
             SLICE_STATUS,
             "R12_RELEASE_READY=False",
-            "No further eligibility read, claim, or Preview is implied",
-            "at most ten state-refresh cycles",
-            "six categories at most once",
-            "nine authenticated GETs",
-            "no R12 claim or idempotency key",
-            "at most one Preview call",
-            "An unknown post-claim outcome consumes R12 and cannot be retried",
-            "no R13 attempt",
-            (
-                "second Preview, or Slice 3, Slice 4, or Slice 5 "
-                "activation"
-            ),
+            "Eligibility cycle 2",
+            "exact_v3_eligible",
+            "claim_only_recovery_unknown_consumed",
+            "generic Preview-attempt counter is conservative",
+            "does not prove network reach",
+            "offline claim recovery",
+            "no client or factory",
+            "no further Coinbase call",
+            "operator_attach_single_follow_up_intent",
+            "R13 attempt",
+            "Slice 3, Slice 4, or Slice 5 activation",
             "Use focused tests",
         ),
     )
@@ -333,23 +361,13 @@ def _current_goal_alignment() -> QueueCheck:
             R12_ALIGNMENT_TOKEN,
             SLICE_STATUS,
             "R12_RELEASE_READY = False",
-            (
-                "no further Coinbase call, state-refresh read, R12 claim "
-                "creation, or Preview attempt"
-            ),
-            "at most ten durably counted state-refresh cycles",
-            "six authorized read-only categories at most once",
-            "exactly nine authenticated GETs",
-            (
-                "must not create, reserve, persist, or consume an R12 claim "
-                "or R12 idempotency key"
-            ),
-            "at most one Coinbase Preview-only call",
-            (
-                "Any unknown outcome after claim creation consumes R12 and "
-                "cannot be retried"
-            ),
-            "no R13 attempt",
+            "eligibility cycle 2",
+            "exact_v3_eligible",
+            "claim_only_recovery_unknown_consumed",
+            "generic Preview-attempt counter is conservative",
+            "does not prove network reach",
+            "operator_attach_single_follow_up_intent",
+            "R13 attempt",
             "Focused tests are the default",
         ),
     )
@@ -370,6 +388,8 @@ def _slice_2r12_prepared_posture() -> QueueCheck:
             SLICE_STATUS,
             "R12_RELEASE_READY",
             "at most ten durably counted cycles",
+            "eligibility cycle 2",
+            "exact_v3_eligible",
             "six categories at most once",
             "exactly nine GETs",
             "INTRADAY_MARGIN_SETTING_INTRADAY",
@@ -384,13 +404,15 @@ def _slice_2r12_prepared_posture() -> QueueCheck:
             "tests/unit/test_admin_api_futures_order_preview_r12_concurrency.py",
             "tests/unit/test_admin_api_futures_order_preview_r12_persistence.py",
             "tests/unit/FuturesOrderPreviewR12Readback.test.tsx",
-            "R12 is terminal and its authorized offline closeout is complete",
-            "ten eligibility state-refresh cycles are exhausted",
-            "no R13 attempt",
-            (
-                "no second R12 call, no Slice 3, Slice 4, or Slice 5 "
-                "activation"
-            ),
+            "claim_only_recovery_unknown_consumed",
+            "generic Preview-attempt counter is conservative",
+            "does not prove network reach",
+            "offline claim recovery",
+            "no client or factory",
+            "No further Coinbase call",
+            "operator_attach_single_follow_up_intent",
+            "R13 attempt",
+            "Slice 3, Slice 4, or Slice 5 activation",
         ),
     )
     backend = _contains_all(
@@ -401,10 +423,12 @@ def _slice_2r12_prepared_posture() -> QueueCheck:
             SLICE_STATUS,
             DEFAULT_NEXT_ACTION,
             "R12_RELEASE_READY=False",
-            "at most ten state-refresh cycles",
-            "nine authenticated GETs",
-            "at most one Preview call",
-            "no R13 attempt",
+            "Eligibility cycle 2",
+            "exact_v3_eligible",
+            "claim_only_recovery_unknown_consumed",
+            "does not prove network reach",
+            "operator_attach_single_follow_up_intent",
+            "R13 attempt",
         ),
     )
     frontend = _contains_all(
@@ -415,10 +439,12 @@ def _slice_2r12_prepared_posture() -> QueueCheck:
             SLICE_STATUS,
             DEFAULT_NEXT_ACTION,
             "R12_RELEASE_READY = False",
-            "at most ten durably counted state-refresh cycles",
-            "exactly nine authenticated GETs",
-            "at most one Coinbase Preview-only call",
-            "no R13 attempt",
+            "eligibility cycle 2",
+            "exact_v3_eligible",
+            "claim_only_recovery_unknown_consumed",
+            "does not prove network reach",
+            "operator_attach_single_follow_up_intent",
+            "R13 attempt",
         ),
     )
     return QueueCheck(
@@ -596,7 +622,7 @@ def _historical_slice_2r11_terminal_posture() -> QueueCheck:
             "futures_preview_margin_windows_ambiguous",
             "margin_window_type_documented_but_operator_rejected",
             "no second R11 call",
-            "R12 is governed only by the separate prepared",
+            "R12 is governed by the completed terminal",
             (
                 "independent successor authority, Slice 3, Slice 4, or "
                 "Slice 5 activation"
@@ -733,15 +759,19 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
         "default_next_action": DEFAULT_NEXT_ACTION,
         "mvp_scope": MVP_SCOPE,
         "standing_limits": STANDING_LIMITS,
-        "r12_workflow_claims_consumed": 0,
-        "r12_claim_created": False,
-        "r12_eligibility_cycles_consumed": 1,
-        "r12_preview_attempts_consumed": 0,
+        "r12_workflow_claims_consumed": 1,
+        "r12_claim_created": True,
+        "r12_eligibility_cycles_consumed": 2,
+        "r12_preview_attempts_consumed": 1,
         "r12_release_gate_ready": False,
         "live_coinbase_eligibility_reads_ran": True,
-        "live_coinbase_preview_ran": False,
+        "live_coinbase_preview_ran": None,
+        "live_coinbase_preview_outcome": "unknown_consumed",
         "live_coinbase_orders_ran": False,
+        "live_coinbase_mutations_ran": False,
         "live_order_notional_usdc": "0",
+        "submitted_notional_usdc": "0",
+        "executed_notional_usdc": "0",
         "historical_r11": {
             "status": HISTORICAL_R11_STATUS,
             "workflow_claims_consumed": 1,
@@ -755,7 +785,10 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
         "progress": {
             "goal_id": GOAL_ID,
             "slice_status": SLICE_STATUS,
-            "live_coinbase_execution": "not_run",
+            "work_mode": MVP_SCOPE["work_mode"],
+            "live_coinbase_execution": (
+                "unknown_preview_reach_no_order_execution"
+            ),
             "blockers": list(SLICE_BLOCKERS),
             "next_action": DEFAULT_NEXT_ACTION,
             "operator_wording": OPERATOR_PROGRESS_WORDING,
@@ -781,14 +814,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"Default next action: {DEFAULT_NEXT_ACTION}")
         print("Validation: focused local Linux Docker blast-radius tests")
         print(
-            "R12: cycle 1 ineligible/release disabled; eligibility cycles 1; "
-            "workflow claims 0; Preview calls 0"
+            "R12: terminal unknown-consumed/release disabled; eligibility "
+            "cycles 2; workflow claims 1; conservative Preview-attempt "
+            "counter 1; network reach unknown"
         )
         print(
             "Historical R11: terminal before Preview; workflow claim "
             "consumed; Preview calls 0"
         )
-        print("Live Coinbase order execution: not run; notional $0")
+        print(
+            "Live Coinbase Preview reach: unknown; order execution: not run; "
+            "submitted/executed notional $0"
+        )
     print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
     return 0 if summary["status"] == "passed" else 1
 

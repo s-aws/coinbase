@@ -5,11 +5,10 @@ private model routing, private release planning, or internal research notes.
 
 ## Current Direction
 
-- Keep goal id `futures_preview_acceptance_recovery_r12` as current authority
-  through its exact terminal closeout. Its prepared release-disabled validation
-  and audit work after an ineligible pre-claim cycle 1 remains ahead of every
-  successor; this roadmap grants no extra eligibility read, claim, Preview, or
-  exchange mutation.
+- Preserve goal id `futures_preview_acceptance_recovery_r12` as completed
+  terminal history with status `complete_terminal_unknown_consumed`. Its
+  source release gate is false, its single-use claim is consumed, and no
+  further Coinbase call, R13 attempt, or Slice 3/4/5 activation is authorized.
 - Preserve `selected_order_execution_closeout_slice` as completed historical
   selected-root fill-ledger/audit, terminal-child, and read-only recovery
   evidence rather than current work authority.
@@ -20,13 +19,13 @@ private model routing, private release planning, or internal research notes.
 
 ## Near-Term Public Work
 
-- After terminal closeout of the current R12 workflow, deliver
-  `operator_attach_single_follow_up_intent` as the next MVP: one
+- The next MVP is `operator_attach_single_follow_up_intent`, pending distinct
+  operator authorization: one
   backend-authorized, durably audited, idempotent and race-safe future
   follow-up intent for an eligible system-owned source order identified by
-  `source_client_order_id`. Until R12 closes this is planning-only; it grants no
-  implementation, local mutation, child creation, Coinbase call, or live
-  authority. The backend owns positive status and zero-fill eligibility,
+  `source_client_order_id`. This roadmap entry grants no implementation, local
+  mutation, child creation, Coinbase call, or live authority. The backend owns
+  positive status and zero-fill eligibility,
   duplicate prevention, atomic claim, flat-root lineage, product policy, and
   later live gates. The browser only forwards explicit operator input through
   generated contracts and displays backend evidence.

@@ -123,7 +123,7 @@ explicit-request gate:
 npm run release:gate
 ```
 
-Live Coinbase execution is not part of normal handoff validation. Terminal R11
+Live Coinbase execution is not part of normal handoff validation. Terminal R12
 grants no live-order authority. If a future, separately authorized scope
 permits a live order under complete backend gates, report product, submitted
 notional, executed notional, retained inventory, reconciliation result, and
@@ -131,15 +131,21 @@ audit ids. Expected fill status does not create a separate approval class.
 
 ## Current Handoff State
 
-- Current preparation: Goal `futures_preview_acceptance_recovery_r12` has a
-  separate ten-cycle non-attempt eligibility ledger and a one-claim,
-  one-Preview maximum attempt phase. Its nine authenticated eligibility GETs
-  are limited to six categories, with no Futures sweep. The production runner
-  is source-bound to `R12_RELEASE_READY=False`; focused validation, local
-  deployment validation, independent safety audit, and blind contextless audit
-  must pass before any separately reviewed toggle. Cycle 1 used nine authorized
-  GETs and failed closed before claim; the current preparation creates no
-  additional eligibility read, claim, or Preview. See
+- Current terminal: Goal `futures_preview_acceptance_recovery_r12` is
+  `complete_terminal_unknown_consumed`. Eligibility cycle 2 completed
+  `exact_v3_eligible`, the durable R12 claim was created and consumed, and
+  offline claim recovery appended `claim_only_recovery_unknown_consumed`
+  without constructing a Coinbase client or factory. The generic
+  Preview-attempt counter is conservative: `1` marks the consumed post-claim
+  boundary but does not prove network reach. Preview network reach is unknown;
+  retry, fallback, redirect, submission, mutation, order, and submitted/
+  executed-notional counts are zero. The fractional external market timestamp
+  mismatch was remediated before cycle 2 without changing policy or call
+  bounds. The runner is source-bound to `R12_RELEASE_READY=False`; no further
+  Coinbase call, R13 attempt, or Slice 3/4/5 activation is permitted. Next
+  action is
+  `await_operator_authorization_for_operator_attach_single_follow_up_intent`.
+  See
   `docs/FUTURES_SLICE_2R12_PREPARATION.md`.
 - Historical predecessor: Goal `futures_preview_acceptance_recovery_r11` is complete.
   R11 is consumed, terminal `blocked`, immutable, and cannot be retried. It
@@ -153,10 +159,9 @@ audit ids. Expected fill status does not create a separate approval class.
   `548bbb02709c70dc320219bc15520b40ed948309ad09ec0f8af8f812d63bedea`.
   While R12 is the active successor, default API/UI readback never selects or
   opens the historical R11 terminal. It binds directly to the fixed R12
-  singleton and returns a fixed sanitized `503` until a strict R12 terminal is
-  available.
+  singleton and now returns the strict recovered R12 terminal.
   It grants no schema/acceptance broadening, Slice 3/4/5, or other live
-  authority. R12 is governed only by its separate prepared boundary. See
+  authority. R12 is governed by its completed terminal boundary. See
   `docs/FUTURES_SLICE_2R11_TERMINAL_DIAGNOSIS.md`.
 - Historical post-R10 checkpoint: goal
   `futures_post_r10_preview_compatibility_and_direction_selection` completed the
@@ -249,10 +254,12 @@ audit ids. Expected fill status does not create a separate approval class.
   preserves those pairs, hybrid identities are test-rejected, and both
   reviewers re-reviewed the remediation with no remaining findings.
 - Current goal id: `futures_preview_acceptance_recovery_r12`
-  (`prepared_release_disabled`).
-- Current next action: complete focused/local validation and independent safety
-  plus blind contextless audits; keep `R12_RELEASE_READY=False` until the final
-  bytes pass and a separate audited toggle is warranted.
+  (`complete_terminal_unknown_consumed`).
+- Current work mode:
+  `r12_terminal_unknown_consumed_offline_closeout_complete`.
+- Current next action:
+  `await_operator_authorization_for_operator_attach_single_follow_up_intent`;
+  keep `R12_RELEASE_READY=False` and make no further Coinbase call.
 - Historical predecessor slice: Default-profile Futures readback -> exact AVAX US CFM Coinbase
   Preview Order -> immutable operator-visible no-live preview readback. The
   one-shot R1 artifact terminated before

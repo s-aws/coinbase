@@ -13,16 +13,20 @@ plans.
 
 ## Current MVP Goal
 
-Goal `futures_preview_acceptance_recovery_r12` is prepared but production
-release-disabled. Its backend separates up to ten durably counted non-attempt
-eligibility cycles from one durable single-use R12 claim and at most one
-Preview-only call. The source-bound `R12_RELEASE_READY` gate remains `False`;
-focused validation, local deployment validation, independent safety audit, and
-blind contextless audit must pass before a separately reviewed toggle. No R12
-eligibility read beyond the durably consumed ineligible cycle 1, claim, or
-Preview is implied by the current release-disabled posture. R12 remains
-unconsumed with nine eligibility cycles available. See
-[R12 preparation](docs/FUTURES_SLICE_2R12_PREPARATION.md).
+Goal `futures_preview_acceptance_recovery_r12` is
+`complete_terminal_unknown_consumed`. Eligibility cycle 2 completed
+`exact_v3_eligible`, created the one durable R12 claim, and left claim-only
+evidence. Offline claim recovery appended terminal blocker
+`claim_only_recovery_unknown_consumed` without constructing a Coinbase client
+or factory. The source-bound `R12_RELEASE_READY` gate is `False`, R12 is
+consumed, and no further Coinbase call is permitted. The generic
+Preview-attempt counter is conservative: it records the consumed post-claim
+attempt boundary as `1` but does not prove network reach. Preview network reach
+is therefore unknown; retries, fallbacks, redirects, submissions, exchange
+mutations, orders, and submitted/executed notional are all zero. The next
+action is
+`await_operator_authorization_for_operator_attach_single_follow_up_intent`.
+See [R12 terminal closeout](docs/FUTURES_SLICE_2R12_PREPARATION.md).
 
 The predecessor goal `futures_preview_acceptance_recovery_r11` is complete.
 R11 is consumed, terminal `blocked`, immutable, and cannot be retried. It stopped at
