@@ -2,7 +2,7 @@
 
 Goal ID: `futures_preview_acceptance_recovery_r12`
 
-Last reviewed: 2026-07-16 UTC.
+Last reviewed: 2026-07-17 UTC.
 
 Status: `prepared_release_disabled`.
 
@@ -742,6 +742,47 @@ submissions, fallbacks, retries, or placements. Its child is CANCELLED with
 zero fill, active placement cleared, zero active Test Spot orders, and disabled
 service/runtime. Evidence:
 `artifacts/controlled-root-child-batch-20260713T101046Z-ed9b8bbd/v15r6-terminal-closeout-handoff.json`.
+
+## Queued Successor MVP — Operator-Attached Single Follow-Up
+
+Goal ID: `operator_attach_single_follow_up_intent`.
+
+This is the next MVP only after Slice 2R12 reaches terminal closeout. Before
+that boundary it is planning-only and must not interrupt, alter, release,
+consume, or broaden R12. It grants no implementation, schema or local-state
+mutation, Coinbase read or call, automatic trigger, child creation, Preview,
+Create, Cancel, Close, Reduce, R13, or other live authority.
+
+The planned backend command lets an authorized human attach exactly one
+durable future follow-up intent to a system-owned source order identified by
+`source_client_order_id`. Attachment is not immediate child creation or
+exchange submission. Backend eligibility must use fresh authoritative evidence,
+a positive per-module stable-state allowlist, zero filled quantity, supported
+ownership and product capability, and proof that no intent, attributed child,
+partial-fill allocation, or follow-up semantic claim already exists. Unknown,
+stale, conflicting, transitional, terminal, partially filled, external or
+unowned, and unsupported module state fails closed. Spot-only rules must not be
+copied into Futures/Perpetuals or platform primitives.
+
+One durable atomic compare-and-set claim keyed by
+`source_client_order_id` and its single follow-up slot must revalidate status
+and absence in the same critical section as persistence. Route-scoped
+idempotency replays only the same payload, conflicts on changed payload, and
+cannot let concurrent distinct requests create more than one intent. Unknown
+persistence blocks another attempt until authoritative readback. Backend RBAC,
+`Idempotency-Key`, `X-Correlation-Id`, `X-Operator-Intent`, and durable audit
+must bind the actor, environment, portfolio scope, source and root
+`client_order_id`, intent hash, claim, and result.
+
+If the source is a child, later materialization still links the new child to
+the original root and records the immediate `source_client_order_id`
+separately; grandchildren and re-parenting remain forbidden. Attachment-time
+evidence is never live-order approval. Later materialization or Coinbase
+submission must freshly pass the canonical backend product, authorization,
+wallet or margin, cap/guard, audit, reconciliation, rollback, duplicate-order,
+and readback gates under a separately authorized scope. The frontend remains a
+generated-contract forwarding and evidence surface, never the trading decision
+or claim owner.
 
 ## Scope And Validation
 

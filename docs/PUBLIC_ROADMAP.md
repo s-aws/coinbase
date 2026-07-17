@@ -5,9 +5,13 @@ private model routing, private release planning, or internal research notes.
 
 ## Current Direction
 
-- Keep goal id `selected_order_execution_closeout_slice` as the current
-  completed delivery authority: selected-root fill-ledger/audit,
-  terminal-child, and read-only recovery closeout evidence.
+- Keep goal id `futures_preview_acceptance_recovery_r12` as current authority
+  through its exact terminal closeout. Its prepared release-disabled validation
+  and audit work remains ahead of every successor; this roadmap grants no extra
+  eligibility read, claim, Preview, or exchange mutation.
+- Preserve `selected_order_execution_closeout_slice` as completed historical
+  selected-root fill-ledger/audit, terminal-child, and read-only recovery
+  evidence rather than current work authority.
 - Keep the public repo runnable and reviewable without private orchestration.
 - Maintain strict module ownership boundaries for smaller-agent work.
 - Preserve the existing regression suite as the public release gate.
@@ -15,6 +19,16 @@ private model routing, private release planning, or internal research notes.
 
 ## Near-Term Public Work
 
+- After terminal closeout of the current R12 workflow, deliver
+  `operator_attach_single_follow_up_intent` as the next MVP: one
+  backend-authorized, durably audited, idempotent and race-safe future
+  follow-up intent for an eligible system-owned source order identified by
+  `source_client_order_id`. Until R12 closes this is planning-only; it grants no
+  implementation, local mutation, child creation, Coinbase call, or live
+  authority. The backend owns positive status and zero-fill eligibility,
+  duplicate prevention, atomic claim, flat-root lineage, product policy, and
+  later live gates. The browser only forwards explicit operator input through
+  generated contracts and displays backend evidence.
 - Maintain the completed selected-order execution closeout and address only
   demonstrated operator-visible or immediate safety blockers. Automatic/live
   fill-event parity uses the same explicit order limits and backend gate chain
