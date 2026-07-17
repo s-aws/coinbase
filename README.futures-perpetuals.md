@@ -1,7 +1,14 @@
 # Futures/Perpetuals Admin Reads
 
+Current goal `futures_preview_acceptance_recovery_r12` is prepared but
+production release-disabled. It separates up to ten durably counted non-attempt
+eligibility cycles from one durable R12 claim and at most one Preview-only
+call. The source-bound release gate remains `False` pending focused validation,
+local deployment validation, independent safety audit, and blind contextless
+audit. See `docs/FUTURES_SLICE_2R12_PREPARATION.md`.
+
 The M57 phase statements in this document are a historical implementation
-snapshot. Current goal `futures_preview_acceptance_recovery_r11` is complete.
+snapshot. The predecessor R11 goal is complete.
 R11 is consumed and terminal `blocked`; it stopped at
 `remaining_margin_validation` before Preview after six reads, with Preview,
 retry, fallback, submission, and mutation counts all `0`. The exact boundary
@@ -10,9 +17,9 @@ is `margin_window_type_documented_but_operator_rejected` for row `1`, profile
 The immutable file/evidence SHA-256 pair is
 `effb4bd037b853e06da14a0327d71eb8104e2b7edb2f56970b4c47ef855b6061` /
 `548bbb02709c70dc320219bc15520b40ed948309ad09ec0f8af8f812d63bedea`.
-This operator-policy result grants no acceptance broadening, retry, R12,
-Slice 3/4/5, Preview, mutation, or live authority. The default action is
-`stop_and_await_operator_direction`.
+That operator-policy result grants no acceptance broadening, retry, Slice
+3/4/5, mutation, or other live authority. R12 exists only under its separate
+prepared, hard-disabled eligibility/attempt boundary.
 
 This feature exposes read-only futures and perpetual account, risk, and
 position evidence through the enterprise Admin API. It is a separate module,

@@ -4,19 +4,29 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 
 ## Project Entry
 
-Goal `futures_preview_acceptance_recovery_r11` is complete. R11 is consumed,
-terminal `blocked`, immutable, and cannot be retried. It stopped at
+Goal `futures_preview_acceptance_recovery_r12` is prepared but production
+release-disabled. Up to ten durably counted non-attempt eligibility cycles are
+separate from the single-use R12 claim and at most one Preview-only call. The
+source-bound release gate remains `False` until focused validation, local
+deployment validation, independent safety audit, and blind contextless audit
+all pass.
+
+The predecessor R11 goal is complete. R11 is consumed, terminal `blocked`,
+immutable, and cannot be retried. It stopped at
 `remaining_margin_validation` before Preview after six bounded reads; Preview,
 retry, fallback, submission, and mutation counts remained `0`. The exact V3
 operator-policy boundary is `margin_window_type_documented_but_operator_rejected`.
-No acceptance broadening, R12, Slice 3/4/5, or live authority follows. Default:
-`stop_and_await_operator_direction`.
+No acceptance broadening, Slice 3/4/5, or other live authority follows from
+R11. R12 is governed only by its separate prepared boundary.
 
 Historical goal `futures_post_r10_preview_compatibility_and_direction_selection`
 is a completed compatibility/direction record, not current work authority.
 
-- [Current MVP Goal](../genai_data/AGENT_MVP_REBUILD_GOAL.md) - completed R11
-  terminal authority, immutable R1-R11 history, and no-successor stop posture
+- [Futures Slice 2R12 Preparation](FUTURES_SLICE_2R12_PREPARATION.md) - separate
+  eligibility/attempt phases, ten-cycle ledger, exact nine-GET allowlist,
+  single-use claim recovery, and source-disabled release gate
+- [Current MVP Goal](../genai_data/AGENT_MVP_REBUILD_GOAL.md) - historical R11
+  terminal authority and immutable R1-R11 history
 - [Futures Slice 2R11 Terminal Diagnosis](FUTURES_SLICE_2R11_TERMINAL_DIAGNOSIS.md) -
   exact pre-Preview V3 operator-policy boundary, immutable terminal hashes,
   six-read/zero-Preview accounting, and permanent no-retry tombstone

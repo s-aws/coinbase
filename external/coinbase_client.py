@@ -585,6 +585,26 @@ class CoinbaseRestClient:
             setting, margin window, and sweep evidence.
         """
 
+        return self._get_futures_margin_collateral_snapshot(
+            include_futures_sweeps=True,
+        )
+
+    def get_futures_preview_eligibility_margin_collateral_snapshot(
+        self,
+    ) -> Dict[str, Any]:
+        """Read only the four margin calls authorized for Preview eligibility."""
+
+        return self._get_futures_margin_collateral_snapshot(
+            include_futures_sweeps=False,
+        )
+
+    def _get_futures_margin_collateral_snapshot(
+        self,
+        *,
+        include_futures_sweeps: bool,
+    ) -> Dict[str, Any]:
+        """Build the CFM snapshot with an explicit sweep-read boundary."""
+
         balance_summary, balance_error = _sdk_dict_or_error(
             self._client.get_futures_balance_summary
         )
@@ -644,43 +664,45 @@ class CoinbaseRestClient:
                 }
             )
 
-        futures_sweeps_response, futures_sweeps_error = _sdk_dict_or_error(
-            self._client.list_futures_sweeps
-        )
-        if futures_sweeps_error is not None:
-            errors.append(
-                {
-                    "method": "list_futures_sweeps",
-                    "error": futures_sweeps_error,
-                }
-            )
-        futures_sweeps = futures_sweeps_response.get("sweeps")
-        if not isinstance(futures_sweeps, list):
-            errors.append(
-                {
-                    "method": "list_futures_sweeps",
-                    "error": "futures_sweeps_missing_or_invalid",
-                }
-            )
-            futures_sweeps = []
-
-        return {
+        source_read_attempts = {
+            "get_futures_balance_summary": 1,
+            "get_intraday_margin_setting": 1,
+            "get_current_margin_window": 2,
+        }
+        result = {
             "status": "ready" if normalized_balance and balance_error is None else "blocked",
             "account_family": "coinbase_futures_us_cfm",
             "source": "backend_rest_client",
-            "source_read_attempts": {
-                "get_futures_balance_summary": 1,
-                "get_intraday_margin_setting": 1,
-                "get_current_margin_window": 2,
-                "list_futures_sweeps": 1,
-            },
+            "source_read_attempts": source_read_attempts,
             "balance_summary": normalized_balance,
             "intraday_margin_setting": intraday_margin_setting,
             "current_margin_windows": current_margin_windows,
-            "futures_sweeps": futures_sweeps,
             "intx_applicability": "not_applicable_us_account",
             "errors": errors,
         }
+        if include_futures_sweeps:
+            futures_sweeps_response, futures_sweeps_error = _sdk_dict_or_error(
+                self._client.list_futures_sweeps
+            )
+            source_read_attempts["list_futures_sweeps"] = 1
+            if futures_sweeps_error is not None:
+                errors.append(
+                    {
+                        "method": "list_futures_sweeps",
+                        "error": futures_sweeps_error,
+                    }
+                )
+            futures_sweeps = futures_sweeps_response.get("sweeps")
+            if not isinstance(futures_sweeps, list):
+                errors.append(
+                    {
+                        "method": "list_futures_sweeps",
+                        "error": "futures_sweeps_missing_or_invalid",
+                    }
+                )
+                futures_sweeps = []
+            result["futures_sweeps"] = futures_sweeps
+        return result
     
     # ========================================================================
     # Portfolio Methods
@@ -729,6 +751,18 @@ class CoinbaseRestClient:
         else:
             response = self._client.list_portfolios()
         return coinbase_sdk_response_to_dict(response).get("portfolios", [])
+
+    def get_futures_preview_eligibility_portfolios(
+        self,
+    ) -> List[Dict[str, Any]]:
+        """Use the one pinned 1.8.4 portfolio-catalog SDK hook."""
+
+        response = self._client.get_portfolios()
+        data = coinbase_sdk_response_to_dict(response)
+        portfolios = data.get("portfolios")
+        if not isinstance(portfolios, list):
+            raise ValueError("portfolio catalog evidence is not a list")
+        return portfolios
     
     # ========================================================================
     # Pass-through Methods (Raw SDK Access)

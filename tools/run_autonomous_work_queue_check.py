@@ -24,9 +24,13 @@ R11_PREPARATION_DOC = (
 R11_TERMINAL_DOC = (
     PROJECT_ROOT / "docs" / "FUTURES_SLICE_2R11_TERMINAL_DIAGNOSIS.md"
 )
+R12_PREPARATION_DOC = (
+    PROJECT_ROOT / "docs" / "FUTURES_SLICE_2R12_PREPARATION.md"
+)
 FRONTEND_QUEUE_DOC = FRONTEND_ROOT / "docs" / "plans" / "AUTONOMOUS_WORK_QUEUE.md"
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-GOAL_ID = "futures_preview_acceptance_recovery_r11"
+GOAL_ID = "futures_preview_acceptance_recovery_r12"
+HISTORICAL_R11_GOAL_ID = "futures_preview_acceptance_recovery_r11"
 HISTORICAL_POST_R10_GOAL_ID = (
     "futures_post_r10_preview_compatibility_and_direction_selection"
 )
@@ -40,16 +44,22 @@ PHASE_RANGE_STATUS = "historical_not_work_authority"
 POST_R10_COMPLETION_ALIGNMENT_TOKEN = (
     "official_wire_schema_and_project_acceptance_separated_prospectively"
 )
-R11_ALIGNMENT_TOKEN = (
+R12_ALIGNMENT_TOKEN = (
+    "r12_separate_eligibility_and_single_use_attempt_v1"
+)
+HISTORICAL_R11_ALIGNMENT_TOKEN = (
     "r11_terminal_pre_preview_v3_operator_policy_rejection"
 )
 CLOSED_LOOPHOLE_RULE = (
     "A candidate blocker cannot make itself in scope by generating evidence "
     "about the candidate blocker."
 )
-SLICE_STATUS = "complete_terminal_no_retry"
+SLICE_STATUS = "prepared_release_disabled"
 SLICE_BLOCKERS: tuple[str, ...] = ()
-DEFAULT_NEXT_ACTION = "stop_and_await_operator_direction"
+DEFAULT_NEXT_ACTION = "complete_no_live_validation_and_independent_audits"
+OPERATOR_PROGRESS_WORDING = "prepared/release disabled"
+HISTORICAL_R11_STATUS = "complete_terminal_no_retry"
+HISTORICAL_R11_NEXT_ACTION = "stop_and_await_operator_direction"
 SUCCESSOR_MAPPING_INVARIANT = (
     "A future successor must pass the raw SDK envelope to the shallow "
     "validator before any recursive `_plain()` normalization."
@@ -66,14 +76,22 @@ R7_TERMINAL_DIAGNOSTIC = (
     "sdk_returned__post_preview_value_error__before_acceptance"
 )
 MVP_SCOPE = {
-    "work_mode": "r11_terminal_offline_closeout_no_successor_authority",
+    "work_mode": "r12_prepared_release_disabled_validation_and_audit",
+    "product_goal": (
+        "Prepared R12 eligibility/attempt separation -> release-disabled "
+        "validation and audits -> no calls yet."
+    ),
+    "compatibility_result": POST_R10_COMPLETION_ALIGNMENT_TOKEN,
     "goal_authority": str(FRONTEND_GOAL_DOC),
     "frontend_authority": "operator_ui_only",
     "live_action_path": "auditable_backend_admin_interfaces_only",
     "phase_range_policy": "parked_unless_direct_current_slice_blocker",
-    "current_vertical_slice": "Slice 2R11",
-    "direct_blocker_rule": "r11_terminal_closeout_only_no_successor_authority",
-    "scope_posture": R11_ALIGNMENT_TOKEN,
+    "current_vertical_slice": "futures_exact_no_live_preview_slice_2r12",
+    "direct_blocker_rule": (
+        "r12_release_gate_false_until_validation_and_audits"
+    ),
+    "scope_posture": R12_ALIGNMENT_TOKEN,
+    "operator_progress_wording": OPERATOR_PROGRESS_WORDING,
     "focused_blast_radius_tests_required": True,
     "full_suite_at_durable_milestone_only": True,
     "active_work_policy": {
@@ -84,16 +102,8 @@ MVP_SCOPE = {
         "blockers": list(SLICE_BLOCKERS),
         "default_next_action": DEFAULT_NEXT_ACTION,
         "ordered_successors": [],
-        "allow_only_when_directly_blocks": [
-            "slice_2r11_terminal_artifact_hard_binding",
-            "slice_2r11_offline_diagnosis_and_readback",
-            "slice_2r11_closeout_validation_and_audit",
-        ],
+        "allow_only_when_directly_blocks": [],
         "forbidden_default_actions": [
-            "second_r11_preview_or_retry",
-            "r12_attempt",
-            "slice_3_4_5_activation",
-            "exchange_mutations",
             "complete_current_approved_range",
             "candidate_blocker_self_justification",
             "fanout_or_scheduler_expansion",
@@ -107,7 +117,8 @@ STANDING_LIMITS = {
     "preferred_spot_notional_under_usdc": "10.00",
     "preferred_perpetual_notional_under_usdc": "30.00",
     "active_futures_slice": {
-        "slice": "2R11",
+        "slice_id": "futures_exact_no_live_preview_slice_2r12",
+        "recovery_id": "R12",
         "status": SLICE_STATUS,
         "policy": "V3",
         "product_id": "AVP-20DEC30-CDE",
@@ -115,29 +126,57 @@ STANDING_LIMITS = {
         "opening_reference_notional_under_usdc": "100.00",
         "exposure_and_buffered_close_under_usdc": "150.00",
         "branch_turnover_under_usdc": "300.00",
-        "sdk_package": "coinbase-advanced-py==1.8.4",
-        "response_envelope_ordering": (
-            "shallow_raw_sdk_envelope_before_recursive_plain"
-        ),
-        "converter_only_envelopes_allowed": False,
-        "preview_id_persistence": "sha256_or_withheld",
-        "diagnostics": "fixed_value_blind",
+        "workflow_claims_consumed": 0,
+        "claim_created": False,
+        "release_gate_ready": False,
+        "eligibility_evidence_status": "not_run",
+        "eligibility_cycles_authorized_max": 10,
+        "eligibility_cycles_consumed": 0,
+        "eligibility_read_categories_per_cycle_max": 6,
+        "eligibility_authenticated_gets_per_cycle_max": 9,
+        "futures_sweep_reads_max": 0,
+        "other_coinbase_endpoint_calls_max": 0,
+        "authorized_coinbase_preview_attempts_max": 1,
         "coinbase_preview_attempts_max": 0,
         "coinbase_preview_attempts_consumed": 0,
-        "r11_workflow_attempts_consumed": 1,
-        "terminal_before_preview": True,
-        "terminal_reason_code": "futures_preview_margin_windows_ambiguous",
-        "terminal_policy_classification": (
-            "margin_window_type_documented_but_operator_rejected"
+        "post_claim_non_preview_coinbase_calls_max": 0,
+        "bounded_read_counts_per_cycle": {
+            "api_key_permissions": 1,
+            "portfolio_catalog": 1,
+            "product": 1,
+            "best_bid_ask": 1,
+            "futures_positions": 1,
+            "futures_margin_collateral": 1,
+        },
+        "margin_collateral_read_breakdown_per_cycle": {
+            "balance_summary": 1,
+            "intraday_margin_setting": 1,
+            "current_margin_windows": 2,
+        },
+        "sdk_package": "coinbase-advanced-py==1.8.4",
+        "response_envelope_ordering": (
+            "shallow_raw_sdk_envelope_before_recursive_plain_normalization"
         ),
+        "converter_only_envelope_policy": "reject_without_invoking_converter",
+        "preview_id_policy": "hash_or_withhold_before_persistence_or_readback",
+        "diagnostic_policy": "fixed_value_blind_only",
+        "unknown_outcome_policy": "consumes_r12_after_claim_no_retry",
         "retry_attempts_max": 0,
         "fallback_attempts_max": 0,
         "redirect_attempts_max": 0,
+        "create_attempts_max": 0,
+        "cancel_attempts_max": 0,
+        "close_attempts_max": 0,
+        "reduce_attempts_max": 0,
         "exchange_mutation_attempts_max": 0,
+        "successor_authority": "none_after_r12",
+        "successor_authorized": False,
+        "r13_attempt_allowed": False,
+        "slice3_through_5_activation_allowed": False,
     },
     "terminal_futures_slice": {
         "slice": "2R11",
-        "status": SLICE_STATUS,
+        "status": HISTORICAL_R11_STATUS,
         "product_id": "AVP-20DEC30-CDE",
         "contract_count": "1",
         "opening_reference_notional_under_usdc": "100.00",
@@ -160,6 +199,54 @@ STANDING_LIMITS = {
     "default_max_orders_per_second": 5,
     "non_fill_snapshot_distance_percent": 10,
 }
+REQUIRED_STOP_CONDITIONS = [
+    "focused current-slice test fails",
+    "npm run release:gate fails when required at durable milestone closeout",
+    (
+        "python3.13 tools/run_parallel_regression.py --workers 4 fails when "
+        "required at durable milestone closeout"
+    ),
+    (
+        "security review finds browser-trusted authority, secret exposure, "
+        "or live command bypass risk"
+    ),
+    (
+        "live Coinbase reconciliation fails, live notional exceeds cap, or "
+        "exact product/notional evidence is missing"
+    ),
+    "worktree contains unrelated changes affecting files in scope",
+    (
+        "requested change would create frontend trading behavior or bypass "
+        "backend Admin API contract"
+    ),
+    (
+        "candidate blocker requires evidence generation unrelated to the "
+        "current vertical slice"
+    ),
+    "all ten eligibility cycles are exhausted with R12 unconsumed",
+    "R12 is terminal and its authorized offline closeout is complete",
+    (
+        "proceeding would change the product, contract count, exact V3 policy, "
+        "caps, enumerated read endpoints, or exchange-call limit"
+    ),
+    (
+        "any R13 attempt or Slice 3, Slice 4, or Slice 5 activation requires "
+        "distinct operator authorization"
+    ),
+]
+REQUIRED_GATES = [
+    "npm run mvp:goal:check",
+    "focused tests for the changed blast radius",
+    "local R12 deployment validation",
+    "independent R12 safety audit",
+    "blind-contextless R12 audit",
+    "reviewed source release gate before any eligibility or attempt call",
+    "npm run release:gate only at durable milestone closeout",
+    (
+        "python3.13 tools/run_parallel_regression.py --workers 4 only at "
+        "durable backend milestone closeout"
+    ),
+]
 
 
 @dataclass(frozen=True)
@@ -213,18 +300,25 @@ def _current_goal_alignment() -> QueueCheck:
         BACKEND_GOAL_DOC,
         (
             GOAL_ID,
-            R11_ALIGNMENT_TOKEN,
+            R12_ALIGNMENT_TOKEN,
             DEFAULT_NEXT_ACTION,
             CLOSED_LOOPHOLE_RULE,
             SUCCESSOR_MAPPING_INVARIANT,
             PREVIEW_ID_INVARIANT,
             SLICE_STATUS,
-            "R11 is terminally consumed",
-            "remaining_margin_validation",
-            "futures_preview_margin_windows_ambiguous",
-            "margin_window_type_documented_but_operator_rejected",
-            "no R12 attempt",
-            "no Slice 3, Slice 4, or Slice 5 activation",
+            "R12_RELEASE_READY=False",
+            "no eligibility read, claim, or Preview is implied",
+            "at most ten state-refresh cycles",
+            "six categories at most once",
+            "nine authenticated GETs",
+            "no R12 claim or idempotency key",
+            "at most one Preview call",
+            "An unknown post-claim outcome consumes R12 and cannot be retried",
+            "no R13 attempt",
+            (
+                "second Preview, or Slice 3, Slice 4, or Slice 5 "
+                "activation"
+            ),
             "Use focused tests",
         ),
     )
@@ -236,11 +330,26 @@ def _current_goal_alignment() -> QueueCheck:
             CLOSED_LOOPHOLE_RULE,
             SUCCESSOR_MAPPING_INVARIANT,
             PREVIEW_ID_INVARIANT,
-            R11_ALIGNMENT_TOKEN,
+            R12_ALIGNMENT_TOKEN,
             SLICE_STATUS,
-            "R11 is terminally consumed",
-            "futures_preview_margin_windows_ambiguous",
-            "No R12 attempt is authorized",
+            "R12_RELEASE_READY = False",
+            (
+                "no Coinbase call, state-refresh read, R12 claim creation, "
+                "or Preview attempt"
+            ),
+            "at most ten durably counted state-refresh cycles",
+            "six authorized read-only categories at most once",
+            "exactly nine authenticated GETs",
+            (
+                "must not create, reserve, persist, or consume an R12 claim "
+                "or R12 idempotency key"
+            ),
+            "at most one Coinbase Preview-only call",
+            (
+                "Any unknown outcome after claim creation consumes R12 and "
+                "cannot be retried"
+            ),
+            "no R13 attempt",
             "Focused tests are the default",
         ),
     )
@@ -248,6 +357,78 @@ def _current_goal_alignment() -> QueueCheck:
         name="current_goal_alignment",
         passed=backend.passed and frontend.passed,
         evidence={"backend": backend.evidence, "frontend": frontend.evidence},
+    )
+
+
+def _slice_2r12_prepared_posture() -> QueueCheck:
+    preparation = _contains_all(
+        R12_PREPARATION_DOC,
+        (
+            GOAL_ID,
+            R12_ALIGNMENT_TOKEN,
+            DEFAULT_NEXT_ACTION,
+            SLICE_STATUS,
+            "R12_RELEASE_READY",
+            "at most ten durably counted cycles",
+            "six categories at most once",
+            "exactly nine GETs",
+            "INTRADAY_MARGIN_SETTING_INTRADAY",
+            "AVP-20DEC30-CDE",
+            "<100 USDC",
+            "<150 USDC",
+            "<300 USDC",
+            "coinbase-advanced-py==1.8.4",
+            "Preview calls after claim: at most one",
+            "consumes R12 and cannot be retried",
+            "post-claim Coinbase reads: zero",
+            "tests/unit/test_admin_api_futures_order_preview_r12_concurrency.py",
+            "tests/unit/test_admin_api_futures_order_preview_r12_persistence.py",
+            "tests/unit/FuturesOrderPreviewR12Readback.test.tsx",
+            "R12 is terminal and its authorized offline closeout is complete",
+            "ten eligibility state-refresh cycles are exhausted",
+            "no R13 attempt",
+            (
+                "no second R12 call, no Slice 3, Slice 4, or Slice 5 "
+                "activation"
+            ),
+        ),
+    )
+    backend = _contains_all(
+        BACKEND_GOAL_DOC,
+        (
+            GOAL_ID,
+            R12_ALIGNMENT_TOKEN,
+            SLICE_STATUS,
+            DEFAULT_NEXT_ACTION,
+            "R12_RELEASE_READY=False",
+            "at most ten state-refresh cycles",
+            "nine authenticated GETs",
+            "at most one Preview call",
+            "no R13 attempt",
+        ),
+    )
+    frontend = _contains_all(
+        FRONTEND_GOAL_DOC,
+        (
+            GOAL_ID,
+            R12_ALIGNMENT_TOKEN,
+            SLICE_STATUS,
+            DEFAULT_NEXT_ACTION,
+            "R12_RELEASE_READY = False",
+            "at most ten durably counted state-refresh cycles",
+            "exactly nine authenticated GETs",
+            "at most one Coinbase Preview-only call",
+            "no R13 attempt",
+        ),
+    )
+    return QueueCheck(
+        name="slice_2r12_prepared_posture",
+        passed=preparation.passed and backend.passed and frontend.passed,
+        evidence={
+            "preparation": preparation.evidence,
+            "backend": backend.evidence,
+            "frontend": frontend.evidence,
+        },
     )
 
 
@@ -303,38 +484,17 @@ def _r8_r10_recovery_terminal_closeout() -> QueueCheck:
     documents = [
         _contains_all(
             BACKEND_GOAL_DOC,
-            (*required, HISTORICAL_R8_R10_GOAL_ID),
-        ),
-        _contains_all(FRONTEND_GOAL_DOC, required),
-        _contains_all(
-            PROJECT_ROOT / "docs" / "FUTURES_SLICE_2R8_TERMINAL_DIAGNOSIS.md",
             (
-                "b32aba4868f08ee7a44f19ceacbcf42cb7e4d70da1552f2d8b333ef59ddc8696",
-                "Preview attempts: `0`",
-                "## Terminal Successor Update",
-                "R10 is terminally consumed",
-                "no R11 exists",
+                *required,
+                HISTORICAL_R8_R10_GOAL_ID,
+                "R8 content/hash remain inaccessible",
             ),
         ),
         _contains_all(
-            PROJECT_ROOT / "docs" / "FUTURES_SLICE_2R9_TERMINAL_DIAGNOSIS.md",
+            FRONTEND_GOAL_DOC,
             (
-                "5c7dd3f27605b623edc910a87dcc4b6c9ea6621aa9ee63dbfcc4b2994990dacf",
-                "2fd73aa0059da49dfe6c836f6dea29b12158fb3dfbe8abdd6d8f4f0f7d702464",
-                "Preview attempts: `1`",
-                "R10 remains preparation-only",
-                "no R11 is authorized",
-            ),
-        ),
-        _contains_all(
-            PROJECT_ROOT / "docs" / "FUTURES_SLICE_2R10_TERMINAL_DIAGNOSIS.md",
-            (
-                "5dd010a706c61e78454caeec478e05cafb1a50761e9e5a9a3d485051c4efee64",
-                "5121e980ec9da81f44d9a3b14b9bbcaa7bdaf41c99189cd9234cedc08d652005",
-                "futures_preview_response_economics_invalid",
-                "Preview: `1`",
-                "Slice 3 was",
-                "no R11 authority exists",
+                *required,
+                "R8 content and hash remain inaccessible",
             ),
         ),
     ]
@@ -389,9 +549,9 @@ def _post_r10_compatibility_direction_closeout() -> QueueCheck:
     )
 
 
-def _slice_2r11_terminal_posture() -> QueueCheck:
+def _historical_slice_2r11_terminal_posture() -> QueueCheck:
     historical_preparation_required = (
-        GOAL_ID,
+        HISTORICAL_R11_GOAL_ID,
         "coinbase-advanced-py==1.8.4",
         "raw SDK envelope before any recursive `_plain()` normalization",
         "converter-only envelopes",
@@ -403,10 +563,10 @@ def _slice_2r11_terminal_posture() -> QueueCheck:
         "R11 remained absent and unconsumed",
     )
     terminal_required = (
-        GOAL_ID,
-        R11_ALIGNMENT_TOKEN,
-        DEFAULT_NEXT_ACTION,
-        SLICE_STATUS,
+        HISTORICAL_R11_GOAL_ID,
+        HISTORICAL_R11_ALIGNMENT_TOKEN,
+        HISTORICAL_R11_NEXT_ACTION,
+        HISTORICAL_R11_STATUS,
         "coinbase-advanced-py==1.8.4",
         "AVP-20DEC30-CDE",
         "<100 / <150 / <300 USDC",
@@ -429,32 +589,32 @@ def _slice_2r11_terminal_posture() -> QueueCheck:
     backend = _contains_all(
         BACKEND_GOAL_DOC,
         (
-            GOAL_ID,
-            R11_ALIGNMENT_TOKEN,
-            DEFAULT_NEXT_ACTION,
-            SLICE_STATUS,
-            "R11 is terminally consumed",
+            HISTORICAL_R11_ALIGNMENT_TOKEN,
+            HISTORICAL_R11_NEXT_ACTION,
+            "R11 is consumed",
             "remaining_margin_validation",
             "futures_preview_margin_windows_ambiguous",
             "margin_window_type_documented_but_operator_rejected",
-            "no R12 attempt",
-            "no Slice 3, Slice 4, or Slice 5 activation",
+            "no second R11 call",
+            "R12 is governed only by the separate prepared",
+            (
+                "independent successor authority, Slice 3, Slice 4, or "
+                "Slice 5 activation"
+            ),
         ),
     )
     frontend = _contains_all(
         FRONTEND_GOAL_DOC,
         (
-            GOAL_ID,
-            R11_ALIGNMENT_TOKEN,
-            DEFAULT_NEXT_ACTION,
-            SLICE_STATUS,
-            "R11 is terminally consumed",
+            "Historical Terminal R11 Predecessor",
+            "R11 is consumed",
+            "remaining_margin_validation",
             "futures_preview_margin_windows_ambiguous",
-            "No R12 attempt is authorized",
+            "later R12 authorization does not reinterpret, retry, or reopen R11",
         ),
     )
     return QueueCheck(
-        name="slice_2r11_terminal_posture",
+        name="historical_slice_2r11_terminal_posture",
         passed=(
             preparation.passed
             and terminal.passed
@@ -551,11 +711,12 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
 
     checks = [
         _current_goal_alignment(),
+        _slice_2r12_prepared_posture(),
         _historical_queue_posture(),
         _slice_2r7_terminal_closeout(),
         _r8_r10_recovery_terminal_closeout(),
         _post_r10_compatibility_direction_closeout(),
-        _slice_2r11_terminal_posture(),
+        _historical_slice_2r11_terminal_posture(),
         _entry_point_alignment(),
         _previous_version_sources(),
         _github_workflows_retired(),
@@ -572,14 +733,33 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
         "default_next_action": DEFAULT_NEXT_ACTION,
         "mvp_scope": MVP_SCOPE,
         "standing_limits": STANDING_LIMITS,
-        "r11_workflow_attempts_consumed": 1,
-        "r11_preview_attempts_consumed": 0,
-        "r11_terminal": True,
-        "r11_terminal_before_preview": True,
-        "r11_successor_authorized": False,
+        "r12_workflow_claims_consumed": 0,
+        "r12_claim_created": False,
+        "r12_eligibility_cycles_consumed": 0,
+        "r12_preview_attempts_consumed": 0,
+        "r12_release_gate_ready": False,
+        "live_coinbase_eligibility_reads_ran": False,
         "live_coinbase_preview_ran": False,
         "live_coinbase_orders_ran": False,
         "live_order_notional_usdc": "0",
+        "historical_r11": {
+            "status": HISTORICAL_R11_STATUS,
+            "workflow_claims_consumed": 1,
+            "preview_attempts_consumed": 0,
+            "terminal": True,
+            "terminal_before_preview": True,
+            "historical_successor_authorized": False,
+        },
+        "required_stop_conditions": REQUIRED_STOP_CONDITIONS,
+        "required_gates": REQUIRED_GATES,
+        "progress": {
+            "goal_id": GOAL_ID,
+            "slice_status": SLICE_STATUS,
+            "live_coinbase_execution": "not_run",
+            "blockers": list(SLICE_BLOCKERS),
+            "next_action": DEFAULT_NEXT_ACTION,
+            "operator_wording": OPERATOR_PROGRESS_WORDING,
+        },
         "checks": [check.to_dict() for check in checks],
     }
 
@@ -601,8 +781,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"Default next action: {DEFAULT_NEXT_ACTION}")
         print("Validation: focused local Linux Docker blast-radius tests")
         print(
-            "R11: terminal before Preview; workflow claim consumed; "
-            "Preview calls 0; no retry or successor authority"
+            "R12: prepared/release disabled; eligibility reads 0; "
+            "workflow claims 0; Preview calls 0"
+        )
+        print(
+            "Historical R11: terminal before Preview; workflow claim "
+            "consumed; Preview calls 0"
         )
         print("Live Coinbase order execution: not run; notional $0")
     print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))

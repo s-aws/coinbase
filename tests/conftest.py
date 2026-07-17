@@ -12,14 +12,15 @@ import os
 
 # ============================================================================
 # CRITICAL: prod-DB guard. Must run BEFORE any `database.*` module is imported
-# so the env-driven defaults in `database.database` resolve to the test
-# instance (port 9876), never prod (5432).
+# so the env-driven defaults in `database.database` resolve to the named local
+# Docker test instance (`coinbase-test-postgres:9876`), never main/stage on
+# port 5432.
 #
 # Background: 2026-04-27 — `tests/unit/test_order_moves.py` instantiated
 # `PostgresDB()` with no args, which defaulted to port 5432 and wrote 40
 # phantom rows into the production `order_parent` table. Never again.
 # ============================================================================
-os.environ.setdefault("COINBASE_DB_HOST", "127.0.0.1")
+os.environ.setdefault("COINBASE_DB_HOST", "coinbase-test-postgres")
 os.environ.setdefault("COINBASE_DB_PORT", "9876")
 os.environ.setdefault("COINBASE_DB_NAME", "postgres")
 os.environ.setdefault("COINBASE_DB_USER", "postgres")
@@ -42,17 +43,23 @@ sys.path.insert(0, str(project_root))
 # Belt-and-suspenders: even if a test passes explicit `port=5432`, refuse to
 # connect. To run a test against prod (you almost never should), set
 # `ALLOW_PROD_DB=1` in the environment.
+def _is_production_database_target(host, port):
+    """Return whether a target uses the main/stage PostgreSQL port."""
+
+    del host
+    return port == 5432
+
+
 def _install_prod_db_guard():
     from database import database as _db_mod
 
     _original_connect = _db_mod.PostgresDB.connect
 
     def _guarded_connect(self):
-        if (
-            self.port == 5432
-            and self.host in ("127.0.0.1", "localhost")
-            and os.environ.get("ALLOW_PROD_DB") != "1"
-        ):
+        if _is_production_database_target(
+            self.host,
+            self.port,
+        ) and os.environ.get("ALLOW_PROD_DB") != "1":
             raise RuntimeError(
                 f"REFUSED: test attempted to connect to prod DB at "
                 f"{self.host}:{self.port}. Use port 9876 (test instance) or "

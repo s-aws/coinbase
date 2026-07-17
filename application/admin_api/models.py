@@ -6,13 +6,15 @@ or mutate exchange state by themselves.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
+import re
 from typing import Annotated, Any, ClassVar, Literal, Self
 from uuid import UUID
 
 from pydantic import (
     BaseModel,
+    BeforeValidator,
     ConfigDict,
     computed_field,
     Field,
@@ -8415,12 +8417,7 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
             "reduce_position": 0,
         }
         expected_reads = {
-            "api_key_permissions": 1,
-            "portfolio_catalog": 1,
-            "product": 1,
-            "best_bid_ask": 1,
-            "futures_positions": 1,
-            "futures_margin_collateral": 1,
+            key: 1 for key in _R12_ELIGIBILITY_READ_KEYS
         }
         required_attempt_context = (
             self.permission_evidence,
@@ -39029,3 +39026,2060 @@ class AdminApiRouteInventoryItem(BaseModel):
 # This early read model references portfolio evidence declared alongside the
 # live-enablement models later in this module.
 AdminOrderFillFollowUpChainResponse.model_rebuild()
+
+
+_R12_ELIGIBILITY_READ_KEYS = frozenset(
+    {
+        "api_key_permissions",
+        "portfolio_catalog",
+        "product",
+        "best_bid_ask",
+        "futures_positions",
+        "futures_margin_collateral",
+    }
+)
+_R12_ELIGIBILITY_KEYS = frozenset(
+    {
+        "schema_version",
+        "type",
+        "status",
+        "classification",
+        "cycle_number",
+        "started_at",
+        "completed_at",
+        "non_attempt_correlation_id",
+        "non_attempt_correlation_id_sha256",
+        "profile_label",
+        "portfolio_type",
+        "portfolio_id",
+        "portfolio_id_sha256",
+        "portfolio_binding",
+        "permission_evidence",
+        "permission_evidence_sha256",
+        "portfolio_catalog_evidence",
+        "portfolio_catalog_evidence_sha256",
+        "product_id",
+        "product_evidence",
+        "product_evidence_sha256",
+        "market_evidence",
+        "market_evidence_sha256",
+        "position_evidence",
+        "position_evidence_sha256",
+        "margin_collateral_evidence",
+        "margin_collateral_evidence_sha256",
+        "margin_window_policy_evidence",
+        "margin_window_policy_evidence_sha256",
+        "transport_policy_evidence",
+        "transport_policy_evidence_sha256",
+        "candidate",
+        "candidate_sha256",
+        "preview_request",
+        "preview_request_sha256",
+        "read_counters",
+        "margin_source_read_attempts",
+        "sweep_evidence",
+        "r12_claim_created",
+        "r12_idempotency_key_created",
+        "r12_attempt_consumed",
+        "preview_order_attempt_count",
+        "exchange_submission_attempt_count",
+        "submitted_notional_usdc",
+        "executed_notional_usdc",
+        "read_only",
+        "sanitized",
+        "raw_response_included",
+        "external_exception_text_included",
+        "private_identifier_values_included",
+        "canonicalization",
+        "hash_algorithm",
+        "eligibility_evidence_sha256",
+    }
+)
+_R12_PORTFOLIO_BINDING_KEYS = frozenset(
+    {
+        "status",
+        "ready",
+        "blocker",
+        "read_authorized",
+        "expected_portfolio_label",
+        "expected_portfolio_type",
+        "observed_portfolio_id",
+        "observed_portfolio_label",
+        "observed_portfolio_type",
+        "can_view",
+        "can_trade",
+        "selection_authority",
+        "request_portfolio_override_allowed",
+        "source",
+        "freshness_status",
+        "observed_at",
+        "permissions_read_ran",
+        "portfolio_catalog_read_ran",
+        "permissions_error_present",
+        "portfolio_catalog_error_present",
+        "account_family",
+        "product_family",
+        "profile_alias",
+        "portfolio_id",
+        "credential_trade_permission_present",
+        "command_authority_granted",
+        "live_coinbase_execution_authorized",
+        "browser_authority",
+        "bff_authority",
+    }
+)
+_R12_PERMISSION_EVIDENCE_KEYS = frozenset(
+    {
+        "portfolio_id",
+        "portfolio_id_sha256",
+        "portfolio_type",
+        "can_view",
+        "can_trade",
+        "selection_authority",
+        "sanitized",
+        "raw_response_included",
+    }
+)
+_R12_PORTFOLIO_CATALOG_EVIDENCE_KEYS = frozenset(
+    {
+        "selected_portfolio_id",
+        "selected_portfolio_id_sha256",
+        "selected_portfolio_label",
+        "selected_portfolio_type",
+        "exact_match_count",
+        "sanitized",
+        "raw_response_included",
+    }
+)
+_R12_PRODUCT_EVIDENCE_KEYS = frozenset(
+    {
+        "product_id",
+        "display_name",
+        "product_type",
+        "status",
+        "price",
+        "price_increment",
+        "base_increment",
+        "base_min_size",
+        "trading_disabled",
+        "view_only",
+        "cancel_only",
+        "future_product_details",
+        "sanitized",
+        "raw_response_included",
+    }
+)
+_R12_FUTURE_PRODUCT_DETAILS_KEYS = frozenset(
+    {
+        "contract_size",
+        "contract_code",
+        "group_description",
+        "group_short_description",
+        "venue",
+        "risk_managed_by",
+        "contract_expiry",
+        "contract_expiry_type",
+    }
+)
+_R12_MARKET_EVIDENCE_KEYS = frozenset(
+    {
+        "product_id",
+        "best_bid",
+        "best_ask",
+        "exchange_observed_at",
+        "sanitized",
+        "raw_response_included",
+    }
+)
+_R12_POSITION_EVIDENCE_KEYS = frozenset(
+    {
+        "product_id",
+        "observed_contract_count",
+        "sanitized",
+        "raw_response_included",
+    }
+)
+_R12_MARGIN_EVIDENCE_KEYS = frozenset(
+    {
+        "status",
+        "account_family",
+        "source",
+        "source_read_attempts",
+        "available_margin_usdc",
+        "intraday_margin_window_measure",
+        "intraday_margin_setting",
+        "current_margin_windows",
+        "sweep_evidence",
+        "sanitized",
+        "raw_response_included",
+    }
+)
+_R12_MARGIN_MEASURE_KEYS = frozenset(
+    {
+        "margin_window_type",
+        "maintenance_margin_usdc",
+        "liquidation_buffer_usdc",
+    }
+)
+_R12_MARGIN_WINDOW_KEYS = frozenset(
+    {
+        "profile",
+        "margin_window_type",
+        "is_intraday_margin_killswitch_enabled",
+        "is_intraday_margin_enrollment_killswitch_enabled",
+    }
+)
+_R12_MARGIN_POLICY_KEYS = frozenset(
+    {
+        "policy_id",
+        "pair_policy_mode",
+        "profile_state_policy_authority",
+        "profile_state_mapping_documented_by_coinbase",
+        "classification",
+        "margin_window_policy_satisfied",
+        "rows",
+        "r12_attempt_authority_granted",
+        "sanitized",
+        "raw_response_included",
+    }
+)
+_R12_MARGIN_POLICY_ROW_KEYS = frozenset(
+    {
+        "policy_row_index",
+        "recognized_profile",
+        "observed_token",
+        "documented_allowlist_match",
+        "operator_policy_match",
+        "classification",
+    }
+)
+_R12_TRANSPORT_POLICY_KEYS = frozenset(
+    {
+        "schema_version",
+        "source",
+        "sdk_distribution",
+        "sdk_version",
+        "api_base_url",
+        "timeout_seconds",
+        "adapter_schemes",
+        "adapter_retry_total",
+        "redirect_max",
+        "trust_env",
+        "proxies_configured",
+        "ca_bundle_pinned",
+        "rate_limit_headers",
+        "validated",
+    }
+)
+_R12_CANDIDATE_KEYS = frozenset(
+    {
+        "product_id",
+        "side",
+        "order_type",
+        "post_only",
+        "contract_count",
+        "product_classification",
+        "contract_code",
+        "contract_expiry",
+        "contract_expiry_type",
+        "venue",
+        "risk_managed_by",
+        "contract_size",
+        "product_price",
+        "reference_price",
+        "reference_price_source",
+        "price_increment",
+        "best_bid",
+        "best_ask",
+        "limit_price",
+        "opening_reference_notional_usdc",
+        "maximum_exposure_reference_notional_usdc",
+        "observed_concurrent_exposure_usdc",
+        "buffered_close_reference_notional_usdc",
+        "branch_turnover_reference_notional_usdc",
+        "opening_cap_usdc",
+        "exposure_cap_usdc",
+        "turnover_cap_usdc",
+        "close_buffer_multiplier",
+        "observed_at",
+    }
+)
+_R12_PREVIEW_REQUEST_KEYS = frozenset(
+    {"product_id", "side", "order_configuration"}
+)
+_R12_PRIVATE_IDENTIFIER_KEYS = frozenset(
+    {
+        "correlation_id",
+        "non_attempt_correlation_id",
+        "idempotency_key",
+        "portfolio_id",
+        "observed_portfolio_id",
+        "selected_portfolio_id",
+        "preview_id",
+    }
+)
+_R12_PRIVACY_FALSE_KEYS = frozenset(
+    {
+        "raw_response_included",
+        "external_exception_text_included",
+        "private_identifier_values_included",
+        "identifier_values_included",
+        "unknown_identifier_values_included",
+    }
+)
+_R12_FORBIDDEN_EVIDENCE_KEYS = frozenset(
+    {
+        "raw_response",
+        "raw_preview_response",
+        "withheld_exception_text",
+        "external_exception_text",
+        "api_key",
+        "api_secret",
+        "portfolio_uuid",
+        "futures_sweeps",
+    }
+)
+_R12_STRICT_BOOLEAN_KEYS = frozenset(
+    {
+        "ready",
+        "sanitized",
+        "read_only",
+        "trust_env",
+        "proxies_configured",
+        "ca_bundle_pinned",
+        "rate_limit_headers",
+        "validated",
+        "documented_allowlist_match",
+        "operator_policy_match",
+        "margin_window_policy_satisfied",
+        "profile_state_mapping_documented_by_coinbase",
+        "is_intraday_margin_killswitch_enabled",
+        "is_intraday_margin_enrollment_killswitch_enabled",
+        "is_max",
+    }
+)
+_R12_STRICT_BOOLEAN_SUFFIXES = (
+    "_allowed",
+    "_authorized",
+    "_configured",
+    "_created",
+    "_enforced",
+    "_granted",
+    "_included",
+    "_match",
+    "_pinned",
+    "_present",
+    "_ran",
+    "_required",
+    "_satisfied",
+    "_separated",
+)
+_R12_STRICT_INTEGER_KEYS = frozenset(
+    {
+        "api_key_permissions",
+        "portfolio_catalog",
+        "product",
+        "best_bid_ask",
+        "futures_positions",
+        "futures_margin_collateral",
+        "get_futures_balance_summary",
+        "get_intraday_margin_setting",
+        "get_current_margin_window",
+        "preview_order",
+        "retry",
+        "fallback",
+        "create_order",
+        "cancel_order",
+        "close_position",
+        "reduce_position",
+        "cycle_number",
+        "exact_match_count",
+        "policy_row_index",
+        "timeout_seconds",
+        "redirect_max",
+        "preview_order_attempt_count",
+        "exchange_submission_attempt_count",
+        "preview_call_limit",
+        "retry_call_limit",
+    }
+)
+
+
+def _r12_exact_dict(
+    value: Any,
+    expected_keys: frozenset[str],
+    error_code: str,
+) -> dict[str, Any]:
+    if type(value) is not dict or set(value) != expected_keys:
+        raise ValueError(error_code)
+    return value
+
+
+def _r12_is_sha256(value: Any) -> bool:
+    return (
+        type(value) is str
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _r12_validate_recursive_privacy(value: Any) -> None:
+    if type(value) is dict:
+        for key, item in value.items():
+            if type(key) is not str or key in _R12_FORBIDDEN_EVIDENCE_KEYS:
+                raise ValueError("futures_preview_r12_private_evidence_invalid")
+            if key in _R12_PRIVATE_IDENTIFIER_KEYS and item != "withheld":
+                raise ValueError("futures_preview_r12_private_evidence_invalid")
+            if key in _R12_PRIVACY_FALSE_KEYS and item is not False:
+                raise ValueError("futures_preview_r12_private_evidence_invalid")
+            if (
+                key in _R12_STRICT_BOOLEAN_KEYS
+                or key.startswith("can_")
+                or key.endswith(_R12_STRICT_BOOLEAN_SUFFIXES)
+            ) and type(item) is not bool:
+                raise ValueError("futures_preview_r12_boolean_invalid")
+            if (
+                key in _R12_STRICT_INTEGER_KEYS
+                and type(item) is not int
+            ):
+                raise ValueError("futures_preview_r12_integer_invalid")
+            if key == "adapter_retry_total" and (
+                type(item) is not dict
+                or any(type(count) is not int for count in item.values())
+            ):
+                raise ValueError("futures_preview_r12_integer_invalid")
+            _r12_validate_recursive_privacy(item)
+    elif type(value) is list:
+        for item in value:
+            _r12_validate_recursive_privacy(item)
+
+
+_R12Sha256 = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+
+
+def _r12_strict_integer(value: Any) -> int:
+    if type(value) is not int:
+        raise ValueError("futures_preview_r12_integer_invalid")
+    return value
+
+
+def _r12_strict_boolean(value: Any) -> bool:
+    if type(value) is not bool:
+        raise ValueError("futures_preview_r12_boolean_invalid")
+    return value
+
+
+_R12_PLAIN_DECIMAL_PATTERN = r"^(?:0|[1-9]\d*)(?:\.\d+)?$"
+
+
+def _r12_plain_decimal(value: Any) -> str:
+    if (
+        type(value) is not str
+        or len(value) > 128
+        or re.fullmatch(_R12_PLAIN_DECIMAL_PATTERN, value) is None
+    ):
+        raise ValueError("futures_preview_r12_decimal_invalid")
+    return value
+
+
+_R12PlainDecimal = Annotated[
+    str,
+    Field(max_length=128, pattern=_R12_PLAIN_DECIMAL_PATTERN),
+    BeforeValidator(_r12_plain_decimal),
+]
+_R12Zero = Annotated[Literal[0], BeforeValidator(_r12_strict_integer)]
+_R12One = Annotated[Literal[1], BeforeValidator(_r12_strict_integer)]
+_R12Two = Annotated[Literal[2], BeforeValidator(_r12_strict_integer)]
+_R12Thirty = Annotated[Literal[30], BeforeValidator(_r12_strict_integer)]
+_R12ZeroOrOne = Annotated[
+    Literal[0, 1],
+    BeforeValidator(_r12_strict_integer),
+]
+_R12CycleNumber = Annotated[
+    int,
+    BeforeValidator(_r12_strict_integer),
+    Field(ge=1, le=10),
+]
+_R12False = Annotated[Literal[False], BeforeValidator(_r12_strict_boolean)]
+_R12True = Annotated[Literal[True], BeforeValidator(_r12_strict_boolean)]
+
+
+class AdminFuturesPreviewR12EligibilityReadCounters(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    api_key_permissions: _R12One
+    portfolio_catalog: _R12One
+    product: _R12One
+    best_bid_ask: _R12One
+    futures_positions: _R12One
+    futures_margin_collateral: _R12One
+
+
+class AdminFuturesPreviewR12PostClaimReadCounters(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    api_key_permissions: _R12Zero
+    portfolio_catalog: _R12Zero
+    product: _R12Zero
+    best_bid_ask: _R12Zero
+    futures_positions: _R12Zero
+    futures_margin_collateral: _R12Zero
+
+
+class AdminFuturesPreviewR12MarginSourceReadAttempts(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    get_futures_balance_summary: _R12One
+    get_intraday_margin_setting: _R12One
+    get_current_margin_window: _R12Two
+
+
+class AdminFuturesPreviewR12AttemptCounters(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    preview_order: _R12ZeroOrOne
+    retry: _R12Zero
+    fallback: _R12Zero
+    create_order: _R12Zero
+    cancel_order: _R12Zero
+    close_position: _R12Zero
+    reduce_position: _R12Zero
+
+
+class AdminFuturesPreviewR12ArtifactFlags(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    execution_marker_created: _R12False
+    attempt_ledger_created: _R12False
+    runtime_created: _R12False
+
+
+class AdminFuturesPreviewR12PortfolioBinding(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    status: Literal["matched"]
+    ready: _R12True
+    blocker: None
+    read_authorized: _R12True
+    expected_portfolio_label: Literal["Default"]
+    expected_portfolio_type: Literal["DEFAULT"]
+    observed_portfolio_id: Literal["withheld"]
+    observed_portfolio_label: Literal["Default"]
+    observed_portfolio_type: Literal["DEFAULT"]
+    can_view: _R12True
+    can_trade: _R12True
+    selection_authority: Literal["cdp_api_key_permissioned_portfolio"]
+    request_portfolio_override_allowed: _R12False
+    source: Literal["coinbase_api_key_permissions_and_portfolio_catalog"]
+    freshness_status: Literal["backend_rest_fresh"]
+    observed_at: str
+    permissions_read_ran: _R12True
+    portfolio_catalog_read_ran: _R12True
+    permissions_error_present: _R12False
+    portfolio_catalog_error_present: _R12False
+    account_family: Literal["coinbase_futures_us_cfm"]
+    product_family: Literal["FUTURES_PERPETUALS"]
+    profile_alias: Literal["Default"]
+    portfolio_id: Literal["withheld"]
+    credential_trade_permission_present: _R12True
+    command_authority_granted: _R12False
+    live_coinbase_execution_authorized: _R12False
+    browser_authority: Literal["display_only"]
+    bff_authority: Literal["forward_only_no_execution"]
+
+
+class AdminFuturesPreviewR12PermissionEvidence(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    portfolio_id: Literal["withheld"]
+    portfolio_id_sha256: _R12Sha256
+    portfolio_type: Literal["DEFAULT"]
+    can_view: _R12True
+    can_trade: _R12True
+    selection_authority: Literal["cdp_api_key_permissioned_portfolio"]
+    sanitized: _R12True
+    raw_response_included: _R12False
+
+
+class AdminFuturesPreviewR12PortfolioCatalogEvidence(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    selected_portfolio_id: Literal["withheld"]
+    selected_portfolio_id_sha256: _R12Sha256
+    selected_portfolio_label: Literal["Default"]
+    selected_portfolio_type: Literal["DEFAULT"]
+    exact_match_count: _R12One
+    sanitized: _R12True
+    raw_response_included: _R12False
+
+
+class AdminFuturesPreviewR12FutureProductDetails(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    contract_size: _R12PlainDecimal
+    contract_code: Literal["AVP"]
+    group_description: Literal["Avalanche Perp Futures"]
+    group_short_description: Literal["Avalanche Perp"]
+    venue: Literal["cde"]
+    risk_managed_by: Literal["MANAGED_BY_FCM"]
+    contract_expiry: Literal["2030-12-20T16:00:00Z"]
+    contract_expiry_type: Literal["EXPIRING"]
+
+
+class AdminFuturesPreviewR12ProductEvidence(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    product_id: Literal["AVP-20DEC30-CDE"]
+    display_name: Literal["AVAX PERP"]
+    product_type: Literal["FUTURE"]
+    status: Literal[""]
+    price: _R12PlainDecimal
+    price_increment: _R12PlainDecimal
+    base_increment: _R12PlainDecimal
+    base_min_size: _R12PlainDecimal
+    trading_disabled: _R12False
+    view_only: _R12False
+    cancel_only: _R12False
+    future_product_details: AdminFuturesPreviewR12FutureProductDetails
+    sanitized: _R12True
+    raw_response_included: _R12False
+
+
+class AdminFuturesPreviewR12MarketEvidence(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    product_id: Literal["AVP-20DEC30-CDE"]
+    best_bid: _R12PlainDecimal
+    best_ask: _R12PlainDecimal
+    exchange_observed_at: str
+    sanitized: _R12True
+    raw_response_included: _R12False
+
+
+class AdminFuturesPreviewR12PositionEvidence(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    product_id: Literal["AVP-20DEC30-CDE"]
+    observed_contract_count: Literal["0"]
+    sanitized: _R12True
+    raw_response_included: _R12False
+
+
+class AdminFuturesPreviewR12MarginWindowMeasure(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    margin_window_type: Literal["FCM_MARGIN_WINDOW_TYPE_INTRADAY"]
+    maintenance_margin_usdc: _R12PlainDecimal
+    liquidation_buffer_usdc: _R12PlainDecimal
+
+
+class AdminFuturesPreviewR12IntradayMarginSetting(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    setting: Literal["INTRADAY_MARGIN_SETTING_INTRADAY"]
+
+
+class AdminFuturesPreviewR12CurrentMarginWindow(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    profile: Literal[
+        "MARGIN_PROFILE_TYPE_RETAIL_REGULAR",
+        "MARGIN_PROFILE_TYPE_RETAIL_INTRADAY_MARGIN_1",
+    ]
+    margin_window_type: Literal[
+        "MARGIN_WINDOW_TYPE_UNSPECIFIED",
+        "MARGIN_WINDOW_TYPE_INTRADAY",
+    ]
+    is_intraday_margin_killswitch_enabled: _R12False
+    is_intraday_margin_enrollment_killswitch_enabled: _R12False
+
+
+class AdminFuturesPreviewR12MarginCollateralEvidence(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    status: Literal["ready"]
+    account_family: Literal["coinbase_futures_us_cfm"]
+    source: Literal["backend_rest_client"]
+    source_read_attempts: AdminFuturesPreviewR12MarginSourceReadAttempts
+    available_margin_usdc: _R12PlainDecimal
+    intraday_margin_window_measure: (
+        AdminFuturesPreviewR12MarginWindowMeasure
+    )
+    intraday_margin_setting: AdminFuturesPreviewR12IntradayMarginSetting
+    current_margin_windows: list[
+        AdminFuturesPreviewR12CurrentMarginWindow
+    ] = Field(min_length=2, max_length=2)
+    sweep_evidence: Literal["not_observed_not_authorized"]
+    sanitized: _R12True
+    raw_response_included: _R12False
+
+
+class AdminFuturesPreviewR12MarginPolicyRow(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    policy_row_index: _R12ZeroOrOne
+    recognized_profile: Literal[
+        "retail_regular",
+        "retail_intraday_margin_1",
+    ]
+    observed_token: Literal[
+        "MARGIN_WINDOW_TYPE_UNSPECIFIED",
+        "MARGIN_WINDOW_TYPE_INTRADAY",
+    ]
+    documented_allowlist_match: _R12True
+    operator_policy_match: _R12True
+    classification: Literal["accepted"]
+
+
+class AdminFuturesPreviewR12MarginPolicyEvidence(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    policy_id: Literal[
+        "slice2_preview_margin_window_exact_pair_policy_v3"
+    ]
+    pair_policy_mode: Literal["exact_profile_state_pair"]
+    profile_state_policy_authority: Literal[
+        "operator_defined_slice_2_preview_only_not_coinbase_documented"
+    ]
+    profile_state_mapping_documented_by_coinbase: _R12False
+    classification: Literal["ready"]
+    margin_window_policy_satisfied: _R12True
+    rows: list[AdminFuturesPreviewR12MarginPolicyRow] = Field(
+        min_length=2,
+        max_length=2,
+    )
+    r12_attempt_authority_granted: _R12False
+    sanitized: _R12True
+    raw_response_included: _R12False
+
+
+class AdminFuturesPreviewR12TransportPolicyEvidence(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    schema_version: Literal["1"]
+    source: Literal["backend_coinbase_sdk_transport"]
+    sdk_distribution: Literal["coinbase-advanced-py"]
+    sdk_version: Literal["1.8.4"]
+    api_base_url: Literal["api.coinbase.com"]
+    timeout_seconds: _R12Thirty
+    adapter_schemes: list[Literal["http://", "https://"]] = Field(
+        min_length=2,
+        max_length=2,
+    )
+    adapter_retry_total: dict[
+        Literal["http://", "https://"],
+        _R12Zero,
+    ]
+    redirect_max: _R12Zero
+    trust_env: _R12False
+    proxies_configured: _R12False
+    ca_bundle_pinned: _R12True
+    rate_limit_headers: _R12False
+    validated: _R12True
+
+
+class AdminFuturesPreviewR12Candidate(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    product_id: Literal["AVP-20DEC30-CDE"]
+    side: Literal["BUY"]
+    order_type: Literal["LIMIT_GTC"]
+    post_only: Literal["true"]
+    contract_count: Literal["1"]
+    product_classification: Literal["PERP_STYLE_FUTURE"]
+    contract_code: Literal["AVP"]
+    contract_expiry: Literal["2030-12-20T16:00:00Z"]
+    contract_expiry_type: Literal["EXPIRING"]
+    venue: Literal["cde"]
+    risk_managed_by: Literal["MANAGED_BY_FCM"]
+    contract_size: Literal["10"]
+    product_price: _R12PlainDecimal
+    reference_price: _R12PlainDecimal
+    reference_price_source: Literal[
+        "max_product_price_and_fresh_best_ask"
+    ]
+    price_increment: _R12PlainDecimal
+    best_bid: _R12PlainDecimal
+    best_ask: _R12PlainDecimal
+    limit_price: _R12PlainDecimal
+    opening_reference_notional_usdc: _R12PlainDecimal
+    maximum_exposure_reference_notional_usdc: _R12PlainDecimal
+    observed_concurrent_exposure_usdc: _R12PlainDecimal
+    buffered_close_reference_notional_usdc: _R12PlainDecimal
+    branch_turnover_reference_notional_usdc: _R12PlainDecimal
+    opening_cap_usdc: Literal["100"]
+    exposure_cap_usdc: Literal["150"]
+    turnover_cap_usdc: Literal["300"]
+    close_buffer_multiplier: Literal["1.20"]
+    observed_at: str
+
+
+class AdminFuturesPreviewR12LimitGtcRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    base_size: Literal["1"]
+    limit_price: _R12PlainDecimal
+    post_only: _R12True
+
+
+class AdminFuturesPreviewR12OrderConfiguration(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    limit_limit_gtc: AdminFuturesPreviewR12LimitGtcRequest
+
+
+class AdminFuturesPreviewR12Request(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    product_id: Literal["AVP-20DEC30-CDE"]
+    side: Literal["BUY"]
+    order_configuration: AdminFuturesPreviewR12OrderConfiguration
+
+
+class AdminFuturesPreviewR12EligibilityEvidence(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    schema_version: Literal["1"]
+    type: Literal["futures_preview_r12_non_attempt_eligibility"]
+    status: Literal["eligible"]
+    classification: Literal["exact_v3_eligible"]
+    cycle_number: _R12CycleNumber
+    started_at: str
+    completed_at: str
+    non_attempt_correlation_id: Literal["withheld"]
+    non_attempt_correlation_id_sha256: _R12Sha256
+    profile_label: Literal["Default"]
+    portfolio_type: Literal["DEFAULT"]
+    portfolio_id: Literal["withheld"]
+    portfolio_id_sha256: _R12Sha256
+    portfolio_binding: AdminFuturesPreviewR12PortfolioBinding
+    permission_evidence: AdminFuturesPreviewR12PermissionEvidence
+    permission_evidence_sha256: _R12Sha256
+    portfolio_catalog_evidence: (
+        AdminFuturesPreviewR12PortfolioCatalogEvidence
+    )
+    portfolio_catalog_evidence_sha256: _R12Sha256
+    product_id: Literal["AVP-20DEC30-CDE"]
+    product_evidence: AdminFuturesPreviewR12ProductEvidence
+    product_evidence_sha256: _R12Sha256
+    market_evidence: AdminFuturesPreviewR12MarketEvidence
+    market_evidence_sha256: _R12Sha256
+    position_evidence: AdminFuturesPreviewR12PositionEvidence
+    position_evidence_sha256: _R12Sha256
+    margin_collateral_evidence: (
+        AdminFuturesPreviewR12MarginCollateralEvidence
+    )
+    margin_collateral_evidence_sha256: _R12Sha256
+    margin_window_policy_evidence: AdminFuturesPreviewR12MarginPolicyEvidence
+    margin_window_policy_evidence_sha256: _R12Sha256
+    transport_policy_evidence: AdminFuturesPreviewR12TransportPolicyEvidence
+    transport_policy_evidence_sha256: _R12Sha256
+    candidate: AdminFuturesPreviewR12Candidate
+    candidate_sha256: _R12Sha256
+    preview_request: AdminFuturesPreviewR12Request
+    preview_request_sha256: _R12Sha256
+    read_counters: AdminFuturesPreviewR12EligibilityReadCounters
+    margin_source_read_attempts: (
+        AdminFuturesPreviewR12MarginSourceReadAttempts
+    )
+    sweep_evidence: Literal["not_observed_not_authorized"]
+    r12_claim_created: _R12False
+    r12_idempotency_key_created: _R12False
+    r12_attempt_consumed: _R12False
+    preview_order_attempt_count: _R12Zero
+    exchange_submission_attempt_count: _R12Zero
+    submitted_notional_usdc: Literal["0"]
+    executed_notional_usdc: Literal["0"]
+    read_only: _R12True
+    sanitized: _R12True
+    raw_response_included: _R12False
+    external_exception_text_included: _R12False
+    private_identifier_values_included: _R12False
+    canonicalization: Literal["sorted_keys_compact_utf8_json"]
+    hash_algorithm: Literal["sha256"]
+    eligibility_evidence_sha256: _R12Sha256
+
+
+class AdminFuturesPreviewR12PostStageEvidenceRow(BaseModel):
+    """One fixed value-blind R12 post-Preview stage."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    stage: Literal[
+        "preview_response_validation",
+        "candidate_cap_binding",
+        "available_margin_validation",
+        "preview_identifier_binding",
+        "terminal_predecessor_validation",
+    ]
+    status: Literal["blocked"]
+    reason_code: Literal[
+        "futures_preview_response_validation_blocked",
+        "futures_preview_candidate_cap_binding_blocked",
+        "futures_preview_available_margin_validation_blocked",
+        "futures_preview_identifier_binding_blocked",
+        "futures_preview_terminal_predecessor_blocked",
+    ]
+
+    @model_validator(mode="after")
+    def validate_stage_reason_pair(self) -> Self:
+        expected = {
+            "preview_response_validation": (
+                "futures_preview_response_validation_blocked"
+            ),
+            "candidate_cap_binding": (
+                "futures_preview_candidate_cap_binding_blocked"
+            ),
+            "available_margin_validation": (
+                "futures_preview_available_margin_validation_blocked"
+            ),
+            "preview_identifier_binding": (
+                "futures_preview_identifier_binding_blocked"
+            ),
+            "terminal_predecessor_validation": (
+                "futures_preview_terminal_predecessor_blocked"
+            ),
+        }
+        if self.reason_code != expected[self.stage]:
+            raise ValueError("futures_preview_r12_stage_reason_invalid")
+        return self
+
+
+class AdminFuturesPreviewR12PostStageEvidence(BaseModel):
+    """Fixed sanitized R12 post-claim failure classification."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    schema_version: Literal["1"]
+    source: Literal["backend_futures_preview_r12_attempt"]
+    stages: list[AdminFuturesPreviewR12PostStageEvidenceRow] = Field(
+        min_length=1,
+        max_length=1,
+    )
+    sanitized: _R12True
+    raw_response_included: _R12False
+    external_exception_text_included: _R12False
+    identifier_values_included: _R12False
+
+
+class AdminFuturesPreviewR12PredecessorChainValidation(BaseModel):
+    """Exact value-blind generations represented by the R12 predecessor."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    r1_through_r7: Literal["opaque_hash_and_metadata"]
+    r8: Literal["metadata_only_content_and_hash_inaccessible"]
+    r9_through_r11: Literal["opaque_hash_and_metadata"]
+
+
+class AdminFuturesPreviewR12PredecessorBinding(BaseModel):
+    """Strict public projection of the immutable R11 predecessor binding."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    artifact_name: Literal["futures_exact_no_live_preview_slice_2r11.jsonl"]
+    file_sha256: _R12Sha256
+    evidence_sha256: _R12Sha256
+    device: str = Field(pattern=r"^[0-9]+$")
+    inode: str = Field(pattern=r"^[0-9]+$")
+    size_bytes: Annotated[
+        int,
+        BeforeValidator(_r12_strict_integer),
+        Field(gt=0),
+    ]
+    mode: Literal["0400"]
+    mtime_ns: str = Field(pattern=r"^[0-9]+$")
+    nlink: _R12One
+    status: Literal["blocked"]
+    outcome: Literal["blocked"]
+    preview_order_attempt_count: _R12Zero
+    exchange_submission_attempt_count: _R12Zero
+    submitted_notional_usdc: Literal["0"]
+    executed_notional_usdc: Literal["0"]
+    preservation: Literal["immutable_no_modify_delete_or_reuse"]
+    chain_validation: AdminFuturesPreviewR12PredecessorChainValidation
+
+
+class AdminFuturesPreviewR12MarginRatioData(BaseModel):
+    """Only the two accepted, sanitized liquidation-ratio fields."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    current_margin_ratio: _R12PlainDecimal
+    projected_margin_ratio: _R12PlainDecimal
+
+
+class AdminFuturesPreviewR12CandidateBinding(BaseModel):
+    """Exact sanitized cap comparison bound to the accepted Preview."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    status: Literal["matched"]
+    contract_count: Literal["1"]
+    authoritative_opening_reference_notional_usdc: _R12PlainDecimal
+    maximum_exposure_reference_notional_usdc: _R12PlainDecimal
+    buffered_close_reference_notional_usdc: _R12PlainDecimal
+    branch_turnover_reference_notional_usdc: _R12PlainDecimal
+    reference_rule: Literal[
+        "max_candidate_reference_preview_ask_contract_notional_"
+        "order_total_plus_fee_quote_size_plus_fee"
+    ]
+    opening_cap_usdc: Literal["100"]
+    exposure_cap_usdc: Literal["150"]
+    turnover_cap_usdc: Literal["300"]
+    comparison: Literal["strictly_less_than"]
+
+
+class AdminFuturesPreviewR12SanitizedResponse(BaseModel):
+    """Exact allowlisted R12 Preview evidence safe for persistence/readback."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    preview_id: Literal["withheld"]
+    errs: list[str] = Field(max_length=0)
+    warning: list[str] = Field(max_length=0)
+    order_total: _R12PlainDecimal
+    commission_total: _R12PlainDecimal
+    quote_size: _R12PlainDecimal
+    base_size: Literal["1"]
+    best_bid: _R12PlainDecimal
+    best_ask: _R12PlainDecimal
+    order_margin_total: _R12PlainDecimal
+    is_max: _R12False
+    margin_ratio_data: AdminFuturesPreviewR12MarginRatioData
+    candidate_binding: AdminFuturesPreviewR12CandidateBinding
+    liquidation_evidence_source: Literal[
+        "margin_ratio_data",
+        "margin_ratio_data_and_predicted_liquidation_price",
+    ]
+    predicted_liquidation_price: _R12PlainDecimal | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+
+    @model_validator(mode="after")
+    def validate_liquidation_source(self) -> Self:
+        predicted_present = self.predicted_liquidation_price is not None
+        if predicted_present != (
+            self.liquidation_evidence_source
+            == "margin_ratio_data_and_predicted_liquidation_price"
+        ):
+            raise ValueError(
+                "futures_preview_r12_liquidation_source_invalid"
+            )
+        return self
+
+
+class AdminFuturesOrderPreviewR12Response(BaseModel):
+    """Strict terminal-only readback for the separate-eligibility R12 flow."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    schema_version: Literal["1"]
+    type: Literal["admin_futures_order_preview"]
+    artifact_type: Literal["futures_exact_no_live_preview_slice_2r12"]
+    status: Literal["accepted", "blocked", "unknown"]
+    outcome: Literal["accepted", "blocked", "unknown"]
+    blocker: Literal[
+        "predecessor_validation_blocked_after_claim",
+        "predecessor_binding_changed_after_claim",
+        "preview_boundary_initialization_unknown_consumed",
+        "preview_order_unknown_consumed",
+        "eligibility_claim_marker_unknown_consumed",
+        "claim_only_recovery_unknown_consumed",
+        "post_preview_stage_blocked",
+        "terminal_predecessor_validation_blocked",
+    ] | None
+    predecessor_binding: AdminFuturesPreviewR12PredecessorBinding
+    reserved_at: str
+    completed_at: str
+    claim_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    actor_id: Literal["operator-controlled-futures-proof"]
+    roles: list[Literal["trader"]]
+    correlation_id: Literal["withheld"]
+    correlation_id_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    idempotency_key: Literal["withheld"]
+    idempotency_key_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    profile_label: Literal["Default"]
+    portfolio_type: Literal["DEFAULT"]
+    product_id: Literal["AVP-20DEC30-CDE"]
+    non_attempt_eligibility: AdminFuturesPreviewR12EligibilityEvidence
+    non_attempt_eligibility_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    candidate: AdminFuturesPreviewR12Candidate
+    candidate_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    preview_request: AdminFuturesPreviewR12Request
+    preview_request_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    preview_response: AdminFuturesPreviewR12SanitizedResponse | None
+    preview_response_sha256: str | None = Field(
+        pattern=r"^[0-9a-f]{64}$",
+    )
+    preview_id_sha256: str | None = Field(
+        pattern=r"^[0-9a-f]{64}$",
+    )
+    attempt_counters: AdminFuturesPreviewR12AttemptCounters
+    post_claim_read_counters: AdminFuturesPreviewR12PostClaimReadCounters
+    eligibility_read_counters: AdminFuturesPreviewR12EligibilityReadCounters
+    exchange_submission_attempt_count: _R12Zero
+    submitted_notional_usdc: Literal["0"]
+    executed_notional_usdc: Literal["0"]
+    live_execution: Literal["not_run"]
+    live_coinbase_execution: Literal["not_run"]
+    read_only: _R12True
+    slice3_activation: Literal["not_authorized"]
+    slice4_activation: Literal["not_authorized"]
+    slice5_activation: Literal["not_authorized"]
+    r13_attempt_authorized: _R12False
+    post_preview_stage_evidence: (
+        AdminFuturesPreviewR12PostStageEvidence | None
+    )
+    post_preview_stage_evidence_sha256: str | None = Field(
+        pattern=r"^[0-9a-f]{64}$",
+    )
+    preview_response_schema_binding: AdminFuturesPreviewResponseSchemaBindingV3
+    post_preview_diagnostic_binding: (
+        AdminFuturesPreviewPostPreviewDiagnosticBindingV3
+    )
+    raw_response_included: _R12False
+    external_exception_text_included: _R12False
+    private_identifier_values_included: _R12False
+    browser_authority: Literal["display_only"]
+    bff_authority: Literal["forward_only_no_execution"]
+    artifacts: AdminFuturesPreviewR12ArtifactFlags
+    canonicalization: Literal["sorted_keys_compact_utf8_json"]
+    hash_algorithm: Literal["sha256"]
+    evidence_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_raw_evidence_hash(cls, value: Any) -> Any:
+        from application.admin_api.futures_order_preview import canonical_sha256
+
+        if not isinstance(value, dict):
+            raise ValueError("futures_preview_r12_payload_invalid")
+        _r12_validate_recursive_privacy(value)
+        payload = dict(value)
+        expected_hash = payload.pop("evidence_sha256", None)
+        if (
+            not isinstance(expected_hash, str)
+            or canonical_sha256(payload) != expected_hash
+        ):
+            raise ValueError("futures_preview_r12_evidence_hash_invalid")
+        return value
+
+    @model_validator(mode="after")
+    def validate_r12_terminal(self) -> Self:
+        from application.admin_api.futures_order_preview import (
+            FUTURES_PREVIEW_R11_POST_PREVIEW_DIAGNOSTIC_BINDING,
+            FUTURES_PREVIEW_R11_RESPONSE_SCHEMA_BINDING,
+            build_futures_order_preview_candidate,
+            canonical_sha256,
+            validate_post_r10_preview_response_acceptance,
+            validate_preview_against_candidate,
+        )
+        from application.admin_api.futures_order_preview_r12 import (
+            FUTURES_PREVIEW_R12_API_BASE_URL,
+            FUTURES_PREVIEW_R12_ELIGIBILITY_MAX_CYCLE_AGE_SECONDS,
+            FUTURES_PREVIEW_R12_ELIGIBILITY_MARGIN_SOURCE_READS,
+            FUTURES_PREVIEW_R12_ELIGIBILITY_MAX_TRANSITION_AGE_SECONDS,
+            FUTURES_PREVIEW_R12_HTTP_TIMEOUT_SECONDS,
+            FUTURES_PREVIEW_R12_PREDECESSOR_BINDING,
+            FUTURES_PREVIEW_R12_SDK_DISTRIBUTION,
+            FUTURES_PREVIEW_R12_SDK_VERSION,
+        )
+
+        def timestamp(value: str) -> datetime:
+            try:
+                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError as exc:
+                raise ValueError("futures_preview_r12_timestamp_invalid") from exc
+            if (
+                parsed.tzinfo is None
+                or parsed.microsecond != 0
+                or parsed.astimezone().utcoffset() is None
+                or parsed.astimezone(tz=timezone.utc)
+                .isoformat(timespec="seconds")
+                .replace("+00:00", "Z")
+                != value
+            ):
+                raise ValueError("futures_preview_r12_timestamp_invalid")
+            return parsed
+
+        expected_reads = {
+            "api_key_permissions": 1,
+            "portfolio_catalog": 1,
+            "product": 1,
+            "best_bid_ask": 1,
+            "futures_positions": 1,
+            "futures_margin_collateral": 1,
+        }
+        expected_zero_reads = {key: 0 for key in expected_reads}
+        attempt_counters = self.attempt_counters.model_dump(mode="json")
+        post_claim_read_counters = self.post_claim_read_counters.model_dump(
+            mode="json"
+        )
+        eligibility_read_counters = (
+            self.eligibility_read_counters.model_dump(mode="json")
+        )
+        artifact_flags = self.artifacts.model_dump(mode="json")
+        predecessor_binding = self.predecessor_binding.model_dump(mode="json")
+        preview_response = (
+            self.preview_response.model_dump(mode="json", exclude_none=True)
+            if self.preview_response is not None
+            else None
+        )
+        response_schema_binding = (
+            self.preview_response_schema_binding.model_dump(mode="json")
+        )
+        diagnostic_binding = self.post_preview_diagnostic_binding.model_dump(
+            mode="json"
+        )
+        expected_attempts = {
+            "preview_order": attempt_counters.get("preview_order"),
+            "retry": 0,
+            "fallback": 0,
+            "create_order": 0,
+            "cancel_order": 0,
+            "close_position": 0,
+            "reduce_position": 0,
+        }
+        eligibility = _r12_exact_dict(
+            self.non_attempt_eligibility.model_dump(mode="json"),
+            _R12_ELIGIBILITY_KEYS,
+            "futures_preview_r12_eligibility_shape_invalid",
+        )
+        portfolio_binding = _r12_exact_dict(
+            eligibility.get("portfolio_binding"),
+            _R12_PORTFOLIO_BINDING_KEYS,
+            "futures_preview_r12_portfolio_binding_invalid",
+        )
+        permission = _r12_exact_dict(
+            eligibility.get("permission_evidence"),
+            _R12_PERMISSION_EVIDENCE_KEYS,
+            "futures_preview_r12_permission_evidence_invalid",
+        )
+        portfolio_catalog = _r12_exact_dict(
+            eligibility.get("portfolio_catalog_evidence"),
+            _R12_PORTFOLIO_CATALOG_EVIDENCE_KEYS,
+            "futures_preview_r12_portfolio_catalog_evidence_invalid",
+        )
+        product = _r12_exact_dict(
+            eligibility.get("product_evidence"),
+            _R12_PRODUCT_EVIDENCE_KEYS,
+            "futures_preview_r12_product_evidence_invalid",
+        )
+        product_details = _r12_exact_dict(
+            product.get("future_product_details"),
+            _R12_FUTURE_PRODUCT_DETAILS_KEYS,
+            "futures_preview_r12_product_evidence_invalid",
+        )
+        market = _r12_exact_dict(
+            eligibility.get("market_evidence"),
+            _R12_MARKET_EVIDENCE_KEYS,
+            "futures_preview_r12_market_evidence_invalid",
+        )
+        position = _r12_exact_dict(
+            eligibility.get("position_evidence"),
+            _R12_POSITION_EVIDENCE_KEYS,
+            "futures_preview_r12_position_evidence_invalid",
+        )
+        eligibility_hash = eligibility.get("eligibility_evidence_sha256")
+        eligibility_payload = {
+            key: item
+            for key, item in eligibility.items()
+            if key != "eligibility_evidence_sha256"
+        }
+        margin = _r12_exact_dict(
+            eligibility.get("margin_collateral_evidence"),
+            _R12_MARGIN_EVIDENCE_KEYS,
+            "futures_preview_r12_margin_evidence_invalid",
+        )
+        margin_measure = _r12_exact_dict(
+            margin.get("intraday_margin_window_measure"),
+            _R12_MARGIN_MEASURE_KEYS,
+            "futures_preview_r12_margin_evidence_invalid",
+        )
+        margin_setting = _r12_exact_dict(
+            margin.get("intraday_margin_setting"),
+            frozenset({"setting"}),
+            "futures_preview_r12_margin_evidence_invalid",
+        )
+        margin_windows = margin.get("current_margin_windows")
+        if type(margin_windows) is not list or len(margin_windows) != 2:
+            raise ValueError("futures_preview_r12_margin_evidence_invalid")
+        margin_windows = [
+            _r12_exact_dict(
+                item,
+                _R12_MARGIN_WINDOW_KEYS,
+                "futures_preview_r12_margin_evidence_invalid",
+            )
+            for item in margin_windows
+        ]
+        policy = _r12_exact_dict(
+            eligibility.get("margin_window_policy_evidence"),
+            _R12_MARGIN_POLICY_KEYS,
+            "futures_preview_r12_margin_policy_invalid",
+        )
+        rows = policy.get("rows")
+        if type(rows) is not list or len(rows) != 2:
+            raise ValueError("futures_preview_r12_margin_policy_invalid")
+        rows = [
+            _r12_exact_dict(
+                row,
+                _R12_MARGIN_POLICY_ROW_KEYS,
+                "futures_preview_r12_margin_policy_invalid",
+            )
+            for row in rows
+        ]
+        transport = _r12_exact_dict(
+            eligibility.get("transport_policy_evidence"),
+            _R12_TRANSPORT_POLICY_KEYS,
+            "futures_preview_r12_transport_policy_invalid",
+        )
+        policy_pairs = (
+            {
+                row.get("recognized_profile"): row.get("observed_token")
+                for row in rows
+            }
+        )
+        eligibility_candidate = _r12_exact_dict(
+            eligibility.get("candidate"),
+            _R12_CANDIDATE_KEYS,
+            "futures_preview_r12_candidate_invalid",
+        )
+        terminal_candidate = _r12_exact_dict(
+            self.candidate.model_dump(mode="json"),
+            _R12_CANDIDATE_KEYS,
+            "futures_preview_r12_candidate_invalid",
+        )
+        eligibility_request = _r12_exact_dict(
+            eligibility.get("preview_request"),
+            _R12_PREVIEW_REQUEST_KEYS,
+            "futures_preview_r12_request_invalid",
+        )
+        terminal_request = _r12_exact_dict(
+            self.preview_request.model_dump(mode="json"),
+            _R12_PREVIEW_REQUEST_KEYS,
+            "futures_preview_r12_request_invalid",
+        )
+        for request in (eligibility_request, terminal_request):
+            order_configuration = _r12_exact_dict(
+                request.get("order_configuration"),
+                frozenset({"limit_limit_gtc"}),
+                "futures_preview_r12_request_invalid",
+            )
+            limit_gtc = _r12_exact_dict(
+                order_configuration.get("limit_limit_gtc"),
+                frozenset(
+                    {"base_size", "limit_price", "post_only"}
+                ),
+                "futures_preview_r12_request_invalid",
+            )
+            if (
+                type(limit_gtc.get("base_size")) is not str
+                or limit_gtc.get("base_size") != "1"
+                or type(limit_gtc.get("limit_price")) is not str
+                or limit_gtc.get("post_only") is not True
+            ):
+                raise ValueError("futures_preview_r12_request_invalid")
+
+        def exact_int_map(value: Any, expected: dict[str, int]) -> bool:
+            return (
+                type(value) is dict
+                and set(value) == set(expected)
+                and all(
+                    type(value[key]) is int
+                    and value[key] == expected_value
+                    for key, expected_value in expected.items()
+                )
+            )
+
+        if (
+            transport.get("schema_version") != "1"
+            or transport.get("source")
+            != "backend_coinbase_sdk_transport"
+            or transport.get("sdk_distribution")
+            != FUTURES_PREVIEW_R12_SDK_DISTRIBUTION
+            or transport.get("sdk_version")
+            != FUTURES_PREVIEW_R12_SDK_VERSION
+            or transport.get("api_base_url")
+            != FUTURES_PREVIEW_R12_API_BASE_URL
+            or type(transport.get("timeout_seconds")) is not int
+            or transport.get("timeout_seconds")
+            != FUTURES_PREVIEW_R12_HTTP_TIMEOUT_SECONDS
+            or transport.get("adapter_schemes") != ["http://", "https://"]
+            or not exact_int_map(
+                transport.get("adapter_retry_total"),
+                {"http://": 0, "https://": 0},
+            )
+            or type(transport.get("redirect_max")) is not int
+            or transport.get("redirect_max") != 0
+            or transport.get("trust_env") is not False
+            or transport.get("proxies_configured") is not False
+            or transport.get("ca_bundle_pinned") is not True
+            or transport.get("rate_limit_headers") is not False
+            or transport.get("validated") is not True
+        ):
+            raise ValueError("futures_preview_r12_transport_policy_invalid")
+
+        nested_hash_pairs = (
+            ("permission_evidence", "permission_evidence_sha256"),
+            (
+                "portfolio_catalog_evidence",
+                "portfolio_catalog_evidence_sha256",
+            ),
+            ("product_evidence", "product_evidence_sha256"),
+            ("market_evidence", "market_evidence_sha256"),
+            ("position_evidence", "position_evidence_sha256"),
+            (
+                "margin_collateral_evidence",
+                "margin_collateral_evidence_sha256",
+            ),
+            (
+                "margin_window_policy_evidence",
+                "margin_window_policy_evidence_sha256",
+            ),
+            ("transport_policy_evidence", "transport_policy_evidence_sha256"),
+            ("candidate", "candidate_sha256"),
+            ("preview_request", "preview_request_sha256"),
+        )
+        if any(
+            not _r12_is_sha256(eligibility.get(hash_field))
+            or eligibility.get(hash_field)
+            != canonical_sha256(eligibility.get(evidence_field))
+            for evidence_field, hash_field in nested_hash_pairs
+        ):
+            raise ValueError("futures_preview_r12_nested_hash_invalid")
+
+        fixed_candidate = {
+            "product_id": "AVP-20DEC30-CDE",
+            "side": "BUY",
+            "order_type": "LIMIT_GTC",
+            "post_only": "true",
+            "contract_count": "1",
+            "product_classification": "PERP_STYLE_FUTURE",
+            "contract_code": "AVP",
+            "contract_expiry": "2030-12-20T16:00:00Z",
+            "contract_expiry_type": "EXPIRING",
+            "venue": "cde",
+            "risk_managed_by": "MANAGED_BY_FCM",
+            "contract_size": "10",
+            "reference_price_source": (
+                "max_product_price_and_fresh_best_ask"
+            ),
+            "opening_cap_usdc": "100",
+            "exposure_cap_usdc": "150",
+            "turnover_cap_usdc": "300",
+            "close_buffer_multiplier": "1.20",
+        }
+        if (
+            terminal_candidate != eligibility_candidate
+            or terminal_request != eligibility_request
+            or any(
+                eligibility_candidate.get(key) != expected_value
+                for key, expected_value in fixed_candidate.items()
+            )
+            or eligibility_request
+            != {
+                "product_id": "AVP-20DEC30-CDE",
+                "side": "BUY",
+                "order_configuration": {
+                    "limit_limit_gtc": {
+                        "base_size": "1",
+                        "limit_price": eligibility_candidate.get(
+                            "limit_price"
+                        ),
+                        "post_only": True,
+                    }
+                },
+            }
+        ):
+            raise ValueError("futures_preview_r12_candidate_request_invalid")
+
+        candidate_decimals: dict[str, Decimal] = {}
+        for field_name in (
+            "product_price",
+            "reference_price",
+            "price_increment",
+            "best_bid",
+            "best_ask",
+            "limit_price",
+            "opening_reference_notional_usdc",
+            "maximum_exposure_reference_notional_usdc",
+            "observed_concurrent_exposure_usdc",
+            "buffered_close_reference_notional_usdc",
+            "branch_turnover_reference_notional_usdc",
+        ):
+            raw_decimal = eligibility_candidate.get(field_name)
+            try:
+                parsed_decimal = Decimal(raw_decimal)
+            except (InvalidOperation, TypeError, ValueError) as exc:
+                raise ValueError(
+                    "futures_preview_r12_candidate_invalid"
+                ) from exc
+            if (
+                type(raw_decimal) is not str
+                or not parsed_decimal.is_finite()
+                or parsed_decimal <= 0
+            ):
+                raise ValueError("futures_preview_r12_candidate_invalid")
+            candidate_decimals[field_name] = parsed_decimal
+        if (
+            candidate_decimals["best_bid"]
+            >= candidate_decimals["best_ask"]
+            or candidate_decimals["limit_price"]
+            >= candidate_decimals["best_bid"]
+            or candidate_decimals["limit_price"]
+            != candidate_decimals["best_bid"]
+            - candidate_decimals["price_increment"]
+            or candidate_decimals["reference_price"]
+            != max(
+                candidate_decimals["product_price"],
+                candidate_decimals["best_ask"],
+            )
+            or candidate_decimals["opening_reference_notional_usdc"]
+            != candidate_decimals["reference_price"] * Decimal("10")
+            or candidate_decimals[
+                "maximum_exposure_reference_notional_usdc"
+            ]
+            != candidate_decimals["opening_reference_notional_usdc"]
+            or candidate_decimals["observed_concurrent_exposure_usdc"]
+            != candidate_decimals["opening_reference_notional_usdc"]
+            or candidate_decimals["buffered_close_reference_notional_usdc"]
+            != candidate_decimals["opening_reference_notional_usdc"]
+            * Decimal("1.20")
+            or candidate_decimals["branch_turnover_reference_notional_usdc"]
+            != candidate_decimals["opening_reference_notional_usdc"]
+            + candidate_decimals["buffered_close_reference_notional_usdc"]
+            or candidate_decimals["opening_reference_notional_usdc"]
+            >= Decimal("100")
+            or candidate_decimals[
+                "maximum_exposure_reference_notional_usdc"
+            ]
+            >= Decimal("150")
+            or candidate_decimals["observed_concurrent_exposure_usdc"]
+            >= Decimal("150")
+            or candidate_decimals["buffered_close_reference_notional_usdc"]
+            >= Decimal("150")
+            or candidate_decimals["branch_turnover_reference_notional_usdc"]
+            >= Decimal("300")
+        ):
+            raise ValueError("futures_preview_r12_candidate_invalid")
+
+        fixed_portfolio_binding = {
+            "status": "matched",
+            "ready": True,
+            "blocker": None,
+            "read_authorized": True,
+            "expected_portfolio_label": "Default",
+            "expected_portfolio_type": "DEFAULT",
+            "observed_portfolio_id": "withheld",
+            "observed_portfolio_label": "Default",
+            "observed_portfolio_type": "DEFAULT",
+            "can_view": True,
+            "can_trade": True,
+            "selection_authority": "cdp_api_key_permissioned_portfolio",
+            "request_portfolio_override_allowed": False,
+            "source": "coinbase_api_key_permissions_and_portfolio_catalog",
+            "freshness_status": "backend_rest_fresh",
+            "permissions_read_ran": True,
+            "portfolio_catalog_read_ran": True,
+            "permissions_error_present": False,
+            "portfolio_catalog_error_present": False,
+            "account_family": "coinbase_futures_us_cfm",
+            "product_family": "FUTURES_PERPETUALS",
+            "profile_alias": "Default",
+            "portfolio_id": "withheld",
+            "credential_trade_permission_present": True,
+            "command_authority_granted": False,
+            "live_coinbase_execution_authorized": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+        }
+        if any(
+            portfolio_binding.get(key) != expected_value
+            or type(portfolio_binding.get(key)) is not type(expected_value)
+            for key, expected_value in fixed_portfolio_binding.items()
+        ):
+            raise ValueError("futures_preview_r12_portfolio_binding_invalid")
+
+        portfolio_hash = eligibility.get("portfolio_id_sha256")
+        if (
+            not _r12_is_sha256(portfolio_hash)
+            or permission.get("can_view") is not True
+            or permission.get("can_trade") is not True
+            or permission.get("sanitized") is not True
+            or permission.get("raw_response_included") is not False
+            or type(portfolio_catalog.get("exact_match_count")) is not int
+            or portfolio_catalog.get("exact_match_count") != 1
+            or portfolio_catalog.get("sanitized") is not True
+            or portfolio_catalog.get("raw_response_included") is not False
+            or permission
+            != {
+                "portfolio_id": "withheld",
+                "portfolio_id_sha256": portfolio_hash,
+                "portfolio_type": "DEFAULT",
+                "can_view": True,
+                "can_trade": True,
+                "selection_authority": (
+                    "cdp_api_key_permissioned_portfolio"
+                ),
+                "sanitized": True,
+                "raw_response_included": False,
+            }
+            or portfolio_catalog
+            != {
+                "selected_portfolio_id": "withheld",
+                "selected_portfolio_id_sha256": portfolio_hash,
+                "selected_portfolio_label": "Default",
+                "selected_portfolio_type": "DEFAULT",
+                "exact_match_count": 1,
+                "sanitized": True,
+                "raw_response_included": False,
+            }
+        ):
+            raise ValueError("futures_preview_r12_portfolio_evidence_invalid")
+
+        expected_product_details = {
+            "contract_size": eligibility_candidate.get("contract_size"),
+            "contract_code": "AVP",
+            "group_description": "Avalanche Perp Futures",
+            "group_short_description": "Avalanche Perp",
+            "venue": "cde",
+            "risk_managed_by": "MANAGED_BY_FCM",
+            "contract_expiry": "2030-12-20T16:00:00Z",
+            "contract_expiry_type": "EXPIRING",
+        }
+        if (
+            product_details != expected_product_details
+            or product.get("product_id") != "AVP-20DEC30-CDE"
+            or product.get("display_name") != "AVAX PERP"
+            or product.get("product_type") != "FUTURE"
+            or product.get("status") != ""
+            or product.get("price")
+            != eligibility_candidate.get("product_price")
+            or product.get("price_increment")
+            != eligibility_candidate.get("price_increment")
+            or type(product.get("base_increment")) is not str
+            or type(product.get("base_min_size")) is not str
+            or product.get("trading_disabled") is not False
+            or product.get("view_only") is not False
+            or product.get("cancel_only") is not False
+            or product.get("sanitized") is not True
+            or product.get("raw_response_included") is not False
+            or market.get("product_id") != "AVP-20DEC30-CDE"
+            or market.get("best_bid")
+            != eligibility_candidate.get("best_bid")
+            or market.get("best_ask")
+            != eligibility_candidate.get("best_ask")
+            or market.get("sanitized") is not True
+            or market.get("raw_response_included") is not False
+            or position
+            != {
+                "product_id": "AVP-20DEC30-CDE",
+                "observed_contract_count": "0",
+                "sanitized": True,
+                "raw_response_included": False,
+            }
+        ):
+            raise ValueError("futures_preview_r12_market_product_invalid")
+
+        reconstructed_product = {
+            key: value
+            for key, value in product.items()
+            if key not in {"sanitized", "raw_response_included"}
+        }
+        reconstructed_book = {
+            "pricebooks": [
+                {
+                    "product_id": market["product_id"],
+                    "bids": [{"price": market["best_bid"], "size": "1"}],
+                    "asks": [{"price": market["best_ask"], "size": "1"}],
+                    "time": market["exchange_observed_at"],
+                }
+            ]
+        }
+        try:
+            rebuilt_candidate = build_futures_order_preview_candidate(
+                product=reconstructed_product,
+                book=reconstructed_book,
+                positions=[],
+                observed_at=timestamp(
+                    str(eligibility_candidate.get("observed_at"))
+                ),
+            )
+        except Exception:
+            raise ValueError("futures_preview_r12_candidate_invalid") from None
+        if rebuilt_candidate != eligibility_candidate:
+            raise ValueError("futures_preview_r12_candidate_invalid")
+
+        expected_margin_reads = dict(
+            FUTURES_PREVIEW_R12_ELIGIBILITY_MARGIN_SOURCE_READS
+        )
+        margin_window_pairs: dict[str, str] = {}
+        for window in margin_windows:
+            profile = window.get("profile")
+            token = window.get("margin_window_type")
+            if (
+                type(profile) is not str
+                or type(token) is not str
+                or window.get("is_intraday_margin_killswitch_enabled")
+                is not False
+                or window.get(
+                    "is_intraday_margin_enrollment_killswitch_enabled"
+                )
+                is not False
+            ):
+                raise ValueError("futures_preview_r12_margin_evidence_invalid")
+            margin_window_pairs[profile] = token
+        if (
+            margin.get("status") != "ready"
+            or margin.get("account_family") != "coinbase_futures_us_cfm"
+            or margin.get("source") != "backend_rest_client"
+            or not exact_int_map(
+                margin.get("source_read_attempts"), expected_margin_reads
+            )
+            or margin.get("sweep_evidence")
+            != "not_observed_not_authorized"
+            or margin.get("sanitized") is not True
+            or margin.get("raw_response_included") is not False
+            or margin_measure.get("margin_window_type")
+            != "FCM_MARGIN_WINDOW_TYPE_INTRADAY"
+            or margin_setting
+            != {"setting": "INTRADAY_MARGIN_SETTING_INTRADAY"}
+            or margin_window_pairs
+            != {
+                "MARGIN_PROFILE_TYPE_RETAIL_REGULAR": (
+                    "MARGIN_WINDOW_TYPE_UNSPECIFIED"
+                ),
+                "MARGIN_PROFILE_TYPE_RETAIL_INTRADAY_MARGIN_1": (
+                    "MARGIN_WINDOW_TYPE_INTRADAY"
+                ),
+            }
+        ):
+            raise ValueError("futures_preview_r12_margin_evidence_invalid")
+        available_margin_usdc: Decimal | None = None
+        for decimal_name, decimal_value in (
+            ("available_margin_usdc", margin.get("available_margin_usdc")),
+            (
+                "maintenance_margin_usdc",
+                margin_measure.get("maintenance_margin_usdc"),
+            ),
+            (
+                "liquidation_buffer_usdc",
+                margin_measure.get("liquidation_buffer_usdc"),
+            ),
+        ):
+            try:
+                parsed_decimal = Decimal(decimal_value)
+            except (InvalidOperation, TypeError, ValueError) as exc:
+                raise ValueError(
+                    "futures_preview_r12_margin_evidence_invalid"
+                ) from exc
+            if (
+                type(decimal_value) is not str
+                or not parsed_decimal.is_finite()
+                or parsed_decimal < 0
+                or (
+                    decimal_name == "available_margin_usdc"
+                    and parsed_decimal <= 0
+                )
+            ):
+                raise ValueError("futures_preview_r12_margin_evidence_invalid")
+            if decimal_name == "available_margin_usdc":
+                available_margin_usdc = parsed_decimal
+
+        expected_policy_rows = {
+            (
+                0,
+                "retail_regular",
+                "MARGIN_WINDOW_TYPE_UNSPECIFIED",
+            ),
+            (
+                1,
+                "retail_intraday_margin_1",
+                "MARGIN_WINDOW_TYPE_INTRADAY",
+            ),
+        }
+        actual_policy_rows: set[tuple[int, str, str]] = set()
+        for row in rows:
+            if (
+                type(row.get("policy_row_index")) is not int
+                or type(row.get("recognized_profile")) is not str
+                or type(row.get("observed_token")) is not str
+                or row.get("documented_allowlist_match") is not True
+                or row.get("operator_policy_match") is not True
+                or row.get("classification") != "accepted"
+            ):
+                raise ValueError("futures_preview_r12_margin_policy_invalid")
+            actual_policy_rows.add(
+                (
+                    row["policy_row_index"],
+                    row["recognized_profile"],
+                    row["observed_token"],
+                )
+            )
+        if (
+            policy.get("policy_id")
+            != "slice2_preview_margin_window_exact_pair_policy_v3"
+            or policy.get("pair_policy_mode")
+            != "exact_profile_state_pair"
+            or policy.get("profile_state_policy_authority")
+            != (
+                "operator_defined_slice_2_preview_only_not_coinbase_documented"
+            )
+            or policy.get("profile_state_mapping_documented_by_coinbase")
+            is not False
+            or policy.get("classification") != "ready"
+            or policy.get("margin_window_policy_satisfied") is not True
+            or policy.get("r12_attempt_authority_granted") is not False
+            or policy.get("sanitized") is not True
+            or policy.get("raw_response_included") is not False
+            or actual_policy_rows != expected_policy_rows
+        ):
+            raise ValueError("futures_preview_r12_margin_policy_invalid")
+
+        if (
+            self.status != self.outcome
+            or self.roles != ["trader"]
+            or self.correlation_id_sha256 == self.idempotency_key_sha256
+            or self.correlation_id_sha256
+            == eligibility.get("non_attempt_correlation_id_sha256")
+            or self.idempotency_key_sha256
+            == eligibility.get("non_attempt_correlation_id_sha256")
+            or predecessor_binding != FUTURES_PREVIEW_R12_PREDECESSOR_BINDING
+            or response_schema_binding
+            != FUTURES_PREVIEW_R11_RESPONSE_SCHEMA_BINDING
+            or diagnostic_binding
+            != FUTURES_PREVIEW_R11_POST_PREVIEW_DIAGNOSTIC_BINDING
+            or not exact_int_map(attempt_counters, expected_attempts)
+            or type(attempt_counters.get("preview_order")) is not int
+            or attempt_counters.get("preview_order") not in {0, 1}
+            or not exact_int_map(
+                post_claim_read_counters, expected_zero_reads
+            )
+            or not exact_int_map(
+                eligibility_read_counters, expected_reads
+            )
+            or artifact_flags
+            != {
+                "execution_marker_created": False,
+                "attempt_ledger_created": False,
+                "runtime_created": False,
+            }
+            or eligibility.get("type")
+            != "futures_preview_r12_non_attempt_eligibility"
+            or eligibility.get("schema_version") != "1"
+            or eligibility.get("status") != "eligible"
+            or eligibility.get("classification") != "exact_v3_eligible"
+            or type(eligibility.get("cycle_number")) is not int
+            or not 1 <= eligibility.get("cycle_number") <= 10
+            or eligibility.get("product_id") != "AVP-20DEC30-CDE"
+            or eligibility.get("non_attempt_correlation_id") != "withheld"
+            or not _r12_is_sha256(
+                eligibility.get("non_attempt_correlation_id_sha256")
+            )
+            or eligibility.get("profile_label") != "Default"
+            or eligibility.get("portfolio_type") != "DEFAULT"
+            or eligibility.get("portfolio_id") != "withheld"
+            or not exact_int_map(
+                eligibility.get("read_counters"), expected_reads
+            )
+            or not exact_int_map(
+                eligibility.get("margin_source_read_attempts"),
+                expected_margin_reads,
+            )
+            or eligibility.get("sweep_evidence")
+            != "not_observed_not_authorized"
+            or eligibility.get("r12_claim_created") is not False
+            or eligibility.get("r12_idempotency_key_created") is not False
+            or eligibility.get("r12_attempt_consumed") is not False
+            or type(eligibility.get("preview_order_attempt_count")) is not int
+            or eligibility.get("preview_order_attempt_count") != 0
+            or type(eligibility.get("exchange_submission_attempt_count"))
+            is not int
+            or eligibility.get("exchange_submission_attempt_count") != 0
+            or eligibility.get("submitted_notional_usdc") != "0"
+            or eligibility.get("executed_notional_usdc") != "0"
+            or eligibility.get("read_only") is not True
+            or eligibility.get("sanitized") is not True
+            or eligibility.get("raw_response_included") is not False
+            or eligibility.get("external_exception_text_included") is not False
+            or eligibility.get("private_identifier_values_included") is not False
+            or eligibility.get("canonicalization")
+            != "sorted_keys_compact_utf8_json"
+            or eligibility.get("hash_algorithm") != "sha256"
+            or not _r12_is_sha256(eligibility_hash)
+            or canonical_sha256(eligibility_payload) != eligibility_hash
+            or self.non_attempt_eligibility_sha256 != eligibility_hash
+            or not exact_int_map(
+                margin.get("source_read_attempts"), expected_margin_reads
+            )
+            or policy_pairs
+            != {
+                "retail_regular": "MARGIN_WINDOW_TYPE_UNSPECIFIED",
+                "retail_intraday_margin_1": "MARGIN_WINDOW_TYPE_INTRADAY",
+            }
+            or self.candidate_sha256 != canonical_sha256(terminal_candidate)
+            or self.preview_request_sha256
+            != canonical_sha256(terminal_request)
+            or terminal_candidate.get("product_id") != "AVP-20DEC30-CDE"
+            or terminal_candidate.get("contract_count") != "1"
+            or terminal_candidate.get("opening_cap_usdc") != "100"
+            or terminal_candidate.get("exposure_cap_usdc") != "150"
+            or terminal_candidate.get("turnover_cap_usdc") != "300"
+            or terminal_request.get("product_id") != "AVP-20DEC30-CDE"
+        ):
+            raise ValueError("futures_preview_r12_authority_binding_invalid")
+
+        reserved = timestamp(self.reserved_at)
+        completed = timestamp(self.completed_at)
+        eligible_started = timestamp(str(eligibility.get("started_at")))
+        eligible_completed = timestamp(str(eligibility.get("completed_at")))
+        eligibility_observed = timestamp(
+            str(eligibility_candidate.get("observed_at"))
+        )
+        portfolio_observed = timestamp(
+            str(portfolio_binding.get("observed_at"))
+        )
+        market_observed = timestamp(str(market.get("exchange_observed_at")))
+        if not (
+            -5
+            <= (eligibility_observed - market_observed).total_seconds()
+            <= 30
+            and eligible_started
+            <= portfolio_observed
+            <= eligible_completed
+            and eligibility_observed <= eligible_completed
+            and (
+                eligible_completed - eligible_started
+            ).total_seconds()
+            <= FUTURES_PREVIEW_R12_ELIGIBILITY_MAX_CYCLE_AGE_SECONDS
+            and portfolio_observed == eligibility_observed
+            and eligible_completed <= reserved <= completed
+            and (reserved - eligible_completed).total_seconds()
+            <= FUTURES_PREVIEW_R12_ELIGIBILITY_MAX_TRANSITION_AGE_SECONDS
+        ):
+            raise ValueError("futures_preview_r12_timestamp_invalid")
+
+        preview_attempted = attempt_counters["preview_order"] == 1
+        post_stage = (
+            self.post_preview_stage_evidence.stages[0].stage
+            if self.post_preview_stage_evidence is not None
+            else None
+        )
+        terminal_shape_valid = False
+        if self.outcome == "accepted":
+            terminal_shape_valid = (
+                self.blocker is None
+                and preview_attempted
+                and post_stage is None
+            )
+        elif self.outcome == "unknown":
+            terminal_shape_valid = (
+                post_stage is None
+                and (
+                    (
+                        self.blocker
+                        in {
+                            "eligibility_claim_marker_unknown_consumed",
+                            "preview_boundary_initialization_unknown_consumed",
+                        }
+                        and not preview_attempted
+                    )
+                    or (
+                        self.blocker
+                        in {
+                            "preview_order_unknown_consumed",
+                            "claim_only_recovery_unknown_consumed",
+                        }
+                        and preview_attempted
+                    )
+                )
+            )
+        elif self.outcome == "blocked":
+            terminal_shape_valid = (
+                (
+                    self.blocker
+                    in {
+                        "predecessor_validation_blocked_after_claim",
+                        "predecessor_binding_changed_after_claim",
+                    }
+                    and not preview_attempted
+                    and post_stage is None
+                )
+                or (
+                    self.blocker == "post_preview_stage_blocked"
+                    and preview_attempted
+                    and post_stage
+                    in {
+                        "preview_response_validation",
+                        "candidate_cap_binding",
+                        "available_margin_validation",
+                        "preview_identifier_binding",
+                    }
+                )
+                or (
+                    self.blocker
+                    == "terminal_predecessor_validation_blocked"
+                    and preview_attempted
+                    and post_stage == "terminal_predecessor_validation"
+                )
+            )
+        if not terminal_shape_valid:
+            raise ValueError("futures_preview_r12_terminal_shape_invalid")
+
+        if self.outcome == "accepted":
+            if (
+                self.blocker is not None
+                or not preview_attempted
+                or preview_response is None
+                or self.preview_response_sha256
+                != canonical_sha256(preview_response)
+                or preview_response.get("preview_id") != "withheld"
+                or self.preview_id_sha256 is None
+                or self.post_preview_stage_evidence is not None
+                or self.post_preview_stage_evidence_sha256 is not None
+            ):
+                raise ValueError("futures_preview_r12_accepted_evidence_invalid")
+            normalized = validate_post_r10_preview_response_acceptance(
+                preview_response
+            )
+            if validate_preview_against_candidate(
+                normalized,
+                terminal_candidate,
+            ) != preview_response:
+                raise ValueError("futures_preview_r12_accepted_evidence_invalid")
+            if (
+                available_margin_usdc is None
+                or Decimal(preview_response["order_margin_total"])
+                > available_margin_usdc
+            ):
+                raise ValueError("futures_preview_r12_accepted_evidence_invalid")
+        else:
+            if (
+                self.preview_response is not None
+                or self.preview_response_sha256 is not None
+                or self.preview_id_sha256 is not None
+            ):
+                raise ValueError("futures_preview_r12_terminal_evidence_invalid")
+            if self.blocker in {
+                "post_preview_stage_blocked",
+                "terminal_predecessor_validation_blocked",
+            }:
+                if (
+                    not preview_attempted
+                    or self.post_preview_stage_evidence is None
+                    or self.post_preview_stage_evidence_sha256
+                    != canonical_sha256(
+                        self.post_preview_stage_evidence.model_dump(mode="json")
+                    )
+                ):
+                    raise ValueError(
+                        "futures_preview_r12_terminal_evidence_invalid"
+                    )
+            elif (
+                self.post_preview_stage_evidence is not None
+                or self.post_preview_stage_evidence_sha256 is not None
+            ):
+                raise ValueError("futures_preview_r12_terminal_evidence_invalid")
+        return self

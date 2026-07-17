@@ -12,16 +12,24 @@ Maintainer handoff for contextless agents starts at
 
 ## Current Status
 
-Goal `futures_preview_acceptance_recovery_r11` is complete. R11 is consumed,
-terminal `blocked`, immutable, and cannot be retried. It stopped at
+Goal `futures_preview_acceptance_recovery_r12` is prepared but production
+release-disabled. Its separate eligibility ledger permits at most ten
+non-attempt state-refresh cycles; only a fresh exact-V3 success can create the
+single-use R12 claim and reach at most one Preview-only call. The source-bound
+`R12_RELEASE_READY` value remains `False` pending focused validation, local
+deployment validation, independent safety audit, and blind contextless audit.
+See [R12 Preparation](docs/FUTURES_SLICE_2R12_PREPARATION.md).
+
+The predecessor goal `futures_preview_acceptance_recovery_r11` is complete.
+R11 is consumed, terminal `blocked`, immutable, and cannot be retried. It stopped at
 `remaining_margin_validation` before Coinbase Preview after all six bounded
 reads ran once; Preview, retry, fallback, redirect, submission, and every
 exchange mutation remained `0`. The exact boundary is
 `margin_window_type_documented_but_operator_rejected` for row `1`, profile
 `retail_intraday_margin_1`, field `margin_window_type`, value type `string`.
-It does not authorize schema or acceptance broadening. No R12, Slice 3/4/5,
-or live authority exists, and the default action is
-`stop_and_await_operator_direction`. See
+It does not authorize schema or acceptance broadening, Slice 3/4/5, or other
+live authority. R12 exists only under its separate prepared, hard-disabled
+boundary. See
 [R11 Terminal Diagnosis](docs/FUTURES_SLICE_2R11_TERMINAL_DIAGNOSIS.md).
 
 Historically, goal `selected_order_execution_closeout_slice` recorded the completed

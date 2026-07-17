@@ -264,6 +264,8 @@ owners:
       - docs/FUTURES_SLICE_2R10_TERMINAL_DIAGNOSIS.md
       - docs/FUTURES_SLICE_2R11_PREPARATION.md
       - docs/FUTURES_SLICE_2R11_TERMINAL_DIAGNOSIS.md
+      - docs/FUTURES_SLICE_2R12_PREPARATION.md
+      - docs/FUTURES_SLICE_2R12_TERMINAL_DIAGNOSIS.md
       - docs/FUTURES_POST_R10_COMPATIBILITY_DIRECTION.md
       - openapi/**
       - tools/export_admin_api_route_inventory.py
@@ -286,6 +288,7 @@ owners:
       - tools/run_admin_api_futures_no_live_preview_r9.py
       - tools/run_admin_api_futures_no_live_preview_r10.py
       - tools/run_admin_api_futures_no_live_preview_r11.py
+      - tools/run_admin_api_futures_r12_workflow.py
       - tools/run_admin_api_futures_r8_slice3_end_to_end.py
       - tools/run_admin_api_futures_r9_slice3_end_to_end.py
       - tools/run_admin_api_futures_r10_slice3_end_to_end.py
@@ -306,6 +309,7 @@ owners:
       - tests/unit/test_run_admin_api_futures_r9_slice3_end_to_end.py
       - tests/unit/test_run_admin_api_futures_no_live_preview_r10.py
       - tests/unit/test_run_admin_api_futures_no_live_preview_r11.py
+      - tests/unit/test_run_admin_api_futures_r12_workflow.py
       - tests/unit/test_run_admin_api_futures_r10_slice3_end_to_end.py
       - tests/unit/test_controlled_admin_v9_runner.py
       - tests/unit/test_controlled_admin_v10_runner.py

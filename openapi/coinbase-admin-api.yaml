@@ -5941,11 +5941,7 @@ paths:
           content:
             application/json:
               schema:
-                anyOf:
-                - $ref: '#/components/schemas/AdminFuturesOrderPreviewResponse'
-                - $ref: '#/components/schemas/AdminFuturesPreviewR8ForensicReadback'
-                title: Response Get Futures Order Preview Api V1 Futures Order Preview
-                  Get
+                $ref: '#/components/schemas/AdminFuturesOrderPreviewR12Response'
         '401':
           description: Missing or invalid Admin API authentication.
           content:
@@ -101268,7 +101264,7 @@ components:
       - intx_applicability
       title: AdminFuturesFeeInputEvidence
       description: Futures/Perpetual fee input consumed by risk views.
-    AdminFuturesOrderPreviewResponse:
+    AdminFuturesOrderPreviewR12Response:
       properties:
         schema_version:
           type: string
@@ -101280,17 +101276,7 @@ components:
           title: Type
         artifact_type:
           type: string
-          enum:
-          - futures_exact_no_live_preview_slice_2r2
-          - futures_exact_no_live_preview_slice_2r3
-          - futures_exact_no_live_preview_slice_2r4
-          - futures_exact_no_live_preview_slice_2r5
-          - futures_exact_no_live_preview_slice_2r6
-          - futures_exact_no_live_preview_slice_2r7
-          - futures_exact_no_live_preview_slice_2r8
-          - futures_exact_no_live_preview_slice_2r9
-          - futures_exact_no_live_preview_slice_2r10
-          - futures_exact_no_live_preview_slice_2r11
+          const: futures_exact_no_live_preview_slice_2r12
           title: Artifact Type
         status:
           type: string
@@ -101309,21 +101295,19 @@ components:
         blocker:
           anyOf:
           - type: string
+            enum:
+            - predecessor_validation_blocked_after_claim
+            - predecessor_binding_changed_after_claim
+            - preview_boundary_initialization_unknown_consumed
+            - preview_order_unknown_consumed
+            - eligibility_claim_marker_unknown_consumed
+            - claim_only_recovery_unknown_consumed
+            - post_preview_stage_blocked
+            - terminal_predecessor_validation_blocked
           - type: 'null'
           title: Blocker
         predecessor_binding:
-          anyOf:
-          - $ref: '#/components/schemas/AdminFuturesPreviewPredecessorBinding'
-          - $ref: '#/components/schemas/AdminFuturesPreviewR2PredecessorBinding'
-          - $ref: '#/components/schemas/AdminFuturesPreviewR3PredecessorBinding'
-          - $ref: '#/components/schemas/AdminFuturesPreviewR4PredecessorBinding'
-          - $ref: '#/components/schemas/AdminFuturesPreviewR5PredecessorBinding'
-          - $ref: '#/components/schemas/AdminFuturesPreviewR6PredecessorBinding'
-          - $ref: '#/components/schemas/AdminFuturesPreviewR7PredecessorBinding'
-          - $ref: '#/components/schemas/AdminFuturesPreviewR8PredecessorBinding'
-          - $ref: '#/components/schemas/AdminFuturesPreviewR9PredecessorBinding'
-          - $ref: '#/components/schemas/AdminFuturesPreviewR10PredecessorBinding'
-          title: Predecessor Binding
+          $ref: '#/components/schemas/AdminFuturesPreviewR12PredecessorBinding'
         reserved_at:
           type: string
           title: Reserved At
@@ -101346,21 +101330,19 @@ components:
           title: Roles
         correlation_id:
           type: string
+          const: withheld
           title: Correlation Id
         correlation_id_sha256:
-          anyOf:
-          - type: string
-            pattern: ^[0-9a-f]{64}$
-          - type: 'null'
+          type: string
+          pattern: ^[0-9a-f]{64}$
           title: Correlation Id Sha256
         idempotency_key:
           type: string
+          const: withheld
           title: Idempotency Key
         idempotency_key_sha256:
-          anyOf:
-          - type: string
-            pattern: ^[0-9a-f]{64}$
-          - type: 'null'
+          type: string
+          pattern: ^[0-9a-f]{64}$
           title: Idempotency Key Sha256
         profile_label:
           type: string
@@ -101370,192 +101352,32 @@ components:
           type: string
           const: DEFAULT
           title: Portfolio Type
-        portfolio_id:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Portfolio Id
-        portfolio_id_sha256:
-          anyOf:
-          - type: string
-            pattern: ^[0-9a-f]{64}$
-          - type: 'null'
-          title: Portfolio Id Sha256
-        portfolio_binding:
-          anyOf:
-          - $ref: '#/components/schemas/AdminFuturesPortfolioBindingEvidence'
-          - type: 'null'
-        permission_evidence:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
-          title: Permission Evidence
-        permission_evidence_sha256:
-          anyOf:
-          - type: string
-            pattern: ^[0-9a-f]{64}$
-          - type: 'null'
-          title: Permission Evidence Sha256
-        portfolio_catalog_evidence:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
-          title: Portfolio Catalog Evidence
-        portfolio_catalog_sha256:
-          anyOf:
-          - type: string
-            pattern: ^[0-9a-f]{64}$
-          - type: 'null'
-          title: Portfolio Catalog Sha256
         product_id:
           type: string
           const: AVP-20DEC30-CDE
           title: Product Id
-        product_evidence:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
-          title: Product Evidence
-        product_evidence_sha256:
-          anyOf:
-          - type: string
-            pattern: ^[0-9a-f]{64}$
-          - type: 'null'
-          title: Product Evidence Sha256
-        market_evidence:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
-          title: Market Evidence
-        market_evidence_sha256:
-          anyOf:
-          - type: string
-            pattern: ^[0-9a-f]{64}$
-          - type: 'null'
-          title: Market Evidence Sha256
-        position_evidence:
-          anyOf:
-          - {}
-          - type: 'null'
-          title: Position Evidence
-        position_evidence_sha256:
-          anyOf:
-          - type: string
-            pattern: ^[0-9a-f]{64}$
-          - type: 'null'
-          title: Position Evidence Sha256
-        margin_collateral_evidence:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
-          title: Margin Collateral Evidence
-        margin_collateral_evidence_sha256:
-          anyOf:
-          - type: string
-            pattern: ^[0-9a-f]{64}$
-          - type: 'null'
-          title: Margin Collateral Evidence Sha256
-        margin_setting_evidence:
-          anyOf:
-          - $ref: '#/components/schemas/AdminFuturesPreviewMarginSettingEvidence'
-          - type: 'null'
-        margin_setting_evidence_sha256:
-          anyOf:
-          - type: string
-            pattern: ^[0-9a-f]{64}$
-          - type: 'null'
-          title: Margin Setting Evidence Sha256
-        margin_windows_evidence:
-          anyOf:
-          - $ref: '#/components/schemas/AdminFuturesPreviewMarginWindowsEvidence'
-          - type: 'null'
-        margin_windows_evidence_sha256:
-          anyOf:
-          - type: string
-            pattern: ^[0-9a-f]{64}$
-          - type: 'null'
-          title: Margin Windows Evidence Sha256
-        margin_windows_policy_evidence:
-          anyOf:
-          - $ref: '#/components/schemas/AdminFuturesPreviewMarginWindowsPolicyEvidenceV2'
-          - $ref: '#/components/schemas/AdminFuturesPreviewMarginWindowsPolicyEvidenceV3'
-          - type: 'null'
-          title: Margin Windows Policy Evidence
-        margin_windows_policy_evidence_sha256:
-          anyOf:
-          - type: string
-            pattern: ^[0-9a-f]{64}$
-          - type: 'null'
-          title: Margin Windows Policy Evidence Sha256
-        preview_response_schema_binding:
-          anyOf:
-          - $ref: '#/components/schemas/AdminFuturesPreviewResponseSchemaBinding'
-          - $ref: '#/components/schemas/AdminFuturesPreviewResponseSchemaBindingV2'
-          - $ref: '#/components/schemas/AdminFuturesPreviewResponseSchemaBindingV3'
-          - type: 'null'
-          title: Preview Response Schema Binding
-        post_preview_diagnostic_binding:
-          anyOf:
-          - $ref: '#/components/schemas/AdminFuturesPreviewPostPreviewDiagnosticBinding'
-          - $ref: '#/components/schemas/AdminFuturesPreviewPostPreviewDiagnosticBindingV2'
-          - $ref: '#/components/schemas/AdminFuturesPreviewPostPreviewDiagnosticBindingV3'
-          - type: 'null'
-          title: Post Preview Diagnostic Binding
-        pre_preview_stage_evidence:
-          anyOf:
-          - $ref: '#/components/schemas/AdminFuturesPreviewStageEvidence'
-          - type: 'null'
-        pre_preview_stage_evidence_sha256:
-          anyOf:
-          - type: string
-            pattern: ^[0-9a-f]{64}$
-          - type: 'null'
-          title: Pre Preview Stage Evidence Sha256
-        post_preview_stage_evidence:
-          anyOf:
-          - $ref: '#/components/schemas/AdminFuturesPreviewPostStageEvidence'
-          - type: 'null'
-        post_preview_stage_evidence_sha256:
-          anyOf:
-          - type: string
-            pattern: ^[0-9a-f]{64}$
-          - type: 'null'
-          title: Post Preview Stage Evidence Sha256
+        non_attempt_eligibility:
+          $ref: '#/components/schemas/AdminFuturesPreviewR12EligibilityEvidence'
+        non_attempt_eligibility_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Non Attempt Eligibility Sha256
         candidate:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
-          title: Candidate
+          $ref: '#/components/schemas/AdminFuturesPreviewR12Candidate'
         candidate_sha256:
-          anyOf:
-          - type: string
-            pattern: ^[0-9a-f]{64}$
-          - type: 'null'
+          type: string
+          pattern: ^[0-9a-f]{64}$
           title: Candidate Sha256
         preview_request:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
-          title: Preview Request
+          $ref: '#/components/schemas/AdminFuturesPreviewR12Request'
         preview_request_sha256:
-          anyOf:
-          - type: string
-            pattern: ^[0-9a-f]{64}$
-          - type: 'null'
+          type: string
+          pattern: ^[0-9a-f]{64}$
           title: Preview Request Sha256
         preview_response:
           anyOf:
-          - additionalProperties: true
-            type: object
+          - $ref: '#/components/schemas/AdminFuturesPreviewR12SanitizedResponse'
           - type: 'null'
-          title: Preview Response
         preview_response_sha256:
           anyOf:
           - type: string
@@ -101568,26 +101390,16 @@ components:
             pattern: ^[0-9a-f]{64}$
           - type: 'null'
           title: Preview Id Sha256
-        seal_ready_plan:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
-          title: Seal Ready Plan
-        seal_ready_plan_sha256:
-          anyOf:
-          - type: string
-            pattern: ^[0-9a-f]{64}$
-          - type: 'null'
-          title: Seal Ready Plan Sha256
         attempt_counters:
-          additionalProperties: true
-          type: object
-          title: Attempt Counters
-        read_counters:
-          additionalProperties: true
-          type: object
-          title: Read Counters
+          $ref: '#/components/schemas/AdminFuturesPreviewR12AttemptCounters'
+        post_claim_read_counters:
+          $ref: '#/components/schemas/AdminFuturesPreviewR12PostClaimReadCounters'
+        eligibility_read_counters:
+          $ref: '#/components/schemas/AdminFuturesPreviewR12EligibilityReadCounters'
+        exchange_submission_attempt_count:
+          type: integer
+          const: 0
+          title: Exchange Submission Attempt Count
         submitted_notional_usdc:
           type: string
           const: '0'
@@ -101604,17 +101416,52 @@ components:
           type: string
           const: not_run
           title: Live Coinbase Execution
-        live_coinbase_read_ran:
-          type: boolean
-          title: Live Coinbase Read Ran
-        exchange_submission_attempt_count:
-          type: integer
-          const: 0
-          title: Exchange Submission Attempt Count
         read_only:
           type: boolean
           const: true
           title: Read Only
+        slice3_activation:
+          type: string
+          const: not_authorized
+          title: Slice3 Activation
+        slice4_activation:
+          type: string
+          const: not_authorized
+          title: Slice4 Activation
+        slice5_activation:
+          type: string
+          const: not_authorized
+          title: Slice5 Activation
+        r13_attempt_authorized:
+          type: boolean
+          const: false
+          title: R13 Attempt Authorized
+        post_preview_stage_evidence:
+          anyOf:
+          - $ref: '#/components/schemas/AdminFuturesPreviewR12PostStageEvidence'
+          - type: 'null'
+        post_preview_stage_evidence_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Post Preview Stage Evidence Sha256
+        preview_response_schema_binding:
+          $ref: '#/components/schemas/AdminFuturesPreviewResponseSchemaBindingV3'
+        post_preview_diagnostic_binding:
+          $ref: '#/components/schemas/AdminFuturesPreviewPostPreviewDiagnosticBindingV3'
+        raw_response_included:
+          type: boolean
+          const: false
+          title: Raw Response Included
+        external_exception_text_included:
+          type: boolean
+          const: false
+          title: External Exception Text Included
+        private_identifier_values_included:
+          type: boolean
+          const: false
+          title: Private Identifier Values Included
         browser_authority:
           type: string
           const: display_only
@@ -101624,9 +101471,7 @@ components:
           const: forward_only_no_execution
           title: Bff Authority
         artifacts:
-          additionalProperties: true
-          type: object
-          title: Artifacts
+          $ref: '#/components/schemas/AdminFuturesPreviewR12ArtifactFlags'
         canonicalization:
           type: string
           const: sorted_keys_compact_utf8_json
@@ -101639,12 +101484,6 @@ components:
           type: string
           pattern: ^[0-9a-f]{64}$
           title: Evidence Sha256
-        terminal_diagnostic_classification:
-          anyOf:
-          - $ref: '#/components/schemas/AdminFuturesPreviewTerminalDiagnosticClassification'
-          - type: 'null'
-          description: Derive the narrowest boundary supported by immutable evidence.
-          readOnly: true
       additionalProperties: false
       type: object
       required:
@@ -101653,6 +101492,7 @@ components:
       - artifact_type
       - status
       - outcome
+      - blocker
       - predecessor_binding
       - reserved_at
       - completed_at
@@ -101660,28 +101500,50 @@ components:
       - actor_id
       - roles
       - correlation_id
+      - correlation_id_sha256
       - idempotency_key
+      - idempotency_key_sha256
       - profile_label
       - portfolio_type
       - product_id
+      - non_attempt_eligibility
+      - non_attempt_eligibility_sha256
+      - candidate
+      - candidate_sha256
+      - preview_request
+      - preview_request_sha256
+      - preview_response
+      - preview_response_sha256
+      - preview_id_sha256
       - attempt_counters
-      - read_counters
+      - post_claim_read_counters
+      - eligibility_read_counters
+      - exchange_submission_attempt_count
       - submitted_notional_usdc
       - executed_notional_usdc
       - live_execution
       - live_coinbase_execution
-      - live_coinbase_read_ran
-      - exchange_submission_attempt_count
       - read_only
+      - slice3_activation
+      - slice4_activation
+      - slice5_activation
+      - r13_attempt_authorized
+      - post_preview_stage_evidence
+      - post_preview_stage_evidence_sha256
+      - preview_response_schema_binding
+      - post_preview_diagnostic_binding
+      - raw_response_included
+      - external_exception_text_included
+      - private_identifier_values_included
       - browser_authority
       - bff_authority
       - artifacts
       - canonicalization
       - hash_algorithm
       - evidence_sha256
-      - terminal_diagnostic_classification
-      title: AdminFuturesOrderPreviewResponse
-      description: Immutable one-shot Futures Preview evidence read from disk only.
+      title: AdminFuturesOrderPreviewR12Response
+      description: Strict terminal-only readback for the separate-eligibility R12
+        flow.
     AdminFuturesPortfolioBindingEvidence:
       properties:
         status:
@@ -102112,1002 +101974,6 @@ components:
       - UNKNOWN
       title: AdminFuturesPositionSide
       description: Derived futures/perpetual position direction.
-    AdminFuturesPreviewMarginSettingEvidence:
-      properties:
-        source:
-          type: string
-          const: backend_rest_client.get_intraday_margin_setting
-          title: Source
-        stage:
-          type: string
-          const: margin_collateral_validation
-          title: Stage
-        field_path:
-          type: string
-          const: intraday_margin_setting.setting
-          title: Field Path
-        container_present:
-          type: boolean
-          title: Container Present
-        container_type:
-          type: string
-          enum:
-          - missing
-          - 'null'
-          - boolean
-          - string
-          - number
-          - mapping
-          - sequence
-          - other
-          title: Container Type
-        field_present:
-          type: boolean
-          title: Field Present
-        value_type:
-          type: string
-          enum:
-          - missing
-          - 'null'
-          - boolean
-          - string
-          - number
-          - mapping
-          - sequence
-          - other
-          title: Value Type
-        token_form:
-          type: string
-          enum:
-          - safe_enum_token
-          - malformed_string
-          - not_applicable
-          title: Token Form
-        observed_token:
-          anyOf:
-          - type: string
-            maxLength: 64
-            pattern: ^[A-Z][A-Z0-9_]{0,63}$
-          - type: 'null'
-          title: Observed Token
-        allowlist_match:
-          type: boolean
-          title: Allowlist Match
-        operationally_resolved:
-          type: boolean
-          title: Operationally Resolved
-        enum_authority:
-          type: string
-          const: official_coinbase_advanced_trade_api_docs
-          title: Enum Authority
-        classification:
-          type: string
-          enum:
-          - recognized_string
-          - unrecognized_string
-          - malformed_string
-          - missing_container
-          - non_mapping_container
-          - missing_field
-          - null_value
-          - non_string_value
-          title: Classification
-        unexpected_field_count:
-          type: integer
-          minimum: 0.0
-          title: Unexpected Field Count
-        sanitized:
-          type: boolean
-          const: true
-          title: Sanitized
-        raw_response_included:
-          type: boolean
-          const: false
-          title: Raw Response Included
-      additionalProperties: false
-      type: object
-      required:
-      - source
-      - stage
-      - field_path
-      - container_present
-      - container_type
-      - field_present
-      - value_type
-      - token_form
-      - allowlist_match
-      - operationally_resolved
-      - enum_authority
-      - classification
-      - unexpected_field_count
-      - sanitized
-      - raw_response_included
-      title: AdminFuturesPreviewMarginSettingEvidence
-      description: Allowlisted, secret-minimized pre-Preview margin-setting evidence.
-    AdminFuturesPreviewMarginWindowPolicyRowEvidenceV2:
-      properties:
-        policy_row_index:
-          type: integer
-          enum:
-          - 0
-          - 1
-          title: Policy Row Index
-        recognized_profile:
-          type: string
-          enum:
-          - retail_regular
-          - retail_intraday_margin_1
-          title: Recognized Profile
-        observed_token:
-          anyOf:
-          - type: string
-            enum:
-            - MARGIN_WINDOW_TYPE_UNSPECIFIED
-            - MARGIN_WINDOW_TYPE_OVERNIGHT
-            - MARGIN_WINDOW_TYPE_WEEKEND
-            - MARGIN_WINDOW_TYPE_INTRADAY
-            - MARGIN_WINDOW_TYPE_TRANSITION
-          - type: 'null'
-          title: Observed Token
-        documented_allowlist_match:
-          type: boolean
-          title: Documented Allowlist Match
-        operator_policy_match:
-          type: boolean
-          title: Operator Policy Match
-        classification:
-          type: string
-          enum:
-          - accepted
-          - documented_but_operator_rejected
-          - undocumented_or_malformed
-          title: Classification
-      additionalProperties: false
-      type: object
-      required:
-      - policy_row_index
-      - recognized_profile
-      - documented_allowlist_match
-      - operator_policy_match
-      - classification
-      title: AdminFuturesPreviewMarginWindowPolicyRowEvidenceV2
-      description: One sanitized exact-profile decision under the operator V2 policy.
-    AdminFuturesPreviewMarginWindowPolicyRowEvidenceV3:
-      properties:
-        policy_row_index:
-          type: integer
-          enum:
-          - 0
-          - 1
-          title: Policy Row Index
-        recognized_profile:
-          type: string
-          enum:
-          - retail_regular
-          - retail_intraday_margin_1
-          title: Recognized Profile
-        observed_token:
-          anyOf:
-          - type: string
-            enum:
-            - MARGIN_WINDOW_TYPE_UNSPECIFIED
-            - MARGIN_WINDOW_TYPE_OVERNIGHT
-            - MARGIN_WINDOW_TYPE_WEEKEND
-            - MARGIN_WINDOW_TYPE_INTRADAY
-            - MARGIN_WINDOW_TYPE_TRANSITION
-          - type: 'null'
-          title: Observed Token
-        documented_allowlist_match:
-          type: boolean
-          title: Documented Allowlist Match
-        operator_policy_match:
-          type: boolean
-          title: Operator Policy Match
-        classification:
-          type: string
-          enum:
-          - accepted
-          - documented_but_operator_rejected
-          - undocumented_or_malformed
-          title: Classification
-      additionalProperties: false
-      type: object
-      required:
-      - policy_row_index
-      - recognized_profile
-      - documented_allowlist_match
-      - operator_policy_match
-      - classification
-      title: AdminFuturesPreviewMarginWindowPolicyRowEvidenceV3
-      description: One exact profile/state decision under the operator R6 V3 policy.
-    AdminFuturesPreviewMarginWindowsEvidence:
-      properties:
-        schema_version:
-          type: string
-          const: '1'
-          title: Schema Version
-        source:
-          type: string
-          const: backend_rest_client.get_current_margin_window
-          title: Source
-        stage:
-          type: string
-          const: margin_collateral_validation
-          title: Stage
-        field_path:
-          type: string
-          const: current_margin_windows
-          title: Field Path
-        container_present:
-          type: boolean
-          title: Container Present
-        container_type:
-          type: string
-          enum:
-          - missing
-          - 'null'
-          - boolean
-          - string
-          - number
-          - mapping
-          - sequence
-          - other
-          title: Container Type
-        row_count_bucket:
-          type: string
-          enum:
-          - not_applicable
-          - zero
-          - one
-          - expected_two
-          - more_than_two
-          title: Row Count Bucket
-        expected_row_count:
-          type: integer
-          const: 2
-          title: Expected Row Count
-        failing_row_index:
-          anyOf:
-          - type: integer
-            enum:
-            - 0
-            - 1
-          - type: 'null'
-          title: Failing Row Index
-        recognized_profile:
-          anyOf:
-          - type: string
-            enum:
-            - retail_regular
-            - retail_intraday_margin_1
-          - type: 'null'
-          title: Recognized Profile
-        failing_field:
-          anyOf:
-          - type: string
-            enum:
-            - current_margin_windows
-            - row
-            - profile
-            - status
-            - margin_window
-            - margin_window_type
-            - expected_profile_set
-          - type: 'null'
-          title: Failing Field
-        failing_value_type:
-          anyOf:
-          - type: string
-            enum:
-            - missing
-            - 'null'
-            - boolean
-            - string
-            - number
-            - mapping
-            - sequence
-            - other
-          - type: 'null'
-          title: Failing Value Type
-        classification:
-          type: string
-          enum:
-          - missing_container
-          - non_list_container
-          - unexpected_row_count
-          - non_mapping_row
-          - profile_missing
-          - profile_null
-          - profile_non_string
-          - profile_malformed_string
-          - profile_unrecognized_enum_token
-          - duplicate_profile
-          - status_missing
-          - status_null
-          - status_non_string
-          - status_not_ready
-          - margin_window_missing
-          - margin_window_null
-          - margin_window_non_mapping
-          - margin_window_type_missing
-          - margin_window_type_null
-          - margin_window_type_non_string
-          - margin_window_type_malformed_string
-          - margin_window_type_not_exact_operational_enum_token
-          - expected_profile_set_incomplete
-          - ready
-          title: Classification
-        sanitized:
-          type: boolean
-          const: true
-          title: Sanitized
-        raw_response_included:
-          type: boolean
-          const: false
-          title: Raw Response Included
-        external_exception_text_included:
-          type: boolean
-          const: false
-          title: External Exception Text Included
-        unknown_identifier_values_included:
-          type: boolean
-          const: false
-          title: Unknown Identifier Values Included
-      additionalProperties: false
-      type: object
-      required:
-      - schema_version
-      - source
-      - stage
-      - field_path
-      - container_present
-      - container_type
-      - row_count_bucket
-      - expected_row_count
-      - classification
-      - sanitized
-      - raw_response_included
-      - external_exception_text_included
-      - unknown_identifier_values_included
-      title: AdminFuturesPreviewMarginWindowsEvidence
-      description: Typed, identifier-withholding current margin-window diagnostic.
-    AdminFuturesPreviewMarginWindowsPolicyEvidenceV2:
-      properties:
-        schema_version:
-          type: string
-          const: '2'
-          title: Schema Version
-        policy_id:
-          type: string
-          const: slice2_preview_margin_window_profile_state_policy_v2
-          title: Policy Id
-        source:
-          type: string
-          const: backend_rest_client.get_current_margin_window
-          title: Source
-        stage:
-          type: string
-          const: margin_collateral_validation
-          title: Stage
-        field_path:
-          type: string
-          const: current_margin_windows
-          title: Field Path
-        enum_authority:
-          type: string
-          const: official_coinbase_advanced_trade_api_docs
-          title: Enum Authority
-        profile_state_policy_authority:
-          type: string
-          const: operator_defined_slice_2_preview_only_not_coinbase_documented
-          title: Profile State Policy Authority
-        profile_state_mapping_documented_by_coinbase:
-          type: boolean
-          const: false
-          title: Profile State Mapping Documented By Coinbase
-        eligibility_scope:
-          type: string
-          const: slice_2_preview_only
-          title: Eligibility Scope
-        r5_attempt_authority_granted:
-          type: boolean
-          const: false
-          title: R5 Attempt Authority Granted
-        execution_allowed:
-          type: boolean
-          const: false
-          title: Execution Allowed
-        create_order_eligibility_granted:
-          type: boolean
-          const: false
-          title: Create Order Eligibility Granted
-        later_live_eligibility_granted:
-          type: boolean
-          const: false
-          title: Later Live Eligibility Granted
-        container_present:
-          type: boolean
-          title: Container Present
-        container_type:
-          type: string
-          enum:
-          - missing
-          - 'null'
-          - boolean
-          - string
-          - number
-          - mapping
-          - sequence
-          - other
-          title: Container Type
-        row_count_bucket:
-          type: string
-          enum:
-          - not_applicable
-          - zero
-          - one
-          - expected_two
-          - more_than_two
-          title: Row Count Bucket
-        expected_row_count:
-          type: integer
-          const: 2
-          title: Expected Row Count
-        failing_policy_row_index:
-          anyOf:
-          - type: integer
-            enum:
-            - 0
-            - 1
-          - type: 'null'
-          title: Failing Policy Row Index
-        recognized_profile:
-          anyOf:
-          - type: string
-            enum:
-            - retail_regular
-            - retail_intraday_margin_1
-          - type: 'null'
-          title: Recognized Profile
-        failing_field:
-          anyOf:
-          - type: string
-            enum:
-            - current_margin_windows
-            - row
-            - profile
-            - status
-            - margin_window
-            - margin_window_type
-            - expected_profile_set
-          - type: 'null'
-          title: Failing Field
-        failing_value_type:
-          anyOf:
-          - type: string
-            enum:
-            - missing
-            - 'null'
-            - boolean
-            - string
-            - number
-            - mapping
-            - sequence
-            - other
-          - type: 'null'
-          title: Failing Value Type
-        rows:
-          items:
-            $ref: '#/components/schemas/AdminFuturesPreviewMarginWindowPolicyRowEvidenceV2'
-          type: array
-          maxItems: 2
-          title: Rows
-        margin_window_policy_satisfied:
-          type: boolean
-          title: Margin Window Policy Satisfied
-        classification:
-          type: string
-          enum:
-          - missing_container
-          - non_list_container
-          - unexpected_row_count
-          - non_mapping_row
-          - profile_missing
-          - profile_null
-          - profile_non_string
-          - profile_malformed_string
-          - profile_unrecognized_enum_token
-          - duplicate_profile
-          - status_missing
-          - status_null
-          - status_non_string
-          - status_not_ready
-          - margin_window_missing
-          - margin_window_null
-          - margin_window_non_mapping
-          - margin_window_type_missing
-          - margin_window_type_null
-          - margin_window_type_non_string
-          - margin_window_type_documented_but_operator_rejected
-          - margin_window_type_undocumented_or_malformed
-          - expected_profile_set_incomplete
-          - ready
-          title: Classification
-        sanitized:
-          type: boolean
-          const: true
-          title: Sanitized
-        raw_response_included:
-          type: boolean
-          const: false
-          title: Raw Response Included
-        external_exception_text_included:
-          type: boolean
-          const: false
-          title: External Exception Text Included
-        unknown_identifier_values_included:
-          type: boolean
-          const: false
-          title: Unknown Identifier Values Included
-      additionalProperties: false
-      type: object
-      required:
-      - schema_version
-      - policy_id
-      - source
-      - stage
-      - field_path
-      - enum_authority
-      - profile_state_policy_authority
-      - profile_state_mapping_documented_by_coinbase
-      - eligibility_scope
-      - r5_attempt_authority_granted
-      - execution_allowed
-      - create_order_eligibility_granted
-      - later_live_eligibility_granted
-      - container_present
-      - container_type
-      - row_count_bucket
-      - expected_row_count
-      - rows
-      - margin_window_policy_satisfied
-      - classification
-      - sanitized
-      - raw_response_included
-      - external_exception_text_included
-      - unknown_identifier_values_included
-      title: AdminFuturesPreviewMarginWindowsPolicyEvidenceV2
-      description: Operator-defined, Slice-2-Preview-only margin-window policy evidence.
-    AdminFuturesPreviewMarginWindowsPolicyEvidenceV3:
-      properties:
-        schema_version:
-          type: string
-          const: '3'
-          title: Schema Version
-        policy_id:
-          type: string
-          const: slice2_preview_margin_window_exact_pair_policy_v3
-          title: Policy Id
-        source:
-          type: string
-          const: backend_rest_client.get_current_margin_window
-          title: Source
-        stage:
-          type: string
-          const: margin_collateral_validation
-          title: Stage
-        field_path:
-          type: string
-          const: current_margin_windows
-          title: Field Path
-        enum_authority:
-          type: string
-          const: official_coinbase_advanced_trade_api_docs
-          title: Enum Authority
-        profile_state_policy_authority:
-          type: string
-          const: operator_defined_slice_2_preview_only_not_coinbase_documented
-          title: Profile State Policy Authority
-        profile_state_mapping_documented_by_coinbase:
-          type: boolean
-          const: false
-          title: Profile State Mapping Documented By Coinbase
-        eligibility_scope:
-          type: string
-          const: slice_2_preview_only
-          title: Eligibility Scope
-        r5_attempt_authority_granted:
-          type: boolean
-          const: false
-          title: R5 Attempt Authority Granted
-        execution_allowed:
-          type: boolean
-          const: false
-          title: Execution Allowed
-        create_order_eligibility_granted:
-          type: boolean
-          const: false
-          title: Create Order Eligibility Granted
-        later_live_eligibility_granted:
-          type: boolean
-          const: false
-          title: Later Live Eligibility Granted
-        container_present:
-          type: boolean
-          title: Container Present
-        container_type:
-          type: string
-          enum:
-          - missing
-          - 'null'
-          - boolean
-          - string
-          - number
-          - mapping
-          - sequence
-          - other
-          title: Container Type
-        row_count_bucket:
-          type: string
-          enum:
-          - not_applicable
-          - zero
-          - one
-          - expected_two
-          - more_than_two
-          title: Row Count Bucket
-        expected_row_count:
-          type: integer
-          const: 2
-          title: Expected Row Count
-        failing_policy_row_index:
-          anyOf:
-          - type: integer
-            enum:
-            - 0
-            - 1
-          - type: 'null'
-          title: Failing Policy Row Index
-        recognized_profile:
-          anyOf:
-          - type: string
-            enum:
-            - retail_regular
-            - retail_intraday_margin_1
-          - type: 'null'
-          title: Recognized Profile
-        failing_field:
-          anyOf:
-          - type: string
-            enum:
-            - current_margin_windows
-            - row
-            - profile
-            - status
-            - margin_window
-            - margin_window_type
-            - expected_profile_set
-          - type: 'null'
-          title: Failing Field
-        failing_value_type:
-          anyOf:
-          - type: string
-            enum:
-            - missing
-            - 'null'
-            - boolean
-            - string
-            - number
-            - mapping
-            - sequence
-            - other
-          - type: 'null'
-          title: Failing Value Type
-        rows:
-          items:
-            $ref: '#/components/schemas/AdminFuturesPreviewMarginWindowPolicyRowEvidenceV3'
-          type: array
-          maxItems: 2
-          title: Rows
-        margin_window_policy_satisfied:
-          type: boolean
-          title: Margin Window Policy Satisfied
-        classification:
-          type: string
-          enum:
-          - missing_container
-          - non_list_container
-          - unexpected_row_count
-          - non_mapping_row
-          - profile_missing
-          - profile_null
-          - profile_non_string
-          - profile_malformed_string
-          - profile_unrecognized_enum_token
-          - duplicate_profile
-          - status_missing
-          - status_null
-          - status_non_string
-          - status_not_ready
-          - margin_window_missing
-          - margin_window_null
-          - margin_window_non_mapping
-          - margin_window_type_missing
-          - margin_window_type_null
-          - margin_window_type_non_string
-          - margin_window_type_documented_but_operator_rejected
-          - margin_window_type_undocumented_or_malformed
-          - expected_profile_set_incomplete
-          - ready
-          title: Classification
-        sanitized:
-          type: boolean
-          const: true
-          title: Sanitized
-        raw_response_included:
-          type: boolean
-          const: false
-          title: Raw Response Included
-        external_exception_text_included:
-          type: boolean
-          const: false
-          title: External Exception Text Included
-        unknown_identifier_values_included:
-          type: boolean
-          const: false
-          title: Unknown Identifier Values Included
-        pair_policy_mode:
-          type: string
-          const: exact_profile_state_pair
-          title: Pair Policy Mode
-        r6_attempt_authority_granted:
-          type: boolean
-          const: false
-          title: R6 Attempt Authority Granted
-      additionalProperties: false
-      type: object
-      required:
-      - schema_version
-      - policy_id
-      - source
-      - stage
-      - field_path
-      - enum_authority
-      - profile_state_policy_authority
-      - profile_state_mapping_documented_by_coinbase
-      - eligibility_scope
-      - r5_attempt_authority_granted
-      - execution_allowed
-      - create_order_eligibility_granted
-      - later_live_eligibility_granted
-      - container_present
-      - container_type
-      - row_count_bucket
-      - expected_row_count
-      - rows
-      - margin_window_policy_satisfied
-      - classification
-      - sanitized
-      - raw_response_included
-      - external_exception_text_included
-      - unknown_identifier_values_included
-      - pair_policy_mode
-      - r6_attempt_authority_granted
-      title: AdminFuturesPreviewMarginWindowsPolicyEvidenceV3
-      description: Operator-defined exact pair, limited to Slice 2 R6 Preview.
-    AdminFuturesPreviewOriginalPredecessorBinding:
-      allOf:
-      - oneOf:
-        - properties:
-            device:
-              const: '66305'
-            inode:
-              const: '42312964'
-          required:
-          - device
-          - inode
-        - properties:
-            device:
-              const: '2096'
-            inode:
-              const: '400172'
-          required:
-          - device
-          - inode
-      properties:
-        artifact_name:
-          type: string
-          const: futures_exact_no_live_preview_slice_2.jsonl
-          title: Artifact Name
-        file_sha256:
-          type: string
-          const: 9b15da86c172eca46d4b3dc0fc2b81e9b325df9a1e2f75fef79362f538e2d5ff
-          title: File Sha256
-        evidence_sha256:
-          type: string
-          const: 3b09cb9dfe02991dc886a1c6f041330d417ff11a0f1d45e3734bdc59bfb219b8
-          title: Evidence Sha256
-        device:
-          type: string
-          enum:
-          - '66305'
-          - '2096'
-          title: Device
-        inode:
-          type: string
-          enum:
-          - '42312964'
-          - '400172'
-          title: Inode
-        size_bytes:
-          type: integer
-          const: 3043
-          title: Size Bytes
-        mode:
-          type: string
-          const: '0400'
-          title: Mode
-        mtime_ns:
-          type: string
-          const: '1783968539951853688'
-          title: Mtime Ns
-        status:
-          type: string
-          const: blocked
-          title: Status
-        outcome:
-          type: string
-          const: blocked
-          title: Outcome
-        preview_order_attempt_count:
-          type: integer
-          const: 0
-          title: Preview Order Attempt Count
-        exchange_submission_attempt_count:
-          type: integer
-          const: 0
-          title: Exchange Submission Attempt Count
-        submitted_notional_usdc:
-          type: string
-          const: '0'
-          title: Submitted Notional Usdc
-        executed_notional_usdc:
-          type: string
-          const: '0'
-          title: Executed Notional Usdc
-        preservation:
-          type: string
-          const: immutable_no_modify_delete_or_reuse
-          title: Preservation
-      additionalProperties: false
-      type: object
-      required:
-      - artifact_name
-      - file_sha256
-      - evidence_sha256
-      - device
-      - inode
-      - size_bytes
-      - mode
-      - mtime_ns
-      - status
-      - outcome
-      - preview_order_attempt_count
-      - exchange_submission_attempt_count
-      - submitted_notional_usdc
-      - executed_notional_usdc
-      - preservation
-      title: AdminFuturesPreviewOriginalPredecessorBinding
-      description: Exact immutable binding to the consumed original Slice 2 artifact.
-    AdminFuturesPreviewPostPreviewDiagnosticBinding:
-      properties:
-        schema_version:
-          type: string
-          const: '1'
-          title: Schema Version
-        policy_id:
-          type: string
-          const: slice2_preview_post_return_stage_diagnostic_v1
-          title: Policy Id
-        stage_order:
-          items:
-            type: string
-            enum:
-            - preview_response_validation
-            - candidate_cap_binding
-            - available_margin_validation
-            - seal_ready_plan_construction
-            - accepted_evidence_construction
-            - terminal_predecessor_validation
-          type: array
-          maxItems: 6
-          minItems: 6
-          title: Stage Order
-        persisted_evidence:
-          type: string
-          const: ordered_sanitized_stage_prefix_only
-          title: Persisted Evidence
-        raw_response_included:
-          type: boolean
-          const: false
-          title: Raw Response Included
-        external_exception_text_included:
-          type: boolean
-          const: false
-          title: External Exception Text Included
-        identifier_values_included:
-          type: boolean
-          const: false
-          title: Identifier Values Included
-      additionalProperties: false
-      type: object
-      required:
-      - schema_version
-      - policy_id
-      - stage_order
-      - persisted_evidence
-      - raw_response_included
-      - external_exception_text_included
-      - identifier_values_included
-      title: AdminFuturesPreviewPostPreviewDiagnosticBinding
-      description: Exact prospective diagnostic contract carried by R8 claims.
-    AdminFuturesPreviewPostPreviewDiagnosticBindingV2:
-      properties:
-        schema_version:
-          type: string
-          const: '2'
-          title: Schema Version
-        policy_id:
-          type: string
-          const: slice2_preview_post_return_stage_diagnostic_v2
-          title: Policy Id
-        stage_order:
-          items:
-            type: string
-            enum:
-            - preview_response_validation
-            - candidate_cap_binding
-            - available_margin_validation
-            - seal_ready_plan_construction
-            - accepted_evidence_construction
-            - terminal_predecessor_validation
-          type: array
-          maxItems: 6
-          minItems: 6
-          title: Stage Order
-        persisted_evidence:
-          type: string
-          const: ordered_sanitized_stage_prefix_only
-          title: Persisted Evidence
-        response_validation_reason_policy:
-          type: string
-          const: fixed_internal_category_allowlist_only
-          title: Response Validation Reason Policy
-        raw_response_included:
-          type: boolean
-          const: false
-          title: Raw Response Included
-        external_exception_text_included:
-          type: boolean
-          const: false
-          title: External Exception Text Included
-        identifier_values_included:
-          type: boolean
-          const: false
-          title: Identifier Values Included
-      additionalProperties: false
-      type: object
-      required:
-      - schema_version
-      - policy_id
-      - stage_order
-      - persisted_evidence
-      - response_validation_reason_policy
-      - raw_response_included
-      - external_exception_text_included
-      - identifier_values_included
-      title: AdminFuturesPreviewPostPreviewDiagnosticBindingV2
-      description: Exact R10 fixed-category post-Preview diagnostic contract.
     AdminFuturesPreviewPostPreviewDiagnosticBindingV3:
       properties:
         schema_version:
@@ -103170,1028 +102036,34 @@ components:
       - identifier_values_included
       title: AdminFuturesPreviewPostPreviewDiagnosticBindingV3
       description: Exact R11 fixed value-blind post-Preview diagnostic contract.
-    AdminFuturesPreviewPostStageEvidence:
+    AdminFuturesPreviewR12ArtifactFlags:
       properties:
-        schema_version:
-          type: string
-          const: '1'
-          title: Schema Version
-        source:
-          type: string
-          const: backend_futures_preview_producer
-          title: Source
-        stages:
-          items:
-            $ref: '#/components/schemas/AdminFuturesPreviewPostStageEvidenceRow'
-          type: array
-          maxItems: 6
-          minItems: 1
-          title: Stages
-        sanitized:
-          type: boolean
-          const: true
-          title: Sanitized
-        raw_response_included:
+        execution_marker_created:
           type: boolean
           const: false
-          title: Raw Response Included
-        external_exception_text_included:
+          title: Execution Marker Created
+        attempt_ledger_created:
           type: boolean
           const: false
-          title: External Exception Text Included
-        identifier_values_included:
+          title: Attempt Ledger Created
+        runtime_created:
           type: boolean
           const: false
-          title: Identifier Values Included
+          title: Runtime Created
       additionalProperties: false
       type: object
       required:
-      - schema_version
-      - source
-      - stages
-      - sanitized
-      - raw_response_included
-      - external_exception_text_included
-      - identifier_values_included
-      title: AdminFuturesPreviewPostStageEvidence
-      description: Ordered post-return stage prefix containing no response material.
-    AdminFuturesPreviewPostStageEvidenceRow:
-      properties:
-        stage:
-          type: string
-          enum:
-          - preview_response_validation
-          - candidate_cap_binding
-          - available_margin_validation
-          - seal_ready_plan_construction
-          - accepted_evidence_construction
-          - terminal_predecessor_validation
-          title: Stage
-        status:
-          type: string
-          enum:
-          - passed
-          - blocked
-          title: Status
-        reason_code:
-          anyOf:
-          - type: string
-            enum:
-            - futures_preview_response_validation_unclassified
-            - futures_preview_candidate_cap_binding_unclassified
-            - futures_preview_available_margin_validation_unclassified
-            - futures_preview_seal_ready_plan_construction_unclassified
-            - futures_preview_accepted_evidence_construction_unclassified
-            - futures_preview_terminal_predecessor_validation_unclassified
-            - futures_preview_base_size_candidate_mismatch
-            - futures_preview_response_book_ambiguous
-            - futures_preview_response_opening_cap_blocked
-            - futures_preview_response_exposure_cap_blocked
-            - futures_preview_response_buffered_close_cap_blocked
-            - futures_preview_response_turnover_cap_blocked
-            - futures_preview_available_margin_insufficient
-            - futures_preview_predecessor_terminal_binding_changed
-            - futures_preview_response_envelope_invalid
-            - futures_preview_response_exchange_errors_present
-            - futures_preview_response_exchange_warnings_present
-            - futures_preview_response_economics_invalid
-            - futures_preview_response_liquidation_replacement_missing
-            - futures_preview_response_liquidation_replacement_invalid
-            - futures_preview_response_normalization_invariant_invalid
-            - futures_preview_response_base_size_invalid
-            - futures_preview_response_base_size_not_positive
-            - futures_preview_response_best_ask_invalid
-            - futures_preview_response_best_ask_not_positive
-            - futures_preview_response_best_bid_invalid
-            - futures_preview_response_best_bid_not_positive
-            - futures_preview_response_commission_total_invalid
-            - futures_preview_response_commission_total_negative
-            - futures_preview_response_official_base_size_missing
-            - futures_preview_response_official_base_size_type_invalid
-            - futures_preview_response_official_best_ask_missing
-            - futures_preview_response_official_best_ask_type_invalid
-            - futures_preview_response_official_best_bid_missing
-            - futures_preview_response_official_best_bid_type_invalid
-            - futures_preview_response_official_commission_total_missing
-            - futures_preview_response_official_commission_total_type_invalid
-            - futures_preview_response_official_current_margin_ratio_type_invalid
-            - futures_preview_response_official_errs_item_type_invalid
-            - futures_preview_response_official_errs_missing
-            - futures_preview_response_official_errs_type_invalid
-            - futures_preview_response_official_is_max_missing
-            - futures_preview_response_official_is_max_type_invalid
-            - futures_preview_response_official_margin_ratio_data_type_invalid
-            - futures_preview_response_official_order_margin_total_type_invalid
-            - futures_preview_response_official_order_total_missing
-            - futures_preview_response_official_order_total_type_invalid
-            - futures_preview_response_official_predicted_liquidation_price_type_invalid
-            - futures_preview_response_official_preview_id_type_invalid
-            - futures_preview_response_official_projected_margin_ratio_type_invalid
-            - futures_preview_response_official_quote_size_missing
-            - futures_preview_response_official_quote_size_type_invalid
-            - futures_preview_response_official_response_missing
-            - futures_preview_response_official_warning_item_type_invalid
-            - futures_preview_response_official_warning_missing
-            - futures_preview_response_official_warning_type_invalid
-            - futures_preview_response_order_total_invalid
-            - futures_preview_response_order_total_not_positive
-            - futures_preview_response_project_current_margin_ratio_invalid
-            - futures_preview_response_project_current_margin_ratio_missing
-            - futures_preview_response_project_current_margin_ratio_not_finite_or_negative
-            - futures_preview_response_project_is_max_true
-            - futures_preview_response_project_order_margin_total_invalid
-            - futures_preview_response_project_order_margin_total_missing
-            - futures_preview_response_project_order_margin_total_not_finite_or_positive
-            - futures_preview_response_project_predicted_liquidation_price_invalid
-            - futures_preview_response_project_predicted_liquidation_price_not_finite_or_positive
-            - futures_preview_response_project_preview_id_invalid
-            - futures_preview_response_project_preview_id_missing
-            - futures_preview_response_project_projected_margin_ratio_invalid
-            - futures_preview_response_project_projected_margin_ratio_missing
-            - futures_preview_response_project_projected_margin_ratio_not_finite_or_negative
-            - futures_preview_response_quote_size_invalid
-            - futures_preview_response_quote_size_not_positive
-          - type: 'null'
-          title: Reason Code
-      additionalProperties: false
-      type: object
-      required:
-      - stage
-      - status
-      title: AdminFuturesPreviewPostStageEvidenceRow
-      description: One sanitized stage after the Preview method returned.
-    AdminFuturesPreviewPredecessorBinding:
-      allOf:
-      - oneOf:
-        - properties:
-            device:
-              const: '66305'
-            inode:
-              const: '42312970'
-          required:
-          - device
-          - inode
-        - properties:
-            device:
-              const: '2096'
-            inode:
-              const: '400173'
-          required:
-          - device
-          - inode
-      properties:
-        artifact_name:
-          type: string
-          const: futures_exact_no_live_preview_slice_2r1.jsonl
-          title: Artifact Name
-        file_sha256:
-          type: string
-          const: 55c09c6d4819f2d03dd679ae4c952e203cf540d1a141e13035459821f1b680d7
-          title: File Sha256
-        evidence_sha256:
-          type: string
-          const: a1b7820aa217b7119a6353a8f4fbffa5227ebfe5e4c8d8a1cde5449d370fc6f0
-          title: Evidence Sha256
-        device:
-          type: string
-          enum:
-          - '66305'
-          - '2096'
-          title: Device
-        inode:
-          type: string
-          enum:
-          - '42312970'
-          - '400173'
-          title: Inode
-        size_bytes:
-          type: integer
-          const: 4197
-          title: Size Bytes
-        mode:
-          type: string
-          const: '0400'
-          title: Mode
-        mtime_ns:
-          type: string
-          const: '1783980960753782357'
-          title: Mtime Ns
-        status:
-          type: string
-          const: blocked
-          title: Status
-        outcome:
-          type: string
-          const: blocked
-          title: Outcome
-        preview_order_attempt_count:
-          type: integer
-          const: 0
-          title: Preview Order Attempt Count
-        exchange_submission_attempt_count:
-          type: integer
-          const: 0
-          title: Exchange Submission Attempt Count
-        submitted_notional_usdc:
-          type: string
-          const: '0'
-          title: Submitted Notional Usdc
-        executed_notional_usdc:
-          type: string
-          const: '0'
-          title: Executed Notional Usdc
-        preservation:
-          type: string
-          const: immutable_no_modify_delete_or_reuse
-          title: Preservation
-        original_predecessor_binding:
-          $ref: '#/components/schemas/AdminFuturesPreviewOriginalPredecessorBinding'
-      additionalProperties: false
-      type: object
-      required:
-      - artifact_name
-      - file_sha256
-      - evidence_sha256
-      - device
-      - inode
-      - size_bytes
-      - mode
-      - mtime_ns
-      - status
-      - outcome
-      - preview_order_attempt_count
-      - exchange_submission_attempt_count
-      - submitted_notional_usdc
-      - executed_notional_usdc
-      - preservation
-      - original_predecessor_binding
-      title: AdminFuturesPreviewPredecessorBinding
-      description: Exact immutable R1 binding plus its original Slice 2 parent.
-    AdminFuturesPreviewR10PredecessorBinding:
-      allOf:
-      - oneOf:
-        - properties:
-            device:
-              const: '2096'
-            inode:
-              const: '221388'
-          required:
-          - device
-          - inode
-      properties:
-        artifact_name:
-          type: string
-          const: futures_exact_no_live_preview_slice_2r10.jsonl
-          title: Artifact Name
-        file_sha256:
-          type: string
-          const: 5dd010a706c61e78454caeec478e05cafb1a50761e9e5a9a3d485051c4efee64
-          title: File Sha256
-        evidence_sha256:
-          type: string
-          const: 5121e980ec9da81f44d9a3b14b9bbcaa7bdaf41c99189cd9234cedc08d652005
-          title: Evidence Sha256
-        device:
-          type: string
-          const: '2096'
-          title: Device
-        inode:
-          type: string
-          const: '221388'
-          title: Inode
-        size_bytes:
-          type: integer
-          const: 26144
-          title: Size Bytes
-        mode:
-          type: string
-          const: '0400'
-          title: Mode
-        mtime_ns:
-          type: string
-          const: '1784179469052389092'
-          title: Mtime Ns
-        nlink:
-          type: integer
-          const: 1
-          title: Nlink
-        status:
-          type: string
-          const: blocked
-          title: Status
-        outcome:
-          type: string
-          const: blocked
-          title: Outcome
-        preview_order_attempt_count:
-          type: integer
-          const: 1
-          title: Preview Order Attempt Count
-        exchange_submission_attempt_count:
-          type: integer
-          const: 0
-          title: Exchange Submission Attempt Count
-        submitted_notional_usdc:
-          type: string
-          const: '0'
-          title: Submitted Notional Usdc
-        executed_notional_usdc:
-          type: string
-          const: '0'
-          title: Executed Notional Usdc
-        preservation:
-          type: string
-          const: immutable_no_modify_delete_or_reuse
-          title: Preservation
-        original_predecessor_binding:
-          $ref: '#/components/schemas/AdminFuturesPreviewR9PredecessorBinding'
-      additionalProperties: false
-      type: object
-      required:
-      - artifact_name
-      - file_sha256
-      - evidence_sha256
-      - device
-      - inode
-      - size_bytes
-      - mode
-      - mtime_ns
-      - nlink
-      - status
-      - outcome
-      - preview_order_attempt_count
-      - exchange_submission_attempt_count
-      - submitted_notional_usdc
-      - executed_notional_usdc
-      - preservation
-      - original_predecessor_binding
-      title: AdminFuturesPreviewR10PredecessorBinding
-      description: Exact immutable R10 binding plus its complete predecessor chain.
-    AdminFuturesPreviewR2PredecessorBinding:
-      allOf:
-      - oneOf:
-        - properties:
-            device:
-              const: '66305'
-            inode:
-              const: '42312480'
-          required:
-          - device
-          - inode
-        - properties:
-            device:
-              const: '2096'
-            inode:
-              const: '400174'
-          required:
-          - device
-          - inode
-      properties:
-        artifact_name:
-          type: string
-          const: futures_exact_no_live_preview_slice_2r2.jsonl
-          title: Artifact Name
-        file_sha256:
-          type: string
-          const: 1831b2feaac69b9d3d64377123833831c1b1c1f26c1c0445ed17f334746b4053
-          title: File Sha256
-        evidence_sha256:
-          type: string
-          const: afebf81c4d95c0abd7635fd700f6618e92191423173df3e2db0f875102b6f1c9
-          title: Evidence Sha256
-        device:
-          type: string
-          enum:
-          - '66305'
-          - '2096'
-          title: Device
-        inode:
-          type: string
-          enum:
-          - '42312480'
-          - '400174'
-          title: Inode
-        size_bytes:
-          type: integer
-          const: 6002
-          title: Size Bytes
-        mode:
-          type: string
-          const: '0400'
-          title: Mode
-        mtime_ns:
-          type: string
-          const: '1783991637010957407'
-          title: Mtime Ns
-        status:
-          type: string
-          const: blocked
-          title: Status
-        outcome:
-          type: string
-          const: blocked
-          title: Outcome
-        preview_order_attempt_count:
-          type: integer
-          const: 0
-          title: Preview Order Attempt Count
-        exchange_submission_attempt_count:
-          type: integer
-          const: 0
-          title: Exchange Submission Attempt Count
-        submitted_notional_usdc:
-          type: string
-          const: '0'
-          title: Submitted Notional Usdc
-        executed_notional_usdc:
-          type: string
-          const: '0'
-          title: Executed Notional Usdc
-        preservation:
-          type: string
-          const: immutable_no_modify_delete_or_reuse
-          title: Preservation
-        original_predecessor_binding:
-          $ref: '#/components/schemas/AdminFuturesPreviewPredecessorBinding'
-      additionalProperties: false
-      type: object
-      required:
-      - artifact_name
-      - file_sha256
-      - evidence_sha256
-      - device
-      - inode
-      - size_bytes
-      - mode
-      - mtime_ns
-      - status
-      - outcome
-      - preview_order_attempt_count
-      - exchange_submission_attempt_count
-      - submitted_notional_usdc
-      - executed_notional_usdc
-      - preservation
-      - original_predecessor_binding
-      title: AdminFuturesPreviewR2PredecessorBinding
-      description: Exact immutable R2 binding plus its R1 and original predecessors.
-    AdminFuturesPreviewR3PredecessorBinding:
-      allOf:
-      - oneOf:
-        - properties:
-            device:
-              const: '66305'
-            inode:
-              const: '42312497'
-          required:
-          - device
-          - inode
-        - properties:
-            device:
-              const: '2096'
-            inode:
-              const: '400175'
-          required:
-          - device
-          - inode
-      properties:
-        artifact_name:
-          type: string
-          const: futures_exact_no_live_preview_slice_2r3.jsonl
-          title: Artifact Name
-        file_sha256:
-          type: string
-          const: 7ccd5411878842f883b78a99a4103b9b7b1f9aa000ebdde29cdecf2ac894b61c
-          title: File Sha256
-        evidence_sha256:
-          type: string
-          const: e79beb3d9f1324cf8f90ba78cd45869fec5b7963afe3745bd6e26617313718e8
-          title: Evidence Sha256
-        device:
-          type: string
-          enum:
-          - '66305'
-          - '2096'
-          title: Device
-        inode:
-          type: string
-          enum:
-          - '42312497'
-          - '400175'
-          title: Inode
-        size_bytes:
-          type: integer
-          const: 7616
-          title: Size Bytes
-        mode:
-          type: string
-          const: '0400'
-          title: Mode
-        mtime_ns:
-          type: string
-          const: '1784054457360155278'
-          title: Mtime Ns
-        status:
-          type: string
-          const: blocked
-          title: Status
-        outcome:
-          type: string
-          const: blocked
-          title: Outcome
-        preview_order_attempt_count:
-          type: integer
-          const: 0
-          title: Preview Order Attempt Count
-        exchange_submission_attempt_count:
-          type: integer
-          const: 0
-          title: Exchange Submission Attempt Count
-        submitted_notional_usdc:
-          type: string
-          const: '0'
-          title: Submitted Notional Usdc
-        executed_notional_usdc:
-          type: string
-          const: '0'
-          title: Executed Notional Usdc
-        preservation:
-          type: string
-          const: immutable_no_modify_delete_or_reuse
-          title: Preservation
-        original_predecessor_binding:
-          $ref: '#/components/schemas/AdminFuturesPreviewR2PredecessorBinding'
-      additionalProperties: false
-      type: object
-      required:
-      - artifact_name
-      - file_sha256
-      - evidence_sha256
-      - device
-      - inode
-      - size_bytes
-      - mode
-      - mtime_ns
-      - status
-      - outcome
-      - preview_order_attempt_count
-      - exchange_submission_attempt_count
-      - submitted_notional_usdc
-      - executed_notional_usdc
-      - preservation
-      - original_predecessor_binding
-      title: AdminFuturesPreviewR3PredecessorBinding
-      description: Exact immutable R3 binding plus its complete predecessor chain.
-    AdminFuturesPreviewR4PredecessorBinding:
-      allOf:
-      - oneOf:
-        - properties:
-            device:
-              const: '66305'
-            inode:
-              const: '42321812'
-          required:
-          - device
-          - inode
-        - properties:
-            device:
-              const: '2096'
-            inode:
-              const: '400176'
-          required:
-          - device
-          - inode
-      properties:
-        artifact_name:
-          type: string
-          const: futures_exact_no_live_preview_slice_2r4.jsonl
-          title: Artifact Name
-        file_sha256:
-          type: string
-          const: 90691e5b24c17fca5f3d1a67f942ea0b4b067e262435bcdf37e516f79ebb66cf
-          title: File Sha256
-        evidence_sha256:
-          type: string
-          const: 0edeffdb0702ba119a7d9c3e32874b75e295ee596538432df5f7be0a67a4af3e
-          title: Evidence Sha256
-        device:
-          type: string
-          enum:
-          - '66305'
-          - '2096'
-          title: Device
-        inode:
-          type: string
-          enum:
-          - '42321812'
-          - '400176'
-          title: Inode
-        size_bytes:
-          type: integer
-          const: 9508
-          title: Size Bytes
-        mode:
-          type: string
-          const: '0400'
-          title: Mode
-        mtime_ns:
-          type: string
-          const: '1784087822854381595'
-          title: Mtime Ns
-        status:
-          type: string
-          const: blocked
-          title: Status
-        outcome:
-          type: string
-          const: blocked
-          title: Outcome
-        preview_order_attempt_count:
-          type: integer
-          const: 0
-          title: Preview Order Attempt Count
-        exchange_submission_attempt_count:
-          type: integer
-          const: 0
-          title: Exchange Submission Attempt Count
-        submitted_notional_usdc:
-          type: string
-          const: '0'
-          title: Submitted Notional Usdc
-        executed_notional_usdc:
-          type: string
-          const: '0'
-          title: Executed Notional Usdc
-        preservation:
-          type: string
-          const: immutable_no_modify_delete_or_reuse
-          title: Preservation
-        original_predecessor_binding:
-          $ref: '#/components/schemas/AdminFuturesPreviewR3PredecessorBinding'
-      additionalProperties: false
-      type: object
-      required:
-      - artifact_name
-      - file_sha256
-      - evidence_sha256
-      - device
-      - inode
-      - size_bytes
-      - mode
-      - mtime_ns
-      - status
-      - outcome
-      - preview_order_attempt_count
-      - exchange_submission_attempt_count
-      - submitted_notional_usdc
-      - executed_notional_usdc
-      - preservation
-      - original_predecessor_binding
-      title: AdminFuturesPreviewR4PredecessorBinding
-      description: Exact immutable R4 binding plus its complete predecessor chain.
-    AdminFuturesPreviewR5PredecessorBinding:
-      allOf:
-      - oneOf:
-        - properties:
-            device:
-              const: '66305'
-            inode:
-              const: '41943457'
-          required:
-          - device
-          - inode
-        - properties:
-            device:
-              const: '2096'
-            inode:
-              const: '400177'
-          required:
-          - device
-          - inode
-      properties:
-        artifact_name:
-          type: string
-          const: futures_exact_no_live_preview_slice_2r5.jsonl
-          title: Artifact Name
-        file_sha256:
-          type: string
-          const: 4988e23886d218d25be518203676bec4f27a2199a0ed2e7f36d0d7e1d8e6bbf7
-          title: File Sha256
-        evidence_sha256:
-          type: string
-          const: 194cdd842944f8a453408051c04ff8e117b6b2b3ab6dcd7b1e78f44f4a5a467f
-          title: Evidence Sha256
-        device:
-          type: string
-          enum:
-          - '66305'
-          - '2096'
-          title: Device
-        inode:
-          type: string
-          enum:
-          - '41943457'
-          - '400177'
-          title: Inode
-        size_bytes:
-          type: integer
-          const: 11647
-          title: Size Bytes
-        mode:
-          type: string
-          const: '0400'
-          title: Mode
-        mtime_ns:
-          type: string
-          const: '1784111957686383208'
-          title: Mtime Ns
-        status:
-          type: string
-          const: blocked
-          title: Status
-        outcome:
-          type: string
-          const: blocked
-          title: Outcome
-        preview_order_attempt_count:
-          type: integer
-          const: 0
-          title: Preview Order Attempt Count
-        exchange_submission_attempt_count:
-          type: integer
-          const: 0
-          title: Exchange Submission Attempt Count
-        submitted_notional_usdc:
-          type: string
-          const: '0'
-          title: Submitted Notional Usdc
-        executed_notional_usdc:
-          type: string
-          const: '0'
-          title: Executed Notional Usdc
-        preservation:
-          type: string
-          const: immutable_no_modify_delete_or_reuse
-          title: Preservation
-        original_predecessor_binding:
-          $ref: '#/components/schemas/AdminFuturesPreviewR4PredecessorBinding'
-      additionalProperties: false
-      type: object
-      required:
-      - artifact_name
-      - file_sha256
-      - evidence_sha256
-      - device
-      - inode
-      - size_bytes
-      - mode
-      - mtime_ns
-      - status
-      - outcome
-      - preview_order_attempt_count
-      - exchange_submission_attempt_count
-      - submitted_notional_usdc
-      - executed_notional_usdc
-      - preservation
-      - original_predecessor_binding
-      title: AdminFuturesPreviewR5PredecessorBinding
-      description: Exact immutable R5 binding plus its complete predecessor chain.
-    AdminFuturesPreviewR6PredecessorBinding:
-      allOf:
-      - oneOf:
-        - properties:
-            device:
-              const: '2096'
-            inode:
-              const: '400333'
-          required:
-          - device
-          - inode
-      properties:
-        artifact_name:
-          type: string
-          const: futures_exact_no_live_preview_slice_2r6.jsonl
-          title: Artifact Name
-        file_sha256:
-          type: string
-          const: df5959e95ed4a6027e6c0a6980045fc685e7dd201158b39ff5fcc9577bf73904
-          title: File Sha256
-        evidence_sha256:
-          type: string
-          const: bf26fa6b0f67499dea02f337517c1ebd42ae9a20c88fbb5cfbe45e3f30f9e4f9
-          title: Evidence Sha256
-        device:
-          type: string
-          const: '2096'
-          title: Device
-        inode:
-          type: string
-          const: '400333'
-          title: Inode
-        size_bytes:
-          type: integer
-          const: 18567
-          title: Size Bytes
-        mode:
-          type: string
-          const: '0400'
-          title: Mode
-        mtime_ns:
-          type: string
-          const: '1784122432722849234'
-          title: Mtime Ns
-        status:
-          type: string
-          const: blocked
-          title: Status
-        outcome:
-          type: string
-          const: blocked
-          title: Outcome
-        preview_order_attempt_count:
-          type: integer
-          const: 1
-          title: Preview Order Attempt Count
-        exchange_submission_attempt_count:
-          type: integer
-          const: 0
-          title: Exchange Submission Attempt Count
-        submitted_notional_usdc:
-          type: string
-          const: '0'
-          title: Submitted Notional Usdc
-        executed_notional_usdc:
-          type: string
-          const: '0'
-          title: Executed Notional Usdc
-        preservation:
-          type: string
-          const: immutable_no_modify_delete_or_reuse
-          title: Preservation
-        original_predecessor_binding:
-          $ref: '#/components/schemas/AdminFuturesPreviewR5PredecessorBinding'
-      additionalProperties: false
-      type: object
-      required:
-      - artifact_name
-      - file_sha256
-      - evidence_sha256
-      - device
-      - inode
-      - size_bytes
-      - mode
-      - mtime_ns
-      - status
-      - outcome
-      - preview_order_attempt_count
-      - exchange_submission_attempt_count
-      - submitted_notional_usdc
-      - executed_notional_usdc
-      - preservation
-      - original_predecessor_binding
-      title: AdminFuturesPreviewR6PredecessorBinding
-      description: Exact immutable R6 binding plus its complete predecessor chain.
-    AdminFuturesPreviewR7PredecessorBinding:
-      allOf:
-      - oneOf:
-        - properties:
-            device:
-              const: '2096'
-            inode:
-              const: '400397'
-          required:
-          - device
-          - inode
-      properties:
-        artifact_name:
-          type: string
-          const: futures_exact_no_live_preview_slice_2r7.jsonl
-          title: Artifact Name
-        file_sha256:
-          type: string
-          const: 8e7bdf1a1efa67df9b1081cc8270dc9607e0b8c7285053d06985dcab195115e4
-          title: File Sha256
-        evidence_sha256:
-          type: string
-          const: 65791ec5aae8bd9db7c623042e3238f80a54067209aeeb1916801ca1d02369c3
-          title: Evidence Sha256
-        device:
-          type: string
-          const: '2096'
-          title: Device
-        inode:
-          type: string
-          const: '400397'
-          title: Inode
-        size_bytes:
-          type: integer
-          const: 20548
-          title: Size Bytes
-        mode:
-          type: string
-          const: '0400'
-          title: Mode
-        mtime_ns:
-          type: string
-          const: '1784133682760886913'
-          title: Mtime Ns
-        status:
-          type: string
-          const: blocked
-          title: Status
-        outcome:
-          type: string
-          const: blocked
-          title: Outcome
-        preview_order_attempt_count:
-          type: integer
-          const: 1
-          title: Preview Order Attempt Count
-        exchange_submission_attempt_count:
-          type: integer
-          const: 0
-          title: Exchange Submission Attempt Count
-        submitted_notional_usdc:
-          type: string
-          const: '0'
-          title: Submitted Notional Usdc
-        executed_notional_usdc:
-          type: string
-          const: '0'
-          title: Executed Notional Usdc
-        preservation:
-          type: string
-          const: immutable_no_modify_delete_or_reuse
-          title: Preservation
-        original_predecessor_binding:
-          $ref: '#/components/schemas/AdminFuturesPreviewR6PredecessorBinding'
-      additionalProperties: false
-      type: object
-      required:
-      - artifact_name
-      - file_sha256
-      - evidence_sha256
-      - device
-      - inode
-      - size_bytes
-      - mode
-      - mtime_ns
-      - status
-      - outcome
-      - preview_order_attempt_count
-      - exchange_submission_attempt_count
-      - submitted_notional_usdc
-      - executed_notional_usdc
-      - preservation
-      - original_predecessor_binding
-      title: AdminFuturesPreviewR7PredecessorBinding
-      description: Exact immutable R7 binding plus its complete predecessor chain.
-    AdminFuturesPreviewR8ArtifactMetadata:
-      properties:
-        artifact_name:
-          type: string
-          const: futures_exact_no_live_preview_slice_2r8.jsonl
-          title: Artifact Name
-        device:
-          type: string
-          const: '2096'
-          title: Device
-        inode:
-          type: string
-          const: '400341'
-          title: Inode
-        size_bytes:
-          type: integer
-          const: 14921
-          title: Size Bytes
-        mode:
-          type: string
-          const: '0400'
-          title: Mode
-        mtime_ns:
-          type: string
-          const: '1784160315297279427'
-          title: Mtime Ns
-        nlink:
-          type: integer
-          const: 1
-          title: Nlink
-      additionalProperties: false
-      type: object
-      required:
-      - artifact_name
-      - device
-      - inode
-      - size_bytes
-      - mode
-      - mtime_ns
-      - nlink
-      title: AdminFuturesPreviewR8ArtifactMetadata
-      description: Exact non-content filesystem metadata for immutable R8.
-    AdminFuturesPreviewR8AttemptCounters:
+      - execution_marker_created
+      - attempt_ledger_created
+      - runtime_created
+      title: AdminFuturesPreviewR12ArtifactFlags
+    AdminFuturesPreviewR12AttemptCounters:
       properties:
         preview_order:
           type: integer
-          const: 0
+          enum:
+          - 0
+          - 1
           title: Preview Order
         retry:
           type: integer
@@ -104227,209 +102099,403 @@ components:
       - cancel_order
       - close_position
       - reduce_position
-      title: AdminFuturesPreviewR8AttemptCounters
-      description: Exact zero-call, zero-mutation R8 terminal counters.
-    AdminFuturesPreviewR8ForensicReadback:
+      title: AdminFuturesPreviewR12AttemptCounters
+    AdminFuturesPreviewR12Candidate:
       properties:
-        schema_version:
+        product_id:
           type: string
-          const: futures-preview-r8-forensic-readback-v2
-          title: Schema Version
-        artifact_type:
+          const: AVP-20DEC30-CDE
+          title: Product Id
+        side:
           type: string
-          const: futures_exact_no_live_preview_slice_2r8
-          title: Artifact Type
-        generation:
+          const: BUY
+          title: Side
+        order_type:
           type: string
-          const: R8
-          title: Generation
-        status:
+          const: LIMIT_GTC
+          title: Order Type
+        post_only:
           type: string
-          const: blocked
-          title: Status
-        outcome:
+          const: 'true'
+          title: Post Only
+        contract_count:
           type: string
-          const: blocked
-          title: Outcome
-        blocker:
+          const: '1'
+          title: Contract Count
+        product_classification:
           type: string
-          const: preflight_or_preview_blocked:Exception
-          title: Blocker
-        localized_failure_boundary:
+          const: PERP_STYLE_FUTURE
+          title: Product Classification
+        contract_code:
           type: string
-          const: api_key_permissions_read_boundary
-          title: Localized Failure Boundary
-        evidence_origin:
+          const: AVP
+          title: Contract Code
+        contract_expiry:
           type: string
-          const: independent_sanitized_forensic_classification
-          title: Evidence Origin
-        generation_consumed:
-          type: boolean
-          const: true
-          title: Generation Consumed
-        authorization_sha256:
+          const: '2030-12-20T16:00:00Z'
+          title: Contract Expiry
+        contract_expiry_type:
           type: string
-          const: 5c9c2432179989446d79da2e8f173729103844a96f00e1eeec56dcf5c8e2dc51
-          title: Authorization Sha256
-        artifact_file_sha256:
+          const: EXPIRING
+          title: Contract Expiry Type
+        venue:
           type: string
-          const: b32aba4868f08ee7a44f19ceacbcf42cb7e4d70da1552f2d8b333ef59ddc8696
-          title: Artifact File Sha256
-        artifact_binding_sha256:
+          const: cde
+          title: Venue
+        risk_managed_by:
           type: string
-          pattern: ^[0-9a-f]{64}$
-          title: Artifact Binding Sha256
-        artifact_metadata:
-          $ref: '#/components/schemas/AdminFuturesPreviewR8ArtifactMetadata'
-        scope:
-          $ref: '#/components/schemas/AdminFuturesPreviewR8Scope'
-        read_boundary_counters:
-          $ref: '#/components/schemas/AdminFuturesPreviewR8ReadBoundaryCounters'
-        attempt_counters:
-          $ref: '#/components/schemas/AdminFuturesPreviewR8AttemptCounters'
-        real_aws_service_call_count:
-          type: integer
-          const: 0
-          title: Real Aws Service Call Count
-        real_coinbase_request_count:
-          type: integer
-          const: 0
-          title: Real Coinbase Request Count
-        exchange_submission_attempt_count:
-          type: integer
-          const: 0
-          title: Exchange Submission Attempt Count
-        submitted_notional_usdc:
+          const: MANAGED_BY_FCM
+          title: Risk Managed By
+        contract_size:
           type: string
-          const: '0'
-          title: Submitted Notional Usdc
-        executed_notional_usdc:
+          const: '10'
+          title: Contract Size
+        product_price:
           type: string
-          const: '0'
-          title: Executed Notional Usdc
-        live_coinbase_execution:
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Product Price
+        reference_price:
           type: string
-          const: not_run
-          title: Live Coinbase Execution
-        slice3_activated:
-          type: boolean
-          const: false
-          title: Slice3 Activated
-        documented_sha256_stat_metadata_validated:
-          type: boolean
-          const: true
-          title: Documented Sha256 Stat Metadata Validated
-        artifact_file_sha256_source:
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Reference Price
+        reference_price_source:
           type: string
-          const: documented_preexisting_binding_not_recomputed
-          title: Artifact File Sha256 Source
-        artifact_bytes_opened:
-          type: boolean
-          const: false
-          title: Artifact Bytes Opened
-        raw_response_included:
-          type: boolean
-          const: false
-          title: Raw Response Included
-        private_identifier_values_included:
-          type: boolean
-          const: false
-          title: Private Identifier Values Included
-        withheld_exception_text_included:
-          type: boolean
-          const: false
-          title: Withheld Exception Text Included
-        preservation:
+          const: max_product_price_and_fresh_best_ask
+          title: Reference Price Source
+        price_increment:
           type: string
-          const: immutable_no_modify_delete_or_reuse
-          title: Preservation
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Price Increment
+        best_bid:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Best Bid
+        best_ask:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Best Ask
+        limit_price:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Limit Price
+        opening_reference_notional_usdc:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Opening Reference Notional Usdc
+        maximum_exposure_reference_notional_usdc:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Maximum Exposure Reference Notional Usdc
+        observed_concurrent_exposure_usdc:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Observed Concurrent Exposure Usdc
+        buffered_close_reference_notional_usdc:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Buffered Close Reference Notional Usdc
+        branch_turnover_reference_notional_usdc:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Branch Turnover Reference Notional Usdc
+        opening_cap_usdc:
+          type: string
+          const: '100'
+          title: Opening Cap Usdc
+        exposure_cap_usdc:
+          type: string
+          const: '150'
+          title: Exposure Cap Usdc
+        turnover_cap_usdc:
+          type: string
+          const: '300'
+          title: Turnover Cap Usdc
+        close_buffer_multiplier:
+          type: string
+          const: '1.20'
+          title: Close Buffer Multiplier
+        observed_at:
+          type: string
+          title: Observed At
       additionalProperties: false
       type: object
       required:
-      - schema_version
-      - artifact_type
-      - generation
-      - status
-      - outcome
-      - blocker
-      - localized_failure_boundary
-      - evidence_origin
-      - generation_consumed
-      - authorization_sha256
-      - artifact_file_sha256
-      - artifact_binding_sha256
-      - artifact_metadata
-      - scope
-      - read_boundary_counters
-      - attempt_counters
-      - real_aws_service_call_count
-      - real_coinbase_request_count
-      - exchange_submission_attempt_count
-      - submitted_notional_usdc
-      - executed_notional_usdc
-      - live_coinbase_execution
-      - slice3_activated
-      - documented_sha256_stat_metadata_validated
-      - artifact_file_sha256_source
-      - artifact_bytes_opened
-      - raw_response_included
-      - private_identifier_values_included
-      - withheld_exception_text_included
-      - preservation
-      title: AdminFuturesPreviewR8ForensicReadback
-      description: Sanitized terminal classification that contains no R8 record content.
-    AdminFuturesPreviewR8PredecessorBinding:
-      allOf:
-      - oneOf:
-        - properties:
-            device:
-              const: '2096'
-            inode:
-              const: '400341'
-          required:
-          - device
-          - inode
+      - product_id
+      - side
+      - order_type
+      - post_only
+      - contract_count
+      - product_classification
+      - contract_code
+      - contract_expiry
+      - contract_expiry_type
+      - venue
+      - risk_managed_by
+      - contract_size
+      - product_price
+      - reference_price
+      - reference_price_source
+      - price_increment
+      - best_bid
+      - best_ask
+      - limit_price
+      - opening_reference_notional_usdc
+      - maximum_exposure_reference_notional_usdc
+      - observed_concurrent_exposure_usdc
+      - buffered_close_reference_notional_usdc
+      - branch_turnover_reference_notional_usdc
+      - opening_cap_usdc
+      - exposure_cap_usdc
+      - turnover_cap_usdc
+      - close_buffer_multiplier
+      - observed_at
+      title: AdminFuturesPreviewR12Candidate
+    AdminFuturesPreviewR12CandidateBinding:
       properties:
-        artifact_name:
-          type: string
-          const: futures_exact_no_live_preview_slice_2r8.jsonl
-          title: Artifact Name
-        file_sha256:
-          type: string
-          const: b32aba4868f08ee7a44f19ceacbcf42cb7e4d70da1552f2d8b333ef59ddc8696
-          title: File Sha256
-        device:
-          type: string
-          const: '2096'
-          title: Device
-        inode:
-          type: string
-          const: '400341'
-          title: Inode
-        size_bytes:
-          type: integer
-          const: 14921
-          title: Size Bytes
-        mode:
-          type: string
-          const: '0400'
-          title: Mode
-        mtime_ns:
-          type: string
-          const: '1784160315297279427'
-          title: Mtime Ns
-        nlink:
-          type: integer
-          const: 1
-          title: Nlink
         status:
           type: string
-          const: blocked
+          const: matched
           title: Status
-        outcome:
+        contract_count:
           type: string
-          const: blocked
-          title: Outcome
+          const: '1'
+          title: Contract Count
+        authoritative_opening_reference_notional_usdc:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Authoritative Opening Reference Notional Usdc
+        maximum_exposure_reference_notional_usdc:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Maximum Exposure Reference Notional Usdc
+        buffered_close_reference_notional_usdc:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Buffered Close Reference Notional Usdc
+        branch_turnover_reference_notional_usdc:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Branch Turnover Reference Notional Usdc
+        reference_rule:
+          type: string
+          const: max_candidate_reference_preview_ask_contract_notional_order_total_plus_fee_quote_size_plus_fee
+          title: Reference Rule
+        opening_cap_usdc:
+          type: string
+          const: '100'
+          title: Opening Cap Usdc
+        exposure_cap_usdc:
+          type: string
+          const: '150'
+          title: Exposure Cap Usdc
+        turnover_cap_usdc:
+          type: string
+          const: '300'
+          title: Turnover Cap Usdc
+        comparison:
+          type: string
+          const: strictly_less_than
+          title: Comparison
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - contract_count
+      - authoritative_opening_reference_notional_usdc
+      - maximum_exposure_reference_notional_usdc
+      - buffered_close_reference_notional_usdc
+      - branch_turnover_reference_notional_usdc
+      - reference_rule
+      - opening_cap_usdc
+      - exposure_cap_usdc
+      - turnover_cap_usdc
+      - comparison
+      title: AdminFuturesPreviewR12CandidateBinding
+      description: Exact sanitized cap comparison bound to the accepted Preview.
+    AdminFuturesPreviewR12CurrentMarginWindow:
+      properties:
+        profile:
+          type: string
+          enum:
+          - MARGIN_PROFILE_TYPE_RETAIL_REGULAR
+          - MARGIN_PROFILE_TYPE_RETAIL_INTRADAY_MARGIN_1
+          title: Profile
+        margin_window_type:
+          type: string
+          enum:
+          - MARGIN_WINDOW_TYPE_UNSPECIFIED
+          - MARGIN_WINDOW_TYPE_INTRADAY
+          title: Margin Window Type
+        is_intraday_margin_killswitch_enabled:
+          type: boolean
+          const: false
+          title: Is Intraday Margin Killswitch Enabled
+        is_intraday_margin_enrollment_killswitch_enabled:
+          type: boolean
+          const: false
+          title: Is Intraday Margin Enrollment Killswitch Enabled
+      additionalProperties: false
+      type: object
+      required:
+      - profile
+      - margin_window_type
+      - is_intraday_margin_killswitch_enabled
+      - is_intraday_margin_enrollment_killswitch_enabled
+      title: AdminFuturesPreviewR12CurrentMarginWindow
+    AdminFuturesPreviewR12EligibilityEvidence:
+      properties:
+        schema_version:
+          type: string
+          const: '1'
+          title: Schema Version
+        type:
+          type: string
+          const: futures_preview_r12_non_attempt_eligibility
+          title: Type
+        status:
+          type: string
+          const: eligible
+          title: Status
+        classification:
+          type: string
+          const: exact_v3_eligible
+          title: Classification
+        cycle_number:
+          type: integer
+          title: Cycle Number
+          ge: 1
+          le: 10
+        started_at:
+          type: string
+          title: Started At
+        completed_at:
+          type: string
+          title: Completed At
+        non_attempt_correlation_id:
+          type: string
+          const: withheld
+          title: Non Attempt Correlation Id
+        non_attempt_correlation_id_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Non Attempt Correlation Id Sha256
+        profile_label:
+          type: string
+          const: Default
+          title: Profile Label
+        portfolio_type:
+          type: string
+          const: DEFAULT
+          title: Portfolio Type
+        portfolio_id:
+          type: string
+          const: withheld
+          title: Portfolio Id
+        portfolio_id_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Portfolio Id Sha256
+        portfolio_binding:
+          $ref: '#/components/schemas/AdminFuturesPreviewR12PortfolioBinding'
+        permission_evidence:
+          $ref: '#/components/schemas/AdminFuturesPreviewR12PermissionEvidence'
+        permission_evidence_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Permission Evidence Sha256
+        portfolio_catalog_evidence:
+          $ref: '#/components/schemas/AdminFuturesPreviewR12PortfolioCatalogEvidence'
+        portfolio_catalog_evidence_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Portfolio Catalog Evidence Sha256
+        product_id:
+          type: string
+          const: AVP-20DEC30-CDE
+          title: Product Id
+        product_evidence:
+          $ref: '#/components/schemas/AdminFuturesPreviewR12ProductEvidence'
+        product_evidence_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Product Evidence Sha256
+        market_evidence:
+          $ref: '#/components/schemas/AdminFuturesPreviewR12MarketEvidence'
+        market_evidence_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Market Evidence Sha256
+        position_evidence:
+          $ref: '#/components/schemas/AdminFuturesPreviewR12PositionEvidence'
+        position_evidence_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Position Evidence Sha256
+        margin_collateral_evidence:
+          $ref: '#/components/schemas/AdminFuturesPreviewR12MarginCollateralEvidence'
+        margin_collateral_evidence_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Margin Collateral Evidence Sha256
+        margin_window_policy_evidence:
+          $ref: '#/components/schemas/AdminFuturesPreviewR12MarginPolicyEvidence'
+        margin_window_policy_evidence_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Margin Window Policy Evidence Sha256
+        transport_policy_evidence:
+          $ref: '#/components/schemas/AdminFuturesPreviewR12TransportPolicyEvidence'
+        transport_policy_evidence_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Transport Policy Evidence Sha256
+        candidate:
+          $ref: '#/components/schemas/AdminFuturesPreviewR12Candidate'
+        candidate_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Candidate Sha256
+        preview_request:
+          $ref: '#/components/schemas/AdminFuturesPreviewR12Request'
+        preview_request_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Preview Request Sha256
+        read_counters:
+          $ref: '#/components/schemas/AdminFuturesPreviewR12EligibilityReadCounters'
+        margin_source_read_attempts:
+          $ref: '#/components/schemas/AdminFuturesPreviewR12MarginSourceReadAttempts'
+        sweep_evidence:
+          type: string
+          const: not_observed_not_authorized
+          title: Sweep Evidence
+        r12_claim_created:
+          type: boolean
+          const: false
+          title: R12 Claim Created
+        r12_idempotency_key_created:
+          type: boolean
+          const: false
+          title: R12 Idempotency Key Created
+        r12_attempt_consumed:
+          type: boolean
+          const: false
+          title: R12 Attempt Consumed
         preview_order_attempt_count:
           type: integer
           const: 0
@@ -104446,43 +102512,747 @@ components:
           type: string
           const: '0'
           title: Executed Notional Usdc
-        opaque_hash_stat_binding:
+        read_only:
           type: boolean
           const: true
-          title: Opaque Hash Stat Binding
-        preservation:
+          title: Read Only
+        sanitized:
+          type: boolean
+          const: true
+          title: Sanitized
+        raw_response_included:
+          type: boolean
+          const: false
+          title: Raw Response Included
+        external_exception_text_included:
+          type: boolean
+          const: false
+          title: External Exception Text Included
+        private_identifier_values_included:
+          type: boolean
+          const: false
+          title: Private Identifier Values Included
+        canonicalization:
           type: string
-          const: immutable_no_modify_delete_or_reuse
-          title: Preservation
-        original_predecessor_binding:
-          $ref: '#/components/schemas/AdminFuturesPreviewR7PredecessorBinding'
+          const: sorted_keys_compact_utf8_json
+          title: Canonicalization
+        hash_algorithm:
+          type: string
+          const: sha256
+          title: Hash Algorithm
+        eligibility_evidence_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Eligibility Evidence Sha256
       additionalProperties: false
       type: object
       required:
-      - artifact_name
-      - file_sha256
-      - device
-      - inode
-      - size_bytes
-      - mode
-      - mtime_ns
-      - nlink
+      - schema_version
+      - type
       - status
-      - outcome
+      - classification
+      - cycle_number
+      - started_at
+      - completed_at
+      - non_attempt_correlation_id
+      - non_attempt_correlation_id_sha256
+      - profile_label
+      - portfolio_type
+      - portfolio_id
+      - portfolio_id_sha256
+      - portfolio_binding
+      - permission_evidence
+      - permission_evidence_sha256
+      - portfolio_catalog_evidence
+      - portfolio_catalog_evidence_sha256
+      - product_id
+      - product_evidence
+      - product_evidence_sha256
+      - market_evidence
+      - market_evidence_sha256
+      - position_evidence
+      - position_evidence_sha256
+      - margin_collateral_evidence
+      - margin_collateral_evidence_sha256
+      - margin_window_policy_evidence
+      - margin_window_policy_evidence_sha256
+      - transport_policy_evidence
+      - transport_policy_evidence_sha256
+      - candidate
+      - candidate_sha256
+      - preview_request
+      - preview_request_sha256
+      - read_counters
+      - margin_source_read_attempts
+      - sweep_evidence
+      - r12_claim_created
+      - r12_idempotency_key_created
+      - r12_attempt_consumed
       - preview_order_attempt_count
       - exchange_submission_attempt_count
       - submitted_notional_usdc
       - executed_notional_usdc
-      - opaque_hash_stat_binding
-      - preservation
-      - original_predecessor_binding
-      title: AdminFuturesPreviewR8PredecessorBinding
-      description: Documented R8 SHA/stat binding; runtime never opens R8 bytes.
-    AdminFuturesPreviewR8ReadBoundaryCounters:
+      - read_only
+      - sanitized
+      - raw_response_included
+      - external_exception_text_included
+      - private_identifier_values_included
+      - canonicalization
+      - hash_algorithm
+      - eligibility_evidence_sha256
+      title: AdminFuturesPreviewR12EligibilityEvidence
+    AdminFuturesPreviewR12EligibilityReadCounters:
       properties:
         api_key_permissions:
           type: integer
           const: 1
+          title: Api Key Permissions
+        portfolio_catalog:
+          type: integer
+          const: 1
+          title: Portfolio Catalog
+        product:
+          type: integer
+          const: 1
+          title: Product
+        best_bid_ask:
+          type: integer
+          const: 1
+          title: Best Bid Ask
+        futures_positions:
+          type: integer
+          const: 1
+          title: Futures Positions
+        futures_margin_collateral:
+          type: integer
+          const: 1
+          title: Futures Margin Collateral
+      additionalProperties: false
+      type: object
+      required:
+      - api_key_permissions
+      - portfolio_catalog
+      - product
+      - best_bid_ask
+      - futures_positions
+      - futures_margin_collateral
+      title: AdminFuturesPreviewR12EligibilityReadCounters
+    AdminFuturesPreviewR12FutureProductDetails:
+      properties:
+        contract_size:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Contract Size
+        contract_code:
+          type: string
+          const: AVP
+          title: Contract Code
+        group_description:
+          type: string
+          const: Avalanche Perp Futures
+          title: Group Description
+        group_short_description:
+          type: string
+          const: Avalanche Perp
+          title: Group Short Description
+        venue:
+          type: string
+          const: cde
+          title: Venue
+        risk_managed_by:
+          type: string
+          const: MANAGED_BY_FCM
+          title: Risk Managed By
+        contract_expiry:
+          type: string
+          const: '2030-12-20T16:00:00Z'
+          title: Contract Expiry
+        contract_expiry_type:
+          type: string
+          const: EXPIRING
+          title: Contract Expiry Type
+      additionalProperties: false
+      type: object
+      required:
+      - contract_size
+      - contract_code
+      - group_description
+      - group_short_description
+      - venue
+      - risk_managed_by
+      - contract_expiry
+      - contract_expiry_type
+      title: AdminFuturesPreviewR12FutureProductDetails
+    AdminFuturesPreviewR12IntradayMarginSetting:
+      properties:
+        setting:
+          type: string
+          const: INTRADAY_MARGIN_SETTING_INTRADAY
+          title: Setting
+      additionalProperties: false
+      type: object
+      required:
+      - setting
+      title: AdminFuturesPreviewR12IntradayMarginSetting
+    AdminFuturesPreviewR12LimitGtcRequest:
+      properties:
+        base_size:
+          type: string
+          const: '1'
+          title: Base Size
+        limit_price:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Limit Price
+        post_only:
+          type: boolean
+          const: true
+          title: Post Only
+      additionalProperties: false
+      type: object
+      required:
+      - base_size
+      - limit_price
+      - post_only
+      title: AdminFuturesPreviewR12LimitGtcRequest
+    AdminFuturesPreviewR12MarginCollateralEvidence:
+      properties:
+        status:
+          type: string
+          const: ready
+          title: Status
+        account_family:
+          type: string
+          const: coinbase_futures_us_cfm
+          title: Account Family
+        source:
+          type: string
+          const: backend_rest_client
+          title: Source
+        source_read_attempts:
+          $ref: '#/components/schemas/AdminFuturesPreviewR12MarginSourceReadAttempts'
+        available_margin_usdc:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Available Margin Usdc
+        intraday_margin_window_measure:
+          $ref: '#/components/schemas/AdminFuturesPreviewR12MarginWindowMeasure'
+        intraday_margin_setting:
+          $ref: '#/components/schemas/AdminFuturesPreviewR12IntradayMarginSetting'
+        current_margin_windows:
+          items:
+            $ref: '#/components/schemas/AdminFuturesPreviewR12CurrentMarginWindow'
+          type: array
+          maxItems: 2
+          minItems: 2
+          title: Current Margin Windows
+        sweep_evidence:
+          type: string
+          const: not_observed_not_authorized
+          title: Sweep Evidence
+        sanitized:
+          type: boolean
+          const: true
+          title: Sanitized
+        raw_response_included:
+          type: boolean
+          const: false
+          title: Raw Response Included
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - account_family
+      - source
+      - source_read_attempts
+      - available_margin_usdc
+      - intraday_margin_window_measure
+      - intraday_margin_setting
+      - current_margin_windows
+      - sweep_evidence
+      - sanitized
+      - raw_response_included
+      title: AdminFuturesPreviewR12MarginCollateralEvidence
+    AdminFuturesPreviewR12MarginPolicyEvidence:
+      properties:
+        policy_id:
+          type: string
+          const: slice2_preview_margin_window_exact_pair_policy_v3
+          title: Policy Id
+        pair_policy_mode:
+          type: string
+          const: exact_profile_state_pair
+          title: Pair Policy Mode
+        profile_state_policy_authority:
+          type: string
+          const: operator_defined_slice_2_preview_only_not_coinbase_documented
+          title: Profile State Policy Authority
+        profile_state_mapping_documented_by_coinbase:
+          type: boolean
+          const: false
+          title: Profile State Mapping Documented By Coinbase
+        classification:
+          type: string
+          const: ready
+          title: Classification
+        margin_window_policy_satisfied:
+          type: boolean
+          const: true
+          title: Margin Window Policy Satisfied
+        rows:
+          items:
+            $ref: '#/components/schemas/AdminFuturesPreviewR12MarginPolicyRow'
+          type: array
+          maxItems: 2
+          minItems: 2
+          title: Rows
+        r12_attempt_authority_granted:
+          type: boolean
+          const: false
+          title: R12 Attempt Authority Granted
+        sanitized:
+          type: boolean
+          const: true
+          title: Sanitized
+        raw_response_included:
+          type: boolean
+          const: false
+          title: Raw Response Included
+      additionalProperties: false
+      type: object
+      required:
+      - policy_id
+      - pair_policy_mode
+      - profile_state_policy_authority
+      - profile_state_mapping_documented_by_coinbase
+      - classification
+      - margin_window_policy_satisfied
+      - rows
+      - r12_attempt_authority_granted
+      - sanitized
+      - raw_response_included
+      title: AdminFuturesPreviewR12MarginPolicyEvidence
+    AdminFuturesPreviewR12MarginPolicyRow:
+      properties:
+        policy_row_index:
+          type: integer
+          enum:
+          - 0
+          - 1
+          title: Policy Row Index
+        recognized_profile:
+          type: string
+          enum:
+          - retail_regular
+          - retail_intraday_margin_1
+          title: Recognized Profile
+        observed_token:
+          type: string
+          enum:
+          - MARGIN_WINDOW_TYPE_UNSPECIFIED
+          - MARGIN_WINDOW_TYPE_INTRADAY
+          title: Observed Token
+        documented_allowlist_match:
+          type: boolean
+          const: true
+          title: Documented Allowlist Match
+        operator_policy_match:
+          type: boolean
+          const: true
+          title: Operator Policy Match
+        classification:
+          type: string
+          const: accepted
+          title: Classification
+      additionalProperties: false
+      type: object
+      required:
+      - policy_row_index
+      - recognized_profile
+      - observed_token
+      - documented_allowlist_match
+      - operator_policy_match
+      - classification
+      title: AdminFuturesPreviewR12MarginPolicyRow
+    AdminFuturesPreviewR12MarginRatioData:
+      properties:
+        current_margin_ratio:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Current Margin Ratio
+        projected_margin_ratio:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Projected Margin Ratio
+      additionalProperties: false
+      type: object
+      required:
+      - current_margin_ratio
+      - projected_margin_ratio
+      title: AdminFuturesPreviewR12MarginRatioData
+      description: Only the two accepted, sanitized liquidation-ratio fields.
+    AdminFuturesPreviewR12MarginSourceReadAttempts:
+      properties:
+        get_futures_balance_summary:
+          type: integer
+          const: 1
+          title: Get Futures Balance Summary
+        get_intraday_margin_setting:
+          type: integer
+          const: 1
+          title: Get Intraday Margin Setting
+        get_current_margin_window:
+          type: integer
+          const: 2
+          title: Get Current Margin Window
+      additionalProperties: false
+      type: object
+      required:
+      - get_futures_balance_summary
+      - get_intraday_margin_setting
+      - get_current_margin_window
+      title: AdminFuturesPreviewR12MarginSourceReadAttempts
+    AdminFuturesPreviewR12MarginWindowMeasure:
+      properties:
+        margin_window_type:
+          type: string
+          const: FCM_MARGIN_WINDOW_TYPE_INTRADAY
+          title: Margin Window Type
+        maintenance_margin_usdc:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Maintenance Margin Usdc
+        liquidation_buffer_usdc:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Liquidation Buffer Usdc
+      additionalProperties: false
+      type: object
+      required:
+      - margin_window_type
+      - maintenance_margin_usdc
+      - liquidation_buffer_usdc
+      title: AdminFuturesPreviewR12MarginWindowMeasure
+    AdminFuturesPreviewR12MarketEvidence:
+      properties:
+        product_id:
+          type: string
+          const: AVP-20DEC30-CDE
+          title: Product Id
+        best_bid:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Best Bid
+        best_ask:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Best Ask
+        exchange_observed_at:
+          type: string
+          title: Exchange Observed At
+        sanitized:
+          type: boolean
+          const: true
+          title: Sanitized
+        raw_response_included:
+          type: boolean
+          const: false
+          title: Raw Response Included
+      additionalProperties: false
+      type: object
+      required:
+      - product_id
+      - best_bid
+      - best_ask
+      - exchange_observed_at
+      - sanitized
+      - raw_response_included
+      title: AdminFuturesPreviewR12MarketEvidence
+    AdminFuturesPreviewR12OrderConfiguration:
+      properties:
+        limit_limit_gtc:
+          $ref: '#/components/schemas/AdminFuturesPreviewR12LimitGtcRequest'
+      additionalProperties: false
+      type: object
+      required:
+      - limit_limit_gtc
+      title: AdminFuturesPreviewR12OrderConfiguration
+    AdminFuturesPreviewR12PermissionEvidence:
+      properties:
+        portfolio_id:
+          type: string
+          const: withheld
+          title: Portfolio Id
+        portfolio_id_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Portfolio Id Sha256
+        portfolio_type:
+          type: string
+          const: DEFAULT
+          title: Portfolio Type
+        can_view:
+          type: boolean
+          const: true
+          title: Can View
+        can_trade:
+          type: boolean
+          const: true
+          title: Can Trade
+        selection_authority:
+          type: string
+          const: cdp_api_key_permissioned_portfolio
+          title: Selection Authority
+        sanitized:
+          type: boolean
+          const: true
+          title: Sanitized
+        raw_response_included:
+          type: boolean
+          const: false
+          title: Raw Response Included
+      additionalProperties: false
+      type: object
+      required:
+      - portfolio_id
+      - portfolio_id_sha256
+      - portfolio_type
+      - can_view
+      - can_trade
+      - selection_authority
+      - sanitized
+      - raw_response_included
+      title: AdminFuturesPreviewR12PermissionEvidence
+    AdminFuturesPreviewR12PortfolioBinding:
+      properties:
+        status:
+          type: string
+          const: matched
+          title: Status
+        ready:
+          type: boolean
+          const: true
+          title: Ready
+        blocker:
+          type: 'null'
+          title: Blocker
+        read_authorized:
+          type: boolean
+          const: true
+          title: Read Authorized
+        expected_portfolio_label:
+          type: string
+          const: Default
+          title: Expected Portfolio Label
+        expected_portfolio_type:
+          type: string
+          const: DEFAULT
+          title: Expected Portfolio Type
+        observed_portfolio_id:
+          type: string
+          const: withheld
+          title: Observed Portfolio Id
+        observed_portfolio_label:
+          type: string
+          const: Default
+          title: Observed Portfolio Label
+        observed_portfolio_type:
+          type: string
+          const: DEFAULT
+          title: Observed Portfolio Type
+        can_view:
+          type: boolean
+          const: true
+          title: Can View
+        can_trade:
+          type: boolean
+          const: true
+          title: Can Trade
+        selection_authority:
+          type: string
+          const: cdp_api_key_permissioned_portfolio
+          title: Selection Authority
+        request_portfolio_override_allowed:
+          type: boolean
+          const: false
+          title: Request Portfolio Override Allowed
+        source:
+          type: string
+          const: coinbase_api_key_permissions_and_portfolio_catalog
+          title: Source
+        freshness_status:
+          type: string
+          const: backend_rest_fresh
+          title: Freshness Status
+        observed_at:
+          type: string
+          title: Observed At
+        permissions_read_ran:
+          type: boolean
+          const: true
+          title: Permissions Read Ran
+        portfolio_catalog_read_ran:
+          type: boolean
+          const: true
+          title: Portfolio Catalog Read Ran
+        permissions_error_present:
+          type: boolean
+          const: false
+          title: Permissions Error Present
+        portfolio_catalog_error_present:
+          type: boolean
+          const: false
+          title: Portfolio Catalog Error Present
+        account_family:
+          type: string
+          const: coinbase_futures_us_cfm
+          title: Account Family
+        product_family:
+          type: string
+          const: FUTURES_PERPETUALS
+          title: Product Family
+        profile_alias:
+          type: string
+          const: Default
+          title: Profile Alias
+        portfolio_id:
+          type: string
+          const: withheld
+          title: Portfolio Id
+        credential_trade_permission_present:
+          type: boolean
+          const: true
+          title: Credential Trade Permission Present
+        command_authority_granted:
+          type: boolean
+          const: false
+          title: Command Authority Granted
+        live_coinbase_execution_authorized:
+          type: boolean
+          const: false
+          title: Live Coinbase Execution Authorized
+        browser_authority:
+          type: string
+          const: display_only
+          title: Browser Authority
+        bff_authority:
+          type: string
+          const: forward_only_no_execution
+          title: Bff Authority
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - ready
+      - blocker
+      - read_authorized
+      - expected_portfolio_label
+      - expected_portfolio_type
+      - observed_portfolio_id
+      - observed_portfolio_label
+      - observed_portfolio_type
+      - can_view
+      - can_trade
+      - selection_authority
+      - request_portfolio_override_allowed
+      - source
+      - freshness_status
+      - observed_at
+      - permissions_read_ran
+      - portfolio_catalog_read_ran
+      - permissions_error_present
+      - portfolio_catalog_error_present
+      - account_family
+      - product_family
+      - profile_alias
+      - portfolio_id
+      - credential_trade_permission_present
+      - command_authority_granted
+      - live_coinbase_execution_authorized
+      - browser_authority
+      - bff_authority
+      title: AdminFuturesPreviewR12PortfolioBinding
+    AdminFuturesPreviewR12PortfolioCatalogEvidence:
+      properties:
+        selected_portfolio_id:
+          type: string
+          const: withheld
+          title: Selected Portfolio Id
+        selected_portfolio_id_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Selected Portfolio Id Sha256
+        selected_portfolio_label:
+          type: string
+          const: Default
+          title: Selected Portfolio Label
+        selected_portfolio_type:
+          type: string
+          const: DEFAULT
+          title: Selected Portfolio Type
+        exact_match_count:
+          type: integer
+          const: 1
+          title: Exact Match Count
+        sanitized:
+          type: boolean
+          const: true
+          title: Sanitized
+        raw_response_included:
+          type: boolean
+          const: false
+          title: Raw Response Included
+      additionalProperties: false
+      type: object
+      required:
+      - selected_portfolio_id
+      - selected_portfolio_id_sha256
+      - selected_portfolio_label
+      - selected_portfolio_type
+      - exact_match_count
+      - sanitized
+      - raw_response_included
+      title: AdminFuturesPreviewR12PortfolioCatalogEvidence
+    AdminFuturesPreviewR12PositionEvidence:
+      properties:
+        product_id:
+          type: string
+          const: AVP-20DEC30-CDE
+          title: Product Id
+        observed_contract_count:
+          type: string
+          const: '0'
+          title: Observed Contract Count
+        sanitized:
+          type: boolean
+          const: true
+          title: Sanitized
+        raw_response_included:
+          type: boolean
+          const: false
+          title: Raw Response Included
+      additionalProperties: false
+      type: object
+      required:
+      - product_id
+      - observed_contract_count
+      - sanitized
+      - raw_response_included
+      title: AdminFuturesPreviewR12PositionEvidence
+    AdminFuturesPreviewR12PostClaimReadCounters:
+      properties:
+        api_key_permissions:
+          type: integer
+          const: 0
           title: Api Key Permissions
         portfolio_catalog:
           type: integer
@@ -104513,99 +103283,117 @@ components:
       - best_bid_ask
       - futures_positions
       - futures_margin_collateral
-      title: AdminFuturesPreviewR8ReadBoundaryCounters
-      description: Boundaries entered by the isolated synthetic test, not network
-        calls.
-    AdminFuturesPreviewR8Scope:
+      title: AdminFuturesPreviewR12PostClaimReadCounters
+    AdminFuturesPreviewR12PostStageEvidence:
       properties:
-        profile_label:
-          type: string
-          const: Default
-          title: Profile Label
-        portfolio_type:
-          type: string
-          const: DEFAULT
-          title: Portfolio Type
-        product_id:
-          type: string
-          const: AVP-20DEC30-CDE
-          title: Product Id
-        side:
-          type: string
-          const: BUY
-          title: Side
-        contract_count:
+        schema_version:
           type: string
           const: '1'
-          title: Contract Count
-        opening_cap:
+          title: Schema Version
+        source:
           type: string
-          const: <100 USDC
-          title: Opening Cap
-        exposure_and_buffered_close_cap:
-          type: string
-          const: <150 USDC
-          title: Exposure And Buffered Close Cap
-        branch_turnover_cap:
-          type: string
-          const: <300 USDC
-          title: Branch Turnover Cap
+          const: backend_futures_preview_r12_attempt
+          title: Source
+        stages:
+          items:
+            $ref: '#/components/schemas/AdminFuturesPreviewR12PostStageEvidenceRow'
+          type: array
+          maxItems: 1
+          minItems: 1
+          title: Stages
+        sanitized:
+          type: boolean
+          const: true
+          title: Sanitized
+        raw_response_included:
+          type: boolean
+          const: false
+          title: Raw Response Included
+        external_exception_text_included:
+          type: boolean
+          const: false
+          title: External Exception Text Included
+        identifier_values_included:
+          type: boolean
+          const: false
+          title: Identifier Values Included
       additionalProperties: false
       type: object
       required:
-      - profile_label
-      - portfolio_type
-      - product_id
-      - side
-      - contract_count
-      - opening_cap
-      - exposure_and_buffered_close_cap
-      - branch_turnover_cap
-      title: AdminFuturesPreviewR8Scope
-      description: Unchanged operator scope carried forward without private identifiers.
-    AdminFuturesPreviewR9PredecessorBinding:
-      allOf:
-      - oneOf:
-        - properties:
-            device:
-              const: '2096'
-            inode:
-              const: '401766'
-          required:
-          - device
-          - inode
+      - schema_version
+      - source
+      - stages
+      - sanitized
+      - raw_response_included
+      - external_exception_text_included
+      - identifier_values_included
+      title: AdminFuturesPreviewR12PostStageEvidence
+      description: Fixed sanitized R12 post-claim failure classification.
+    AdminFuturesPreviewR12PostStageEvidenceRow:
+      properties:
+        stage:
+          type: string
+          enum:
+          - preview_response_validation
+          - candidate_cap_binding
+          - available_margin_validation
+          - preview_identifier_binding
+          - terminal_predecessor_validation
+          title: Stage
+        status:
+          type: string
+          const: blocked
+          title: Status
+        reason_code:
+          type: string
+          enum:
+          - futures_preview_response_validation_blocked
+          - futures_preview_candidate_cap_binding_blocked
+          - futures_preview_available_margin_validation_blocked
+          - futures_preview_identifier_binding_blocked
+          - futures_preview_terminal_predecessor_blocked
+          title: Reason Code
+      additionalProperties: false
+      type: object
+      required:
+      - stage
+      - status
+      - reason_code
+      title: AdminFuturesPreviewR12PostStageEvidenceRow
+      description: One fixed value-blind R12 post-Preview stage.
+    AdminFuturesPreviewR12PredecessorBinding:
       properties:
         artifact_name:
           type: string
-          const: futures_exact_no_live_preview_slice_2r9.jsonl
+          const: futures_exact_no_live_preview_slice_2r11.jsonl
           title: Artifact Name
         file_sha256:
           type: string
-          const: 5c7dd3f27605b623edc910a87dcc4b6c9ea6621aa9ee63dbfcc4b2994990dacf
+          pattern: ^[0-9a-f]{64}$
           title: File Sha256
         evidence_sha256:
           type: string
-          const: 2fd73aa0059da49dfe6c836f6dea29b12158fb3dfbe8abdd6d8f4f0f7d702464
+          pattern: ^[0-9a-f]{64}$
           title: Evidence Sha256
         device:
           type: string
-          const: '2096'
+          pattern: ^[0-9]+$
           title: Device
         inode:
           type: string
-          const: '401766'
+          pattern: ^[0-9]+$
           title: Inode
         size_bytes:
           type: integer
-          const: 24406
           title: Size Bytes
+          gt: 0
         mode:
           type: string
           const: '0400'
           title: Mode
         mtime_ns:
           type: string
-          const: '1784173141720439487'
+          pattern: ^[0-9]+$
           title: Mtime Ns
         nlink:
           type: integer
@@ -104621,7 +103409,7 @@ components:
           title: Outcome
         preview_order_attempt_count:
           type: integer
-          const: 1
+          const: 0
           title: Preview Order Attempt Count
         exchange_submission_attempt_count:
           type: integer
@@ -104639,8 +103427,8 @@ components:
           type: string
           const: immutable_no_modify_delete_or_reuse
           title: Preservation
-        original_predecessor_binding:
-          $ref: '#/components/schemas/AdminFuturesPreviewR8PredecessorBinding'
+        chain_validation:
+          $ref: '#/components/schemas/AdminFuturesPreviewR12PredecessorChainValidation'
       additionalProperties: false
       type: object
       required:
@@ -104660,110 +103448,308 @@ components:
       - submitted_notional_usdc
       - executed_notional_usdc
       - preservation
-      - original_predecessor_binding
-      title: AdminFuturesPreviewR9PredecessorBinding
-      description: Exact immutable R9 binding plus its complete predecessor chain.
-    AdminFuturesPreviewResponseSchemaBinding:
+      - chain_validation
+      title: AdminFuturesPreviewR12PredecessorBinding
+      description: Strict public projection of the immutable R11 predecessor binding.
+    AdminFuturesPreviewR12PredecessorChainValidation:
+      properties:
+        r1_through_r7:
+          type: string
+          const: opaque_hash_and_metadata
+          title: R1 Through R7
+        r8:
+          type: string
+          const: metadata_only_content_and_hash_inaccessible
+          title: R8
+        r9_through_r11:
+          type: string
+          const: opaque_hash_and_metadata
+          title: R9 Through R11
+      additionalProperties: false
+      type: object
+      required:
+      - r1_through_r7
+      - r8
+      - r9_through_r11
+      title: AdminFuturesPreviewR12PredecessorChainValidation
+      description: Exact value-blind generations represented by the R12 predecessor.
+    AdminFuturesPreviewR12ProductEvidence:
+      properties:
+        product_id:
+          type: string
+          const: AVP-20DEC30-CDE
+          title: Product Id
+        display_name:
+          type: string
+          const: AVAX PERP
+          title: Display Name
+        product_type:
+          type: string
+          const: FUTURE
+          title: Product Type
+        status:
+          type: string
+          const: ''
+          title: Status
+        price:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Price
+        price_increment:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Price Increment
+        base_increment:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Base Increment
+        base_min_size:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Base Min Size
+        trading_disabled:
+          type: boolean
+          const: false
+          title: Trading Disabled
+        view_only:
+          type: boolean
+          const: false
+          title: View Only
+        cancel_only:
+          type: boolean
+          const: false
+          title: Cancel Only
+        future_product_details:
+          $ref: '#/components/schemas/AdminFuturesPreviewR12FutureProductDetails'
+        sanitized:
+          type: boolean
+          const: true
+          title: Sanitized
+        raw_response_included:
+          type: boolean
+          const: false
+          title: Raw Response Included
+      additionalProperties: false
+      type: object
+      required:
+      - product_id
+      - display_name
+      - product_type
+      - status
+      - price
+      - price_increment
+      - base_increment
+      - base_min_size
+      - trading_disabled
+      - view_only
+      - cancel_only
+      - future_product_details
+      - sanitized
+      - raw_response_included
+      title: AdminFuturesPreviewR12ProductEvidence
+    AdminFuturesPreviewR12Request:
+      properties:
+        product_id:
+          type: string
+          const: AVP-20DEC30-CDE
+          title: Product Id
+        side:
+          type: string
+          const: BUY
+          title: Side
+        order_configuration:
+          $ref: '#/components/schemas/AdminFuturesPreviewR12OrderConfiguration'
+      additionalProperties: false
+      type: object
+      required:
+      - product_id
+      - side
+      - order_configuration
+      title: AdminFuturesPreviewR12Request
+    AdminFuturesPreviewR12SanitizedResponse:
+      properties:
+        preview_id:
+          type: string
+          const: withheld
+          title: Preview Id
+        errs:
+          items:
+            type: string
+          type: array
+          maxItems: 0
+          title: Errs
+        warning:
+          items:
+            type: string
+          type: array
+          maxItems: 0
+          title: Warning
+        order_total:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Order Total
+        commission_total:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Commission Total
+        quote_size:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Quote Size
+        base_size:
+          type: string
+          const: '1'
+          title: Base Size
+        best_bid:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Best Bid
+        best_ask:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Best Ask
+        order_margin_total:
+          type: string
+          maxLength: 128
+          pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          title: Order Margin Total
+        is_max:
+          type: boolean
+          const: false
+          title: Is Max
+        margin_ratio_data:
+          $ref: '#/components/schemas/AdminFuturesPreviewR12MarginRatioData'
+        candidate_binding:
+          $ref: '#/components/schemas/AdminFuturesPreviewR12CandidateBinding'
+        liquidation_evidence_source:
+          type: string
+          enum:
+          - margin_ratio_data
+          - margin_ratio_data_and_predicted_liquidation_price
+          title: Liquidation Evidence Source
+        predicted_liquidation_price:
+          anyOf:
+          - type: string
+            maxLength: 128
+            pattern: ^(?:0|[1-9]\d*)(?:\.\d+)?$
+          - type: 'null'
+          title: Predicted Liquidation Price
+      additionalProperties: false
+      type: object
+      required:
+      - preview_id
+      - errs
+      - warning
+      - order_total
+      - commission_total
+      - quote_size
+      - base_size
+      - best_bid
+      - best_ask
+      - order_margin_total
+      - is_max
+      - margin_ratio_data
+      - candidate_binding
+      - liquidation_evidence_source
+      title: AdminFuturesPreviewR12SanitizedResponse
+      description: Exact allowlisted R12 Preview evidence safe for persistence/readback.
+    AdminFuturesPreviewR12TransportPolicyEvidence:
       properties:
         schema_version:
           type: string
           const: '1'
           title: Schema Version
-        policy_id:
+        source:
           type: string
-          const: slice2_preview_liquidation_evidence_schema_v1
-          title: Policy Id
-        schema_authority:
+          const: backend_coinbase_sdk_transport
+          title: Source
+        sdk_distribution:
           type: string
-          const: official_coinbase_advanced_trade_api_docs
-          title: Schema Authority
-        margin_ratio_data_replaces_legacy_liquidation_buffers:
-          type: boolean
-          const: true
-          title: Margin Ratio Data Replaces Legacy Liquidation Buffers
-        predicted_liquidation_price_required:
+          const: coinbase-advanced-py
+          title: Sdk Distribution
+        sdk_version:
+          type: string
+          const: 1.8.4
+          title: Sdk Version
+        api_base_url:
+          type: string
+          const: api.coinbase.com
+          title: Api Base Url
+        timeout_seconds:
+          type: integer
+          const: 30
+          title: Timeout Seconds
+        adapter_schemes:
+          items:
+            type: string
+            enum:
+            - http://
+            - https://
+          type: array
+          maxItems: 2
+          minItems: 2
+          title: Adapter Schemes
+        adapter_retry_total:
+          additionalProperties:
+            type: integer
+            const: 0
+          propertyNames:
+            enum:
+            - http://
+            - https://
+          type: object
+          title: Adapter Retry Total
+        redirect_max:
+          type: integer
+          const: 0
+          title: Redirect Max
+        trust_env:
           type: boolean
           const: false
-          title: Predicted Liquidation Price Required
-        present_predicted_liquidation_price_policy:
-          type: string
-          const: finite_and_positive
-          title: Present Predicted Liquidation Price Policy
-        persisted_response_policy:
-          type: string
-          const: sanitized_allowlist_only
-          title: Persisted Response Policy
+          title: Trust Env
+        proxies_configured:
+          type: boolean
+          const: false
+          title: Proxies Configured
+        ca_bundle_pinned:
+          type: boolean
+          const: true
+          title: Ca Bundle Pinned
+        rate_limit_headers:
+          type: boolean
+          const: false
+          title: Rate Limit Headers
+        validated:
+          type: boolean
+          const: true
+          title: Validated
       additionalProperties: false
       type: object
       required:
       - schema_version
-      - policy_id
-      - schema_authority
-      - margin_ratio_data_replaces_legacy_liquidation_buffers
-      - predicted_liquidation_price_required
-      - present_predicted_liquidation_price_policy
-      - persisted_response_policy
-      title: AdminFuturesPreviewResponseSchemaBinding
-      description: Exact R7 binding to the corrected Coinbase Preview liquidation
-        schema.
-    AdminFuturesPreviewResponseSchemaBindingV2:
-      properties:
-        schema_version:
-          type: string
-          const: '2'
-          title: Schema Version
-        policy_id:
-          type: string
-          const: slice2_preview_liquidation_evidence_schema_v2
-          title: Policy Id
-        schema_authority:
-          type: string
-          const: official_coinbase_advanced_trade_api_docs
-          title: Schema Authority
-        margin_ratio_data_replaces_legacy_liquidation_buffers:
-          type: boolean
-          const: true
-          title: Margin Ratio Data Replaces Legacy Liquidation Buffers
-        documented_legacy_and_replacement_key_coexistence:
-          type: boolean
-          const: true
-          title: Documented Legacy And Replacement Key Coexistence
-        legacy_liquidation_values_policy:
-          type: string
-          const: ignored_never_parsed_or_persisted
-          title: Legacy Liquidation Values Policy
-        margin_ratio_data_policy:
-          type: string
-          const: required_authoritative_liquidation_evidence
-          title: Margin Ratio Data Policy
-        predicted_liquidation_price_required:
-          type: boolean
-          const: false
-          title: Predicted Liquidation Price Required
-        present_predicted_liquidation_price_policy:
-          type: string
-          const: finite_and_positive
-          title: Present Predicted Liquidation Price Policy
-        persisted_response_policy:
-          type: string
-          const: sanitized_allowlist_only
-          title: Persisted Response Policy
-      additionalProperties: false
-      type: object
-      required:
-      - schema_version
-      - policy_id
-      - schema_authority
-      - margin_ratio_data_replaces_legacy_liquidation_buffers
-      - documented_legacy_and_replacement_key_coexistence
-      - legacy_liquidation_values_policy
-      - margin_ratio_data_policy
-      - predicted_liquidation_price_required
-      - present_predicted_liquidation_price_policy
-      - persisted_response_policy
-      title: AdminFuturesPreviewResponseSchemaBindingV2
-      description: Exact R10 binding to the documented liquidation-key coexistence
-        schema.
+      - source
+      - sdk_distribution
+      - sdk_version
+      - api_base_url
+      - timeout_seconds
+      - adapter_schemes
+      - adapter_retry_total
+      - redirect_max
+      - trust_env
+      - proxies_configured
+      - ca_bundle_pinned
+      - rate_limit_headers
+      - validated
+      title: AdminFuturesPreviewR12TransportPolicyEvidence
     AdminFuturesPreviewResponseSchemaBindingV3:
       properties:
         schema_version:
@@ -104917,204 +103903,6 @@ components:
       - exchange_mutation_authority_granted
       title: AdminFuturesPreviewResponseSchemaBindingV3
       description: Exact R11 shallow-SDK-envelope compatibility and acceptance binding.
-    AdminFuturesPreviewStageEvidence:
-      properties:
-        schema_version:
-          type: string
-          const: '1'
-          title: Schema Version
-        source:
-          type: string
-          const: backend_futures_preview_producer
-          title: Source
-        stages:
-          items:
-            $ref: '#/components/schemas/AdminFuturesPreviewStageEvidenceRow'
-          type: array
-          maxItems: 4
-          minItems: 1
-          title: Stages
-        sanitized:
-          type: boolean
-          const: true
-          title: Sanitized
-        raw_response_included:
-          type: boolean
-          const: false
-          title: Raw Response Included
-        external_exception_text_included:
-          type: boolean
-          const: false
-          title: External Exception Text Included
-        identifier_values_included:
-          type: boolean
-          const: false
-          title: Identifier Values Included
-      additionalProperties: false
-      type: object
-      required:
-      - schema_version
-      - source
-      - stages
-      - sanitized
-      - raw_response_included
-      - external_exception_text_included
-      - identifier_values_included
-      title: AdminFuturesPreviewStageEvidence
-      description: Sanitized ordered prefix showing the exact pre-Preview stop stage.
-    AdminFuturesPreviewStageEvidenceRow:
-      properties:
-        stage:
-          type: string
-          enum:
-          - remaining_margin_validation
-          - candidate_construction
-          - preview_request_construction
-          - terminal_context_sanitization
-          title: Stage
-        status:
-          type: string
-          enum:
-          - passed
-          - blocked
-          title: Status
-        reason_code:
-          anyOf:
-          - type: string
-            enum:
-            - futures_preview_remaining_margin_validation_unclassified
-            - futures_preview_candidate_construction_unclassified
-            - futures_preview_request_construction_unclassified
-            - futures_preview_terminal_context_sanitization_unclassified
-            - futures_preview_margin_collateral_ambiguous
-            - futures_preview_margin_source_reads_ambiguous
-            - futures_preview_available_margin_currency_invalid
-            - futures_preview_available_margin_invalid
-            - futures_preview_total_usd_balance_currency_invalid
-            - futures_preview_total_usd_balance_invalid
-            - futures_preview_cfm_usd_balance_currency_invalid
-            - futures_preview_cfm_usd_balance_invalid
-            - futures_preview_futures_buying_power_currency_invalid
-            - futures_preview_futures_buying_power_invalid
-            - futures_preview_initial_margin_currency_invalid
-            - futures_preview_initial_margin_invalid
-            - futures_preview_liquidation_threshold_currency_invalid
-            - futures_preview_liquidation_threshold_invalid
-            - futures_preview_margin_window_measure_ambiguous
-            - futures_preview_maintenance_margin_invalid
-            - futures_preview_liquidation_buffer_invalid
-            - futures_preview_margin_maintenance_margin_invalid
-            - futures_preview_margin_liquidation_buffer_invalid
-            - futures_preview_margin_setting_ambiguous
-            - futures_preview_margin_setting_unspecified
-            - futures_preview_margin_windows_ambiguous
-            - futures_preview_margin_killswitch_ambiguous
-            - futures_preview_margin_killswitch_enabled
-            - futures_preview_margin_sweeps_ambiguous
-            - futures_preview_available_margin_not_positive
-            - futures_preview_product_identity_blocked
-            - futures_preview_avp_display_name_blocked
-            - futures_preview_product_type_blocked
-            - futures_preview_product_status_blocked
-            - futures_preview_product_trading_blocked
-            - futures_preview_avp_perp_style_identity_blocked
-            - futures_preview_contract_size_invalid
-            - futures_preview_avp_contract_size_blocked
-            - futures_preview_product_price_invalid
-            - futures_preview_price_increment_invalid
-            - futures_preview_base_increment_invalid
-            - futures_preview_base_min_size_invalid
-            - futures_preview_one_contract_rule_blocked
-            - futures_preview_pricebook_missing
-            - futures_preview_pricebook_ambiguous
-            - futures_preview_market_time_missing
-            - futures_preview_market_time_invalid
-            - futures_preview_market_time_unzoned
-            - futures_preview_market_stale
-            - futures_preview_bids_missing
-            - futures_preview_bids_price_invalid
-            - futures_preview_asks_missing
-            - futures_preview_asks_price_invalid
-            - futures_preview_crossed_or_ambiguous_book
-            - futures_preview_best_bid_tick_misaligned
-            - futures_preview_limit_tick_blocked
-            - futures_preview_positions_ambiguous
-            - futures_preview_position_contracts_invalid
-            - futures_preview_existing_product_exposure_blocked
-            - futures_preview_opening_cap_blocked
-            - futures_preview_exposure_cap_blocked
-            - futures_preview_buffered_close_cap_blocked
-            - futures_preview_turnover_cap_blocked
-          - type: 'null'
-          title: Reason Code
-      additionalProperties: false
-      type: object
-      required:
-      - stage
-      - status
-      title: AdminFuturesPreviewStageEvidenceRow
-      description: One fixed, non-authorizing pre-Preview diagnostic stage.
-    AdminFuturesPreviewTerminalDiagnosticClassification:
-      properties:
-        schema_version:
-          type: string
-          const: '1'
-          title: Schema Version
-          default: '1'
-        classification:
-          type: string
-          const: sdk_returned__post_preview_value_error__before_acceptance
-          title: Classification
-          default: sdk_returned__post_preview_value_error__before_acceptance
-        failure_boundary:
-          type: string
-          const: after_preview_return_before_accepted_evidence_append
-          title: Failure Boundary
-          default: after_preview_return_before_accepted_evidence_append
-        exact_reason_status:
-          type: string
-          const: not_persisted_and_unrecoverable
-          title: Exact Reason Status
-          default: not_persisted_and_unrecoverable
-        coinbase_preview_method_returned:
-          type: boolean
-          const: true
-          title: Coinbase Preview Method Returned
-          default: true
-        retry_allowed:
-          type: boolean
-          const: false
-          title: Retry Allowed
-          default: false
-        additional_coinbase_call_allowed:
-          type: boolean
-          const: false
-          title: Additional Coinbase Call Allowed
-          default: false
-        sanitized:
-          type: boolean
-          const: true
-          title: Sanitized
-          default: true
-        raw_response_included:
-          type: boolean
-          const: false
-          title: Raw Response Included
-          default: false
-        external_exception_text_included:
-          type: boolean
-          const: false
-          title: External Exception Text Included
-          default: false
-        identifier_values_included:
-          type: boolean
-          const: false
-          title: Identifier Values Included
-          default: false
-      additionalProperties: false
-      type: object
-      title: AdminFuturesPreviewTerminalDiagnosticClassification
-      description: Derived sanitized boundary for a consumed post-Preview ValueError.
     AdminFuturesRiskInputEvidence:
       properties:
         status:

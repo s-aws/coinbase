@@ -13,16 +13,26 @@ plans.
 
 ## Current MVP Goal
 
-Goal `futures_preview_acceptance_recovery_r11` is complete. R11 is consumed,
-terminal `blocked`, immutable, and cannot be retried. It stopped at
+Goal `futures_preview_acceptance_recovery_r12` is prepared but production
+release-disabled. Its backend separates up to ten durably counted non-attempt
+eligibility cycles from one durable single-use R12 claim and at most one
+Preview-only call. The source-bound `R12_RELEASE_READY` gate remains `False`;
+focused validation, local deployment validation, independent safety audit, and
+blind contextless audit must pass before a separately reviewed toggle. No R12
+eligibility read, claim, or Preview is implied by preparation. See
+[R12 preparation](docs/FUTURES_SLICE_2R12_PREPARATION.md).
+
+The predecessor goal `futures_preview_acceptance_recovery_r11` is complete.
+R11 is consumed, terminal `blocked`, immutable, and cannot be retried. It stopped at
 `remaining_margin_validation` before Coinbase Preview: all six bounded reads
 ran once, while Preview, retry, fallback, redirect, submission, and every
 exchange mutation remained `0`. The structured boundary is
 `margin_window_type_documented_but_operator_rejected` at row `1`, profile
 `retail_intraday_margin_1`, field `margin_window_type`, value type `string`.
 This is an exact V3 operator-policy rejection, not authority to broaden schema
-or acceptance. No R12 attempt, Slice 3/4/5 activation, or live authority is
-granted; the default action is `stop_and_await_operator_direction`. See the
+or acceptance. It grants no independent successor, Slice 3/4/5 activation, or
+live authority; R12 remains governed only by its separate prepared boundary.
+See the
 [R11 terminal diagnosis](docs/FUTURES_SLICE_2R11_TERMINAL_DIAGNOSIS.md).
 
 Historically, goal

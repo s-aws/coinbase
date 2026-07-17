@@ -73,7 +73,7 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
     )
     assert AUTONOMOUS_GOAL_ID == (
-        "futures_preview_acceptance_recovery_r11"
+        "futures_preview_acceptance_recovery_r12"
     )
     assert AUTONOMOUS_HISTORICAL_PHASES == tuple(range(7961, 7981))
     check_results = {check["name"]: check for check in summary["checks"]}
@@ -84,61 +84,73 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     assert failed_checks == {}
     assert summary["status"] == "passed"
     assert summary["goal_id"] == (
-        "futures_preview_acceptance_recovery_r11"
+        "futures_preview_acceptance_recovery_r12"
     )
     assert summary["historical_phase_range"] == "7961-7980"
     assert summary["historical_phase_count"] == 20
     assert summary["phase_range_status"] == "historical_not_work_authority"
-    assert summary["slice_status"] == "complete_terminal_no_retry"
+    assert summary["slice_status"] == "prepared_release_disabled"
     assert summary["blockers"] == []
     assert summary["default_next_action"] == (
-        "stop_and_await_operator_direction"
+        "complete_no_live_validation_and_independent_audits"
     )
-    assert summary["r11_workflow_attempts_consumed"] == 1
-    assert summary["r11_preview_attempts_consumed"] == 0
-    assert summary["r11_terminal"] is True
-    assert summary["r11_terminal_before_preview"] is True
-    assert summary["r11_successor_authorized"] is False
+    assert summary["r12_workflow_claims_consumed"] == 0
+    assert summary["r12_claim_created"] is False
+    assert summary["r12_eligibility_cycles_consumed"] == 0
+    assert summary["r12_preview_attempts_consumed"] == 0
+    assert summary["r12_release_gate_ready"] is False
+    assert summary["live_coinbase_eligibility_reads_ran"] is False
     assert summary["live_coinbase_preview_ran"] is False
     assert summary["live_coinbase_orders_ran"] is False
     assert summary["live_order_notional_usdc"] == "0"
+    assert summary["historical_r11"] == {
+        "status": "complete_terminal_no_retry",
+        "workflow_claims_consumed": 1,
+        "preview_attempts_consumed": 0,
+        "terminal": True,
+        "terminal_before_preview": True,
+        "historical_successor_authorized": False,
+    }
     assert summary["mvp_scope"] == {
-        "work_mode": "r11_terminal_offline_closeout_no_successor_authority",
+        "work_mode": "r12_prepared_release_disabled_validation_and_audit",
+        "product_goal": (
+            "Prepared R12 eligibility/attempt separation -> release-disabled "
+            "validation and audits -> no calls yet."
+        ),
+        "compatibility_result": (
+            "official_wire_schema_and_project_acceptance_separated_"
+            "prospectively"
+        ),
         "goal_authority": (
             "/home/developer/coinbase/coinbase-frontend/docs/CURRENT_MVP_GOAL.md"
         ),
         "frontend_authority": "operator_ui_only",
         "live_action_path": "auditable_backend_admin_interfaces_only",
         "phase_range_policy": "parked_unless_direct_current_slice_blocker",
-        "current_vertical_slice": "Slice 2R11",
-        "direct_blocker_rule": "r11_terminal_closeout_only_no_successor_authority",
-        "scope_posture": (
-            "r11_terminal_pre_preview_v3_operator_policy_rejection"
+        "current_vertical_slice": "futures_exact_no_live_preview_slice_2r12",
+        "direct_blocker_rule": (
+            "r12_release_gate_false_until_validation_and_audits"
         ),
+        "scope_posture": (
+            "r12_separate_eligibility_and_single_use_attempt_v1"
+        ),
+        "operator_progress_wording": "prepared/release disabled",
         "focused_blast_radius_tests_required": True,
         "full_suite_at_durable_milestone_only": True,
         "active_work_policy": {
             "current_priority": (
-                "stop_and_await_operator_direction"
+                "complete_no_live_validation_and_independent_audits"
             ),
             "approved_phase_range_status": "historical_not_work_authority",
             "phase_range_work_allowed": False,
-            "slice_status": "complete_terminal_no_retry",
+            "slice_status": "prepared_release_disabled",
             "blockers": [],
             "default_next_action": (
-                "stop_and_await_operator_direction"
+                "complete_no_live_validation_and_independent_audits"
             ),
             "ordered_successors": [],
-            "allow_only_when_directly_blocks": [
-                "slice_2r11_terminal_artifact_hard_binding",
-                "slice_2r11_offline_diagnosis_and_readback",
-                "slice_2r11_closeout_validation_and_audit",
-            ],
+            "allow_only_when_directly_blocks": [],
             "forbidden_default_actions": [
-                "second_r11_preview_or_retry",
-                "r12_attempt",
-                "slice_3_4_5_activation",
-                "exchange_mutations",
                 "complete_current_approved_range",
                 "candidate_blocker_self_justification",
                 "fanout_or_scheduler_expansion",
@@ -152,33 +164,62 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         "preferred_spot_notional_under_usdc": "10.00",
         "preferred_perpetual_notional_under_usdc": "30.00",
         "active_futures_slice": {
-            "slice": "2R11",
-            "status": "complete_terminal_no_retry",
+            "slice_id": "futures_exact_no_live_preview_slice_2r12",
+            "recovery_id": "R12",
+            "status": "prepared_release_disabled",
             "policy": "V3",
             "product_id": "AVP-20DEC30-CDE",
             "contract_count": "1",
             "opening_reference_notional_under_usdc": "100.00",
             "exposure_and_buffered_close_under_usdc": "150.00",
             "branch_turnover_under_usdc": "300.00",
-            "sdk_package": "coinbase-advanced-py==1.8.4",
-            "response_envelope_ordering": (
-                "shallow_raw_sdk_envelope_before_recursive_plain"
-            ),
-            "converter_only_envelopes_allowed": False,
-            "preview_id_persistence": "sha256_or_withheld",
-            "diagnostics": "fixed_value_blind",
+            "workflow_claims_consumed": 0,
+            "claim_created": False,
+            "release_gate_ready": False,
+            "eligibility_evidence_status": "not_run",
+            "eligibility_cycles_authorized_max": 10,
+            "eligibility_cycles_consumed": 0,
+            "eligibility_read_categories_per_cycle_max": 6,
+            "eligibility_authenticated_gets_per_cycle_max": 9,
+            "futures_sweep_reads_max": 0,
+            "other_coinbase_endpoint_calls_max": 0,
+            "authorized_coinbase_preview_attempts_max": 1,
             "coinbase_preview_attempts_max": 0,
             "coinbase_preview_attempts_consumed": 0,
-            "r11_workflow_attempts_consumed": 1,
-            "terminal_before_preview": True,
-            "terminal_reason_code": "futures_preview_margin_windows_ambiguous",
-            "terminal_policy_classification": (
-                "margin_window_type_documented_but_operator_rejected"
+            "post_claim_non_preview_coinbase_calls_max": 0,
+            "bounded_read_counts_per_cycle": {
+                "api_key_permissions": 1,
+                "portfolio_catalog": 1,
+                "product": 1,
+                "best_bid_ask": 1,
+                "futures_positions": 1,
+                "futures_margin_collateral": 1,
+            },
+            "margin_collateral_read_breakdown_per_cycle": {
+                "balance_summary": 1,
+                "intraday_margin_setting": 1,
+                "current_margin_windows": 2,
+            },
+            "sdk_package": "coinbase-advanced-py==1.8.4",
+            "response_envelope_ordering": (
+                "shallow_raw_sdk_envelope_before_recursive_plain_normalization"
             ),
+            "converter_only_envelope_policy": "reject_without_invoking_converter",
+            "preview_id_policy": "hash_or_withhold_before_persistence_or_readback",
+            "diagnostic_policy": "fixed_value_blind_only",
+            "unknown_outcome_policy": "consumes_r12_after_claim_no_retry",
             "retry_attempts_max": 0,
             "fallback_attempts_max": 0,
             "redirect_attempts_max": 0,
+            "create_attempts_max": 0,
+            "cancel_attempts_max": 0,
+            "close_attempts_max": 0,
+            "reduce_attempts_max": 0,
             "exchange_mutation_attempts_max": 0,
+            "successor_authority": "none_after_r12",
+            "successor_authorized": False,
+            "r13_attempt_allowed": False,
+            "slice3_through_5_activation_allowed": False,
         },
         "terminal_futures_slice": {
             "slice": "2R11",
@@ -205,14 +246,79 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         "default_max_orders_per_second": 5,
         "non_fill_snapshot_distance_percent": 10,
     }
+    assert summary["required_stop_conditions"] == [
+        "focused current-slice test fails",
+        "npm run release:gate fails when required at durable milestone closeout",
+        (
+            "python3.13 tools/run_parallel_regression.py --workers 4 fails "
+            "when required at durable milestone closeout"
+        ),
+        (
+            "security review finds browser-trusted authority, secret "
+            "exposure, or live command bypass risk"
+        ),
+        (
+            "live Coinbase reconciliation fails, live notional exceeds cap, "
+            "or exact product/notional evidence is missing"
+        ),
+        "worktree contains unrelated changes affecting files in scope",
+        (
+            "requested change would create frontend trading behavior or "
+            "bypass backend Admin API contract"
+        ),
+        (
+            "candidate blocker requires evidence generation unrelated to "
+            "the current vertical slice"
+        ),
+        "all ten eligibility cycles are exhausted with R12 unconsumed",
+        "R12 is terminal and its authorized offline closeout is complete",
+        (
+            "proceeding would change the product, contract count, exact V3 "
+            "policy, caps, enumerated read endpoints, or exchange-call limit"
+        ),
+        (
+            "any R13 attempt or Slice 3, Slice 4, or Slice 5 activation "
+            "requires distinct operator authorization"
+        ),
+    ]
+    assert summary["required_gates"] == [
+        "npm run mvp:goal:check",
+        "focused tests for the changed blast radius",
+        "local R12 deployment validation",
+        "independent R12 safety audit",
+        "blind-contextless R12 audit",
+        "reviewed source release gate before any eligibility or attempt call",
+        "npm run release:gate only at durable milestone closeout",
+        (
+            "python3.13 tools/run_parallel_regression.py --workers 4 only at "
+            "durable backend milestone closeout"
+        ),
+    ]
+    assert summary["progress"] == {
+        "goal_id": "futures_preview_acceptance_recovery_r12",
+        "slice_status": "prepared_release_disabled",
+        "live_coinbase_execution": "not_run",
+        "blockers": [],
+        "next_action": "complete_no_live_validation_and_independent_audits",
+        "operator_wording": "prepared/release disabled",
+    }
     assert check_results["current_goal_alignment"]["passed"] is True
+    assert check_results["slice_2r12_prepared_posture"]["passed"] is True
     assert check_results["historical_queue_posture"]["passed"] is True
     assert check_results["slice_2r7_terminal_closeout"]["passed"] is True
     assert check_results["r8_r10_recovery_terminal_closeout"]["passed"] is True
+    assert [
+        Path(document["path"]).name
+        for document in check_results["r8_r10_recovery_terminal_closeout"][
+            "evidence"
+        ]["documents"]
+    ] == ["AGENT_MVP_REBUILD_GOAL.md", "CURRENT_MVP_GOAL.md"]
     assert check_results["post_r10_compatibility_direction_closeout"][
         "passed"
     ] is True
-    assert check_results["slice_2r11_terminal_posture"]["passed"] is True
+    assert check_results["historical_slice_2r11_terminal_posture"][
+        "passed"
+    ] is True
     assert check_results["github_workflows_retired"]["passed"] is True
     assert check_results["github_workflows_retired"]["evidence"][
         "execution_authority"
@@ -274,18 +380,19 @@ def test_r11_terminal_doc_records_exact_bounded_closeout_posture():
         assert text in normalized
 
 
-def test_terminal_recovery_docs_do_not_reactivate_consumed_successors():
-    r8_diagnosis = Path(
-        "docs/FUTURES_SLICE_2R8_TERMINAL_DIAGNOSIS.md"
-    ).read_text(encoding="utf-8")
+def test_terminal_recovery_metadata_does_not_reactivate_consumed_successors():
+    current_goal = Path("genai_data/AGENT_MVP_REBUILD_GOAL.md").read_text(
+        encoding="utf-8"
+    )
     maintainer_handoff = Path("docs/MAINTAINER_HANDOFF.md").read_text(
         encoding="utf-8"
     )
 
-    assert "## Terminal Successor Update" in r8_diagnosis
-    assert "R10 is terminally consumed" in r8_diagnosis
-    assert "no R11 exists" in r8_diagnosis
-    assert "R9 is the current conditional generation" not in r8_diagnosis
+    assert "R8 is terminally consumed" in current_goal
+    assert "R9 is terminally consumed" in current_goal
+    assert "R10 is terminally consumed" in current_goal
+    assert "R8 content/hash remain inaccessible" in current_goal
+    assert "Slice 3 did not run" in current_goal
     assert "- Current slice:" not in maintainer_handoff
     assert "- Ordered successors:" not in maintainer_handoff
     assert "- Historical predecessor slice:" in maintainer_handoff

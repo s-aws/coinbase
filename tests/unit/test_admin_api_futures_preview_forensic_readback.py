@@ -124,6 +124,16 @@ def test_production_selector_hash_stat_validates_r8_without_deserializing(
     )
     monkeypatch.setattr(
         preview_module,
+        "_configured_futures_order_preview_r12_artifact_path",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        preview_module,
+        "_configured_futures_order_preview_r11_artifact_path",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        preview_module,
         "_configured_futures_order_preview_r10_artifact_path",
         lambda: None,
     )

@@ -9380,6 +9380,7 @@ def test_openapi_exposes_typed_read_only_preview_contract():
     assert {item["$ref"] for item in response_union["anyOf"]} == {
         "#/components/schemas/AdminFuturesOrderPreviewResponse",
         "#/components/schemas/AdminFuturesPreviewR8ForensicReadback",
+        "#/components/schemas/AdminFuturesOrderPreviewR12Response",
     }
     assert "401" in operation["responses"]
     assert "403" in operation["responses"]

@@ -105,6 +105,7 @@ class FakeFuturesSdkClient(FakeSdkClient):
         }
         self.balance_error = balance_error
         self.margin_window_profiles: list[str] = []
+        self.futures_sweeps_calls = 0
         self.close_position_calls: list[dict] = []
 
     def get_futures_balance_summary(self) -> FakeResponse:
@@ -128,6 +129,7 @@ class FakeFuturesSdkClient(FakeSdkClient):
         )
 
     def list_futures_sweeps(self) -> FakeResponse:
+        self.futures_sweeps_calls += 1
         return FakeResponse({"sweeps": []})
 
     def close_position(self, **kwargs) -> FakeResponse:
@@ -239,6 +241,13 @@ def test_list_portfolios_uses_current_sdk_get_portfolios_method():
     ]
 
 
+def test_preview_eligibility_portfolios_uses_only_pinned_sdk_method():
+    portfolios = [{"uuid": "portfolio-1", "name": "Default"}]
+    client = CoinbaseRestClient(FakePortfolioSdkClient(portfolios))
+
+    assert client.get_futures_preview_eligibility_portfolios() == portfolios
+
+
 def test_get_futures_margin_collateral_snapshot_uses_us_cfm_readers():
     sdk = FakeFuturesSdkClient()
     client = CoinbaseRestClient(sdk)
@@ -264,6 +273,32 @@ def test_get_futures_margin_collateral_snapshot_uses_us_cfm_readers():
         "MARGIN_PROFILE_TYPE_RETAIL_REGULAR",
         "MARGIN_PROFILE_TYPE_RETAIL_INTRADAY_MARGIN_1",
     ]
+    assert sdk.futures_sweeps_calls == 1
+
+
+def test_get_futures_preview_eligibility_margin_snapshot_excludes_sweeps():
+    sdk = FakeFuturesSdkClient()
+    client = CoinbaseRestClient(sdk)
+
+    snapshot = (
+        client.get_futures_preview_eligibility_margin_collateral_snapshot()
+    )
+
+    assert snapshot["status"] == "ready"
+    assert snapshot["account_family"] == "coinbase_futures_us_cfm"
+    assert snapshot["source"] == "backend_rest_client"
+    assert snapshot["intx_applicability"] == "not_applicable_us_account"
+    assert snapshot["source_read_attempts"] == {
+        "get_futures_balance_summary": 1,
+        "get_intraday_margin_setting": 1,
+        "get_current_margin_window": 2,
+    }
+    assert "futures_sweeps" not in snapshot
+    assert sdk.margin_window_profiles == [
+        "MARGIN_PROFILE_TYPE_RETAIL_REGULAR",
+        "MARGIN_PROFILE_TYPE_RETAIL_INTRADAY_MARGIN_1",
+    ]
+    assert sdk.futures_sweeps_calls == 0
 
 
 @pytest.mark.parametrize("sweeps_payload", [{}, {"sweeps": {}}])

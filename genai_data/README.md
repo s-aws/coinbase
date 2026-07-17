@@ -4,13 +4,31 @@
 
 `genai_data/` contains expanded engineering references and historical analyses.
 Current work authority is `AGENT_MVP_REBUILD_GOAL.md`, goal id
-`futures_preview_acceptance_recovery_r11`,
+`futures_preview_acceptance_recovery_r12`,
 paired with the frontend canonical goal
 at `/home/developer/coinbase/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. An
 individual analysis or implementation note does not become current work merely
 because it lives in this directory.
 
-Goal `futures_preview_acceptance_recovery_r11` is complete with alignment
+Goal `futures_preview_acceptance_recovery_r12` is
+`prepared_release_disabled` with alignment
+`r12_separate_eligibility_and_single_use_attempt_v1`. Its source-bound
+`R12_RELEASE_READY` gate remains `False`. Current work is limited to no-live
+focused validation, local deployment validation, independent safety audit, and
+blind contextless audit. Preparation creates no eligibility read, R12 claim,
+idempotency key, or Preview attempt.
+
+The prepared workflow separates at most ten durably counted non-attempt
+eligibility refreshes from the single-use attempt. A complete refresh permits
+only nine authenticated GETs across six fixed categories, excludes Futures
+sweeps, and retains the exact V3 pair, `AVP-20DEC30-CDE`, one contract, and
+strict `<100 / <150 / <300 USDC` caps. Only a fresh exact-V3 success plus all
+validation and audits can reach one durable claim and at most one Preview.
+Retries, fallbacks, redirects, submissions, and exchange mutations remain zero.
+See `../docs/FUTURES_SLICE_2R12_PREPARATION.md`.
+
+Historical goal `futures_preview_acceptance_recovery_r11` is complete with
+alignment
 `r11_terminal_pre_preview_v3_operator_policy_rejection` and slice status
 `complete_terminal_no_retry`. R11 is terminally consumed. Its one workflow
 claim stopped at `remaining_margin_validation` with fixed reason
@@ -23,10 +41,10 @@ mutation counters are zero. The terminal artifact file SHA-256 is
 `effb4bd037b853e06da14a0327d71eb8104e2b7edb2f56970b4c47ef855b6061` and
 its evidence SHA-256 is
 `548bbb02709c70dc320219bc15520b40ed948309ad09ec0f8af8f812d63bedea`.
-There is no retry, no R12 attempt, no successor authority, and no Slice 3,
-Slice 4, or Slice 5 activation. The default action is
-`stop_and_await_operator_direction`. No R12 attempt or Slice 3/4/5 activation
-is authorized.
+R11 itself grants no retry, independent successor authority, or Slice 3,
+Slice 4, or Slice 5 activation. Its historical default action was
+`stop_and_await_operator_direction`. R12 now exists only under the separate
+prepared, source-disabled boundary above; it grants no Slice 3/4/5 activation.
 
 Historically, goal
 `futures_post_r10_preview_compatibility_and_direction_selection` completed the

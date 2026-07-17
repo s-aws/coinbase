@@ -4,14 +4,22 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Goal `futures_preview_acceptance_recovery_r11` is complete. R11 is consumed,
+Goal `futures_preview_acceptance_recovery_r12` is prepared but production
+release-disabled. Its backend owns a separate ten-cycle non-attempt eligibility
+ledger and a one-claim, one-Preview maximum attempt phase. The exact nine-GET
+eligibility allowlist excludes Futures sweeps. The source-bound release gate
+remains `False` pending focused validation, local deployment validation,
+independent safety audit, and blind contextless audit; frontend readback grants
+no authority. See `docs/FUTURES_SLICE_2R12_PREPARATION.md`.
+
+The predecessor R11 goal is complete. R11 is consumed,
 terminal `blocked`, immutable, and cannot be retried. It stopped at
 `remaining_margin_validation` before Preview after six reads; Preview, retry,
 fallback, submission, and mutation counts remained `0`. Its exact boundary is
 `margin_window_type_documented_but_operator_rejected`, an operator-defined V3
 policy rejection that does not authorize schema or acceptance broadening. No
-R12, Slice 3/4/5, or live authority exists; default action is
-`stop_and_await_operator_direction`.
+R11 grants no independent successor, Slice 3/4/5, or live authority. R12 is
+governed only by its separate prepared, hard-disabled boundary.
 
 Historically, goal
 `futures_post_r10_preview_compatibility_and_direction_selection` prospectively

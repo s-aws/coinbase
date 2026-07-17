@@ -131,7 +131,16 @@ audit ids. Expected fill status does not create a separate approval class.
 
 ## Current Handoff State
 
-- Current authority: Goal `futures_preview_acceptance_recovery_r11` is complete.
+- Current preparation: Goal `futures_preview_acceptance_recovery_r12` has a
+  separate ten-cycle non-attempt eligibility ledger and a one-claim,
+  one-Preview maximum attempt phase. Its nine authenticated eligibility GETs
+  are limited to six categories, with no Futures sweep. The production runner
+  is source-bound to `R12_RELEASE_READY=False`; focused validation, local
+  deployment validation, independent safety audit, and blind contextless audit
+  must pass before any separately reviewed toggle. Preparation itself creates
+  no eligibility read, claim, or Preview. See
+  `docs/FUTURES_SLICE_2R12_PREPARATION.md`.
+- Historical predecessor: Goal `futures_preview_acceptance_recovery_r11` is complete.
   R11 is consumed, terminal `blocked`, immutable, and cannot be retried. It
   stopped at `remaining_margin_validation` before Preview after all six reads
   ran once; Preview, retry, fallback, redirect, submission, and mutation counts
@@ -141,10 +150,12 @@ audit ids. Expected fill status does not create a separate approval class.
   The immutable R11 file/evidence SHA-256 pair is
   `effb4bd037b853e06da14a0327d71eb8104e2b7edb2f56970b4c47ef855b6061` /
   `548bbb02709c70dc320219bc15520b40ed948309ad09ec0f8af8f812d63bedea`.
-  Default API/UI readback selects this exact immutable R11 terminal and fails
-  closed instead of falling back to R10.
-  It grants no schema/acceptance broadening, R12, Slice 3/4/5, or live
-  authority. Default action: `stop_and_await_operator_direction`. See
+  While R12 is the active successor, default API/UI readback never selects or
+  opens the historical R11 terminal. It binds directly to the fixed R12
+  singleton and returns a fixed sanitized `503` until a strict R12 terminal is
+  available.
+  It grants no schema/acceptance broadening, Slice 3/4/5, or other live
+  authority. R12 is governed only by its separate prepared boundary. See
   `docs/FUTURES_SLICE_2R11_TERMINAL_DIAGNOSIS.md`.
 - Historical post-R10 checkpoint: goal
   `futures_post_r10_preview_compatibility_and_direction_selection` completed the
@@ -236,8 +247,11 @@ audit ids. Expected fill status does not create a separate approval class.
   remediated models emit correlated `allOf`/`oneOf` pairs, generated TypeScript
   preserves those pairs, hybrid identities are test-rejected, and both
   reviewers re-reviewed the remediation with no remaining findings.
-- Current goal id: `futures_preview_acceptance_recovery_r11` (complete).
-- Current next action: `stop_and_await_operator_direction`.
+- Current goal id: `futures_preview_acceptance_recovery_r12`
+  (`prepared_release_disabled`).
+- Current next action: complete focused/local validation and independent safety
+  plus blind contextless audits; keep `R12_RELEASE_READY=False` until the final
+  bytes pass and a separate audited toggle is warranted.
 - Historical predecessor slice: Default-profile Futures readback -> exact AVAX US CFM Coinbase
   Preview Order -> immutable operator-visible no-live preview readback. The
   one-shot R1 artifact terminated before

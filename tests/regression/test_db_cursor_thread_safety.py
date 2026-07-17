@@ -29,6 +29,7 @@ import psycopg2
 import pytest
 
 from database.database import PostgresDB
+from tests.conftest import _is_production_database_target
 
 
 pytestmark = [pytest.mark.regression, pytest.mark.serial]
@@ -36,6 +37,26 @@ pytestmark = [pytest.mark.regression, pytest.mark.serial]
 
 _TABLE_PARENT = "_thread_safety_parent"
 _TABLE_CHILD = "_thread_safety_child"
+
+
+@pytest.mark.parametrize(
+    ("host", "port", "expected"),
+    [
+        ("127.0.0.1", 5432, True),
+        ("localhost", 5432, True),
+        ("coinbase-stage-postgres", 5432, True),
+        ("coinbase-test-postgres", 5432, True),
+        ("coinbase-test-postgres", 9876, False),
+    ],
+)
+def test_production_database_target_guard_is_host_alias_independent(
+    host,
+    port,
+    expected,
+):
+    """Port 5432 is never safe merely because a Docker hostname changed."""
+
+    assert _is_production_database_target(host, port) is expected
 
 
 @pytest.fixture

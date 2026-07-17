@@ -1747,8 +1747,66 @@ def _configured_futures_order_preview_r11_artifact_path() -> Path | None:
     return FUTURES_PREVIEW_R11_ARTIFACT_PATH
 
 
+def _configured_futures_order_preview_r12_artifact_path() -> Path | None:
+    """Return a strict R12 terminal, fail closed on any present claim."""
+
+    from application.admin_api.futures_order_preview_r12 import (
+        FUTURES_PREVIEW_R12_ARTIFACT_PATH,
+        FUTURES_PREVIEW_R12_ARTIFACT_TYPE,
+        FUTURES_PREVIEW_R12_PREDECESSOR_BINDING,
+        _PRODUCTION_FUTURES_PREVIEW_R12_ARTIFACT_PATH,
+        validate_production_futures_order_preview_r12_predecessor,
+    )
+
+    try:
+        FUTURES_PREVIEW_R12_ARTIFACT_PATH.lstat()
+    except FileNotFoundError:
+        return None
+    except OSError:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R12 terminal readback is invalid"
+        ) from None
+    try:
+        if _same_artifact_path(
+            FUTURES_PREVIEW_R12_ARTIFACT_PATH,
+            _PRODUCTION_FUTURES_PREVIEW_R12_ARTIFACT_PATH,
+        ):
+            predecessor = (
+                validate_production_futures_order_preview_r12_predecessor()
+            )
+            if predecessor != FUTURES_PREVIEW_R12_PREDECESSOR_BINDING:
+                raise FuturesOrderPreviewArtifactError(
+                    "futures Preview R12 predecessor binding changed"
+                )
+        payload = FuturesOrderPreviewArtifactStore(
+            FUTURES_PREVIEW_R12_ARTIFACT_PATH
+        ).read_completed()
+        if (
+            payload.get("artifact_type") != FUTURES_PREVIEW_R12_ARTIFACT_TYPE
+            or payload.get("predecessor_binding")
+            != FUTURES_PREVIEW_R12_PREDECESSOR_BINDING
+        ):
+            raise FuturesOrderPreviewArtifactError(
+                "futures Preview R12 terminal generation is invalid"
+            )
+        from application.admin_api.models import (
+            AdminFuturesOrderPreviewR12Response,
+        )
+
+        AdminFuturesOrderPreviewR12Response.model_validate(payload)
+    except Exception:
+        raise FuturesOrderPreviewArtifactError(
+            "futures Preview R12 terminal readback is invalid"
+        ) from None
+    return FUTURES_PREVIEW_R12_ARTIFACT_PATH
+
+
 def _configured_futures_order_preview_artifact_path_unlocked() -> Path:
     """Select the latest terminal while the shared successor lock is held."""
+
+    r12_path = _configured_futures_order_preview_r12_artifact_path()
+    if r12_path is not None:
+        return r12_path
 
     r11_path = _configured_futures_order_preview_r11_artifact_path()
     if r11_path is not None:
@@ -1837,11 +1895,17 @@ class FuturesOrderPreviewArtifactStore:
             _R9_ARTIFACT_TYPE,
             _R10_ARTIFACT_TYPE,
             _R11_ARTIFACT_TYPE,
+            "futures_exact_no_live_preview_slice_2r12",
         }:
             selector_artifact_path = (
                 FUTURES_PREVIEW_R8_ARTIFACT_PATH
-                if artifact_type in {_R9_ARTIFACT_TYPE, _R10_ARTIFACT_TYPE}
-                or artifact_type == _R11_ARTIFACT_TYPE
+                if artifact_type
+                in {
+                    _R9_ARTIFACT_TYPE,
+                    _R10_ARTIFACT_TYPE,
+                    _R11_ARTIFACT_TYPE,
+                    "futures_exact_no_live_preview_slice_2r12",
+                }
                 else self.path
             )
             with _futures_preview_r8_advisory_lock(
