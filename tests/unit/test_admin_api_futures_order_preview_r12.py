@@ -1740,6 +1740,115 @@ def test_r12_terminal_model_allows_only_fresh_market_observation_skew(
         ).outcome
         == "accepted"
     )
+    fractional_market = with_market_skew(1)
+    fractional_eligibility = fractional_market["non_attempt_eligibility"]
+    fractional_market_evidence = fractional_eligibility["market_evidence"]
+    whole_exchange_observed = datetime.fromisoformat(
+        fractional_market_evidence["exchange_observed_at"].replace(
+            "Z",
+            "+00:00",
+        )
+    )
+    fractional_market_evidence["exchange_observed_at"] = (
+        whole_exchange_observed.replace(microsecond=123456)
+        .isoformat(timespec="microseconds")
+        .replace("+00:00", "Z")
+    )
+    fractional_eligibility["market_evidence_sha256"] = canonical_sha256(
+        fractional_market_evidence
+    )
+    fractional_eligibility["eligibility_evidence_sha256"] = canonical_sha256(
+        {
+            key: item
+            for key, item in fractional_eligibility.items()
+            if key != "eligibility_evidence_sha256"
+        }
+    )
+    fractional_market["non_attempt_eligibility_sha256"] = (
+        fractional_eligibility["eligibility_evidence_sha256"]
+    )
+    fractional_market["evidence_sha256"] = canonical_sha256(
+        {
+            key: item
+            for key, item in fractional_market.items()
+            if key != "evidence_sha256"
+        }
+    )
+
+    assert (
+        AdminFuturesOrderPreviewR12Response.model_validate(
+            fractional_market
+        ).outcome
+        == "accepted"
+    )
+
+    for invalid_market_timestamp in (
+        "2026-07-16T11:59:59.12345Z",
+        "2026-07-16T11:59:59.1234567Z",
+        "2026-07-16T11:59:59.123456+00:00",
+        "2026-02-30T11:59:59.123456Z",
+    ):
+        invalid_market = deepcopy(fractional_market)
+        invalid_eligibility = invalid_market["non_attempt_eligibility"]
+        invalid_market_evidence = invalid_eligibility["market_evidence"]
+        invalid_market_evidence["exchange_observed_at"] = (
+            invalid_market_timestamp
+        )
+        invalid_eligibility["market_evidence_sha256"] = canonical_sha256(
+            invalid_market_evidence
+        )
+        invalid_eligibility["eligibility_evidence_sha256"] = canonical_sha256(
+            {
+                key: item
+                for key, item in invalid_eligibility.items()
+                if key != "eligibility_evidence_sha256"
+            }
+        )
+        invalid_market["non_attempt_eligibility_sha256"] = (
+            invalid_eligibility["eligibility_evidence_sha256"]
+        )
+        invalid_market["evidence_sha256"] = canonical_sha256(
+            {
+                key: item
+                for key, item in invalid_market.items()
+                if key != "evidence_sha256"
+            }
+        )
+        with pytest.raises(
+            ValueError,
+            match="futures_preview_r12_timestamp_invalid",
+        ):
+            AdminFuturesOrderPreviewR12Response.model_validate(invalid_market)
+
+    fractional_internal = deepcopy(terminal)
+    reserved = datetime.fromisoformat(
+        fractional_internal["reserved_at"].replace("Z", "+00:00")
+    )
+    fractional_internal["reserved_at"] = (
+        reserved.replace(microsecond=123456)
+        .isoformat(timespec="microseconds")
+        .replace("+00:00", "Z")
+    )
+    fractional_internal["completed_at"] = (
+        (reserved + timedelta(seconds=1))
+        .isoformat(timespec="seconds")
+        .replace("+00:00", "Z")
+    )
+    fractional_internal["evidence_sha256"] = canonical_sha256(
+        {
+            key: item
+            for key, item in fractional_internal.items()
+            if key != "evidence_sha256"
+        }
+    )
+    with pytest.raises(
+        ValueError,
+        match="futures_preview_r12_timestamp_invalid",
+    ):
+        AdminFuturesOrderPreviewR12Response.model_validate(
+            fractional_internal
+        )
+
     with pytest.raises(
         ValueError,
         match="futures_preview_r12_candidate_invalid",
@@ -1848,6 +1957,24 @@ def test_r12_restart_recovers_claim_only_without_coinbase_call(
     attempt_path = tmp_path / "attempt.jsonl"
     attempt_delegate = _AttemptDelegate(artifact_path=attempt_path)
     attempt, store = _attempt_workflow(tmp_path, attempt_delegate)
+    ready_delegate = _ReadyDelegate(
+        store_path=eligibility_path,
+        attempt_delegate=attempt_delegate,
+    )
+
+    def fractional_best_bid_ask(
+        *,
+        product_ids: list[str],
+    ) -> dict[str, object]:
+        assert product_ids == [FUTURES_PREVIEW_PRODUCT_ID]
+        ready_delegate.calls.append("get_best_bid_ask")
+        result = _book()
+        result["pricebooks"][0]["time"] = "2026-07-16T12:00:00.123456Z"
+        return result
+
+    ready_delegate.get_best_bid_ask = (  # type: ignore[method-assign]
+        fractional_best_bid_ask
+    )
 
     def crash_after_claim(**_kwargs: object) -> None:
         raise SystemExit("synthetic-process-crash-after-claim")
@@ -1860,10 +1987,7 @@ def test_r12_restart_recovers_claim_only_without_coinbase_call(
     eligibility = FuturesPreviewR12EligibilityWorkflow(
         store=attempt.eligibility_store,
         attempt_artifact_path=attempt_path,
-        rest_client_factory=lambda: _ReadyDelegate(
-            store_path=eligibility_path,
-            attempt_delegate=attempt_delegate,
-        ),
+        rest_client_factory=lambda: ready_delegate,
         now=lambda: datetime(2026, 7, 16, 12, 0, tzinfo=timezone.utc),
         correlation_id_factory=lambda: "e5bd9216-7547-4c5b-8d22-90775977bd09",
     )

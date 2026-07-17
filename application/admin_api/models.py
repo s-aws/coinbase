@@ -40204,6 +40204,23 @@ class AdminFuturesOrderPreviewR12Response(BaseModel):
                 raise ValueError("futures_preview_r12_timestamp_invalid")
             return parsed
 
+        def market_timestamp(value: str) -> datetime:
+            if re.fullmatch(
+                r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{6})?Z",
+                value,
+            ) is None:
+                raise ValueError("futures_preview_r12_timestamp_invalid")
+            try:
+                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError as exc:
+                raise ValueError("futures_preview_r12_timestamp_invalid") from exc
+            if (
+                parsed.tzinfo is None
+                or parsed.utcoffset() != timezone.utc.utcoffset(parsed)
+            ):
+                raise ValueError("futures_preview_r12_timestamp_invalid")
+            return parsed
+
         expected_reads = {
             "api_key_permissions": 1,
             "portfolio_catalog": 1,
@@ -40276,6 +40293,9 @@ class AdminFuturesOrderPreviewR12Response(BaseModel):
             eligibility.get("market_evidence"),
             _R12_MARKET_EVIDENCE_KEYS,
             "futures_preview_r12_market_evidence_invalid",
+        )
+        market_observed = market_timestamp(
+            str(market.get("exchange_observed_at")),
         )
         position = _r12_exact_dict(
             eligibility.get("position_evidence"),
@@ -40941,7 +40961,6 @@ class AdminFuturesOrderPreviewR12Response(BaseModel):
         portfolio_observed = timestamp(
             str(portfolio_binding.get("observed_at"))
         )
-        market_observed = timestamp(str(market.get("exchange_observed_at")))
         if not (
             -5
             <= (eligibility_observed - market_observed).total_seconds()
