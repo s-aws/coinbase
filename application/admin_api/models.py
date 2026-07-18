@@ -5098,6 +5098,141 @@ class AdminOrderDetailResponse(BaseModel):
     live_coinbase_orders_ran: bool = False
 
 
+class AdminOrderFollowUpIntentAttachRequest(BaseModel):
+    """The browser acknowledgement for one backend-derived future intent."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    acknowledge_future_materialization_requires_fresh_authorization: Literal[
+        True
+    ]
+
+
+class AdminOrderFollowUpIntentEligibilityEvidence(BaseModel):
+    """Backend-owned evidence for the source order's single intent slot."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_order_follow_up_intent_eligibility"
+    source_client_order_id: str = Field(min_length=1)
+    root_client_order_id: str = Field(min_length=1)
+    source_found: bool
+    eligible: bool
+    eligibility_status: str = Field(min_length=1)
+    blockers: list[str] = Field(default_factory=list)
+    source_status: str = Field(min_length=1)
+    source_ownership_provenance: str = Field(min_length=1)
+    product_id: str = Field(min_length=1)
+    product_type: str = Field(min_length=1)
+    module_id: str = Field(min_length=1)
+    source_is_child: bool
+    source_authoritative_zero_fill: bool
+    source_follow_up_child_absent: bool
+    automatic_semantic_claim_absent: bool
+    portfolio_scope_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    slot_limit: Literal[1] = 1
+    slot_used: int = Field(ge=0, le=1)
+    attachment_notional_usdc: Literal["0"] = "0"
+    submitted_notional_usdc: Literal["0"] = "0"
+    executed_notional_usdc: Literal["0"] = "0"
+    future_materialization_requires_fresh_authorization: Literal[True] = True
+
+
+class AdminOrderFollowUpIntentItem(BaseModel):
+    """One durable intent; this is not a child order or live approval."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    follow_up_intent_id: str = Field(min_length=1)
+    claim_id: str = Field(min_length=1)
+    source_client_order_id: str = Field(min_length=1)
+    root_client_order_id: str = Field(min_length=1)
+    trigger: Literal["FILLED"] = "FILLED"
+    intent_kind: Literal["single_on_full_fill"] = "single_on_full_fill"
+    semantic_intent: Literal["EXIT", "REBUY", "SAME_SIDE_REPLACEMENT"]
+    derived_follow_up_side: Literal["BUY", "SELL"]
+    state: Literal["ATTACHED"] = "ATTACHED"
+    intent_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    audit_id: str = Field(min_length=1)
+    correlation_id: str = Field(min_length=1)
+    recorded_at: str = Field(min_length=1)
+    future_materialization_requires_fresh_authorization: Literal[True] = True
+
+
+class AdminOrderFollowUpIntentAuditBinding(BaseModel):
+    """Sanitized durable audit linkage for an attached intent."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    actor_id: str = Field(min_length=1)
+    environment: str = Field(min_length=1)
+    portfolio_scope_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    source_client_order_id: str = Field(min_length=1)
+    root_client_order_id: str = Field(min_length=1)
+    intent_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    claim_id: str = Field(min_length=1)
+    terminal_result: Literal["ATTACHED"] = "ATTACHED"
+
+
+class AdminOrderFollowUpIntentReadResponse(BaseModel):
+    """Authoritative local readback for a source order's one intent slot."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_order_follow_up_intent_readback"
+    source_client_order_id: str = Field(min_length=1)
+    root_client_order_id: str = Field(min_length=1)
+    eligibility: AdminOrderFollowUpIntentEligibilityEvidence
+    follow_up_intent: AdminOrderFollowUpIntentItem | None = None
+    read_only: Literal[True] = True
+    local_state_mutated: Literal[False] = False
+    live_coinbase_read_ran: Literal[False] = False
+    live_coinbase_orders_ran: Literal[False] = False
+    order_engine_follow_up_handler_called: Literal[False] = False
+    follow_up_child_created: Literal[False] = False
+    reconciliation_ran: Literal[False] = False
+    exchange_state_mutated: Literal[False] = False
+    browser_authority: str = "display_only"
+
+
+class AdminOrderFollowUpIntentAttachResponse(BaseModel):
+    """Audited local result for the source order's one durable intent slot."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_order_follow_up_intent_attach"
+    status: AdminApiCommandStatus
+    action_class: Literal[AdminApiActionClass.LOCAL_STATE_MUTATION] = (
+        AdminApiActionClass.LOCAL_STATE_MUTATION
+    )
+    required_permission: Literal[AdminApiPermission.ORDER_CREATE] = (
+        AdminApiPermission.ORDER_CREATE
+    )
+    service_method: Literal["attach_order_follow_up_intent"] = (
+        "attach_order_follow_up_intent"
+    )
+    message: str = Field(min_length=1)
+    source_client_order_id: str = Field(min_length=1)
+    root_client_order_id: str = Field(min_length=1)
+    correlation_id: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    audit_id: str = Field(min_length=1)
+    replayed: bool = False
+    eligibility: AdminOrderFollowUpIntentEligibilityEvidence
+    follow_up_intent: AdminOrderFollowUpIntentItem
+    audit_binding: AdminOrderFollowUpIntentAuditBinding
+    local_state_mutated: bool
+    live_coinbase_read_ran: Literal[False] = False
+    live_coinbase_orders_ran: Literal[False] = False
+    live_exchange_submitted: Literal[False] = False
+    order_engine_follow_up_handler_called: Literal[False] = False
+    follow_up_child_created: Literal[False] = False
+    reconciliation_ran: Literal[False] = False
+    exchange_state_mutated: Literal[False] = False
+    future_materialization_requires_fresh_authorization: Literal[True] = True
+    browser_authority: str = "display_and_forward_only"
+
+
 class AdminOrderFillFollowUpReplayResponse(BaseModel):
     """No-live fill-event replay evidence keyed by ``client_order_id``."""
 

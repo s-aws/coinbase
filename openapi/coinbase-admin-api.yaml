@@ -6866,6 +6866,214 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/orders/{source_client_order_id}/follow-up-intent:
+    get:
+      tags:
+      - orders
+      summary: Read one backend-owned future follow-up intent slot
+      description: Read authoritative local eligibility and intent evidence only.
+      operationId: get_order_follow_up_intent_api_v1_orders__source_client_order_id__follow_up_intent_get
+      parameters:
+      - name: source_client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Source Client Order Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOrderFollowUpIntentReadResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '404':
+          description: The backend-owned source order was not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Authoritative source eligibility evidence conflicts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '503':
+          description: Authoritative local eligibility evidence is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - orders
+      summary: Attach one durable future follow-up intent without executing it
+      description: Persist one backend-derived slot after atomic eligibility validation.
+      operationId: attach_order_follow_up_intent_api_v1_orders__source_client_order_id__follow_up_intent_post
+      parameters:
+      - name: source_client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Source Client Order Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: attach_single_follow_up_intent
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminOrderFollowUpIntentAttachRequest'
+      responses:
+        '200':
+          description: The one durable intent was accepted or replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOrderFollowUpIntentAttachResponse'
+        '400':
+          description: The exact attach request was rejected before persistence.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '404':
+          description: The backend-owned source order was not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency, source-slot, or semantic-claim conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Required headers or the acknowledgement are invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '503':
+          description: Authoritative local eligibility evidence is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
   /api/v1/orders/{client_order_id}/reconciliation:
     post:
       tags:
@@ -14905,6 +15113,7 @@ components:
       - admin_runtime_control
       - spot_manual_order
       - spot_order_cancel
+      - spot_follow_up_intent
       - spot_manual_order_proof_chain
       - spot_order_cancel_proof_chain
       - spot_campaign_execution
@@ -140982,6 +141191,456 @@ components:
       type: object
       title: AdminOrderFillFollowUpTriggerRequest
       description: Prerequisite refs for a fill-follow-up trigger attempt.
+    AdminOrderFollowUpIntentAttachRequest:
+      properties:
+        acknowledge_future_materialization_requires_fresh_authorization:
+          type: boolean
+          const: true
+          title: Acknowledge Future Materialization Requires Fresh Authorization
+      additionalProperties: false
+      type: object
+      required:
+      - acknowledge_future_materialization_requires_fresh_authorization
+      title: AdminOrderFollowUpIntentAttachRequest
+      description: The browser acknowledgement for one backend-derived future intent.
+    AdminOrderFollowUpIntentAttachResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_order_follow_up_intent_attach
+        status:
+          $ref: '#/components/schemas/AdminApiCommandStatus'
+        action_class:
+          type: string
+          const: local_state_mutation
+          title: Action Class
+          default: local_state_mutation
+        required_permission:
+          type: string
+          const: order:create
+          title: Required Permission
+          default: order:create
+        service_method:
+          type: string
+          const: attach_order_follow_up_intent
+          title: Service Method
+          default: attach_order_follow_up_intent
+        message:
+          type: string
+          minLength: 1
+          title: Message
+        source_client_order_id:
+          type: string
+          minLength: 1
+          title: Source Client Order Id
+        root_client_order_id:
+          type: string
+          minLength: 1
+          title: Root Client Order Id
+        correlation_id:
+          type: string
+          minLength: 1
+          title: Correlation Id
+        idempotency_key:
+          type: string
+          minLength: 1
+          title: Idempotency Key
+        audit_id:
+          type: string
+          minLength: 1
+          title: Audit Id
+        replayed:
+          type: boolean
+          title: Replayed
+          default: false
+        eligibility:
+          $ref: '#/components/schemas/AdminOrderFollowUpIntentEligibilityEvidence'
+        follow_up_intent:
+          $ref: '#/components/schemas/AdminOrderFollowUpIntentItem'
+        audit_binding:
+          $ref: '#/components/schemas/AdminOrderFollowUpIntentAuditBinding'
+        local_state_mutated:
+          type: boolean
+          title: Local State Mutated
+        live_coinbase_read_ran:
+          type: boolean
+          const: false
+          title: Live Coinbase Read Ran
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          const: false
+          title: Live Coinbase Orders Ran
+          default: false
+        live_exchange_submitted:
+          type: boolean
+          const: false
+          title: Live Exchange Submitted
+          default: false
+        order_engine_follow_up_handler_called:
+          type: boolean
+          const: false
+          title: Order Engine Follow Up Handler Called
+          default: false
+        follow_up_child_created:
+          type: boolean
+          const: false
+          title: Follow Up Child Created
+          default: false
+        reconciliation_ran:
+          type: boolean
+          const: false
+          title: Reconciliation Ran
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          const: false
+          title: Exchange State Mutated
+          default: false
+        future_materialization_requires_fresh_authorization:
+          type: boolean
+          const: true
+          title: Future Materialization Requires Fresh Authorization
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_and_forward_only
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - message
+      - source_client_order_id
+      - root_client_order_id
+      - correlation_id
+      - idempotency_key
+      - audit_id
+      - eligibility
+      - follow_up_intent
+      - audit_binding
+      - local_state_mutated
+      title: AdminOrderFollowUpIntentAttachResponse
+      description: Audited local result for the source order's one durable intent
+        slot.
+    AdminOrderFollowUpIntentAuditBinding:
+      properties:
+        actor_id:
+          type: string
+          minLength: 1
+          title: Actor Id
+        environment:
+          type: string
+          minLength: 1
+          title: Environment
+        portfolio_scope_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Portfolio Scope Sha256
+        source_client_order_id:
+          type: string
+          minLength: 1
+          title: Source Client Order Id
+        root_client_order_id:
+          type: string
+          minLength: 1
+          title: Root Client Order Id
+        intent_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Intent Sha256
+        claim_id:
+          type: string
+          minLength: 1
+          title: Claim Id
+        terminal_result:
+          type: string
+          const: ATTACHED
+          title: Terminal Result
+          default: ATTACHED
+      additionalProperties: false
+      type: object
+      required:
+      - actor_id
+      - environment
+      - portfolio_scope_sha256
+      - source_client_order_id
+      - root_client_order_id
+      - intent_sha256
+      - claim_id
+      title: AdminOrderFollowUpIntentAuditBinding
+      description: Sanitized durable audit linkage for an attached intent.
+    AdminOrderFollowUpIntentEligibilityEvidence:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_order_follow_up_intent_eligibility
+        source_client_order_id:
+          type: string
+          minLength: 1
+          title: Source Client Order Id
+        root_client_order_id:
+          type: string
+          minLength: 1
+          title: Root Client Order Id
+        source_found:
+          type: boolean
+          title: Source Found
+        eligible:
+          type: boolean
+          title: Eligible
+        eligibility_status:
+          type: string
+          minLength: 1
+          title: Eligibility Status
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        source_status:
+          type: string
+          minLength: 1
+          title: Source Status
+        source_ownership_provenance:
+          type: string
+          minLength: 1
+          title: Source Ownership Provenance
+        product_id:
+          type: string
+          minLength: 1
+          title: Product Id
+        product_type:
+          type: string
+          minLength: 1
+          title: Product Type
+        module_id:
+          type: string
+          minLength: 1
+          title: Module Id
+        source_is_child:
+          type: boolean
+          title: Source Is Child
+        source_authoritative_zero_fill:
+          type: boolean
+          title: Source Authoritative Zero Fill
+        source_follow_up_child_absent:
+          type: boolean
+          title: Source Follow Up Child Absent
+        automatic_semantic_claim_absent:
+          type: boolean
+          title: Automatic Semantic Claim Absent
+        portfolio_scope_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Portfolio Scope Sha256
+        slot_limit:
+          type: integer
+          const: 1
+          title: Slot Limit
+          default: 1
+        slot_used:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Slot Used
+        attachment_notional_usdc:
+          type: string
+          const: '0'
+          title: Attachment Notional Usdc
+          default: '0'
+        submitted_notional_usdc:
+          type: string
+          const: '0'
+          title: Submitted Notional Usdc
+          default: '0'
+        executed_notional_usdc:
+          type: string
+          const: '0'
+          title: Executed Notional Usdc
+          default: '0'
+        future_materialization_requires_fresh_authorization:
+          type: boolean
+          const: true
+          title: Future Materialization Requires Fresh Authorization
+          default: true
+      additionalProperties: false
+      type: object
+      required:
+      - source_client_order_id
+      - root_client_order_id
+      - source_found
+      - eligible
+      - eligibility_status
+      - source_status
+      - source_ownership_provenance
+      - product_id
+      - product_type
+      - module_id
+      - source_is_child
+      - source_authoritative_zero_fill
+      - source_follow_up_child_absent
+      - automatic_semantic_claim_absent
+      - portfolio_scope_sha256
+      - slot_used
+      title: AdminOrderFollowUpIntentEligibilityEvidence
+      description: Backend-owned evidence for the source order's single intent slot.
+    AdminOrderFollowUpIntentItem:
+      properties:
+        follow_up_intent_id:
+          type: string
+          minLength: 1
+          title: Follow Up Intent Id
+        claim_id:
+          type: string
+          minLength: 1
+          title: Claim Id
+        source_client_order_id:
+          type: string
+          minLength: 1
+          title: Source Client Order Id
+        root_client_order_id:
+          type: string
+          minLength: 1
+          title: Root Client Order Id
+        trigger:
+          type: string
+          const: FILLED
+          title: Trigger
+          default: FILLED
+        intent_kind:
+          type: string
+          const: single_on_full_fill
+          title: Intent Kind
+          default: single_on_full_fill
+        semantic_intent:
+          type: string
+          enum:
+          - EXIT
+          - REBUY
+          - SAME_SIDE_REPLACEMENT
+          title: Semantic Intent
+        derived_follow_up_side:
+          type: string
+          enum:
+          - BUY
+          - SELL
+          title: Derived Follow Up Side
+        state:
+          type: string
+          const: ATTACHED
+          title: State
+          default: ATTACHED
+        intent_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Intent Sha256
+        audit_id:
+          type: string
+          minLength: 1
+          title: Audit Id
+        correlation_id:
+          type: string
+          minLength: 1
+          title: Correlation Id
+        recorded_at:
+          type: string
+          minLength: 1
+          title: Recorded At
+        future_materialization_requires_fresh_authorization:
+          type: boolean
+          const: true
+          title: Future Materialization Requires Fresh Authorization
+          default: true
+      additionalProperties: false
+      type: object
+      required:
+      - follow_up_intent_id
+      - claim_id
+      - source_client_order_id
+      - root_client_order_id
+      - semantic_intent
+      - derived_follow_up_side
+      - intent_sha256
+      - audit_id
+      - correlation_id
+      - recorded_at
+      title: AdminOrderFollowUpIntentItem
+      description: One durable intent; this is not a child order or live approval.
+    AdminOrderFollowUpIntentReadResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_order_follow_up_intent_readback
+        source_client_order_id:
+          type: string
+          minLength: 1
+          title: Source Client Order Id
+        root_client_order_id:
+          type: string
+          minLength: 1
+          title: Root Client Order Id
+        eligibility:
+          $ref: '#/components/schemas/AdminOrderFollowUpIntentEligibilityEvidence'
+        follow_up_intent:
+          anyOf:
+          - $ref: '#/components/schemas/AdminOrderFollowUpIntentItem'
+          - type: 'null'
+        read_only:
+          type: boolean
+          const: true
+          title: Read Only
+          default: true
+        local_state_mutated:
+          type: boolean
+          const: false
+          title: Local State Mutated
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          const: false
+          title: Live Coinbase Read Ran
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          const: false
+          title: Live Coinbase Orders Ran
+          default: false
+        order_engine_follow_up_handler_called:
+          type: boolean
+          const: false
+          title: Order Engine Follow Up Handler Called
+          default: false
+        follow_up_child_created:
+          type: boolean
+          const: false
+          title: Follow Up Child Created
+          default: false
+        reconciliation_ran:
+          type: boolean
+          const: false
+          title: Reconciliation Ran
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          const: false
+          title: Exchange State Mutated
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+      additionalProperties: false
+      type: object
+      required:
+      - source_client_order_id
+      - root_client_order_id
+      - eligibility
+      title: AdminOrderFollowUpIntentReadResponse
+      description: Authoritative local readback for a source order's one intent slot.
     AdminOrderListResponse:
       properties:
         type:

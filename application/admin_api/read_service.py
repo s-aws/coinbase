@@ -10797,6 +10797,64 @@ class AdminApiReadService:
                 ),
             ),
             mutation_taxonomy_from_surface(
+                surface=(
+                    "POST /api/v1/orders/{source_client_order_id}/"
+                    "follow-up-intent"
+                ),
+                mutation_id="spot.follow_up_intent",
+                mutation_family=(
+                    AdminApiMutationFamilyType.SPOT_FOLLOW_UP_INTENT
+                ),
+                workflow_id="spot.order_command_drafts",
+                related_workflow_ids=["spot.read_models"],
+                module="Spot Operations",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED
+                ),
+                support_status=(
+                    AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
+                ),
+                summary=(
+                    "The checkpointed route can attach one backend-derived, "
+                    "local future follow-up intent without creating a child or "
+                    "calling Coinbase. It remains disabled until persistence, "
+                    "audit, eligibility, and operator-page gates pass."
+                ),
+                identity_keys=["client_order_id", "follow_up_intent_id"],
+                owning_backend_service=(
+                    "application/admin_api/operator_follow_up_intent.py"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/orders.py::attach_order_follow_up_intent",
+                    "application/admin_api/operator_follow_up_intent.py::OperatorFollowUpIntentService",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_READ_MODELS.md",
+                    "docs/ORIGIN_PROD_FEATURE_MVP_MAP.md",
+                ],
+                blockers=[
+                    "operator_follow_up_intent_disabled",
+                    "operator_workspace_integration_required",
+                ],
+                live_adapter_required=False,
+                frontend_boundary=(
+                    "The browser may eventually forward only acknowledgement, "
+                    "idempotency, correlation, and explicit operator intent. It "
+                    "must not derive order fields, create a child, or call Coinbase."
+                ),
+                route_local_boundary=(
+                    "The route is a local-state mutation and is fail-closed behind "
+                    "one exact feature gate during this checkpoint."
+                ),
+                spot_rule_boundary=(
+                    "This intent is restricted to authoritative system-owned Spot "
+                    "orders and grants no Futures or generic exchange authority."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
                 surface=FILL_FOLLOW_UP_TRIGGER_ENDPOINT,
                 mutation_id="spot.fill_follow_up_trigger",
                 mutation_family=AdminApiMutationFamilyType.SPOT_MANUAL_ORDER,

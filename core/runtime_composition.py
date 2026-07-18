@@ -76,6 +76,7 @@ def build_canonical_order_runtime(
         "create_order_parent_table",
         "create_order_match_audit_table",
         "create_order_moves_table",
+        "create_order_follow_up_intent_tables",
     ):
         schema_initializer = getattr(
             db_module,

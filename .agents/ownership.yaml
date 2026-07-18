@@ -161,6 +161,7 @@ owners:
       - core/product_capability.py
       - core/spot_follow_up_policy.py
       - core/order_engine.py
+      - core/operator_follow_up_intent.py
       - core/orderbook.py
       - business/order_progress.py
       - business/move_manager.py
@@ -179,6 +180,7 @@ owners:
       - tests/regression/test_seed_child_placement_from_db.py
       - tests/unit/test_orderbook_v2.py
       - tests/unit/test_order_id_and_followup_rules.py
+      - tests/unit/test_order_engine_operator_follow_up_intent_slot.py
       - tests/unit/test_order_engine_portfolio_scope.py
       - tests/unit/test_filled_followup_*.py
       - tests/unit/test_order_progress_tracker.py

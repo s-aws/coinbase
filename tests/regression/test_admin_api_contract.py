@@ -75612,8 +75612,16 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "GET /api/v1/spot/pnl/checkpoints/{checkpoint_id}"
         in spot_module["read_routes"]
     )
-    assert spot_module["action_posture"]["read_route_count"] == 21
-    assert spot_module["action_posture"]["command_route_count"] == 16
+    assert (
+        "GET /api/v1/orders/{source_client_order_id}/follow-up-intent"
+        in spot_module["read_routes"]
+    )
+    assert (
+        "POST /api/v1/orders/{source_client_order_id}/follow-up-intent"
+        in spot_module["command_routes"]
+    )
+    assert spot_module["action_posture"]["read_route_count"] == 22
+    assert spot_module["action_posture"]["command_route_count"] == 17
     assert spot_module["action_posture"]["live_route_count"] == 5
     assert spot_module["action_posture"]["command_gap_count"] == 2
     admin_module = registry_by_id["admin_system_health"]

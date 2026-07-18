@@ -50,6 +50,55 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="spot_operations",
+        surface=(
+            "GET /api/v1/orders/{source_client_order_id}/follow-up-intent"
+        ),
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not applicable; authoritative local readback only",
+        caps="backend-owned one-slot and zero-attachment-notional evidence",
+        audit="durable attachment audit binding is returned when present",
+        shared_method="read_order_follow_up_intent",
+        parity_test=(
+            "source/root client_order_id, eligibility, and durable intent "
+            "readback only; no Coinbase read, order-engine handler, child "
+            "creation, reconciliation execution, or exchange mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface=(
+            "POST /api/v1/orders/{source_client_order_id}/follow-up-intent"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.ORDER_CREATE,
+        idempotency=(
+            "required; same key and payload replay, changed payload conflicts"
+        ),
+        approval=(
+            "not a live approval; exact operator acknowledgement is required "
+            "and later materialization requires fresh authorization"
+        ),
+        caps=(
+            "exactly one durable source slot and zero attachment/submitted "
+            "notional; later materialization caps are evaluated separately"
+        ),
+        audit=(
+            "required durable actor, environment, portfolio, source/root, "
+            "intent hash, claim, correlation, and terminal-result binding"
+        ),
+        shared_method="attach_order_follow_up_intent",
+        parity_test=(
+            "atomic backend eligibility and single-slot CAS for an OPEN, "
+            "system-owned, zero-fill Spot source; derives identity, side, "
+            "semantic intent, and policy without browser trading fields; no "
+            "Coinbase call, order-engine handler, child creation, automatic "
+            "fill trigger, reconciliation execution, or exchange mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
         surface="POST /api/v1/orders/{client_order_id}/reconciliation",
         action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
         permission=AdminApiPermission.ORDER_CANCEL,

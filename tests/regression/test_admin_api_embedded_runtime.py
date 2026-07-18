@@ -67,6 +67,9 @@ def test_canonical_runtime_composer_builds_one_wired_identity_after_schema():
         create_order_parent_table=lambda: events.append("schema:parent"),
         create_order_match_audit_table=lambda: events.append("schema:match"),
         create_order_moves_table=lambda: events.append("schema:moves"),
+        create_order_follow_up_intent_tables=lambda: events.append(
+            "schema:follow-up-intent"
+        ),
     )
     manager = SimpleNamespace(profit_validator=None, fill_ledger_repo=None)
 
@@ -113,6 +116,7 @@ def test_canonical_runtime_composer_builds_one_wired_identity_after_schema():
         "schema:parent",
         "schema:match",
         "schema:moves",
+        "schema:follow-up-intent",
         "manager",
         "bridge",
         "engine",

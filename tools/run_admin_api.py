@@ -15,6 +15,7 @@ import sys
 from typing import Any
 
 from core.enums import AdminApiAuthMode
+from core.operator_follow_up_intent import operator_follow_up_intent_enabled
 from tools.coinbase_live_credentials import ensure_live_coinbase_credentials
 
 
@@ -38,6 +39,9 @@ OIDC_REQUIRED_ENV_VARS = (
     "COINBASE_ADMIN_API_OIDC_JWKS_URL",
 )
 STARTUP_AUTH_MODE_VALUES = tuple(mode.value for mode in AdminApiAuthMode)
+FOLLOW_UP_INTENT_SCHEMA_STARTUP_ERROR = (
+    "Admin API follow-up intent schema initialization failed."
+)
 
 
 @dataclass(frozen=True)
@@ -261,6 +265,16 @@ def startup_auth_error_message(
     )
 
 
+def initialize_order_follow_up_intent_schema() -> None:
+    """Create the durable single-slot follow-up-intent schema before serving."""
+
+    from database.order_follow_up_intent import (
+        create_order_follow_up_intent_tables,
+    )
+
+    create_order_follow_up_intent_tables()
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the local Admin API server."""
 
@@ -277,6 +291,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     except RuntimeError as exc:
         print(str(exc), file=sys.stderr)
         return 2
+
+    if operator_follow_up_intent_enabled():
+        try:
+            initialize_order_follow_up_intent_schema()
+        except Exception:
+            print(FOLLOW_UP_INTENT_SCHEMA_STARTUP_ERROR, file=sys.stderr)
+            return 2
 
     try:
         import uvicorn

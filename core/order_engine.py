@@ -101,6 +101,17 @@ from business.order_progress import OrderProgressTracker, OrderSnapshotDelta
 from integration.websocket_hooks import WebSocketHookRegistry, get_global_hook_registry
 from integration.order_placement_hooks import get_global_placement_hook_registry
 
+
+def _durable_follow_up_slot_required(db_module: object) -> bool:
+    """Resolve the exact feature gate without treating other truthy values as on."""
+
+    gate = getattr(
+        db_module,
+        "FOLLOW_UP_INTENT_DURABLE_SLOT_REQUIRED",
+        False,
+    )
+    return gate() is True if callable(gate) else gate is True
+
 # Dashboard integration (optional - will fail gracefully if dashboard_server not available)
 try:
     from dashboard_server import update_order, update_position, add_log_entry, update_engine_status, broadcast_ticker, record_spread_tick
@@ -234,6 +245,11 @@ class OrderEngine:
         """
         self.orderbook = orderbook
         self.db_module = db_module
+        # Durable automatic follow-up claims are the cross-process counterpart
+        # to OrderBook's in-memory claim ledger.  The mapping is populated only
+        # after the database has atomically admitted a FILLED/CANCELLED path and
+        # retains the claim id needed for compare-and-set release/completion.
+        self._durable_follow_up_claim_ids: Dict[tuple[str, str], str] = {}
         self.subscription = subscription
         self.expected_retail_portfolio_id = (
             str(getattr(subscription, "retail_portfolio_id", "") or "").strip()
@@ -986,6 +1002,40 @@ class OrderEngine:
             return None
 
         client_order_id = delta.client_order_id
+        automatic_follow_up_allowed = True
+        durable_slot_required = _durable_follow_up_slot_required(self.db_module)
+        if (
+            durable_slot_required
+            and delta.is_new_match
+            and safe_float(delta.cumulative_quantity, default=0.0) > 0.0
+        ):
+            mark_fill_activity = getattr(
+                self.db_module,
+                "mark_order_follow_up_positive_fill_activity",
+                None,
+            )
+            if callable(mark_fill_activity):
+                try:
+                    automatic_follow_up_allowed = (
+                        mark_fill_activity(
+                            source_client_order_id=client_order_id,
+                        )
+                        is True
+                    )
+                except Exception:
+                    automatic_follow_up_allowed = False
+            else:
+                automatic_follow_up_allowed = False
+
+            if not automatic_follow_up_allowed:
+                # Fill bookkeeping remains mandatory, but no automatic path may
+                # race or execute an operator-owned semantic slot.  Keep the
+                # diagnostic value-blind because persistence exceptions may
+                # contain private database values.
+                self.log_message(
+                    "order",
+                    {"event": "automatic_follow_up_blocked_by_durable_slot"},
+                )
 
         # 1. Per-match fill-ledger row + post/pre fill hooks.
         if delta.is_new_match and self.fill_repo and LOT_TRACKING_AVAILABLE:
@@ -994,7 +1044,8 @@ class OrderEngine:
             # 1b. Hotpoint Auto-Replicate dispatch. Silent no-op for orders
             #     not flagged ``enable_hotpoint_replication=TRUE``. Failures
             #     never propagate back into the WS pipeline.
-            self._maybe_dispatch_hotpoint(delta)
+            if automatic_follow_up_allowed:
+                self._maybe_dispatch_hotpoint(delta)
 
         # 2. Append-only audit row covering EVERY accepted snapshot.
         self._append_order_match_audit(delta, normalized_order)
@@ -1012,7 +1063,11 @@ class OrderEngine:
 
             # 4. Conditionally create partial-fill follow-up(s).
             #    Opt-in is parent-side; carry-vs-min check is delta-side.
-            if delta.is_new_match and not delta.is_terminal:
+            if (
+                automatic_follow_up_allowed
+                and delta.is_new_match
+                and not delta.is_terminal
+            ):
                 self._maybe_create_partial_fill_follow_up(delta, record)
 
         return delta
@@ -2067,7 +2122,80 @@ class OrderEngine:
             :class:`FollowUpKind` enum at the boundary so a future rename of
             either side cannot fail silently again.
         """
-        return self.orderbook.try_claim_follow_up(processed_flag_name, client_order_id)
+        normalized_kind = str(
+            getattr(processed_flag_name, "value", processed_flag_name) or ""
+        ).lower()
+        db_module = getattr(self, "db_module", None)
+        durable_required = _durable_follow_up_slot_required(db_module)
+        durable_kind = normalized_kind in {"filled", "cancelled"}
+
+        if durable_required and durable_kind:
+            claim = getattr(
+                db_module,
+                "try_claim_automatic_order_follow_up",
+                None,
+            )
+            if not callable(claim):
+                self.log_message(
+                    "error",
+                    {
+                        "event": "automatic_follow_up_durable_claim_unavailable",
+                        "trigger": normalized_kind,
+                    },
+                )
+                return False
+            try:
+                claim_id = claim(
+                    source_client_order_id=client_order_id,
+                    trigger=normalized_kind,
+                )
+            except Exception:
+                # The database exception may carry private values.  Emit only a
+                # fixed classification and fail before taking the local claim.
+                self.log_message(
+                    "error",
+                    {
+                        "event": "automatic_follow_up_durable_claim_failed",
+                        "trigger": normalized_kind,
+                    },
+                )
+                return False
+
+            if not isinstance(claim_id, str) or not claim_id.strip():
+                # None is the expected fail-closed result when an operator owns
+                # the semantic slot or another automatic claim already exists.
+                self.log_message(
+                    "order",
+                    {
+                        "event": "automatic_follow_up_durable_claim_blocked",
+                        "trigger": normalized_kind,
+                    },
+                )
+                return False
+
+            claim_key = (normalized_kind, str(client_order_id))
+            claim_ids = getattr(self, "_durable_follow_up_claim_ids", None)
+            if not isinstance(claim_ids, dict):
+                claim_ids = {}
+                self._durable_follow_up_claim_ids = claim_ids
+            claim_ids[claim_key] = claim_id.strip()
+
+        local_claimed = self.orderbook.try_claim_follow_up(
+            processed_flag_name,
+            client_order_id,
+        )
+        if not local_claimed and durable_required and durable_kind:
+            # Retain the durable PROCESSING claim.  Releasing it here would be
+            # unsafe: a local duplicate can mean prior work already crossed a
+            # persistence boundary.
+            self.log_message(
+                "order",
+                {
+                    "event": "automatic_follow_up_local_claim_blocked",
+                    "trigger": normalized_kind,
+                },
+            )
+        return local_claimed
 
     def release_follow_up_processing(self, processed_flag_name: str, client_order_id: str) -> None:
         """Release a processing claim (on error, before retry).
@@ -2079,6 +2207,51 @@ class OrderEngine:
         Returns:
             None
         """
+        normalized_kind = str(
+            getattr(processed_flag_name, "value", processed_flag_name) or ""
+        ).lower()
+        db_module = getattr(self, "db_module", None)
+        durable_required = _durable_follow_up_slot_required(db_module)
+        durable_kind = normalized_kind in {"filled", "cancelled"}
+        if durable_required and durable_kind:
+            claim_key = (normalized_kind, str(client_order_id))
+            claim_ids = getattr(self, "_durable_follow_up_claim_ids", {})
+            claim_id = claim_ids.get(claim_key) if isinstance(claim_ids, dict) else None
+            release = getattr(
+                db_module,
+                "release_automatic_order_follow_up_claim",
+                None,
+            )
+            if not claim_id or not callable(release):
+                self.log_message(
+                    "error",
+                    {
+                        "event": "automatic_follow_up_durable_release_unavailable",
+                        "trigger": normalized_kind,
+                    },
+                )
+                return
+            try:
+                released = release(
+                    source_client_order_id=client_order_id,
+                    trigger=normalized_kind,
+                    claim_id=claim_id,
+                )
+            except Exception:
+                released = False
+            if released is not True:
+                # An unknown durable release must retain the local claim so the
+                # caller cannot start a second automatic path blindly.
+                self.log_message(
+                    "error",
+                    {
+                        "event": "automatic_follow_up_durable_release_unknown",
+                        "trigger": normalized_kind,
+                    },
+                )
+                return
+            claim_ids.pop(claim_key, None)
+
         self.orderbook.release_follow_up(processed_flag_name, client_order_id)
 
     def complete_follow_up_processing(self, processed_flag_name: str, client_order_id: str) -> None:
@@ -2091,6 +2264,49 @@ class OrderEngine:
         Returns:
             None
         """
+        normalized_kind = str(
+            getattr(processed_flag_name, "value", processed_flag_name) or ""
+        ).lower()
+        db_module = getattr(self, "db_module", None)
+        durable_required = _durable_follow_up_slot_required(db_module)
+        durable_kind = normalized_kind in {"filled", "cancelled"}
+        if durable_required and durable_kind:
+            claim_key = (normalized_kind, str(client_order_id))
+            claim_ids = getattr(self, "_durable_follow_up_claim_ids", {})
+            claim_id = claim_ids.get(claim_key) if isinstance(claim_ids, dict) else None
+            complete = getattr(
+                db_module,
+                "complete_automatic_order_follow_up_claim",
+                None,
+            )
+            if not claim_id or not callable(complete):
+                self.log_message(
+                    "error",
+                    {
+                        "event": "automatic_follow_up_durable_completion_unavailable",
+                        "trigger": normalized_kind,
+                    },
+                )
+                return
+            try:
+                completed = complete(
+                    source_client_order_id=client_order_id,
+                    trigger=normalized_kind,
+                    claim_id=claim_id,
+                )
+            except Exception:
+                completed = False
+            if completed is not True:
+                self.log_message(
+                    "error",
+                    {
+                        "event": "automatic_follow_up_durable_completion_unknown",
+                        "trigger": normalized_kind,
+                    },
+                )
+                return
+            claim_ids.pop(claim_key, None)
+
         self.orderbook.complete_follow_up(processed_flag_name, client_order_id)
 
     def register_child_order(

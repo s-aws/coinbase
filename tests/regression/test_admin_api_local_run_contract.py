@@ -150,6 +150,11 @@ def test_admin_api_local_runner_fails_closed_when_oidc_startup_config_is_missing
 @pytest.mark.regression
 def test_admin_api_local_runner_starts_with_oidc_auth_without_bootstrap_token(monkeypatch):
     uvicorn_calls: list[dict[str, object]] = []
+    startup_events: list[str] = []
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_OPERATOR_FOLLOW_UP_INTENT_ENABLED",
+        "1",
+    )
     monkeypatch.delenv(run_admin_api.AUTH_TOKEN_ENV, raising=False)
     monkeypatch.setenv(run_admin_api.AUTH_MODE_ENV, AdminApiAuthMode.OIDC_JWT.value)
     monkeypatch.setenv("COINBASE_ADMIN_API_OIDC_ISSUER", "https://issuer.example.test")
@@ -163,10 +168,16 @@ def test_admin_api_local_runner_starts_with_oidc_auth_without_bootstrap_token(mo
         "uvicorn",
         SimpleNamespace(run=lambda **kwargs: uvicorn_calls.append(kwargs)),
     )
+    monkeypatch.setattr(
+        run_admin_api,
+        "initialize_order_follow_up_intent_schema",
+        lambda: startup_events.append("follow_up_intent_schema"),
+    )
 
     exit_code = run_admin_api.main(["--host", "0.0.0.0", "--port", "8787"])
 
     assert exit_code == 0
+    assert startup_events == ["follow_up_intent_schema"]
     assert uvicorn_calls == [
         {
             "app": "api.v1.app:app",
@@ -175,6 +186,59 @@ def test_admin_api_local_runner_starts_with_oidc_auth_without_bootstrap_token(mo
             "reload": False,
         }
     ]
+
+
+@pytest.mark.regression
+def test_admin_api_local_runner_fails_closed_when_follow_up_intent_schema_init_fails(
+    monkeypatch,
+    capsys,
+):
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_OPERATOR_FOLLOW_UP_INTENT_ENABLED",
+        "1",
+    )
+    monkeypatch.setenv(run_admin_api.AUTH_TOKEN_ENV, "local-test-token")
+    monkeypatch.setattr(
+        run_admin_api,
+        "initialize_order_follow_up_intent_schema",
+        lambda: (_ for _ in ()).throw(RuntimeError("withheld database detail")),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "uvicorn",
+        SimpleNamespace(run=lambda **_kwargs: pytest.fail("uvicorn must not start")),
+    )
+
+    exit_code = run_admin_api.main([])
+
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert captured.err.strip() == run_admin_api.FOLLOW_UP_INTENT_SCHEMA_STARTUP_ERROR
+    assert "withheld database detail" not in captured.err
+
+
+@pytest.mark.regression
+def test_admin_api_local_runner_skips_follow_up_intent_schema_when_feature_disabled(
+    monkeypatch,
+):
+    uvicorn_calls: list[dict[str, object]] = []
+    monkeypatch.setenv("COINBASE_ADMIN_API_OPERATOR_FOLLOW_UP_INTENT_ENABLED", "0")
+    monkeypatch.setenv(run_admin_api.AUTH_TOKEN_ENV, "local-test-token")
+    monkeypatch.setattr(
+        run_admin_api,
+        "initialize_order_follow_up_intent_schema",
+        lambda: pytest.fail("disabled feature must not initialize its schema"),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "uvicorn",
+        SimpleNamespace(run=lambda **kwargs: uvicorn_calls.append(kwargs)),
+    )
+
+    exit_code = run_admin_api.main([])
+
+    assert exit_code == 0
+    assert len(uvicorn_calls) == 1
 
 
 @pytest.mark.regression

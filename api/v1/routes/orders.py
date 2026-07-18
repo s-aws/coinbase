@@ -4,9 +4,18 @@ from __future__ import annotations
 
 import os
 import uuid
-from typing import Annotated, Callable
+from typing import Annotated, Callable, Literal, NoReturn
 
-from fastapi import APIRouter, Depends, Header, Path, Query, Request, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    Header,
+    HTTPException,
+    Path,
+    Query,
+    Request,
+    status,
+)
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
@@ -85,6 +94,9 @@ from application.admin_api.models import (
     AdminApiErrorResponse,
     AdminLiveAdmissionDecisionEvidence,
     AdminOrderDetailResponse,
+    AdminOrderFollowUpIntentAttachRequest,
+    AdminOrderFollowUpIntentAttachResponse,
+    AdminOrderFollowUpIntentReadResponse,
     AdminOrderFillFollowUpChildCancelReadinessResponse,
     AdminOrderFillFollowUpChildCancelRequest,
     AdminOrderFillFollowUpChainResponse,
@@ -123,6 +135,12 @@ from application.admin_api.stealth_command_execution import (
     build_stealth_command_execution_contract,
 )
 from application.admin_api.read_service import AdminApiReadService
+from application.admin_api.operator_follow_up_intent import (
+    OperatorFollowUpIntentError,
+    OperatorFollowUpIntentRequestContext,
+    OperatorFollowUpIntentService,
+    get_default_operator_follow_up_intent_service,
+)
 from application.admin_api.mvp_service import (
     AdminMvpRequestContext,
     AdminMvpService,
@@ -133,6 +151,7 @@ from core.coinbase_execution_authority import (
     COINBASE_EXECUTION_SCOPE_SPOT_PLACE,
     canonical_coinbase_execution_scope,
 )
+from core.operator_follow_up_intent import operator_follow_up_intent_enabled
 from core.enums import (
     AdminApiActionClass,
     AdminApiCommandStatus,
@@ -254,6 +273,51 @@ READ_ROUTE_RESPONSES = {
     },
 }
 
+FOLLOW_UP_INTENT_READ_ROUTE_RESPONSES = {
+    **READ_ROUTE_RESPONSES,
+    404: {
+        "model": AdminApiErrorResponse,
+        "description": "The backend-owned source order was not found.",
+    },
+    409: {
+        "model": AdminApiErrorResponse,
+        "description": "Authoritative source eligibility evidence conflicts.",
+    },
+    503: {
+        "model": AdminApiErrorResponse,
+        "description": "Authoritative local eligibility evidence is unavailable.",
+    },
+}
+
+FOLLOW_UP_INTENT_ATTACH_ROUTE_RESPONSES = {
+    200: {
+        "model": AdminOrderFollowUpIntentAttachResponse,
+        "description": "The one durable intent was accepted or replayed.",
+    },
+    400: {
+        "model": AdminApiErrorResponse,
+        "description": "The exact attach request was rejected before persistence.",
+    },
+    401: READ_ROUTE_RESPONSES[401],
+    403: READ_ROUTE_RESPONSES[403],
+    404: {
+        "model": AdminApiErrorResponse,
+        "description": "The backend-owned source order was not found.",
+    },
+    409: {
+        "model": AdminApiErrorResponse,
+        "description": "Idempotency, source-slot, or semantic-claim conflict.",
+    },
+    422: {
+        "model": AdminApiErrorResponse,
+        "description": "Required headers or the acknowledgement are invalid.",
+    },
+    503: {
+        "model": AdminApiErrorResponse,
+        "description": "Authoritative local eligibility evidence is unavailable.",
+    },
+}
+
 
 def get_read_service() -> AdminApiReadService:
     """Return the read-only Admin API status service."""
@@ -311,8 +375,55 @@ def get_mvp_service() -> AdminMvpService:
     return get_admin_mvp_service()
 
 
+def get_order_follow_up_intent_service() -> OperatorFollowUpIntentService:
+    """Return the durable backend authority for the source's one intent slot."""
+
+    return get_default_operator_follow_up_intent_service()
+
+
+def require_operator_follow_up_intent_enabled() -> None:
+    """Fail closed until the checkpointed local-state feature is activated."""
+
+    if not operator_follow_up_intent_enabled():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="operator_follow_up_intent_disabled",
+        )
+
+
 def _read_response(payload: object) -> JSONResponse:
     return JSONResponse(content=jsonable_encoder(payload))
+
+
+def _raise_follow_up_intent_error(exc: OperatorFollowUpIntentError) -> NoReturn:
+    """Expose only the service's fixed value-blind diagnostic code."""
+
+    raise HTTPException(
+        status_code=exc.http_status_code,
+        detail=exc.code,
+    ) from exc
+
+
+def _follow_up_intent_attach_response(
+    payload: AdminOrderFollowUpIntentAttachResponse,
+) -> JSONResponse:
+    """Map the typed local result without implying any exchange authority."""
+
+    status_code = status.HTTP_200_OK
+    if payload.status == AdminApiCommandStatus.CONFLICT:
+        status_code = status.HTTP_409_CONFLICT
+    elif payload.status == AdminApiCommandStatus.REJECTED:
+        status_code = status.HTTP_400_BAD_REQUEST
+    elif payload.status == AdminApiCommandStatus.NOT_IMPLEMENTED:
+        status_code = status.HTTP_501_NOT_IMPLEMENTED
+    headers = {"X-Correlation-Id": payload.correlation_id}
+    if payload.replayed or payload.status == AdminApiCommandStatus.REPLAYED:
+        headers["X-Idempotency-Replayed"] = "true"
+    return JSONResponse(
+        status_code=status_code,
+        content=payload.model_dump(mode="json"),
+        headers=headers,
+    )
 
 
 def _admin_mvp_read_context(
@@ -1496,6 +1607,81 @@ def get_order_by_client_order_id(
 
     require_permission(actor, AdminApiPermission.AUDIT_READ)
     return _read_response(service.build_order_detail(client_order_id=client_order_id))
+
+
+@router.get(
+    "/orders/{source_client_order_id}/follow-up-intent",
+    response_model=AdminOrderFollowUpIntentReadResponse,
+    responses=FOLLOW_UP_INTENT_READ_ROUTE_RESPONSES,
+    summary="Read one backend-owned future follow-up intent slot",
+)
+def get_order_follow_up_intent(
+    source_client_order_id: Annotated[str, Path(min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    _feature_enabled: Annotated[
+        None,
+        Depends(require_operator_follow_up_intent_enabled),
+    ],
+    service: Annotated[
+        OperatorFollowUpIntentService,
+        Depends(get_order_follow_up_intent_service),
+    ],
+) -> JSONResponse:
+    """Read authoritative local eligibility and intent evidence only."""
+
+    require_permission(actor, AdminApiPermission.AUDIT_READ)
+    try:
+        payload = service.read(source_client_order_id=source_client_order_id)
+    except OperatorFollowUpIntentError as exc:
+        _raise_follow_up_intent_error(exc)
+    return _read_response(payload)
+
+
+@router.post(
+    "/orders/{source_client_order_id}/follow-up-intent",
+    response_model=AdminOrderFollowUpIntentAttachResponse,
+    status_code=status.HTTP_200_OK,
+    responses=FOLLOW_UP_INTENT_ATTACH_ROUTE_RESPONSES,
+    summary="Attach one durable future follow-up intent without executing it",
+)
+def attach_order_follow_up_intent(
+    body: AdminOrderFollowUpIntentAttachRequest,
+    source_client_order_id: Annotated[str, Path(min_length=1)],
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[
+        Literal["attach_single_follow_up_intent"],
+        Header(alias="X-Operator-Intent"),
+    ],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    _feature_enabled: Annotated[
+        None,
+        Depends(require_operator_follow_up_intent_enabled),
+    ],
+    service: Annotated[
+        OperatorFollowUpIntentService,
+        Depends(get_order_follow_up_intent_service),
+    ],
+) -> JSONResponse:
+    """Persist one backend-derived slot after atomic eligibility validation."""
+
+    require_permission(actor, AdminApiPermission.ORDER_CREATE)
+    context = OperatorFollowUpIntentRequestContext(
+        actor_id=actor.actor_id,
+        roles=tuple(role.value for role in actor.roles),
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+    )
+    try:
+        payload = service.attach(
+            source_client_order_id=source_client_order_id,
+            request=body,
+            context=context,
+        )
+    except OperatorFollowUpIntentError as exc:
+        _raise_follow_up_intent_error(exc)
+    return _follow_up_intent_attach_response(payload)
 
 
 @router.post(
