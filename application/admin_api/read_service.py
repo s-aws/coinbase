@@ -14091,24 +14091,22 @@ class AdminApiReadService:
             "offset": normalized_offset,
         }
         try:
-            from database.order import get_parent_orders
+            from database.order import get_parent_orders_page
 
-            rows = get_parent_orders() or []
+            rows, total_matching_count = get_parent_orders_page(
+                product_id=product_id,
+                status=status,
+                limit=normalized_limit,
+                offset=normalized_offset,
+            )
         except Exception as exc:
             filters["backend_read_error"] = _value_blind_exception_detail(exc)
             rows = []
+            total_matching_count = 0
 
-        filtered: list[dict[str, Any]] = []
-        for row in rows:
-            if product_id and row.get("product_id") != product_id:
-                continue
-            if status and str(row.get("status") or "").lower() != status.lower():
-                continue
-            filtered.append(row)
-        page_rows = filtered[normalized_offset:normalized_offset + normalized_limit]
-        items = [_order_item_from_row(row) for row in page_rows]
+        items = [_order_item_from_row(row) for row in rows]
         next_offset = normalized_offset + len(items)
-        has_more = next_offset < len(filtered)
+        has_more = next_offset < total_matching_count
         return AdminOrderListResponse(
             filters=filters,
             count=len(items),
@@ -14116,29 +14114,43 @@ class AdminApiReadService:
                 "limit": normalized_limit,
                 "offset": normalized_offset,
                 "returned_count": len(items),
-                "total_matching_count": len(filtered),
+                "total_matching_count": total_matching_count,
                 "next_offset": next_offset if has_more else None,
                 "has_more": has_more,
             },
             items=items,
         )
 
-    def build_order_detail(self, *, client_order_id: str) -> AdminOrderDetailResponse:
-        """Return one read-only order row by ``client_order_id``."""
+    def build_order_detail(
+        self,
+        *,
+        client_order_id: str,
+        include_diagnostics: bool = False,
+    ) -> AdminOrderDetailResponse:
+        """Return one lightweight row; diagnostics remain an explicit view."""
 
         try:
-            from database.order import get_parent_order
+            if include_diagnostics:
+                from database.order import get_parent_order
 
-            row = get_parent_order(client_order_id)
+                row = get_parent_order(client_order_id)
+            else:
+                from database.order import get_parent_order_summary
+
+                row = get_parent_order_summary(client_order_id)
         except Exception:
             row = None
         return AdminOrderDetailResponse(
             client_order_id=client_order_id,
             found=row is not None,
             order=_order_item_from_row(row) if row else None,
-            fill_follow_up_decision_audit=_order_fill_follow_up_decision_audit(
-                row,
-                client_order_id=client_order_id,
+            fill_follow_up_decision_audit=(
+                _order_fill_follow_up_decision_audit(
+                    row,
+                    client_order_id=client_order_id,
+                )
+                if include_diagnostics
+                else None
             ),
         )
 

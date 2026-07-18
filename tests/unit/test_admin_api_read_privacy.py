@@ -69,7 +69,18 @@ def test_order_list_detail_and_chain_redact_internal_portfolio_and_row_ids(
         "get_parent_order",
         lambda client_order_id: root if client_order_id == ROOT_ID else child,
     )
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_order_summary",
+        lambda client_order_id: root if client_order_id == ROOT_ID else child,
+        raising=False,
+    )
     monkeypatch.setattr(order_module, "get_parent_orders", lambda: [root, child])
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_orders_page",
+        lambda **_kwargs: ([root, child], 2),
+    )
     monkeypatch.setattr(
         order_module,
         "get_stealth_children_for_parent",

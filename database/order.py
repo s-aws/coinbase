@@ -2036,6 +2036,90 @@ def get_parent_orders() -> List[Dict[str, Any]]:
     return DB_CLIENT.execute_query(query)
 
 
+def get_parent_orders_page(
+    *,
+    product_id: Optional[str] = None,
+    status: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> tuple[List[Dict[str, Any]], int]:
+    """Return one deterministic, filtered order page and its total count.
+
+    This is the lightweight operator-list read path.  It intentionally selects
+    only fields exposed by the ordinary Admin order summary instead of loading
+    every ``order_parent`` column and paginating in application memory.
+    """
+
+    normalized_limit = max(1, min(int(limit), 500))
+    normalized_offset = max(0, int(offset))
+    clauses: List[str] = []
+    params: List[Any] = []
+    if product_id:
+        clauses.append("product_id = %s")
+        params.append(str(product_id))
+    if status:
+        clauses.append("status = %s")
+        params.append(str(status).upper())
+    where_clause = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+
+    count_query = (
+        "SELECT COUNT(*) AS total_matching_count FROM order_parent"
+        f"{where_clause}"
+    )
+    count_rows = DB_CLIENT.execute_query(count_query, tuple(params)) or []
+    total_matching_count = (
+        int(count_rows[0].get("total_matching_count") or 0)
+        if count_rows
+        else 0
+    )
+
+    page_query = f"""
+    SELECT
+        client_order_id,
+        product_id,
+        side,
+        status,
+        size,
+        price,
+        parent_order_id,
+        ownership_provenance,
+        created_at,
+        exchange_order_id,
+        correlation_id,
+        audit_id
+    FROM order_parent{where_clause}
+    ORDER BY created_at DESC, id DESC
+    LIMIT %s OFFSET %s
+    """
+    page_params = tuple([*params, normalized_limit, normalized_offset])
+    rows = DB_CLIENT.execute_query(page_query, page_params) or []
+    return rows, total_matching_count
+
+
+def get_parent_order_summary(client_order_id: str) -> Optional[Dict[str, Any]]:
+    """Return the lightweight operator-facing fields for one parent order."""
+
+    query = """
+    SELECT
+        client_order_id,
+        product_id,
+        side,
+        status,
+        size,
+        price,
+        parent_order_id,
+        ownership_provenance,
+        created_at,
+        exchange_order_id,
+        correlation_id,
+        audit_id
+    FROM order_parent
+    WHERE client_order_id = %s
+    """
+    results = DB_CLIENT.execute_query(query, (client_order_id,)) or []
+    return results[0] if results else None
+
+
 def get_parent_order(client_order_id: str) -> Optional[Dict[str, Any]]:
     """Retrieve a single parent order by client_order_id.
     

@@ -357,4 +357,71 @@ class TestDataIntegrity:
         assert original["created_at"] == updated["created_at"]
 
 
+def test_get_parent_orders_page_filters_and_paginates_in_postgres(monkeypatch):
+    calls: list[tuple[str, tuple[object, ...] | None]] = []
+
+    def execute_query(query, params=None):
+        normalized = " ".join(query.split())
+        calls.append((normalized, params))
+        if normalized.startswith("SELECT COUNT(*)"):
+            return [{"total_matching_count": 7}]
+        return [
+            {
+                "client_order_id": "00000000-0000-4000-8000-000000000007",
+                "product_id": "BTC-USDC",
+                "status": "OPEN",
+            }
+        ]
+
+    monkeypatch.setattr(order_db.DB_CLIENT, "execute_query", execute_query)
+
+    rows, total = order_db.get_parent_orders_page(
+        product_id="BTC-USDC",
+        status="open",
+        limit=25,
+        offset=50,
+    )
+
+    assert total == 7
+    assert rows[0]["client_order_id"].endswith("0007")
+    assert len(calls) == 2
+    count_query, count_params = calls[0]
+    page_query, page_params = calls[1]
+    assert "product_id = %s" in count_query
+    assert "status = %s" in count_query
+    assert "SELECT *" not in page_query
+    assert "ORDER BY created_at DESC, id DESC" in page_query
+    assert "LIMIT %s OFFSET %s" in page_query
+    assert count_params == ("BTC-USDC", "OPEN")
+    assert page_params == ("BTC-USDC", "OPEN", 25, 50)
+
+
+def test_get_parent_order_summary_selects_only_operator_read_fields(monkeypatch):
+    calls: list[tuple[str, tuple[object, ...] | None]] = []
+
+    def execute_query(query, params=None):
+        calls.append((" ".join(query.split()), params))
+        return [
+            {
+                "client_order_id": "00000000-0000-4000-8000-000000000008",
+                "product_id": "ETH-USDC",
+                "status": "OPEN",
+            }
+        ]
+
+    monkeypatch.setattr(order_db.DB_CLIENT, "execute_query", execute_query)
+
+    row = order_db.get_parent_order_summary(
+        "00000000-0000-4000-8000-000000000008"
+    )
+
+    assert row is not None
+    assert row["product_id"] == "ETH-USDC"
+    assert len(calls) == 1
+    query, params = calls[0]
+    assert "SELECT *" not in query
+    assert "FROM order_parent WHERE client_order_id = %s" in query
+    assert params == ("00000000-0000-4000-8000-000000000008",)
+
+
 # Run with: pytest tests/unit/test_database.py -v

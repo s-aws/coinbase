@@ -78395,7 +78395,18 @@ def test_admin_api_order_list_read_service_returns_pagination_metadata(monkeypat
         }
         for index in range(5)
     ]
-    monkeypatch.setattr(order_module, "get_parent_orders", lambda: rows)
+    calls: list[dict[str, object]] = []
+
+    def get_parent_orders_page(**kwargs):
+        calls.append(kwargs)
+        return rows[1:3], len(rows)
+
+    monkeypatch.setattr(order_module, "get_parent_orders_page", get_parent_orders_page)
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_orders",
+        lambda: pytest.fail("paged list must not load every order row"),
+    )
 
     response = AdminApiReadService().build_order_list(
         product_id="BTC-USDC",
@@ -78414,6 +78425,59 @@ def test_admin_api_order_list_read_service_returns_pagination_metadata(monkeypat
     assert response.pagination.total_matching_count == 5
     assert response.pagination.next_offset == 3
     assert response.pagination.has_more is True
+    assert calls == [
+        {
+            "product_id": "BTC-USDC",
+            "status": "OPEN",
+            "limit": 2,
+            "offset": 1,
+        }
+    ]
+
+
+@pytest.mark.regression
+def test_admin_api_order_detail_is_lightweight_and_excludes_diagnostic_evidence(
+    monkeypatch,
+):
+    import application.admin_api.read_service as read_service
+    import database.order as order_module
+
+    from application.admin_api.read_service import AdminApiReadService
+
+    client_order_id = "00000000-0000-4000-8000-000000000009"
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_order_summary",
+        lambda requested_id: {
+            "client_order_id": requested_id,
+            "product_id": "BTC-USDC",
+            "status": "OPEN",
+        },
+        raising=False,
+    )
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_order",
+        lambda _requested_id: pytest.fail(
+            "ordinary detail must not load the diagnostic order path"
+        ),
+    )
+    monkeypatch.setattr(
+        read_service,
+        "_order_fill_follow_up_decision_audit",
+        lambda *_args, **_kwargs: pytest.fail(
+            "ordinary detail must not build diagnostic evidence"
+        ),
+    )
+
+    response = AdminApiReadService().build_order_detail(
+        client_order_id=client_order_id
+    )
+
+    assert response.found is True
+    assert response.order is not None
+    assert response.order.client_order_id == client_order_id
+    assert response.fill_follow_up_decision_audit is None
 
 
 @pytest.mark.regression
@@ -78475,7 +78539,8 @@ def test_admin_api_order_detail_surfaces_no_live_fill_follow_up_decision(
     )
 
     response = AdminApiReadService().build_order_detail(
-        client_order_id="root-follow-up-buy"
+        client_order_id="root-follow-up-buy",
+        include_diagnostics=True,
     )
 
     payload = response.model_dump(mode="json")
@@ -78583,7 +78648,10 @@ def test_admin_api_order_detail_reports_automatic_owned_root_processing(
         lambda: SimpleNamespace(order_engine=fake_engine),
     )
 
-    response = AdminApiReadService().build_order_detail(client_order_id=root_id)
+    response = AdminApiReadService().build_order_detail(
+        client_order_id=root_id,
+        include_diagnostics=True,
+    )
 
     audit = response.model_dump(mode="json")["fill_follow_up_decision_audit"]
     assert audit["ownership_provenance"] == "ADMIN_MANUAL_ROOT"
