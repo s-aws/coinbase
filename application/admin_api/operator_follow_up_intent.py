@@ -10,6 +10,9 @@ from dataclasses import dataclass
 import hashlib
 import json
 import os
+from typing import Any
+
+from application.admin_api.audit import AdminApiAuditEvent, FileAdminApiAuditStore
 
 from application.admin_api.models import (
     AdminOrderFollowUpIntentAttachRequest,
@@ -155,6 +158,10 @@ def _translate_store_error(exc: FollowUpIntentStoreError) -> OperatorFollowUpInt
     if isinstance(exc, FollowUpIntentStoreUnavailable):
         return OperatorFollowUpIntentError(exc.code, 503)
     if isinstance(exc, FollowUpIntentStoreConflict):
+        if exc.code == "source_order_not_found":
+            return OperatorFollowUpIntentError(exc.code, 404)
+        if exc.code == "source_client_order_id_invalid":
+            return OperatorFollowUpIntentError(exc.code, 422)
         return OperatorFollowUpIntentError(exc.code, 409)
     return OperatorFollowUpIntentError("follow_up_intent_backend_unavailable", 503)
 
@@ -165,8 +172,46 @@ class OperatorFollowUpIntentService:
     def __init__(
         self,
         repository: OperatorFollowUpIntentRepository | None = None,
+        audit_store: Any | None = None,
     ) -> None:
         self.repository = repository or get_default_repository()
+        self.audit_store = audit_store or FileAdminApiAuditStore()
+
+    def _append_command_audit(
+        self,
+        *,
+        context: OperatorFollowUpIntentRequestContext,
+        source_client_order_id: str,
+        status: AdminApiCommandStatus,
+        failure_stage: str | None,
+        message: str,
+        audit_id: str | None = None,
+    ) -> None:
+        event_fields: dict[str, Any] = {
+            "actor_id": context.actor_id,
+            "action_class": AdminApiActionClass.LOCAL_STATE_MUTATION,
+            "permission": AdminApiPermission.ORDER_CREATE,
+            "endpoint": "/api/v1/orders/{source_client_order_id}/follow-up-intent",
+            "request_id": context.correlation_id,
+            "operator_intent": context.operator_intent,
+            "idempotency_key": context.idempotency_key,
+            "client_order_id": source_client_order_id,
+            "live_exchange_submitted": False,
+            "live_coinbase_orders_ran": False,
+            "live_coinbase_read_ran": False,
+            "status": status,
+            "failure_stage": failure_stage,
+            "message": message,
+        }
+        if audit_id is not None:
+            event_fields["audit_id"] = audit_id
+        try:
+            self.audit_store.append(AdminApiAuditEvent(**event_fields))
+        except Exception:
+            raise OperatorFollowUpIntentError(
+                "follow_up_intent_audit_unavailable",
+                503,
+            ) from None
 
     def read(
         self,
@@ -237,11 +282,41 @@ class OperatorFollowUpIntentService:
         try:
             result: FollowUpIntentAttachResult = self.repository.attach(command)
         except FollowUpIntentStoreError as exc:
+            self._append_command_audit(
+                context=context,
+                source_client_order_id=source_client_order_id,
+                status=(
+                    AdminApiCommandStatus.CONFLICT
+                    if exc.code in {
+                        "idempotency_conflict",
+                        "follow_up_intent_already_attached",
+                    }
+                    else AdminApiCommandStatus.REJECTED
+                ),
+                failure_stage=exc.code,
+                message="follow_up_intent_rejected",
+            )
             raise _translate_store_error(exc) from exc
 
         eligibility = _eligibility_model(result.eligibility)
         intent = _intent_model(result.record)
         replayed = bool(result.replayed)
+        self._append_command_audit(
+            context=context,
+            source_client_order_id=source_client_order_id,
+            status=(
+                AdminApiCommandStatus.REPLAYED
+                if replayed
+                else AdminApiCommandStatus.ACCEPTED
+            ),
+            failure_stage=None,
+            message=(
+                "follow_up_intent_replayed"
+                if replayed
+                else "follow_up_intent_attached"
+            ),
+            audit_id=(None if replayed else result.record.audit_id),
+        )
         return AdminOrderFollowUpIntentAttachResponse(
             status=(
                 AdminApiCommandStatus.REPLAYED

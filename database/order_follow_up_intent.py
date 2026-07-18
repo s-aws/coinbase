@@ -17,8 +17,16 @@ import threading
 from typing import Any, Callable, Mapping
 import uuid
 
-from core.enums import OrderOwnershipProvenance, OrderSide, OrderStatus, ProductType
-from core.operator_follow_up_intent import operator_follow_up_intent_enabled
+from core.enums import (
+    FollowUpSemanticClaimKind,
+    FollowUpSemanticClaimState,
+    OrderOwnershipProvenance,
+)
+from core.operator_follow_up_intent import (
+    evaluate_operator_follow_up_intent_policy,
+    operator_follow_up_intent_scope_applies,
+    operator_follow_up_intent_enabled,
+)
 from core.product_capability import resolve_product_context
 from core.spot_follow_up_policy import evaluate_spot_follow_up_policy
 
@@ -26,12 +34,16 @@ from core.spot_follow_up_policy import evaluate_spot_follow_up_policy
 FOLLOW_UP_INTENT_DURABLE_SLOT_REQUIRED = operator_follow_up_intent_enabled
 
 _SCHEMA_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-_SYSTEM_OWNERSHIP = {
-    OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value,
-    OrderOwnershipProvenance.ADMIN_FILL_FOLLOW_UP.value,
+_AUTOMATIC_CLAIM_KINDS = {
+    FollowUpSemanticClaimKind.AUTOMATIC_FILLED.value,
+    FollowUpSemanticClaimKind.AUTOMATIC_CANCELLED.value,
 }
-_ACTIVE_CLAIM_STATES = {"CLAIMED", "COMPLETED"}
-_AUTOMATIC_CLAIM_KINDS = {"AUTOMATIC_FILLED", "AUTOMATIC_CANCELLED"}
+_POSITIVE_FILL_EVIDENCE_TABLES = (
+    "fill_ledger",
+    "order_match_audit",
+    "order_event_stream",
+    "partial_fill_progress",
+)
 
 
 class FollowUpIntentStoreError(RuntimeError):
@@ -130,6 +142,21 @@ def _portfolio_sha256(portfolio_id: str) -> str:
     return hashlib.sha256(str(portfolio_id).encode("utf-8")).hexdigest()
 
 
+def _require_source_uuid(source_client_order_id: str) -> str:
+    value = str(source_client_order_id or "").strip()
+    try:
+        parsed = uuid.UUID(value)
+    except (ValueError, AttributeError, TypeError):
+        raise FollowUpIntentStoreConflict(
+            "source_client_order_id_invalid"
+        ) from None
+    if str(parsed) != value:
+        raise FollowUpIntentStoreConflict(
+            "source_client_order_id_invalid"
+        )
+    return str(parsed)
+
+
 def _row(cursor: Any) -> dict[str, Any] | None:
     value = cursor.fetchone()
     if value is None:
@@ -226,11 +253,69 @@ class OperatorFollowUpIntentRepository:
                         )
                         """
                     )
+                    cursor.execute(
+                        f"""
+                        CREATE OR REPLACE FUNCTION {self._table('lock_operator_follow_up_source')}()
+                        RETURNS trigger
+                        LANGUAGE plpgsql
+                        AS $$
+                        BEGIN
+                            IF NEW.client_order_id IS NOT NULL THEN
+                                PERFORM pg_advisory_xact_lock(
+                                    17291,
+                                    hashtext(NEW.client_order_id::text)
+                                );
+                            END IF;
+                            RETURN NEW;
+                        END;
+                        $$
+                        """
+                    )
+                    for table_name in _POSITIVE_FILL_EVIDENCE_TABLES:
+                        self._install_source_lock_trigger(cursor, table_name)
             except Exception as exc:
                 raise FollowUpIntentStoreUnavailable(
                     "follow_up_intent_store_unavailable"
                 ) from None
             self._schema_ready = True
+
+    def _install_source_lock_trigger(self, cursor: Any, table_name: str) -> None:
+        if table_name not in _POSITIVE_FILL_EVIDENCE_TABLES:
+            raise ValueError("unsupported_follow_up_source_lock_table")
+        cursor.execute("SELECT to_regclass(%s)", (f"{self.schema}.{table_name}",))
+        row = cursor.fetchone()
+        relation = (
+            next(iter(row.values()), None)
+            if isinstance(row, Mapping)
+            else (row[0] if row else None)
+        )
+        if relation is None:
+            return
+        trigger_name = "operator_follow_up_source_lock"
+        cursor.execute(
+            f"DROP TRIGGER IF EXISTS {trigger_name} ON {self._table(table_name)}"
+        )
+        cursor.execute(
+            f"""
+            CREATE TRIGGER {trigger_name}
+            BEFORE INSERT OR UPDATE ON {self._table(table_name)}
+            FOR EACH ROW
+            EXECUTE FUNCTION {self._table('lock_operator_follow_up_source')}()
+            """
+        )
+
+    def install_source_lock_trigger(self, table_name: str) -> None:
+        """Install the source advisory-lock trigger on a newly created table."""
+
+        if not self._schema_ready:
+            return
+        try:
+            with self.db.get_cursor() as cursor:
+                self._install_source_lock_trigger(cursor, table_name)
+        except Exception:
+            raise FollowUpIntentStoreUnavailable(
+                "follow_up_intent_source_lock_unavailable"
+            ) from None
 
     @staticmethod
     def _lock_source(cursor: Any, source_client_order_id: str) -> None:
@@ -299,7 +384,11 @@ class OperatorFollowUpIntentRepository:
     def _exists(self, cursor: Any, query: str, params: tuple[Any, ...]) -> bool:
         cursor.execute(query, params)
         row = cursor.fetchone()
-        return bool(row and row[0])
+        if not row:
+            return False
+        if isinstance(row, Mapping):
+            return bool(next(iter(row.values()), False))
+        return bool(row[0])
 
     def _evaluate_locked(
         self,
@@ -349,15 +438,7 @@ class OperatorFollowUpIntentRepository:
         root_id = parent_id or source_client_order_id
         source_is_child = bool(parent_id)
 
-        if source_status != OrderStatus.OPEN.value:
-            blockers.append("source_status_not_open")
-        if provenance not in _SYSTEM_OWNERSHIP:
-            blockers.append("source_not_system_owned")
-        if not self.configured_spot_portfolio_id:
-            blockers.append("spot_portfolio_scope_unconfigured")
-        elif str(source.get("retail_portfolio_id") or "") != self.configured_spot_portfolio_id:
-            blockers.append("source_portfolio_scope_mismatch")
-
+        root_lineage_valid = False
         if source_is_child:
             cursor.execute(
                 f"""
@@ -370,7 +451,7 @@ class OperatorFollowUpIntentRepository:
                 (root_id,),
             )
             root = _row(cursor)
-            if (
+            root_lineage_valid = not (
                 root is None
                 or root.get("parent_order_id")
                 or str(root.get("ownership_provenance") or "")
@@ -378,36 +459,30 @@ class OperatorFollowUpIntentRepository:
                 or str(root.get("retail_portfolio_id") or "")
                 != self.configured_spot_portfolio_id
                 or str(root.get("product_id") or "") != product_id
-            ):
-                blockers.append("source_root_lineage_invalid")
-        elif provenance != OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value:
-            blockers.append("source_root_lineage_invalid")
+            )
+        else:
+            root_lineage_valid = (
+                provenance == OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+            )
 
-        try:
-            product_context = dict(self.product_context_resolver(product_id))
-            product_type = str(product_context.get("product_type") or "UNKNOWN")
-        except Exception:
-            product_type = "UNKNOWN"
-        if product_type != ProductType.SPOT.value:
-            blockers.append("source_product_not_spot")
-
-        follow_up_side = "SELL" if source_side == OrderSide.BUY.value else "BUY"
-        semantic_intent: str | None = None
-        if source_side not in {OrderSide.BUY.value, OrderSide.SELL.value}:
-            blockers.append("source_side_unsupported")
-        elif product_type == ProductType.SPOT.value:
-            try:
-                policy = self.spot_policy_evaluator(
-                    product_id=product_id,
-                    source_side=source_side,
-                    follow_up_side=follow_up_side,
-                    trigger="filled",
-                )
-                semantic_intent = str(getattr(policy, "intent", "") or "").upper()
-                if getattr(policy, "allowed", False) is not True:
-                    blockers.append("source_follow_up_policy_not_allowed")
-            except Exception:
-                blockers.append("source_follow_up_policy_not_allowed")
+        policy = evaluate_operator_follow_up_intent_policy(
+            source_status=source_status,
+            source_ownership_provenance=provenance,
+            spot_portfolio_configured=bool(self.configured_spot_portfolio_id),
+            source_portfolio_matches=(
+                str(source.get("retail_portfolio_id") or "")
+                == self.configured_spot_portfolio_id
+            ),
+            root_lineage_valid=root_lineage_valid,
+            product_id=product_id,
+            source_side=source_side,
+            product_context_resolver=self.product_context_resolver,
+            spot_policy_evaluator=self.spot_policy_evaluator,
+        )
+        blockers.extend(policy.blockers)
+        product_type = policy.product_type
+        follow_up_side = policy.derived_follow_up_side
+        semantic_intent = policy.semantic_intent
 
         fill_present = any(
             (
@@ -436,36 +511,56 @@ class OperatorFollowUpIntentRepository:
         if fill_present:
             blockers.append("source_has_positive_fill_evidence")
 
-        child_absent = not self._exists(
-            cursor,
+        cursor.execute(
             f"""
-            SELECT EXISTS (
-                SELECT 1 FROM {self._table('order_parent')}
-                 WHERE parent_order_id = %s AND client_order_id <> %s
-            )
+            SELECT client_order_id
+              FROM {self._table('order_parent')}
+             WHERE parent_order_id = %s AND client_order_id <> %s
+             ORDER BY created_at ASC, id ASC
             """,
             (root_id, source_client_order_id if source_is_child else ""),
         )
-        if not child_absent:
-            blockers.append("source_follow_up_child_already_exists")
+        related_children = cursor.fetchall()
+        child_absent = not related_children
+        if related_children:
+            blockers.append(
+                "source_follow_up_child_attribution_ambiguous"
+                if source_is_child
+                else "source_follow_up_child_already_exists"
+            )
 
         cursor.execute(
             f"""
             SELECT claim_kind, state
               FROM {self._table('order_follow_up_semantic_claim')}
-             WHERE source_client_order_id = %s AND state IN ('CLAIMED', 'COMPLETED')
+             WHERE source_client_order_id = %s AND state IN (%s, %s)
             """,
-            (source_client_order_id,),
+            (
+                source_client_order_id,
+                FollowUpSemanticClaimState.CLAIMED.value,
+                FollowUpSemanticClaimState.COMPLETED.value,
+            ),
         )
         claim_rows = cursor.fetchall()
         automatic_claim_absent = True
-        for claim_kind, _state in claim_rows:
+        for claim_row in claim_rows:
+            if isinstance(claim_row, Mapping):
+                claim_kind = claim_row.get("claim_kind")
+            else:
+                claim_kind = claim_row[0]
             kind = str(claim_kind)
+            automatic_claim_absent = False
             if kind in _AUTOMATIC_CLAIM_KINDS:
-                automatic_claim_absent = False
                 blockers.append("automatic_follow_up_claim_present")
-            elif kind == "POSITIVE_FILL_ACTIVITY":
+            elif kind == FollowUpSemanticClaimKind.POSITIVE_FILL_ACTIVITY.value:
                 blockers.append("source_has_positive_fill_activity")
+            elif (
+                kind == FollowUpSemanticClaimKind.OPERATOR_INTENT.value
+                and existing_intent is not None
+            ):
+                continue
+            else:
+                blockers.append("follow_up_semantic_claim_present")
 
         if existing_intent is not None:
             blockers.append("follow_up_intent_already_attached")
@@ -497,7 +592,7 @@ class OperatorFollowUpIntentRepository:
         )
 
     def read(self, source_client_order_id: str) -> FollowUpIntentReadback:
-        self.ensure_schema()
+        source_client_order_id = _require_source_uuid(source_client_order_id)
         try:
             with self.db.get_cursor() as cursor:
                 self._lock_source(cursor, source_client_order_id)
@@ -515,7 +610,41 @@ class OperatorFollowUpIntentRepository:
                 "follow_up_intent_evidence_unavailable"
             ) from None
 
+    def slot_applies(self, source_client_order_id: str) -> bool:
+        """Classify whether one engine order needs the durable slot interlock."""
+
+        try:
+            with self.db.get_cursor() as cursor:
+                cursor.execute(
+                    f"""
+                    SELECT product_id, ownership_provenance, retail_portfolio_id
+                      FROM {self._table('order_parent')}
+                     WHERE client_order_id = %s
+                    """,
+                    (source_client_order_id,),
+                )
+                source = _row(cursor)
+        except Exception:
+            raise FollowUpIntentStoreUnavailable(
+                "follow_up_intent_scope_unavailable"
+            ) from None
+        if source is None:
+            return False
+        return operator_follow_up_intent_scope_applies(
+            source_ownership_provenance=str(
+                source.get("ownership_provenance") or ""
+            ),
+            spot_portfolio_configured=bool(self.configured_spot_portfolio_id),
+            source_portfolio_matches=(
+                str(source.get("retail_portfolio_id") or "")
+                == self.configured_spot_portfolio_id
+            ),
+            product_id=str(source.get("product_id") or ""),
+            product_context_resolver=self.product_context_resolver,
+        )
+
     def attach(self, command: FollowUpIntentCommand) -> FollowUpIntentAttachResult:
+        _require_source_uuid(command.source_client_order_id)
         self.ensure_schema()
         try:
             with self.db.get_cursor() as cursor:
@@ -571,9 +700,15 @@ class OperatorFollowUpIntentRepository:
                     f"""
                     INSERT INTO {self._table('order_follow_up_semantic_claim')} (
                         claim_id, source_client_order_id, claim_kind, trigger, state
-                    ) VALUES (%s, %s, 'OPERATOR_INTENT', 'FILLED', 'COMPLETED')
+                    ) VALUES (%s, %s, %s, %s, %s)
                     """,
-                    (claim_id, command.source_client_order_id),
+                    (
+                        claim_id,
+                        command.source_client_order_id,
+                        FollowUpSemanticClaimKind.OPERATOR_INTENT.value,
+                        "FILLED",
+                        FollowUpSemanticClaimState.COMPLETED.value,
+                    ),
                 )
                 cursor.execute(
                     f"""
@@ -641,9 +776,13 @@ class OperatorFollowUpIntentRepository:
     def try_claim_automatic(self, *, source_client_order_id: str, trigger: str) -> str | None:
         self.ensure_schema()
         normalized = str(trigger or "").upper()
-        if normalized not in {"FILLED", "CANCELLED"}:
+        kind_by_trigger = {
+            "FILLED": FollowUpSemanticClaimKind.AUTOMATIC_FILLED.value,
+            "CANCELLED": FollowUpSemanticClaimKind.AUTOMATIC_CANCELLED.value,
+        }
+        if normalized not in kind_by_trigger:
             return None
-        kind = f"AUTOMATIC_{normalized}"
+        kind = kind_by_trigger[normalized]
         try:
             with self.db.get_cursor() as cursor:
                 self._lock_source(cursor, source_client_order_id)
@@ -651,10 +790,17 @@ class OperatorFollowUpIntentRepository:
                     f"""
                     SELECT claim_kind, state FROM {self._table('order_follow_up_semantic_claim')}
                      WHERE source_client_order_id = %s
-                       AND state IN ('CLAIMED', 'COMPLETED')
-                       AND claim_kind IN ('OPERATOR_INTENT', 'AUTOMATIC_FILLED', 'AUTOMATIC_CANCELLED')
+                       AND state IN (%s, %s)
+                       AND claim_kind IN (%s, %s, %s)
                     """,
-                    (source_client_order_id,),
+                    (
+                        source_client_order_id,
+                        FollowUpSemanticClaimState.CLAIMED.value,
+                        FollowUpSemanticClaimState.COMPLETED.value,
+                        FollowUpSemanticClaimKind.OPERATOR_INTENT.value,
+                        FollowUpSemanticClaimKind.AUTOMATIC_FILLED.value,
+                        FollowUpSemanticClaimKind.AUTOMATIC_CANCELLED.value,
+                    ),
                 )
                 if cursor.fetchone() is not None:
                     return None
@@ -663,16 +809,23 @@ class OperatorFollowUpIntentRepository:
                     f"""
                     INSERT INTO {self._table('order_follow_up_semantic_claim')} (
                         claim_id, source_client_order_id, claim_kind, trigger, state
-                    ) VALUES (%s, %s, %s, %s, 'CLAIMED')
+                    ) VALUES (%s, %s, %s, %s, %s)
                     ON CONFLICT (source_client_order_id, claim_kind) DO UPDATE
                        SET claim_id = EXCLUDED.claim_id,
                            trigger = EXCLUDED.trigger,
-                           state = 'CLAIMED',
+                           state = EXCLUDED.state,
                            updated_at = CURRENT_TIMESTAMP
-                     WHERE {self._table('order_follow_up_semantic_claim')}.state = 'RELEASED'
+                     WHERE {self._table('order_follow_up_semantic_claim')}.state = %s
                     RETURNING claim_id
                     """,
-                    (claim_id, source_client_order_id, kind, normalized),
+                    (
+                        claim_id,
+                        source_client_order_id,
+                        kind,
+                        normalized,
+                        FollowUpSemanticClaimState.CLAIMED.value,
+                        FollowUpSemanticClaimState.RELEASED.value,
+                    ),
                 )
                 row = cursor.fetchone()
                 return str(row[0]) if row else None
@@ -689,9 +842,13 @@ class OperatorFollowUpIntentRepository:
     ) -> bool:
         self.ensure_schema()
         normalized = str(trigger or "").upper()
-        if normalized not in {"FILLED", "CANCELLED"}:
+        kind_by_trigger = {
+            "FILLED": FollowUpSemanticClaimKind.AUTOMATIC_FILLED.value,
+            "CANCELLED": FollowUpSemanticClaimKind.AUTOMATIC_CANCELLED.value,
+        }
+        if normalized not in kind_by_trigger:
             return False
-        kind = f"AUTOMATIC_{normalized}"
+        kind = kind_by_trigger[normalized]
         try:
             with self.db.get_cursor() as cursor:
                 self._lock_source(cursor, source_client_order_id)
@@ -701,9 +858,15 @@ class OperatorFollowUpIntentRepository:
                        SET state = %s, updated_at = CURRENT_TIMESTAMP
                      WHERE source_client_order_id = %s
                        AND claim_kind = %s AND claim_id = %s
-                       AND state = 'CLAIMED'
+                       AND state = %s
                     """,
-                    (target_state, source_client_order_id, kind, claim_id),
+                    (
+                        target_state,
+                        source_client_order_id,
+                        kind,
+                        claim_id,
+                        FollowUpSemanticClaimState.CLAIMED.value,
+                    ),
                 )
                 if cursor.rowcount == 1:
                     return True
@@ -729,10 +892,15 @@ class OperatorFollowUpIntentRepository:
                     f"""
                     SELECT 1 FROM {self._table('order_follow_up_semantic_claim')}
                      WHERE source_client_order_id = %s
-                       AND claim_kind = 'OPERATOR_INTENT'
-                       AND state IN ('CLAIMED', 'COMPLETED')
+                       AND claim_kind = %s
+                       AND state IN (%s, %s)
                     """,
-                    (source_client_order_id,),
+                    (
+                        source_client_order_id,
+                        FollowUpSemanticClaimKind.OPERATOR_INTENT.value,
+                        FollowUpSemanticClaimState.CLAIMED.value,
+                        FollowUpSemanticClaimState.COMPLETED.value,
+                    ),
                 )
                 if cursor.fetchone() is not None:
                     return False
@@ -741,10 +909,16 @@ class OperatorFollowUpIntentRepository:
                     f"""
                     INSERT INTO {self._table('order_follow_up_semantic_claim')} (
                         claim_id, source_client_order_id, claim_kind, trigger, state
-                    ) VALUES (%s, %s, 'POSITIVE_FILL_ACTIVITY', 'PARTIAL_FILL', 'COMPLETED')
+                    ) VALUES (%s, %s, %s, %s, %s)
                     ON CONFLICT (source_client_order_id, claim_kind) DO NOTHING
                     """,
-                    (marker_id, source_client_order_id),
+                    (
+                        marker_id,
+                        source_client_order_id,
+                        FollowUpSemanticClaimKind.POSITIVE_FILL_ACTIVITY.value,
+                        "PARTIAL_FILL",
+                        FollowUpSemanticClaimState.COMPLETED.value,
+                    ),
                 )
                 return True
         except Exception:
@@ -796,7 +970,7 @@ def release_automatic_order_follow_up_claim(
         source_client_order_id=source_client_order_id,
         trigger=trigger,
         claim_id=claim_id,
-        target_state="RELEASED",
+        target_state=FollowUpSemanticClaimState.RELEASED.value,
     )
 
 
@@ -807,7 +981,7 @@ def complete_automatic_order_follow_up_claim(
         source_client_order_id=source_client_order_id,
         trigger=trigger,
         claim_id=claim_id,
-        target_state="COMPLETED",
+        target_state=FollowUpSemanticClaimState.COMPLETED.value,
     )
 
 
@@ -819,6 +993,25 @@ def mark_order_follow_up_positive_fill_activity(
     )
 
 
+def install_order_follow_up_source_lock_trigger(table_name: str) -> None:
+    """Attach the shared source lock to a positive-fill evidence table."""
+
+    if not operator_follow_up_intent_enabled():
+        return
+    get_default_repository().install_source_lock_trigger(table_name)
+
+
+def operator_follow_up_intent_slot_applies(source_client_order_id: str) -> bool:
+    """Fail closed on unknown scope evidence, but skip known out-of-scope rows."""
+
+    if not operator_follow_up_intent_enabled():
+        return False
+    try:
+        return get_default_repository().slot_applies(source_client_order_id)
+    except FollowUpIntentStoreError:
+        return True
+
+
 def install_order_module_bindings() -> None:
     """Install the canonical wrappers on ``database.order`` for OrderEngine."""
 
@@ -826,6 +1019,9 @@ def install_order_module_bindings() -> None:
 
     order_db.FOLLOW_UP_INTENT_DURABLE_SLOT_REQUIRED = (
         operator_follow_up_intent_enabled
+    )
+    order_db.FOLLOW_UP_INTENT_DURABLE_SLOT_APPLIES = (
+        operator_follow_up_intent_slot_applies
     )
     order_db.try_claim_automatic_order_follow_up = try_claim_automatic_order_follow_up
     order_db.release_automatic_order_follow_up_claim = (

@@ -102,7 +102,10 @@ from integration.websocket_hooks import WebSocketHookRegistry, get_global_hook_r
 from integration.order_placement_hooks import get_global_placement_hook_registry
 
 
-def _durable_follow_up_slot_required(db_module: object) -> bool:
+def _durable_follow_up_slot_required(
+    db_module: object,
+    source_client_order_id: str | None = None,
+) -> bool:
     """Resolve the exact feature gate without treating other truthy values as on."""
 
     gate = getattr(
@@ -110,7 +113,20 @@ def _durable_follow_up_slot_required(db_module: object) -> bool:
         "FOLLOW_UP_INTENT_DURABLE_SLOT_REQUIRED",
         False,
     )
-    return gate() is True if callable(gate) else gate is True
+    required = gate() is True if callable(gate) else gate is True
+    if not required:
+        return False
+    applies = getattr(
+        db_module,
+        "FOLLOW_UP_INTENT_DURABLE_SLOT_APPLIES",
+        None,
+    )
+    if not callable(applies) or source_client_order_id is None:
+        return True
+    try:
+        return applies(source_client_order_id) is True
+    except Exception:
+        return True
 
 # Dashboard integration (optional - will fail gracefully if dashboard_server not available)
 try:
@@ -1003,7 +1019,10 @@ class OrderEngine:
 
         client_order_id = delta.client_order_id
         automatic_follow_up_allowed = True
-        durable_slot_required = _durable_follow_up_slot_required(self.db_module)
+        durable_slot_required = _durable_follow_up_slot_required(
+            self.db_module,
+            client_order_id,
+        )
         if (
             durable_slot_required
             and delta.is_new_match
@@ -2126,7 +2145,10 @@ class OrderEngine:
             getattr(processed_flag_name, "value", processed_flag_name) or ""
         ).lower()
         db_module = getattr(self, "db_module", None)
-        durable_required = _durable_follow_up_slot_required(db_module)
+        durable_required = _durable_follow_up_slot_required(
+            db_module,
+            client_order_id,
+        )
         durable_kind = normalized_kind in {"filled", "cancelled"}
 
         if durable_required and durable_kind:
@@ -2211,7 +2233,10 @@ class OrderEngine:
             getattr(processed_flag_name, "value", processed_flag_name) or ""
         ).lower()
         db_module = getattr(self, "db_module", None)
-        durable_required = _durable_follow_up_slot_required(db_module)
+        durable_required = _durable_follow_up_slot_required(
+            db_module,
+            client_order_id,
+        )
         durable_kind = normalized_kind in {"filled", "cancelled"}
         if durable_required and durable_kind:
             claim_key = (normalized_kind, str(client_order_id))
@@ -2268,7 +2293,10 @@ class OrderEngine:
             getattr(processed_flag_name, "value", processed_flag_name) or ""
         ).lower()
         db_module = getattr(self, "db_module", None)
-        durable_required = _durable_follow_up_slot_required(db_module)
+        durable_required = _durable_follow_up_slot_required(
+            db_module,
+            client_order_id,
+        )
         durable_kind = normalized_kind in {"filled", "cancelled"}
         if durable_required and durable_kind:
             claim_key = (normalized_kind, str(client_order_id))

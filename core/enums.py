@@ -2915,6 +2915,23 @@ class FollowUpKind(str, Enum):
     CANCELLED = "cancelled"
 
 
+class FollowUpSemanticClaimKind(str, Enum):
+    """Durable owner of one source order's follow-up semantic slot."""
+
+    OPERATOR_INTENT = "OPERATOR_INTENT"
+    AUTOMATIC_FILLED = "AUTOMATIC_FILLED"
+    AUTOMATIC_CANCELLED = "AUTOMATIC_CANCELLED"
+    POSITIVE_FILL_ACTIVITY = "POSITIVE_FILL_ACTIVITY"
+
+
+class FollowUpSemanticClaimState(str, Enum):
+    """Persistence states for a durable follow-up semantic claim."""
+
+    CLAIMED = "CLAIMED"
+    COMPLETED = "COMPLETED"
+    RELEASED = "RELEASED"
+
+
 class SpotFollowUpIntent(str, Enum):
     """Spot-specific intent classification for follow-up orders."""
 

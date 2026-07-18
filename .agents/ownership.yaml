@@ -181,6 +181,7 @@ owners:
       - tests/unit/test_orderbook_v2.py
       - tests/unit/test_order_id_and_followup_rules.py
       - tests/unit/test_order_engine_operator_follow_up_intent_slot.py
+      - tests/unit/test_operator_follow_up_intent_policy.py
       - tests/unit/test_order_engine_portfolio_scope.py
       - tests/unit/test_filled_followup_*.py
       - tests/unit/test_order_progress_tracker.py
@@ -273,6 +274,7 @@ owners:
       - tools/export_admin_api_route_inventory.py
       - tests/regression/test_admin_api_*.py
       - tests/unit/test_admin_api_*.py
+      - tests/unit/test_operator_follow_up_intent_audit.py
       - tests/regression/test_admin_mvp_account_reality_live_read_smoke.py
       - tests/regression/test_admin_mvp_futures_executor_boundary_smoke.py
       - tests/regression/test_admin_mvp_api.py

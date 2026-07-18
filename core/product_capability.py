@@ -93,8 +93,20 @@ def coerce_product_capability_mode(value: Any) -> ProductCapabilityMode:
 def resolve_product_context(product_id: str) -> Dict[str, Any]:
     """Resolve product id and canonical product type from existing config."""
     try:
-        from configuration import get_trading_product_id, normalize_product_type, PRODUCT_METADATA
+        from configuration import (
+            DERIVATIVES_PRODUCT_IDS,
+            PRODUCT_METADATA,
+            SPOT_PRODUCT_IDS,
+            get_trading_product_id,
+            normalize_product_type,
+        )
         trading_product_id = get_trading_product_id(str(product_id or ""))
+        configured_product_ids = {
+            *map(str, DERIVATIVES_PRODUCT_IDS),
+            *map(str, SPOT_PRODUCT_IDS),
+            *map(str, PRODUCT_METADATA),
+        }
+        catalog_found = trading_product_id in configured_product_ids
         product_type = normalize_product_type(
             {"product_id": trading_product_id},
             products=PRODUCT_METADATA,
@@ -102,10 +114,12 @@ def resolve_product_context(product_id: str) -> Dict[str, Any]:
     except Exception:
         trading_product_id = str(product_id or "")
         product_type = ProductType.SPOT.value
+        catalog_found = False
     return {
         "product_id": trading_product_id,
         "requested_product_id": product_id,
         "product_type": product_type,
+        "catalog_found": catalog_found,
     }
 
 

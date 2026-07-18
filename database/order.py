@@ -20,6 +20,8 @@ from database.order_follow_up_intent import (
     complete_automatic_order_follow_up_claim,
     create_order_follow_up_intent_tables,
     mark_order_follow_up_positive_fill_activity,
+    install_order_follow_up_source_lock_trigger,
+    operator_follow_up_intent_slot_applies,
     release_automatic_order_follow_up_claim,
     try_claim_automatic_order_follow_up,
 )
@@ -38,6 +40,7 @@ from configuration import DEFAULT_MAX_ORDER_REPLACEMENT
 
 logger = get_logger("OrderDB")
 DB_CLIENT: PostgresDB = PostgresDB()
+FOLLOW_UP_INTENT_DURABLE_SLOT_APPLIES = operator_follow_up_intent_slot_applies
 
 
 _CONTROLLED_ADMIN_CHILD_MAX_MARKET_AGE_SECONDS = Decimal("30")
@@ -3859,6 +3862,7 @@ def create_fill_ledger_table() -> None:
             )
         cursor.execute(additive_migrations)
         print("fill_ledger table done.")
+    install_order_follow_up_source_lock_trigger("fill_ledger")
 
 
 def create_order_match_audit_table() -> None:
@@ -3900,6 +3904,7 @@ def create_order_match_audit_table() -> None:
     with DB_CLIENT.get_cursor() as cursor:
         cursor.execute(create_table_query)
         print("order_match_audit table done.")
+    install_order_follow_up_source_lock_trigger("order_match_audit")
 
 
 def insert_order_match_audit(
@@ -3995,6 +4000,7 @@ def create_order_event_stream_table() -> None:
     with DB_CLIENT.get_cursor() as cursor:
         cursor.execute(create_table_query)
         print("order_event_stream table done.")
+    install_order_follow_up_source_lock_trigger("order_event_stream")
 
 
 def insert_order_event(
@@ -4795,6 +4801,7 @@ def create_partial_fill_progress_table() -> None:
     with DB_CLIENT.get_cursor() as cursor:
         cursor.execute(create_table_query)
         print("partial_fill_progress table done.")
+    install_order_follow_up_source_lock_trigger("partial_fill_progress")
 
 
 def upsert_partial_fill_progress(

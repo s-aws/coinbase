@@ -133,6 +133,48 @@ def test_disabled_durable_slot_preserves_existing_local_claim_path():
     assert engine.orderbook.states[("filled", "source-001")] == "processing"
 
 
+def test_enabled_feature_does_not_interlock_an_out_of_scope_order():
+    db = _DurableDb()
+    db.FOLLOW_UP_INTENT_DURABLE_SLOT_APPLIES = lambda _source_id: False
+    engine = _engine(db)
+
+    assert engine.claim_follow_up_processing("filled", "external-source") is True
+    assert db.claim_calls == []
+    assert engine.orderbook.states[("filled", "external-source")] == "processing"
+
+
+def test_out_of_scope_fill_does_not_require_operator_slot_marker(monkeypatch):
+    db = _DurableDb()
+    db.FOLLOW_UP_INTENT_DURABLE_SLOT_APPLIES = lambda _source_id: False
+    engine = _engine(db)
+    delta = SimpleNamespace(
+        client_order_id="external-source",
+        is_new_match=True,
+        is_terminal=False,
+        cumulative_quantity=1.0,
+        number_of_fills=1,
+        completion_percentage=10.0,
+    )
+    record = SimpleNamespace()
+    engine.order_progress_tracker = SimpleNamespace(
+        ingest=lambda _order: delta,
+        get_record=lambda _source: record,
+    )
+    engine.fill_repo = object()
+    engine._append_derived_fill_with_hooks = lambda _delta: calls.append("fill")
+    engine._maybe_dispatch_hotpoint = lambda _delta: calls.append("hotpoint")
+    engine._append_order_match_audit = lambda *_args: calls.append("audit")
+    engine._persist_progress_from_record = lambda **_kwargs: calls.append("progress")
+    engine._maybe_create_partial_fill_follow_up = lambda *_args: calls.append("partial")
+    calls: list[str] = []
+    monkeypatch.setattr("core.order_engine.LOT_TRACKING_AVAILABLE", True)
+
+    engine._process_ws_order_delta({"client_order_id": "external-source"})
+
+    assert db.fill_activity_calls == []
+    assert calls == ["fill", "hotpoint", "audit", "progress", "partial"]
+
+
 @pytest.mark.parametrize("trigger", ["filled", "cancelled"])
 def test_no_operator_slot_preserves_terminal_claim_and_cas_completion(trigger: str):
     db = _DurableDb(claim_result="claim-001")

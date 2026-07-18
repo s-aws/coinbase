@@ -1616,7 +1616,7 @@ def get_order_by_client_order_id(
     summary="Read one backend-owned future follow-up intent slot",
 )
 def get_order_follow_up_intent(
-    source_client_order_id: Annotated[str, Path(min_length=1)],
+    source_client_order_id: Annotated[uuid.UUID, Path()],
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
     _feature_enabled: Annotated[
         None,
@@ -1631,7 +1631,7 @@ def get_order_follow_up_intent(
 
     require_permission(actor, AdminApiPermission.AUDIT_READ)
     try:
-        payload = service.read(source_client_order_id=source_client_order_id)
+        payload = service.read(source_client_order_id=str(source_client_order_id))
     except OperatorFollowUpIntentError as exc:
         _raise_follow_up_intent_error(exc)
     return _read_response(payload)
@@ -1646,7 +1646,7 @@ def get_order_follow_up_intent(
 )
 def attach_order_follow_up_intent(
     body: AdminOrderFollowUpIntentAttachRequest,
-    source_client_order_id: Annotated[str, Path(min_length=1)],
+    source_client_order_id: Annotated[uuid.UUID, Path()],
     idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
     correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
     operator_intent: Annotated[
@@ -1675,7 +1675,7 @@ def attach_order_follow_up_intent(
     )
     try:
         payload = service.attach(
-            source_client_order_id=source_client_order_id,
+            source_client_order_id=str(source_client_order_id),
             request=body,
             context=context,
         )

@@ -17,8 +17,8 @@ from application.admin_api.models import (
 from core.enums import AdminApiActionClass, AdminApiCommandStatus, AdminApiPermission
 
 
-SOURCE_ID = "follow-up-source-001"
-ROOT_ID = "follow-up-root-001"
+SOURCE_ID = "d24c9fc3-29c2-4e76-87d7-3d27cb94530f"
+ROOT_ID = "87aa9a2d-b015-4701-b7e5-63cc26360ad2"
 INTENT_ID = "0ec90842-d875-4a7b-9eb1-333c7d618bb1"
 CLAIM_ID = "6cf63093-4463-4855-bd7d-ab3ca1b6bbbe"
 AUDIT_ID = "1f418e77-9e5e-49f3-861e-a30f942f38fb"

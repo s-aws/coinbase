@@ -6879,7 +6879,7 @@ paths:
         required: true
         schema:
           type: string
-          minLength: 1
+          format: uuid
           title: Source Client Order Id
       - name: Authorization
         in: header
@@ -6966,7 +6966,7 @@ paths:
         required: true
         schema:
           type: string
-          minLength: 1
+          format: uuid
           title: Source Client Order Id
       - name: Idempotency-Key
         in: header
