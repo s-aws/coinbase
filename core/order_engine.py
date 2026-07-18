@@ -106,27 +106,24 @@ def _durable_follow_up_slot_required(
     db_module: object,
     source_client_order_id: str | None = None,
 ) -> bool:
-    """Resolve the exact feature gate without treating other truthy values as on."""
+    """Resolve scope while retaining every already-durable slot interlock."""
 
-    gate = getattr(
-        db_module,
-        "FOLLOW_UP_INTENT_DURABLE_SLOT_REQUIRED",
-        False,
-    )
-    required = gate() is True if callable(gate) else gate is True
-    if not required:
-        return False
     applies = getattr(
         db_module,
         "FOLLOW_UP_INTENT_DURABLE_SLOT_APPLIES",
         None,
     )
-    if not callable(applies) or source_client_order_id is None:
-        return True
-    try:
-        return applies(source_client_order_id) is True
-    except Exception:
-        return True
+    if callable(applies) and source_client_order_id is not None:
+        try:
+            return applies(source_client_order_id) is True
+        except Exception:
+            return True
+    gate = getattr(
+        db_module,
+        "FOLLOW_UP_INTENT_DURABLE_SLOT_REQUIRED",
+        False,
+    )
+    return gate() is True if callable(gate) else gate is True
 
 # Dashboard integration (optional - will fail gracefully if dashboard_server not available)
 try:

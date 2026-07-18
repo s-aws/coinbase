@@ -25,6 +25,7 @@ from core.enums import EngineState
 from core.runtime_controller import (
     INFLIGHT_DB_WRITE,
     INFLIGHT_FILL_PROCESSING,
+    INFLIGHT_OPERATOR_FOLLOW_UP_INTENT,
     INFLIGHT_REST_CANCEL,
     INFLIGHT_REST_PLACE,
     INFLIGHT_STEALTH_REVEAL,
@@ -98,6 +99,7 @@ class TestAdmissionGate:
         # Should not raise.
         controller.check_admission(INFLIGHT_REST_PLACE)
         controller.check_admission(INFLIGHT_STEALTH_REVEAL)
+        controller.check_admission(INFLIGHT_OPERATOR_FOLLOW_UP_INTENT)
 
     @pytest.mark.regression
     def test_originating_work_rejected_when_paused(self, controller):
@@ -112,6 +114,8 @@ class TestAdmissionGate:
         controller.request_shutdown()
         with pytest.raises(EngineNotAdmittingError):
             controller.check_admission(INFLIGHT_STEALTH_REVEAL)
+        with pytest.raises(EngineNotAdmittingError):
+            controller.check_admission(INFLIGHT_OPERATOR_FOLLOW_UP_INTENT)
 
     @pytest.mark.regression
     def test_cancellations_always_allowed_until_stopped(self, controller):

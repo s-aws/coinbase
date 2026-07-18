@@ -4,6 +4,7 @@ import json
 from types import SimpleNamespace
 
 from application.admin_api import read_service
+from application.admin_api.models import AdminOrderDetailResponse
 from application.admin_api.read_service import AdminApiReadService
 
 
@@ -221,3 +222,56 @@ def test_unresolved_root_command_evidence_uses_a_fixed_public_projection() -> No
     _assert_no_private_read_evidence(public)
     assert raw["parent_row_id"] == 73
     assert raw["retail_portfolio_id"] == PRIVATE_PORTFOLIO_ID
+
+
+def test_order_reads_distinguish_backend_failure_from_authoritative_absence(
+    monkeypatch,
+) -> None:
+    import database.order as order_module
+
+    private_exception_text = "SELECT * FROM private_operator_orders"
+
+    def fail_read(*_args, **_kwargs):
+        raise RuntimeError(private_exception_text)
+
+    monkeypatch.setattr(order_module, "get_parent_orders_page", fail_read)
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_order_summary",
+        fail_read,
+        raising=False,
+    )
+
+    service = AdminApiReadService()
+    order_list = service.build_order_list().model_dump(mode="json")
+    order_detail = service.build_order_detail(
+        client_order_id=ROOT_ID
+    ).model_dump(mode="json")
+
+    assert order_list["filters"]["backend_read_error"] == "backend_read_failed"
+    assert order_detail["found"] is False
+    assert order_detail["backend_read_error"] == "backend_read_failed"
+    assert private_exception_text not in json.dumps(
+        [order_list, order_detail],
+        sort_keys=True,
+    )
+
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_order_summary",
+        lambda _client_order_id: None,
+        raising=False,
+    )
+    absent_detail = service.build_order_detail(
+        client_order_id=ROOT_ID
+    ).model_dump(mode="json")
+
+    assert absent_detail["found"] is False
+    assert absent_detail["backend_read_error"] is None
+
+
+def test_order_detail_backend_read_error_is_optional_in_generated_schema() -> None:
+    schema = AdminOrderDetailResponse.model_json_schema()
+
+    assert "backend_read_error" in schema["properties"]
+    assert "backend_read_error" not in schema.get("required", [])

@@ -43,17 +43,31 @@ _BOOTSTRAP_ACTOR_HEADERS = {
 }
 _CSRF_MUTATION_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 _TRUTHY_ENV_VALUES = {"1", "true", "yes"}
+_MAX_OBSERVABILITY_ID_LENGTH = 255
+
+
+def _safe_observability_id(value: object) -> str | None:
+    """Accept only bounded visible-ASCII IDs before any response can echo them."""
+
+    normalized = str(value or "")
+    if not normalized or len(normalized) > _MAX_OBSERVABILITY_ID_LENGTH:
+        return None
+    if not normalized.isascii():
+        return None
+    if any(ord(character) < 33 or ord(character) > 126 for character in normalized):
+        return None
+    return normalized
 
 
 def _request_ids(request: Request) -> tuple[str, str]:
     correlation_id = (
-        getattr(request.state, "correlation_id", None)
-        or request.headers.get("X-Correlation-Id")
+        _safe_observability_id(getattr(request.state, "correlation_id", None))
+        or _safe_observability_id(request.headers.get("X-Correlation-Id"))
         or str(uuid.uuid4())
     )
     request_id = (
-        getattr(request.state, "request_id", None)
-        or request.headers.get("X-Request-Id")
+        _safe_observability_id(getattr(request.state, "request_id", None))
+        or _safe_observability_id(request.headers.get("X-Request-Id"))
         or correlation_id
     )
     return correlation_id, request_id
@@ -208,8 +222,14 @@ def create_app() -> FastAPI:
 
     @app.middleware("http")
     async def add_observability_headers(request: Request, call_next):
-        correlation_id = request.headers.get("X-Correlation-Id") or str(uuid.uuid4())
-        request_id = request.headers.get("X-Request-Id") or correlation_id
+        correlation_id = (
+            _safe_observability_id(request.headers.get("X-Correlation-Id"))
+            or str(uuid.uuid4())
+        )
+        request_id = (
+            _safe_observability_id(request.headers.get("X-Request-Id"))
+            or correlation_id
+        )
         request.state.correlation_id = correlation_id
         request.state.request_id = request_id
         if (

@@ -2,7 +2,7 @@
 
 This module is deliberately local-state only.  It never imports an exchange
 client and every decision is made from the existing PostgreSQL order/fill
-evidence plus the two tables owned here.
+evidence plus the canonical intent, claim, and audit-outbox tables owned here.
 """
 
 from __future__ import annotations
@@ -18,9 +18,13 @@ from typing import Any, Callable, Mapping
 import uuid
 
 from core.enums import (
+    AdminApiActionClass,
+    AdminApiCommandStatus,
+    AdminApiPermission,
     FollowUpSemanticClaimKind,
     FollowUpSemanticClaimState,
     OrderOwnershipProvenance,
+    OrderStatus,
 )
 from core.operator_follow_up_intent import (
     evaluate_operator_follow_up_intent_policy,
@@ -32,6 +36,10 @@ from core.spot_follow_up_policy import evaluate_spot_follow_up_policy
 
 
 FOLLOW_UP_INTENT_DURABLE_SLOT_REQUIRED = operator_follow_up_intent_enabled
+FOLLOW_UP_INTENT_AUDIT_ENDPOINT = (
+    "/api/v1/orders/{source_client_order_id}/follow-up-intent"
+)
+FOLLOW_UP_INTENT_AUDIT_MESSAGE = "follow_up_intent_attached"
 
 _SCHEMA_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _AUTOMATIC_CLAIM_KINDS = {
@@ -128,6 +136,17 @@ class FollowUpIntentAttachResult:
     replayed: bool
 
 
+@dataclass(frozen=True)
+class FollowUpIntentAuditOutboxRecord:
+    audit_id: str
+    follow_up_intent_id: str
+    source_client_order_id: str
+    event: dict[str, Any]
+    event_sha256: str
+    recorded_at: str
+    projected_at: str | None
+
+
 def _canonical_sha256(payload: Mapping[str, Any]) -> str:
     encoded = json.dumps(
         payload,
@@ -136,6 +155,56 @@ def _canonical_sha256(payload: Mapping[str, Any]) -> str:
         ensure_ascii=True,
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def _utc_iso(value: Any) -> str:
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc).isoformat()
+    return str(value)
+
+
+def _canonical_audit_event(
+    *,
+    audit_id: str,
+    recorded_at: str,
+    actor_id: str,
+    correlation_id: str,
+    operator_intent: str,
+    idempotency_key: str,
+    source_client_order_id: str,
+) -> dict[str, Any]:
+    return {
+        "audit_id": audit_id,
+        "recorded_at": recorded_at,
+        "actor_id": actor_id,
+        "action_class": AdminApiActionClass.LOCAL_STATE_MUTATION.value,
+        "permission": AdminApiPermission.ORDER_CREATE.value,
+        "endpoint": FOLLOW_UP_INTENT_AUDIT_ENDPOINT,
+        "request_id": correlation_id,
+        "operator_intent": operator_intent,
+        "idempotency_key": idempotency_key,
+        "approval_id": None,
+        "client_order_id": source_client_order_id,
+        "stealth_order_id": None,
+        "coinbase_order_id": None,
+        "live_exchange_submitted": False,
+        "live_coinbase_orders_ran": False,
+        "live_coinbase_read_ran": False,
+        "live_command_runtime_enabled": None,
+        "live_command_rest_client_available": None,
+        "live_command_runtime_ready": None,
+        "live_command_runtime_missing_reason": None,
+        "live_command_runtime_source": None,
+        "status": AdminApiCommandStatus.ACCEPTED.value,
+        "failure_stage": None,
+        "message": FOLLOW_UP_INTENT_AUDIT_MESSAGE,
+        "admission_decision": None,
+        "approval_cap_guard_decision_ref": None,
+        "approval_reconciliation_plan_ref": None,
+        "live_execution_intent_ref": None,
+    }
 
 
 def _portfolio_sha256(portfolio_id: str) -> str:
@@ -165,6 +234,16 @@ def _row(cursor: Any) -> dict[str, Any] | None:
         return dict(value)
     columns = [item[0] for item in cursor.description]
     return dict(zip(columns, value))
+
+
+def _rows(cursor: Any) -> list[dict[str, Any]]:
+    values = cursor.fetchall()
+    if not values:
+        return []
+    if isinstance(values[0], Mapping):
+        return [dict(value) for value in values]
+    columns = [item[0] for item in cursor.description]
+    return [dict(zip(columns, value)) for value in values]
 
 
 class OperatorFollowUpIntentRepository:
@@ -227,6 +306,27 @@ class OperatorFollowUpIntentRepository:
                     )
                     cursor.execute(
                         f"""
+                        CREATE TABLE IF NOT EXISTS {self._table('operator_follow_up_intent_audit_outbox')} (
+                            audit_id UUID PRIMARY KEY,
+                            follow_up_intent_id UUID NOT NULL UNIQUE,
+                            source_client_order_id VARCHAR(128) NOT NULL UNIQUE,
+                            event_json JSONB NOT NULL,
+                            event_sha256 CHAR(64) NOT NULL,
+                            recorded_at TIMESTAMPTZ NOT NULL,
+                            projected_at TIMESTAMPTZ
+                        )
+                        """
+                    )
+                    cursor.execute(
+                        f"""
+                        CREATE INDEX IF NOT EXISTS operator_follow_up_intent_audit_pending_idx
+                        ON {self._table('operator_follow_up_intent_audit_outbox')}
+                        (recorded_at ASC, audit_id ASC)
+                        WHERE projected_at IS NULL
+                        """
+                    )
+                    cursor.execute(
+                        f"""
                         CREATE TABLE IF NOT EXISTS {self._table('operator_follow_up_intent')} (
                             follow_up_intent_id UUID PRIMARY KEY,
                             claim_id UUID NOT NULL UNIQUE,
@@ -253,6 +353,8 @@ class OperatorFollowUpIntentRepository:
                         )
                         """
                     )
+                    self._backfill_audit_outbox(cursor)
+                    self._install_audit_outbox_constraints(cursor)
                     cursor.execute(
                         f"""
                         CREATE OR REPLACE FUNCTION {self._table('lock_operator_follow_up_source')}()
@@ -271,6 +373,35 @@ class OperatorFollowUpIntentRepository:
                         $$
                         """
                     )
+                    cursor.execute(
+                        f"""
+                        CREATE OR REPLACE FUNCTION {self._table('guard_operator_follow_up_lineage')}()
+                        RETURNS trigger
+                        LANGUAGE plpgsql
+                        AS $$
+                        BEGIN
+                            IF NEW.parent_order_id IS NOT NULL THEN
+                                PERFORM pg_advisory_xact_lock(
+                                    17291,
+                                    hashtext(NEW.parent_order_id::text)
+                                );
+                                IF EXISTS (
+                                    SELECT 1
+                                      FROM {self._table('operator_follow_up_intent')}
+                                     WHERE source_client_order_id = NEW.parent_order_id::text
+                                        OR root_client_order_id = NEW.parent_order_id::text
+                                ) THEN
+                                    RAISE EXCEPTION USING
+                                        ERRCODE = 'P0001',
+                                        MESSAGE = 'operator_follow_up_intent_lineage_locked';
+                                END IF;
+                            END IF;
+                            RETURN NEW;
+                        END;
+                        $$
+                        """
+                    )
+                    self._install_lineage_lock_trigger(cursor)
                     for table_name in _POSITIVE_FILL_EVIDENCE_TABLES:
                         self._install_source_lock_trigger(cursor, table_name)
             except Exception as exc:
@@ -278,6 +409,160 @@ class OperatorFollowUpIntentRepository:
                     "follow_up_intent_store_unavailable"
                 ) from None
             self._schema_ready = True
+
+    def _backfill_audit_outbox(self, cursor: Any) -> None:
+        cursor.execute(
+            f"""
+            SELECT intent.follow_up_intent_id, intent.source_client_order_id,
+                   intent.audit_id, intent.recorded_at, intent.actor_id,
+                   intent.correlation_id, intent.operator_intent,
+                   intent.idempotency_key, intent.terminal_result
+              FROM {self._table('operator_follow_up_intent')} AS intent
+              LEFT JOIN {self._table('operator_follow_up_intent_audit_outbox')} AS outbox
+                ON outbox.audit_id = intent.audit_id
+             WHERE outbox.audit_id IS NULL
+             ORDER BY intent.recorded_at ASC, intent.audit_id ASC
+            """
+        )
+        for row in _rows(cursor):
+            if str(row.get("terminal_result") or "") != "ATTACHED":
+                raise ValueError("follow_up_intent_audit_outbox_backfill_mismatch")
+            recorded_at = _utc_iso(row["recorded_at"])
+            event = _canonical_audit_event(
+                audit_id=str(row["audit_id"]),
+                recorded_at=recorded_at,
+                actor_id=str(row["actor_id"]),
+                correlation_id=str(row["correlation_id"]),
+                operator_intent=str(row["operator_intent"]),
+                idempotency_key=str(row["idempotency_key"]),
+                source_client_order_id=str(row["source_client_order_id"]),
+            )
+            cursor.execute(
+                f"""
+                INSERT INTO {self._table('operator_follow_up_intent_audit_outbox')} (
+                    audit_id, follow_up_intent_id, source_client_order_id,
+                    event_json, event_sha256, recorded_at
+                ) VALUES (%s, %s, %s, %s::jsonb, %s, %s)
+                ON CONFLICT (audit_id) DO NOTHING
+                """,
+                (
+                    str(row["audit_id"]),
+                    str(row["follow_up_intent_id"]),
+                    str(row["source_client_order_id"]),
+                    json.dumps(event, sort_keys=True, separators=(",", ":")),
+                    _canonical_sha256(event),
+                    row["recorded_at"],
+                ),
+            )
+
+        cursor.execute(
+            f"""
+            SELECT intent.follow_up_intent_id, intent.source_client_order_id,
+                   intent.audit_id, intent.recorded_at, intent.actor_id,
+                   intent.correlation_id, intent.operator_intent,
+                   intent.idempotency_key, intent.terminal_result,
+                   outbox.follow_up_intent_id AS outbox_follow_up_intent_id,
+                   outbox.source_client_order_id AS outbox_source_client_order_id,
+                   outbox.event_json, outbox.event_sha256,
+                   outbox.recorded_at AS outbox_recorded_at
+              FROM {self._table('operator_follow_up_intent')} AS intent
+              LEFT JOIN {self._table('operator_follow_up_intent_audit_outbox')} AS outbox
+                ON outbox.audit_id = intent.audit_id
+             ORDER BY intent.recorded_at ASC, intent.audit_id ASC
+            """
+        )
+        for row in _rows(cursor):
+            recorded_at = _utc_iso(row["recorded_at"])
+            event = _canonical_audit_event(
+                audit_id=str(row["audit_id"]),
+                recorded_at=recorded_at,
+                actor_id=str(row["actor_id"]),
+                correlation_id=str(row["correlation_id"]),
+                operator_intent=str(row["operator_intent"]),
+                idempotency_key=str(row["idempotency_key"]),
+                source_client_order_id=str(row["source_client_order_id"]),
+            )
+            if (
+                str(row.get("terminal_result") or "") != "ATTACHED"
+                or str(row.get("outbox_follow_up_intent_id") or "")
+                != str(row["follow_up_intent_id"])
+                or str(row.get("outbox_source_client_order_id") or "")
+                != str(row["source_client_order_id"])
+                or row.get("event_json") != event
+                or str(row.get("event_sha256") or "")
+                != _canonical_sha256(event)
+                or _utc_iso(row.get("outbox_recorded_at")) != recorded_at
+            ):
+                raise ValueError("follow_up_intent_audit_outbox_backfill_mismatch")
+
+    def _install_audit_outbox_constraints(self, cursor: Any) -> None:
+        constraints = (
+            (
+                "operator_follow_up_intent",
+                "operator_follow_up_intent_audit_outbox_fk",
+                (
+                    f"ALTER TABLE {self._table('operator_follow_up_intent')} "
+                    "ADD CONSTRAINT operator_follow_up_intent_audit_outbox_fk "
+                    f"FOREIGN KEY (audit_id) REFERENCES "
+                    f"{self._table('operator_follow_up_intent_audit_outbox')}(audit_id) "
+                    "DEFERRABLE INITIALLY DEFERRED"
+                ),
+            ),
+            (
+                "operator_follow_up_intent_audit_outbox",
+                "operator_follow_up_intent_outbox_intent_fk",
+                (
+                    f"ALTER TABLE {self._table('operator_follow_up_intent_audit_outbox')} "
+                    "ADD CONSTRAINT operator_follow_up_intent_outbox_intent_fk "
+                    f"FOREIGN KEY (follow_up_intent_id) REFERENCES "
+                    f"{self._table('operator_follow_up_intent')}(follow_up_intent_id) "
+                    "DEFERRABLE INITIALLY DEFERRED"
+                ),
+            ),
+        )
+        for table_name, constraint_name, statement in constraints:
+            cursor.execute(
+                "SELECT EXISTS ("
+                "SELECT 1 FROM pg_constraint "
+                "WHERE conrelid = to_regclass(%s) AND conname = %s"
+                ")",
+                (f"{self.schema}.{table_name}", constraint_name),
+            )
+            row = cursor.fetchone()
+            exists = (
+                bool(next(iter(row.values()), False))
+                if isinstance(row, Mapping)
+                else bool(row and row[0])
+            )
+            if not exists:
+                cursor.execute(statement)
+
+    def _install_lineage_lock_trigger(self, cursor: Any) -> None:
+        cursor.execute(
+            "SELECT to_regclass(%s)",
+            (f"{self.schema}.order_parent",),
+        )
+        row = cursor.fetchone()
+        relation = (
+            next(iter(row.values()), None)
+            if isinstance(row, Mapping)
+            else (row[0] if row else None)
+        )
+        if relation is None:
+            return
+        trigger_name = "operator_follow_up_lineage_lock"
+        cursor.execute(
+            f"DROP TRIGGER IF EXISTS {trigger_name} ON {self._table('order_parent')}"
+        )
+        cursor.execute(
+            f"""
+            CREATE TRIGGER {trigger_name}
+            BEFORE INSERT OR UPDATE OF parent_order_id
+            ON {self._table('order_parent')}
+            FOR EACH ROW
+            EXECUTE FUNCTION {self._table('guard_operator_follow_up_lineage')}()
+            """
+        )
 
     def _install_source_lock_trigger(self, cursor: Any, table_name: str) -> None:
         if table_name not in _POSITIVE_FILL_EVIDENCE_TABLES:
@@ -315,6 +600,19 @@ class OperatorFollowUpIntentRepository:
         except Exception:
             raise FollowUpIntentStoreUnavailable(
                 "follow_up_intent_source_lock_unavailable"
+            ) from None
+
+    def install_lineage_lock_trigger(self) -> None:
+        """Install the lineage interlock after ``order_parent`` is created."""
+
+        if not self._schema_ready:
+            return
+        try:
+            with self.db.get_cursor() as cursor:
+                self._install_lineage_lock_trigger(cursor)
+        except Exception:
+            raise FollowUpIntentStoreUnavailable(
+                "follow_up_intent_lineage_lock_unavailable"
             ) from None
 
     @staticmethod
@@ -381,6 +679,127 @@ class OperatorFollowUpIntentRepository:
             recorded_at=str(recorded_at),
         )
 
+    @staticmethod
+    def _audit_outbox_record(
+        row: Mapping[str, Any],
+    ) -> FollowUpIntentAuditOutboxRecord:
+        event = row.get("event_json")
+        if isinstance(event, str):
+            event = json.loads(event)
+        if not isinstance(event, Mapping):
+            raise ValueError("follow_up_intent_audit_outbox_invalid")
+        projected_at = row.get("projected_at")
+        return FollowUpIntentAuditOutboxRecord(
+            audit_id=str(row["audit_id"]),
+            follow_up_intent_id=str(row["follow_up_intent_id"]),
+            source_client_order_id=str(row["source_client_order_id"]),
+            event=dict(event),
+            event_sha256=str(row["event_sha256"]),
+            recorded_at=_utc_iso(row["recorded_at"]),
+            projected_at=(
+                _utc_iso(projected_at) if projected_at is not None else None
+            ),
+        )
+
+    def read_audit_outbox(
+        self,
+        audit_id: str,
+    ) -> FollowUpIntentAuditOutboxRecord:
+        try:
+            with self.db.get_cursor() as cursor:
+                cursor.execute(
+                    f"""
+                    SELECT audit_id, follow_up_intent_id,
+                           source_client_order_id, event_json,
+                           event_sha256, recorded_at, projected_at
+                      FROM {self._table('operator_follow_up_intent_audit_outbox')}
+                     WHERE audit_id = %s
+                    """,
+                    (audit_id,),
+                )
+                row = _row(cursor)
+        except Exception:
+            raise FollowUpIntentStoreUnavailable(
+                "follow_up_intent_audit_outbox_unavailable"
+            ) from None
+        if row is None:
+            raise FollowUpIntentStoreConflict(
+                "follow_up_intent_audit_outbox_missing"
+            )
+        try:
+            return self._audit_outbox_record(row)
+        except Exception:
+            raise FollowUpIntentStoreConflict(
+                "follow_up_intent_audit_outbox_mismatch"
+            ) from None
+
+    def list_unprojected_audit_outbox(
+        self,
+        *,
+        limit: int,
+    ) -> tuple[FollowUpIntentAuditOutboxRecord, ...]:
+        bounded_limit = max(1, min(int(limit), 100))
+        try:
+            with self.db.get_cursor() as cursor:
+                cursor.execute(
+                    f"""
+                    SELECT audit_id, follow_up_intent_id,
+                           source_client_order_id, event_json,
+                           event_sha256, recorded_at, projected_at
+                      FROM {self._table('operator_follow_up_intent_audit_outbox')}
+                     WHERE projected_at IS NULL
+                     ORDER BY recorded_at ASC, audit_id ASC
+                     LIMIT %s
+                    """,
+                    (bounded_limit,),
+                )
+                rows = _rows(cursor)
+        except Exception:
+            raise FollowUpIntentStoreUnavailable(
+                "follow_up_intent_audit_outbox_unavailable"
+            ) from None
+        try:
+            return tuple(self._audit_outbox_record(row) for row in rows)
+        except Exception:
+            raise FollowUpIntentStoreConflict(
+                "follow_up_intent_audit_outbox_mismatch"
+            ) from None
+
+    def mark_audit_projected(
+        self,
+        *,
+        audit_id: str,
+        event_sha256: str,
+    ) -> FollowUpIntentAuditOutboxRecord:
+        try:
+            with self.db.get_cursor() as cursor:
+                cursor.execute(
+                    f"""
+                    UPDATE {self._table('operator_follow_up_intent_audit_outbox')}
+                       SET projected_at = COALESCE(projected_at, CURRENT_TIMESTAMP)
+                     WHERE audit_id = %s AND event_sha256 = %s
+                    RETURNING audit_id, follow_up_intent_id,
+                              source_client_order_id, event_json,
+                              event_sha256, recorded_at, projected_at
+                    """,
+                    (audit_id, event_sha256),
+                )
+                row = _row(cursor)
+        except Exception:
+            raise FollowUpIntentStoreUnavailable(
+                "follow_up_intent_audit_outbox_unavailable"
+            ) from None
+        if row is None:
+            raise FollowUpIntentStoreConflict(
+                "follow_up_intent_audit_outbox_mismatch"
+            )
+        try:
+            return self._audit_outbox_record(row)
+        except Exception:
+            raise FollowUpIntentStoreConflict(
+                "follow_up_intent_audit_outbox_mismatch"
+            ) from None
+
     def _exists(self, cursor: Any, query: str, params: tuple[Any, ...]) -> bool:
         cursor.execute(query, params)
         row = cursor.fetchone()
@@ -440,9 +859,13 @@ class OperatorFollowUpIntentRepository:
 
         root_lineage_valid = False
         if source_is_child:
+            # Source and root advisory locks close the sibling-insert race.
+            # The order_parent trigger takes the same lock before any child
+            # lineage write and rejects it once an intent is durable.
+            self._lock_source(cursor, root_id)
             cursor.execute(
                 f"""
-                SELECT client_order_id, product_id, parent_order_id,
+                SELECT client_order_id, product_id, status, parent_order_id,
                        ownership_provenance, retail_portfolio_id
                   FROM {self._table('order_parent')}
                  WHERE client_order_id = %s
@@ -459,6 +882,11 @@ class OperatorFollowUpIntentRepository:
                 or str(root.get("retail_portfolio_id") or "")
                 != self.configured_spot_portfolio_id
                 or str(root.get("product_id") or "") != product_id
+                or str(root.get("status") or "").upper()
+                not in {
+                    OrderStatus.FILLED.value,
+                    OrderStatus.CANCELLED.value,
+                }
             )
         else:
             root_lineage_valid = (
@@ -521,24 +949,37 @@ class OperatorFollowUpIntentRepository:
             (root_id, source_client_order_id if source_is_child else ""),
         )
         related_children = cursor.fetchall()
-        child_absent = not related_children
+        nested_children = []
+        if source_is_child:
+            cursor.execute(
+                f"""
+                SELECT client_order_id
+                  FROM {self._table('order_parent')}
+                 WHERE parent_order_id = %s
+                 ORDER BY created_at ASC, id ASC
+                """,
+                (source_client_order_id,),
+            )
+            nested_children = cursor.fetchall()
+        child_absent = not related_children and not nested_children
         if related_children:
             blockers.append(
                 "source_follow_up_child_attribution_ambiguous"
                 if source_is_child
                 else "source_follow_up_child_already_exists"
             )
+        if nested_children:
+            blockers.append("source_nested_follow_up_child_present")
 
         cursor.execute(
             f"""
             SELECT claim_kind, state
               FROM {self._table('order_follow_up_semantic_claim')}
-             WHERE source_client_order_id = %s AND state IN (%s, %s)
+             WHERE source_client_order_id = %s AND state <> %s
             """,
             (
                 source_client_order_id,
-                FollowUpSemanticClaimState.CLAIMED.value,
-                FollowUpSemanticClaimState.COMPLETED.value,
+                FollowUpSemanticClaimState.RELEASED.value,
             ),
         )
         claim_rows = cursor.fetchall()
@@ -549,8 +990,8 @@ class OperatorFollowUpIntentRepository:
             else:
                 claim_kind = claim_row[0]
             kind = str(claim_kind)
-            automatic_claim_absent = False
             if kind in _AUTOMATIC_CLAIM_KINDS:
+                automatic_claim_absent = False
                 blockers.append("automatic_follow_up_claim_present")
             elif kind == FollowUpSemanticClaimKind.POSITIVE_FILL_ACTIVITY.value:
                 blockers.append("source_has_positive_fill_activity")
@@ -560,7 +1001,46 @@ class OperatorFollowUpIntentRepository:
             ):
                 continue
             else:
+                if kind != FollowUpSemanticClaimKind.OPERATOR_INTENT.value:
+                    automatic_claim_absent = False
                 blockers.append("follow_up_semantic_claim_present")
+
+        if source_is_child:
+            cursor.execute(
+                f"""
+                SELECT claim_kind, state
+                  FROM {self._table('order_follow_up_semantic_claim')}
+                 WHERE source_client_order_id = %s AND state <> %s
+                """,
+                (
+                    root_id,
+                    FollowUpSemanticClaimState.RELEASED.value,
+                ),
+            )
+            for claim_row in cursor.fetchall():
+                if isinstance(claim_row, Mapping):
+                    claim_kind = claim_row.get("claim_kind")
+                    claim_state = claim_row.get("state")
+                else:
+                    claim_kind, claim_state = claim_row[:2]
+                kind = str(claim_kind)
+                state = str(claim_state)
+                if (
+                    state == FollowUpSemanticClaimState.COMPLETED.value
+                    and kind
+                    in {
+                        *_AUTOMATIC_CLAIM_KINDS,
+                        FollowUpSemanticClaimKind.POSITIVE_FILL_ACTIVITY.value,
+                    }
+                ):
+                    # Historical root evidence produced the current child and
+                    # does not consume that child's next semantic slot.
+                    continue
+                if kind in _AUTOMATIC_CLAIM_KINDS:
+                    automatic_claim_absent = False
+                    blockers.append("automatic_follow_up_claim_present")
+                else:
+                    blockers.append("follow_up_semantic_claim_present")
 
         if existing_intent is not None:
             blockers.append("follow_up_intent_already_attached")
@@ -610,11 +1090,65 @@ class OperatorFollowUpIntentRepository:
                 "follow_up_intent_evidence_unavailable"
             ) from None
 
-    def slot_applies(self, source_client_order_id: str) -> bool:
+    def slot_applies(
+        self,
+        source_client_order_id: str,
+        *,
+        include_current_scope: bool = True,
+    ) -> bool:
         """Classify whether one engine order needs the durable slot interlock."""
 
         try:
             with self.db.get_cursor() as cursor:
+                cursor.execute(
+                    "SELECT to_regclass(%s) AS intent_relation, "
+                    "to_regclass(%s) AS claim_relation",
+                    (
+                        f"{self.schema}.operator_follow_up_intent",
+                        f"{self.schema}.order_follow_up_semantic_claim",
+                    ),
+                )
+                relations = cursor.fetchone() or (None, None)
+                intent_relation = (
+                    relations.get("intent_relation")
+                    if isinstance(relations, Mapping)
+                    else relations[0]
+                )
+                claim_relation = (
+                    relations.get("claim_relation")
+                    if isinstance(relations, Mapping)
+                    else relations[1]
+                )
+                if intent_relation is not None:
+                    cursor.execute(
+                        f"""
+                        SELECT 1 FROM {self._table('operator_follow_up_intent')}
+                         WHERE source_client_order_id = %s
+                            OR root_client_order_id = %s
+                         LIMIT 1
+                        """,
+                        (source_client_order_id, source_client_order_id),
+                    )
+                    if cursor.fetchone() is not None:
+                        return True
+                if claim_relation is not None:
+                    cursor.execute(
+                        f"""
+                        SELECT 1
+                          FROM {self._table('order_follow_up_semantic_claim')}
+                         WHERE source_client_order_id = %s
+                           AND state <> %s
+                         LIMIT 1
+                        """,
+                        (
+                            source_client_order_id,
+                            FollowUpSemanticClaimState.RELEASED.value,
+                        ),
+                    )
+                    if cursor.fetchone() is not None:
+                        return True
+                if not include_current_scope:
+                    return False
                 cursor.execute(
                     f"""
                     SELECT product_id, ownership_provenance, retail_portfolio_id
@@ -683,6 +1217,8 @@ class OperatorFollowUpIntentRepository:
                 claim_id = str(uuid.uuid4())
                 intent_id = str(uuid.uuid4())
                 audit_id = str(uuid.uuid4())
+                recorded_at = datetime.now(timezone.utc)
+                recorded_at_text = recorded_at.isoformat()
                 semantic_intent = eligibility.semantic_intent or "EXIT"
                 follow_up_side = eligibility.derived_follow_up_side or "SELL"
                 intent_sha256 = _canonical_sha256(
@@ -710,6 +1246,35 @@ class OperatorFollowUpIntentRepository:
                         FollowUpSemanticClaimState.COMPLETED.value,
                     ),
                 )
+                audit_event = _canonical_audit_event(
+                    audit_id=audit_id,
+                    recorded_at=recorded_at_text,
+                    actor_id=command.actor_id,
+                    correlation_id=command.correlation_id,
+                    operator_intent=command.operator_intent,
+                    idempotency_key=command.idempotency_key,
+                    source_client_order_id=command.source_client_order_id,
+                )
+                cursor.execute(
+                    f"""
+                    INSERT INTO {self._table('operator_follow_up_intent_audit_outbox')} (
+                        audit_id, follow_up_intent_id, source_client_order_id,
+                        event_json, event_sha256, recorded_at
+                    ) VALUES (%s, %s, %s, %s::jsonb, %s, %s)
+                    """,
+                    (
+                        audit_id,
+                        intent_id,
+                        command.source_client_order_id,
+                        json.dumps(
+                            audit_event,
+                            sort_keys=True,
+                            separators=(",", ":"),
+                        ),
+                        _canonical_sha256(audit_event),
+                        recorded_at,
+                    ),
+                )
                 cursor.execute(
                     f"""
                     INSERT INTO {self._table('operator_follow_up_intent')} (
@@ -718,10 +1283,10 @@ class OperatorFollowUpIntentRepository:
                         derived_follow_up_side, semantic_intent, intent_sha256,
                         idempotency_key, payload_sha256, actor_id, roles_json,
                         environment, portfolio_scope_sha256, correlation_id,
-                        operator_intent, audit_id, terminal_result
+                        operator_intent, audit_id, terminal_result, recorded_at
                     ) VALUES (
                         %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                        %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, 'ATTACHED'
+                        %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, 'ATTACHED', %s
                     )
                     RETURNING follow_up_intent_id, claim_id,
                               source_client_order_id, root_client_order_id,
@@ -749,6 +1314,7 @@ class OperatorFollowUpIntentRepository:
                         command.correlation_id,
                         command.operator_intent,
                         audit_id,
+                        recorded_at,
                     ),
                 )
                 record = self._record(_row(cursor) or {})
@@ -788,18 +1354,27 @@ class OperatorFollowUpIntentRepository:
                 self._lock_source(cursor, source_client_order_id)
                 cursor.execute(
                     f"""
+                    SELECT 1
+                      FROM {self._table('operator_follow_up_intent')}
+                     WHERE source_client_order_id = %s
+                        OR root_client_order_id = %s
+                     LIMIT 1
+                    """,
+                    (source_client_order_id, source_client_order_id),
+                )
+                if cursor.fetchone() is not None:
+                    return None
+                cursor.execute(
+                    f"""
                     SELECT claim_kind, state FROM {self._table('order_follow_up_semantic_claim')}
                      WHERE source_client_order_id = %s
-                       AND state IN (%s, %s)
-                       AND claim_kind IN (%s, %s, %s)
+                       AND state <> %s
+                       AND claim_kind <> %s
                     """,
                     (
                         source_client_order_id,
-                        FollowUpSemanticClaimState.CLAIMED.value,
-                        FollowUpSemanticClaimState.COMPLETED.value,
-                        FollowUpSemanticClaimKind.OPERATOR_INTENT.value,
-                        FollowUpSemanticClaimKind.AUTOMATIC_FILLED.value,
-                        FollowUpSemanticClaimKind.AUTOMATIC_CANCELLED.value,
+                        FollowUpSemanticClaimState.RELEASED.value,
+                        FollowUpSemanticClaimKind.POSITIVE_FILL_ACTIVITY.value,
                     ),
                 )
                 if cursor.fetchone() is not None:
@@ -890,16 +1465,27 @@ class OperatorFollowUpIntentRepository:
                 self._lock_source(cursor, source_client_order_id)
                 cursor.execute(
                     f"""
+                    SELECT 1
+                      FROM {self._table('operator_follow_up_intent')}
+                     WHERE source_client_order_id = %s
+                        OR root_client_order_id = %s
+                     LIMIT 1
+                    """,
+                    (source_client_order_id, source_client_order_id),
+                )
+                if cursor.fetchone() is not None:
+                    return False
+                cursor.execute(
+                    f"""
                     SELECT 1 FROM {self._table('order_follow_up_semantic_claim')}
                      WHERE source_client_order_id = %s
-                       AND claim_kind = %s
-                       AND state IN (%s, %s)
+                       AND claim_kind <> %s
+                       AND state <> %s
                     """,
                     (
                         source_client_order_id,
-                        FollowUpSemanticClaimKind.OPERATOR_INTENT.value,
-                        FollowUpSemanticClaimState.CLAIMED.value,
-                        FollowUpSemanticClaimState.COMPLETED.value,
+                        FollowUpSemanticClaimKind.POSITIVE_FILL_ACTIVITY.value,
+                        FollowUpSemanticClaimState.RELEASED.value,
                     ),
                 )
                 if cursor.fetchone() is not None:
@@ -947,11 +1533,21 @@ def get_default_repository() -> OperatorFollowUpIntentRepository:
 
 
 def create_order_follow_up_intent_tables() -> None:
-    """Create the durable follow-up-intent schema for the default runtime."""
+    """Create schema and boundedly drain its canonical audit outbox."""
 
     if not operator_follow_up_intent_enabled():
         return
-    get_default_repository().ensure_schema()
+    repository = get_default_repository()
+    repository.ensure_schema()
+    from application.admin_api.operator_follow_up_intent import (
+        FOLLOW_UP_INTENT_AUDIT_PROJECTION_LIMIT,
+        project_pending_operator_follow_up_intent_audits,
+    )
+
+    project_pending_operator_follow_up_intent_audits(
+        repository=repository,
+        limit=FOLLOW_UP_INTENT_AUDIT_PROJECTION_LIMIT,
+    )
 
 
 def try_claim_automatic_order_follow_up(
@@ -1001,13 +1597,22 @@ def install_order_follow_up_source_lock_trigger(table_name: str) -> None:
     get_default_repository().install_source_lock_trigger(table_name)
 
 
+def install_order_follow_up_lineage_lock_trigger() -> None:
+    """Attach the durable intent interlock to ``order_parent`` lineage writes."""
+
+    if not operator_follow_up_intent_enabled():
+        return
+    get_default_repository().install_lineage_lock_trigger()
+
+
 def operator_follow_up_intent_slot_applies(source_client_order_id: str) -> bool:
     """Fail closed on unknown scope evidence, but skip known out-of-scope rows."""
 
-    if not operator_follow_up_intent_enabled():
-        return False
     try:
-        return get_default_repository().slot_applies(source_client_order_id)
+        return get_default_repository().slot_applies(
+            source_client_order_id,
+            include_current_scope=operator_follow_up_intent_enabled(),
+        )
     except FollowUpIntentStoreError:
         return True
 

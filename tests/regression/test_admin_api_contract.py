@@ -78410,7 +78410,7 @@ def test_admin_api_order_list_read_service_returns_pagination_metadata(monkeypat
 
     response = AdminApiReadService().build_order_list(
         product_id="BTC-USDC",
-        status="OPEN",
+        status="open",
         limit=2,
         offset=1,
     )
@@ -78425,6 +78425,7 @@ def test_admin_api_order_list_read_service_returns_pagination_metadata(monkeypat
     assert response.pagination.total_matching_count == 5
     assert response.pagination.next_offset == 3
     assert response.pagination.has_more is True
+    assert response.filters["status"] == "OPEN"
     assert calls == [
         {
             "product_id": "BTC-USDC",
@@ -93772,18 +93773,21 @@ def test_admin_api_audit_workbench_read_service_normalizes_cross_module_evidence
     monkeypatch.setenv("COINBASE_ADMIN_API_AUDIT_LOG_PATH", str(audit_path))
     monkeypatch.setattr(
         order_module,
-        "get_parent_orders",
-        lambda: [
-            {
-                "client_order_id": "client-abc",
-                "product_id": "BTC-USDC",
-                "status": "OPEN",
-                "exchange_order_id": "exchange-evidence-001",
-                "correlation_id": "corr-001",
-                "audit_id": "audit-order-001",
-                "updated_at": "2026-06-11T12:00:00Z",
-            }
-        ],
+        "get_parent_orders_page",
+        lambda **_kwargs: (
+            [
+                {
+                    "client_order_id": "client-abc",
+                    "product_id": "BTC-USDC",
+                    "status": "OPEN",
+                    "exchange_order_id": "exchange-evidence-001",
+                    "correlation_id": "corr-001",
+                    "audit_id": "audit-order-001",
+                    "updated_at": "2026-06-11T12:00:00Z",
+                }
+            ],
+            1,
+        ),
     )
 
     response = AdminApiReadService().build_audit_workbench(

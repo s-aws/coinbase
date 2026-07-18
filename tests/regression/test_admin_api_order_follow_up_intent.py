@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
@@ -15,6 +16,11 @@ from application.admin_api.models import (
     AdminOrderFollowUpIntentReadResponse,
 )
 from core.enums import AdminApiActionClass, AdminApiCommandStatus, AdminApiPermission
+
+
+# This file imports the full FastAPI app/route graph. Keep it in the serial
+# regression lane so xdist cannot multiply the route-model memory footprint.
+pytestmark = [pytest.mark.regression, pytest.mark.serial]
 
 
 SOURCE_ID = "d24c9fc3-29c2-4e76-87d7-3d27cb94530f"
@@ -337,6 +343,61 @@ def test_follow_up_intent_post_requires_exact_command_headers(
 
     assert response.status_code in {400, 422}
     assert service.attach_calls == 0
+
+
+@pytest.mark.regression
+@pytest.mark.parametrize(
+    ("header_name", "value"),
+    [
+        ("Idempotency-Key", "   "),
+        ("X-Correlation-Id", "   "),
+        ("Idempotency-Key", "i" * 256),
+        ("X-Correlation-Id", "c" * 256),
+    ],
+)
+def test_follow_up_intent_post_bounds_and_normalizes_command_headers(
+    client,
+    header_name: str,
+    value: str,
+):
+    http, service = client
+    headers = _headers()
+    headers[header_name] = value
+
+    response = http.post(
+        f"/api/v1/orders/{SOURCE_ID}/follow-up-intent",
+        headers=headers,
+        json={
+            "acknowledge_future_materialization_requires_fresh_authorization": True
+        },
+    )
+
+    assert response.status_code == 422
+    assert service.attach_calls == 0
+
+
+@pytest.mark.regression
+def test_rejected_private_correlation_header_is_never_echoed(client):
+    http, service = client
+    private_value = "private-correlation-marker-" + ("x" * 256)
+    headers = _headers()
+    headers["X-Correlation-Id"] = private_value
+
+    response = http.post(
+        f"/api/v1/orders/{SOURCE_ID}/follow-up-intent",
+        headers=headers,
+        json={
+            "acknowledge_future_materialization_requires_fresh_authorization": True
+        },
+    )
+
+    assert response.status_code == 422
+    assert service.attach_calls == 0
+    assert private_value not in response.text
+    assert private_value not in str(response.headers)
+    safe_correlation = response.headers["X-Correlation-Id"]
+    assert UUID(safe_correlation).version == 4
+    assert response.json()["correlation_id"] == safe_correlation
 
 
 @pytest.mark.regression

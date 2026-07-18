@@ -15,6 +15,9 @@ from core.enums import AdminApiActionClass, AdminApiCommandStatus, AdminApiPermi
 from .models import AdminLiveAdmissionDecisionEvidence
 
 
+_AUDIT_FILE_LOCK = RLock()
+
+
 class AdminApiAuditEvent(BaseModel):
     """Audit evidence shape for accepted and rejected command attempts."""
 
@@ -91,10 +94,46 @@ class FileAdminApiAuditStore:
             or Path("runtime_state") / "admin_api_audit.jsonl"
         )
         self.path = Path(configured_path)
-        self._lock = RLock()
+        self._lock = _AUDIT_FILE_LOCK
+
+    def _find_unique_by_audit_id_unlocked(
+        self,
+        audit_id: str,
+    ) -> AdminApiAuditEvent | None:
+        if not self.path.exists():
+            return None
+        matched: AdminApiAuditEvent | None = None
+        with self.path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                if not line.strip():
+                    continue
+                try:
+                    event = AdminApiAuditEvent.model_validate_json(line)
+                except ValueError:
+                    continue
+                if event.audit_id != audit_id:
+                    continue
+                if matched is not None and matched != event:
+                    raise ValueError("admin_api_audit_id_conflict")
+                matched = event
+        return matched
 
     def append(self, event: AdminApiAuditEvent) -> str:
         with self._lock:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with self.path.open("a", encoding="utf-8") as handle:
+                handle.write(event.model_dump_json() + "\n")
+            return event.audit_id
+
+    def append_unique(self, event: AdminApiAuditEvent) -> str:
+        """Append one exact canonical event, idempotently by audit id."""
+
+        with self._lock:
+            existing = self._find_unique_by_audit_id_unlocked(event.audit_id)
+            if existing is not None:
+                if existing != event:
+                    raise ValueError("admin_api_audit_id_conflict")
+                return event.audit_id
             self.path.parent.mkdir(parents=True, exist_ok=True)
             with self.path.open("a", encoding="utf-8") as handle:
                 handle.write(event.model_dump_json() + "\n")
@@ -153,12 +192,21 @@ class FileAdminApiAuditStore:
         return None
 
     def find_by_audit_id(self, audit_id: str) -> AdminApiAuditEvent | None:
-        """Return the latest audit event with the given id, if present."""
+        """Return the latest recent audit event with the given id, if present."""
 
         for event in self.read_recent(limit=500):
             if event.audit_id == audit_id:
                 return event
         return None
+
+    def find_unique_by_audit_id(
+        self,
+        audit_id: str,
+    ) -> AdminApiAuditEvent | None:
+        """Return one full-file exact event or reject conflicting duplicates."""
+
+        with self._lock:
+            return self._find_unique_by_audit_id_unlocked(audit_id)
 
 
 def resolve_admission_audit_trail(

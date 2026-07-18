@@ -142,9 +142,10 @@ audit ids. Expected fill status does not create a separate approval class.
   executed-notional counts are zero. The fractional external market timestamp
   mismatch was remediated before cycle 2 without changing policy or call
   bounds. The runner is source-bound to `R12_RELEASE_READY=False`; no further
-  Coinbase call, R13 attempt, or Slice 3/4/5 activation is permitted. Next
-  action is
-  `await_operator_authorization_for_operator_attach_single_follow_up_intent`.
+  Coinbase call, R13 attempt, or Slice 3/4/5 activation is permitted. The
+  separately authorized routed Orders workspace and zero-notional local
+  follow-up-intent attachment are complete without changing that boundary.
+  Next action is `await_operator_direction_for_next_mvp`.
   See
   `docs/FUTURES_SLICE_2R12_PREPARATION.md`.
 - Historical predecessor: Goal `futures_preview_acceptance_recovery_r11` is complete.
@@ -257,9 +258,8 @@ audit ids. Expected fill status does not create a separate approval class.
   (`complete_terminal_unknown_consumed`).
 - Current work mode:
   `r12_terminal_unknown_consumed_offline_closeout_complete`.
-- Current next action:
-  `await_operator_authorization_for_operator_attach_single_follow_up_intent`;
-  keep `R12_RELEASE_READY=False` and make no further Coinbase call.
+- Current next action: `await_operator_direction_for_next_mvp`; keep
+  `R12_RELEASE_READY=False` and make no further R12 Coinbase call.
 - Historical predecessor slice: Default-profile Futures readback -> exact AVAX US CFM Coinbase
   Preview Order -> immutable operator-visible no-live preview readback. The
   one-shot R1 artifact terminated before

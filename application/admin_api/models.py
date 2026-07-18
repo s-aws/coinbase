@@ -5091,6 +5091,7 @@ class AdminOrderDetailResponse(BaseModel):
     client_order_id: str
     found: bool
     order: AdminOrderReadItem | None = None
+    backend_read_error: str | None = None
     fill_follow_up_decision_audit: (
         AdminOrderFillFollowUpDecisionAuditEvidence | None
     ) = None

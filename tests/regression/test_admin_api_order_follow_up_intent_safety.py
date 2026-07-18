@@ -29,11 +29,14 @@ from database.order_follow_up_intent import (
 )
 
 
-pytestmark = pytest.mark.regression
+# This file imports the full FastAPI app/route graph. Keep it in the serial
+# regression lane so xdist cannot multiply the route-model memory footprint.
+pytestmark = [pytest.mark.regression, pytest.mark.serial]
 
 
 VALID_SOURCE_ID = "d24c9fc3-29c2-4e76-87d7-3d27cb94530f"
 INVALID_SOURCE_ID = "not-a-client-order-uuid"
+NON_CANONICAL_SOURCE_ID = VALID_SOURCE_ID.upper()
 
 
 def _headers(*, include_command: bool) -> dict[str, str]:
@@ -107,11 +110,16 @@ def missing_source_client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
 
 
 @pytest.mark.parametrize("method", ["get", "post"])
+@pytest.mark.parametrize(
+    "source_client_order_id",
+    [INVALID_SOURCE_ID, NON_CANONICAL_SOURCE_ID],
+)
 def test_follow_up_intent_path_rejects_non_uuid_client_order_id(
     missing_source_client: TestClient,
     method: str,
+    source_client_order_id: str,
 ):
-    """Malformed identities are validation errors, not repository lookups."""
+    """Malformed or non-canonical identities never reach repository lookup."""
 
     kwargs: dict[str, object] = {
         "headers": _headers(include_command=method == "post"),
@@ -122,7 +130,7 @@ def test_follow_up_intent_path_rejects_non_uuid_client_order_id(
         }
 
     response = getattr(missing_source_client, method)(
-        f"/api/v1/orders/{INVALID_SOURCE_ID}/follow-up-intent",
+        f"/api/v1/orders/{source_client_order_id}/follow-up-intent",
         **kwargs,
     )
 
@@ -156,6 +164,32 @@ def test_follow_up_intent_attach_returns_not_found_for_unknown_valid_uuid(
 
     assert response.status_code == 404
     assert response.json()["message"] == "source_order_not_found"
+
+
+@pytest.mark.parametrize("header_name", ["Idempotency-Key", "X-Correlation-Id"])
+def test_follow_up_intent_attach_rejects_non_ascii_command_header(
+    missing_source_client: TestClient,
+    header_name: str,
+):
+    """Persisted command identities are limited to visible ASCII."""
+
+    header_pairs = [
+        (
+            name.encode("ascii"),
+            b"non-ascii-\xff" if name == header_name else value.encode("ascii"),
+        )
+        for name, value in _headers(include_command=True).items()
+    ]
+
+    response = missing_source_client.post(
+        f"/api/v1/orders/{VALID_SOURCE_ID}/follow-up-intent",
+        headers=header_pairs,
+        json={
+            "acknowledge_future_materialization_requires_fresh_authorization": True
+        },
+    )
+
+    assert response.status_code == 422
 
 
 def test_service_translates_missing_attach_source_to_not_found(

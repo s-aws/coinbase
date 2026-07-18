@@ -20,6 +20,7 @@ from database.order_follow_up_intent import (
     complete_automatic_order_follow_up_claim,
     create_order_follow_up_intent_tables,
     mark_order_follow_up_positive_fill_activity,
+    install_order_follow_up_lineage_lock_trigger,
     install_order_follow_up_source_lock_trigger,
     operator_follow_up_intent_slot_applies,
     release_automatic_order_follow_up_claim,
@@ -284,6 +285,7 @@ def create_order_parent_table() -> None:
             "auto_placed_by_hotpoint BOOLEAN NOT NULL DEFAULT FALSE"
         )
         print("order_parent table done.")
+    install_order_follow_up_lineage_lock_trigger()
 
 
 def create_stealth_orders_table() -> None:

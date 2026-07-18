@@ -19,16 +19,18 @@ private model routing, private release planning, or internal research notes.
 
 ## Near-Term Public Work
 
-- The next MVP is `operator_attach_single_follow_up_intent`, pending distinct
-  operator authorization: one
-  backend-authorized, durably audited, idempotent and race-safe future
-  follow-up intent for an eligible system-owned source order identified by
-  `source_client_order_id`. This roadmap entry grants no implementation, local
-  mutation, child creation, Coinbase call, or live authority. The backend owns
-  positive status and zero-fill eligibility,
-  duplicate prevention, atomic claim, flat-root lineage, product policy, and
-  later live gates. The browser only forwards explicit operator input through
-  generated contracts and displays backend evidence.
+- `operator_attach_single_follow_up_intent` is now the first completed mutation
+  in the routed operator Orders workspace. It records one backend-authorized,
+  durably audited, idempotent and race-safe future follow-up intent for an
+  eligible system-owned source order identified by `source_client_order_id`.
+  The backend owns exact OPEN and zero-fill eligibility, duplicate prevention,
+  atomic claim, flat-root lineage, Test-portfolio scope, catalog-backed Spot
+  policy, and later live gates. The browser forwards only explicit operator
+  acknowledgement through generated contracts and displays backend evidence.
+  Attachment is a zero-notional local-state mutation: it creates no child,
+  invokes no engine handler, runs no reconciliation, and makes no Coinbase
+  call. Future materialization remains separate roadmap work requiring fresh
+  authorization.
 - Maintain the completed selected-order execution closeout and address only
   demonstrated operator-visible or immediate safety blockers. Automatic/live
   fill-event parity uses the same explicit order limits and backend gate chain

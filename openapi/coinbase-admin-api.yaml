@@ -6879,7 +6879,9 @@ paths:
         required: true
         schema:
           type: string
-          format: uuid
+          minLength: 36
+          maxLength: 36
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
           title: Source Client Order Id
       - name: Authorization
         in: header
@@ -6966,7 +6968,9 @@ paths:
         required: true
         schema:
           type: string
-          format: uuid
+          minLength: 36
+          maxLength: 36
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
           title: Source Client Order Id
       - name: Idempotency-Key
         in: header
@@ -6974,6 +6978,8 @@ paths:
         schema:
           type: string
           minLength: 1
+          maxLength: 255
+          pattern: ^[!-~]+$
           title: Idempotency-Key
       - name: X-Correlation-Id
         in: header
@@ -6981,6 +6987,8 @@ paths:
         schema:
           type: string
           minLength: 1
+          maxLength: 255
+          pattern: ^[!-~]+$
           title: X-Correlation-Id
       - name: X-Operator-Intent
         in: header
@@ -140253,6 +140261,11 @@ components:
           anyOf:
           - $ref: '#/components/schemas/AdminOrderReadItem'
           - type: 'null'
+        backend_read_error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Backend Read Error
         fill_follow_up_decision_audit:
           anyOf:
           - $ref: '#/components/schemas/AdminOrderFillFollowUpDecisionAuditEvidence'

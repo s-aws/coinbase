@@ -2,7 +2,7 @@
 
 Goal ID: `futures_preview_acceptance_recovery_r12`
 
-Last reviewed: 2026-07-17 UTC.
+Last reviewed: 2026-07-18 UTC.
 
 Status: `complete_terminal_unknown_consumed`.
 
@@ -15,7 +15,7 @@ The source gate is closed and no further Coinbase call is permitted.
 Machine alignment: `r12_separate_eligibility_and_single_use_attempt_v1`.
 Slice status: `complete_terminal_unknown_consumed`. Work mode:
 `r12_terminal_unknown_consumed_offline_closeout_complete`. Default action:
-`await_operator_authorization_for_operator_attach_single_follow_up_intent`.
+`await_operator_direction_for_next_mvp`.
 
 The canonical cross-repository authority is
 `/home/developer/coinbase/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. This
@@ -59,9 +59,11 @@ restricted predecessor material remains inaccessible.
 
 R12 is terminally consumed and cannot be retried. No further eligibility read,
 Coinbase call, Preview attempt, R13 attempt, or Slice 3, Slice 4, or Slice 5
-activation is authorized. The next MVP is
-`operator_attach_single_follow_up_intent`, pending distinct operator
-authorization. The detailed boundary is
+activation is authorized. The separately authorized
+`operator_attach_single_follow_up_intent` successor is complete. The prior R12
+post-closeout action
+`await_operator_authorization_for_operator_attach_single_follow_up_intent` is
+historical and no longer a current blocker. The detailed R12 boundary remains
 `docs/FUTURES_SLICE_2R12_PREPARATION.md`.
 
 ## Historical Completed Slice 2R11 Successor Workflow
@@ -729,22 +731,25 @@ zero fill, active placement cleared, zero active Test Spot orders, and disabled
 service/runtime. Evidence:
 `artifacts/controlled-root-child-batch-20260713T101046Z-ed9b8bbd/v15r6-terminal-closeout-handoff.json`.
 
-## Queued Successor MVP — Operator-Attached Single Follow-Up
+## Completed Successor MVP — Operator-Attached Single Follow-Up
 
 Goal ID: `operator_attach_single_follow_up_intent`.
 
-Slice 2R12 has reached terminal closeout, so this is the next MVP pending
-distinct operator authorization. This planning record grants no implementation,
-schema or local-state mutation, Coinbase read or call, automatic trigger, child
-creation, Preview, Create, Cancel, Close, Reduce, R13, or other live authority.
+The separately authorized implementation and its operator-ready closeout are
+complete. Its local intent-persistence boundary granted no Coinbase read or
+call, automatic trigger, child creation, Preview, Create, Cancel, Close, Reduce,
+R13, or other live authority.
 
-The planned backend command lets an authorized human attach exactly one
+The backend command lets an authorized human attach exactly one
 durable future follow-up intent to a system-owned source order identified by
 `source_client_order_id`. Attachment is not immediate child creation or
 exchange submission. Backend eligibility must use fresh authoritative evidence,
 a positive per-module stable-state allowlist, zero filled quantity, supported
 ownership and product capability, and proof that no intent, attributed child,
-partial-fill allocation, or follow-up semantic claim already exists. Unknown,
+partial-fill allocation, or active conflicting follow-up semantic claim already
+exists. A completed automatic or positive-fill root claim may remain only as
+historical evidence for an existing child; that child's matching manual root
+must be terminal FILLED or CANCELLED. Unknown,
 stale, conflicting, transitional, terminal, partially filled, external or
 unowned, and unsupported module state fails closed. Spot-only rules must not be
 copied into Futures/Perpetuals or platform primitives.
@@ -775,8 +780,9 @@ R12 terminal closeout is complete under the hard source-disabled release gate.
 The active work mode is
 `r12_terminal_unknown_consumed_offline_closeout_complete`; it grants no new
 eligibility evidence, claim, idempotency key, Preview attempt, or Coinbase
-call. The next action is
-`await_operator_authorization_for_operator_attach_single_follow_up_intent`.
+call. operator_attach_single_follow_up_intent is complete; operator direction
+is required for the next MVP. The current action is
+`await_operator_direction_for_next_mvp`; there are no ordered successors.
 
 A candidate blocker cannot make itself in scope by generating evidence about the candidate blocker.
 

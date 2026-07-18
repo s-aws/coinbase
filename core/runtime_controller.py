@@ -49,6 +49,7 @@ INFLIGHT_REST_CANCEL = "rest_order_cancellation"
 INFLIGHT_FILL_PROCESSING = "fill_processing"
 INFLIGHT_STEALTH_REVEAL = "stealth_reveal"
 INFLIGHT_DB_WRITE = "db_write"
+INFLIGHT_OPERATOR_FOLLOW_UP_INTENT = "operator_follow_up_intent"
 
 
 class EngineNotAdmittingError(RuntimeError):

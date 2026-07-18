@@ -166,6 +166,11 @@ from core.enums import (
 
 router = APIRouter()
 
+_CANONICAL_UUID_PATH_PATTERN = (
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+)
+_VISIBLE_ASCII_HEADER_PATTERN = r"^[!-~]+$"
+
 COMMAND_ROUTE_RESPONSES = {
     200: {
         "model": AdminApiCommandResponse,
@@ -1616,7 +1621,14 @@ def get_order_by_client_order_id(
     summary="Read one backend-owned future follow-up intent slot",
 )
 def get_order_follow_up_intent(
-    source_client_order_id: Annotated[uuid.UUID, Path()],
+    source_client_order_id: Annotated[
+        str,
+        Path(
+            min_length=36,
+            max_length=36,
+            pattern=_CANONICAL_UUID_PATH_PATTERN,
+        ),
+    ],
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
     _feature_enabled: Annotated[
         None,
@@ -1631,7 +1643,7 @@ def get_order_follow_up_intent(
 
     require_permission(actor, AdminApiPermission.AUDIT_READ)
     try:
-        payload = service.read(source_client_order_id=str(source_client_order_id))
+        payload = service.read(source_client_order_id=source_client_order_id)
     except OperatorFollowUpIntentError as exc:
         _raise_follow_up_intent_error(exc)
     return _read_response(payload)
@@ -1646,9 +1658,32 @@ def get_order_follow_up_intent(
 )
 def attach_order_follow_up_intent(
     body: AdminOrderFollowUpIntentAttachRequest,
-    source_client_order_id: Annotated[uuid.UUID, Path()],
-    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
-    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    source_client_order_id: Annotated[
+        str,
+        Path(
+            min_length=36,
+            max_length=36,
+            pattern=_CANONICAL_UUID_PATH_PATTERN,
+        ),
+    ],
+    idempotency_key: Annotated[
+        str,
+        Header(
+            alias="Idempotency-Key",
+            min_length=1,
+            max_length=255,
+            pattern=_VISIBLE_ASCII_HEADER_PATTERN,
+        ),
+    ],
+    correlation_id: Annotated[
+        str,
+        Header(
+            alias="X-Correlation-Id",
+            min_length=1,
+            max_length=255,
+            pattern=_VISIBLE_ASCII_HEADER_PATTERN,
+        ),
+    ],
     operator_intent: Annotated[
         Literal["attach_single_follow_up_intent"],
         Header(alias="X-Operator-Intent"),
@@ -1675,7 +1710,7 @@ def attach_order_follow_up_intent(
     )
     try:
         payload = service.attach(
-            source_client_order_id=str(source_client_order_id),
+            source_client_order_id=source_client_order_id,
             request=body,
             context=context,
         )

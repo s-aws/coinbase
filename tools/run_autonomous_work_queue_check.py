@@ -58,8 +58,13 @@ SLICE_STATUS = "complete_terminal_unknown_consumed"
 SLICE_BLOCKERS: tuple[str, ...] = (
     "claim_only_recovery_unknown_consumed",
 )
-DEFAULT_NEXT_ACTION = (
+DEFAULT_NEXT_ACTION = "await_operator_direction_for_next_mvp"
+HISTORICAL_R12_SUCCESSOR_ACTION = (
     "await_operator_authorization_for_operator_attach_single_follow_up_intent"
+)
+OPERATOR_QUESTION = (
+    "operator_attach_single_follow_up_intent is complete; operator direction "
+    "is required for the next MVP."
 )
 OPERATOR_PROGRESS_WORDING = (
     "R12 terminal unknown-consumed; offline closeout complete"
@@ -98,6 +103,7 @@ MVP_SCOPE = {
     ),
     "scope_posture": R12_ALIGNMENT_TOKEN,
     "operator_progress_wording": OPERATOR_PROGRESS_WORDING,
+    "operator_question": OPERATOR_QUESTION,
     "focused_blast_radius_tests_required": True,
     "full_suite_at_durable_milestone_only": True,
     "active_work_policy": {
@@ -107,7 +113,7 @@ MVP_SCOPE = {
         "slice_status": SLICE_STATUS,
         "blockers": list(SLICE_BLOCKERS),
         "default_next_action": DEFAULT_NEXT_ACTION,
-        "ordered_successors": ["operator_attach_single_follow_up_intent"],
+        "ordered_successors": [],
         "allow_only_when_directly_blocks": [],
         "forbidden_default_actions": [
             "complete_current_approved_range",
@@ -250,10 +256,6 @@ REQUIRED_STOP_CONDITIONS = [
     ),
     "R12 is terminal; no further Coinbase call is permitted",
     (
-        "operator_attach_single_follow_up_intent requires distinct operator "
-        "authorization before implementation"
-    ),
-    (
         "proceeding would change the product, contract count, exact V3 policy, "
         "caps, enumerated read endpoints, or exchange-call limit"
     ),
@@ -269,7 +271,6 @@ REQUIRED_GATES = [
     "offline claim-only recovery creates no client or factory",
     "independent R12 terminal safety audit",
     "blind-contextless R12 terminal audit",
-    "distinct operator authorization before the queued successor MVP",
     "npm run release:gate only at durable milestone closeout",
     (
         "python3.13 tools/run_parallel_regression.py --workers 4 only at "
@@ -331,6 +332,7 @@ def _current_goal_alignment() -> QueueCheck:
             GOAL_ID,
             R12_ALIGNMENT_TOKEN,
             DEFAULT_NEXT_ACTION,
+            OPERATOR_QUESTION,
             CLOSED_LOOPHOLE_RULE,
             SUCCESSOR_MAPPING_INVARIANT,
             PREVIEW_ID_INVARIANT,
@@ -355,6 +357,7 @@ def _current_goal_alignment() -> QueueCheck:
         (
             GOAL_ID,
             DEFAULT_NEXT_ACTION,
+            OPERATOR_QUESTION,
             CLOSED_LOOPHOLE_RULE,
             SUCCESSOR_MAPPING_INVARIANT,
             PREVIEW_ID_INVARIANT,
@@ -384,7 +387,7 @@ def _slice_2r12_prepared_posture() -> QueueCheck:
         (
             GOAL_ID,
             R12_ALIGNMENT_TOKEN,
-            DEFAULT_NEXT_ACTION,
+            HISTORICAL_R12_SUCCESSOR_ACTION,
             SLICE_STATUS,
             "R12_RELEASE_READY",
             "at most ten durably counted cycles",
@@ -422,6 +425,7 @@ def _slice_2r12_prepared_posture() -> QueueCheck:
             R12_ALIGNMENT_TOKEN,
             SLICE_STATUS,
             DEFAULT_NEXT_ACTION,
+            OPERATOR_QUESTION,
             "R12_RELEASE_READY=False",
             "Eligibility cycle 2",
             "exact_v3_eligible",
@@ -438,6 +442,7 @@ def _slice_2r12_prepared_posture() -> QueueCheck:
             R12_ALIGNMENT_TOKEN,
             SLICE_STATUS,
             DEFAULT_NEXT_ACTION,
+            OPERATOR_QUESTION,
             "R12_RELEASE_READY = False",
             "eligibility cycle 2",
             "exact_v3_eligible",

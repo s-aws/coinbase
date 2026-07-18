@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import hashlib
+import json
 import os
 import re
 import threading
@@ -21,6 +22,9 @@ import psycopg2
 from psycopg2 import sql
 import pytest
 
+from application.admin_api.operator_follow_up_intent import (
+    project_pending_operator_follow_up_intent_audits,
+)
 from database.database import PostgresDB
 from database.order_follow_up_intent import (
     FollowUpIntentCommand,
@@ -237,6 +241,7 @@ def _insert_chain(
     harness: _RepositoryHarness,
     *,
     product_id: str = KNOWN_PRODUCT_ID,
+    root_status: str = "FILLED",
 ) -> tuple[str, str]:
     root_id = str(uuid.uuid4())
     source_id = str(uuid.uuid4())
@@ -245,7 +250,7 @@ def _insert_chain(
         client_order_id=root_id,
         product_id=product_id,
         side="BUY",
-        status="OPEN",
+        status=root_status,
         parent_order_id=None,
         ownership_provenance="ADMIN_MANUAL_ROOT",
     )
@@ -324,10 +329,14 @@ def test_flat_chain_sibling_is_reported_as_attribution_ambiguity(
     assert "source_follow_up_child_already_exists" not in eligibility.blockers
 
 
-@pytest.mark.parametrize("claim_kind", ["OPERATOR_INTENT", "UNKNOWN_ACTIVE_KIND"])
+@pytest.mark.parametrize(
+    ("claim_kind", "automatic_claim_absent"),
+    [("OPERATOR_INTENT", True), ("UNKNOWN_ACTIVE_KIND", False)],
+)
 def test_orphan_or_unknown_active_claim_fails_closed(
     repository_harness: _RepositoryHarness,
     claim_kind: str,
+    automatic_claim_absent: bool,
 ):
     _root_id, source_id = _insert_chain(repository_harness)
     repository_harness.execute(
@@ -342,9 +351,244 @@ def test_orphan_or_unknown_active_claim_fails_closed(
     eligibility = repository_harness.repository().read(source_id).eligibility
 
     assert eligibility.eligible is False
-    assert eligibility.automatic_semantic_claim_absent is False
+    assert eligibility.automatic_semantic_claim_absent is automatic_claim_absent
     assert eligibility.blockers
     assert any("claim" in blocker for blocker in eligibility.blockers)
+
+
+def test_unknown_non_released_state_fails_closed_but_released_state_does_not(
+    repository_harness: _RepositoryHarness,
+):
+    _root_id, source_id = _insert_chain(repository_harness)
+    repository_harness.execute(
+        f"""
+        INSERT INTO \"{repository_harness.schema}\".order_follow_up_semantic_claim (
+            claim_id, source_client_order_id, claim_kind, trigger, state
+        ) VALUES (%s, %s, 'UNKNOWN_ACTIVE_KIND', 'FILLED', 'FUTURE_ACTIVE')
+        """,
+        (str(uuid.uuid4()), source_id),
+    )
+
+    active = repository_harness.repository().read(source_id).eligibility
+    assert active.eligible is False
+    assert active.automatic_semantic_claim_absent is False
+    assert "follow_up_semantic_claim_present" in active.blockers
+
+    repository_harness.execute(
+        f"""
+        UPDATE \"{repository_harness.schema}\".order_follow_up_semantic_claim
+           SET state = 'RELEASED'
+         WHERE source_client_order_id = %s
+        """,
+        (source_id,),
+    )
+
+    released = repository_harness.repository().read(source_id).eligibility
+    assert released.eligible is True
+    assert released.automatic_semantic_claim_absent is True
+
+
+def test_nested_descendant_blocks_child_source_attachment(
+    repository_harness: _RepositoryHarness,
+):
+    _root_id, source_id = _insert_chain(repository_harness)
+    _insert_order(
+        repository_harness,
+        client_order_id=str(uuid.uuid4()),
+        product_id=KNOWN_PRODUCT_ID,
+        side="SELL",
+        status="OPEN",
+        parent_order_id=source_id,
+        ownership_provenance="ADMIN_FILL_FOLLOW_UP",
+    )
+
+    eligibility = repository_harness.repository().read(source_id).eligibility
+
+    assert eligibility.eligible is False
+    assert eligibility.source_follow_up_child_absent is False
+    assert "source_nested_follow_up_child_present" in eligibility.blockers
+
+
+def test_active_root_automatic_claim_blocks_child_source_attachment(
+    repository_harness: _RepositoryHarness,
+):
+    """A child attach cannot race an in-flight root follow-up handler."""
+
+    root_id, source_id = _insert_chain(repository_harness)
+    repository_harness.execute(
+        f"""
+        INSERT INTO \"{repository_harness.schema}\".order_follow_up_semantic_claim (
+            claim_id, source_client_order_id, claim_kind, trigger, state
+        ) VALUES (%s, %s, 'AUTOMATIC_FILLED', 'FILLED', 'CLAIMED')
+        """,
+        (str(uuid.uuid4()), root_id),
+    )
+
+    with pytest.raises(FollowUpIntentStoreConflict) as exc_info:
+        repository_harness.repository().attach(_command(source_id))
+
+    assert exc_info.value.code == "automatic_follow_up_claim_present"
+
+
+def test_open_root_fill_marker_blocks_child_source_attachment(
+    repository_harness: _RepositoryHarness,
+):
+    """A partial-fill root handler cannot race a child intent attachment."""
+
+    root_id, source_id = _insert_chain(
+        repository_harness,
+        root_status="OPEN",
+    )
+    repository = repository_harness.repository()
+    assert repository.mark_positive_fill_activity(
+        source_client_order_id=root_id,
+    ) is True
+
+    with pytest.raises(FollowUpIntentStoreConflict) as exc_info:
+        repository.attach(_command(source_id))
+
+    assert exc_info.value.code == "source_root_lineage_invalid"
+
+
+def test_completed_root_automatic_claim_allows_next_child_intent(
+    repository_harness: _RepositoryHarness,
+):
+    """The completed claim that produced the source child remains historical."""
+
+    root_id, source_id = _insert_chain(repository_harness)
+    repository_harness.execute(
+        f"""
+        INSERT INTO \"{repository_harness.schema}\".order_follow_up_semantic_claim (
+            claim_id, source_client_order_id, claim_kind, trigger, state
+        ) VALUES (%s, %s, 'AUTOMATIC_FILLED', 'FILLED', 'COMPLETED')
+        """,
+        (str(uuid.uuid4()), root_id),
+    )
+
+    attached = repository_harness.repository().attach(_command(source_id))
+
+    assert attached.record.source_client_order_id == source_id
+
+
+def test_operator_intent_readback_keeps_automatic_claim_absent_truthful(
+    repository_harness: _RepositoryHarness,
+):
+    _root_id, source_id = _insert_chain(repository_harness)
+    repository = repository_harness.repository()
+
+    attached = repository.attach(_command(source_id))
+    readback = repository.read(source_id)
+
+    assert attached.eligibility.automatic_semantic_claim_absent is True
+    assert readback.eligibility.automatic_semantic_claim_absent is True
+    assert readback.eligibility.eligibility_status == "attached"
+
+
+@pytest.mark.parametrize("state", ["CLAIMED", "COMPLETED", "FUTURE_ACTIVE"])
+def test_unknown_active_claim_blocks_automatic_and_positive_fill_claims(
+    repository_harness: _RepositoryHarness,
+    state: str,
+):
+    _root_id, source_id = _insert_chain(repository_harness)
+    repository_harness.execute(
+        f"""
+        INSERT INTO \"{repository_harness.schema}\".order_follow_up_semantic_claim (
+            claim_id, source_client_order_id, claim_kind, trigger, state
+        ) VALUES (%s, %s, 'UNKNOWN_ACTIVE_KIND', 'FILLED', %s)
+        """,
+        (str(uuid.uuid4()), source_id, state),
+    )
+    repository = repository_harness.repository()
+
+    assert repository.try_claim_automatic(
+        source_client_order_id=source_id,
+        trigger="FILLED",
+    ) is None
+    assert repository.mark_positive_fill_activity(
+        source_client_order_id=source_id
+    ) is False
+
+
+def test_positive_fill_marker_does_not_block_automatic_claim_path(
+    repository_harness: _RepositoryHarness,
+):
+    _root_id, source_id = _insert_chain(repository_harness)
+    repository = repository_harness.repository()
+
+    assert repository.mark_positive_fill_activity(
+        source_client_order_id=source_id
+    ) is True
+    assert repository.try_claim_automatic(
+        source_client_order_id=source_id,
+        trigger="FILLED",
+    ) is not None
+
+
+def test_durable_intent_slot_survives_scope_drift(
+    repository_harness: _RepositoryHarness,
+):
+    root_id, source_id = _insert_chain(repository_harness)
+    repository = repository_harness.repository()
+    repository.attach(_command(source_id))
+    repository_harness.execute(
+        f"""
+        UPDATE \"{repository_harness.schema}\".order_parent
+           SET retail_portfolio_id = %s
+         WHERE client_order_id = %s
+        """,
+        (str(uuid.uuid4()), source_id),
+    )
+
+    assert repository.slot_applies(source_id, include_current_scope=False) is True
+    assert repository.slot_applies(root_id, include_current_scope=False) is True
+
+
+@pytest.mark.parametrize("target", ["source", "root"])
+def test_durable_child_intent_blocks_automatic_and_positive_fill_on_lineage(
+    repository_harness: _RepositoryHarness,
+    target: str,
+):
+    """A child intent consumes the semantic slot for both child and root."""
+
+    root_id, source_id = _insert_chain(repository_harness)
+    repository = repository_harness.repository()
+    repository.attach(_command(source_id))
+    target_id = source_id if target == "source" else root_id
+
+    assert repository.try_claim_automatic(
+        source_client_order_id=target_id,
+        trigger="FILLED",
+    ) is None
+    assert repository.mark_positive_fill_activity(
+        source_client_order_id=target_id,
+    ) is False
+
+
+def test_durable_automatic_claim_slot_survives_scope_drift(
+    repository_harness: _RepositoryHarness,
+):
+    _root_id, source_id = _insert_chain(repository_harness)
+    repository_harness.execute(
+        f"""
+        INSERT INTO \"{repository_harness.schema}\".order_follow_up_semantic_claim (
+            claim_id, source_client_order_id, claim_kind, trigger, state
+        ) VALUES (%s, %s, 'AUTOMATIC_FILLED', 'FILLED', 'FUTURE_ACTIVE')
+        """,
+        (str(uuid.uuid4()), source_id),
+    )
+    repository_harness.execute(
+        f"""
+        UPDATE \"{repository_harness.schema}\".order_parent
+           SET retail_portfolio_id = %s
+         WHERE client_order_id = %s
+        """,
+        (str(uuid.uuid4()), source_id),
+    )
+
+    assert repository_harness.repository().slot_applies(
+        source_id,
+        include_current_scope=False,
+    ) is True
 
 
 def test_same_idempotency_key_replays_the_same_durable_intent(
@@ -371,6 +615,137 @@ def test_same_idempotency_key_replays_the_same_durable_intent(
     assert repository_harness.scalar(
         f'SELECT COUNT(*) FROM "{repository_harness.schema}".order_follow_up_semantic_claim'
     ) == 1
+
+
+def test_attach_atomically_persists_exact_canonical_audit_outbox(
+    repository_harness: _RepositoryHarness,
+):
+    _root_id, source_id = _insert_chain(repository_harness)
+    repository = repository_harness.repository()
+
+    attached = repository.attach(_command(source_id))
+    outbox = repository.read_audit_outbox(attached.record.audit_id)
+
+    assert outbox.audit_id == attached.record.audit_id
+    assert outbox.follow_up_intent_id == attached.record.follow_up_intent_id
+    assert outbox.source_client_order_id == source_id
+    assert outbox.recorded_at == attached.record.recorded_at
+    assert outbox.event["audit_id"] == attached.record.audit_id
+    assert outbox.event["recorded_at"] == attached.record.recorded_at
+    assert outbox.event["actor_id"] == attached.record.actor_id
+    assert outbox.event["request_id"] == attached.record.correlation_id
+    assert outbox.event["idempotency_key"] == attached.record.idempotency_key
+    assert outbox.event["client_order_id"] == source_id
+    assert outbox.event["status"] == "accepted"
+    assert outbox.event["live_exchange_submitted"] is False
+    assert outbox.event["live_coinbase_orders_ran"] is False
+    assert outbox.event_sha256 == hashlib.sha256(
+        json.dumps(
+            outbox.event,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    assert outbox.projected_at is None
+    assert repository_harness.scalar(
+        f'SELECT COUNT(*) FROM "{repository_harness.schema}".operator_follow_up_intent_audit_outbox'
+    ) == 1
+
+    with pytest.raises(psycopg2.errors.ForeignKeyViolation):
+        repository_harness.execute(
+            f'DELETE FROM "{repository_harness.schema}".operator_follow_up_intent_audit_outbox '
+            "WHERE audit_id = %s",
+            (attached.record.audit_id,),
+        )
+
+    assert repository_harness.scalar(
+        f'SELECT COUNT(*) FROM "{repository_harness.schema}".operator_follow_up_intent'
+    ) == 1
+    assert repository_harness.scalar(
+        f'SELECT COUNT(*) FROM "{repository_harness.schema}".operator_follow_up_intent_audit_outbox'
+    ) == 1
+
+
+def test_schema_initialization_backfills_preexisting_intent_outbox(
+    repository_harness: _RepositoryHarness,
+):
+    _root_id, source_id = _insert_chain(repository_harness)
+    repository = repository_harness.repository()
+    attached = repository.attach(_command(source_id))
+    repository_harness.execute(
+        f'ALTER TABLE "{repository_harness.schema}".operator_follow_up_intent '
+        "DROP CONSTRAINT operator_follow_up_intent_audit_outbox_fk"
+    )
+    repository_harness.execute(
+        f'DROP TABLE "{repository_harness.schema}".operator_follow_up_intent_audit_outbox'
+    )
+    assert repository_harness.scalar(
+        f'SELECT COUNT(*) FROM "{repository_harness.schema}".operator_follow_up_intent'
+    ) == 1
+
+    migrated = repository_harness.repository()
+    outbox = migrated.read_audit_outbox(attached.record.audit_id)
+
+    assert outbox.follow_up_intent_id == attached.record.follow_up_intent_id
+    assert outbox.recorded_at == attached.record.recorded_at
+    assert outbox.event["audit_id"] == attached.record.audit_id
+    assert outbox.event["recorded_at"] == attached.record.recorded_at
+    assert outbox.event_sha256 == hashlib.sha256(
+        json.dumps(
+            outbox.event,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+
+    migrated_again = repository_harness.repository()
+    assert migrated_again.read_audit_outbox(attached.record.audit_id) == outbox
+    assert repository_harness.scalar(
+        f'SELECT COUNT(*) FROM "{repository_harness.schema}".operator_follow_up_intent_audit_outbox'
+    ) == 1
+
+    with pytest.raises(psycopg2.errors.ForeignKeyViolation):
+        repository_harness.execute(
+            f'DELETE FROM "{repository_harness.schema}".operator_follow_up_intent_audit_outbox '
+            "WHERE audit_id = %s",
+            (attached.record.audit_id,),
+        )
+
+
+def test_failed_projection_leaves_real_outbox_pending(
+    repository_harness: _RepositoryHarness,
+):
+    _root_id, source_id = _insert_chain(repository_harness)
+    repository = repository_harness.repository()
+    attached = repository.attach(_command(source_id))
+
+    class FailingAuditProjection:
+        def find_by_audit_id(self, _audit_id):
+            return None
+
+        def append(self, _event):
+            raise OSError("private projection path withheld")
+
+    summary = project_pending_operator_follow_up_intent_audits(
+        repository=repository,
+        audit_store=FailingAuditProjection(),
+        limit=1,
+    )
+
+    assert summary == {
+        "limit": 1,
+        "scanned": 1,
+        "projected": 0,
+        "failed": 1,
+        "scan_failed": False,
+    }
+    outbox = repository.read_audit_outbox(attached.record.audit_id)
+    assert outbox.projected_at is None
+    assert [
+        pending.audit_id
+        for pending in repository.list_unprojected_audit_outbox(limit=100)
+    ] == [attached.record.audit_id]
+    assert "private" not in str(summary)
 
 
 def test_distinct_concurrent_requests_use_only_one_source_slot(
@@ -579,4 +954,121 @@ def test_fill_writer_that_starts_first_cannot_race_an_attachment(
     }
     assert repository_harness.scalar(
         f'SELECT COUNT(*) FROM "{repository_harness.schema}".operator_follow_up_intent'
+    ) == 0
+
+
+@pytest.mark.parametrize("parent_selector", ["source", "root"])
+def test_durable_intent_trigger_rejects_new_lineage_children(
+    repository_harness: _RepositoryHarness,
+    parent_selector: str,
+):
+    root_id, source_id = _insert_chain(repository_harness)
+    repository_harness.repository().attach(_command(source_id))
+    parent_id = source_id if parent_selector == "source" else root_id
+    child_id = str(uuid.uuid4())
+
+    with pytest.raises(psycopg2.Error) as exc_info:
+        _insert_order(
+            repository_harness,
+            client_order_id=child_id,
+            product_id=KNOWN_PRODUCT_ID,
+            side="SELL",
+            status="OPEN",
+            parent_order_id=parent_id,
+            ownership_provenance="ADMIN_FILL_FOLLOW_UP",
+        )
+
+    assert exc_info.value.pgcode == "P0001"
+    assert "operator_follow_up_intent_lineage_locked" in str(exc_info.value)
+    assert source_id not in str(exc_info.value)
+    assert root_id not in str(exc_info.value)
+    assert child_id not in str(exc_info.value)
+
+
+def test_attach_commit_serializes_before_concurrent_child_insert(
+    repository_harness: _RepositoryHarness,
+):
+    """Attach-first wins, then the waiting lineage insert fails closed."""
+
+    _root_id, source_id = _insert_chain(repository_harness)
+    attach_database = _PauseBeforeCommitDatabase()
+    attach_database.connect()
+    repository_harness.databases.append(attach_database)
+    repository = OperatorFollowUpIntentRepository(
+        attach_database,
+        configured_spot_portfolio_id=PORTFOLIO_ID,
+        schema=repository_harness.schema,
+    )
+    repository.ensure_schema()
+    attach_database.pause_enabled = True
+
+    attached = []
+    attach_errors: list[BaseException] = []
+    child_errors: list[BaseException] = []
+    child_id = str(uuid.uuid4())
+
+    def attach() -> None:
+        try:
+            attached.append(repository.attach(_command(source_id)))
+        except BaseException as exc:  # pragma: no cover - diagnostic capture
+            attach_errors.append(exc)
+
+    def insert_child() -> None:
+        connection = _raw_connection()
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"""
+                    INSERT INTO \"{repository_harness.schema}\".order_parent (
+                        client_order_id, product_id, side, status,
+                        parent_order_id, ownership_provenance,
+                        retail_portfolio_id
+                    ) VALUES (%s, %s, 'SELL', 'OPEN', %s, %s, %s)
+                    """,
+                    (
+                        child_id,
+                        KNOWN_PRODUCT_ID,
+                        source_id,
+                        "ADMIN_FILL_FOLLOW_UP",
+                        PORTFOLIO_ID,
+                    ),
+                )
+            connection.commit()
+        except BaseException as exc:  # pragma: no cover - asserted below
+            connection.rollback()
+            child_errors.append(exc)
+        finally:
+            connection.close()
+
+    attach_thread = threading.Thread(target=attach)
+    child_thread = threading.Thread(target=insert_child)
+    try:
+        attach_thread.start()
+        assert attach_database.statement_executed.wait(timeout=5)
+        child_thread.start()
+        time.sleep(0.15)
+        assert child_thread.is_alive() is True
+        attach_database.allow_commit.set()
+        attach_thread.join(timeout=10)
+        child_thread.join(timeout=10)
+    finally:
+        attach_database.allow_commit.set()
+
+    assert attach_thread.is_alive() is False
+    assert child_thread.is_alive() is False
+    assert attach_errors == []
+    assert len(attached) == 1
+    assert len(child_errors) == 1
+    assert isinstance(child_errors[0], psycopg2.Error)
+    assert child_errors[0].pgcode == "P0001"
+    assert "operator_follow_up_intent_lineage_locked" in str(child_errors[0])
+    assert source_id not in str(child_errors[0])
+    assert child_id not in str(child_errors[0])
+    assert repository_harness.scalar(
+        f'SELECT COUNT(*) FROM "{repository_harness.schema}".operator_follow_up_intent'
+    ) == 1
+    assert repository_harness.scalar(
+        f'SELECT COUNT(*) FROM "{repository_harness.schema}".order_parent '
+        "WHERE client_order_id = %s",
+        (child_id,),
     ) == 0

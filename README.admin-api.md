@@ -10,8 +10,10 @@ The repository association is documented in
 Maintainer handoff for contextless agents starts at
 [Maintainer Handoff](docs/MAINTAINER_HANDOFF.md).
 
-The product is the **operator review stack**. **No-live** is its safe startup
-mode; **Controlled-live** is the explicit operator-testing mode. Only installed
+The product is the **operator review stack**. An unqualified installed startup
+uses **Controlled-live** for operator testing and fails closed unless its exact
+master opt-in, approved Test portfolio, and owner-only execution lease are
+present. **No-live** is an explicit alternate posture, not the default. Only installed
 authenticated Admin API manual Spot LIMIT/GTC place/cancel can enter
 Controlled-live. Historical dashboard, legacy engine, raw smoke/sweep, and
 controlled-batch mutation paths are source-disabled.
@@ -25,6 +27,25 @@ durable R12 claim, and offline claim recovery recorded terminal blocker
 or factory. `R12_RELEASE_READY` remains `False`; R12 is consumed and no further
 Coinbase call, R13 attempt, or Slice 3/4/5 activation is authorized.
 See [R12 Preparation](docs/FUTURES_SLICE_2R12_PREPARATION.md).
+
+The routed Orders workspace now uses lightweight, paged
+`GET /api/v1/orders` and `GET /api/v1/orders/{client_order_id}` read models.
+Its first detail mutation is the backend-owned, local-only
+`POST /api/v1/orders/{source_client_order_id}/follow-up-intent`. Exact feature
+opt-in `COINBASE_ADMIN_API_OPERATOR_FOLLOW_UP_INTENT_ENABLED=1`, authentication,
+`order:create` RBAC, explicit operator acknowledgement, idempotency, audit,
+visible-ASCII command identities, an exact lowercase canonical UUID path, and
+a locked durable single-slot decision are required. Eligibility is exact
+`SPOT`/`spot_operations`; child sources require a matching terminal manual root,
+while only completed historical root claims are compatible. The accepted
+transaction atomically couples the intent, COMPLETED `OPERATOR_INTENT` claim,
+and canonical audit outbox; success additionally confirms the exact JSONL audit
+projection. The accepted boundary
+records only a future intent at zero notional. It does not call Coinbase,
+invoke an order-engine follow-up handler, create a child, run reconciliation,
+or mutate exchange state. The companion `GET` route is authoritative local
+eligibility/readback. Later intent materialization requires separate fresh
+authorization and all applicable live gates.
 
 The predecessor goal `futures_preview_acceptance_recovery_r11` is complete.
 R11 is consumed, terminal `blocked`, immutable, and cannot be retried. It stopped at
@@ -2450,6 +2471,13 @@ Fill-follow-up contracts may persist and report local parent/child evidence,
 but the installed runtime starts no autonomous follow-up consumer and those
 contracts cannot mint manual place/cancel SDK scope or authorize Coinbase
 mutation.
+
+The installed operator stack sets
+`COINBASE_ADMIN_API_OPERATOR_FOLLOW_UP_INTENT_ENABLED=1` only for its backend
+process. This enables the audited local attachment boundary in both installed
+postures; it does not grant Coinbase authority and is cleared before the
+frontend process starts. Direct/app-only runs remain disabled unless the same
+exact flag is deliberately supplied.
 
 For a deployment-like local run, configure auth explicitly instead of using
 `--dev-token`:

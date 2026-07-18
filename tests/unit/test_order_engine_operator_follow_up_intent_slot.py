@@ -7,6 +7,7 @@ import pytest
 
 from core.order_engine import OrderEngine
 from core.operator_follow_up_intent import operator_follow_up_intent_enabled
+from database import order_follow_up_intent as follow_up_store
 
 
 class _ClaimingOrderBook:
@@ -131,6 +132,35 @@ def test_disabled_durable_slot_preserves_existing_local_claim_path():
     assert engine.claim_follow_up_processing("filled", "source-001") is True
     assert db.claim_calls == []
     assert engine.orderbook.states[("filled", "source-001")] == "processing"
+
+
+def test_existing_durable_slot_remains_interlocked_after_feature_is_disabled():
+    db = _DurableDb(claim_result=None)
+    db.FOLLOW_UP_INTENT_DURABLE_SLOT_REQUIRED = False
+    db.FOLLOW_UP_INTENT_DURABLE_SLOT_APPLIES = lambda _source_id: True
+    engine = _engine(db)
+
+    assert engine.claim_follow_up_processing("filled", "source-001") is False
+    assert db.claim_calls == [("filled", "source-001")]
+    assert engine.orderbook.states == {}
+
+
+def test_slot_lookup_still_checks_persistence_when_feature_is_disabled(monkeypatch):
+    calls: list[tuple[str, bool]] = []
+
+    class _Repository:
+        def slot_applies(self, source_id: str, *, include_current_scope: bool):
+            calls.append((source_id, include_current_scope))
+            return True
+
+    monkeypatch.delenv(
+        "COINBASE_ADMIN_API_OPERATOR_FOLLOW_UP_INTENT_ENABLED",
+        raising=False,
+    )
+    monkeypatch.setattr(follow_up_store, "get_default_repository", _Repository)
+
+    assert follow_up_store.operator_follow_up_intent_slot_applies("source-001") is True
+    assert calls == [("source-001", False)]
 
 
 def test_enabled_feature_does_not_interlock_an_out_of_scope_order():

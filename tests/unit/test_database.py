@@ -4,9 +4,12 @@ Unit tests for database operations and repositories.
 Tests data persistence, queries, and repository operations.
 """
 
+import logging
+
 import pytest
 from datetime import datetime, timezone
 
+from database.database import PostgresDB
 import database.order as order_db
 
 
@@ -422,6 +425,54 @@ def test_get_parent_order_summary_selects_only_operator_read_fields(monkeypatch)
     assert "SELECT *" not in query
     assert "FROM order_parent WHERE client_order_id = %s" in query
     assert params == ("00000000-0000-4000-8000-000000000008",)
+
+
+def test_postgres_transaction_error_log_is_value_blind(caplog):
+    private_query = "SELECT * FROM private_operator_intent"
+    private_identifier = "idempotency-private-value"
+
+    class SensitiveDatabaseError(RuntimeError):
+        sqlstate = "42P01"
+
+    class FakeCursor:
+        def close(self):
+            return None
+
+    class FakeConnection:
+        def __init__(self):
+            self.rollback_calls = 0
+
+        def cursor(self):
+            return FakeCursor()
+
+        def commit(self):
+            return None
+
+        def rollback(self):
+            self.rollback_calls += 1
+
+    connection = FakeConnection()
+    database = PostgresDB()
+    database._conn = connection
+
+    with caplog.at_level(logging.ERROR, logger="PostgresDB"):
+        with pytest.raises(SensitiveDatabaseError):
+            with database.get_cursor():
+                raise SensitiveDatabaseError(
+                    f"{private_query}; identifier={private_identifier}"
+                )
+
+    assert connection.rollback_calls == 1
+    assert [record.getMessage() for record in caplog.records] == [
+        (
+            "postgres_transaction_failed "
+            "exception_type=SensitiveDatabaseError sqlstate=42P01"
+        )
+    ]
+    rendered = caplog.text
+    assert private_query not in rendered
+    assert private_identifier not in rendered
+    assert "identifier=" not in rendered
 
 
 # Run with: pytest tests/unit/test_database.py -v

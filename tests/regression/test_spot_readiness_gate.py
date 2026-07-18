@@ -92,7 +92,7 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     assert summary["slice_status"] == "complete_terminal_unknown_consumed"
     assert summary["blockers"] == ["claim_only_recovery_unknown_consumed"]
     assert summary["default_next_action"] == (
-        "await_operator_authorization_for_operator_attach_single_follow_up_intent"
+        "await_operator_direction_for_next_mvp"
     )
     assert summary["r12_workflow_claims_consumed"] == 1
     assert summary["r12_claim_created"] is True
@@ -141,20 +141,24 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         "operator_progress_wording": (
             "R12 terminal unknown-consumed; offline closeout complete"
         ),
+        "operator_question": (
+            "operator_attach_single_follow_up_intent is complete; operator "
+            "direction is required for the next MVP."
+        ),
         "focused_blast_radius_tests_required": True,
         "full_suite_at_durable_milestone_only": True,
         "active_work_policy": {
             "current_priority": (
-                "await_operator_authorization_for_operator_attach_single_follow_up_intent"
+                "await_operator_direction_for_next_mvp"
             ),
             "approved_phase_range_status": "historical_not_work_authority",
             "phase_range_work_allowed": False,
             "slice_status": "complete_terminal_unknown_consumed",
             "blockers": ["claim_only_recovery_unknown_consumed"],
             "default_next_action": (
-                "await_operator_authorization_for_operator_attach_single_follow_up_intent"
+                "await_operator_direction_for_next_mvp"
             ),
-            "ordered_successors": ["operator_attach_single_follow_up_intent"],
+            "ordered_successors": [],
             "allow_only_when_directly_blocks": [],
             "forbidden_default_actions": [
                 "complete_current_approved_range",
@@ -299,10 +303,6 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         ),
         "R12 is terminal; no further Coinbase call is permitted",
         (
-            "operator_attach_single_follow_up_intent requires distinct "
-            "operator authorization before implementation"
-        ),
-        (
             "proceeding would change the product, contract count, exact V3 "
             "policy, caps, enumerated read endpoints, or exchange-call limit"
         ),
@@ -318,7 +318,6 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         "offline claim-only recovery creates no client or factory",
         "independent R12 terminal safety audit",
         "blind-contextless R12 terminal audit",
-        "distinct operator authorization before the queued successor MVP",
         "npm run release:gate only at durable milestone closeout",
         (
             "python3.13 tools/run_parallel_regression.py --workers 4 only at "
@@ -332,7 +331,7 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         "live_coinbase_execution": "unknown_preview_reach_no_order_execution",
         "blockers": ["claim_only_recovery_unknown_consumed"],
         "next_action": (
-            "await_operator_authorization_for_operator_attach_single_follow_up_intent"
+            "await_operator_direction_for_next_mvp"
         ),
         "operator_wording": (
             "R12 terminal unknown-consumed; offline closeout complete"
@@ -368,7 +367,7 @@ def test_autonomous_work_queue_check_reports_terminal_r12_without_inventing_prev
     assert summary["slice_status"] == "complete_terminal_unknown_consumed"
     assert summary["blockers"] == ["claim_only_recovery_unknown_consumed"]
     assert summary["default_next_action"] == (
-        "await_operator_authorization_for_operator_attach_single_follow_up_intent"
+        "await_operator_direction_for_next_mvp"
     )
     assert summary["r12_eligibility_cycles_consumed"] == 2
     assert summary["r12_workflow_claims_consumed"] == 1
@@ -415,7 +414,7 @@ def test_autonomous_work_queue_check_reports_terminal_r12_without_inventing_prev
         "live_coinbase_execution": "unknown_preview_reach_no_order_execution",
         "blockers": ["claim_only_recovery_unknown_consumed"],
         "next_action": (
-            "await_operator_authorization_for_operator_attach_single_follow_up_intent"
+            "await_operator_direction_for_next_mvp"
         ),
         "operator_wording": (
             "R12 terminal unknown-consumed; offline closeout complete"

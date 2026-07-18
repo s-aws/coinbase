@@ -37,6 +37,39 @@ DEFAULT_DB_USER = os.environ.get("COINBASE_DB_USER", "postgres")
 DEFAULT_DB_PASSWORD = os.environ.get("COINBASE_DB_PASSWORD", "postgres")
 
 
+def _safe_exception_type(exc: BaseException) -> str:
+    name = type(exc).__name__
+    if not name or not name.isascii() or not all(
+        character.isalnum() or character == "_" for character in name
+    ):
+        return "Exception"
+    return name[:128]
+
+
+def _safe_sqlstate(exc: BaseException) -> str:
+    for attribute in ("sqlstate", "pgcode"):
+        try:
+            value = getattr(exc, attribute, None)
+        except Exception:
+            continue
+        if not isinstance(value, str):
+            continue
+        normalized = value.upper()
+        if len(normalized) == 5 and all(
+            character.isascii() and character.isalnum()
+            for character in normalized
+        ):
+            return normalized
+    return "unknown"
+
+
+def _log_database_exception(event: str, exc: BaseException) -> None:
+    logger.error(
+        f"{event} exception_type={_safe_exception_type(exc)} "
+        f"sqlstate={_safe_sqlstate(exc)}"
+    )
+
+
 class PostgresDB:
     """
     Secure PostgreSQL database connection manager for localhost-only access.
@@ -107,7 +140,7 @@ class PostgresDB:
         """
         self._refuse_test_process_prod_connection()
         try:
-            logger.debug(f"Attempting connection to PostgreSQL at {self.host}:{self.port} (db: {self.database})")
+            logger.debug("Attempting PostgreSQL connection")
             self._conn = psycopg2.connect(
                 host=self.host,
                 port=self.port,
@@ -115,9 +148,9 @@ class PostgresDB:
                 user=self.user,
                 password=self.password
             )
-            logger.debug(f"Successfully connected to PostgreSQL at {self.host}:{self.port}")
-        except Error as e:
-            logger.error(f"Failed to connect to PostgreSQL at {self.host}:{self.port}: {type(e).__name__}: {e}")
+            logger.debug("PostgreSQL connection established")
+        except Error as exc:
+            _log_database_exception("postgres_connection_failed", exc)
             raise
 
     def _refuse_test_process_prod_connection(self) -> None:
@@ -181,9 +214,9 @@ class PostgresDB:
             try:
                 yield cursor
                 self._conn.commit()
-            except Exception as e:
+            except Exception as exc:
                 self._conn.rollback()
-                logger.error(f"Database transaction error - rolling back: {type(e).__name__}: {e}")
+                _log_database_exception("postgres_transaction_failed", exc)
                 raise
             finally:
                 cursor.close()    
@@ -261,12 +294,12 @@ class PostgresDB:
         query = f"CREATE TABLE IF NOT EXISTS {table_name} ({col_defs})"
         
         try:
-            logger.debug(f"Creating table '{table_name}' with {len(columns)} columns")
+            logger.debug("Creating PostgreSQL table")
             with self.get_cursor() as cursor:
                 cursor.execute(query)
-            logger.info(f"Table '{table_name}' created/verified successfully")
-        except Error as e:
-            logger.error(f"Failed to create table '{table_name}': {type(e).__name__}: {e}")
+            logger.info("PostgreSQL table created or verified")
+        except Error as exc:
+            _log_database_exception("postgres_create_table_failed", exc)
             raise
     
     def insert(self, table: str, data: Dict[str, Any]) -> int:

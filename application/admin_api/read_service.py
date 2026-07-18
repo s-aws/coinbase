@@ -153,6 +153,7 @@ from .operator_mvp_policy import (
     OPERATOR_MVP_MAX_SUBMITTED_NOTIONAL_TEXT,
 )
 from core.spot_follow_up_policy import evaluate_spot_follow_up_policy
+from core.operator_follow_up_intent import operator_follow_up_intent_enabled
 from .live_adapter_decision_service import (
     CONTROLLED_FUTURES_ACCOUNT_FAMILY,
     CONTROLLED_FUTURES_ADAPTER_TARGETS,
@@ -795,6 +796,7 @@ FILL_FOLLOW_UP_TRIGGER_ENDPOINT = (
 )
 FILL_FOLLOW_UP_TRIGGER_MODULE_ID = "spot_operations"
 FILL_FOLLOW_UP_TRIGGER_SERVICE_METHOD = "trigger_order_fill_follow_up"
+BACKEND_READ_FAILED = "backend_read_failed"
 
 
 def _value_blind_exception_detail(exc: BaseException) -> str:
@@ -906,6 +908,16 @@ SOURCE_DISABLED_OPERATOR_COMMAND_ROUTES = (
     M58_SOURCE_PARKED_EXCHANGE_ROUTES
     | FUTURES_SOURCE_DISABLED_COMMAND_ROUTES
 )
+OPERATOR_FOLLOW_UP_INTENT_ROUTES = {
+    (
+        "GET",
+        "/api/v1/orders/{source_client_order_id}/follow-up-intent",
+    ),
+    (
+        "POST",
+        "/api/v1/orders/{source_client_order_id}/follow-up-intent",
+    ),
+}
 FUTURES_COMMAND_SOURCE_DISABLED_DETAIL = (
     "Current Futures command execution is source-disabled and returns "
     "status=not_implemented. Historical contract evidence is read-only; "
@@ -7149,9 +7161,17 @@ class AdminApiReadService:
 
         capabilities: list[AdminCapabilityItem] = []
         live_service_state = _decision_backed_live_service_state()
+        follow_up_intent_enabled = operator_follow_up_intent_enabled()
         for item in ADMIN_API_ROUTE_INVENTORY:
             method, path = _surface_method_and_path(item.surface)
             availability = _route_availability(item.surface, item.action_class)
+            follow_up_intent_route = (
+                method,
+                path,
+            ) in OPERATOR_FOLLOW_UP_INTENT_ROUTES
+            follow_up_intent_blocked = (
+                follow_up_intent_route and not follow_up_intent_enabled
+            )
             source_disabled = (
                 method,
                 path,
@@ -7165,6 +7185,12 @@ class AdminApiReadService:
                 availability = AdminApiRouteAvailability.AVAILABLE
             elif source_disabled:
                 availability = AdminApiRouteAvailability.BACKEND_BLOCKED
+            elif follow_up_intent_route:
+                availability = (
+                    AdminApiRouteAvailability.AVAILABLE
+                    if follow_up_intent_enabled
+                    else AdminApiRouteAvailability.BACKEND_BLOCKED
+                )
             capabilities.append(
                 AdminCapabilityItem(
                     module_id=item.module_id,
@@ -7176,7 +7202,7 @@ class AdminApiReadService:
                     live_enabled=controlled_live_enabled,
                     frontend_safe=(
                         False
-                        if source_disabled
+                        if source_disabled or follow_up_intent_blocked
                         else _frontend_safe(item.surface, item.action_class)
                     ),
                     shared_method=item.shared_method,
@@ -7217,6 +7243,21 @@ class AdminApiReadService:
                         "m58_operator_workflow_unavailable"
                         if (method, path) in M58_SOURCE_PARKED_EXCHANGE_ROUTES
                         else (
+                            "Operator follow-up intent is disabled: "
+                            "operator_follow_up_intent_disabled"
+                        )
+                        if follow_up_intent_blocked
+                        else (
+                            "Backend-owned local operator follow-up intent "
+                            "attachment; no Coinbase call"
+                        )
+                        if follow_up_intent_route and method == "POST"
+                        else (
+                            "Backend-owned local operator follow-up intent "
+                            "readback; no Coinbase call"
+                        )
+                        if follow_up_intent_route
+                        else (
                             "Compatibility-only legacy dashboard surface"
                             if "WebSocket" in item.surface
                             else "Backend-owned Admin API route"
@@ -7228,6 +7269,8 @@ class AdminApiReadService:
 
     def build_enterprise_readiness(self) -> AdminEnterpriseReadinessResponse:
         """Return whole-platform M9 readiness evidence without running gates."""
+
+        follow_up_intent_enabled = operator_follow_up_intent_enabled()
 
         def route_groups(
             module_id: str,
@@ -10809,16 +10852,29 @@ class AdminApiReadService:
                 related_workflow_ids=["spot.read_models"],
                 module="Spot Operations",
                 exposure_status=(
-                    AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                    if follow_up_intent_enabled
+                    else AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED
                 ),
                 support_status=(
-                    AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
+                    AdminApiModuleSupportStatus.PLATFORM_READY
+                    if follow_up_intent_enabled
+                    else AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
                 ),
                 summary=(
-                    "The checkpointed route can attach one backend-derived, "
-                    "local future follow-up intent without creating a child or "
-                    "calling Coinbase. It remains disabled until persistence, "
-                    "audit, eligibility, and operator-page gates pass."
+                    (
+                        "The complete local-only operator workflow attaches one "
+                        "backend-derived future follow-up intent with durable "
+                        "eligibility, idempotency, audit, persistence, duplicate "
+                        "prevention, and readback. It creates no child, makes no "
+                        "Coinbase call, and grants no later materialization authority."
+                    )
+                    if follow_up_intent_enabled
+                    else (
+                        "The local-only operator follow-up intent route is disabled "
+                        "by its exact feature gate. It creates no child and makes no "
+                        "Coinbase call."
+                    )
                 ),
                 identity_keys=["client_order_id", "follow_up_intent_id"],
                 owning_backend_service=(
@@ -10830,24 +10886,44 @@ class AdminApiReadService:
                 ],
                 frontend_contract_refs=[
                     "src/shared/api/contracts/backendApiClient.ts",
+                    (
+                        "src/features/operator-read-models/orders/"
+                        "OrderFollowUpIntentPanel.tsx"
+                    ),
                 ],
                 documentation_refs=[
                     "docs/OPERATOR_READ_MODELS.md",
                     "docs/ORIGIN_PROD_FEATURE_MVP_MAP.md",
                 ],
-                blockers=[
-                    "operator_follow_up_intent_disabled",
-                    "operator_workspace_integration_required",
-                ],
+                blockers=(
+                    []
+                    if follow_up_intent_enabled
+                    else ["operator_follow_up_intent_disabled"]
+                ),
                 live_adapter_required=False,
                 frontend_boundary=(
-                    "The browser may eventually forward only acknowledgement, "
-                    "idempotency, correlation, and explicit operator intent. It "
-                    "must not derive order fields, create a child, or call Coinbase."
+                    (
+                        "The browser forwards only acknowledgement, idempotency, "
+                        "correlation, and explicit operator intent. It does not "
+                        "derive order fields, create a child, or call Coinbase."
+                    )
+                    if follow_up_intent_enabled
+                    else (
+                        "The browser must treat the route as backend-blocked and "
+                        "must not forward an attachment request."
+                    )
                 ),
                 route_local_boundary=(
-                    "The route is a local-state mutation and is fail-closed behind "
-                    "one exact feature gate during this checkpoint."
+                    (
+                        "The exact feature gate admits only the backend-owned local "
+                        "intent transaction; the route has no exchange adapter or "
+                        "Coinbase authority."
+                    )
+                    if follow_up_intent_enabled
+                    else (
+                        "The route is a local-state mutation that fails closed behind "
+                        "one exact feature gate."
+                    )
                 ),
                 spot_rule_boundary=(
                     "This intent is restricted to authoritative system-owned Spot "
@@ -14084,9 +14160,11 @@ class AdminApiReadService:
 
         normalized_limit = max(1, min(limit, 500))
         normalized_offset = max(0, offset)
+        normalized_product_id = product_id.strip() if product_id and product_id.strip() else None
+        normalized_status = status.strip().upper() if status and status.strip() else None
         filters: dict[str, Any] = {
-            "product_id": product_id,
-            "status": status,
+            "product_id": normalized_product_id,
+            "status": normalized_status,
             "limit": normalized_limit,
             "offset": normalized_offset,
         }
@@ -14094,13 +14172,13 @@ class AdminApiReadService:
             from database.order import get_parent_orders_page
 
             rows, total_matching_count = get_parent_orders_page(
-                product_id=product_id,
-                status=status,
+                product_id=normalized_product_id,
+                status=normalized_status,
                 limit=normalized_limit,
                 offset=normalized_offset,
             )
-        except Exception as exc:
-            filters["backend_read_error"] = _value_blind_exception_detail(exc)
+        except Exception:
+            filters["backend_read_error"] = BACKEND_READ_FAILED
             rows = []
             total_matching_count = 0
 
@@ -14129,6 +14207,7 @@ class AdminApiReadService:
     ) -> AdminOrderDetailResponse:
         """Return one lightweight row; diagnostics remain an explicit view."""
 
+        backend_read_error = None
         try:
             if include_diagnostics:
                 from database.order import get_parent_order
@@ -14140,10 +14219,12 @@ class AdminApiReadService:
                 row = get_parent_order_summary(client_order_id)
         except Exception:
             row = None
+            backend_read_error = BACKEND_READ_FAILED
         return AdminOrderDetailResponse(
             client_order_id=client_order_id,
             found=row is not None,
             order=_order_item_from_row(row) if row else None,
+            backend_read_error=backend_read_error,
             fill_follow_up_decision_audit=(
                 _order_fill_follow_up_decision_audit(
                     row,
