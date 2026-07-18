@@ -33,6 +33,25 @@ TEST_PORTFOLIO_ID = "11111111-2222-4333-8444-555555555555"
 DEFAULT_PORTFOLIO_ID = "f4dfdb77-aa88-53d0-9c37-da3a0762ce54"
 
 
+def _ready_runtime_root_registrar() -> SimpleNamespace:
+    return SimpleNamespace(
+        register_manual_spot_root=lambda **_kwargs: {"registered": True},
+        get_unresolved_admin_manual_root_submissions=lambda _portfolio_id: [],
+    )
+
+
+def _ready_order_event_publisher() -> SimpleNamespace:
+    return SimpleNamespace(enabled=True, publish_event=lambda **_kwargs: True)
+
+
+@pytest.fixture(autouse=True)
+def _exact_live_execution_authority(
+    monkeypatch: pytest.MonkeyPatch,
+    coinbase_execution_lease,
+) -> None:
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
+
+
 def test_command_runtime_market_reference_falls_back_to_fresh_coinbase_rest(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -91,6 +110,36 @@ def test_command_runtime_market_reference_falls_back_to_fresh_coinbase_rest(
         "observed_at": "2026-07-11T08:53:40.658107Z",
     }
     assert best_bid_calls == [{"product_ids": ["BTC-USDC"]}]
+
+
+def test_command_runtime_market_reference_logs_value_blind_exception_class(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from application.admin_api import command_runtime
+
+    private_marker = "private-market-response-must-not-leak"
+    monkeypatch.setitem(
+        sys.modules,
+        "dashboard_server",
+        SimpleNamespace(stealth_order_bridge=None),
+    )
+    rest_client = SimpleNamespace(
+        get_sdk_client=lambda: SimpleNamespace(
+            get_best_bid_ask=lambda **_kwargs: (_ for _ in ()).throw(
+                RuntimeError(private_marker)
+            )
+        )
+    )
+
+    result = command_runtime.get_admin_api_spot_market_reference(
+        "BTC-USDC",
+        rest_client=rest_client,
+    )
+
+    assert result is None
+    assert private_marker not in caplog.text
+    assert "RuntimeError" in caplog.text
 
 
 
@@ -314,6 +363,7 @@ def _live_spot_command() -> ManualOrderCommand:
                 "product_id": "BTC-USDC",
                 "side": "BUY",
                 "order_type": "LIMIT",
+                "time_in_force": "GOOD_UNTIL_CANCELLED",
                 "base_size": "0.00002",
                 "limit_price": "65000.00",
                 "post_only": True,
@@ -364,9 +414,11 @@ def test_manual_spot_order_fails_before_submit_when_key_is_bound_to_default() ->
     assert response.data["portfolio_scope"]["blocker"] == (
         "spot_test_portfolio_mismatch"
     )
-    assert response.data["portfolio_scope"]["observed_portfolio_id"] == (
-        DEFAULT_PORTFOLIO_ID
-    )
+    assert response.data["portfolio_scope"]["expected_portfolio_id"] is None
+    assert response.data["portfolio_scope"]["observed_portfolio_id"] is None
+    assert response.data["portfolio_scope"]["portfolio_id"] is None
+    assert TEST_PORTFOLIO_ID not in repr(response.model_dump(mode="json"))
+    assert DEFAULT_PORTFOLIO_ID not in repr(response.model_dump(mode="json"))
     assert rest_client.create_order_calls == []
 
 
@@ -399,15 +451,28 @@ def test_manual_spot_order_fails_before_permissions_read_without_configured_scop
     assert rest_client.calls == 0
 
 
-def test_command_runtime_readiness_requires_the_same_test_profile(monkeypatch) -> None:
+def test_command_runtime_readiness_is_local_and_defers_profile_verification_to_action(
+    monkeypatch,
+) -> None:
     from application.admin_api import command_runtime
 
     monkeypatch.setenv(command_runtime.LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
     monkeypatch.setenv(command_runtime.SPOT_PORTFOLIO_ID_ENV, TEST_PORTFOLIO_ID)
     monkeypatch.setenv(command_runtime.SPOT_PORTFOLIO_LABEL_ENV, "Test")
     monkeypatch.setattr(command_runtime, "rest_credentials_configured", lambda: True)
+    monkeypatch.setattr(
+        command_runtime,
+        "get_admin_api_order_root_registrar",
+        _ready_runtime_root_registrar,
+    )
+    monkeypatch.setattr(
+        command_runtime,
+        "get_admin_api_order_event_stream_publisher",
+        _ready_order_event_publisher,
+    )
 
-    default_client = _PermissionsClient(
+    client = _PermissionsClient(
         {
             "portfolio_uuid": DEFAULT_PORTFOLIO_ID,
             "portfolio_type": "DEFAULT",
@@ -419,21 +484,35 @@ def test_command_runtime_readiness_requires_the_same_test_profile(monkeypatch) -
         command_runtime,
         "load_admin_api_rest_client",
         lambda: command_runtime.AdminApiRestClientBinding(
-            client=default_client,
+            client=client,
             available=True,
         ),
     )
 
-    blocked = command_runtime.build_admin_api_command_runtime_readiness()
+    ready = command_runtime.build_admin_api_command_runtime_readiness()
 
-    assert blocked.runtime_ready is False
-    assert blocked.missing_reason == "spot_test_portfolio_mismatch"
-    assert blocked.spot_portfolio_scope["status"] == "blocked"
-    assert blocked.spot_portfolio_scope["observed_portfolio_id"] == (
-        DEFAULT_PORTFOLIO_ID
-    )
+    assert ready.runtime_ready is True
+    assert ready.missing_reason is None
+    assert ready.spot_portfolio_scope["status"] == "verification_required"
+    assert ready.spot_portfolio_scope["ready"] is False
+    assert ready.spot_portfolio_scope["portfolio_id"] is None
+    assert ready.spot_portfolio_scope["expected_portfolio_id"] is None
+    assert ready.spot_portfolio_scope["observed_portfolio_id"] is None
+    assert ready.spot_portfolio_scope["profile_alias"] == "Test"
+    assert client.calls == 0
 
-    test_client = _PermissionsClient(
+
+def test_command_runtime_readiness_requires_embedded_manual_order_dependencies(
+    monkeypatch,
+) -> None:
+    from application.admin_api import command_runtime
+
+    monkeypatch.setenv(command_runtime.LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
+    monkeypatch.setenv(command_runtime.SPOT_PORTFOLIO_ID_ENV, TEST_PORTFOLIO_ID)
+    monkeypatch.setenv(command_runtime.SPOT_PORTFOLIO_LABEL_ENV, "Test")
+    monkeypatch.setattr(command_runtime, "rest_credentials_configured", lambda: True)
+    client = _PermissionsClient(
         {
             "portfolio_uuid": TEST_PORTFOLIO_ID,
             "portfolio_type": "CONSUMER",
@@ -445,40 +524,145 @@ def test_command_runtime_readiness_requires_the_same_test_profile(monkeypatch) -
         command_runtime,
         "load_admin_api_rest_client",
         lambda: command_runtime.AdminApiRestClientBinding(
-            client=test_client,
+            client=client,
             available=True,
         ),
     )
+    publisher = _ready_order_event_publisher()
+    monkeypatch.setattr(
+        command_runtime,
+        "get_admin_api_order_event_stream_publisher",
+        lambda: publisher,
+    )
+    monkeypatch.setattr(
+        command_runtime,
+        "get_admin_api_order_root_registrar",
+        lambda: None,
+    )
 
-    ready = command_runtime.build_admin_api_command_runtime_readiness()
+    standalone = command_runtime.build_admin_api_command_runtime_readiness()
 
-    assert ready.runtime_ready is True
-    assert ready.missing_reason is None
-    assert ready.spot_portfolio_scope["status"] == "matched"
-    assert ready.spot_portfolio_scope["portfolio_id"] == TEST_PORTFOLIO_ID
+    assert standalone.runtime_ready is False
+    assert standalone.missing_reason == "order_root_registrar_unavailable"
+    assert standalone.order_root_registrar_available is False
+    assert standalone.order_event_publisher_available is True
+
+    monkeypatch.setattr(
+        command_runtime,
+        "get_admin_api_order_root_registrar",
+        _ready_runtime_root_registrar,
+    )
+    monkeypatch.setattr(
+        command_runtime,
+        "get_admin_api_order_event_stream_publisher",
+        lambda: None,
+    )
+
+    missing_publisher = command_runtime.build_admin_api_command_runtime_readiness()
+
+    assert missing_publisher.runtime_ready is False
+    assert missing_publisher.missing_reason == "order_event_publisher_unavailable"
+    assert missing_publisher.order_root_registrar_available is True
+    assert missing_publisher.order_event_publisher_available is False
+
+    monkeypatch.setattr(
+        command_runtime,
+        "get_admin_api_order_event_stream_publisher",
+        _ready_order_event_publisher,
+    )
+
+    embedded = command_runtime.build_admin_api_command_runtime_readiness()
+
+    assert embedded.runtime_ready is True
+    assert embedded.missing_reason is None
+    assert embedded.order_root_registrar_available is True
+    assert embedded.order_event_publisher_available is True
 
 
-def test_command_dependencies_report_test_profile_mismatch_as_not_ready(
+def test_command_runtime_readiness_fails_locally_without_configured_portfolio_scope(
     monkeypatch,
 ) -> None:
     from application.admin_api import command_runtime
 
     monkeypatch.setenv(command_runtime.LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
+    monkeypatch.delenv(command_runtime.SPOT_PORTFOLIO_ID_ENV, raising=False)
+    monkeypatch.setattr(command_runtime, "rest_credentials_configured", lambda: True)
+    client = _PermissionsClient(
+        {
+            "portfolio_uuid": TEST_PORTFOLIO_ID,
+            "portfolio_type": "CONSUMER",
+            "can_view": True,
+            "can_trade": True,
+        }
+    )
+    monkeypatch.setattr(
+        command_runtime,
+        "load_admin_api_rest_client",
+        lambda: command_runtime.AdminApiRestClientBinding(
+            client=client,
+            available=True,
+        ),
+    )
+
+    readiness = command_runtime.build_admin_api_command_runtime_readiness()
+
+    assert readiness.runtime_ready is False
+    assert readiness.missing_reason == "spot_test_portfolio_id_missing"
+    assert readiness.spot_portfolio_scope["status"] == "blocked"
+    assert client.calls == 0
+
+
+def test_command_runtime_requires_exact_master_execution_authority(monkeypatch) -> None:
+    from application.admin_api import command_runtime
+
+    monkeypatch.setenv(command_runtime.LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.delenv("COINBASE_EXECUTION_ENABLED", raising=False)
+
+    assert command_runtime.admin_api_live_runtime_enabled() is False
+
+    for value in ("true", "yes", "01", "0"):
+        monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", value)
+        assert command_runtime.admin_api_live_runtime_enabled() is False
+
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
+
+    assert command_runtime.admin_api_live_runtime_enabled() is True
+
+
+def test_command_dependencies_do_not_read_coinbase_before_route_gates(
+    monkeypatch,
+) -> None:
+    from application.admin_api import command_runtime
+
+    monkeypatch.setenv(command_runtime.LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
     monkeypatch.setenv(command_runtime.SPOT_PORTFOLIO_ID_ENV, TEST_PORTFOLIO_ID)
     monkeypatch.setenv(command_runtime.SPOT_PORTFOLIO_LABEL_ENV, "Test")
     monkeypatch.setattr(command_runtime, "rest_credentials_configured", lambda: True)
     monkeypatch.setattr(
         command_runtime,
+        "get_admin_api_order_root_registrar",
+        _ready_runtime_root_registrar,
+    )
+    monkeypatch.setattr(
+        command_runtime,
+        "get_admin_api_order_event_stream_publisher",
+        _ready_order_event_publisher,
+    )
+    client = _PermissionsClient(
+        {
+            "portfolio_uuid": DEFAULT_PORTFOLIO_ID,
+            "portfolio_type": "DEFAULT",
+            "can_view": True,
+            "can_trade": True,
+        }
+    )
+    monkeypatch.setattr(
+        command_runtime,
         "load_admin_api_rest_client",
         lambda: command_runtime.AdminApiRestClientBinding(
-            client=_PermissionsClient(
-                {
-                    "portfolio_uuid": DEFAULT_PORTFOLIO_ID,
-                    "portfolio_type": "DEFAULT",
-                    "can_view": True,
-                    "can_trade": True,
-                }
-            ),
+            client=client,
             available=True,
         ),
     )
@@ -486,10 +670,58 @@ def test_command_dependencies_report_test_profile_mismatch_as_not_ready(
     dependencies = command_runtime.build_admin_api_command_dependencies()
 
     assert dependencies.rest_client_available is True
-    assert dependencies.command_runtime_ready is False
-    assert dependencies.command_runtime_missing_reason == (
-        "spot_test_portfolio_mismatch"
+    assert dependencies.command_runtime_ready is True
+    assert dependencies.command_runtime_missing_reason is None
+    assert client.calls == 0
+
+
+def test_command_dependencies_fail_closed_without_embedded_root_registrar(
+    monkeypatch,
+) -> None:
+    from application.admin_api import command_runtime
+
+    monkeypatch.setenv(command_runtime.LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
+    monkeypatch.setenv(command_runtime.SPOT_PORTFOLIO_ID_ENV, TEST_PORTFOLIO_ID)
+    monkeypatch.setattr(command_runtime, "rest_credentials_configured", lambda: True)
+    client = _PermissionsClient(
+        {
+            "portfolio_uuid": TEST_PORTFOLIO_ID,
+            "portfolio_type": "CONSUMER",
+            "can_view": True,
+            "can_trade": True,
+        }
     )
+    monkeypatch.setattr(
+        command_runtime,
+        "load_admin_api_rest_client",
+        lambda: command_runtime.AdminApiRestClientBinding(
+            client=client,
+            available=True,
+        ),
+    )
+    monkeypatch.setattr(
+        command_runtime,
+        "get_admin_api_order_root_registrar",
+        lambda: None,
+    )
+    publisher = _ready_order_event_publisher()
+    monkeypatch.setattr(
+        command_runtime,
+        "get_admin_api_order_event_stream_publisher",
+        lambda: publisher,
+    )
+
+    dependencies = command_runtime.build_admin_api_command_dependencies()
+
+    assert dependencies.command_runtime_ready is False
+    assert (
+        dependencies.command_runtime_missing_reason
+        == "order_root_registrar_unavailable"
+    )
+    assert dependencies.order_root_registrar_getter() is None
+    assert dependencies.order_event_publisher_getter() is publisher
+    assert client.calls == 0
 
 
 def test_command_dependencies_share_loaded_rest_client_with_controlled_child_reference(
@@ -498,6 +730,7 @@ def test_command_dependencies_share_loaded_rest_client_with_controlled_child_ref
     from application.admin_api import command_runtime
 
     monkeypatch.setenv(command_runtime.LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
     monkeypatch.setenv(command_runtime.SPOT_PORTFOLIO_ID_ENV, TEST_PORTFOLIO_ID)
     monkeypatch.setenv(command_runtime.SPOT_PORTFOLIO_LABEL_ENV, "Test")
     monkeypatch.setattr(command_runtime, "rest_credentials_configured", lambda: True)
@@ -745,7 +978,10 @@ def test_manual_spot_root_registration_failure_prevents_rest_submit(
 
     assert response.status == AdminApiCommandStatus.REJECTED
     assert response.failure_stage == "order_root_registration"
-    assert "synthetic root persistence failure" in response.message
+    assert response.message == (
+        "Canonical Spot root registration failed: exception_class:RuntimeError"
+    )
+    assert "synthetic root persistence failure" not in response.message
     assert response.live_exchange_submitted is False
     assert rest_client.create_order_calls == []
 
@@ -833,6 +1069,25 @@ def test_runtime_root_registrar_persists_and_hydrates_exact_test_scope() -> None
         {"client_order_id": "unresolved-root", "status": "OPEN"}
     ]
     assert db_module.unresolved_calls == [TEST_PORTFOLIO_ID]
+
+
+def test_runtime_root_registrar_rejects_zero_row_status_update() -> None:
+    from application.admin_api.command_runtime import (
+        AdminApiOrderRootRuntimeRegistrar,
+    )
+
+    db_module = SimpleNamespace(
+        update_order_parent_status=lambda *_args, **_kwargs: 0,
+    )
+    registrar = AdminApiOrderRootRuntimeRegistrar(
+        SimpleNamespace(db_module=db_module)
+    )
+
+    with pytest.raises(RuntimeError, match="order_parent_status_update_failed"):
+        registrar.mark_submission_status(
+            client_order_id="missing-root",
+            status="FILLED",
+        )
 
 
 def test_runtime_root_registrar_builds_fresh_fee_safe_intentional_fill_target() -> None:
@@ -1088,7 +1343,7 @@ def test_manual_spot_submit_requires_no_existing_open_order(monkeypatch) -> None
     assert rest_client.create_order_calls == []
 
 
-def test_manual_spot_cancel_uses_client_id_and_confirms_cancelled_terminal_status() -> None:
+def test_manual_spot_cancel_uses_verified_exchange_id_and_confirms_terminal_status() -> None:
     client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
 
     class _TestKeyClient(_PermissionsClient):
@@ -1121,9 +1376,23 @@ def test_manual_spot_cancel_uses_client_id_and_confirms_cancelled_terminal_statu
             self.cancel_exchange_calls.append(order_id)
             return True
 
-        def cancel_order(self, client_order_id: str) -> bool:
-            self.cancel_client_calls.append(client_order_id)
+        def cancel_order(
+            self,
+            client_order_id: str,
+            *,
+            verified_exchange_order_id: str | None = None,
+            return_evidence: bool = False,
+        ) -> bool | dict[str, object]:
+            assert client_order_id == "22daf1ea-4c57-4c03-98c5-e74459576228"
+            assert verified_exchange_order_id == "exchange-test-order"
+            self.cancel_exchange_calls.append(verified_exchange_order_id)
             self.order["status"] = "CANCELLED"
+            if return_evidence:
+                return {
+                    "outcome": "succeeded",
+                    "client_order_id": client_order_id,
+                    "submitted_identity_key": "exchange_order_id",
+                }
             return True
 
     class _RootRegistrar:
@@ -1184,8 +1453,8 @@ def test_manual_spot_cancel_uses_client_id_and_confirms_cancelled_terminal_statu
     response = service.cancel_order_by_client_order_id(command)
 
     assert response.status == AdminApiCommandStatus.ACCEPTED
-    assert rest_client.cancel_client_calls == [client_order_id]
-    assert rest_client.cancel_exchange_calls == []
+    assert rest_client.cancel_client_calls == []
+    assert rest_client.cancel_exchange_calls == ["exchange-test-order"]
     assert response.data["portfolio_scope"]["status"] == "matched"
     cancellation = response.data["cancellation_readback"]
     assert cancellation["operator_identity_key"] == "client_order_id"

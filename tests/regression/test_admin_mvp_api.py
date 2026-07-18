@@ -11,12 +11,31 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from application.admin_api.models import AdminFuturesPortfolioBindingEvidence
+from application.admin_api.idempotency import (
+    FileIdempotencyStore,
+    IdempotencyRecord,
+)
+from application.admin_api.models import (
+    AdminApiCommandResponse,
+    AdminFuturesPortfolioBindingEvidence,
+    AdminLiveAdmissionDecisionEvidence,
+)
 from application.admin_api.mvp_service import (
     AdminMvpDependencies,
+    AdminMvpEvidenceLog,
     AdminMvpRequestContext,
     AdminMvpService,
+    AdminMvpStore,
+    _coinbase_cancel_order_succeeded,
+    _coinbase_cancel_result_item_succeeded,
+    _coinbase_create_order_succeeded,
     live_coinbase_execution_enabled_from_env,
+)
+from core.enums import (
+    AdminApiActionClass,
+    AdminApiCommandStatus,
+    AdminApiGateStatus,
+    AdminApiPermission,
 )
 from core.runtime_controller import RuntimeController
 from tools import run_admin_api
@@ -30,6 +49,87 @@ PRE_COINBASE_FAILURE_STAGES = {
     "action_condition_guard",
     "durable_audit_required",
 }
+
+FUTURES_SOURCE_DISABLED_FAILURE_STAGE = (
+    "futures_command_service_source_disabled"
+)
+FUTURES_SOURCE_DISABLED_BFF_AUTHORITY = "source_disabled_not_forwarded"
+
+
+def assert_fixed_source_disabled_futures_result(
+    result,
+    *,
+    command: str,
+    route: str,
+    identity_key: str,
+    identity_value: str,
+) -> None:
+    """Assert the direct legacy service stops before every command boundary."""
+
+    assert result.status_code == 501
+    body = result.body
+    assert body["type"] == "admin_api_command_result"
+    assert body["module_id"] == "futures_perpetuals"
+    assert body["status"] == "not_implemented"
+    assert body["command"] == command
+    assert body["route"] == route
+    assert body["identity_key"] == identity_key
+    assert body["identity_value"] == identity_value
+    assert body["failure_stage"] == FUTURES_SOURCE_DISABLED_FAILURE_STAGE
+    assert body["submission_event_recorded"] is False
+    assert body["submission_event_id"] is None
+    assert body["command_draft_allowed"] is False
+    assert body["execution_allowed"] is False
+    assert body["local_state_mutated"] is False
+    assert body["exchange_state_mutated"] is False
+    assert body["live_exchange_submitted"] is False
+    assert body["live_coinbase_orders_ran"] is False
+    assert body["submitted_notional_usdc"] == "0"
+    assert body["executed_notional_usdc"] == "0"
+    assert body["bff_authority"] == FUTURES_SOURCE_DISABLED_BFF_AUTHORITY
+    for forbidden_boundary in (
+        "payload_hash",
+        "payload_validation",
+        "admission_decision",
+        "executor_decision",
+        "reconciliation_plan",
+    ):
+        assert forbidden_boundary not in body
+
+
+def assert_no_futures_exchange_mutations(rest_client) -> None:
+    assert rest_client.create_order_calls == []
+    assert rest_client.cancel_order_calls == []
+    assert rest_client.close_position_calls == []
+
+
+def assert_no_coinbase_reads(rest_client) -> None:
+    """Assert an operator GET did not consume shared REST authority."""
+
+    assert rest_client.get_account_wallets_calls == 0
+    assert rest_client.get_api_key_permissions_calls == 0
+    assert rest_client.list_portfolios_calls == 0
+    assert rest_client.get_futures_positions_calls == 0
+    assert rest_client.get_futures_margin_collateral_snapshot_calls == 0
+    assert rest_client.get_product_dict_calls == []
+    assert rest_client.get_transaction_summary_calls == 0
+    assert rest_client.list_orders_calls == []
+    assert rest_client.list_fills_calls == []
+
+
+def assert_no_futures_coinbase_reads(rest_client) -> None:
+    """Backward-compatible name for the Futures-focused call-free assertion."""
+
+    assert_no_coinbase_reads(rest_client)
+
+
+@pytest.fixture(autouse=True)
+def _exact_live_execution_authority(
+    monkeypatch: pytest.MonkeyPatch,
+    coinbase_execution_lease,
+    admin_mvp_evidence_paths,
+) -> None:
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
 
 
 try:
@@ -143,10 +243,13 @@ def test_admin_products_openapi_exposes_product_refresh_path():
     openapi = load_admin_openapi()
 
     assert openapi["paths"]["/api/v1/admin/products/refresh"]["post"]["responses"][
-        "200"
+        "501"
     ]["content"]["application/json"]["schema"]["$ref"] == (
         "#/components/schemas/AdminProductsRefreshResponse"
     )
+    assert "200" not in openapi["paths"]["/api/v1/admin/products/refresh"]["post"][
+        "responses"
+    ]
 
 
 def test_admin_futures_openapi_exposes_authoritative_default_profile_read_evidence():
@@ -927,6 +1030,77 @@ def preview_query(admission: dict) -> dict[str, str]:
     }
 
 
+def composite_spot_proof_first_pass_store(
+    tmp_path: Path,
+    assertion: dict[str, str],
+) -> FileIdempotencyStore:
+    manual = assertion["route"] == "/api/v1/orders"
+    action_class = (
+        AdminApiActionClass.LIVE_EXCHANGE_PLACE
+        if manual
+        else AdminApiActionClass.LIVE_EXCHANGE_CANCEL
+    )
+    permission = (
+        AdminApiPermission.ORDER_CREATE
+        if manual
+        else AdminApiPermission.ORDER_CANCEL
+    )
+    admission = AdminLiveAdmissionDecisionEvidence(
+        status=AdminApiGateStatus.BLOCKED,
+        allowed=False,
+        route=assertion["route"],
+        method=assertion["method"],
+        module_id=assertion["module_id"],
+        identity_key=assertion["identity_key"],
+        identity_value=assertion["identity_value"],
+        action_class=action_class,
+        required_permission=permission,
+        service_method=assertion["service_method"],
+        actor_id=assertion["actor_id"],
+        idempotency_key=assertion["command_idempotency_key"],
+        operator_intent=assertion["operator_intent"],
+        payload_hash=assertion["payload_hash"],
+        detail="Exact durable no-live first pass for composite proof test.",
+    )
+    response = AdminApiCommandResponse(
+        status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+        action_class=action_class,
+        required_permission=permission,
+        service_method=assertion["service_method"],
+        message="First pass stopped before Coinbase.",
+        client_order_id=assertion["identity_value"],
+        correlation_id="first-pass-correlation",
+        idempotency_key=assertion["command_idempotency_key"],
+        admission_decision=admission,
+        live_exchange_submitted=False,
+        live_coinbase_orders_ran=False,
+        failure_stage="approval_required",
+    )
+    store = FileIdempotencyStore(
+        tmp_path / f"{assertion['command_idempotency_key']}.jsonl"
+    )
+    endpoint = (
+        "POST /api/v1/orders"
+        if manual
+        else (
+            "POST /api/v1/orders/"
+            f"{assertion['identity_value']}/cancel"
+        )
+    )
+    store.put_record(
+        IdempotencyRecord(
+            idempotency_key=assertion["command_idempotency_key"],
+            payload_hash=assertion["payload_hash"],
+            client_order_id=assertion["identity_value"],
+            status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+            response=response.model_dump(mode="json"),
+            actor_id=assertion["actor_id"],
+            endpoint=endpoint,
+        )
+    )
+    return store
+
+
 def configure_local_evidence_logs(tmp_path: Path, monkeypatch) -> None:
     logs = {
         "COINBASE_ADMIN_API_APPROVAL_LOG_PATH": "approval.jsonl",
@@ -961,6 +1135,7 @@ def test_admin_mvp_local_evidence_logs_survive_backend_restart(tmp_path, monkeyp
     assert spot_attempt.status_code == 400
     assert spot_attempt.body["client_order_id"] == admission["identity_value"]
 
+    futures_rest_client = service.dependencies.rest_client
     futures_attempt = service.submit_futures_command(
         "/api/v1/futures/orders",
         {
@@ -972,8 +1147,16 @@ def test_admin_mvp_local_evidence_logs_survive_backend_restart(tmp_path, monkeyp
         },
         context(idempotency_key="futures-place-persisted-draft"),
     )
-    assert futures_attempt.status_code == 400
-    assert futures_attempt.body["submission_event_recorded"] is True
+    assert_fixed_source_disabled_futures_result(
+        futures_attempt,
+        command="futures_place",
+        route="/api/v1/futures/orders",
+        identity_key="product_id",
+        identity_value="BIP-20DEC30-CDE",
+    )
+    assert service.store.futures_command_decisions == {}
+    assert service.store.futures_executor_decisions == {}
+    assert_no_futures_exchange_mutations(futures_rest_client)
 
     restarted = AdminMvpService(
         AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)
@@ -1023,6 +1206,15 @@ def test_admin_mvp_local_evidence_logs_survive_backend_restart(tmp_path, monkeyp
     assert futures_suite.body["futures_live_decision_evidence"][
         "adapter_decision_ready_count"
     ] == 4
+    assert futures_suite.body["status"] == "blocked"
+    assert futures_suite.body["blocked_command_count"] == 4
+    assert futures_suite.body["executable_command_count"] == 0
+    assert futures_suite.body["command_draft_allowed_count"] == 0
+    assert futures_suite.body["bff_authority"] == (
+        FUTURES_SOURCE_DISABLED_BFF_AUTHORITY
+    )
+    assert restarted.store.futures_command_decisions == {}
+    assert restarted.store.futures_executor_decisions == {}
 
     futures_workbench = restarted.get_read_response(
         "/api/v1/admin/audit-workbench",
@@ -1030,9 +1222,8 @@ def test_admin_mvp_local_evidence_logs_survive_backend_restart(tmp_path, monkeyp
         context(),
     )
     assert futures_workbench.status_code == 200
-    assert futures_workbench.body["count"] >= 1
-    assert any(
-        event["event_id"] == futures_attempt.body["submission_event_id"]
+    assert all(
+        event.get("idempotency_key") != "futures-place-persisted-draft"
         for event in futures_workbench.body["events"]
     )
 
@@ -1143,7 +1334,7 @@ def test_admin_account_management_read_contract_exposes_local_operator_scope(
     assert body["account_scope"]["scope_type"] == "local_admin_portfolio"
     assert body["portfolio_scope"]["portfolio_id"] == "local-admin-portfolio"
     assert body["wallet_inventory"]["currency"] == "USDC"
-    assert body["wallet_inventory"]["freshness_status"] == "local_default_not_connected"
+    assert body["wallet_inventory"]["freshness_status"] == "local_sanitized_evidence"
     assert body["wallet_inventory"]["available_notional_usdc"] == "0"
     assert body["coinbase_read_enabled"] is False
     assert body["live_coinbase_read_ran"] is False
@@ -1159,7 +1350,9 @@ def test_admin_account_management_read_contract_exposes_local_operator_scope(
     assert readiness["continuous_deployment_local_release"]["status"] == "visible"
     assert readiness["approval_admission_cap_reconciliation"]["status"] == "not_applicable"
     assert body["wallet_inventory"]["status"] == "visible"
-    assert body["wallet_inventory"]["error"] == "not_applicable"
+    assert body["wallet_inventory"]["error"] == (
+        "coinbase_page_load_read_not_authorized"
+    )
 
     capabilities = service.get_read_response("/api/v1/admin/capabilities", {}, context())
     account_capability = next(
@@ -1318,7 +1511,7 @@ def test_admin_runtime_control_uses_backend_controller_without_coinbase_submissi
     assert rest_client.cancel_order_calls == []
 
 
-def test_admin_account_management_exposes_backend_owned_account_reality():
+def test_admin_account_management_exposes_call_free_local_account_reality():
     rest_client = FakeAccountRestClient()
     service = AdminMvpService(
         AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
@@ -1332,45 +1525,46 @@ def test_admin_account_management_exposes_backend_owned_account_reality():
 
     assert account_management.status_code == 200
     body = account_management.body
-    assert body["account_reality"]["status"] == "ready"
-    assert body["account_reality"]["source"] == "backend_rest_client"
-    assert body["account_reality"]["coinbase_read_ran"] is True
+    assert body["account_reality"]["status"] == "unavailable"
+    assert body["account_reality"]["source"] == "backend_admin_api_local_evidence"
+    assert body["account_reality"]["read_error"] == (
+        "coinbase_page_load_read_not_authorized"
+    )
+    assert body["account_reality"]["coinbase_read_ran"] is False
     assert body["account_reality"]["browser_authority"] == "display_only"
     assert body["account_reality"]["bff_authority"] == "forward_only_no_execution"
-    assert body["coinbase_read_enabled"] is True
-    assert body["live_coinbase_read_ran"] is True
+    assert body["coinbase_read_enabled"] is False
+    assert body["live_coinbase_read_ran"] is False
     assert body["live_coinbase_orders_ran"] is False
-    assert body["account_scope"]["source"] == "backend_rest_client"
-    assert body["account_scope"]["freshness_status"] == "backend_rest_fresh"
-    assert body["account_scope"]["account_count"] == 1
-    assert body["portfolio_scope"]["portfolio_id"] == "portfolio-real-1"
-    assert body["portfolio_scope"]["portfolio_name"] == "Default"
-    assert body["wallet_inventory"]["source"] == "backend_rest_client"
-    assert body["wallet_inventory"]["freshness_status"] == "backend_rest_fresh"
-    assert body["wallet_inventory"]["status"] == "ready"
-    assert body["wallet_inventory"]["available_notional_usdc"] == "12.34"
-    assert body["wallet_inventory"]["hold_notional_usdc"] == "2.66"
-    assert body["wallet_inventory"]["total_notional_usdc"] == "15.00"
+    assert body["account_scope"]["source"] == "backend_admin_api_local_evidence"
+    assert body["account_scope"]["freshness_status"] == "local_sanitized_evidence"
+    assert body["account_scope"]["account_count"] == 0
+    assert body["account_scope"]["scope_id"] == "local-admin-account-scope"
+    assert body["portfolio_scope"]["portfolio_id"] == "local-admin-portfolio"
+    assert body["portfolio_scope"]["portfolio_name"] == "Local Admin Portfolio"
+    assert "portfolio-real-1" not in repr(body)
+    assert body["wallet_inventory"]["source"] == "backend_admin_api_local_evidence"
+    assert body["wallet_inventory"]["freshness_status"] == "local_sanitized_evidence"
+    assert body["wallet_inventory"]["status"] == "visible"
+    assert body["wallet_inventory"]["available_notional_usdc"] == "0"
+    assert body["wallet_inventory"]["hold_notional_usdc"] == "0"
+    assert body["wallet_inventory"]["total_notional_usdc"] == "0"
     assert body["readiness"]["spot_account_ready"] is False
-    assert body["readiness"]["spot_wallet_inventory_ready"] is True
+    assert body["readiness"]["spot_wallet_inventory_ready"] is False
     assert body["readiness"]["spot_test_profile_bound"] is False
-    assert body["readiness"]["futures_account_scope_ready"] is True
-    assert body["readiness"]["futures_default_profile_bound"] is True
-    assert body["readiness"]["futures_observed_position_scope_ready"] is True
-    assert body["readiness"]["futures_margin_collateral_ready"] is True
+    assert body["readiness"]["futures_account_scope_ready"] is False
+    assert body["readiness"]["futures_default_profile_bound"] is False
+    assert body["readiness"]["futures_observed_position_scope_ready"] is False
+    assert body["readiness"]["futures_margin_collateral_ready"] is False
     assert body["readiness"]["usable_for_spot_admission"] is False
-    assert body["readiness"]["usable_for_futures_risk"] is True
+    assert body["readiness"]["usable_for_futures_risk"] is False
     readiness = {item["name"]: item for item in body["command_readiness_prerequisites"]}
-    assert readiness["backend_account_reality"]["status"] == "ready"
-    assert readiness["wallet_inventory_evidence"]["status"] == "ready"
-    assert rest_client.get_account_wallets_calls == 1
-    assert rest_client.get_api_key_permissions_calls == 1
-    assert rest_client.list_portfolios_calls == 1
-    assert rest_client.get_futures_positions_calls == 1
-    assert rest_client.get_futures_margin_collateral_snapshot_calls == 1
+    assert readiness["backend_account_reality"]["status"] == "unavailable"
+    assert readiness["wallet_inventory_evidence"]["status"] == "visible"
+    assert_no_coinbase_reads(rest_client)
 
 
-def test_admin_wallet_read_exposes_backend_owned_wallet_reality():
+def test_admin_wallet_read_exposes_call_free_local_wallet_reality():
     rest_client = FakeAccountRestClient()
     rest_client.account_wallets["BTC"] = {
         "currency": "BTC",
@@ -1396,47 +1590,41 @@ def test_admin_wallet_read_exposes_backend_owned_wallet_reality():
     assert body["read_only"] is True
     assert body["browser_authority"] == "display_only"
     assert body["bff_authority"] == "forward_only_no_execution"
-    assert body["account_reality"]["status"] == "ready"
-    assert body["account_reality"]["source"] == "backend_rest_client"
-    assert body["wallet_inventory"]["status"] == "ready"
+    assert body["account_reality"]["status"] == "unavailable"
+    assert body["account_reality"]["source"] == "backend_admin_api_local_evidence"
+    assert body["wallet_inventory"]["status"] == "visible"
     assert body["wallet_inventory"]["currency"] == "USDC"
-    assert body["wallet_inventory"]["available_notional_usdc"] == "12.34"
-    assert body["wallet_inventory"]["hold_notional_usdc"] == "2.66"
-    assert body["wallet_inventory"]["total_notional_usdc"] == "15.00"
-    assert body["wallet_count"] == 2
-    wallet_rows = {wallet["currency"]: wallet for wallet in body["wallets"]}
-    assert wallet_rows["USDC"]["available_balance"] == "12.34"
-    assert wallet_rows["USDC"]["admission_asset"] is True
-    assert wallet_rows["USDC"]["admission_ready"] is False
-    assert wallet_rows["BTC"]["admission_asset"] is False
-    assert wallet_rows["BTC"]["admission_ready"] is False
-    assert body["readiness"]["spot_wallet_inventory_ready"] is True
+    assert body["wallet_inventory"]["available_notional_usdc"] == "0"
+    assert body["wallet_inventory"]["hold_notional_usdc"] == "0"
+    assert body["wallet_inventory"]["total_notional_usdc"] == "0"
+    assert body["wallet_count"] == 0
+    assert body["wallets"] == []
+    assert body["readiness"]["spot_wallet_inventory_ready"] is False
     assert body["readiness"]["spot_test_profile_bound"] is False
     assert body["readiness"]["usable_for_spot_admission"] is False
-    assert body["readiness"]["usable_for_futures_risk"] is True
+    assert body["readiness"]["usable_for_futures_risk"] is False
     assert body["spot_admission_input"]["status"] == "blocked"
     assert body["spot_admission_input"]["first_blocker"] == (
-        "spot_test_portfolio_id_missing"
+        "coinbase_page_load_read_not_authorized"
     )
     assert body["spot_admission_input"]["wallet_check_source"] == "account_management_snapshot"
-    assert body["futures_risk_input"]["status"] == "ready"
+    assert body["futures_risk_input"]["status"] == "blocked"
     assert body["futures_risk_input"]["wallet_check_source"] == "account_management_snapshot"
     assert body["futures_risk_input"]["currency"] == "USD"
-    assert body["futures_risk_input"]["available_notional_usdc"] == "250.00"
-    assert body["futures_risk_input"]["first_blocker"] == "none"
-    assert body["coinbase_read_enabled"] is True
-    assert body["live_coinbase_read_ran"] is True
+    assert body["futures_risk_input"]["available_notional_usdc"] == "0"
+    assert body["futures_risk_input"]["first_blocker"] == (
+        "coinbase_page_load_read_not_authorized"
+    )
+    assert body["coinbase_read_enabled"] is False
+    assert body["live_coinbase_read_ran"] is False
     assert body["live_coinbase_orders_ran"] is False
     assert body["live_coinbase_execution"] == "not_run"
     assert body["notional_usdc"] == "0"
     assert body["audit"]["correlation_id"] == "wallet-read-correlation"
-    assert rest_client.get_account_wallets_calls == 1
-    assert rest_client.list_portfolios_calls == 1
-    assert rest_client.get_futures_positions_calls == 1
-    assert rest_client.get_futures_margin_collateral_snapshot_calls == 1
+    assert_no_coinbase_reads(rest_client)
 
 
-def test_admin_fee_evidence_reads_backend_transaction_summary_without_order_execution():
+def test_admin_fee_evidence_page_load_is_call_free_and_blocked():
     rest_client = FakeAccountRestClient()
     service = AdminMvpService(
         AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
@@ -1451,36 +1639,37 @@ def test_admin_fee_evidence_reads_backend_transaction_summary_without_order_exec
     assert result.status_code == 200
     body = result.body
     assert body["type"] == "admin_fee_evidence"
-    assert body["status"] == "ready"
+    assert body["status"] == "blocked"
     assert body["module_id"] == "account_management"
     assert body["route"] == "/api/v1/admin/fees"
     assert body["read_only"] is True
     assert body["account_family"] == "coinbase_futures_us_cfm"
-    assert body["fee_tier"]["source"] == "coinbase_transaction_summary.fee_tier"
-    assert body["fee_tier"]["maker_fee_rate"] == "0.0040"
-    assert body["fee_tier"]["taker_fee_rate"] == "0.0060"
-    assert body["spot_fee_input"]["status"] == "ready"
-    assert body["spot_fee_input"]["maker_fee_rate"] == "0.0040"
-    assert body["spot_fee_input"]["taker_fee_rate"] == "0.0060"
+    assert body["fee_tier"]["source"] == "backend_rest_unavailable"
+    assert body["fee_tier"]["read_error"] == (
+        "coinbase_page_load_read_not_authorized"
+    )
+    assert body["fee_tier"]["maker_fee_rate"] is None
+    assert body["fee_tier"]["taker_fee_rate"] is None
+    assert body["spot_fee_input"]["status"] == "blocked"
+    assert body["spot_fee_input"]["maker_fee_rate"] is None
+    assert body["spot_fee_input"]["taker_fee_rate"] is None
     assert body["spot_fee_input"]["post_only_rate_source"] == "maker_fee_rate"
-    assert body["futures_fee_input"]["status"] == "ready"
+    assert body["futures_fee_input"]["status"] == "blocked"
     assert body["futures_fee_input"]["account_family"] == "coinbase_futures_us_cfm"
     assert body["futures_fee_input"]["intx_applicability"] == "not_applicable_us_account"
-    assert body["futures_fee_input"]["maker_fee_rate"] == "0.0002"
-    assert body["futures_fee_input"]["taker_fee_rate"] == "0.0006"
-    assert body["futures_fee_input"]["source"] == (
-        "coinbase_transaction_summary.perpetuals_fee_tier"
-    )
-    assert body["volume_30day"]["value"] == "50000.00"
-    assert body["perpetuals_volume_30day"]["value"] == "1200.00"
-    assert body["stablecoin_conversions_enabled"] is True
-    assert body["coinbase_read_enabled"] is True
-    assert body["live_coinbase_read_ran"] is True
+    assert body["futures_fee_input"]["maker_fee_rate"] is None
+    assert body["futures_fee_input"]["taker_fee_rate"] is None
+    assert body["futures_fee_input"]["source"] == "backend_rest_unavailable"
+    assert body["volume_30day"]["value"] == "0"
+    assert body["perpetuals_volume_30day"]["value"] == "0"
+    assert body["stablecoin_conversions_enabled"] is False
+    assert body["coinbase_read_enabled"] is False
+    assert body["live_coinbase_read_ran"] is False
     assert body["live_coinbase_execution"] == "not_run"
     assert body["notional_usdc"] == "0"
     assert body["live_coinbase_orders_ran"] is False
     assert body["audit"]["operator_intent"] == "verify_fee_evidence"
-    assert rest_client.get_transaction_summary_calls == 1
+    assert_no_coinbase_reads(rest_client)
     assert rest_client.create_order_calls == []
     assert rest_client.cancel_order_calls == []
 
@@ -1495,7 +1684,7 @@ def test_admin_fee_evidence_reads_backend_transaction_summary_without_order_exec
     assert fee_capability["live_enabled"] is False
 
 
-def test_admin_fee_evidence_blocks_when_transaction_summary_unavailable():
+def test_admin_fee_evidence_diagnostic_is_value_blind_even_when_client_would_fail():
     rest_client = FakeAccountRestClient(
         transaction_summary_exception=RuntimeError("permission denied")
     )
@@ -1510,15 +1699,16 @@ def test_admin_fee_evidence_blocks_when_transaction_summary_unavailable():
     assert body["status"] == "blocked"
     assert body["fee_tier"]["status"] == "blocked"
     assert body["fee_tier"]["read_error"] == (
-        "get_transaction_summary_failed:RuntimeError"
+        "coinbase_page_load_read_not_authorized"
     )
     assert body["spot_fee_input"]["status"] == "blocked"
     assert body["futures_fee_input"]["status"] == "blocked"
     assert body["live_coinbase_read_ran"] is False
     assert body["live_coinbase_orders_ran"] is False
+    assert_no_coinbase_reads(rest_client)
 
 
-def test_admin_products_read_exposes_backend_owned_product_metadata():
+def test_admin_products_page_load_exposes_blocked_call_free_metadata():
     rest_client = FakeAccountRestClient()
     rest_client.product_dicts["BTC-USDC"] = {
         "product_id": "BTC-USDC",
@@ -1547,76 +1737,56 @@ def test_admin_products_read_exposes_backend_owned_product_metadata():
     assert result.status_code == 200
     body = result.body
     assert body["type"] == "admin_products"
-    assert body["status"] == "warning"
+    assert body["status"] == "blocked"
     assert body["module_id"] == "account_management"
     assert body["route"] == "/api/v1/admin/products"
     assert body["read_only"] is True
     assert body["browser_authority"] == "display_only"
     assert body["bff_authority"] == "read_only_forward"
-    assert body["coinbase_read_enabled"] is True
-    assert body["live_coinbase_read_ran"] is True
+    assert body["coinbase_read_enabled"] is False
+    assert body["live_coinbase_read_ran"] is False
     assert body["live_coinbase_orders_ran"] is False
     assert body["live_coinbase_execution"] == "not_run"
     assert body["notional_usdc"] == "0"
-    assert body["metadata_count"] == 2
-    assert body["missing_metadata_count"] == 1
-    assert body["spot_count"] == 1
-    assert body["derivatives_count"] == 1
-    assert body["spot"] == ["BTC-USDC"]
-    assert body["derivatives"] == ["AVP-20DEC30-CDE"]
+    assert body["metadata_count"] == 0
+    assert body["missing_metadata_count"] == 3
+    assert body["spot_count"] == 0
+    assert body["derivatives_count"] == 0
+    assert body["spot"] == []
+    assert body["derivatives"] == []
     rows = {item["product_id"]: item for item in body["products"]}
-    assert rows["BTC-USDC"]["product_type"] == "SPOT"
-    assert rows["BTC-USDC"]["quote_currency"] == "USDC"
-    assert rows["BTC-USDC"]["base_min_size"] == "0.00001"
-    assert rows["BTC-USDC"]["source"] == "backend_rest_client"
-    assert rows["BTC-USDC"]["read_status"] == "ready"
-    assert rows["BTC-USDC"]["read_error"] is None
-    assert rows["BTC-USDC"]["product_family"] == "spot"
-    assert rows["AVP-20DEC30-CDE"]["product_type"] == "FUTURE"
-    assert rows["AVP-20DEC30-CDE"]["product_family"] == "futures_perpetuals"
-    assert rows["AVP-20DEC30-CDE"]["contract_size"] == "10"
+    assert rows["BTC-USDC"]["product_type"] == "UNKNOWN"
+    assert rows["BTC-USDC"]["quote_currency"] is None
+    assert rows["BTC-USDC"]["base_min_size"] is None
+    assert rows["BTC-USDC"]["source"] == "backend_rest_unavailable"
+    assert rows["BTC-USDC"]["read_status"] == "blocked"
+    assert rows["BTC-USDC"]["read_error"] == (
+        "coinbase_page_load_read_not_authorized"
+    )
+    assert rows["BTC-USDC"]["product_family"] == "unknown"
+    assert rows["AVP-20DEC30-CDE"]["product_type"] == "UNKNOWN"
+    assert rows["AVP-20DEC30-CDE"]["product_family"] == "unknown"
+    assert rows["AVP-20DEC30-CDE"]["contract_size"] is None
     assert rows["UNKNOWN-USDC"]["read_status"] == "blocked"
-    assert rows["UNKNOWN-USDC"]["read_error"] == "product_metadata_missing"
-    assert rows["UNKNOWN-USDC"]["source"] == "backend_rest_client"
+    assert rows["UNKNOWN-USDC"]["read_error"] == (
+        "coinbase_page_load_read_not_authorized"
+    )
+    assert rows["UNKNOWN-USDC"]["source"] == "backend_rest_unavailable"
     assert body["audit"]["correlation_id"] == "product-metadata-read-correlation"
-    assert rest_client.get_product_dict_calls == [
-        "BTC-USDC",
-        "AVP-20DEC30-CDE",
-        "UNKNOWN-USDC",
-    ]
+    assert_no_coinbase_reads(rest_client)
     assert rest_client.create_order_calls == []
     assert rest_client.cancel_order_calls == []
 
 
-def test_admin_products_refresh_persists_backend_owned_products_json(tmp_path, monkeypatch):
+def test_admin_products_refresh_is_source_disabled_before_reads_or_writes(
+    tmp_path,
+    monkeypatch,
+):
     products_path = tmp_path / "products.json"
-    products_path.write_text(
-        json.dumps(
-            {
-                "spot": ["OLD-USDC"],
-                "derivatives": [],
-                "ticker_to_trading": {"BTC": "BTC-USDC"},
-                "metadata": {"OLD-USDC": {"type": "SPOT"}},
-            },
-        ),
-        encoding="utf-8",
-    )
+    original_bytes = b'{"spot":["OLD-USDC"],"derivatives":[]}'
+    products_path.write_bytes(original_bytes)
     monkeypatch.setenv("COINBASE_ADMIN_PRODUCTS_JSON_PATH", str(products_path))
     rest_client = FakeAccountRestClient()
-    rest_client.product_dicts["BTC-USDC"] = {
-        "product_id": "BTC-USDC",
-        "product_type": "SPOT",
-        "base_currency": "BTC",
-        "quote_currency": "USDC",
-        "base_increment": "0.00000001",
-        "quote_increment": "0.01",
-        "price_increment": "0.01",
-        "base_min_size": "0.00001",
-        "quote_min_size": "1",
-        "display_name": "BTC-USDC",
-        "status": "online",
-        "trading_disabled": False,
-    }
     service = AdminMvpService(
         AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
     )
@@ -1626,57 +1796,41 @@ def test_admin_products_refresh_persists_backend_owned_products_json(tmp_path, m
         context(idempotency_key="product-refresh"),
     )
 
-    assert result.status_code == 200
+    assert result.status_code == 501
     body = result.body
     assert body["type"] == "admin_products_refresh"
-    assert body["status"] == "accepted"
+    assert body["status"] == "not_implemented"
     assert body["module_id"] == "account_management"
     assert body["route"] == "/api/v1/admin/products/refresh"
     assert body["method"] == "POST"
     assert body["action_class"] == "local_state_mutation"
     assert body["required_permission"] == "config:update"
     assert body["service_method"] == "refresh_admin_products"
-    assert body["configured_product_scope"] == [
-        "BTC-USDC",
-        "AVP-20DEC30-CDE",
-        "BIP-20DEC30-CDE",
-    ]
-    assert body["spot"] == ["BTC-USDC"]
-    assert body["derivatives"] == ["AVP-20DEC30-CDE", "BIP-20DEC30-CDE"]
-    assert body["metadata_count"] == 3
+    assert body["configured_product_scope"] == []
+    assert body["spot"] == []
+    assert body["derivatives"] == []
+    assert body["products"] == []
+    assert body["metadata_count"] == 0
     assert body["missing_metadata_count"] == 0
-    assert body["products_json_written"] is True
+    assert body["products_json_written"] is False
     assert body["products_json_target"] == "backend_configured_products_json"
-    assert body["preserved_ticker_to_trading"] is True
-    assert body["coinbase_read_attempted"] is True
-    assert body["coinbase_read_succeeded"] is True
-    assert body["local_state_mutated"] is True
+    assert body["preserved_ticker_to_trading"] is False
+    assert body["write_error"] == "products_refresh_source_disabled"
+    assert body["coinbase_read_enabled"] is False
+    assert body["coinbase_read_attempted"] is False
+    assert body["coinbase_read_succeeded"] is False
+    assert body["live_coinbase_read_ran"] is False
+    assert body["local_state_mutated"] is False
     assert body["exchange_state_mutated"] is False
     assert body["live_exchange_submitted"] is False
-    assert body["live_coinbase_orders_ran"] is False
-    assert body["live_coinbase_execution"] == "not_run"
-    assert body["notional_usdc"] == "0"
-    assert body["audit"]["idempotency_key"] == "product-refresh"
-    assert rest_client.get_product_dict_calls == [
-        "BTC-USDC",
-        "AVP-20DEC30-CDE",
-        "BIP-20DEC30-CDE",
-    ]
-    assert rest_client.create_order_calls == []
-    assert rest_client.cancel_order_calls == []
-
-    products_json = json.loads(products_path.read_text(encoding="utf-8"))
-    assert products_json["spot"] == ["BTC-USDC"]
-    assert products_json["derivatives"] == ["AVP-20DEC30-CDE", "BIP-20DEC30-CDE"]
-    assert products_json["ticker_to_trading"] == {"BTC": "BTC-USDC"}
-    assert products_json["metadata"]["BTC-USDC"]["type"] == "SPOT"
-    assert products_json["metadata"]["BTC-USDC"]["base_min_size"] == "0.00001"
-    assert products_json["metadata"]["BTC-USDC"]["quote_min_size"] == "1"
-    assert products_json["metadata"]["AVP-20DEC30-CDE"]["type"] == "FUTURE"
-    assert products_json["metadata"]["AVP-20DEC30-CDE"]["contract_size"] == "10"
+    assert body["command_routes_mode"] == "backend_admin_api_source_disabled"
+    assert body["bff_authority"] == "source_disabled_not_forwarded"
+    assert products_path.read_bytes() == original_bytes
+    assert_no_coinbase_reads(rest_client)
+    assert_no_futures_exchange_mutations(rest_client)
 
 
-def test_admin_wallet_read_blocks_futures_risk_when_cfm_margin_snapshot_fails():
+def test_admin_wallet_read_does_not_probe_cfm_margin_when_client_would_fail():
     rest_client = FakeAccountRestClient(
         futures_margin_collateral_exception=RuntimeError("permission denied")
     )
@@ -1692,14 +1846,18 @@ def test_admin_wallet_read_blocks_futures_risk_when_cfm_margin_snapshot_fails():
 
     assert result.status_code == 200
     body = result.body
-    assert body["readiness"]["futures_account_scope_ready"] is True
+    assert body["readiness"]["futures_account_scope_ready"] is False
     assert body["readiness"]["futures_margin_collateral_ready"] is False
     assert body["readiness"]["usable_for_futures_risk"] is False
     assert body["futures_risk_input"]["status"] == "blocked"
     assert body["futures_risk_input"]["currency"] == "USD"
     assert body["futures_risk_input"]["available_notional_usdc"] == "0"
-    assert body["futures_risk_input"]["first_blocker"] == "futures_margin_collateral_read_failed"
-    assert "get_futures_margin_collateral_snapshot_failed:RuntimeError" in body["account_reality"]["read_error"]
+    assert body["futures_risk_input"]["first_blocker"] == (
+        "coinbase_page_load_read_not_authorized"
+    )
+    assert body["account_reality"]["read_error"] == (
+        "coinbase_page_load_read_not_authorized"
+    )
 
     futures = service.get_read_response(
         "/api/v1/futures/account",
@@ -1709,13 +1867,12 @@ def test_admin_wallet_read_blocks_futures_risk_when_cfm_margin_snapshot_fails():
 
     assert futures.status_code == 200
     assert futures.body["collateral"]["status"] == "unavailable"
-    assert futures.body["collateral"]["source"] == "backend_rest_client"
     assert futures.body["collateral"]["value"]["account_family"] == "coinbase_futures_us_cfm"
     assert futures.body["margin"]["status"] == "unavailable"
-    assert rest_client.get_futures_margin_collateral_snapshot_calls == 2
+    assert_no_coinbase_reads(rest_client)
 
 
-def test_admin_wallet_read_accepts_usd_quote_inventory_but_requires_test_profile():
+def test_admin_wallet_read_does_not_import_available_usd_quote_inventory():
     rest_client = FakeAccountRestClient()
     rest_client.account_wallets = {
         "USD": {
@@ -1738,28 +1895,29 @@ def test_admin_wallet_read_accepts_usd_quote_inventory_but_requires_test_profile
 
     assert result.status_code == 200
     body = result.body
-    assert body["wallet_inventory"]["status"] == "ready"
-    assert body["wallet_inventory"]["currency"] == "USD"
-    assert body["wallet_inventory"]["available_notional_usdc"] == "9.25"
-    assert body["wallet_inventory"]["hold_notional_usdc"] == "0.75"
-    assert body["wallet_inventory"]["total_notional_usdc"] == "10.00"
-    assert body["wallet_inventory"]["freshness_status"] == "backend_rest_fresh"
-    assert body["wallet_inventory"]["error"] == "none"
-    assert body["readiness"]["spot_wallet_inventory_ready"] is True
+    assert body["wallet_inventory"]["status"] == "visible"
+    assert body["wallet_inventory"]["currency"] == "USDC"
+    assert body["wallet_inventory"]["available_notional_usdc"] == "0"
+    assert body["wallet_inventory"]["hold_notional_usdc"] == "0"
+    assert body["wallet_inventory"]["total_notional_usdc"] == "0"
+    assert body["wallet_inventory"]["freshness_status"] == "local_sanitized_evidence"
+    assert body["wallet_inventory"]["error"] == (
+        "coinbase_page_load_read_not_authorized"
+    )
+    assert body["readiness"]["spot_wallet_inventory_ready"] is False
     assert body["readiness"]["spot_test_profile_bound"] is False
     assert body["readiness"]["usable_for_spot_admission"] is False
     assert body["spot_admission_input"]["status"] == "blocked"
     assert body["spot_admission_input"]["first_blocker"] == (
-        "spot_test_portfolio_id_missing"
+        "coinbase_page_load_read_not_authorized"
     )
-    assert body["spot_admission_input"]["currency"] == "USD"
-    wallet_rows = {wallet["currency"]: wallet for wallet in body["wallets"]}
-    assert wallet_rows["USD"]["admission_asset"] is True
-    assert wallet_rows["USD"]["admission_ready"] is False
+    assert body["spot_admission_input"]["currency"] == "USDC"
+    assert body["wallets"] == []
     assert body["live_coinbase_orders_ran"] is False
+    assert_no_coinbase_reads(rest_client)
 
 
-def test_admin_wallet_read_keeps_inventory_live_when_quote_wallet_is_missing(
+def test_admin_wallet_read_stays_local_when_remote_quote_wallet_is_missing(
     monkeypatch,
 ):
     monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID", "portfolio-test-1")
@@ -1786,19 +1944,22 @@ def test_admin_wallet_read_keeps_inventory_live_when_quote_wallet_is_missing(
 
     assert result.status_code == 200
     body = result.body
-    assert body["wallet_inventory"]["status"] == "ready"
-    assert body["wallet_inventory"]["freshness_status"] == "backend_rest_fresh"
+    assert body["wallet_inventory"]["status"] == "visible"
+    assert body["wallet_inventory"]["freshness_status"] == "local_sanitized_evidence"
     assert body["wallet_inventory"]["quote_wallet_status"] == "blocked"
-    assert body["wallet_inventory"]["quote_wallet_error"] == "quote_wallet_missing"
-    assert body["wallet_count"] == 1
+    assert body["wallet_inventory"]["quote_wallet_error"] == (
+        "coinbase_page_load_read_not_authorized"
+    )
+    assert body["wallet_count"] == 0
     assert body["readiness"]["spot_wallet_inventory_ready"] is False
     assert body["spot_admission_input"]["status"] == "blocked"
-    assert body["spot_admission_input"]["first_blocker"] == "quote_wallet_missing"
-    wallet_rows = {wallet["currency"]: wallet for wallet in body["wallets"]}
-    assert wallet_rows["BTC"]["admission_asset"] is False
-    assert wallet_rows["BTC"]["admission_ready"] is False
-    assert body["live_coinbase_read_ran"] is True
+    assert body["spot_admission_input"]["first_blocker"] == (
+        "coinbase_page_load_read_not_authorized"
+    )
+    assert body["wallets"] == []
+    assert body["live_coinbase_read_ran"] is False
     assert body["live_coinbase_orders_ran"] is False
+    assert_no_coinbase_reads(rest_client)
 
 
 def test_cap_guard_uses_usd_quote_wallet_from_backend_snapshot():
@@ -1923,23 +2084,9 @@ def test_admin_wallet_route_is_registered_as_account_management_capability():
     assert account_module["action_posture"]["browser_authority"] == "display_only"
 
 
-def test_spot_and_futures_reads_consume_backend_account_snapshot(monkeypatch):
+def test_spot_and_futures_reads_are_local_and_call_free(monkeypatch):
     monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID", "portfolio-test-1")
     rest_client = FakeAccountRestClient()
-    rest_client.product_dicts["BTC-USDC"] = {
-        "product_id": "BTC-USDC",
-        "product_type": "SPOT",
-        "base_currency": "BTC",
-        "quote_currency": "USDC",
-        "base_increment": "0.00000001",
-        "quote_increment": "0.01",
-        "price_increment": "0.01",
-        "base_min_size": "0.00001",
-        "quote_min_size": "1",
-        "display_name": "BTC-USDC",
-        "status": "online",
-        "trading_disabled": False,
-    }
     service = AdminMvpService(
         AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
     )
@@ -1949,99 +2096,57 @@ def test_spot_and_futures_reads_consume_backend_account_snapshot(monkeypatch):
         {"product_id": ["BTC-USDC"]},
         context(),
     )
+    futures = service.get_read_response("/api/v1/futures/account", {}, context())
+    positions = service.get_read_response("/api/v1/futures/positions", {}, context())
+
     assert spot.status_code == 200
-    assert spot.body["status"] == "warning"
-    assert spot.body["account_reality"]["status"] == "ready"
-    assert spot.body["account_reality"]["source"] == "backend_rest_client"
-    assert spot.body["account_scope"]["scope_id"] == "portfolio-real-1"
-    assert spot.body["portfolio_scope"]["portfolio_id"] == "portfolio-real-1"
-    assert spot.body["wallet_snapshot"]["source"] == "backend_rest_client"
-    assert spot.body["wallet_snapshot"]["status"] == "ready"
-    assert spot.body["wallet_snapshot"]["available_notional_usdc"] == "12.34"
+    assert spot.body["status"] == "blocked"
+    assert spot.body["account_reality"]["status"] == "unavailable"
+    assert spot.body["account_reality"]["source"] == (
+        "backend_admin_api_local_evidence"
+    )
+    assert spot.body["wallet_snapshot"]["available_notional_usdc"] == "0"
     assert spot.body["wallet_snapshot"]["available"] is False
-    assert spot.body["spot_admission_input"] == {
-        "status": "blocked",
-        "wallet_check_source": "account_management_snapshot",
-        "currency": "USDC",
-        "available_notional_usdc": "12.34",
-        "proof_id": spot.body["account_reality"]["proof_id"],
-        "first_blocker": "spot_test_portfolio_mismatch",
-    }
-    assert spot.body["account_readiness"]["spot_wallet_inventory_ready"] is True
-    assert spot.body["account_readiness"]["spot_test_profile_bound"] is False
-    assert spot.body["account_readiness"]["usable_for_spot_admission"] is False
     [spot_product] = spot.body["products"]
     assert spot_product["product_id"] == "BTC-USDC"
-    assert spot_product["product_type"] == "SPOT"
-    assert spot_product["product_family"] == "spot"
-    assert spot_product["product_read_status"] == "ready"
-    assert spot_product["product_read_error"] is None
-    assert spot_product["base_min_size"] == "0.00001"
-    assert spot_product["quote_min_size"] == "1"
-    assert spot_product["trading_disabled"] is False
-    assert spot_product["capabilities"]["wallet_inventory"]["mode"] == "enabled"
-    assert spot_product["capabilities"]["spot_admission_input"]["mode"] == "blocked"
-    assert spot_product["capabilities"]["product_capability_contract"]["mode"] == "enabled"
-    assert (
-        spot_product["capabilities"]["product_capability_contract"]["source"]
-        == "backend_rest_client"
+    assert spot_product["product_read_status"] == "blocked"
+    assert spot_product["product_read_error"] == (
+        "coinbase_page_load_read_not_authorized"
     )
-    guards = {
-        item["condition"]: item
-        for item in spot.body["action_guard_summary"]
-    }
-    assert guards["backend_account_reality"]["mode"] == "enabled"
-    assert guards["spot_wallet_inventory"]["mode"] == "enabled"
-    assert guards["spot_admission_input"]["mode"] == "blocked"
-    assert guards["product_capability_contract"]["mode"] == "enabled"
-    assert guards["product_capability_contract"]["source"] == "backend_rest_client"
-    assert spot.body["browser_authority"] == "display_only"
-    assert spot.body["bff_authority"] == "read_only_forward"
-    assert spot.body["live_coinbase_execution"] == "not_run"
-    assert spot.body["live_coinbase_orders_ran"] is False
-    assert rest_client.get_product_dict_calls == ["BTC-USDC"]
+    assert spot.body["live_coinbase_read_ran"] is False
 
-    futures = service.get_read_response("/api/v1/futures/account", {}, context())
     assert futures.status_code == 200
-    assert futures.body["account_reality"]["source"] == "backend_rest_client"
-    assert futures.body["account_readiness"]["futures_account_scope_ready"] is True
-    assert futures.body["account_readiness"]["futures_observed_position_scope_ready"] is True
-    assert futures.body["account_readiness"]["futures_margin_collateral_ready"] is True
-    assert futures.body["account_readiness"]["usable_for_futures_risk"] is True
-    assert futures.body["observed_position_scope"] == ["BIP-20DEC30-CDE"]
-    assert futures.body["position_count"] == 1
-    assert futures.body["collateral"]["status"] == "observed"
-    assert futures.body["collateral"]["source"] == "backend_rest_client"
-    assert futures.body["collateral"]["value"]["account_family"] == "coinbase_futures_us_cfm"
-    assert futures.body["collateral"]["value"]["available_margin"]["value"] == "250.00"
-    assert futures.body["collateral"]["value"]["intx_applicability"] == "not_applicable_us_account"
-    assert futures.body["margin"]["status"] == "observed"
-    assert futures.body["margin"]["value"]["margin_window_type"] == "FCM_MARGIN_WINDOW_TYPE_INTRADAY"
-    assert futures.body["funding"]["status"] == "observed"
-    assert futures.body["funding"]["source"] == "backend_rest_client"
-    assert futures.body["funding"]["value"]["funding_applicability"] == "not_applicable_us_cfm"
-    assert futures.body["funding"]["value"]["funding_required"] is False
-    assert futures.body["funding"]["value"]["intx_applicability"] == "not_applicable_us_account"
-    assert futures.body["liquidation"]["status"] == "observed"
-    assert futures.body["liquidation"]["source"] == "backend_rest_client"
-    assert futures.body["liquidation"]["value"]["liquidation_threshold_present"] is True
-    assert futures.body["liquidation"]["value"]["liquidation_buffer_present"] is True
-    assert futures.body["reduce_only_close_only"]["status"] == "observed"
-    assert futures.body["reduce_only_close_only"]["source"] == "runtime_positions"
-    assert futures.body["reduce_only_close_only"]["value"]["position_side_observed_count"] == 1
-    assert futures.body["reduce_only_close_only"]["value"]["backend_derives_close_reduce_side"] is True
-    assert futures.body["live_coinbase_orders_ran"] is False
-
-    positions = service.get_read_response("/api/v1/futures/positions", {}, context())
-    assert positions.status_code == 200
-    assert positions.body["count"] == 1
-    assert positions.body["items"][0]["position_key"] == (
-        "futures_position:portfolio-real-1:BIP-20DEC30-CDE"
+    assert futures.body["account_reality"]["source"] == (
+        "backend_admin_api_local_evidence"
     )
-    assert positions.body["items"][0]["product_id"] == "BIP-20DEC30-CDE"
+    assert futures.body["account_readiness"]["futures_account_scope_ready"] is False
+    assert (
+        futures.body["account_readiness"]["futures_observed_position_scope_ready"]
+        is False
+    )
+    assert (
+        futures.body["account_readiness"]["futures_margin_collateral_ready"]
+        is False
+    )
+    assert futures.body["account_readiness"]["usable_for_futures_risk"] is False
+    assert futures.body["observed_position_scope"] == []
+    assert futures.body["position_count"] == 0
+    assert futures.body["collateral"]["status"] == "unavailable"
+    assert futures.body["margin"]["status"] == "unavailable"
+    assert futures.body["funding"]["status"] == "unavailable"
+    assert futures.body["live_coinbase_read_ran"] is False
+
+    assert positions.status_code == 200
+    assert positions.body["count"] == 0
+    assert positions.body["items"] == []
+    for body in (spot.body, futures.body, positions.body):
+        assert "portfolio-real-1" not in repr(body)
+        assert "12.34" not in repr(body)
+    assert_no_coinbase_reads(rest_client)
+    assert_no_futures_exchange_mutations(rest_client)
 
 
-def test_admin_futures_reads_bind_exact_permissioned_default_profile():
+def test_admin_futures_reads_ignore_available_default_profile_client():
     rest_client = FakeAccountRestClient()
     rest_client.portfolios = [
         {
@@ -2062,69 +2167,43 @@ def test_admin_futures_reads_bind_exact_permissioned_default_profile():
     account = service.get_read_response("/api/v1/futures/account", {}, context())
     positions = service.get_read_response(
         "/api/v1/futures/positions",
-        {
-            "product_id": "BIP-20DEC30-CDE",
-            "position_side": "LONG",
-            "limit": "10",
-            "offset": "0",
-        },
+        {"product_id": "BIP-20DEC30-CDE", "position_side": "LONG"},
         context(),
     )
-    position_key = "futures_position:portfolio-real-1:BIP-20DEC30-CDE"
     detail = service.get_read_response(
-        f"/api/v1/futures/positions/{position_key}",
-        {},
-        context(),
-    )
-    product_alias = service.get_read_response(
-        "/api/v1/futures/positions/BIP-20DEC30-CDE",
+        "/api/v1/futures/positions/futures_position%3Adefault%3ABIP-20DEC30-CDE",
         {},
         context(),
     )
 
     assert account.status_code == 200
-    assert account.body["portfolio_scope"]["portfolio_id"] == "portfolio-real-1"
-    assert account.body["portfolio_scope"]["portfolio_name"] == "Default"
+    assert account.body["portfolio_scope"]["portfolio_id"] == (
+        "local-futures-evidence"
+    )
     binding = account.body["portfolio_binding"]
-    assert binding["status"] == "matched"
-    assert binding["ready"] is True
-    assert binding["blocker"] is None
-    assert binding["expected_portfolio_label"] == "Default"
-    assert binding["expected_portfolio_type"] == "DEFAULT"
-    assert binding["observed_portfolio_id"] == "portfolio-real-1"
-    assert binding["observed_portfolio_label"] == "Default"
-    assert binding["observed_portfolio_type"] == "DEFAULT"
-    assert binding["can_view"] is True
-    assert binding["can_trade"] is True
-    assert binding["read_authorized"] is True
-    assert binding["selection_authority"] == "cdp_api_key_permissioned_portfolio"
-    assert binding["request_portfolio_override_allowed"] is False
-    assert binding["source"] == "coinbase_api_key_permissions_and_portfolio_catalog"
-    assert binding["freshness_status"] == "backend_rest_fresh"
-    assert binding["observed_at"]
-    assert account.body["account_readiness"]["futures_default_profile_bound"] is True
-    assert account.body["account_readiness"]["futures_account_scope_ready"] is True
-    assert account.body["live_coinbase_read_ran"] is True
-    assert account.body["live_coinbase_orders_ran"] is False
-
-    assert positions.status_code == 200
-    assert positions.body["count"] == 1
-    assert positions.body["portfolio_binding"]["ready"] is True
-    assert positions.body["items"][0]["position_key"] == position_key
-    assert positions.body["items"][0]["portfolio_uuid"] == "portfolio-real-1"
-    assert positions.body["items"][0]["source"] == "backend_rest_client"
-    assert positions.body["pagination"]["total_matching_count"] == 1
-    assert detail.body["found"] is True
-    assert detail.body["position"]["position_key"] == position_key
-    assert product_alias.body["found"] is False
-    assert rest_client.create_order_calls == []
-    assert rest_client.cancel_order_calls == []
-    assert rest_client.close_position_calls == []
+    assert binding["status"] == "blocked"
+    assert binding["ready"] is False
+    assert binding["blocker"] == "futures_coinbase_read_not_authorized"
+    assert binding["observed_portfolio_id"] is None
+    assert binding["portfolio_id"] is None
+    assert binding["can_view"] is None
+    assert binding["can_trade"] is None
+    assert binding["read_authorized"] is False
+    assert binding["source"] == "backend_admin_api_local_evidence"
+    assert binding["freshness_status"] == "local_sanitized_evidence"
+    assert account.body["account_readiness"]["futures_default_profile_bound"] is False
+    assert account.body["account_readiness"]["futures_account_scope_ready"] is False
+    assert account.body["live_coinbase_read_ran"] is False
+    assert positions.body["count"] == 0
+    assert positions.body["items"] == []
+    assert detail.body["found"] is False
+    for body in (account.body, positions.body, detail.body):
+        assert "portfolio-real-1" not in repr(body)
+    assert_no_coinbase_reads(rest_client)
+    assert_no_futures_exchange_mutations(rest_client)
 
 
-def test_admin_futures_reads_fail_closed_before_cfm_reads_for_non_default_key(
-    monkeypatch,
-):
+def test_admin_futures_reads_ignore_non_default_remote_key(monkeypatch):
     monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID", "portfolio-test-1")
     rest_client = FakeAccountRestClient(
         api_key_permissions={
@@ -2159,34 +2238,27 @@ def test_admin_futures_reads_fail_closed_before_cfm_reads_for_non_default_key(
     )
 
     assert account.status_code == 200
-    assert account.body["portfolio_scope"]["portfolio_id"] == "portfolio-test-1"
-    assert account.body["portfolio_scope"]["portfolio_name"] == "Test"
-    binding = account.body["portfolio_binding"]
-    assert binding["status"] == "blocked"
-    assert binding["ready"] is False
-    assert binding["blocker"] == "futures_default_portfolio_type_mismatch"
-    assert binding["observed_portfolio_id"] == "portfolio-test-1"
-    assert binding["observed_portfolio_label"] == "Test"
-    assert binding["observed_portfolio_type"] == "CONSUMER"
+    assert account.body["portfolio_scope"]["portfolio_id"] == (
+        "local-futures-evidence"
+    )
+    assert account.body["portfolio_binding"]["blocker"] == (
+        "futures_coinbase_read_not_authorized"
+    )
     assert account.body["account_readiness"]["futures_default_profile_bound"] is False
     assert account.body["account_readiness"]["futures_account_scope_ready"] is False
     assert account.body["account_readiness"]["futures_margin_collateral_ready"] is False
     assert account.body["account_readiness"]["usable_for_futures_risk"] is False
     assert account.body["position_count"] == 0
-    assert rest_client.get_api_key_permissions_calls == 2
-    assert rest_client.list_portfolios_calls == 2
-    assert rest_client.get_futures_positions_calls == 0
-    assert rest_client.get_futures_margin_collateral_snapshot_calls == 0
-    assert spot.body["account_readiness"]["spot_wallet_inventory_ready"] is True
-    assert spot.body["account_readiness"]["spot_test_profile_bound"] is True
-    assert spot.body["account_readiness"]["usable_for_spot_admission"] is True
-    assert spot.body["portfolio_scope"]["portfolio_id"] == "portfolio-test-1"
-    assert rest_client.create_order_calls == []
-    assert rest_client.cancel_order_calls == []
-    assert rest_client.close_position_calls == []
+    assert spot.body["account_readiness"]["spot_wallet_inventory_ready"] is False
+    assert spot.body["account_readiness"]["spot_test_profile_bound"] is False
+    assert spot.body["account_readiness"]["usable_for_spot_admission"] is False
+    assert "portfolio-test-1" not in repr(account.body)
+    assert "portfolio-test-1" not in repr(spot.body)
+    assert_no_coinbase_reads(rest_client)
+    assert_no_futures_exchange_mutations(rest_client)
 
 
-def test_admin_futures_reads_reject_position_with_conflicting_portfolio_scope():
+def test_admin_futures_reads_do_not_import_conflicting_remote_position():
     rest_client = FakeAccountRestClient()
     rest_client.futures_positions["BIP-20DEC30-CDE"]["portfolio_uuid"] = (
         "different-portfolio"
@@ -2196,26 +2268,21 @@ def test_admin_futures_reads_reject_position_with_conflicting_portfolio_scope():
     )
 
     account = service.get_read_response("/api/v1/futures/account", {}, context())
-    positions = service.get_read_response(
-        "/api/v1/futures/positions",
-        {},
-        context(),
-    )
+    positions = service.get_read_response("/api/v1/futures/positions", {}, context())
 
-    assert account.body["account_readiness"]["futures_default_profile_bound"] is True
+    assert account.body["account_readiness"]["futures_default_profile_bound"] is False
     assert account.body["account_readiness"]["futures_account_scope_ready"] is False
     assert account.body["account_readiness"]["usable_for_futures_risk"] is False
     assert account.body["position_count"] == 0
-    assert "futures_position_portfolio_scope_mismatch" in (
-        account.body["account_reality"]["read_error"]
+    assert account.body["account_reality"]["read_error"] == (
+        "futures_coinbase_read_not_authorized"
     )
     assert positions.body["items"] == []
     assert positions.body["count"] == 0
     assert "different-portfolio" not in repr(account.body)
     assert "different-portfolio" not in repr(positions.body)
-    assert rest_client.create_order_calls == []
-    assert rest_client.cancel_order_calls == []
-    assert rest_client.close_position_calls == []
+    assert_no_coinbase_reads(rest_client)
+    assert_no_futures_exchange_mutations(rest_client)
 
 
 def test_cap_guard_can_use_backend_account_snapshot_for_wallet_evidence():
@@ -2258,6 +2325,118 @@ def test_cap_guard_can_use_backend_account_snapshot_for_wallet_evidence():
     assert result.body["live_coinbase_orders_ran"] is False
 
 
+@pytest.mark.parametrize(
+    ("path", "query", "expected_type"),
+    [
+        (
+            "/api/v1/admin/account-management",
+            {},
+            "admin_account_management",
+        ),
+        ("/api/v1/admin/wallet", {}, "admin_wallet"),
+        ("/api/v1/admin/fees", {}, "admin_fee_evidence"),
+        ("/api/v1/admin/products", {}, "admin_products"),
+        (
+            "/api/v1/spot/readiness",
+            {"product_id": ["BTC-USDC", "AVP-20DEC30-CDE"]},
+            "spot_readiness",
+        ),
+    ],
+)
+def test_admin_page_load_account_surfaces_do_not_use_available_coinbase_client(
+    path,
+    query,
+    expected_type,
+):
+    rest_client = FakeAccountRestClient()
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
+    )
+
+    result = service.get_read_response(path, query, context())
+
+    assert result.status_code == 200
+    assert result.body["type"] == expected_type
+    assert result.body["live_coinbase_read_ran"] is False
+    assert result.body["live_coinbase_orders_ran"] is False
+    assert "portfolio-real-1" not in repr(result.body)
+    assert "12.34" not in repr(result.body)
+    assert_no_coinbase_reads(rest_client)
+    assert_no_futures_exchange_mutations(rest_client)
+
+
+def test_admin_integrated_bootstrap_reads_are_collectively_coinbase_call_free():
+    rest_client = FakeAccountRestClient()
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
+    )
+
+    responses = [
+        service.get_read_response(path, query, context())
+        for path, query in (
+            ("/api/v1/admin/account-management", {}),
+            ("/api/v1/admin/wallet", {}),
+            ("/api/v1/admin/fees", {}),
+            ("/api/v1/admin/products", {}),
+            (
+                "/api/v1/spot/readiness",
+                {"product_id": ["BTC-USDC", "AVP-20DEC30-CDE"]},
+            ),
+        )
+    ]
+
+    assert [response.status_code for response in responses] == [200] * 5
+    assert all(
+        response.body["live_coinbase_read_ran"] is False
+        for response in responses
+    )
+    assert_no_coinbase_reads(rest_client)
+    assert_no_futures_exchange_mutations(rest_client)
+
+
+@pytest.mark.parametrize(
+    ("path", "query", "expected_type"),
+    [
+        ("/api/v1/futures/account", {}, "admin_futures_account"),
+        ("/api/v1/futures/positions", {}, "admin_futures_positions"),
+        (
+            "/api/v1/futures/positions/futures_position%3Adefault%3ABIP-20DEC30-CDE",
+            {},
+            "admin_futures_position_detail",
+        ),
+        ("/api/v1/futures/risk-proofs", {}, "admin_futures_risk_proofs"),
+        (
+            "/api/v1/futures/risk-proofs/missing-proof",
+            {},
+            "admin_futures_risk_proof_detail",
+        ),
+        ("/api/v1/futures/command-suite", {}, "admin_futures_command_suite"),
+    ],
+)
+def test_admin_futures_local_read_surfaces_do_not_use_available_coinbase_client(
+    path,
+    query,
+    expected_type,
+):
+    rest_client = FakeAccountRestClient()
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
+    )
+
+    result = service.get_read_response(path, query, context())
+
+    assert result.status_code == 200
+    assert result.body["type"] == expected_type
+    assert result.body["live_coinbase_orders_ran"] is False
+    if "live_coinbase_read_ran" in result.body:
+        assert result.body["live_coinbase_read_ran"] is False
+    if "coinbase_read_attempted" in result.body:
+        assert result.body["coinbase_read_attempted"] is False
+    assert "portfolio-real-1" not in repr(result.body)
+    assert_no_futures_coinbase_reads(rest_client)
+    assert_no_futures_exchange_mutations(rest_client)
+
+
 def test_admin_futures_perpetuals_read_contract_exposes_blocked_contract_evidence():
     service = AdminMvpService(
         AdminMvpDependencies(rest_client=FakeRestClient(), rest_client_available=True)
@@ -2284,7 +2463,7 @@ def test_admin_futures_perpetuals_read_contract_exposes_blocked_contract_evidenc
     assert account_body["reduce_only_close_only"]["status"] == "unavailable"
     assert account_body["position_pnl"]["status"] == "unavailable"
     assert account_body["read_only"] is True
-    assert account_body["command_routes_mode"] == "backend_admin_api_read_only"
+    assert account_body["command_routes_mode"] == "backend_admin_api_local_evidence"
     assert account_body["live_coinbase_orders_ran"] is False
 
     positions = service.get_read_response(
@@ -2325,17 +2504,18 @@ def test_admin_futures_perpetuals_read_contract_exposes_blocked_contract_evidenc
     assert suite["blocked_command_count"] == 4
     assert suite["executable_command_count"] == 0
     assert suite["command_route_count"] == 4
-    assert suite["command_draft_allowed_count"] == 4
+    assert suite["command_draft_allowed_count"] == 0
+    assert suite["command_routes_mode"] == "backend_admin_api_source_disabled"
     assert suite["spot_rule_authority"] is False
     assert suite["browser_authority"] == "display_only"
-    assert suite["bff_authority"] == "forward_only_no_execution"
+    assert suite["bff_authority"] == FUTURES_SOURCE_DISABLED_BFF_AUTHORITY
     assert suite["live_coinbase_orders_ran"] is False
     assert suite["submitted_notional_usdc"] == "0"
     assert suite["executed_notional_usdc"] == "0"
     assert "spot_no_shorting" in suite["forbidden_spot_assumptions"]
     assert "futures_margin_collateral_risk_proof" in suite["missing_backend_contracts"]
     assert suite["next_required_operator_decision"] == (
-        "run_backend_account_reality_live_read_smoke_to_refresh_futures_account_and_risk_evidence"
+        "restore_futures_command_source_and_obtain_separate_authorization"
     )
     commands = {command["command"]: command for command in suite["commands"]}
     assert set(commands) == {
@@ -2346,8 +2526,14 @@ def test_admin_futures_perpetuals_read_contract_exposes_blocked_contract_evidenc
     }
     assert commands["futures_place"]["route"] == "/api/v1/futures/orders"
     assert commands["futures_place"]["status"] == "blocked"
-    assert commands["futures_place"]["command_draft_allowed"] is True
+    assert commands["futures_place"]["command_draft_allowed"] is False
     assert commands["futures_place"]["execution_allowed"] is False
+    assert commands["futures_place"]["readiness_decision"]["first_blocker"] == (
+        FUTURES_SOURCE_DISABLED_FAILURE_STAGE
+    )
+    assert commands["futures_place"]["bff_authority"] == (
+        FUTURES_SOURCE_DISABLED_BFF_AUTHORITY
+    )
     assert commands["futures_place"]["spot_rule_authority"] is False
     assert commands["futures_close_reduce"]["identity_key"] == "position_key"
     assert commands["futures_cancel"]["identity_key"] == "client_order_id"
@@ -2393,248 +2579,82 @@ def test_admin_futures_perpetuals_read_contract_exposes_blocked_contract_evidenc
     assert futures_module["action_posture"]["bff_authority"] == "forward_only_no_execution"
 
 
-def test_admin_futures_command_suite_resolves_account_and_risk_proof_evidence():
+def test_admin_futures_command_suite_reports_missing_local_risk_evidence():
+    rest_client = FakeAccountRestClient()
     service = AdminMvpService(
-        AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
     )
 
     account = service.get_read_response("/api/v1/futures/account", {}, context())
-    assert account.status_code == 200
-    assert account.body["account_readiness"]["futures_account_scope_ready"] is True
-    assert account.body["account_readiness"]["futures_observed_position_scope_ready"] is True
-    assert account.body["account_readiness"]["futures_margin_collateral_ready"] is True
-    assert account.body["account_readiness"]["usable_for_futures_risk"] is True
-
-    risk_proofs = service.get_read_response("/api/v1/futures/risk-proofs", {}, context())
-    assert risk_proofs.status_code == 200
-    assert risk_proofs.body["type"] == "admin_futures_risk_proofs"
-    assert risk_proofs.body["status"] == "ready"
-    assert risk_proofs.body["count"] == 4
-    assert risk_proofs.body["proof_records_created"] is False
-    assert risk_proofs.body["proof_records_generated_from_account_snapshot"] is True
-    proof = risk_proofs.body["items"][0]
-    assert proof["futures_risk_proof_id"] == "futures-risk-proof-account-snapshot-futures-place"
-    assert proof["command"] == "futures_place"
-    assert proof["proof_kind"] == "margin_collateral"
-    assert proof["product_id"] == "BIP-20DEC30-CDE"
-    assert proof["risk_proof_verified"] is True
-    assert proof["risk_proof_accepted"] is False
-    assert proof["funding_validated"] is True
-    assert proof["command_execution_allowed"] is False
-    assert proof["live_coinbase_orders_ran"] is False
-
+    risk_proofs = service.get_read_response(
+        "/api/v1/futures/risk-proofs",
+        {},
+        context(),
+    )
     detail = service.get_read_response(
         "/api/v1/futures/risk-proofs/futures-risk-proof-account-snapshot-futures-place",
         {},
         context(),
     )
-    assert detail.status_code == 200
-    assert detail.body["found"] is True
-    assert detail.body["record"]["futures_risk_proof_id"] == proof["futures_risk_proof_id"]
-    assert detail.body["proof_record_created"] is False
-    assert detail.body["live_coinbase_orders_ran"] is False
-
     command_suite = service.get_read_response(
         "/api/v1/futures/command-suite",
         {},
         context(),
     )
+
+    assert account.status_code == 200
+    assert account.body["account_readiness"]["futures_account_scope_ready"] is False
+    assert (
+        account.body["account_readiness"]["futures_observed_position_scope_ready"]
+        is False
+    )
+    assert (
+        account.body["account_readiness"]["futures_margin_collateral_ready"]
+        is False
+    )
+    assert account.body["account_readiness"]["usable_for_futures_risk"] is False
+
+    assert risk_proofs.status_code == 200
+    assert risk_proofs.body["status"] == "blocked"
+    assert risk_proofs.body["count"] == 0
+    assert risk_proofs.body["items"] == []
+    assert risk_proofs.body["proof_records_created"] is False
+    assert (
+        risk_proofs.body["proof_records_generated_from_account_snapshot"]
+        is False
+    )
+    assert risk_proofs.body["coinbase_read_attempted"] is False
+    assert risk_proofs.body["live_coinbase_read_ran"] is False
+
+    assert detail.status_code == 200
+    assert detail.body["found"] is False
+    assert detail.body["record"] is None
+    assert detail.body["proof_record_created"] is False
+
     assert command_suite.status_code == 200
     suite = command_suite.body
-    assert suite["status"] == "evidence_ready"
+    assert suite["status"] == "blocked"
     assert suite["blocked_command_count"] == 4
     assert suite["executable_command_count"] == 0
-    assert suite["command_draft_allowed_count"] == 4
+    assert suite["command_draft_allowed_count"] == 0
+    assert suite["command_routes_mode"] == "backend_admin_api_source_disabled"
+    assert suite["bff_authority"] == FUTURES_SOURCE_DISABLED_BFF_AUTHORITY
     assert suite["resolved_backend_contracts"] == [
-        "futures_account_scope_contract",
-        "futures_margin_collateral_risk_proof",
         "futures_reconciliation_contract",
         "futures_live_adapter_contract",
     ]
-    assert suite["missing_backend_contracts"] == []
+    assert suite["missing_backend_contracts"] == [
+        "futures_account_scope_contract",
+        "futures_margin_collateral_risk_proof",
+    ]
     assert suite["command_enablement_blocker_summary_count"] == 1
-    assert suite["command_enablement_blocker_summaries"][0]["blocker"] == "execution_disabled"
-    assert suite["command_enablement_blocker_summaries"][0]["blocking"] is True
-    assert suite["request_payload_validation_record_funding_semantic_count"] == 4
-    assert suite["blocking_request_payload_validation_record_funding_semantic_count"] == 0
-    assert suite["ready_request_payload_validation_record_funding_semantic_count"] == 4
-    assert suite["runtime_observed_request_payload_validation_record_funding_semantic_count"] == 4
-    for semantic in ("margin", "collateral", "liquidation"):
-        assert suite[f"request_payload_validation_record_{semantic}_semantic_count"] == 4
-        assert (
-            suite[
-                f"blocking_request_payload_validation_record_{semantic}_semantic_count"
-            ]
-            == 0
-        )
-        assert suite[f"ready_request_payload_validation_record_{semantic}_semantic_count"] == 4
-        assert (
-            suite[
-                f"runtime_observed_request_payload_validation_record_{semantic}_semantic_count"
-            ]
-            == 4
-        )
-    for semantic in ("reduce_only", "close_only"):
-        assert suite[f"request_payload_validation_record_{semantic}_semantic_count"] == 1
-        assert (
-            suite[
-                f"blocking_request_payload_validation_record_{semantic}_semantic_count"
-            ]
-            == 0
-        )
-        assert suite[f"ready_request_payload_validation_record_{semantic}_semantic_count"] == 1
-        assert (
-            suite[
-                f"runtime_observed_request_payload_validation_record_{semantic}_semantic_count"
-            ]
-            == 1
-        )
-    commands = {command["command"]: command for command in suite["commands"]}
-    assert commands["futures_place"]["missing_backend_contracts"] == []
-    assert commands["futures_place"]["readiness_decision"]["first_blocker"] == "execution_disabled"
-    assert commands["futures_place"]["readiness_decision"]["next_required_backend_contract"] is None
-    assert commands["futures_place"]["risk_proof_id"] == proof["futures_risk_proof_id"]
-    assert commands["futures_place"]["request_payload_validation_record_funding_semantic_count"] == 1
-    assert commands["futures_place"]["blocking_request_payload_validation_record_funding_semantic_count"] == 0
-    assert commands["futures_place"]["ready_request_payload_validation_record_funding_semantic_count"] == 1
-    assert commands["futures_place"]["runtime_observed_request_payload_validation_record_funding_semantic_count"] == 1
-    [funding_semantic] = commands["futures_place"][
-        "request_payload_validation_record_funding_semantics"
-    ]
-    assert funding_semantic["field"] == "product_id"
-    assert funding_semantic["status"] == "passed"
-    assert funding_semantic["blocking"] is False
-    assert funding_semantic["funding_semantics_contract_available"] is True
-    assert funding_semantic["funding_semantics_contract_ready"] is True
-    assert funding_semantic["funding_rate_bound"] is True
-    assert funding_semantic["funding_fee_bound"] is True
-    assert funding_semantic["funding_interval_bound"] is True
-    assert funding_semantic["funding_cost_bound"] is True
-    assert funding_semantic["runtime_funding_evidence_observed"] is True
-    assert funding_semantic["runtime_evidence_satisfies_funding_semantics"] is True
-    assert funding_semantic["validation_record_funding_semantics_ready"] is True
-    assert funding_semantic["validation_record_execution_eligible"] is False
-    assert funding_semantic["execution_allowed"] is False
-    assert funding_semantic["live_coinbase_orders_ran"] is False
-    assert funding_semantic["evidence_routes"] == [
-        "/api/v1/futures/account",
-        "/api/v1/admin/fees",
-        "/api/v1/futures/risk-proofs",
-    ]
-    [margin_semantic] = commands["futures_place"][
-        "request_payload_validation_record_margin_semantics"
-    ]
-    assert margin_semantic["field"] == "product_id"
-    assert margin_semantic["status"] == "passed"
-    assert margin_semantic["blocking"] is False
-    assert margin_semantic["margin_semantics_contract_available"] is True
-    assert margin_semantic["margin_semantics_contract_ready"] is True
-    assert margin_semantic["margin_account_bound"] is True
-    assert margin_semantic["margin_requirement_bound"] is True
-    assert margin_semantic["margin_mode_bound"] is True
-    assert margin_semantic["margin_buffer_bound"] is True
-    assert margin_semantic["runtime_margin_evidence_observed"] is True
-    assert margin_semantic["runtime_evidence_satisfies_margin_semantics"] is True
-    assert margin_semantic["validation_record_margin_semantics_ready"] is True
-
-    [collateral_semantic] = commands["futures_place"][
-        "request_payload_validation_record_collateral_semantics"
-    ]
-    assert collateral_semantic["field"] == "product_id"
-    assert collateral_semantic["status"] == "passed"
-    assert collateral_semantic["blocking"] is False
-    assert collateral_semantic["collateral_semantics_contract_available"] is True
-    assert collateral_semantic["collateral_semantics_contract_ready"] is True
-    assert collateral_semantic["collateral_balance_bound"] is True
-    assert collateral_semantic["collateral_currency_bound"] is True
-    assert collateral_semantic["collateral_requirement_bound"] is True
-    assert collateral_semantic["collateral_source_bound"] is True
-    assert collateral_semantic["runtime_collateral_evidence_observed"] is True
-    assert (
-        collateral_semantic["runtime_evidence_satisfies_collateral_semantics"]
-        is True
+    assert suite["command_enablement_blocker_summaries"][0]["blocker"] == (
+        FUTURES_SOURCE_DISABLED_FAILURE_STAGE
     )
-    assert collateral_semantic["validation_record_collateral_semantics_ready"] is True
-
-    [liquidation_semantic] = commands["futures_place"][
-        "request_payload_validation_record_liquidation_semantics"
-    ]
-    assert liquidation_semantic["field"] == "product_id"
-    assert liquidation_semantic["status"] == "passed"
-    assert liquidation_semantic["blocking"] is False
-    assert liquidation_semantic["liquidation_semantics_contract_available"] is True
-    assert liquidation_semantic["liquidation_semantics_contract_ready"] is True
-    assert liquidation_semantic["liquidation_buffer_bound"] is True
-    assert liquidation_semantic["liquidation_price_bound"] is True
-    assert liquidation_semantic["liquidation_distance_bound"] is True
-    assert liquidation_semantic["liquidation_threshold_bound"] is True
-    assert liquidation_semantic["runtime_liquidation_evidence_observed"] is True
-    assert (
-        liquidation_semantic["runtime_evidence_satisfies_liquidation_semantics"]
-        is True
-    )
-    assert liquidation_semantic["validation_record_liquidation_semantics_ready"] is True
-
-    [reduce_only_semantic] = commands["futures_close_reduce"][
-        "request_payload_validation_record_reduce_only_semantics"
-    ]
-    assert reduce_only_semantic["field"] == "position_key"
-    assert reduce_only_semantic["status"] == "passed"
-    assert reduce_only_semantic["blocking"] is False
-    assert reduce_only_semantic["reduce_only_semantics_contract_available"] is True
-    assert reduce_only_semantic["reduce_only_semantics_contract_ready"] is True
-    assert reduce_only_semantic["reduce_only_flag_bound"] is True
-    assert reduce_only_semantic["reduce_only_position_side_bound"] is True
-    assert reduce_only_semantic["reduce_only_position_size_bound"] is True
-    assert reduce_only_semantic["reduce_only_order_side_bound"] is True
-    assert reduce_only_semantic["runtime_reduce_only_evidence_observed"] is True
-    assert reduce_only_semantic["runtime_evidence_satisfies_reduce_only_semantics"] is True
-    assert reduce_only_semantic["validation_record_reduce_only_semantics_ready"] is True
-
-    [close_only_semantic] = commands["futures_close_reduce"][
-        "request_payload_validation_record_close_only_semantics"
-    ]
-    assert close_only_semantic["field"] == "position_key"
-    assert close_only_semantic["status"] == "passed"
-    assert close_only_semantic["blocking"] is False
-    assert close_only_semantic["close_only_semantics_contract_available"] is True
-    assert close_only_semantic["close_only_semantics_contract_ready"] is True
-    assert close_only_semantic["close_only_flag_bound"] is True
-    assert close_only_semantic["close_only_position_side_bound"] is True
-    assert close_only_semantic["close_only_position_size_bound"] is True
-    assert close_only_semantic["close_only_order_side_bound"] is True
-    assert close_only_semantic["runtime_close_only_evidence_observed"] is True
-    assert close_only_semantic["runtime_evidence_satisfies_close_only_semantics"] is True
-    assert close_only_semantic["validation_record_close_only_semantics_ready"] is True
-    assert commands["futures_cancel"]["request_payload_validation_record_reduce_only_semantics"] == []
-    assert commands["futures_cancel"]["request_payload_validation_record_close_only_semantics"] == []
-    assert commands["futures_place"]["execution_allowed"] is False
-    assert suite["live_coinbase_orders_ran"] is False
-
-    recorded = service.record_futures_risk_proof(
-        {
-            "futures_risk_proof_id": "futures-risk-proof-operator-recorded",
-            "command": "futures_place",
-            "proof_kind": "margin_collateral",
-            "product_id": "BIP-20DEC30-CDE",
-            "risk_proof_verified": True,
-            "risk_proof_accepted": False,
-            "evidence_ref": proof["evidence_ref"],
-        },
-        context(idempotency_key="record-futures-risk-proof"),
-    )
-    assert recorded.status_code == 200
-    assert recorded.body["proof_record_created"] is True
-    assert recorded.body["live_coinbase_orders_ran"] is False
-
-    recorded_detail = service.get_read_response(
-        "/api/v1/futures/risk-proofs/futures-risk-proof-operator-recorded",
-        {},
-        context(),
-    )
-    assert recorded_detail.body["found"] is True
-    assert recorded_detail.body["proof_record_created"] is True
-    assert recorded_detail.body["record"]["command_execution_allowed"] is False
+    assert suite["coinbase_read_attempted"] is False
+    assert suite["live_coinbase_read_ran"] is False
+    assert_no_coinbase_reads(rest_client)
+    assert_no_futures_exchange_mutations(rest_client)
 
 
 def test_admin_futures_command_suite_exposes_backend_payload_field_contracts():
@@ -2682,9 +2702,10 @@ def test_admin_futures_command_suite_exposes_backend_payload_field_contracts():
     assert all(field["request_payload_validated"] is True for field in place["request_fields"])
 
 
-def test_admin_futures_command_suite_exposes_backend_semantic_guards():
+def test_admin_futures_command_suite_exposes_fail_closed_semantic_guards():
+    rest_client = FakeAccountRestClient()
     service = AdminMvpService(
-        AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
     )
 
     suite_result = service.get_read_response(
@@ -2696,81 +2717,42 @@ def test_admin_futures_command_suite_exposes_backend_semantic_guards():
     assert suite_result.status_code == 200
     suite = suite_result.body
     assert suite["semantic_guard_count"] == 32
-    assert suite["blocking_semantic_guard_count"] == 4
+    assert suite["blocking_semantic_guard_count"] == 24
     assert suite["risk_semantic_guard_count"] == 16
     assert suite["semantic_guard_summary_count"] == 12
-    assert suite["semantic_guard_summary_blocking_count"] == 1
-    summaries = {item["semantic_guard"]: item for item in suite["semantic_guard_summaries"]}
-    assert summaries["live_execution_boundary"]["status"] == "blocked"
-    assert summaries["live_execution_boundary"]["blocking_command_count"] == 4
-    assert summaries["live_execution_boundary"]["affected_commands"] == [
-        "futures_place",
-        "futures_close_reduce",
-        "futures_cancel",
-        "futures_reconcile",
-    ]
-    assert summaries["live_execution_boundary"]["missing_evidence_refs"] == [
-        "/api/v1/admin/live-execution/service-decisions",
-        "/api/v1/admin/live-execution/adapter-decisions",
-    ]
-    assert summaries["margin_collateral"]["status"] == "passed"
-    assert summaries["margin_collateral"]["risk_semantic_command_count"] == 3
-    assert summaries["cap_guard"]["affected_commands"] == [
-        "futures_place",
-        "futures_close_reduce",
-    ]
-    assert summaries["cap_guard"]["proof_route_registered_count"] == 2
-
-    commands = {command["command"]: command for command in suite["commands"]}
-    place_guards = {
-        guard["semantic_guard"]: guard
-        for guard in commands["futures_place"]["semantic_guards"]
+    assert suite["semantic_guard_summary_blocking_count"] == 10
+    summaries = {
+        item["semantic_guard"]: item
+        for item in suite["semantic_guard_summaries"]
     }
-    assert commands["futures_place"]["semantic_guard_count"] == 9
-    assert commands["futures_place"]["blocking_semantic_guard_count"] == 1
-    assert commands["futures_place"]["risk_semantic_guard_count"] == 5
-    assert place_guards["product_scope"]["status"] == "passed"
-    assert place_guards["product_scope"]["identity_semantic"] is True
-    assert place_guards["margin_collateral"]["status"] == "passed"
-    assert place_guards["margin_collateral"]["risk_semantic"] is True
-    assert place_guards["cap_guard"]["status"] == "passed"
-    assert place_guards["cap_guard"]["proof_writer_enabled"] is True
-    assert place_guards["admission_audit"]["status"] == "passed"
-    assert place_guards["admission_audit"]["audit_semantic"] is True
-    assert place_guards["live_execution_boundary"]["status"] == "blocked"
-    assert place_guards["live_execution_boundary"]["execution_semantic"] is True
-    assert place_guards["live_execution_boundary"]["missing_evidence_refs"] == [
-        "/api/v1/admin/live-execution/service-decisions",
-        "/api/v1/admin/live-execution/adapter-decisions",
-    ]
-    assert place_guards["live_execution_boundary"]["browser_authority"] == "display_only"
-    assert place_guards["live_execution_boundary"]["bff_authority"] == (
-        "forward_only_no_execution"
-    )
-
-    close_guards = {
-        guard["semantic_guard"]: guard
-        for guard in commands["futures_close_reduce"]["semantic_guards"]
-    }
-    assert commands["futures_close_reduce"]["semantic_guard_count"] == 11
-    assert close_guards["reduce_only"]["status"] == "passed"
-    assert close_guards["reduce_only"]["risk_semantic"] is True
-    assert close_guards["close_only"]["status"] == "passed"
-    assert close_guards["close_only"]["risk_semantic"] is True
-
-    cancel_guards = {
-        guard["semantic_guard"]: guard
-        for guard in commands["futures_cancel"]["semantic_guards"]
-    }
-    assert commands["futures_cancel"]["semantic_guard_count"] == 4
-    assert set(cancel_guards) == {
-        "idempotency",
-        "admission_audit",
+    for guard_name in (
+        "product_scope",
+        "margin_collateral",
+        "liquidation_buffer",
+        "funding_fee",
+        "cap_guard",
         "reconciliation_plan",
         "live_execution_boundary",
-    }
-    assert cancel_guards["idempotency"]["status"] == "passed"
-    assert cancel_guards["reconciliation_plan"]["status"] == "passed"
+        "position_scope",
+        "reduce_only",
+        "close_only",
+    ):
+        assert summaries[guard_name]["status"] == "blocked"
+        assert summaries[guard_name]["blocking_command_count"] > 0
+    assert summaries["idempotency"]["status"] == "passed"
+    assert summaries["admission_audit"]["status"] == "passed"
+
+    commands = {command["command"]: command for command in suite["commands"]}
+    assert commands["futures_place"]["semantic_guard_count"] == 9
+    assert commands["futures_place"]["blocking_semantic_guard_count"] == 7
+    assert commands["futures_close_reduce"]["blocking_semantic_guard_count"] == 9
+    assert commands["futures_cancel"]["blocking_semantic_guard_count"] == 2
+    assert commands["futures_reconcile"]["blocking_semantic_guard_count"] == 6
+    for command in commands.values():
+        assert command["execution_allowed"] is False
+        assert command["command_draft_allowed"] is False
+    assert_no_coinbase_reads(rest_client)
+    assert_no_futures_exchange_mutations(rest_client)
 
 
 def test_admin_futures_command_suite_exposes_backend_enablement_sequence_traces():
@@ -2787,7 +2769,7 @@ def test_admin_futures_command_suite_exposes_backend_enablement_sequence_traces(
     assert suite_result.status_code == 200
     suite = suite_result.body
     assert suite["command_enablement_sequence_step_count"] == 5
-    assert suite["command_enablement_sequence_step_blocking_count"] == 1
+    assert suite["command_enablement_sequence_step_blocking_count"] == 5
     assert [
         step["step"]
         for step in suite["command_enablement_sequence_steps"]
@@ -2799,26 +2781,30 @@ def test_admin_futures_command_suite_exposes_backend_enablement_sequence_traces(
         "bind_live_service_adapter",
     ]
     payload_step = suite["command_enablement_sequence_steps"][1]
-    assert payload_step["status"] == "passed"
-    assert payload_step["blocking"] is False
-    assert payload_step["source_blockers"] == []
+    assert payload_step["status"] == "blocked"
+    assert payload_step["blocking"] is True
+    assert payload_step["source_blockers"] == [
+        FUTURES_SOURCE_DISABLED_FAILURE_STAGE
+    ]
     assert payload_step["command_route_registered"] is True
+    assert payload_step["command_draft_allowed"] is False
     assert payload_step["execution_allowed"] is False
+    assert payload_step["bff_authority"] == FUTURES_SOURCE_DISABLED_BFF_AUTHORITY
 
     service_step = suite["command_enablement_sequence_steps"][2]
-    assert service_step["status"] == "passed"
-    assert service_step["blocking"] is False
+    assert service_step["status"] == "blocked"
+    assert service_step["blocking"] is True
     assert service_step["required_backend_contracts"] == [
         "admin_futures_command_service_contract"
     ]
+    assert service_step["command_draft_allowed"] is False
     assert service_step["execution_allowed"] is False
+    assert service_step["bff_authority"] == FUTURES_SOURCE_DISABLED_BFF_AUTHORITY
 
     live_step = suite["command_enablement_sequence_steps"][4]
     assert live_step["status"] == "blocked"
     assert live_step["blocking"] is True
-    assert "local MVP" not in live_step["detail"]
-    assert "local runtime" in live_step["detail"]
-    assert live_step["source_blockers"] == ["live_service_adapter"]
+    assert live_step["source_blockers"] == [FUTURES_SOURCE_DISABLED_FAILURE_STAGE]
     assert live_step["affected_commands"] == [
         "futures_place",
         "futures_close_reduce",
@@ -2832,30 +2818,41 @@ def test_admin_futures_command_suite_exposes_backend_enablement_sequence_traces(
     ]
     assert live_step["live_coinbase_orders_ran"] is False
     assert live_step["spot_rule_authority"] is False
+    assert live_step["command_draft_allowed"] is False
+    assert live_step["bff_authority"] == FUTURES_SOURCE_DISABLED_BFF_AUTHORITY
 
     assert suite["command_enablement_sequence_command_trace_count"] == 20
-    assert suite["command_enablement_sequence_command_trace_blocking_count"] == 4
+    assert suite["command_enablement_sequence_command_trace_blocking_count"] == 20
     traces = {
         trace["trace_id"]: trace
         for trace in suite["command_enablement_sequence_command_traces"]
     }
     place_payload_trace = traces["define_request_payload_contract::futures_place"]
-    assert place_payload_trace["status"] == "passed"
-    assert place_payload_trace["blocking"] is False
+    assert place_payload_trace["status"] == "blocked"
+    assert place_payload_trace["blocking"] is True
     assert place_payload_trace["command_sequence"] == 1
     assert place_payload_trace["command_step_sequence"] == 2
     assert place_payload_trace["execution_allowed"] is False
     assert place_payload_trace["futures_state_mutation_allowed"] is False
+    assert place_payload_trace["command_draft_allowed"] is False
+    assert place_payload_trace["source_blockers"] == [
+        FUTURES_SOURCE_DISABLED_FAILURE_STAGE
+    ]
 
     cancel_live_trace = traces["bind_live_service_adapter::futures_cancel"]
     assert cancel_live_trace["status"] == "blocked"
     assert cancel_live_trace["blocking"] is True
-    assert cancel_live_trace["source_blockers"] == ["live_service_adapter"]
+    assert cancel_live_trace["source_blockers"] == [
+        FUTURES_SOURCE_DISABLED_FAILURE_STAGE
+    ]
     assert cancel_live_trace["required_backend_contract"] == "futures_live_adapter_contract"
     assert cancel_live_trace["required_evidence_ref_count"] == 2
     assert cancel_live_trace["live_coinbase_orders_ran"] is False
     assert cancel_live_trace["browser_authority"] == "display_only"
-    assert cancel_live_trace["bff_authority"] == "forward_only_no_execution"
+    assert cancel_live_trace["command_draft_allowed"] is False
+    assert cancel_live_trace["bff_authority"] == (
+        FUTURES_SOURCE_DISABLED_BFF_AUTHORITY
+    )
 
 
 def test_admin_futures_commands_expose_readiness_closure_steps():
@@ -2878,14 +2875,14 @@ def test_admin_futures_commands_expose_readiness_closure_steps():
     }
     place = commands["futures_place"]
     assert place["semantic_guard_count"] == 9
-    assert place["blocking_semantic_guard_count"] == 1
+    assert place["blocking_semantic_guard_count"] == 7
     place_guards = {guard["semantic_guard"]: guard for guard in place["semantic_guards"]}
     assert place_guards["live_execution_boundary"]["status"] == "blocked"
     assert place_guards["live_execution_boundary"]["missing_evidence_refs"] == [
         "COINBASE_ADMIN_LIVE_COINBASE_EXECUTION"
     ]
     assert place["readiness_closure_step_count"] == 5
-    assert place["blocking_readiness_closure_step_count"] == 1
+    assert place["blocking_readiness_closure_step_count"] == 5
     assert [
         step["step"]
         for step in place["readiness_closure_steps"]
@@ -2898,15 +2895,18 @@ def test_admin_futures_commands_expose_readiness_closure_steps():
     ]
     assert all(
         step["execution_allowed"] is False
+        and step["command_draft_allowed"] is False
+        and step["status"] == "blocked"
+        and step["blocking"] is True
         and step["backend_owned"] is True
         and step["read_only"] is True
         and step["spot_rule_authority"] is False
         and step["browser_authority"] == "display_only"
-        and step["bff_authority"] == "forward_only_no_execution"
+        and step["bff_authority"] == FUTURES_SOURCE_DISABLED_BFF_AUTHORITY
         for step in place["readiness_closure_steps"]
     )
     service_step = place["readiness_closure_steps"][2]
-    assert service_step["status"] == "passed"
+    assert service_step["status"] == "blocked"
     assert service_step["required_backend_contract"] == (
         "admin_futures_command_service.futures_place"
     )
@@ -2925,9 +2925,10 @@ def test_admin_futures_commands_expose_readiness_closure_steps():
     assert live_step["proof_writer_enabled"] is False
 
 
-def test_admin_futures_place_rejects_invalid_payload_before_executor_boundary():
+def test_admin_futures_place_source_disabled_before_payload_validation():
+    rest_client = FakeAccountRestClient()
     service = AdminMvpService(
-        AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
     )
     record_futures_live_service_decision(service)
     record_all_futures_live_adapter_decisions(service)
@@ -2944,23 +2945,16 @@ def test_admin_futures_place_rejects_invalid_payload_before_executor_boundary():
         context(idempotency_key="futures-place-invalid-payload"),
     )
 
-    assert result.status_code == 400
-    assert result.body["status"] == "rejected"
-    assert result.body["failure_stage"] == "futures_payload_validation_failed"
-    assert result.body["payload_validation"]["status"] == "blocked"
-    assert result.body["payload_validation"]["blocking_request_field_count"] == 2
-    assert result.body["payload_validation"]["missing_request_fields"] == []
-    assert set(result.body["payload_validation"]["invalid_request_fields"]) == {
-        "limit_price",
-        "size",
-    }
-    assert result.body["admission_decision"]["failure_stage"] == (
-        "futures_payload_validation_failed"
+    assert_fixed_source_disabled_futures_result(
+        result,
+        command="futures_place",
+        route="/api/v1/futures/orders",
+        identity_key="product_id",
+        identity_value="BIP-20DEC30-CDE",
     )
-    assert result.body["executor_decision_id"] is None
+    assert service.store.futures_command_decisions == {}
     assert service.store.futures_executor_decisions == {}
-    assert result.body["live_exchange_submitted"] is False
-    assert result.body["live_coinbase_orders_ran"] is False
+    assert_no_futures_exchange_mutations(rest_client)
 
 
 def test_admin_futures_command_suite_ignores_intx_live_decisions_for_us_cfm_scope():
@@ -3003,6 +2997,17 @@ def test_admin_futures_command_suite_ignores_intx_live_decisions_for_us_cfm_scop
     )
     assert suite["futures_live_decision_evidence"]["matching_service_decision_id"] is None
     assert suite["futures_live_decision_evidence"]["adapter_decision_ready_count"] == 0
+    assert suite["futures_live_decision_evidence"]["executor_boundary_status"] == (
+        "source_disabled"
+    )
+    assert suite["futures_live_decision_evidence"]["executor_boundary_ready"] is False
+    assert suite["futures_live_decision_evidence"]["first_blocker"] == (
+        FUTURES_SOURCE_DISABLED_FAILURE_STAGE
+    )
+    assert suite["blocked_command_count"] == 4
+    assert suite["executable_command_count"] == 0
+    assert suite["command_draft_allowed_count"] == 0
+    assert suite["bff_authority"] == FUTURES_SOURCE_DISABLED_BFF_AUTHORITY
     commands = {command["command"]: command for command in suite["commands"]}
     place_evidence = commands["futures_place"]["readiness_decision"]["live_decision_evidence"]
     assert place_evidence["account_family"] == "coinbase_futures_us_cfm"
@@ -3015,14 +3020,19 @@ def test_admin_futures_command_suite_ignores_intx_live_decisions_for_us_cfm_scop
     )
     assert place_evidence["matching_adapter_decision_id"] is None
     assert commands["futures_place"]["readiness_decision"]["first_blocker"] == (
-        "execution_disabled"
+        FUTURES_SOURCE_DISABLED_FAILURE_STAGE
     )
+    assert commands["futures_place"]["command_draft_allowed"] is False
     assert commands["futures_place"]["execution_allowed"] is False
+    assert commands["futures_place"]["bff_authority"] == (
+        FUTURES_SOURCE_DISABLED_BFF_AUTHORITY
+    )
 
 
-def test_admin_futures_command_suite_binds_us_cfm_live_decisions_to_disabled_executor():
+def test_admin_futures_live_decisions_do_not_restore_source_disabled_service():
+    rest_client = FakeAccountRestClient()
     service = AdminMvpService(
-        AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
     )
     record_futures_live_service_decision(service)
     record_all_futures_live_adapter_decisions(service)
@@ -3042,25 +3052,35 @@ def test_admin_futures_command_suite_binds_us_cfm_live_decisions_to_disabled_exe
     assert suite["futures_live_decision_evidence"]["adapter_decision_ready_count"] == 4
     assert suite["futures_live_decision_evidence"]["adapter_decision_missing_count"] == 0
     assert suite["futures_live_decision_evidence"]["executor_boundary_status"] == (
-        "observed_live_disabled"
+        "source_disabled"
     )
-    assert suite["futures_live_decision_evidence"]["executor_boundary_ready"] is True
+    assert suite["futures_live_decision_evidence"]["executor_boundary_ready"] is False
+    assert suite["futures_live_decision_evidence"]["execution_allowed"] is False
+    assert suite["futures_live_decision_evidence"]["first_blocker"] == (
+        FUTURES_SOURCE_DISABLED_FAILURE_STAGE
+    )
+    assert suite["blocked_command_count"] == 4
+    assert suite["executable_command_count"] == 0
+    assert suite["command_draft_allowed_count"] == 0
+    assert suite["bff_authority"] == FUTURES_SOURCE_DISABLED_BFF_AUTHORITY
     assert suite["command_enablement_blocker_summaries"][0]["blocker"] == (
-        "futures_executor_live_disabled"
+        FUTURES_SOURCE_DISABLED_FAILURE_STAGE
     )
     commands = {command["command"]: command for command in suite["commands"]}
     place_readiness = commands["futures_place"]["readiness_decision"]
-    assert place_readiness["decision"] == "executor_observed_live_disabled"
-    assert place_readiness["first_blocker"] == "futures_executor_live_disabled"
+    assert place_readiness["decision"] == "source_disabled_not_implemented"
+    assert place_readiness["first_blocker"] == FUTURES_SOURCE_DISABLED_FAILURE_STAGE
     assert place_readiness["live_decision_evidence"]["service_decision_status"] == "ready"
     assert place_readiness["live_decision_evidence"]["adapter_decision_status"] == "ready"
     assert place_readiness["live_decision_evidence"]["matching_adapter_decision_id"] == (
         "futures-us-cfm-place-adapter"
     )
     assert place_readiness["live_decision_evidence"]["executor_boundary_status"] == (
-        "observed_live_disabled"
+        "source_disabled"
     )
+    assert place_readiness["command_draft_allowed"] is False
     assert place_readiness["execution_allowed"] is False
+    assert place_readiness["bff_authority"] == FUTURES_SOURCE_DISABLED_BFF_AUTHORITY
 
     result = service.submit_futures_command(
         "/api/v1/futures/orders",
@@ -3074,42 +3094,16 @@ def test_admin_futures_command_suite_binds_us_cfm_live_decisions_to_disabled_exe
         context(idempotency_key="futures-place-us-cfm-evidence"),
     )
 
-    assert result.status_code == 400
-    assert result.body["status"] == "rejected"
-    assert result.body["failure_stage"] == "futures_executor_live_disabled"
-    assert result.body["readiness_decision"]["live_decision_evidence"][
-        "matching_service_decision_id"
-    ] == "futures-us-cfm-live-service"
-    assert result.body["readiness_decision"]["live_decision_evidence"][
-        "matching_adapter_decision_id"
-    ] == "futures-us-cfm-place-adapter"
-    assert result.body["admission_decision"]["allowed"] is False
-    assert result.body["admission_decision"]["failure_stage"] == (
-        "futures_executor_live_disabled"
+    assert_fixed_source_disabled_futures_result(
+        result,
+        command="futures_place",
+        route="/api/v1/futures/orders",
+        identity_key="product_id",
+        identity_value="BIP-20DEC30-CDE",
     )
-    assert result.body["admission_decision"]["account_family"] == (
-        "coinbase_futures_us_cfm"
-    )
-    assert result.body["admission_decision"]["intx_applicability"] == (
-        "not_applicable_us_account"
-    )
-    assert result.body["executor_decision"]["executor_status"] == (
-        "observed_live_disabled"
-    )
-    assert result.body["executor_decision"]["account_family"] == (
-        "coinbase_futures_us_cfm"
-    )
-    assert result.body["executor_decision"]["intx_applicability"] == (
-        "not_applicable_us_account"
-    )
-    assert result.body["executor_decision"]["payload_hash"] == result.body["payload_hash"]
-    assert result.body["executor_decision"]["live_exchange_submitted"] is False
-    assert "local MVP" not in result.body["executor_decision"]["detail"]
-    assert "local runtime" in result.body["executor_decision"]["detail"]
-    assert result.body["executor_decision_id"] in service.store.futures_executor_decisions
-    assert result.body["execution_allowed"] is False
-    assert result.body["live_exchange_submitted"] is False
-    assert result.body["live_coinbase_orders_ran"] is False
+    assert service.store.futures_command_decisions == {}
+    assert service.store.futures_executor_decisions == {}
+    assert_no_futures_exchange_mutations(rest_client)
 
     workbench = service.get_read_response(
         "/api/v1/admin/audit-workbench",
@@ -3118,32 +3112,19 @@ def test_admin_futures_command_suite_binds_us_cfm_live_decisions_to_disabled_exe
     )
 
     assert workbench.status_code == 200
-    assert workbench.body["count"] == 1
-    assert workbench.body["pagination"]["total_matching_count"] == 1
-    assert workbench.body["module_summary"][0]["module"] == "futures_perpetuals"
-    event = workbench.body["events"][0]
-    assert event["event_id"] == result.body["executor_decision_id"]
-    assert event["module"] == "futures_perpetuals"
-    assert event["source"] == "admin_api_futures_executor_boundary"
-    assert event["endpoint"] == "/api/v1/futures/orders"
-    assert event["status"] == "rejected"
-    assert event["product_id"] == "BIP-20DEC30-CDE"
-    assert event["admission_decision"]["status"] == "blocked"
-    assert event["admission_decision"]["allowed"] is False
-    assert event["admission_decision"]["blockers"] == ["futures_executor_live_disabled"]
-    assert event["executor_decision"]["executor_status"] == "observed_live_disabled"
-    assert event["executor_decision"]["live_exchange_submitted"] is False
-    assert event["exchange_order_id_evidence_only"] is True
-    assert event["live_exchange_submitted"] is False
+    assert workbench.body["count"] == 0
+    assert workbench.body["pagination"]["total_matching_count"] == 0
+    assert workbench.body["events"] == []
 
 
-def test_admin_futures_command_suite_exposes_confirmed_live_exchange_routes_when_runtime_enabled():
+def test_admin_futures_command_suite_and_legacy_submit_remain_source_disabled_when_runtime_enabled():
     rest_client = FakeAccountRestClient()
     service = AdminMvpService(
         AdminMvpDependencies(
             rest_client=rest_client,
             rest_client_available=True,
             live_coinbase_execution_enabled=True,
+        _synthetic_test_only_legacy_execution_enabled=True,
         )
     )
     record_futures_live_service_decision(service)
@@ -3157,16 +3138,16 @@ def test_admin_futures_command_suite_exposes_confirmed_live_exchange_routes_when
 
     assert command_suite.status_code == 200
     suite = command_suite.body
-    assert suite["status"] == "evidence_ready"
-    assert suite["command_routes_mode"] == "backend_admin_api_confirmed_live"
-    assert suite["blocked_command_count"] == 0
-    assert suite["executable_command_count"] == 4
-    assert suite["live_coinbase_orders_ran"] is False
-    assert suite["futures_live_decision_evidence"]["executor_boundary_status"] == (
-        "live_enabled"
+    assert suite["status"] == "blocked"
+    assert suite["command_routes_mode"] == "backend_admin_api_source_disabled"
+    assert suite["blocked_command_count"] == 4
+    assert suite["executable_command_count"] == 0
+    assert suite["command_draft_allowed_count"] == 0
+    assert suite["next_required_operator_decision"] == (
+        "restore_futures_command_source_and_obtain_separate_authorization"
     )
-    assert suite["futures_live_decision_evidence"]["first_blocker"] == "none"
-    assert suite["futures_live_decision_evidence"]["execution_allowed"] is True
+    assert suite["bff_authority"] == "source_disabled_not_forwarded"
+    assert suite["live_coinbase_orders_ran"] is False
 
     commands = {command["command"]: command for command in suite["commands"]}
     for command_name in (
@@ -3176,20 +3157,77 @@ def test_admin_futures_command_suite_exposes_confirmed_live_exchange_routes_when
         "futures_reconcile",
     ):
         command = commands[command_name]
-        assert command["status"] == "passed"
-        assert command["execution_allowed"] is True
-        assert command["manual_live_acknowledgement_required"] is (
-            command_name != "futures_reconcile"
+        assert command["status"] == "blocked"
+        assert command["command_draft_allowed"] is False
+        assert command["execution_allowed"] is False
+        assert command["manual_live_acknowledgement_required"] is False
+        assert command["readiness_decision"]["status"] == "blocked"
+        assert command["readiness_decision"]["ready"] is False
+        assert command["readiness_decision"]["first_blocker"] == (
+            "futures_command_service_source_disabled"
         )
-        assert command["readiness_decision"]["status"] == "passed"
-        assert command["readiness_decision"]["ready"] is True
-        assert command["readiness_decision"]["first_blocker"] == "none"
-        assert command["readiness_decision"]["execution_allowed"] is True
+        assert command["readiness_decision"]["command_draft_allowed"] is False
+        assert command["readiness_decision"]["execution_allowed"] is False
         assert command["live_coinbase_orders_ran"] is False
-        assert command["bff_authority"] == "forward_only_no_execution"
+        assert command["bff_authority"] == "source_disabled_not_forwarded"
+        for closure_step in command["readiness_closure_steps"]:
+            assert closure_step["command_draft_allowed"] is False
+            assert closure_step["execution_allowed"] is False
+            assert closure_step["bff_authority"] == (
+                "source_disabled_not_forwarded"
+            )
+            assert "separate source restoration and authorization" in (
+                closure_step["detail"]
+            )
+
+    for sequence_step in suite["command_enablement_sequence_steps"]:
+        assert sequence_step["command_draft_allowed"] is False
+        assert sequence_step["execution_allowed"] is False
+        assert sequence_step["bff_authority"] == "source_disabled_not_forwarded"
+        assert sequence_step["source_blockers"] == [
+            "futures_command_service_source_disabled"
+        ]
+        assert "separate source restoration and authorization" in (
+            sequence_step["detail"]
+        )
+    for trace in suite["command_enablement_sequence_command_traces"]:
+        assert trace["command_draft_allowed"] is False
+        assert trace["execution_allowed"] is False
+        assert trace["bff_authority"] == "source_disabled_not_forwarded"
+        assert trace["source_blockers"] == [
+            "futures_command_service_source_disabled"
+        ]
+
+    submit = service.submit_futures_command(
+        "/api/v1/futures/orders",
+        {
+            "product_id": "BIP-20DEC30-CDE",
+            "side": "BUY",
+            "order_type": "LIMIT",
+            "limit_price": "0.50",
+            "number_of_contracts": "1",
+            "dry_run": False,
+            "manual_live_acknowledgement": True,
+        },
+        context(idempotency_key="legacy-futures-source-disabled"),
+    )
+    assert submit.status_code == 501
+    assert submit.body["status"] == "not_implemented"
+    assert submit.body["failure_stage"] == (
+        "futures_command_service_source_disabled"
+    )
+    assert submit.body["submission_event_recorded"] is False
+    assert submit.body["command_draft_allowed"] is False
+    assert submit.body["execution_allowed"] is False
+    assert submit.body["bff_authority"] == "source_disabled_not_forwarded"
+    assert service.store.futures_command_decisions == {}
+    assert service.store.futures_executor_decisions == {}
+    assert rest_client.create_order_calls == []
+    assert rest_client.cancel_order_calls == []
+    assert rest_client.close_position_calls == []
 
 
-def test_admin_futures_view_only_default_key_blocks_every_command_executor():
+def test_admin_futures_view_only_key_still_reports_source_disabled_commands():
     rest_client = FakeAccountRestClient()
     rest_client.api_key_permissions["can_trade"] = False
     service = AdminMvpService(
@@ -3197,6 +3235,7 @@ def test_admin_futures_view_only_default_key_blocks_every_command_executor():
             rest_client=rest_client,
             rest_client_available=True,
             live_coinbase_execution_enabled=True,
+        _synthetic_test_only_legacy_execution_enabled=True,
         )
     )
     record_futures_live_service_decision(service)
@@ -3226,51 +3265,49 @@ def test_admin_futures_view_only_default_key_blocks_every_command_executor():
         context(idempotency_key="futures-view-only-key-live-blocked"),
     )
 
-    assert account.body["portfolio_binding"]["read_authorized"] is True
-    assert account.body["portfolio_binding"]["can_trade"] is False
-    assert account.body["account_readiness"]["futures_account_scope_ready"] is True
-    assert suite["blocked_command_count"] == 3
-    assert suite["executable_command_count"] == 1
+    assert account.body["portfolio_binding"]["read_authorized"] is False
+    assert account.body["portfolio_binding"]["can_trade"] is None
+    assert account.body["portfolio_binding"]["blocker"] == (
+        "futures_coinbase_read_not_authorized"
+    )
+    assert account.body["account_readiness"]["futures_account_scope_ready"] is False
+    assert suite["blocked_command_count"] == 4
+    assert suite["executable_command_count"] == 0
+    assert suite["command_draft_allowed_count"] == 0
     assert suite["futures_live_decision_evidence"]["execution_allowed"] is False
     assert suite["futures_live_decision_evidence"]["first_blocker"] == (
-        "futures_credential_trade_capability_missing"
+        FUTURES_SOURCE_DISABLED_FAILURE_STAGE
     )
-    live_commands = [
-        command
-        for command in suite["commands"]
-        if command["command"] != "futures_reconcile"
-    ]
-    assert all(command["execution_allowed"] is False for command in live_commands)
     assert all(
-        command["readiness_decision"]["first_blocker"]
-        == "futures_credential_trade_capability_missing"
-        for command in live_commands
-    )
-    reconcile = next(
-        command
+        command["status"] == "blocked"
+        and command["command_draft_allowed"] is False
+        and command["execution_allowed"] is False
+        and command["readiness_decision"]["first_blocker"]
+        == FUTURES_SOURCE_DISABLED_FAILURE_STAGE
+        and command["bff_authority"] == FUTURES_SOURCE_DISABLED_BFF_AUTHORITY
         for command in suite["commands"]
-        if command["command"] == "futures_reconcile"
     )
-    assert reconcile["execution_allowed"] is True
-    assert result.status_code == 501
-    assert result.body["failure_stage"] == (
-        "futures_credential_trade_capability_missing"
+    assert_fixed_source_disabled_futures_result(
+        result,
+        command="futures_place",
+        route="/api/v1/futures/orders",
+        identity_key="product_id",
+        identity_value="BIP-20DEC30-CDE",
     )
-    assert result.body["execution_allowed"] is False
-    assert result.body["live_exchange_submitted"] is False
-    assert result.body["live_coinbase_orders_ran"] is False
-    assert rest_client.create_order_calls == []
-    assert rest_client.cancel_order_calls == []
-    assert rest_client.close_position_calls == []
+    assert service.store.futures_command_decisions == {}
+    assert service.store.futures_executor_decisions == {}
+    assert_no_coinbase_reads(rest_client)
+    assert_no_futures_exchange_mutations(rest_client)
 
 
-def test_admin_futures_reconciliation_route_records_local_execution_when_ready():
+def test_admin_futures_reconciliation_source_disabled_before_local_persistence():
     rest_client = FakeAccountRestClient()
     service = AdminMvpService(
         AdminMvpDependencies(
             rest_client=rest_client,
             rest_client_available=True,
             live_coinbase_execution_enabled=True,
+        _synthetic_test_only_legacy_execution_enabled=True,
         )
     )
     record_futures_live_service_decision(service)
@@ -3286,40 +3323,20 @@ def test_admin_futures_reconciliation_route_records_local_execution_when_ready()
         context(idempotency_key="futures-reconcile-boundary"),
     )
 
-    assert result.status_code == 200
-    assert result.body["type"] == "admin_api_command_result"
-    assert result.body["module_id"] == "futures_perpetuals"
-    assert result.body["command"] == "futures_reconcile"
-    assert result.body["mutation_family"] == "futures_reconciliation_execution"
-    assert result.body["status"] == "accepted"
-    assert result.body["failure_stage"] is None
-    assert result.body["identity_key"] == "position_key"
-    assert result.body["identity_value"] == "futures_position:runtime:BIP-20DEC30-CDE"
-    assert result.body["readiness_decision"]["first_blocker"] == "none"
-    assert result.body["reconciliation_execution_allowed"] is True
-    assert result.body["reconciliation_execution_ran"] is True
-    assert result.body["reconciliation_plan_required"] is False
-    assert result.body["reconciliation_plan_created"] is True
-    assert result.body["reconciliation_plan_id"] in service.store.reconciliation_plans
-    assert result.body["futures_reconciliation_execution_id"] == (
-        result.body["submission_event_id"]
+    assert_fixed_source_disabled_futures_result(
+        result,
+        command="futures_reconcile",
+        route="/api/v1/futures/positions/{position_key}/reconciliation",
+        identity_key="position_key",
+        identity_value="futures_position:runtime:BIP-20DEC30-CDE",
     )
-    assert result.body["local_state_mutated"] is True
-    assert result.body["exchange_state_mutated"] is False
-    assert result.body["live_exchange_submitted"] is False
-    assert result.body["live_coinbase_orders_ran"] is False
-    plan = service.store.reconciliation_plans[result.body["reconciliation_plan_id"]]
-    assert plan["identity_value"] == "futures_position:runtime:BIP-20DEC30-CDE"
-    assert plan["service_method"] == "reconcile_futures_position"
-    assert plan["status"] == "passed"
-    assert plan["allowed"] is True
-    assert plan["exchange_submission_required"] is False
-    assert rest_client.create_order_calls == []
-    assert rest_client.cancel_order_calls == []
-    assert rest_client.close_position_calls == []
+    assert service.store.futures_command_decisions == {}
+    assert service.store.futures_executor_decisions == {}
+    assert service.store.reconciliation_plans == {}
+    assert_no_futures_exchange_mutations(rest_client)
 
 
-def test_admin_futures_order_fill_readback_reads_filled_order_by_client_order_id():
+def test_admin_futures_order_fill_readback_is_source_disabled_and_call_free():
     rest_client = FakeRestClient(
         list_orders_response={
             "orders": [
@@ -3366,29 +3383,31 @@ def test_admin_futures_order_fill_readback_reads_filled_order_by_client_order_id
     assert body["action_class"] == "read_only"
     assert body["client_order_id"] == "futures-live-submit-test"
     assert body["operator_identity_key"] == "client_order_id"
-    assert body["status"] == "passed"
-    assert body["order_status"] == "FILLED"
-    assert body["filled_order_found"] is True
+    assert body["status"] == "source_disabled"
+    assert body["failure_stage"] == FUTURES_SOURCE_DISABLED_FAILURE_STAGE
+    assert body["order_status"] == ""
+    assert body["filled_order_found"] is False
     assert body["exchange_order_id_evidence_only"] is True
-    assert body["fill_count"] == 1
-    assert body["fill_read_status"] == "filled"
-    assert body["fill_order_id_matches_exchange_order_id"] is True
-    assert body["fill_product_id_matches_order"] is True
-    assert body["executed_notional_usdc"] == "68.70"
+    assert body["fill_count"] == 0
+    assert body["fill_read_status"] == "source_disabled"
+    assert body["fill_order_id_matches_exchange_order_id"] is False
+    assert body["fill_product_id_matches_order"] is False
+    assert body["executed_notional_usdc"] == "0"
     assert body["submitted_notional_usdc"] == "0"
     assert body["notional_usdc"] == "0"
-    assert body["live_coinbase_read_ran"] is True
+    assert body["coinbase_read_attempted"] is False
+    assert body["coinbase_read_succeeded"] is False
+    assert body["order_read_attempted"] is False
+    assert body["fill_read_attempted"] is False
+    assert body["live_coinbase_read_ran"] is False
     assert body["live_coinbase_orders_ran"] is False
     assert body["read_only"] is True
+    assert body["command_routes_mode"] == "backend_admin_api_source_disabled"
     assert body["browser_authority"] == "display_only"
-    assert body["bff_authority"] == "forward_only_no_execution"
-    assert all(check["passed"] for check in body["checks"])
-    assert rest_client.list_orders_calls == [{"order_status": ["FILLED"]}]
-    assert rest_client.list_fills_calls == [
-        {"order_id": "exchange-order-live-1", "limit": 25}
-    ]
-    assert rest_client.create_order_calls == []
-    assert rest_client.cancel_order_calls == []
+    assert body["bff_authority"] == FUTURES_SOURCE_DISABLED_BFF_AUTHORITY
+    assert rest_client.list_orders_calls == []
+    assert rest_client.list_fills_calls == []
+    assert_no_futures_exchange_mutations(rest_client)
 
 
 def test_admin_spot_order_fill_readback_reads_order_and_fills_by_client_order_id():
@@ -3421,8 +3440,45 @@ def test_admin_spot_order_fill_readback_reads_order_and_fills_by_client_order_id
             "has_next": False,
         },
     )
+    proof_ref = (
+        "spot_fill_readback:spot-live-submit-test:audit-command-dry-order"
+    )
+    stored_proof = {
+        "type": "admin_spot_order_fill_readback",
+        "status": "passed",
+        "read_only": True,
+        "client_order_id": "spot-live-submit-test",
+        "audit_id": "audit-command-dry-order",
+        "product_id": "BTC-USDC",
+        "order_status": "FILLED",
+        "order_read_attempted": True,
+        "order_read_succeeded": True,
+        "order_found": True,
+        "exchange_order_id": "exchange-order-live-spot-1",
+        "exchange_order_id_present": True,
+        "exchange_order_id_evidence_only": True,
+        "fill_read_attempted": True,
+        "fill_read_succeeded": True,
+        "fill_count": 1,
+        "fill_read_status": "filled",
+        "fill_order_id_matches_exchange_order_id": True,
+        "fill_product_id_matches_order": True,
+        "fills_have_more_pages": False,
+        "executed_notional_usdc": "1.00000",
+        "coinbase_read_succeeded": True,
+        "live_coinbase_read_ran": True,
+        "live_coinbase_orders_ran": False,
+        "live_fill_readback_proof_ref": proof_ref,
+        "checks": [
+            {"name": "spot_order_read_succeeded", "passed": True},
+            {"name": "spot_fill_read_succeeded", "passed": True},
+        ],
+    }
     service = AdminMvpService(
-        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True),
+        store=AdminMvpStore(
+            spot_fill_readback_proofs={proof_ref: stored_proof}
+        ),
     )
 
     result = service.get_read_response(
@@ -3433,6 +3489,11 @@ def test_admin_spot_order_fill_readback_reads_order_and_fills_by_client_order_id
 
     assert result.status_code == 200
     body = result.body
+    assert body["readback_source"] == "local_durable_evidence"
+    assert body["current_request_coinbase_read_ran"] is False
+    assert body["current_request_local_state_mutated"] is False
+    assert rest_client.list_orders_calls == []
+    assert rest_client.list_fills_calls == []
     assert body["type"] == "admin_spot_order_fill_readback"
     assert body["module_id"] == "spot_operations"
     assert body["route"] == "/api/v1/orders/{client_order_id}/fill-readback"
@@ -3464,27 +3525,133 @@ def test_admin_spot_order_fill_readback_reads_order_and_fills_by_client_order_id
     assert proof["fill_read_status"] == "filled"
     assert proof["live_coinbase_read_ran"] is True
     assert proof["live_coinbase_orders_ran"] is False
-    assert body["live_coinbase_read_ran"] is True
+    assert body["live_coinbase_read_ran"] is False
+    assert body["proof_origin_live_coinbase_read_ran"] is True
+    assert body["proof_origin_order_read_attempted"] is True
+    assert body["proof_origin_order_read_succeeded"] is True
+    assert body["proof_origin_exchange_order_id_present"] is True
+    assert body["proof_origin_fill_read_attempted"] is True
+    assert body["proof_origin_fill_read_succeeded"] is True
+    assert body["proof_origin_fills_have_more_pages"] is False
+    assert all(check["passed"] for check in body["proof_origin_checks"])
     assert body["live_coinbase_orders_ran"] is False
     assert body["read_only"] is True
     assert body["browser_authority"] == "display_only"
     assert body["bff_authority"] == "forward_only_no_execution"
     assert all(check["passed"] for check in body["checks"])
-    assert rest_client.list_orders_calls == [{"order_status": ["FILLED"]}]
-    assert rest_client.list_fills_calls == [
-        {"order_id": "exchange-order-live-spot-1", "limit": 25}
-    ]
+    assert rest_client.list_orders_calls == []
+    assert rest_client.list_fills_calls == []
     assert rest_client.create_order_calls == []
     assert rest_client.cancel_order_calls == []
 
 
-def test_admin_futures_place_live_execution_uses_backend_rest_adapter_when_confirmed():
+def test_admin_spot_reconciliation_recorder_requires_and_verifies_durable_proof(
+    tmp_path,
+):
+    evidence_path = tmp_path / "admin-mvp-evidence.jsonl"
+    service = AdminMvpService(
+        evidence_log=AdminMvpEvidenceLog(
+            {"spot_fill_readback_proofs": evidence_path}
+        )
+    )
+    record = {
+        "type": "admin_spot_order_fill_readback",
+        "status": "passed",
+        "read_only": True,
+        "client_order_id": "selected-root-proof-test",
+        "audit_id": "audit-selected-root-proof-test",
+        "product_id": "BTC-USDC",
+        "order_status": "FILLED",
+        "order_read_attempted": True,
+        "order_read_succeeded": True,
+        "order_found": True,
+        "exchange_order_id_present": True,
+        "exchange_order_id_evidence_only": True,
+        "fill_read_attempted": True,
+        "fill_read_succeeded": True,
+        "fill_count": 1,
+        "fill_read_status": "filled",
+        "fill_order_id_matches_exchange_order_id": True,
+        "fill_product_id_matches_order": True,
+        "fills_have_more_pages": False,
+        "coinbase_read_succeeded": True,
+        "live_coinbase_read_ran": True,
+        "live_coinbase_orders_ran": False,
+        "checks": [
+            {"name": "spot_fill_read_succeeded", "passed": True},
+            {"name": "untrusted_extension", "passed": True},
+        ],
+    }
+
+    proof_ref = service.record_spot_fill_readback_proof(record)
+
+    assert proof_ref == (
+        "spot_fill_readback:selected-root-proof-test:"
+        "audit-selected-root-proof-test"
+    )
+    assert proof_ref in service.store.spot_fill_readback_proofs
+    restarted_store = AdminMvpEvidenceLog(
+        {"spot_fill_readback_proofs": evidence_path}
+    ).load_store()
+    durable = restarted_store.spot_fill_readback_proofs[proof_ref]
+    assert durable["proof_recorded"] is True
+    assert durable["checks"] == [
+        {"name": "spot_fill_read_succeeded", "passed": True}
+    ]
+    assert "exchange_order_id" not in durable
+
+    call_free_service = AdminMvpService(evidence_log=AdminMvpEvidenceLog({}))
+    assert call_free_service.record_spot_fill_readback_proof(record) is None
+    assert call_free_service.store.spot_fill_readback_proofs == {}
+
+
+def test_admin_spot_order_fill_readback_missing_proof_is_call_and_write_free():
+    rest_client = FakeRestClient(
+        list_orders_response={
+            "orders": [
+                {
+                    "client_order_id": "unrecorded-root",
+                    "order_id": "must-not-be-read",
+                    "product_id": "BTC-USDC",
+                    "status": "FILLED",
+                }
+            ]
+        },
+        list_fills_response={"fills": [], "has_next": False},
+    )
+    store = AdminMvpStore()
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True),
+        store=store,
+    )
+
+    result = service.get_read_response(
+        "/api/v1/orders/unrecorded-root/fill-readback",
+        {"product_id": "BTC-USDC", "fill_limit": "25"},
+        context(),
+    )
+
+    assert result.status_code == 200
+    assert result.body["status"] == "not_available"
+    assert result.body["readback_source"] == "local_durable_evidence"
+    assert result.body["live_coinbase_read_ran"] is False
+    assert result.body["local_state_mutated"] is False
+    assert result.body["live_fill_readback_proof_recorded"] is False
+    assert store.spot_fill_readback_proofs == {}
+    assert rest_client.list_orders_calls == []
+    assert rest_client.list_fills_calls == []
+    assert rest_client.create_order_calls == []
+    assert rest_client.cancel_order_calls == []
+
+
+def test_admin_futures_place_source_disabled_despite_confirmed_legacy_evidence():
     rest_client = FakeAccountRestClient()
     service = AdminMvpService(
         AdminMvpDependencies(
             rest_client=rest_client,
             rest_client_available=True,
             live_coinbase_execution_enabled=True,
+        _synthetic_test_only_legacy_execution_enabled=True,
         )
     )
     record_futures_live_service_decision(service)
@@ -3504,40 +3671,17 @@ def test_admin_futures_place_live_execution_uses_backend_rest_adapter_when_confi
         context(idempotency_key="futures-place-live-submit"),
     )
 
-    assert result.status_code == 200
-    assert result.body["status"] == "accepted"
-    assert result.body["failure_stage"] is None
-    assert result.body["command"] == "futures_place"
-    assert result.body["client_order_id"] == "futures-place-live-submit"
-    assert result.body["coinbase_order_id"] == "exchange-order-live-1"
-    assert result.body["submitted_notional_usdc"] == "1.00"
-    assert result.body["notional_usdc"] == "1.00"
-    assert result.body["live_exchange_submitted"] is True
-    assert result.body["live_coinbase_orders_ran"] is True
-    assert result.body["live_coinbase_execution"] == "submitted"
-    assert_futures_live_proof_chain(
-        service,
-        result.body,
+    assert_fixed_source_disabled_futures_result(
+        result,
         command="futures_place",
         route="/api/v1/futures/orders",
         identity_key="product_id",
         identity_value="BIP-20DEC30-CDE",
-        client_order_id="futures-place-live-submit",
     )
-    assert rest_client.create_order_calls == [
-        {
-            "client_order_id": "futures-place-live-submit",
-            "product_id": "BIP-20DEC30-CDE",
-            "side": "BUY",
-            "order_configuration": {
-                "limit_limit_gtc": {
-                    "base_size": "1",
-                    "limit_price": "100",
-                    "post_only": False,
-                }
-            },
-        }
-    ]
+    assert service.store.futures_command_decisions == {}
+    assert service.store.futures_executor_decisions == {}
+    assert service.store.reconciliation_plans == {}
+    assert_no_futures_exchange_mutations(rest_client)
 
     workbench = service.get_read_response(
         "/api/v1/admin/audit-workbench",
@@ -3546,34 +3690,18 @@ def test_admin_futures_place_live_execution_uses_backend_rest_adapter_when_confi
     )
 
     assert workbench.status_code == 200
-    assert workbench.body["count"] == 1
-    event = workbench.body["events"][0]
-    assert event["event_id"] == result.body["submission_event_id"]
-    assert event["status"] == "accepted"
-    assert event["source"] == "admin_api_futures_command_log"
-    assert event["exchange_order_id"] == "exchange-order-live-1"
-    assert event["exchange_order_id_evidence_only"] is True
-    assert event["live_exchange_submitted"] is True
-    assert event["live_coinbase_orders_ran"] is True
-    assert event["cap_guard_present"] is True
-    assert event["cap_guard_decision_id"] == result.body["cap_guard_decision_id"]
-    assert event["cap_guard_source"] == "admin_api_cap_guard_log"
-    assert event["cap_guard_recorded_at"]
-    assert event["cap_guard_missing_reason"] is None
-    assert event["reconciliation_plan_present"] is True
-    assert event["reconciliation_plan_id"] == result.body["reconciliation_plan_id"]
-    assert event["reconciliation_plan_source"] == "admin_api_reconciliation_plan_log"
-    assert event["reconciliation_plan_recorded_at"]
-    assert event["reconciliation_plan_missing_reason"] is None
+    assert workbench.body["count"] == 0
+    assert workbench.body["events"] == []
 
 
-def test_admin_futures_place_live_execution_requires_explicit_acknowledgement():
+def test_admin_futures_place_source_disabled_before_acknowledgement_gate():
     rest_client = FakeAccountRestClient()
     service = AdminMvpService(
         AdminMvpDependencies(
             rest_client=rest_client,
             rest_client_available=True,
             live_coinbase_execution_enabled=True,
+        _synthetic_test_only_legacy_execution_enabled=True,
         )
     )
     record_futures_live_service_decision(service)
@@ -3592,32 +3720,27 @@ def test_admin_futures_place_live_execution_requires_explicit_acknowledgement():
         context(idempotency_key="futures-place-draft-no-ack"),
     )
 
-    assert result.status_code == 400
-    assert result.body["status"] == "rejected"
-    assert result.body["failure_stage"] == "futures_live_acknowledgement_required"
-    assert result.body["mutation_family"] == "futures_live_acknowledgement_required"
-    assert result.body["manual_live_acknowledgement_required"] is True
-    assert result.body["live_exchange_submitted"] is False
-    assert rest_client.create_order_calls == []
+    assert_fixed_source_disabled_futures_result(
+        result,
+        command="futures_place",
+        route="/api/v1/futures/orders",
+        identity_key="product_id",
+        identity_value="BIP-20DEC30-CDE",
+    )
+    assert service.store.futures_command_decisions == {}
+    assert service.store.futures_executor_decisions == {}
+    assert_no_futures_exchange_mutations(rest_client)
 
 
-def test_admin_futures_place_live_execution_rejects_above_backend_cap():
+def test_admin_futures_product_exposure_read_is_local_and_source_disabled():
     rest_client = FakeAccountRestClient()
-    rest_client.product_dicts["BIP-20DEC30-CDE"] = {
-        "product_id": "BIP-20DEC30-CDE",
-        "product_type": "FUTURE",
-        "price": "62625",
-        "best_bid": "62625",
-        "best_ask": "62630",
-        "price_increment": "5",
-        "base_increment": "1",
-        "future_product_details": {"contract_size": "0.01"},
-    }
+    rest_client.product_dicts["BIP-20DEC30-CDE"]["price"] = "62625"
     service = AdminMvpService(
         AdminMvpDependencies(
             rest_client=rest_client,
             rest_client_available=True,
             live_coinbase_execution_enabled=True,
+            _synthetic_test_only_legacy_execution_enabled=True,
         )
     )
     record_futures_live_service_decision(service)
@@ -3636,14 +3759,13 @@ def test_admin_futures_place_live_execution_rejects_above_backend_cap():
         },
         context(idempotency_key="futures-place-live-over-cap"),
     )
-
-    assert result.status_code == 400
-    assert result.body["status"] == "rejected"
-    assert result.body["failure_stage"] == "futures_cap_required"
-    assert result.body["submitted_notional_usdc"] == "0"
-    assert result.body["notional_usdc"] == "800.00"
-    assert result.body["live_exchange_submitted"] is False
-    assert rest_client.create_order_calls == []
+    assert_fixed_source_disabled_futures_result(
+        result,
+        command="futures_place",
+        route="/api/v1/futures/orders",
+        identity_key="product_id",
+        identity_value="BIP-20DEC30-CDE",
+    )
 
     command_suite = service.get_read_response(
         "/api/v1/futures/command-suite",
@@ -3653,114 +3775,60 @@ def test_admin_futures_place_live_execution_rejects_above_backend_cap():
 
     assert command_suite.status_code == 200
     exposure = command_suite.body["futures_product_exposure_evidence"]
-    assert exposure["status"] == "ready"
+    assert exposure["status"] == "blocked"
     assert exposure["max_submitted_notional_usdc"] == "100.00"
-    assert exposure["any_product_within_backend_cap"] is True
+    assert exposure["any_product_within_backend_cap"] is False
     assert exposure["next_required_operator_decision"] == (
-        "select_configured_us_cfm_product_within_cap"
+        "product_exposure_evidence_unavailable_in_call_free_read"
     )
-    assert exposure["items"] == [
-        {
-            "product_id": "AVP-20DEC30-CDE",
-            "status": "ready",
-            "metadata_read_status": "ready",
-            "metadata_read_error": None,
-            "source": "backend_rest_client",
-            "reference_side": "BUY",
-            "reference_limit_price": "6.92",
-            "price_increment": "0.01",
-            "contract_size": "10.00",
-            "minimum_contracts": "1",
-            "minimum_contract_notional_usdc": "69.20",
-            "minimum_contract_notional_source": "backend_product_metadata",
-            "max_submitted_notional_usdc": "100.00",
-            "within_backend_cap": True,
-            "execution_allowed": False,
-            "live_coinbase_orders_ran": False,
-            "backend_owned": True,
-            "read_only": True,
-            "spot_rule_authority": False,
-            "browser_authority": "display_only",
-            "bff_authority": "forward_only_no_execution",
-        },
-        {
-            "product_id": "BIP-20DEC30-CDE",
-            "status": "blocked",
-            "metadata_read_status": "ready",
-            "metadata_read_error": None,
-            "source": "backend_rest_client",
-            "reference_side": "BUY",
-            "reference_limit_price": "62625.00",
-            "price_increment": "5.00",
-            "contract_size": "0.01",
-            "minimum_contracts": "1",
-            "minimum_contract_notional_usdc": "626.25",
-            "minimum_contract_notional_source": "backend_product_metadata",
-            "max_submitted_notional_usdc": "100.00",
-            "within_backend_cap": False,
-            "execution_allowed": False,
-            "live_coinbase_orders_ran": False,
-            "backend_owned": True,
-            "read_only": True,
-            "spot_rule_authority": False,
-            "browser_authority": "display_only",
-            "bff_authority": "forward_only_no_execution",
-        }
-    ]
-    assert command_suite.body["futures_live_decision_evidence"][
-        "futures_product_exposure_evidence"
-    ]["any_product_within_backend_cap"] is True
-    failure = command_suite.body["latest_live_submit_failure"]
-    assert command_suite.body["latest_live_submit_failure_present"] is True
-    assert failure["failure_stage"] == "futures_cap_required"
-    assert failure["product_id"] == "BIP-20DEC30-CDE"
-    assert failure["client_order_id"] == "futures-place-live-over-cap"
-    assert failure["attempted_notional_usdc"] == "800.00"
-    assert failure["submitted_notional_usdc"] == "0.00"
-    assert failure["max_submitted_notional_usdc"] == "100.00"
-    assert failure["live_exchange_submitted"] is False
-    assert failure["next_required_operator_decision"] == (
-        "choose_lower_notional_us_cfm_product_or_raise_futures_cap"
-    )
-    live_evidence = command_suite.body["futures_live_decision_evidence"]
-    assert live_evidence["latest_live_submit_failure_present"] is True
-    assert live_evidence["latest_live_submit_failure"]["failure_stage"] == (
-        "futures_cap_required"
-    )
-    assert command_suite.body["command_enablement_blocker_summaries"][0][
-        "latest_live_submit_failure"
-    ]["attempted_notional_usdc"] == "800.00"
+    assert exposure["product_within_backend_cap_count"] == 0
+    assert len(exposure["items"]) == 2
+    for item in exposure["items"]:
+        assert item["status"] == "blocked"
+        assert item["metadata_read_status"] == "blocked"
+        assert item["metadata_read_error"] == (
+            "futures_coinbase_read_not_authorized"
+        )
+        assert item["source"] == "backend_admin_api_local_evidence"
+        assert item["reference_limit_price"] == "0.00"
+        assert item["minimum_contract_notional_usdc"] == "0.00"
+        assert item["minimum_contract_notional_source"] == "unavailable"
+        assert item["within_backend_cap"] is False
+        assert item["execution_allowed"] is False
+    assert command_suite.body["latest_live_submit_failure"] is None
+    assert command_suite.body["latest_live_submit_failure_present"] is False
+    assert_no_coinbase_reads(rest_client)
+    assert_no_futures_exchange_mutations(rest_client)
 
 
-def test_admin_futures_product_exposure_falls_back_to_latest_live_submit_failure():
+def test_admin_futures_product_exposure_reads_historical_failure_without_restoring_source():
     rest_client = FakeAccountRestClient()
     rest_client.product_dicts = {}
     service = AdminMvpService(
         AdminMvpDependencies(
             rest_client=rest_client,
             rest_client_available=True,
-            live_coinbase_execution_enabled=True,
-        )
+        ),
+        store=AdminMvpStore(
+            futures_command_decisions={
+                "historical-futures-cap-rejection": {
+                    "command": "futures_place",
+                    "mutation_family": "futures_live_place",
+                    "failure_stage": "futures_cap_required",
+                    "message": "Historical sanitized cap rejection.",
+                    "identity_value": "BIP-20DEC30-CDE",
+                    "client_order_id": "historical-futures-cap-rejection",
+                    "admission_decision": {
+                        "submitted_notional_usdc": "800.00",
+                    },
+                    "readiness_decision": {},
+                    "submitted_notional_usdc": "0",
+                    "live_exchange_submitted": False,
+                    "live_coinbase_orders_ran": False,
+                }
+            }
+        ),
     )
-    record_futures_live_service_decision(service)
-    record_all_futures_live_adapter_decisions(service)
-
-    result = service.submit_futures_command(
-        "/api/v1/futures/orders",
-        {
-            "product_id": "BIP-20DEC30-CDE",
-            "side": "BUY",
-            "order_type": "LIMIT",
-            "limit_price": "80000",
-            "size": "1",
-            "dry_run": False,
-            "manual_live_acknowledgement": True,
-        },
-        context(idempotency_key="futures-place-live-over-cap-metadata-missing"),
-    )
-
-    assert result.status_code == 400
-    assert result.body["failure_stage"] == "futures_cap_required"
 
     command_suite = service.get_read_response(
         "/api/v1/futures/command-suite",
@@ -3769,6 +3837,12 @@ def test_admin_futures_product_exposure_falls_back_to_latest_live_submit_failure
     )
 
     assert command_suite.status_code == 200
+    assert command_suite.body["blocked_command_count"] == 4
+    assert command_suite.body["executable_command_count"] == 0
+    assert command_suite.body["command_draft_allowed_count"] == 0
+    assert command_suite.body["bff_authority"] == (
+        FUTURES_SOURCE_DISABLED_BFF_AUTHORITY
+    )
     exposure = command_suite.body["futures_product_exposure_evidence"]
     assert exposure["status"] == "blocked"
     bip_exposure = next(
@@ -3777,15 +3851,25 @@ def test_admin_futures_product_exposure_falls_back_to_latest_live_submit_failure
         if item["product_id"] == "BIP-20DEC30-CDE"
     )
     assert bip_exposure["metadata_read_status"] == "blocked"
-    assert bip_exposure["metadata_read_error"] == "product_metadata_missing"
+    assert bip_exposure["metadata_read_error"] == (
+        "futures_coinbase_read_not_authorized"
+    )
+    assert bip_exposure["source"] == "backend_admin_api_local_evidence"
     assert bip_exposure["minimum_contract_notional_usdc"] == "800.00"
     assert bip_exposure["minimum_contract_notional_source"] == (
         "latest_live_submit_failure"
     )
     assert bip_exposure["within_backend_cap"] is False
+    failure = command_suite.body["latest_live_submit_failure"]
+    assert command_suite.body["latest_live_submit_failure_present"] is True
+    assert failure["failure_stage"] == "futures_cap_required"
+    assert failure["attempted_notional_usdc"] == "800.00"
+    assert failure["live_exchange_submitted"] is False
+    assert_no_coinbase_reads(rest_client)
+    assert_no_futures_exchange_mutations(rest_client)
 
 
-def test_admin_futures_place_live_execution_requires_runtime_enablement():
+def test_admin_futures_place_source_disabled_before_runtime_enablement():
     rest_client = FakeAccountRestClient()
     service = AdminMvpService(
         AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
@@ -3807,14 +3891,19 @@ def test_admin_futures_place_live_execution_requires_runtime_enablement():
         context(idempotency_key="futures-place-live-runtime-disabled"),
     )
 
-    assert result.status_code == 400
-    assert result.body["status"] == "rejected"
-    assert result.body["failure_stage"] == "futures_live_runtime_disabled"
-    assert result.body["live_exchange_submitted"] is False
-    assert rest_client.create_order_calls == []
+    assert_fixed_source_disabled_futures_result(
+        result,
+        command="futures_place",
+        route="/api/v1/futures/orders",
+        identity_key="product_id",
+        identity_value="BIP-20DEC30-CDE",
+    )
+    assert service.store.futures_command_decisions == {}
+    assert service.store.futures_executor_decisions == {}
+    assert_no_futures_exchange_mutations(rest_client)
 
 
-def test_admin_futures_close_reduce_live_execution_uses_backend_rest_adapter_when_confirmed():
+def test_admin_futures_close_reduce_source_disabled_despite_confirmed_legacy_evidence():
     rest_client = FakeAccountRestClient()
     rest_client.futures_positions["AVP-20DEC30-CDE"] = {
         "product_id": "AVP-20DEC30-CDE",
@@ -3828,13 +3917,14 @@ def test_admin_futures_close_reduce_live_execution_uses_backend_rest_adapter_whe
             rest_client=rest_client,
             rest_client_available=True,
             live_coinbase_execution_enabled=True,
+        _synthetic_test_only_legacy_execution_enabled=True,
         )
     )
     record_futures_live_service_decision(service)
     record_all_futures_live_adapter_decisions(service)
 
     result = service.submit_futures_command(
-        "/api/v1/futures/positions/futures_position:portfolio-real-1:AVP-20DEC30-CDE/close-reduce",
+        "/api/v1/futures/positions/futures_position:default:AVP-20DEC30-CDE/close-reduce",
         {
             "limit_price": "6.92",
             "size": "1",
@@ -3845,44 +3935,17 @@ def test_admin_futures_close_reduce_live_execution_uses_backend_rest_adapter_whe
         context(idempotency_key="futures-close-reduce-live-submit"),
     )
 
-    assert result.status_code == 200
-    assert result.body["status"] == "accepted"
-    assert result.body["failure_stage"] is None
-    assert result.body["command"] == "futures_close_reduce"
-    assert result.body["mutation_family"] == "futures_live_close_reduce"
-    assert result.body["identity_key"] == "position_key"
-    assert result.body["identity_value"] == (
-        "futures_position:portfolio-real-1:AVP-20DEC30-CDE"
-    )
-    assert result.body["product_id"] == "AVP-20DEC30-CDE"
-    assert result.body["client_order_id"] == "futures-close-reduce-live-submit"
-    assert result.body["coinbase_order_id"] == "exchange-close-position-live-1"
-    assert result.body["coinbase_close_position_submission_allowed"] is True
-    assert result.body["submitted_notional_usdc"] == "69.20"
-    assert result.body["executed_notional_usdc"] == "0"
-    assert result.body["live_exchange_submitted"] is True
-    assert result.body["live_coinbase_orders_ran"] is True
-    assert result.body["live_coinbase_execution"] == "submitted"
-    assert result.body["spot_rule_authority"] is False
-    assert result.body["exchange_order_id_evidence_only"] is True
-    assert_futures_live_proof_chain(
-        service,
-        result.body,
+    assert_fixed_source_disabled_futures_result(
+        result,
         command="futures_close_reduce",
         route="/api/v1/futures/positions/{position_key}/close-reduce",
         identity_key="position_key",
-        identity_value="futures_position:portfolio-real-1:AVP-20DEC30-CDE",
-        client_order_id="futures-close-reduce-live-submit",
+        identity_value="futures_position:default:AVP-20DEC30-CDE",
     )
-    assert rest_client.close_position_calls == [
-        {
-            "client_order_id": "futures-close-reduce-live-submit",
-            "product_id": "AVP-20DEC30-CDE",
-            "size": "1",
-        }
-    ]
-    assert rest_client.cancel_order_calls == []
-    assert rest_client.create_order_calls == []
+    assert service.store.futures_command_decisions == {}
+    assert service.store.futures_executor_decisions == {}
+    assert service.store.reconciliation_plans == {}
+    assert_no_futures_exchange_mutations(rest_client)
 
     workbench = service.get_read_response(
         "/api/v1/admin/audit-workbench",
@@ -3894,38 +3957,26 @@ def test_admin_futures_close_reduce_live_execution_uses_backend_rest_adapter_whe
     )
 
     assert workbench.status_code == 200
-    assert workbench.body["count"] == 1
-    event = workbench.body["events"][0]
-    assert event["event_id"] == result.body["submission_event_id"]
-    assert event["status"] == "accepted"
-    assert event["source"] == "admin_api_futures_command_log"
-    assert event["endpoint"] == "/api/v1/futures/positions/{position_key}/close-reduce"
-    assert event["client_order_id"] == "futures-close-reduce-live-submit"
-    assert event["exchange_order_id"] == "exchange-close-position-live-1"
-    assert event["exchange_order_id_evidence_only"] is True
-    assert event["live_exchange_submitted"] is True
-    assert event["live_coinbase_orders_ran"] is True
+    assert workbench.body["count"] == 0
+    assert workbench.body["events"] == []
 
 
 @pytest.mark.parametrize(
-    ("position_key", "body_product_id", "expected_failure_stage"),
+    ("position_key", "body_product_id"),
     [
         (
             "futures_position:other-portfolio:BIP-20DEC30-CDE",
             "BIP-20DEC30-CDE",
-            "futures_position_identity_not_authorized",
         ),
         (
-            "futures_position:portfolio-real-1:BIP-20DEC30-CDE",
+            "futures_position:default:BIP-20DEC30-CDE",
             "AVP-20DEC30-CDE",
-            "futures_position_product_mismatch",
         ),
     ],
 )
-def test_admin_futures_close_reduce_rejects_unbound_position_identity_before_rest(
+def test_admin_futures_close_reduce_source_disabled_before_position_validation(
     position_key,
     body_product_id,
-    expected_failure_stage,
 ):
     rest_client = FakeAccountRestClient()
     service = AdminMvpService(
@@ -3933,6 +3984,7 @@ def test_admin_futures_close_reduce_rejects_unbound_position_identity_before_res
             rest_client=rest_client,
             rest_client_available=True,
             live_coinbase_execution_enabled=True,
+        _synthetic_test_only_legacy_execution_enabled=True,
         )
     )
     record_futures_live_service_decision(service)
@@ -3948,34 +4000,40 @@ def test_admin_futures_close_reduce_rejects_unbound_position_identity_before_res
             "manual_live_acknowledgement": True,
             "operator_reason": "prove exact position binding",
         },
-        context(idempotency_key=f"close-reject-{expected_failure_stage}"),
+        context(idempotency_key="close-source-disabled-before-position-validation"),
     )
 
-    assert result.status_code == 400
-    assert result.body["failure_stage"] == expected_failure_stage
-    assert result.body["execution_allowed"] is False
-    assert result.body["live_exchange_submitted"] is False
-    assert result.body["live_coinbase_orders_ran"] is False
-    assert rest_client.close_position_calls == []
-    assert rest_client.create_order_calls == []
-    assert rest_client.cancel_order_calls == []
+    assert_fixed_source_disabled_futures_result(
+        result,
+        command="futures_close_reduce",
+        route="/api/v1/futures/positions/{position_key}/close-reduce",
+        identity_key="position_key",
+        identity_value=position_key,
+    )
+    assert service.store.futures_command_decisions == {}
+    assert service.store.futures_executor_decisions == {}
+    assert_no_futures_exchange_mutations(rest_client)
 
 
-def test_admin_futures_cancel_live_execution_uses_backend_rest_adapter_when_confirmed():
+def test_admin_futures_cancel_source_disabled_without_response_inspection():
     rest_client = FakeAccountRestClient()
+    private_marker = "PRIVATE-FUTURES-CANCEL-RESPONSE-MARKER"
     rest_client.cancel_orders_response = {
         "results": [
             {
                 "success": True,
                 "order_id": "client-futures-live-cancel",
+                "private_extension": private_marker,
             }
-        ]
+        ],
+        "private_top_level": private_marker,
     }
     service = AdminMvpService(
         AdminMvpDependencies(
             rest_client=rest_client,
             rest_client_available=True,
             live_coinbase_execution_enabled=True,
+        _synthetic_test_only_legacy_execution_enabled=True,
         )
     )
     record_futures_live_service_decision(service)
@@ -3992,41 +4050,17 @@ def test_admin_futures_cancel_live_execution_uses_backend_rest_adapter_when_conf
         context(idempotency_key="futures-cancel-live-submit"),
     )
 
-    assert result.status_code == 200
-    assert result.body["status"] == "accepted"
-    assert result.body["failure_stage"] is None
-    assert result.body["command"] == "futures_cancel"
-    assert result.body["mutation_family"] == "futures_live_cancel"
-    assert result.body["identity_key"] == "client_order_id"
-    assert result.body["identity_value"] == "client-futures-live-cancel"
-    assert result.body["client_order_id"] == "client-futures-live-cancel"
-    assert result.body["coinbase_cancel_submission_allowed"] is True
-    assert result.body["live_exchange_submitted"] is True
-    assert result.body["live_coinbase_orders_ran"] is True
-    assert result.body["live_coinbase_execution"] == "submitted"
-    assert result.body["submitted_notional_usdc"] == "0"
-    assert result.body["executed_notional_usdc"] == "0"
-    assert result.body["spot_rule_authority"] is False
-    assert result.body["exchange_order_id_evidence_only"] is True
-    assert result.body["operator_identity_key"] == "client_order_id"
-    assert result.body["coinbase_cancel_initial_identity_used"] == "client_order_id"
-    assert result.body["coinbase_cancel_initial_result_success"] is True
-    assert result.body["coinbase_cancel_fallback_attempted"] is False
-    assert result.body["coinbase_cancel_fallback_reason"] is None
-    assert result.body["coinbase_cancel_fallback_identity_used"] is None
-    assert_futures_live_proof_chain(
-        service,
-        result.body,
+    assert_fixed_source_disabled_futures_result(
+        result,
         command="futures_cancel",
         route="/api/v1/futures/orders/{client_order_id}/cancel",
         identity_key="client_order_id",
         identity_value="client-futures-live-cancel",
-        client_order_id="client-futures-live-cancel",
     )
-    assert rest_client.cancel_order_calls == [
-        {"order_ids": ["client-futures-live-cancel"]}
-    ]
-    assert rest_client.create_order_calls == []
+    assert private_marker not in str(result.body)
+    assert service.store.futures_command_decisions == {}
+    assert service.store.futures_executor_decisions == {}
+    assert_no_futures_exchange_mutations(rest_client)
 
     workbench = service.get_read_response(
         "/api/v1/admin/audit-workbench",
@@ -4035,19 +4069,11 @@ def test_admin_futures_cancel_live_execution_uses_backend_rest_adapter_when_conf
     )
 
     assert workbench.status_code == 200
-    assert workbench.body["count"] == 1
-    event = workbench.body["events"][0]
-    assert event["event_id"] == result.body["submission_event_id"]
-    assert event["status"] == "accepted"
-    assert event["source"] == "admin_api_futures_command_log"
-    assert event["endpoint"] == "/api/v1/futures/orders/{client_order_id}/cancel"
-    assert event["client_order_id"] == "client-futures-live-cancel"
-    assert event["exchange_order_id_evidence_only"] is True
-    assert event["live_exchange_submitted"] is True
-    assert event["live_coinbase_orders_ran"] is True
+    assert workbench.body["count"] == 0
+    assert workbench.body["events"] == []
 
 
-def test_admin_futures_cancel_resolves_exchange_order_id_when_client_id_cancel_is_unknown():
+def test_admin_futures_cancel_source_disabled_before_lookup_or_fallback():
     rest_client = FakeAccountRestClient()
     rest_client.cancel_orders_responses = [
         {
@@ -4082,6 +4108,7 @@ def test_admin_futures_cancel_resolves_exchange_order_id_when_client_id_cancel_i
             rest_client=rest_client,
             rest_client_available=True,
             live_coinbase_execution_enabled=True,
+        _synthetic_test_only_legacy_execution_enabled=True,
         )
     )
     record_futures_live_service_decision(service)
@@ -4098,34 +4125,20 @@ def test_admin_futures_cancel_resolves_exchange_order_id_when_client_id_cancel_i
         context(idempotency_key="futures-cancel-live-submit"),
     )
 
-    assert result.status_code == 200
-    assert result.body["status"] == "accepted"
-    assert result.body["failure_stage"] is None
-    assert result.body["client_order_id"] == "client-futures-live-cancel"
-    assert result.body["coinbase_cancel_submission_allowed"] is True
-    assert result.body["coinbase_cancel_identity_used"] == "exchange_order_id"
-    assert result.body["operator_identity_key"] == "client_order_id"
-    assert result.body["coinbase_cancel_initial_identity_used"] == "client_order_id"
-    assert result.body["coinbase_cancel_initial_result_success"] is False
-    assert result.body["coinbase_cancel_fallback_attempted"] is True
-    assert (
-        result.body["coinbase_cancel_fallback_reason"]
-        == "client_order_id_cancel_not_accepted"
+    assert_fixed_source_disabled_futures_result(
+        result,
+        command="futures_cancel",
+        route="/api/v1/futures/orders/{client_order_id}/cancel",
+        identity_key="client_order_id",
+        identity_value="client-futures-live-cancel",
     )
-    assert result.body["coinbase_cancel_fallback_identity_used"] == "exchange_order_id"
-    assert result.body["coinbase_cancel_order_read_attempted"] is True
-    assert result.body["exchange_order_id_present"] is True
-    assert result.body["exchange_order_id_evidence_only"] is True
-    assert result.body["live_exchange_submitted"] is True
-    assert result.body["live_coinbase_orders_ran"] is True
-    assert rest_client.cancel_order_calls == [
-        {"order_ids": ["client-futures-live-cancel"]},
-        {"order_ids": ["exchange-futures-live-cancel"]},
-    ]
-    assert rest_client.list_orders_calls == [{"order_status": ["OPEN"]}]
+    assert service.store.futures_command_decisions == {}
+    assert service.store.futures_executor_decisions == {}
+    assert rest_client.list_orders_calls == []
+    assert_no_futures_exchange_mutations(rest_client)
 
 
-def test_admin_futures_cancel_live_execution_requires_runtime_enablement():
+def test_admin_futures_cancel_source_disabled_before_runtime_enablement():
     rest_client = FakeAccountRestClient()
     service = AdminMvpService(
         AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
@@ -4144,19 +4157,22 @@ def test_admin_futures_cancel_live_execution_requires_runtime_enablement():
         context(idempotency_key="futures-cancel-live-runtime-disabled"),
     )
 
-    assert result.status_code == 400
-    assert result.body["status"] == "rejected"
-    assert result.body["mutation_family"] == "futures_live_cancel"
-    assert result.body["failure_stage"] == "futures_live_runtime_disabled"
-    assert result.body["live_exchange_submitted"] is False
-    assert result.body["live_coinbase_orders_ran"] is False
-    assert rest_client.cancel_order_calls == []
-    assert rest_client.create_order_calls == []
+    assert_fixed_source_disabled_futures_result(
+        result,
+        command="futures_cancel",
+        route="/api/v1/futures/orders/{client_order_id}/cancel",
+        identity_key="client_order_id",
+        identity_value="client-futures-runtime-disabled",
+    )
+    assert service.store.futures_command_decisions == {}
+    assert service.store.futures_executor_decisions == {}
+    assert_no_futures_exchange_mutations(rest_client)
 
 
-def test_admin_futures_command_routes_are_registered_as_blocked_drafts():
+def test_admin_futures_command_routes_are_source_disabled_and_non_persistent():
+    rest_client = FakeAccountRestClient()
     service = AdminMvpService(
-        AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
     )
 
     capabilities = service.get_read_response("/api/v1/admin/capabilities", {}, context())
@@ -4175,7 +4191,6 @@ def test_admin_futures_command_routes_are_registered_as_blocked_drafts():
     }
     assert futures_commands["/api/v1/futures/orders"]["shared_method"] == "place_futures_order"
     assert futures_commands["/api/v1/futures/orders"]["live_enabled"] is False
-    assert futures_commands["/api/v1/futures/orders"]["frontend_safe"] is True
 
     result = service.submit_futures_command(
         "/api/v1/futures/orders",
@@ -4189,39 +4204,29 @@ def test_admin_futures_command_routes_are_registered_as_blocked_drafts():
         context(idempotency_key="futures-place-draft"),
     )
 
-    assert result.status_code == 501
-    assert result.body["type"] == "admin_api_command_result"
-    assert result.body["module_id"] == "futures_perpetuals"
-    assert result.body["command"] == "futures_place"
-    assert result.body["route"] == "/api/v1/futures/orders"
-    assert result.body["identity_key"] == "product_id"
-    assert result.body["identity_value"] == "BIP-20DEC30-CDE"
-    assert result.body["status"] == "not_implemented"
-    assert result.body["failure_stage"] == "execution_disabled"
-    assert result.body["command_route_registered"] is True
-    assert result.body["command_draft_allowed"] is True
-    assert result.body["execution_allowed"] is False
-    assert result.body["local_state_mutated"] is False
-    assert result.body["exchange_state_mutated"] is False
-    assert result.body["live_exchange_submitted"] is False
-    assert result.body["live_coinbase_orders_ran"] is False
-    assert result.body["notional_usdc"] == "0.00"
-    assert result.body["readiness_decision"]["first_blocker"] == "execution_disabled"
-    assert result.body["submission_event_recorded"] is True
-    assert result.body["submission_event_id"] in service.store.futures_command_decisions
+    assert_fixed_source_disabled_futures_result(
+        result,
+        command="futures_place",
+        route="/api/v1/futures/orders",
+        identity_key="product_id",
+        identity_value="BIP-20DEC30-CDE",
+    )
 
     cancel = service.submit_futures_command(
         "/api/v1/futures/orders/client-futures-001/cancel",
         {"operator_reason": "operator_cancel_review"},
         context(idempotency_key="futures-cancel-draft"),
     )
-    assert cancel.status_code == 501
-    assert cancel.body["command"] == "futures_cancel"
-    assert cancel.body["identity_key"] == "client_order_id"
-    assert cancel.body["identity_value"] == "client-futures-001"
-    assert cancel.body["live_coinbase_orders_ran"] is False
-    assert cancel.body["submission_event_recorded"] is True
-    assert cancel.body["submission_event_id"] in service.store.futures_command_decisions
+    assert_fixed_source_disabled_futures_result(
+        cancel,
+        command="futures_cancel",
+        route="/api/v1/futures/orders/{client_order_id}/cancel",
+        identity_key="client_order_id",
+        identity_value="client-futures-001",
+    )
+    assert service.store.futures_command_decisions == {}
+    assert service.store.futures_executor_decisions == {}
+    assert_no_futures_exchange_mutations(rest_client)
 
     workbench = service.get_read_response(
         "/api/v1/admin/audit-workbench",
@@ -4230,30 +4235,8 @@ def test_admin_futures_command_routes_are_registered_as_blocked_drafts():
     )
 
     assert workbench.status_code == 200
-    assert workbench.body["count"] == 2
-    assert workbench.body["module_summary"][0]["module"] == "futures_perpetuals"
-    assert workbench.body["module_summary"][0]["primary_identity"] == (
-        "position_key/product_id/client_order_id"
-    )
-    assert workbench.body["module_summary"][0]["notes"] == (
-        "Futures command and executor decisions are read-only audit evidence; live "
-        "Coinbase execution remains disabled."
-    )
-    place_event = next(
-        event
-        for event in workbench.body["events"]
-        if event["event_id"] == result.body["submission_event_id"]
-    )
-    assert place_event["source"] == "admin_api_futures_command_log"
-    assert place_event["endpoint"] == "/api/v1/futures/orders"
-    assert place_event["status"] == "not_implemented"
-    assert place_event["product_id"] == "BIP-20DEC30-CDE"
-    assert place_event["client_order_id"] is None
-    assert place_event["admission_decision"]["failure_stage"] == "execution_disabled"
-    assert place_event["readiness_decision"]["first_blocker"] == "execution_disabled"
-    assert place_event["exchange_order_id_evidence_only"] is True
-    assert place_event["live_exchange_submitted"] is False
-    assert place_event["live_coinbase_orders_ran"] is False
+    assert workbench.body["count"] == 0
+    assert workbench.body["events"] == []
 
     cancel_workbench = service.get_read_response(
         "/api/v1/admin/audit-workbench",
@@ -4261,10 +4244,8 @@ def test_admin_futures_command_routes_are_registered_as_blocked_drafts():
         context(),
     )
     assert cancel_workbench.status_code == 200
-    assert cancel_workbench.body["count"] == 1
-    assert cancel_workbench.body["events"][0]["event_id"] == cancel.body["submission_event_id"]
-    assert cancel_workbench.body["events"][0]["client_order_id"] == "client-futures-001"
-    assert cancel_workbench.body["events"][0]["product_id"] == "AVP-20DEC30-CDE"
+    assert cancel_workbench.body["count"] == 0
+    assert cancel_workbench.body["events"] == []
 
 
 def test_admin_mvp_read_contract_exposes_frontend_manual_order_readiness():
@@ -4417,13 +4398,13 @@ def test_admin_mvp_read_contract_exposes_frontend_manual_order_readiness():
     )
     assert live_enablement.body["status"] == "live_disabled"
     assert live_enablement.body["live_enabled_path_count"] == 0
-    assert live_enablement.body["live_eligible_path_count"] == 2
+    assert live_enablement.body["live_eligible_path_count"] == 0
     assert live_enablement.body["live_executable_path_count"] == 0
     assert live_enablement.body["live_service_decision_enabled"] is True
     assert live_enablement.body["backend_live_execution_opt_in"] is False
     assert manual_path["live_enabled"] is False
-    assert manual_path["live_eligible"] is True
-    assert manual_path["live_command_runtime_ready"] is True
+    assert manual_path["live_eligible"] is False
+    assert manual_path["live_command_runtime_ready"] is False
     assert manual_path["live_service_decision_enabled"] is True
     assert manual_path["backend_live_execution_opt_in"] is False
     assert manual_path["live_executable"] is False
@@ -4440,8 +4421,10 @@ def test_admin_mvp_read_contract_exposes_frontend_manual_order_readiness():
         for command in command_suite.body["commands"]
         if command["route"] == "/api/v1/orders"
     )
-    assert command_suite.body["live_enabled_command_count"] == 1
-    assert manual_command["live_enabled"] is True
+    assert command_suite.body["live_enabled_command_count"] == 0
+    assert manual_command["live_enabled"] is False
+    assert manual_command["live_eligible"] is False
+    assert manual_command["live_adapter_configured"] is True
     assert manual_command["executable"] is False
 
 
@@ -4512,6 +4495,7 @@ def test_spot_command_suite_marks_manual_order_executable_after_backend_live_evi
             rest_client=rest_client,
             rest_client_available=True,
             live_coinbase_execution_enabled=True,
+        _synthetic_test_only_legacy_execution_enabled=True,
         )
     )
     order_body = limit_ioc_manual_order_body()
@@ -4555,6 +4539,7 @@ def test_spot_command_suite_marks_manual_order_executable_after_backend_live_evi
 
 def test_spot_manual_order_proof_chain_route_records_backend_evidence_from_command_context(
     monkeypatch,
+    tmp_path,
 ):
     monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID", "portfolio-test-1")
     rest_client = FakeAccountRestClient()
@@ -4565,10 +4550,15 @@ def test_spot_manual_order_proof_chain_route_records_backend_evidence_from_comma
     record_live_service_decision(service)
     order_body = limit_ioc_manual_order_body()
     admission = first_manual_submit(service, order_body)
+    proof_assertion = preview_query(admission)
 
     recorded = service.record_spot_manual_order_proof_chain(
-        preview_query(admission),
+        proof_assertion,
         context(idempotency_key="spot-manual-order-proof-chain-record"),
+        command_idempotency_store=composite_spot_proof_first_pass_store(
+            tmp_path,
+            proof_assertion,
+        ),
     )
 
     assert recorded.status_code == 200
@@ -4627,7 +4617,9 @@ def test_spot_manual_order_proof_chain_route_records_backend_evidence_from_comma
     assert rest_client.create_order_calls == []
 
 
-def test_spot_cancel_order_proof_chain_route_records_backend_evidence_from_client_order_context():
+def test_spot_cancel_order_proof_chain_route_records_backend_evidence_from_client_order_context(
+    tmp_path,
+):
     rest_client = FakeAccountRestClient()
     service = AdminMvpService(
         AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
@@ -4650,6 +4642,10 @@ def test_spot_cancel_order_proof_chain_route_records_backend_evidence_from_clien
     recorded = service.record_spot_cancel_order_proof_chain(
         cancel_body,
         context(idempotency_key="spot-cancel-order-proof-chain-record"),
+        command_idempotency_store=composite_spot_proof_first_pass_store(
+            tmp_path,
+            cancel_body,
+        ),
     )
 
     assert recorded.status_code == 200
@@ -4700,13 +4696,27 @@ def test_spot_cancel_order_proof_chain_route_records_backend_evidence_from_clien
     assert rest_client.create_order_calls == []
 
 
-def test_spot_cancel_order_live_execution_flows_through_backend_cancel_adapter():
+def test_spot_cancel_order_live_execution_flows_through_backend_cancel_adapter(
+    tmp_path,
+):
     rest_client = FakeAccountRestClient()
+    private_marker = "PRIVATE-CANCEL-RESPONSE-MARKER"
+    rest_client.cancel_orders_response = {
+        "results": [
+            {
+                "success": True,
+                "order_id": "client-cancel-live",
+                "private_extension": private_marker,
+            }
+        ],
+        "private_top_level": private_marker,
+    }
     service = AdminMvpService(
         AdminMvpDependencies(
             rest_client=rest_client,
             rest_client_available=True,
             live_coinbase_execution_enabled=True,
+        _synthetic_test_only_legacy_execution_enabled=True,
         )
     )
     record_live_service_decision(service)
@@ -4727,6 +4737,10 @@ def test_spot_cancel_order_live_execution_flows_through_backend_cancel_adapter()
     recorded = service.record_spot_cancel_order_proof_chain(
         cancel_body,
         context(idempotency_key="spot-cancel-order-live-proof-chain-record"),
+        command_idempotency_store=composite_spot_proof_first_pass_store(
+            tmp_path,
+            cancel_body,
+        ),
     )
     assert recorded.status_code == 200
 
@@ -4750,6 +4764,29 @@ def test_spot_cancel_order_live_execution_flows_through_backend_cancel_adapter()
     assert cancel_result.body["live_coinbase_execution"] == "submitted"
     assert cancel_result.body["submitted_notional_usdc"] == "0"
     assert cancel_result.body["cancel_event_recorded"] is True
+    assert cancel_result.body["coinbase_cancel_result"] == {
+        "accepted": True,
+        "classification": "accepted",
+        "result_count": 1,
+    }
+    assert cancel_result.body["coinbase_cancel_initial_result"] == {
+        "accepted": True,
+        "classification": "accepted",
+        "result_count": 1,
+    }
+    assert private_marker not in str(cancel_result.body)
+    persisted_cancel = next(
+        record
+        for record in service.store.spot_command_decisions.values()
+        if record.get("client_order_id") == "client-cancel-live"
+        and record.get("status") == "accepted"
+    )
+    assert persisted_cancel["coinbase_cancel_result"] == {
+        "accepted": True,
+        "classification": "accepted",
+        "result_count": 1,
+    }
+    assert private_marker not in str(persisted_cancel)
     assert rest_client.cancel_order_calls == [{"order_ids": ["client-cancel-live"]}]
     assert rest_client.create_order_calls == []
 
@@ -4808,9 +4845,12 @@ def test_spot_cancel_order_live_execution_flows_through_backend_cancel_adapter()
     assert event["client_order_id"] == "client-cancel-live"
     assert event["live_exchange_submitted"] is True
     assert event["live_coinbase_orders_ran"] is True
+    assert private_marker not in str(event)
 
 
-def test_spot_cancel_resolves_exchange_order_id_when_client_id_cancel_is_unknown():
+def test_spot_cancel_resolves_exchange_order_id_when_client_id_cancel_is_unknown(
+    tmp_path,
+):
     rest_client = FakeAccountRestClient()
     rest_client.cancel_orders_responses = [
         {
@@ -4845,6 +4885,7 @@ def test_spot_cancel_resolves_exchange_order_id_when_client_id_cancel_is_unknown
             rest_client=rest_client,
             rest_client_available=True,
             live_coinbase_execution_enabled=True,
+        _synthetic_test_only_legacy_execution_enabled=True,
         )
     )
     record_live_service_decision(service)
@@ -4865,6 +4906,10 @@ def test_spot_cancel_resolves_exchange_order_id_when_client_id_cancel_is_unknown
     recorded = service.record_spot_cancel_order_proof_chain(
         cancel_body,
         context(idempotency_key="spot-cancel-order-live-fallback-proof-chain-record"),
+        command_idempotency_store=composite_spot_proof_first_pass_store(
+            tmp_path,
+            cancel_body,
+        ),
     )
     assert recorded.status_code == 200
 
@@ -4928,7 +4973,7 @@ def test_admin_mvp_proof_chain_admits_manual_order_but_default_stays_pre_coinbas
     assert admitted_submit.body["failure_stage"] in PRE_COINBASE_FAILURE_STAGES
     assert admitted_submit.body["admission_decision"]["status"] == "passed"
     assert admitted_submit.body["admission_decision"]["allowed"] is True
-    assert admitted_submit.body["live_command_runtime_ready"] is True
+    assert admitted_submit.body["live_command_runtime_ready"] is False
     assert admitted_submit.body["live_exchange_submitted"] is False
     assert admitted_submit.body["live_coinbase_orders_ran"] is False
     assert admitted_submit.body["notional_usdc"] == "1.00"
@@ -4941,6 +4986,7 @@ def test_admin_mvp_explicit_live_execution_flows_through_backend_service_only():
             rest_client=rest_client,
             rest_client_available=True,
             live_coinbase_execution_enabled=True,
+        _synthetic_test_only_legacy_execution_enabled=True,
         )
     )
     body = limit_ioc_manual_order_body()
@@ -4990,6 +5036,8 @@ def test_admin_mvp_explicit_live_execution_flows_through_backend_service_only():
     assert health.body["live_coinbase_execution"] == "submitted"
     assert health.body["notional_usdc"] == "1.00"
     assert live_enablement.body["live_coinbase_orders_ran"] is True
+
+
     assert live_enablement.body["default_live_coinbase_execution"] == "submitted"
     assert live_enablement.body["status"] == "approval_required"
     assert live_enablement.body["live_enabled_path_count"] == 2
@@ -5042,6 +5090,42 @@ def test_admin_mvp_explicit_live_execution_flows_through_backend_service_only():
         )
 
 
+@pytest.mark.parametrize("outer_authority", [None, "0", "true", "yes", "01"])
+def test_admin_mvp_injected_live_dependency_cannot_bypass_exact_outer_authority(
+    monkeypatch: pytest.MonkeyPatch,
+    outer_authority: str | None,
+) -> None:
+    if outer_authority is None:
+        monkeypatch.delenv("COINBASE_EXECUTION_ENABLED", raising=False)
+    else:
+        monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", outer_authority)
+
+    rest_client = FakeRestClient()
+    service = AdminMvpService(
+        AdminMvpDependencies(
+            rest_client=rest_client,
+            rest_client_available=True,
+            live_coinbase_execution_enabled=True,
+        _synthetic_test_only_legacy_execution_enabled=True,
+        )
+    )
+    body = limit_ioc_manual_order_body()
+    record_live_service_decision(service)
+    admission = first_manual_submit(service, body)
+    record_proof_chain(service, admission)
+
+    result = service.submit_manual_order(
+        body,
+        context(idempotency_key="manual-order-proof-chain"),
+    )
+
+    assert result.status_code == 400
+    assert result.body["failure_stage"] == "action_condition_guard"
+    assert result.body["live_command_runtime_enabled"] is False
+    assert result.body["live_command_runtime_ready"] is False
+    assert rest_client.create_order_calls == []
+
+
 def test_admin_mvp_live_execution_rejects_unsuccessful_coinbase_create_order_response():
     rest_client = FakeRestClient(
         create_order_response={
@@ -5057,6 +5141,7 @@ def test_admin_mvp_live_execution_rejects_unsuccessful_coinbase_create_order_res
             rest_client=rest_client,
             rest_client_available=True,
             live_coinbase_execution_enabled=True,
+        _synthetic_test_only_legacy_execution_enabled=True,
         )
     )
     body = limit_ioc_manual_order_body()
@@ -5074,8 +5159,10 @@ def test_admin_mvp_live_execution_rejects_unsuccessful_coinbase_create_order_res
     assert live_submit.body["failure_stage"] == "coinbase_rest"
     assert live_submit.body["message"] == (
         "Coinbase order submission was not accepted: "
-        "The order configuration was invalid; quote_size is below the product minimum"
+        "coinbase_create_explicitly_rejected"
     )
+    assert "The order configuration was invalid" not in str(live_submit.body)
+    assert "quote_size is below the product minimum" not in str(live_submit.body)
     assert live_submit.body["live_exchange_submitted"] is False
     assert live_submit.body["live_coinbase_orders_ran"] is False
     assert rest_client.create_order_calls == [
@@ -5091,6 +5178,66 @@ def test_admin_mvp_live_execution_rejects_unsuccessful_coinbase_create_order_res
             },
         }
     ]
+
+
+def test_admin_mvp_live_execution_rejects_create_response_without_explicit_success():
+    private_marker = "PRIVATE-CREATE-RESPONSE-MARKER"
+    rest_client = FakeRestClient(
+        create_order_response={
+            "success_response": {
+                "order_id": "exchange-order-must-not-be-accepted",
+                "private_extension": private_marker,
+            },
+            "private_top_level": private_marker,
+        }
+    )
+    service = AdminMvpService(
+        AdminMvpDependencies(
+            rest_client=rest_client,
+            rest_client_available=True,
+            live_coinbase_execution_enabled=True,
+        _synthetic_test_only_legacy_execution_enabled=True,
+        )
+    )
+    body = limit_ioc_manual_order_body()
+    record_live_service_decision(service)
+    admission = first_manual_submit(service, body)
+    record_proof_chain(service, admission)
+
+    result = service.submit_manual_order(
+        body,
+        context(idempotency_key="manual-order-proof-chain"),
+    )
+
+    assert result.status_code == 400
+    assert result.body["failure_stage"] == "coinbase_rest"
+    assert result.body["message"] == (
+        "Coinbase order submission was not accepted: "
+        "coinbase_create_acceptance_unknown"
+    )
+    assert result.body["live_exchange_submitted"] is False
+    assert private_marker not in str(result.body)
+
+
+def test_coinbase_mutation_acceptance_requires_explicit_boolean_success():
+    assert _coinbase_create_order_succeeded({}) is False
+    assert _coinbase_create_order_succeeded(
+        {"success_response": {"order_id": "exchange-order"}}
+    ) is False
+    assert _coinbase_create_order_succeeded({"success": "true"}) is False
+    assert _coinbase_create_order_succeeded({"success": True}) is True
+
+    assert _coinbase_cancel_order_succeeded({}) is False
+    assert _coinbase_cancel_order_succeeded({"private_extension": "value"}) is False
+    assert _coinbase_cancel_order_succeeded(
+        {"results": [{"order_id": "exchange-order"}]}
+    ) is False
+    assert _coinbase_cancel_result_item_succeeded(
+        {"order_id": "exchange-order"}
+    ) is False
+    assert _coinbase_cancel_order_succeeded(
+        {"results": [{"success": True, "order_id": "exchange-order"}]}
+    ) is True
 
 
 @pytest.mark.parametrize(
@@ -5110,6 +5257,7 @@ def test_admin_mvp_live_execution_requires_backend_wallet_inventory_evidence(
             rest_client=rest_client,
             rest_client_available=True,
             live_coinbase_execution_enabled=True,
+        _synthetic_test_only_legacy_execution_enabled=True,
         )
     )
     record_live_service_decision(service)
@@ -5179,6 +5327,7 @@ def test_admin_mvp_declares_os_truststore_dependency_for_local_live_reads():
 
 
 def test_admin_mvp_live_execution_env_requires_coinbase_specific_opt_in(monkeypatch):
+    monkeypatch.delenv("COINBASE_EXECUTION_ENABLED", raising=False)
     monkeypatch.delenv("COINBASE_ADMIN_LIVE_COINBASE_EXECUTION", raising=False)
     monkeypatch.delenv(
         "COINBASE_ADMIN_API_LIVE_COINBASE_EXECUTION_ENABLED",
@@ -5189,5 +5338,13 @@ def test_admin_mvp_live_execution_env_requires_coinbase_specific_opt_in(monkeypa
     assert live_coinbase_execution_enabled_from_env() is False
 
     monkeypatch.setenv("COINBASE_ADMIN_API_LIVE_COINBASE_EXECUTION_ENABLED", "true")
+
+    assert live_coinbase_execution_enabled_from_env() is False
+
+    for value in ("true", "yes", "01", "0"):
+        monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", value)
+        assert live_coinbase_execution_enabled_from_env() is False
+
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
 
     assert live_coinbase_execution_enabled_from_env() is True

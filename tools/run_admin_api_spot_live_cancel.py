@@ -1,9 +1,8 @@
-"""Run one explicit backend-owned Spot live cancel submission.
+"""Historical direct-service Spot cancel regression helpers.
 
-This tool is intentionally manual. It never submits a cancel to Coinbase unless
-``--confirm-live-cancel`` is passed, and the request still flows through backend
-Admin proof-chain evidence, live-service evidence, runtime opt-in, and audit
-recording before the REST client is called.
+The installed CLI mutation path is source-disabled. Operators use the
+authenticated Admin UI/API manual Spot cancel workflow; no CLI flag,
+credential, or service-singleton configuration can enable this entrypoint.
 """
 
 from __future__ import annotations
@@ -35,7 +34,10 @@ from application.admin_api.mvp_service import (  # noqa: E402
     AdminMvpRequestContext,
     AdminMvpService,
     _payload_hash,
-    get_admin_mvp_service,
+)
+from application.admin_api.idempotency import FileIdempotencyStore  # noqa: E402
+from core.coinbase_execution_authority import (  # noqa: E402
+    SOURCE_DISABLED_COINBASE_EXECUTION_ERROR,
 )
 from tools.run_admin_api_manual_order_live_submit import (  # noqa: E402
     LIVE_EXECUTION_ENV,
@@ -46,7 +48,9 @@ from tools.run_admin_api_manual_order_live_submit import (  # noqa: E402
     assert_live_credentials_present,
     current_utc_timestamp,
     default_state_dir,
+    persist_runner_no_live_first_pass,
     read_git_value,
+    runner_command_idempotency_store,
     write_json,
 )
 
@@ -94,51 +98,14 @@ class SpotLiveCancelConfig:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Create the Spot live-cancel parser."""
+    """Create the source-disabled compatibility parser."""
 
-    parser = argparse.ArgumentParser(
-        description="Cancel one Spot order through backend Admin gates."
+    return argparse.ArgumentParser(
+        description=(
+            "Historical direct-service Spot cancel is source-disabled. "
+            "Use the installed authenticated Admin UI/API workflow."
+        )
     )
-    parser.add_argument("--summary-output", type=Path, default=DEFAULT_SUMMARY_OUTPUT)
-    parser.add_argument("--state-dir", type=Path, default=default_state_dir())
-    parser.add_argument(
-        "--backend-contract-ref",
-        default=None,
-        help="Backend contract ref to record. Defaults to the current git commit.",
-    )
-    parser.add_argument("--confirm-live-cancel", action="store_true")
-    parser.add_argument(
-        "--seed-resting-order",
-        action="store_true",
-        help=(
-            "Seed a small far-from-market GTC Spot order through Admin gates, "
-            "then cancel that client_order_id."
-        ),
-    )
-    parser.add_argument("--client-order-id", default=None)
-    parser.add_argument("--seed-product-id", default=DEFAULT_SEED_PRODUCT_ID)
-    parser.add_argument("--seed-side", choices=("BUY", "SELL"), default=DEFAULT_SEED_SIDE)
-    parser.add_argument("--seed-base-size", default=DEFAULT_SEED_BASE_SIZE)
-    parser.add_argument("--seed-limit-price", default=DEFAULT_SEED_LIMIT_PRICE)
-    parser.add_argument("--seed-time-in-force", default=DEFAULT_SEED_TIME_IN_FORCE)
-    parser.add_argument(
-        "--seed-post-only",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-    )
-    parser.add_argument(
-        "--seed-max-submitted-notional-usdc",
-        default=MAX_DEFAULT_SUBMITTED_NOTIONAL_USDC,
-    )
-    parser.add_argument(
-        "--seed-max-executed-notional-usdc",
-        default=MAX_DEFAULT_EXECUTED_NOTIONAL_USDC,
-    )
-    parser.add_argument("--idempotency-key", default=None)
-    parser.add_argument("--correlation-id", default=None)
-    parser.add_argument("--actor-id", default="local-operator")
-    parser.add_argument("--roles", default="admin,trader")
-    return parser
 
 
 def config_from_args(args: argparse.Namespace) -> SpotLiveCancelConfig:
@@ -199,13 +166,24 @@ def run_spot_live_cancel(
     """Record backend evidence, submit one live cancel, and summarize."""
 
     validate_spot_live_cancel_config(config)
+    with runner_command_idempotency_store(config.state_dir) as command_store:
+        return _run_spot_live_cancel(service, config, command_store)
+
+
+def _run_spot_live_cancel(
+    service: AdminMvpService,
+    config: SpotLiveCancelConfig,
+    command_store: FileIdempotencyStore,
+) -> dict[str, Any]:
+    """Run one cancel with durable no-live first-pass command evidence."""
+
     seed_order: dict[str, Any] = {}
     client_order_id = spot_cancel_target_client_order_id(config)
     started_at = current_utc_timestamp()
     started = time.perf_counter()
 
     if config.seed_resting_order:
-        seed_order = submit_spot_cancel_seed_order(service, config)
+        seed_order = submit_spot_cancel_seed_order(service, config, command_store)
         client_order_id = seed_order_client_order_id(seed_order)
         if not seed_order_accepted(seed_order):
             command_suite = service.get_read_response(
@@ -234,14 +212,22 @@ def run_spot_live_cancel(
 
     body = build_spot_live_cancel_body(config, client_order_id)
     live_decision = record_spot_cancel_live_service_decision(service, config)
+    command_context = build_request_context(config, config.idempotency_key)
+    first_cancel = service.cancel_order_by_client_order_id(
+        client_order_id,
+        body,
+        command_context,
+    )
+    persist_runner_no_live_first_pass(command_store, first_cancel.body)
     proof_chain = service.record_spot_cancel_order_proof_chain(
         build_spot_cancel_proof_context(config, body, client_order_id),
         build_request_context(config, f"{config.idempotency_key}-proof-chain"),
+        command_idempotency_store=command_store,
     )
     final_cancel = service.cancel_order_by_client_order_id(
         client_order_id,
         body,
-        build_request_context(config, config.idempotency_key),
+        command_context,
     )
     command_suite = service.get_read_response(
         "/api/v1/spot/command-suite",
@@ -366,6 +352,7 @@ def iter_jsonl_objects(path: Path):
 def submit_spot_cancel_seed_order(
     service: AdminMvpService,
     config: SpotLiveCancelConfig,
+    command_store: FileIdempotencyStore,
 ) -> dict[str, Any]:
     """Submit one small resting Spot order that the cancel proof can target."""
 
@@ -382,6 +369,7 @@ def submit_spot_cancel_seed_order(
     final_status_code = first_submit.status_code
 
     if admission:
+        persist_runner_no_live_first_pass(command_store, first_submit.body)
         proof_chain = service.record_spot_manual_order_proof_chain(
             {
                 "route": admission.get("route"),
@@ -400,6 +388,7 @@ def submit_spot_cancel_seed_order(
                 "max_executed_notional_usdc": config.seed_max_executed_notional_usdc,
             },
             build_request_context(config, f"{config.idempotency_key}-seed-proof-chain"),
+            command_idempotency_store=command_store,
         )
         proof_chain_body = proof_chain.body
         final_submit = service.submit_manual_order(body, seed_context)
@@ -1044,31 +1033,13 @@ def check(name: str, passed: bool) -> dict[str, Any]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run the explicit Spot live cancel and write evidence."""
+    """Fail closed before credential, service, state, or SDK access."""
 
-    config = config_from_args(build_parser().parse_args(argv))
-    if not config.confirm_live_cancel:
-        raise LiveCancelConfirmationError(
-            "Spot live cancel requires --confirm-live-cancel."
-        )
-    assert_live_credentials_present(os.environ)
-    if config.state_dir:
-        apply_manual_live_submit_state_environment(config.state_dir)
-    os.environ[LIVE_EXECUTION_ENV] = "1"
-    apply_runner_environment()
-    try:
-        summary = run_spot_live_cancel(get_admin_mvp_service(), config)
-    except LiveCapExceededError as exc:
-        print(f"Backend Spot live cancel blocked: {exc}")
-        return 1
-    write_json(config.summary_output, summary)
-    print(
-        "Backend Spot live cancel: "
-        f"{summary['status']}; live {summary['live_coinbase_execution']}; "
-        f"client_order_id {summary['client_order_id']}; "
-        f"artifact {config.summary_output.resolve()}"
-    )
-    return 0 if summary["status"] == "passed" else 1
+    parser = build_parser()
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments in (["-h"], ["--help"]):
+        parser.parse_args(arguments)
+    parser.error(SOURCE_DISABLED_COINBASE_EXECUTION_ERROR)
 
 
 if __name__ == "__main__":

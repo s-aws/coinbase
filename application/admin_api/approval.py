@@ -451,6 +451,7 @@ def evaluate_command_live_admission(
     cap_guard_store: FileAdminApiCapGuardStore | None = None,
     reconciliation_store: FileAdminApiReconciliationStore | None = None,
     live_execution_service: AdminApiLiveExecutionService | None = None,
+    cap_guard_product_scope: str | None = None,
     now: datetime | None = None,
 ) -> AdminLiveAdmissionDecisionEvidence:
     """Return route-bound live admission evidence for one command attempt.
@@ -461,6 +462,15 @@ def evaluate_command_live_admission(
     admission-audit, cap/guard, and reconciliation proof resolves.
     """
 
+    live_execution_state = (
+        live_execution_service.admission_state()
+        if live_execution_service is not None
+        else AdminApiLiveExecutionServiceState()
+    )
+    route_supported_by_live_service = bool(
+        live_execution_state.supported_routes is None
+        or (method.upper(), route) in live_execution_state.supported_routes
+    )
     approval_snapshot = None
     approval_snapshot_missing_reason = "approval_store_not_checked"
     if approval_store is None:
@@ -550,23 +560,26 @@ def evaluate_command_live_admission(
                     approval_snapshot.cap_guard_decision_ref
                 ),
                 admission_audit_id=admission_audit.audit_id,
+                max_submitted_notional_usdc=(
+                    live_execution_state.max_submitted_notional_usdc
+                ),
+                max_executed_notional_usdc=(
+                    live_execution_state.max_executed_notional_usdc
+                ),
+                product_scope=cap_guard_product_scope,
             ),
         )
         if cap_guard is None:
             cap_guard_missing_reason = "no_matching_cap_guard_decision"
 
-    live_execution_state = (
-        live_execution_service.admission_state()
-        if live_execution_service is not None
-        else AdminApiLiveExecutionServiceState()
-    )
     live_execution_service_allows_admission = (
         _live_execution_service_allows_backend_admission(live_execution_state)
     )
-
     blockers = []
     if not live_execution_service_allows_admission:
         blockers.append(AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED)
+    elif not route_supported_by_live_service:
+        blockers.append(AdminApiLiveAdmissionBlocker.UNSUPPORTED_LIVE_ROUTE)
     evidence = [
         "existing Admin API command route",
         "durable idempotency payload hash",
@@ -645,10 +658,15 @@ def evaluate_command_live_admission(
         evidence.append("route-specific reconciliation plan resolved")
 
     if live_execution_service_allows_admission:
-        evidence.append(
-            f"live execution service {live_execution_state.source} configured "
-            "for backend admission"
-        )
+        if route_supported_by_live_service:
+            evidence.append(
+                f"live execution service {live_execution_state.source} configured "
+                "for backend admission"
+            )
+        else:
+            evidence.append(
+                "installed operator live service does not support this route"
+            )
     else:
         evidence.append(f"live execution service {live_execution_state.source} disabled")
 

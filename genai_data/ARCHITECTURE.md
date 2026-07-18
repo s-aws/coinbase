@@ -6,8 +6,9 @@ The runtime is centered on a single `OrderEngine` instance (`core/order_engine.p
 
 - `dashboard_server.py`: operator command surface and state broadcast over WebSocket.
 - `api/v1/app.py`: enterprise Admin API contract app and OpenAPI source.
-- `application/admin_api/`: shared command-service boundary for FastAPI and
-  dashboard compatibility adapters.
+- `application/admin_api/`: backend command-service boundary for authenticated
+  FastAPI routes. Dashboard mutation messages are source-disabled before this
+  boundary.
 - `bridges/stealth_order_bridge.py`: stealth condition evaluation and reveal orchestration.
 - `core/runtime_controller.py`: lifecycle admission gate and inflight drain coordinator.
 - `core/startup_reconciler.py` + `core/periodic_reconciler.py`: exchange-vs-local drift audits.
@@ -254,8 +255,9 @@ Current modules:
 - `api/v1/routes/futures.py`: futures/perpetual account, risk, position, fill
   readback, and no-live command-draft routes keyed by backend `position_key`,
   product id, or `client_order_id` as appropriate.
-- `application/admin_api/command_service.py`: shared command service used by
-  HTTP routes and legacy dashboard compatibility adapters.
+- `application/admin_api/command_service.py`: backend command service reached
+  by authenticated HTTP route adapters. Legacy dashboard mutation messages are
+  source-disabled before command-service lookup.
 - `application/admin_api/auth.py`: fail-closed bearer-token/RBAC bootstrap.
 - `application/admin_api/idempotency.py`: durable JSONL idempotency store and
   payload-hash contract.
@@ -294,8 +296,9 @@ Current behavior:
 - Admin API OpenAPI includes typed accepted/replayed and fail-closed command
   responses. Consumers must use the route response and backend decision rather
   than assuming one global status.
-- Legacy dashboard `place_order` and `cancel_order` WebSocket messages delegate
-  to `AdminApiCommandService` as compatibility adapters.
+- Legacy dashboard `place_order`, `cancel_order`, and
+  `place_hotpoint_test_order` WebSocket messages return a fixed source-disabled
+  response before runtime, command-service, guard, or REST lookup.
 - Order read routes are local-evidence reads keyed by `client_order_id`.
   Exchange-native ids are exposed only as `exchange_order_id` evidence.
 - Stealth read routes are local-evidence reads keyed by `stealth_order_id`.
@@ -345,9 +348,9 @@ frontend request
 -> typed response
 ```
 
-Legacy dashboard WebSocket live commands that do not pass through equivalent
-enterprise gates remain explicitly compatibility-only and excluded from new
-frontend workflows.
+Legacy dashboard WebSocket mutation commands return a fixed source-disabled
+response before runtime, command-service, guard, or REST lookup. They are
+excluded from operator frontend workflows.
 
 ## Optional Cross-Venue Intelligence
 
@@ -364,11 +367,11 @@ Current scope is intentionally narrow and fail-soft:
 
 - `client_order_id` is the internal primary key across memory, DB, hooks, and logs.
 - `order_id` is exchange-assigned and used for exchange-side lookup/reporting
-  and raw endpoints that require it. Single-order cancellation remains
-  operator-keyed by `client_order_id` and first uses the project Coinbase
-  wrapper `cancel_order(client_order_id)`. If Coinbase rejects that identity,
-  backend controlled-live cancel may use a readback `exchange_order_id` only as
-  a recorded fallback exchange API parameter, with
+  and raw endpoints that require it. Authenticated Admin API single-order
+  cancellation remains operator-keyed by `client_order_id`; the backend binds
+  authoritative exact readback `exchange_order_id` evidence for the one guarded
+  exchange call. It permits no identity fallback, retry, or second submission,
+  with
   `operator_identity_key=client_order_id` and
   `exchange_order_id_evidence_only=true`.
 - Parent-child hierarchy is flat.
@@ -382,8 +385,10 @@ Current scope is intentionally narrow and fail-soft:
 When adding a feature:
 - choose one canonical write path and one canonical read path.
 - register new enums in `core/enums.py` instead of adding new literals.
-- update dashboard request/response contracts in `API_REFERENCE.md`.
-- verify UI -> dashboard handler -> bridge -> manager wiring exists for every new dashboard action.
+- update the authenticated Admin API/OpenAPI contract for operator mutations;
+  dashboard mutation messages remain source-disabled.
+- verify UI -> BFF/session -> authenticated Admin API wiring exists for every
+  new operator action.
 - for stealth lifecycle changes, test both local state transition and the exchange-facing cancel/place/reconcile boundary.
 - add/extend regression tests before shipping.
 

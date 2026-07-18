@@ -55,6 +55,14 @@ from unittest.mock import MagicMock
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _synthetic_execution_authority(
+    monkeypatch: pytest.MonkeyPatch,
+    coinbase_execution_lease,
+) -> None:
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
+
+
 @pytest.mark.regression
 def test_place_limit_order_returns_raw_dict_not_order_instance():
     """A real SDK response should round-trip through

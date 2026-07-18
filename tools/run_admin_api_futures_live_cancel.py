@@ -1,9 +1,8 @@
-"""Run one explicit US CFM Futures/Perpetual live cancel submission.
+"""Historical Futures/Perpetual cancel evidence helpers.
 
-This tool is intentionally manual. It never submits a cancel to Coinbase unless
-``--confirm-live-cancel`` is passed, and the request still flows through backend
-Admin Futures service evidence, live-adapter decisions, runtime opt-in, and
-audit recording before the REST client is called.
+Exchange mutation is source-disabled. The installed CLI permits only local
+readback refresh of an existing historical artifact; no confirmation flag,
+credential, or service configuration can submit a Futures cancel.
 """
 
 from __future__ import annotations
@@ -28,6 +27,9 @@ from application.admin_api.mvp_service import (  # noqa: E402
     AdminMvpService,
     get_admin_mvp_service,
 )
+from core.coinbase_execution_authority import (  # noqa: E402
+    SOURCE_DISABLED_COINBASE_EXECUTION_ERROR,
+)
 from tools.run_admin_api_futures_executor_boundary_smoke import (  # noqa: E402
     FUTURES_ACCOUNT_FAMILY,
     FUTURES_ADAPTER_DECISIONS,
@@ -50,10 +52,8 @@ from tools.run_admin_api_futures_live_submit import (  # noqa: E402
     write_json,
 )
 from tools.run_admin_api_manual_order_live_submit import (  # noqa: E402
-    LIVE_EXECUTION_ENV,
     apply_manual_live_submit_state_environment,
     apply_runner_environment,
-    assert_live_credentials_present,
     default_state_dir,
 )
 
@@ -87,10 +87,13 @@ class FuturesLiveCancelConfig:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Create the Futures live cancel parser."""
+    """Create the historical artifact-refresh parser."""
 
     parser = argparse.ArgumentParser(
-        description="Cancel one US CFM Futures order through backend Admin gates."
+        description=(
+            "Refresh historical Futures cancel readback evidence. Exchange "
+            "mutation is source-disabled."
+        )
     )
     parser.add_argument("--summary-output", type=Path, default=DEFAULT_SUMMARY_OUTPUT)
     parser.add_argument("--state-dir", type=Path, default=default_state_dir())
@@ -99,13 +102,17 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Backend contract ref to record. Defaults to the current git commit.",
     )
-    parser.add_argument("--confirm-live-cancel", action="store_true")
+    parser.add_argument(
+        "--confirm-live-cancel",
+        action="store_true",
+        help="Historical parser compatibility; grants no execution authority.",
+    )
     parser.add_argument(
         "--refresh-existing-artifact",
         action="store_true",
         help=(
-            "Refresh Audit Workbench proof-chain readback for an existing "
-            "live-cancel artifact without submitting another cancel."
+            "Refresh local Audit Workbench proof-chain readback for an "
+            "existing historical artifact without submitting a cancel."
         ),
     )
     parser.add_argument("--client-order-id", required=True)
@@ -368,8 +375,8 @@ def build_summary(
             "coinbase_cancel_initial_identity_used"
         ),
         "coinbase_cancel_initial_result_present": bool(initial_cancel_result),
-        "coinbase_cancel_initial_result_success": cancel_result_succeeded(
-            initial_cancel_result
+        "coinbase_cancel_initial_result_success": bool(
+            final_submit.get("coinbase_cancel_initial_result_success")
         ),
         "coinbase_cancel_fallback_attempted": bool(
             final_submit.get("coinbase_cancel_fallback_attempted")
@@ -591,29 +598,20 @@ def text_value(value: Any) -> str:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run the explicit Futures live cancel and write evidence."""
+    """Refresh historical readback or fail before credentials/service/SDK."""
 
-    config = config_from_args(build_parser().parse_args(argv))
-    if not config.confirm_live_cancel and not config.refresh_existing_artifact:
-        raise LiveCancelConfirmationError(
-            "Futures live cancel requires --confirm-live-cancel."
-        )
+    parser = build_parser()
+    config = config_from_args(parser.parse_args(argv))
     if not config.refresh_existing_artifact:
-        assert_live_credentials_present(os.environ)
+        parser.error(SOURCE_DISABLED_COINBASE_EXECUTION_ERROR)
     if config.state_dir:
         apply_manual_live_submit_state_environment(config.state_dir)
-    if not config.refresh_existing_artifact:
-        os.environ[LIVE_EXECUTION_ENV] = "1"
     apply_runner_environment()
     service = get_admin_mvp_service()
-    summary = (
-        refresh_existing_futures_live_cancel_summary(service, config)
-        if config.refresh_existing_artifact
-        else run_futures_live_cancel(service, config)
-    )
+    summary = refresh_existing_futures_live_cancel_summary(service, config)
     write_json(config.summary_output, summary)
     print(
-        "Backend Futures live cancel: "
+        "Backend historical Futures cancel readback refresh: "
         f"{summary['status']}; live {summary['live_coinbase_execution']}; "
         f"client_order_id {summary['client_order_id']}; "
         f"artifact {config.summary_output.resolve()}"

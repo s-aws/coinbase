@@ -1,8 +1,9 @@
 # Frontend Association
 
-Current cross-repository work is goal id
-`selected_order_execution_closeout_slice`. This association document defines the
-boundary; it does not broaden that goal.
+Current cross-repository closeout is
+`operator_ready_admin_mvp_runtime_v1`. This association document defines that
+boundary; it grants no additional exchange or Slice authority. Slice 2R12 is
+terminal consumed.
 
 The approved enterprise admin frontend repository is:
 
@@ -32,7 +33,8 @@ Frontend maintainer handoff lives in
   repository. It must not call the legacy dashboard WebSocket.
 - HTTP command posture is route-specific. Manual Spot placement can reach the
   shared live service only after exact backend admission; other routes remain
-  no-live unless their route inventory and implementation prove otherwise.
+  in No-live mode unless their route inventory and implementation prove
+  otherwise.
 - The enterprise admin surface is a platform plus domain modules. Spot is the
   first complete module; futures/perpetuals, stealth orders, repricing, and
   other modules need their own backend-owned contracts before frontend UI
@@ -82,11 +84,25 @@ Only `NEXT_PUBLIC_ADMIN_API_MODE` is browser-visible in that configuration.
 The `ADMIN_API_*` values are server-only BFF authority and must not be exposed
 through `NEXT_PUBLIC_*`.
 
+The installed Linux operator review stack is managed from the sibling frontend with
+`npm run review:refresh`, `npm run review:status`, and
+`npm run review:stop`. It uses a protected random local Admin token per start.
+Exact `COINBASE_EXECUTION_ENABLED=1` is the outer Controlled-live opt-in; every
+other value selects No-live mode. Backend internal live flags cannot bypass it, and the
+flag does not replace the manager-issued execution lease or command-specific
+backend authorization.
+Manager startup/status probes use call-free health and session routes. Once an
+operator uses the UI, backend-authorized Coinbase reads or mutations may occur
+only through the existing route-specific proof and execution path.
+
 ## Read Model Interaction Scope
 
-The approved frontend interaction surface is read-only and uses this backend's
-Admin API contract as the source of truth. The frontend may provide local
-display affordances over already-loaded backend-shaped data:
+The read-model sub-surface is read-only and uses this backend's Admin API
+contract as the source of truth. The broader browser remains non-authoritative:
+separately labeled operator controls may forward explicit requests through the
+BFF, but every decision, Coinbase call, and mutation remains backend-owned. The
+frontend may provide local display affordances over already-loaded
+backend-shaped data:
 
 - filter and sort order rows already returned by the read route
 - select order detail evidence keyed by `client_order_id`
@@ -123,11 +139,11 @@ Any backend API contract change intended for frontend consumption must update:
 freshness, command security, release/deployment checks, release artifact
 generation, runtime evidence, deployment/MVP/backend smoke evidence, unit
 tests, dry read/command/BFF smokes, and Playwright e2e.
-Frontend release checks are dry/no-live checks. They must report live Coinbase
+Frontend release checks are dry No-live checks. They must report live Coinbase
 execution as not run with notional `$0` and do not replace backend regression.
 The frontend `npm run autonomous:check` command remains available for
-historical autonomous queue maintenance. It is not part of the local MVP
-release/deployment gate.
+historical autonomous queue maintenance. It is not part of the local operator
+review stack release/deployment gate.
 The frontend release artifact is `/home/developer/coinbase/coinbase-frontend/artifacts/release-readiness.json`;
 it is generated and consumed locally rather than committed or uploaded by a
 GitHub-hosted workflow. The same local artifact set includes
@@ -164,10 +180,10 @@ for issuer, audience, and JWKS:
 
 Backend release evidence for this boundary is available at
 `GET /api/v1/admin/oidc-readiness`. It reports the active auth mode,
-required/missing OIDC settings, claim mapping, JWKS reachability, and no-live
+required/missing OIDC settings, claim mapping, JWKS reachability, and No-live
 notional posture.
 
-Machine-readable no-live backend smoke evidence is available as optional
+Machine-readable No-live backend smoke evidence is available as optional
 production-auth evidence with:
 
 ```powershell
@@ -176,7 +192,7 @@ python3.13 tools/run_admin_oidc_readiness_smoke.py --summary-only
 
 The frontend `npm run smoke:oidc:dry` command can run the same backend smoke
 from the sibling checkout as optional production-auth evidence. It is not part
-of the local MVP release/deployment gate and must report live Coinbase
+of the local operator review stack release/deployment gate and must report live Coinbase
 execution as not run with notional `$0`.
 
 Expected claim mapping is `sub` for subject, `email` for email, `roles` for

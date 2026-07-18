@@ -273,13 +273,18 @@ owners:
       - tests/unit/test_admin_api_*.py
       - tests/regression/test_admin_mvp_account_reality_live_read_smoke.py
       - tests/regression/test_admin_mvp_futures_executor_boundary_smoke.py
+      - tests/regression/test_admin_mvp_api.py
       - tests/regression/test_coinbase_live_credentials.py
       - tools/coinbase_live_credentials.py
       - tools/generate_admin_api_openapi.py
       - tools/run_admin_api.py
+      - tools/run_admin_api_operator_runtime.py
       - tools/run_admin_api_account_reality_live_read_smoke.py
       - tools/run_admin_api_futures_executor_boundary_smoke.py
+      - tools/run_admin_api_futures_live_cancel.py
+      - tools/run_admin_api_futures_live_close_reduce.py
       - tools/run_admin_api_futures_live_fill_readback.py
+      - tools/run_admin_api_futures_live_submit.py
       - tools/run_admin_api_futures_no_live_preview.py
       - tools/run_admin_api_futures_no_live_preview_r5.py
       - tools/run_admin_api_futures_no_live_preview_r6.py
@@ -327,7 +332,10 @@ owners:
       - tests/unit/test_controlled_admin_v15r6_recovery_runner.py
       - tests/regression/test_admin_mvp_account_reality_live_read_smoke.py
       - tests/regression/test_admin_mvp_futures_executor_boundary_smoke.py
+      - tests/regression/test_admin_mvp_local_deployment.py
       - tests/regression/test_coinbase_live_credentials.py
+      - tests/unit/test_admin_mvp_fill_readback_proof_compat.py
+      - tests/unit/test_admin_mvp_spot_composite_proof_binding.py
     tests:
       - pytest tests/regression/test_admin_api_contract.py -v --tb=short
     requires_regression: true
@@ -397,6 +405,7 @@ owners:
     context: docs/agents/AGENT_EXCHANGE_INTEGRATION.md
     owns:
       - external/**
+      - core/coinbase_execution_authority.py
       - websocket/**
       - api_reference/**
       - websocket_reference/**
@@ -405,6 +414,7 @@ owners:
       - tests/regression/test_list_fills_param_mapping.py
       - tests/unit/test_coinbase_api.py
       - tests/unit/test_coinbase_client_wallets.py
+      - tests/unit/test_coinbase_execution_authority.py
       - tests/external/**
     tests:
       - pytest tests/regression/test_place_limit_order_returns_dict.py tests/regression/test_list_fills_param_mapping.py -v --tb=short

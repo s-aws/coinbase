@@ -285,7 +285,7 @@ from application.admin_api.futures_risk_proof_service import (
     AdminApiFuturesRiskProofService,
     FuturesRiskProofError,
 )
-from application.admin_api.idempotency import FileIdempotencyStore
+from application.admin_api.idempotency import FileIdempotencyStore, IdempotencyRecord
 from application.admin_api.live_execution import (
     FUTURES_COINBASE_EXCHANGE_SUBMISSION_CONTRACTS,
     FUTURES_LIVE_ADAPTER_CONSTRUCTION_CONTRACTS,
@@ -303,7 +303,12 @@ from application.admin_api.live_execution import (
 )
 from application.admin_api.models import (
     AdminApiActor,
+    AdminApiCommandResponse,
     AdminLiveAdmissionDecisionEvidence,
+    FuturesCancelOrderRequest,
+    FuturesCloseReduceRequest,
+    FuturesPlaceOrderRequest,
+    FuturesReconciliationRequest,
     FuturesRiskProofRecordRequest,
 )
 from application.admin_api.read_service import (
@@ -10114,14 +10119,14 @@ def test_futures_route_contracts_register_no_live_command_drafts() -> None:
         assert contract.route_template == expected_routes[command]
         assert contract.method == "POST"
         assert contract.route_registered is True
-        assert contract.command_draft_allowed is True
+        assert contract.command_draft_allowed is False
         assert contract.live_adapter_bound is False
         assert contract.execution_allowed is False
         assert contract.reconciliation_execution_enabled is False
         assert contract.state_mutation_allowed is False
         assert contract.live_coinbase_orders_ran is False
         assert contract.browser_authority == "display_only"
-        assert contract.bff_authority == "forward_only_no_execution"
+        assert contract.bff_authority == "source_disabled_not_forwarded"
         assert futures_live_adapter_contract_ref(command) == (
             f"application/admin_api/live_execution.py::{command.value}_adapter_contract"
         )
@@ -10895,7 +10900,7 @@ def test_futures_risk_proof_post_route_records_through_shared_admission(
     assert idempotency_store.get_record(idempotency_key) is not None
 
 
-def test_futures_command_draft_routes_are_registered_and_live_disabled(
+def test_futures_command_routes_are_source_disabled_before_idempotency_replay(
     monkeypatch,
     tmp_path,
 ) -> None:
@@ -10946,6 +10951,8 @@ def test_futures_command_draft_routes_are_registered_and_live_disabled(
                 "time_in_force": TimeInForce.GOOD_UNTIL_CANCELLED.value,
                 "operator_reason": "focused no-live route smoke",
             },
+            "request_model": FuturesPlaceOrderRequest,
+            "path_params": None,
         },
         {
             "path": "/api/v1/futures/positions/BIT-20DEC30-CDE:long/close-reduce",
@@ -10962,6 +10969,8 @@ def test_futures_command_draft_routes_are_registered_and_live_disabled(
                 "size": "1",
                 "operator_reason": "focused no-live route smoke",
             },
+            "request_model": FuturesCloseReduceRequest,
+            "path_params": {"position_key": "BIT-20DEC30-CDE:long"},
         },
         {
             "path": "/api/v1/futures/orders/client-order-futures-001/cancel",
@@ -10977,6 +10986,8 @@ def test_futures_command_draft_routes_are_registered_and_live_disabled(
                 "product_id": "BIT-20DEC30-CDE",
                 "operator_reason": "focused no-live route smoke",
             },
+            "request_model": FuturesCancelOrderRequest,
+            "path_params": {"client_order_id": "client-order-futures-001"},
         },
         {
             "path": "/api/v1/futures/positions/BIT-20DEC30-CDE:long/reconciliation",
@@ -10993,10 +11004,46 @@ def test_futures_command_draft_routes_are_registered_and_live_disabled(
                 "expected_position_state": "not provided by fixture",
                 "operator_reason": "focused no-live route smoke",
             },
+            "request_model": FuturesReconciliationRequest,
+            "path_params": {"position_key": "BIT-20DEC30-CDE:long"},
         },
     ]
 
     for case in cases:
+        actor = AdminApiActor(
+            actor_id="operator-001",
+            roles=[AdminApiRole.ADMIN],
+        )
+        endpoint = f"POST {case['path']}"
+        request_model = case["request_model"]
+        request_body = request_model.model_validate(case["payload"])
+        payload_hash = _idempotency_payload_hash(
+            endpoint=endpoint,
+            actor=actor,
+            operator_intent=str(case["operator_intent"]),
+            body=request_body.model_dump(mode="json"),
+            path_params=case["path_params"],
+        )
+        historical_response = AdminApiCommandResponse(
+            status=AdminApiCommandStatus.ACCEPTED,
+            action_class=case["action_class"],
+            required_permission=case["required_permission"],
+            service_method=str(case["service_method"]),
+            message="historical predecessor acceptance must never replay",
+            correlation_id="historical-futures-correlation",
+            idempotency_key=str(case["idempotency_key"]),
+            live_exchange_submitted=True,
+        )
+        idempotency_store.put_record(
+            IdempotencyRecord(
+                idempotency_key=str(case["idempotency_key"]),
+                payload_hash=payload_hash,
+                status=AdminApiCommandStatus.ACCEPTED,
+                response=historical_response.model_dump(mode="json"),
+                actor_id=actor.actor_id,
+                endpoint=endpoint,
+            )
+        )
         response = client.post(
             str(case["path"]),
             headers=_command_headers(
@@ -11012,18 +11059,21 @@ def test_futures_command_draft_routes_are_registered_and_live_disabled(
         assert payload["service_method"] == case["service_method"]
         assert payload["action_class"] == case["action_class"].value
         assert payload["required_permission"] == case["required_permission"].value
-        assert payload["failure_stage"] == "approval"
+        assert payload["failure_stage"] == "futures_command_service_source_disabled"
+        assert payload["message"] == (
+            "Futures command execution is source-disabled: "
+            "futures_command_service_source_disabled. Restoring source code and "
+            "obtaining separate authorization are required; approval, cap, audit, "
+            "reconciliation, or adapter evidence cannot enable this route."
+        )
         assert payload["live_exchange_submitted"] is False
+        assert payload["live_coinbase_orders_ran"] is False
+        assert response.headers.get("X-Idempotency-Replayed") is None
         if case["identity_key"] == "client_order_id":
             assert payload["client_order_id"] == case["identity_value"]
         else:
             assert payload["client_order_id"] is None
-        admission = payload["guard"]["admission_decision"]
-        assert admission["allowed"] is False
-        assert admission["live_exchange_submitted"] is False
-        assert admission["module_id"] == "futures_perpetuals"
-        assert admission["identity_key"] == case["identity_key"]
-        assert admission["identity_value"] == case["identity_value"]
+        assert payload["admission_decision"] is None
         data = payload["data"]
         assert data["command"] == case["command"].value
         assert data["identity_key"] == case["identity_key"]
@@ -11036,9 +11086,18 @@ def test_futures_command_draft_routes_are_registered_and_live_disabled(
         assert data["exchange_state_mutated"] is False
         assert data["live_adapter_invoked"] is False
         assert data["browser_authority"] == "display_only"
-        assert data["bff_authority"] == "forward_only_no_execution"
+        assert data["bff_authority"] == "source_disabled_not_forwarded"
         assert data["spot_rule_authority"] is False
-        assert idempotency_store.get_record(str(case["idempotency_key"])) is not None
+        assert data["source_disabled"] is True
+        assert data["source_disabled_reason"] == (
+            "futures_command_service_source_disabled"
+        )
+        stored = idempotency_store.get_record(str(case["idempotency_key"]))
+        assert stored is not None
+        assert stored.status == AdminApiCommandStatus.ACCEPTED
+
+    assert len(idempotency_store.path.read_text(encoding="utf-8").splitlines()) == 4
+    assert audit_store.read_recent(limit=20) == []
 
 
 def test_futures_risk_proof_routes_are_inventory_and_openapi_bound(
@@ -11075,9 +11134,12 @@ def test_futures_risk_proof_routes_are_inventory_and_openapi_bound(
         assert surfaces[surface].permission == required_permission
         assert surfaces[surface].shared_method == shared_method
         assert surfaces[surface].action_class == action_class
-        assert surfaces[surface].idempotency == "required"
-        assert surfaces[surface].audit == "required"
-        assert "route-bound draft only" in surfaces[surface].parity_test
+        assert surfaces[surface].idempotency == "not_applicable_source_disabled"
+        assert surfaces[surface].approval == "not_applicable_source_disabled"
+        assert surfaces[surface].caps == "not_applicable_source_disabled"
+        assert surfaces[surface].audit == "not_implemented_no_mutation"
+        assert "source-disabled" in surfaces[surface].parity_test
+        assert "NOT_IMPLEMENTED" in surfaces[surface].parity_test
 
     post_surface = "POST /api/v1/futures/risk-proofs"
     assert surfaces[post_surface].permission == (
@@ -11099,6 +11161,14 @@ def test_futures_risk_proof_routes_are_inventory_and_openapi_bound(
     assert "get" in schema["paths"]["/api/v1/futures/risk-proofs"]
     assert "/api/v1/futures/orders" in schema["paths"]
     assert "post" in schema["paths"]["/api/v1/futures/orders"]
+    assert (
+        schema["paths"]["/api/v1/futures/orders"]["post"]["responses"]
+        .get("501")
+        is not None
+    )
+    assert "source-disabled" in (
+        schema["paths"]["/api/v1/futures/orders"]["post"]["summary"].lower()
+    )
     assert "/api/v1/futures/orders/{client_order_id}/cancel" in schema["paths"]
     assert (
         "post"
@@ -11819,14 +11889,14 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
         assert summary.required_backend_contracts
         assert summary.evidence_ref_count == len(summary.required_evidence_refs)
         assert summary.command_route_registered is True
-        assert summary.command_draft_allowed is True
+        assert summary.command_draft_allowed is False
         assert summary.execution_allowed is False
         assert summary.live_coinbase_orders_ran is False
         assert summary.backend_owned is True
         assert summary.read_only is True
         assert summary.spot_rule_authority is False
         assert summary.browser_authority == "display_only"
-        assert summary.bff_authority == "forward_only_no_execution"
+        assert summary.bff_authority == "source_disabled_not_forwarded"
 
     risk_summary = summaries_by_blocker[
         AdminFuturesCommandEnablementBlocker.RISK_PROOF_ACCEPTANCE
@@ -11888,10 +11958,10 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
         item.decision: item for item in command_suite.readiness_decision_summaries
     }
     assert set(readiness_summaries_by_id) == {
-        AdminFuturesCommandReadinessDecision.BLOCKED_BACKEND_CONTRACTS_REQUIRED
+        AdminFuturesCommandReadinessDecision.SOURCE_DISABLED_NOT_IMPLEMENTED
     }
     readiness_summary = readiness_summaries_by_id[
-        AdminFuturesCommandReadinessDecision.BLOCKED_BACKEND_CONTRACTS_REQUIRED
+        AdminFuturesCommandReadinessDecision.SOURCE_DISABLED_NOT_IMPLEMENTED
     ]
     assert readiness_summary.status == AdminApiGateStatus.BLOCKED
     assert readiness_summary.blocking is True
@@ -11899,7 +11969,7 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
     assert readiness_summary.affected_commands == affected_commands
     assert readiness_summary.ready_command_count == 0
     assert readiness_summary.blocked_command_count == 4
-    assert readiness_summary.blocker_count == 92
+    assert readiness_summary.blocker_count == 96
     assert readiness_summary.blocking_prerequisite_count == 37
     assert readiness_summary.blocking_request_field_count == 22
     assert readiness_summary.blocking_semantic_guard_count == 33
@@ -11910,20 +11980,21 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
         readiness_summary.evidence_routes
     )
     assert readiness_summary.first_blockers == [
-        "prerequisite:collateral",
-        "prerequisite:position_scope",
+        "futures_command_service_source_disabled",
     ]
-    assert readiness_summary.next_required_backend_contract_count == 0
-    assert readiness_summary.next_required_backend_contracts == []
+    assert readiness_summary.next_required_backend_contract_count == 1
+    assert readiness_summary.next_required_backend_contracts == [
+        "separate_source_restoration_and_authorization"
+    ]
     assert readiness_summary.command_route_registered_count == 4
-    assert readiness_summary.command_draft_allowed_count == 4
+    assert readiness_summary.command_draft_allowed_count == 0
     assert readiness_summary.execution_allowed_count == 0
     assert readiness_summary.live_coinbase_orders_ran_count == 0
     assert readiness_summary.backend_owned is True
     assert readiness_summary.read_only is True
     assert readiness_summary.spot_rule_authority is False
     assert readiness_summary.browser_authority == "display_only"
-    assert readiness_summary.bff_authority == "forward_only_no_execution"
+    assert readiness_summary.bff_authority == "source_disabled_not_forwarded"
     assert "cannot mark commands ready" in readiness_summary.detail
 
     request_field_summaries_by_id = {
@@ -12091,14 +12162,14 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
         assert sequence_step.affected_commands == affected_commands
         assert sequence_step.source_blockers
         assert sequence_step.command_route_registered is True
-        assert sequence_step.command_draft_allowed is True
+        assert sequence_step.command_draft_allowed is False
         assert sequence_step.execution_allowed is False
         assert sequence_step.live_coinbase_orders_ran is False
         assert sequence_step.backend_owned is True
         assert sequence_step.read_only is True
         assert sequence_step.spot_rule_authority is False
         assert sequence_step.browser_authority == "display_only"
-        assert sequence_step.bff_authority == "forward_only_no_execution"
+        assert sequence_step.bff_authority == "source_disabled_not_forwarded"
 
     semantic_step = sequence_steps_by_step[
         AdminFuturesCommandReadinessClosureStep.BIND_SEMANTIC_GUARD_EVIDENCE
@@ -12124,7 +12195,7 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
         assert trace.source_blockers == sequence_steps_by_step[trace.step].source_blockers
         assert trace.required_evidence_ref_count == len(trace.required_evidence_refs)
         assert trace.command_route_registered is True
-        assert trace.command_draft_allowed is True
+        assert trace.command_draft_allowed is False
         assert trace.execution_allowed is False
         assert trace.reconciliation_execution_allowed is False
         assert trace.futures_state_mutation_allowed is False
@@ -12133,7 +12204,7 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
         assert trace.read_only is True
         assert trace.spot_rule_authority is False
         assert trace.browser_authority == "display_only"
-        assert trace.bff_authority == "forward_only_no_execution"
+        assert trace.bff_authority == "source_disabled_not_forwarded"
         assert "This trace row is read-only evidence" in trace.detail
 
     assert list(traces_by_step) == list(sequence_steps_by_step)

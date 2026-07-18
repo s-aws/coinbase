@@ -49,6 +49,14 @@ PLAN_SHA256 = "a" * 64
 SEALED_PLAN_SHA256 = "b" * 64
 
 
+@pytest.fixture(autouse=True)
+def _exact_live_execution_authority(
+    monkeypatch: pytest.MonkeyPatch,
+    coinbase_execution_lease,
+) -> None:
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
+
+
 class _ClaimTrackingCoordinator:
     def __init__(self, *, uncertainties=None):
         self.claimed = False
@@ -646,6 +654,45 @@ def test_v15_controlled_child_commands_require_plan_hash(operator_intent):
 
     assert response.status == AdminApiCommandStatus.REJECTED
     assert response.failure_stage == "controlled_child_context"
+
+
+@pytest.mark.parametrize("outer_authority", [None, "0", "true", "yes", "01"])
+@pytest.mark.parametrize("command_kind", ["reveal", "cancel"])
+def test_controlled_child_live_commands_require_exact_outer_authority_without_delegating(
+    monkeypatch: pytest.MonkeyPatch,
+    outer_authority: str | None,
+    command_kind: str,
+) -> None:
+    if outer_authority is None:
+        monkeypatch.delenv("COINBASE_EXECUTION_ENABLED", raising=False)
+    else:
+        monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", outer_authority)
+
+    runtime = MagicMock()
+    rest_client = MagicMock()
+    dependencies = _deps(runtime, rest_client)
+    rest_client.reset_mock()
+    service = AdminApiCommandService(dependencies)
+
+    if command_kind == "reveal":
+        response = service.reveal_stealth_order_by_stealth_order_id(
+            _reveal_command()
+        )
+    else:
+        response = service.cancel_stealth_order_by_stealth_order_id(
+            _cancel_command()
+        )
+
+    assert response.status == AdminApiCommandStatus.NOT_IMPLEMENTED
+    assert response.failure_stage == "execution_authority"
+    assert response.live_command_runtime_enabled is False
+    assert response.live_command_runtime_ready is False
+    assert response.live_command_runtime_missing_reason == (
+        "coinbase_execution_authority_disabled"
+    )
+    runtime.assert_not_called()
+    assert runtime.mock_calls == []
+    assert rest_client.mock_calls == []
 
 
 def test_v15_controlled_child_reveal_rejects_runtime_plan_hash_mismatch(
@@ -2075,11 +2122,13 @@ def test_runtime_adapter_rejects_invalid_canonical_reference_before_preparation(
 
     with pytest.raises(
         ControlledChildPrePlacementError,
-        match=expected_error,
+        match="controlled_child_market_reference_unavailable",
     ) as raised:
         _submit_runtime_adapter(adapter)
 
     assert raised.value.stage == "market_reference"
+    assert raised.value.detail == "controlled_child_market_reference_unavailable"
+    assert expected_error not in raised.value.detail
     canonical_reference.assert_called_once_with("BTC-USDC")
     manager.prepare_controlled_admin_first_child_reveal.assert_not_called()
     manager.reveal_order_slice.assert_not_called()
@@ -2101,7 +2150,7 @@ def test_runtime_adapter_wraps_preparation_rejection_before_reveal():
 
     with pytest.raises(
         ControlledChildPrePlacementError,
-        match="prior preparation hash mismatch",
+        match="controlled_child_preparation_unavailable",
     ) as raised:
         _submit_runtime_adapter(
             adapter,
@@ -2110,6 +2159,7 @@ def test_runtime_adapter_wraps_preparation_rejection_before_reveal():
 
     assert raised.value.stage == "preparation"
     assert raised.value.cause_type == "OrderPersistenceError"
+    assert "prior preparation hash mismatch" not in raised.value.detail
     manager.reveal_order_slice.assert_not_called()
 
 
@@ -2129,11 +2179,12 @@ def test_runtime_adapter_wraps_price_alignment_failure_before_reveal():
 
     with pytest.raises(
         ControlledChildPrePlacementError,
-        match="limit_price_not_increment_aligned",
+        match="controlled_child_price_alignment_unavailable",
     ) as raised:
         _submit_runtime_adapter(adapter)
 
     assert raised.value.stage == "price_alignment"
+    assert "limit_price_not_increment_aligned" not in raised.value.detail
     manager.reveal_order_slice.assert_not_called()
 
 
@@ -2270,6 +2321,7 @@ def test_runtime_adapter_reads_and_reconciles_exact_first_child(monkeypatch):
         "product_id": "BTC-USDC",
         "side": "SELL",
         "status": "REVEALED",
+        "total_size": 0.00001718,
         "executed_size": 0.0,
         "anchor_repricing_state_json": {
             "active_placement_client_order_id": CHILD_ID,
@@ -2342,6 +2394,8 @@ def test_runtime_adapter_reads_and_reconciles_exact_first_child(monkeypatch):
 
     assert readback["active_exchange_order_id"] == EXCHANGE_ID
     assert readback["root_client_order_id"] == ROOT_ID
+    assert readback["base_size"] == "0.00001718"
+    assert readback["limit_price"] == "102400.0"
     assert "controlled_plan_sha256" not in readback
     assert v15_readback["controlled_plan_sha256"] == PLAN_SHA256
     assert reconciled == {

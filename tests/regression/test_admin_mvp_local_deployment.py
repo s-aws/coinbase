@@ -7,6 +7,22 @@ from tools import apply_admin_api_local_deployment as local_deploy
 from tools import write_admin_api_deployment_manifest as deployment_manifest
 
 
+def test_operator_runtime_dependency_closure_is_required_in_deployment() -> None:
+    for relative_path in (
+        "tools/run_admin_api_operator_runtime.py",
+        "core/coinbase_execution_authority.py",
+        "application/admin_api/operator_mvp_policy.py",
+        "application/admin_api/spot_portfolio_binding.py",
+        "application/admin_api/command_runtime.py",
+        "core/runtime_composition.py",
+        "tools/coinbase_live_credentials.py",
+        "database/order.py",
+        "configuration.py",
+        "dashboard_server.py",
+    ):
+        assert relative_path in local_deploy.REQUIRED_PAYLOAD_PATHS
+
+
 def test_backend_deployment_manifest_records_actual_run_outputs(tmp_path: Path):
     deploy_root = tmp_path / "coinbase-local" / "backend"
 
@@ -29,6 +45,9 @@ def test_backend_deployment_manifest_records_actual_run_outputs(tmp_path: Path):
     assert manifest["runtime"]["start_command"] == (
         "py -3.13 tools/run_admin_api.py --host 127.0.0.1 --port 8787 "
         "--dev-token local-admin-token"
+    )
+    assert manifest["runtime"]["controlled_live_runner"] == (
+        "tools/run_admin_api_operator_runtime.py"
     )
     assert manifest["frontend_authority"] == "operator_ui_only"
     assert manifest["live_action_path"] == "auditable_backend_admin_interfaces_only"
@@ -77,6 +96,12 @@ def test_apply_backend_local_deployment_writes_current_release(tmp_path: Path):
     assert Path(current_manifest["current_path"]) == deploy_root / "current"
     assert Path(current_manifest["release_path"]) == deploy_root / "releases" / "abc123"
     assert (deploy_root / "current" / "tools" / "run_admin_api.py").exists()
+    assert (
+        deploy_root
+        / "current"
+        / "tools"
+        / "run_admin_api_operator_runtime.py"
+    ).exists()
     assert (deploy_root / "current" / "api" / "v1" / "app.py").exists()
     assert (deploy_root / "current" / "logging_service.py").exists()
     assert (deploy_root / "current" / "tests" / "pytest.ini").exists()
@@ -98,11 +123,19 @@ def _write_minimal_backend_source(source_root: Path) -> None:
         "application/__init__.py",
         "application/admin_api/__init__.py",
         "application/admin_api/mvp_service.py",
+        "application/admin_api/operator_mvp_policy.py",
+        "application/admin_api/spot_portfolio_binding.py",
+        "application/admin_api/command_runtime.py",
         "api/__init__.py",
         "api/v1/__init__.py",
         "api/v1/app.py",
+        "core/coinbase_execution_authority.py",
+        "core/runtime_composition.py",
+        "database/order.py",
         "tools/__init__.py",
         "tools/run_admin_api.py",
+        "tools/run_admin_api_operator_runtime.py",
+        "tools/coinbase_live_credentials.py",
         "logging_service.py",
         "tests/__init__.py",
         "tests/pytest.ini",

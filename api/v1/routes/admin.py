@@ -57,6 +57,21 @@ READ_ROUTE_RESPONSES = {
     },
 }
 
+RUNTIME_CONTROL_RESPONSES = {
+    **READ_ROUTE_RESPONSES,
+    409: {
+        "model": AdminRuntimeControlResponse,
+        "description": "Idempotency key conflicts with a prior runtime command.",
+    },
+    503: {
+        "model": AdminRuntimeControlResponse,
+        "description": (
+            "Runtime transition outcome is unknown and the durable claim cannot "
+            "be retried."
+        ),
+    },
+}
+
 
 def get_read_service() -> AdminApiReadService:
     """Return the read-only Admin API status service."""
@@ -148,7 +163,7 @@ def admin_runtime(
 @router.post(
     "/admin/runtime/pause",
     response_model=AdminRuntimeControlResponse,
-    responses=READ_ROUTE_RESPONSES,
+    responses=RUNTIME_CONTROL_RESPONSES,
     summary="Pause backend runtime admission",
 )
 def admin_runtime_pause(
@@ -179,7 +194,7 @@ def admin_runtime_pause(
 @router.post(
     "/admin/runtime/resume",
     response_model=AdminRuntimeControlResponse,
-    responses=READ_ROUTE_RESPONSES,
+    responses=RUNTIME_CONTROL_RESPONSES,
     summary="Resume backend runtime admission",
 )
 def admin_runtime_resume(
@@ -210,7 +225,7 @@ def admin_runtime_resume(
 @router.post(
     "/admin/runtime/shutdown",
     response_model=AdminRuntimeControlResponse,
-    responses=READ_ROUTE_RESPONSES,
+    responses=RUNTIME_CONTROL_RESPONSES,
     summary="Request backend runtime shutdown",
 )
 def admin_runtime_shutdown(
@@ -242,7 +257,7 @@ def admin_runtime_shutdown(
     "/admin/account-management",
     response_model=AdminAccountManagementReadResponse,
     responses=READ_ROUTE_RESPONSES,
-    summary="Read backend-owned Account Management reality",
+    summary="Read call-free local Account Management evidence",
 )
 def admin_account_management(
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
@@ -272,7 +287,7 @@ def admin_account_management(
     "/admin/wallet",
     response_model=AdminWalletReadResponse,
     responses=READ_ROUTE_RESPONSES,
-    summary="Read backend-owned wallet inventory and admission inputs",
+    summary="Read call-free local unavailable wallet evidence",
 )
 def admin_wallet(
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
@@ -302,7 +317,7 @@ def admin_wallet(
     "/admin/fees",
     response_model=AdminFeesReadResponse,
     responses=READ_ROUTE_RESPONSES,
-    summary="Read backend-owned fee evidence",
+    summary="Read call-free local unavailable fee evidence",
 )
 def admin_fees(
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
@@ -332,7 +347,7 @@ def admin_fees(
     "/admin/products",
     response_model=AdminProductsReadResponse,
     responses=READ_ROUTE_RESPONSES,
-    summary="Read backend-owned Coinbase product metadata",
+    summary="Read call-free local unavailable product metadata evidence",
 )
 def admin_products(
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
@@ -363,8 +378,9 @@ def admin_products(
 @router.post(
     "/admin/products/refresh",
     response_model=AdminProductsRefreshResponse,
+    status_code=501,
     responses=READ_ROUTE_RESPONSES,
-    summary="Refresh backend-owned local product metadata",
+    summary="Return fixed source-disabled product refresh evidence",
 )
 def refresh_admin_products(
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],

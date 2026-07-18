@@ -269,9 +269,25 @@ def test_no_inline_policy_field_access_outside_canonical_module():
 
     offenders = []
     for path in repo_root.rglob("*.py"):
-        # Skip virtualenvs, build artifacts, third-party.
-        posix = path.as_posix()
-        if "/.venv/" in posix or "/site-packages/" in posix:
+        # Skip virtualenvs, generated test worktrees, artifacts, and third-party.
+        relative_parts = path.relative_to(repo_root).parts
+        if any(
+            part
+            in {
+                ".venv",
+                "venv",
+                "site-packages",
+                "__pycache__",
+                ".git",
+                ".pytest_cache",
+                "build",
+                "dist",
+                "genai_tools",
+                "artifacts",
+                "node_modules",
+            }
+            for part in relative_parts
+        ):
             continue
         if _allowed(path):
             continue

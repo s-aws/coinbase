@@ -8,6 +8,7 @@ import pytest
 
 from application.admin_api.futures_portfolio_binding import (
     evaluate_futures_default_portfolio_binding,
+    serialize_public_futures_portfolio_binding,
 )
 
 
@@ -241,3 +242,18 @@ def test_default_profile_binding_dict_is_operator_safe() -> None:
     assert "must-never-be-returned" not in serialized
     assert evidence.to_dict()["permissions_error_present"] is True
     assert evidence.to_dict()["portfolio_catalog_error_present"] is True
+
+
+def test_public_binding_projection_withholds_uuid_but_retains_internal_exact_id() -> None:
+    evidence = evaluate()
+
+    public = serialize_public_futures_portfolio_binding(evidence)
+
+    assert evidence.observed_portfolio_id == DEFAULT_PORTFOLIO_ID
+    assert evidence.to_dict()["portfolio_id"] == DEFAULT_PORTFOLIO_ID
+    assert public["observed_portfolio_id"] == "withheld"
+    assert public["portfolio_id"] == "withheld"
+    assert public["status"] == "matched"
+    assert public["profile_alias"] == "Default"
+    assert public["can_view"] is True
+    assert DEFAULT_PORTFOLIO_ID not in json.dumps(public, sort_keys=True)

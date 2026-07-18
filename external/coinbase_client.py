@@ -25,6 +25,11 @@ from typing import Dict, List, Optional, Any
 from coinbase.rest import RESTClient
 from core.models import Product, Wallet, Position, Order
 from core.enums import OrderSide, TimeInForce
+from core.coinbase_execution_authority import (
+    COINBASE_EXECUTION_SCOPE_SPOT_CANCEL,
+    COINBASE_EXECUTION_SCOPE_SPOT_PLACE,
+    require_coinbase_execution_authority,
+)
 
 
 ACCOUNT_PAGE_LIMIT = 250
@@ -50,8 +55,9 @@ def coinbase_cancel_response_evidence(
     """Classify one cancel response as success, explicit rejection, or unknown.
 
     A boolean ``False`` is intentionally unknown: it does not prove Coinbase
-    rejected the supplied identity. Exchange-id fallback is safe only when a
-    structured result carries both ``success=false`` and a failure reason.
+    rejected the supplied identity. A structured result is required to classify
+    an explicit rejection for reconciliation; rejection never authorizes an
+    identity fallback or second submission.
     """
 
     data = coinbase_sdk_response_to_dict(response)
@@ -72,8 +78,11 @@ def coinbase_cancel_response_evidence(
                 or ""
             ).strip()
             if reason.upper() in _CANCEL_IDENTITY_REJECTION_REASONS:
-                return "explicitly_rejected", reason
-            return "unknown", reason or None
+                return "explicitly_rejected", "cancel_identity_rejected"
+            return (
+                "unknown",
+                "unclassified_exchange_rejection" if reason else None,
+            )
         return "unknown", None
 
     if isinstance(data, dict) and isinstance(data.get("results"), list):
@@ -478,6 +487,9 @@ class CoinbaseRestClient:
             submitted_order_id = str(verified_exchange_order_id).strip()
             if not submitted_order_id:
                 raise ValueError("verified_exchange_order_id cannot be empty")
+        require_coinbase_execution_authority(
+            expected_scope=COINBASE_EXECUTION_SCOPE_SPOT_CANCEL
+        )
         result = self._client.cancel_orders([submitted_order_id])
         evidence = coinbase_cancel_response_evidence(
             result,
@@ -500,8 +512,11 @@ class CoinbaseRestClient:
         *,
         return_evidence: bool = False,
     ) -> bool | Dict[str, Any]:
-        """Cancel by exchange id only as an evidence-recorded fallback."""
+        """Historical/internal direct exchange-id cancellation helper."""
 
+        require_coinbase_execution_authority(
+            expected_scope=COINBASE_EXECUTION_SCOPE_SPOT_CANCEL
+        )
         result = self._client.cancel_orders([order_id])
         evidence = coinbase_cancel_response_evidence(
             result,
@@ -992,6 +1007,9 @@ class CoinbaseRestClient:
         Raises:
             Exception: If API call fails
         """
+        require_coinbase_execution_authority(
+            expected_scope=COINBASE_EXECUTION_SCOPE_SPOT_CANCEL
+        )
         return self._client.cancel_orders(order_ids)
 
     def close_position(
@@ -1022,6 +1040,9 @@ class CoinbaseRestClient:
         if size is not None:
             params["size"] = size
         params.update(kwargs)
+        require_coinbase_execution_authority(
+            expected_scope="source_disabled_futures_close"
+        )
         return self._client.close_position(**params)
     
     def limit_order_gtc(
@@ -1067,6 +1088,9 @@ class CoinbaseRestClient:
             raise ValueError("limit_price is required")
         
         # SDK requires positional args: client_order_id, product_id, side, base_size, limit_price
+        require_coinbase_execution_authority(
+            expected_scope="source_disabled_legacy_limit_order"
+        )
         return self._client.limit_order_gtc(
             client_order_id=client_order_id,
             product_id=product_id,
@@ -1118,7 +1142,10 @@ class CoinbaseRestClient:
             params['order_configuration'] = order_configuration
         
         params.update(kwargs)
-        
+
+        require_coinbase_execution_authority(
+            expected_scope=COINBASE_EXECUTION_SCOPE_SPOT_PLACE
+        )
         return self._client.create_order(**params)
     
     def get_sdk_client(self) -> RESTClient:

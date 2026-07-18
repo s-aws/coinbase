@@ -43,58 +43,42 @@ The response passes only if it identifies:
 - `README.spot-trading.md` and `docs/README.md` as appropriate entry points.
 - The invariant that spot uses the existing order lifecycle, not a spot-only
   placement engine.
-- Direct/dashboard spot order admission through the shared
-  `ActionConditionGuard`.
-- Direct dashboard spot placement hard gates:
-  `manual_live_acknowledgement=true`, explicit planning-phase `max_notional`
-  cap, enabled local `order_event_stream` publisher before REST, and
-  `known_inventory_available` for direct spot `SELL`.
-- Stealth planning and reveal wallet checks, including the reveal-time wallet
-  recheck.
+- The installed authenticated Admin API manual Spot LIMIT/GTC place/cancel
+  routes as the sole supported Controlled-live operator surface.
+- Exact outer authority, manager lease, current lease-bound service decision,
+  RBAC, intent, idempotency, approval, caps, Test-portfolio/wallet evidence,
+  audit, reconciliation, and final route-bound SDK scope as distinct backend
+  gates.
+- The browser as a non-authoritative request-forwarding/readback layer with no
+  Coinbase credentials or trading decisions.
 - USDC portfolio sweep and campaign paths:
   `business/spot_portfolio_sweep.py`, `tools/run_spot_portfolio_sweep_live.py`,
   `business/spot_campaign.py`, and `tools/run_spot_campaign.py`.
-- The live approval boundary: campaign tools do not submit Coinbase orders;
-  live sweep execution requires `--approved-live-orders`.
-- Live USDC sweep `SELL` requires `--require-known-profitable-inventory`;
-  wallet balance alone cannot authorize live SELL sweep execution.
+- The current boundary: campaign/sweep reporting modes are read-only and their
+  mutation modes are source-disabled; `--approved-live-orders` grants no
+  execution.
+- Dashboard WebSocket place/cancel/hotpoint mutations and legacy `main.py`
+  Controlled-live startup are source-disabled.
 - The distinction between wallet sellability and known profitable inventory.
 - `client_order_id` as the internal tracking id and exchange `order_id` as
   exchange evidence only.
 - Reconciliation/fill-backfill as the way local state is compared against
   Coinbase reality.
 - Planned skips as audit rows, not failed Coinbase submissions.
-- Which submission/audit evidence path applies to each supported placement
-  surface: direct dashboard order, stealth reveal, and portfolio sweep live
-  execution.
-- That live USDC sweep placements use UUID `client_order_id` values and record
-  sweep identity through the sweep ledger/event payloads rather than prefixed
-  Coinbase-facing ids.
-- That direct dashboard and live sweep placement publish
-  `order_submitted` / `rest_submit` event-stream evidence when the local event
-  stream is available.
+- Which submission/audit evidence path applies to the supported Admin API
+  manual place/cancel routes, including authoritative terminal readback.
 - That direct-order audit output separates the read-only audit command fields
   from audited-order evidence fields such as
   `audited_order_live_submission_evidence`.
 - That dashboard `create_parent_order` is local DB CRUD and does not submit a
   Coinbase order.
-- That direct dashboard `place_order` is an immediate manual placement surface:
-  it publishes submission evidence but does not pre-insert `order_parent` or
-  opt the order into automated follow-up policy state before submission.
-- That Hotpoint Manager `place_hotpoint_test_order` is also a live dashboard
-  submission surface, is runtime-admission gated, requires
-  `ProductCapability.HOTPOINT_AUTO_PLACEMENT`, runs size and action-condition
-  checks, pre-inserts an opt-in parent row, submits through
-  `REST_CLIENT.limit_order_gtc`, and publishes submission evidence when the
-  local event stream is available. Spot products are blocked by default unless
-  the hotpoint capability is explicitly enabled.
+- That direct dashboard `place_order`, `cancel_order`, and
+  `place_hotpoint_test_order` return fixed source-disabled responses before
+  runtime or backend command-service lookup.
 - That direct/stealth spot placement scope comes from `products.json`, while
   portfolio sweep and campaign scope is USDC-only.
-- That failed stealth REST placement records failed reveal evidence without
-  making local state claim a live revealed placement.
-- The rule that new spot order-creation surfaces must not be added until they
-  either reuse existing submission evidence paths or explicitly extend the
-  canonical audit path.
+- The rule that new Spot order-creation surfaces must not bypass authenticated
+  Admin API admission or mint a parallel execution scope.
 
 ## Failure Handling
 
@@ -119,6 +103,9 @@ items found. Roadmap phases that add spot order behavior should mention whether
 this gate passed and which docs/code were changed if it did not.
 
 ## Recent Evidence
+
+The dated entries below record superseded historical behavior. They do not
+describe current execution surfaces; the pass criteria above are authoritative.
 
 - 2026-06-10, explorer agent, Phase 157 prompt variant: first run passed the
   core workflow but flagged raw dashboard `place_order` as an insufficiently
@@ -154,14 +141,18 @@ this gate passed and which docs/code were changed if it did not.
 - 2026-06-10, explorer agent, same Phase 193 prompt after the above fixes:
   passed. The agent identified direct dashboard spot gates, cancellation by
   `client_order_id`, live sweep BUY/SELL boundaries, mandatory live SELL
-  known-profit policy, Admin HTTP live-disabled status, direct-audit
+  known-profit policy, the then-current Admin HTTP live-disabled status,
+  direct-audit
   `audited_order_*` evidence fields, and no remaining
   `--disable-safety-policy --approved-live-orders` path.
 - 2026-06-11, explorer agent, Admin frontend spot-order flow prompt: passed.
   The agent identified backend OpenAPI as the contract source, frontend
   `CommandWorkflowShell` dry-submit wrappers, BFF mode, backend
-  `POST /api/v1/orders`, `AdminApiCommandService`, live-disabled HTTP command
-  status, backend RBAC authority, `client_order_id` cancellation, and required
+  `POST /api/v1/orders`, `AdminApiCommandService`, the historical live-disabled
+  HTTP command status, backend RBAC authority, `client_order_id` cancellation,
+  and required
   gates. It flagged missing full-gate proof commands in the frontend
   spot-order flow doc; the doc was fixed to include `npm run release:gate` and
-  full backend regression.
+  full backend regression. Current operator runtime posture is different:
+  manual placement and Spot cancel are route-scoped controlled-live
+  capabilities, while all request-level gates remain backend-owned.

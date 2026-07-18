@@ -204,3 +204,67 @@ def test_publish_event_enriches_payload_with_fee_manager_audit():
     assert fee_audit["taker_fee_rate"] == 0.006
     assert fee_audit["margin_window_type"] == "INTRADAY"
     assert inserted["trigger_payload_json"]["fee_manager_audit"]["fee_regime_factor"] == 1.2
+
+
+def test_publish_event_value_blinds_database_exception_log(monkeypatch):
+    private_marker = "PRIVATE-EVENT-PUBLISH-DB-MARKER"
+    warnings = []
+    db_module = FakeDBModule()
+    publisher = OrderEventStreamPublisher(db_module)
+
+    def fail_insert(**_kwargs):
+        raise RuntimeError(private_marker)
+
+    db_module.insert_order_event = fail_insert
+    monkeypatch.setattr(
+        "business.order_event_stream.logger.warning",
+        warnings.append,
+    )
+
+    ok = publisher.publish_event(
+        event_type="order_submitted",
+        source_channel="rest_submit",
+        payload={"client_order_id": "client-order-id"},
+        idempotency_key="submit:client-order-id",
+    )
+
+    assert ok is False
+    assert warnings
+    assert private_marker not in " ".join(warnings)
+    assert "exception_class:RuntimeError" in " ".join(warnings)
+
+
+def test_lifecycle_persistence_exception_logs_are_value_blind(monkeypatch):
+    private_marker = "PRIVATE-EVENT-LIFECYCLE-DB-MARKER"
+    warnings = []
+    publisher = OrderEventStreamPublisher(FakeDBModule())
+
+    def fail_write(**_kwargs):
+        raise RuntimeError(private_marker)
+
+    monkeypatch.setattr(
+        "database.order.insert_stealth_order_lifecycle_event",
+        fail_write,
+    )
+    monkeypatch.setattr(
+        "database.order.insert_stealth_order_snapshot",
+        fail_write,
+    )
+    monkeypatch.setattr(
+        "database.order.update_stealth_order_lifecycle_event",
+        fail_write,
+    )
+    monkeypatch.setattr(
+        "business.order_event_stream.logger.warning",
+        warnings.append,
+    )
+
+    publisher._stealth_lifecycle_hook(
+        "stealth-order-id",
+        StealthLifecycleEvent.CONDITION_MET,
+        {"status": "TRIGGERED"},
+    )
+
+    assert len(warnings) == 3
+    assert private_marker not in " ".join(warnings)
+    assert all("exception_class:RuntimeError" in warning for warning in warnings)

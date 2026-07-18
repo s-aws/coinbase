@@ -1,9 +1,12 @@
 # Spot Campaign Examples
 
 This is a parked Spot automation reference, not the current work queue.
-Current goal id is `selected_order_execution_closeout_slice`. Campaign,
-fan-out, retry, and scheduler examples require explicit operator
-reprioritization.
+Standing closeout is `operator_ready_admin_mvp_runtime_v1`. Campaign, fan-out,
+retry, and scheduler examples require explicit operator reprioritization.
+
+Campaign and sweep mutation modes are now source-disabled. Live/canary/retry
+commands below are historical examples only and will not submit Coinbase
+orders. Read-only status, validation, and reporting modes remain available.
 
 ## Example Campaign Config
 
@@ -94,8 +97,8 @@ Use one campaign config for the requested operator intent:
 
 Switch `side` to `SELL` only when `safety_policy.require_known_profitable_inventory`
 is true and a SELL authority profile is set. Broad BUY readiness can pass the
-all-USDC gate. Broad SELL readiness should be converted to a fresh authority
-allowlist before live execution.
+all-USDC gate. Broad SELL readiness may be converted to a fresh authority
+allowlist for offline review only.
 
 The durable tracking surfaces are:
 
@@ -149,9 +152,9 @@ source with the extra buffer. Average-cost allowlists exclude rows blocked by
 the average-cost freshness or local-drift gate.
 
 The rendered `*.allowlist.sweep.json` file includes a
-`sell_authority_allowlist` freshness block. Regenerate the allowlist
-immediately before live approval; the sweep live runner rejects stale or
-invalid allowlist metadata.
+`sell_authority_allowlist` freshness block. Regenerate the allowlist before
+offline review. The historical sweep runner validated freshness, but its
+mutation mode is now source-disabled.
 
 Imported baseline lots are trusted as operator-maintained inventory state,
 including `remaining_quantity`. Include source freshness metadata such as
@@ -230,8 +233,8 @@ python3.13 tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_
 ```
 
 This reports whether the recurring sweep config is due according to the durable
-sweep ledger. The live runner still enforces the same due-state before placing
-orders.
+sweep ledger. No due state can enable exchange submission because the
+historical live runner mutation mode is source-disabled.
 
 ## Gate A Broad All-USDC Campaign
 
@@ -250,19 +253,18 @@ runs the normal campaign release gate.
 python3.13 tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_buy.json --write-sweep-config-file runtime_state/spot_campaign_buy.sweep.json
 ```
 
-The rendered file uses the existing sweep config schema. It is the file to use
-for live canaries.
+The rendered file uses the existing sweep config schema. It is an offline
+review artifact and cannot authorize a live canary.
 
-## Run A One-Product Live Canary
+## Historical One-Product Live Canary (Source-Disabled)
 
 ```powershell
 python3.13 tools/run_spot_portfolio_sweep_live.py --config-file runtime_state/spot_campaign_buy.sweep.json --max-products 1 --max-total-notional-per-run 1 --max-notional-per-order 1 --approved-live-orders --summary-only
 ```
 
-This can submit real Coinbase orders. The command uses the existing sweep live
-runner, not the campaign CLI. Coinbase REST credentials must be configured for
-this command; the campaign CLI remains read-only with respect to Coinbase
-orders.
+This command formerly submitted real Coinbase orders. It now exits with a
+fixed source-disabled diagnostic before exchange submission. The campaign CLI
+remains read-only with respect to Coinbase orders.
 
 Record the latest matching sweep run into the campaign ledger:
 
@@ -284,12 +286,13 @@ partial run, and writes a normal campaign config scoped to products that had no
 exchange order id and zero submitted/executed notional.
 
 Planned skips, such as products below `quote_min_size`, are kept as audit rows
-but are not retry targets. A live run with submitted orders plus only planned
-skips records as completed when `--record-latest-sweep-run` is used.
+but are not retry targets. Historical run evidence with submitted orders plus
+only planned skips can record as completed when
+`--record-latest-sweep-run` is used.
 
 The public fixture
 [spot-campaign-retry-plan-fixture.json](spot-campaign-retry-plan-fixture.json)
-shows all three classes in one source sweep: submitted/live, retryable
+shows all three historical classes in one source sweep: submitted, retryable
 not-submitted, and not-retryable planned skip.
 
 Render the retry campaign to a sweep config:
@@ -298,14 +301,13 @@ Render the retry campaign to a sweep config:
 python3.13 tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_buy_10.retry.json --write-sweep-config-file runtime_state/spot_campaign_buy_10.retry.sweep.json
 ```
 
-Validate the retry config before any live order:
+Validate the retry config for offline review:
 
 ```powershell
 python3.13 tools/run_spot_portfolio_sweep_live.py --config-file runtime_state/spot_campaign_buy_10.retry.sweep.json --validate-config --summary-only
 ```
 
-Live retry execution, when explicitly approved, still uses the existing sweep
-runner:
+The historical live retry command (now source-disabled) was:
 
 ```powershell
 python3.13 tools/run_spot_portfolio_sweep_live.py --config-file runtime_state/spot_campaign_buy_10.retry.sweep.json --approved-live-orders --summary-only
@@ -321,7 +323,7 @@ python3.13 tools/run_spot_campaign.py --sell-authority-drift-report --baseline-a
 ```
 
 If products were removed, the command exits blocked. Regenerate the allowlist
-and validate the rendered sweep config immediately before live approval.
+and validate the rendered sweep config before relying on the offline report.
 
 Compare strict fill-ledger authority against Coinbase average-cost authority:
 
@@ -339,8 +341,9 @@ products:
 python3.13 tools/run_spot_campaign.py --strict-sell-canary-candidates --input-allowlist-file runtime_state/spot_campaign_sell.strict.allowlist.json --summary-only
 ```
 
-The candidate selector is only a proposal surface. Live SELL still requires a
-fresh allowlist, sweep validation, explicit caps, and `--approved-live-orders`.
+The candidate selector is only an offline proposal surface. A fresh allowlist,
+sweep validation, and explicit caps improve review evidence but do not grant
+Coinbase submission; `--approved-live-orders` is source-disabled.
 
 ## SELL Campaign With Coinbase Average-Cost Authority
 
@@ -374,47 +377,39 @@ Read-only release gate:
 python3.13 tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_sell.json --release-gate --include-coinbase-average-cost --summary-only
 ```
 
-Live SELL execution still uses the sweep runner and still requires
-`--approved-live-orders` plus Coinbase REST credentials.
+SELL execution is not available through campaign/sweep tooling;
+`--approved-live-orders` grants no authority.
 
-Validate a generated SELL allowlist sweep config before live execution:
+Validate a generated SELL allowlist sweep config for offline review:
 
 ```powershell
 python3.13 tools/run_spot_portfolio_sweep_live.py --config-file runtime_state/spot_campaign_sell.strict.allowlist.sweep.json --validate-config --max-products 3 --max-total-notional-per-run 4 --max-notional-per-order 2 --max-planned-orders 3 --max-skipped-orders 500
 ```
 
-Omit `--summary-only` for the immediate pre-live check so the exact product
+Omit `--summary-only` for a detailed offline check so the exact product
 ids, base sizes, estimated prices, notional, and `sell_authority` rows are
 visible. The summary includes `sell_authority_allowlist_freshness`,
 `inventory_baseline_freshness_audit`, `safety_evaluation`, and
 `plan_explain`.
 
-Only after explicit live approval, execute through the sweep runner:
+There is no campaign/sweep execution step. The mutation mode is
+source-disabled even when approval-looking flags are present. Historical live
+summaries remain audit evidence only. When
+`allow_coinbase_average_cost_basis` is enabled, the offline validator applies
+`coinbase_average_cost_authority_gate`; planned rows whose SELL authority comes
+from Coinbase average cost are blocked by stale average-cost freshness or stale
+local-vs-Coinbase drift.
 
-```powershell
-python3.13 tools/run_spot_portfolio_sweep_live.py --config-file runtime_state/spot_campaign_sell.strict.allowlist.sweep.json --require-known-profitable-inventory --approved-live-orders --max-products 3 --max-total-notional-per-run 4 --max-notional-per-order 2 --max-planned-orders 3 --max-skipped-orders 500
-```
+## Preview A Broad Offline SELL Decision Gate
 
-The live summary must report `live_coinbase_orders_ran`, submitted notional,
-executed notional, product ids, `client_order_id` values, exchange order ids,
-and fill-backfill results.
-
-When `allow_coinbase_average_cost_basis` is enabled, the same validator/live
-runner applies `coinbase_average_cost_authority_gate`. Only planned rows whose
-SELL authority actually comes from Coinbase average cost are blocked by stale
-average-cost freshness or stale local-vs-Coinbase drift.
-
-## Preview A Broad SELL Decision Gate
-
-Use the sweep validator for the final pre-live broad SELL decision. This reads
-Coinbase products, account wallets, and Coinbase average cost data, but it
-submits no orders:
+Use the sweep validator for a broad SELL policy review. When separately run by
+an operator with read credentials, it reads Coinbase products, account wallets,
+and Coinbase average cost data, but it submits no orders:
 
 ```powershell
 python3.13 tools/run_spot_portfolio_sweep_live.py --validate-config --side SELL --quote-notional 1.01 --order-type market_ioc --require-known-profitable-inventory --allow-coinbase-average-cost-basis --coinbase-average-cost-profit-buffer-pct 0.5 --max-total-notional-per-run 500 --max-notional-per-order 2 --max-planned-orders 400 --max-skipped-orders 500 --summary-only
 ```
 
-Omit `--summary-only` when you need the per-product `sell_authority` rows. Do
-not run a broad live SELL unless this read-only gate has zero safety violations,
-or unless the live config is narrowed to an allowlist that has zero violations
-when revalidated.
+Omit `--summary-only` when you need the per-product `sell_authority` rows. Zero
+safety violations means the offline policy review passed; it is not execution
+authority and cannot unpark the source-disabled mutation mode.

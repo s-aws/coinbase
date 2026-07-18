@@ -18,6 +18,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping
 
+from core.coinbase_execution_authority import require_coinbase_execution_authority
 from core.enums import (
     ActionGuardPhase,
     EventSourceChannel,
@@ -68,6 +69,48 @@ DISQUALIFYING_PRODUCT_FLAGS = (
     "view_only",
     "auction_mode",
 )
+_EXCHANGE_ORDER_STATUSES = {
+    "CANCELLED",
+    "CANCEL_QUEUED",
+    "EXPIRED",
+    "FAILED",
+    "FILLED",
+    "OPEN",
+    "PENDING",
+    "REJECTED",
+}
+
+
+def _value_blind_exception_detail(exc: BaseException) -> str:
+    """Classify an exception without returning exception-carried values."""
+
+    return f"exception_class:{type(exc).__name__}"
+
+
+def _sanitized_exchange_status(value: Any) -> str | None:
+    status = str(value or "").strip().upper()
+    if not status:
+        return None
+    if status in _EXCHANGE_ORDER_STATUSES:
+        return status
+    return "UNKNOWN"
+
+
+def _sanitized_action_guard_failure(
+    failure: Mapping[str, Any] | None,
+) -> dict[str, Any] | None:
+    if not isinstance(failure, Mapping):
+        return None
+    evidence = dict(failure)
+    reason = str(evidence.get("reason") or "").strip()
+    if " failed:" in reason or "exception_class:" in reason:
+        category = str(
+            evidence.get("block_category")
+            or evidence.get("condition")
+            or "action_condition"
+        ).strip()
+        evidence["reason"] = f"{category}_check_failed"
+    return evidence
 
 
 def _get_value(source: Any, *names: str, default: Any = None) -> Any:
@@ -810,11 +853,13 @@ def _response_success(response: Mapping[str, Any] | None) -> bool | None:
     success = response.get("success")
     if isinstance(success, bool):
         return success
-    if response.get("success_response"):
-        return True
-    if response.get("error_response") or response.get("failure_reason"):
-        return False
     return None
+
+
+def _create_response_failure_code(response_success: bool | None) -> str:
+    if response_success is False:
+        return "coinbase_create_explicitly_rejected"
+    return "coinbase_create_acceptance_unknown"
 
 
 def _dict_response(response: Any) -> Any:
@@ -986,6 +1031,7 @@ class SpotPortfolioSweepLiveOrderReport:
     limit_price: str | None = None
     exchange_status: str | None = None
     response_success: bool | None = None
+    submission_attempted: bool = False
     submission_event_recorded: bool | None = None
     guard_failure: dict[str, Any] | None = None
     error: str | None = None
@@ -1005,6 +1051,7 @@ class SpotPortfolioSweepLiveOrderReport:
             "limit_price": self.limit_price,
             "exchange_status": self.exchange_status,
             "response_success": self.response_success,
+            "submission_attempted": self.submission_attempted,
             "submission_event_recorded": self.submission_event_recorded,
             "guard_failure": self.guard_failure,
             "error": self.error,
@@ -1047,6 +1094,13 @@ def summarize_sweep_order_statuses(
         if _text(_order_record_value(order, "status"))
         == SpotPortfolioSweepExecutionStatus.SKIPPED.value
     ]
+    attempted = [
+        order
+        for order in orders
+        if _text(_order_record_value(order, "status"))
+        == SpotPortfolioSweepExecutionStatus.SUBMITTED.value
+        or bool(_order_record_value(order, "submission_attempted"))
+    ]
     failures = [order for order in orders if _is_sweep_execution_failure(order)]
     if submitted and failures:
         run_status = SpotPortfolioSweepRunStatus.PARTIAL.value
@@ -1058,7 +1112,8 @@ def summarize_sweep_order_statuses(
         run_status = SpotPortfolioSweepRunStatus.SKIPPED.value
     return {
         "run_status": run_status,
-        "live_coinbase_orders_ran": bool(submitted),
+        "live_coinbase_orders_ran": bool(attempted),
+        "submission_attempted_count": len(attempted),
         "submitted_order_count": len(submitted),
         "blocked_or_error_count": len(failures),
         "skipped_order_count": len(skipped),
@@ -1126,7 +1181,7 @@ def execute_usdc_portfolio_sweep_plan(
                     executed_notional_usdc="0",
                     planned_quote_size=item.planned_quote_size,
                     planned_base_size=item.planned_base_size,
-                    error=f"{type(exc).__name__}: {exc}",
+                    error=_value_blind_exception_detail(exc),
                 )
             )
             continue
@@ -1146,6 +1201,7 @@ def execute_usdc_portfolio_sweep_plan(
             client_order_id=client_order_id,
         )
         if not guard_ok:
+            guard_failure_evidence = _sanitized_action_guard_failure(guard_failure)
             reports.append(
                 SpotPortfolioSweepLiveOrderReport(
                     product_id=item.product_id,
@@ -1159,16 +1215,22 @@ def execute_usdc_portfolio_sweep_plan(
                     planned_quote_size=item.planned_quote_size,
                     planned_base_size=item.planned_base_size,
                     limit_price=submission.limit_price,
-                    guard_failure=guard_failure,
-                    error=(guard_failure or {}).get("reason", "guard blocked"),
+                    guard_failure=guard_failure_evidence,
+                    error=(guard_failure_evidence or {}).get(
+                        "reason",
+                        "guard blocked",
+                    ),
                 )
             )
             continue
 
         order_id: str | None = None
         exchange_status: str | None = None
+        submission_attempted = False
         submission_event_recorded = False
         try:
+            submission_attempted = True
+            require_coinbase_execution_authority()
             response = _dict_response(
                 rest_client.create_order(
                     client_order_id=client_order_id,
@@ -1180,6 +1242,53 @@ def execute_usdc_portfolio_sweep_plan(
             if not isinstance(response, Mapping):
                 response = {}
             order_id = _extract_order_id(response)
+            response_success = _response_success(response)
+            if response_success is not True:
+                reports.append(
+                    SpotPortfolioSweepLiveOrderReport(
+                        product_id=item.product_id,
+                        side=item.side,
+                        status=SpotPortfolioSweepExecutionStatus.ERROR.value,
+                        order_type=order_type_value,
+                        client_order_id=client_order_id,
+                        exchange_order_id=order_id,
+                        submitted_notional_usdc=(
+                            submission.submitted_notional_usdc
+                        ),
+                        executed_notional_usdc="0",
+                        planned_quote_size=item.planned_quote_size,
+                        planned_base_size=item.planned_base_size,
+                        limit_price=submission.limit_price,
+                        response_success=response_success,
+                        submission_attempted=True,
+                        submission_event_recorded=False,
+                        error=_create_response_failure_code(response_success),
+                    )
+                )
+                continue
+            if not order_id:
+                reports.append(
+                    SpotPortfolioSweepLiveOrderReport(
+                        product_id=item.product_id,
+                        side=item.side,
+                        status=SpotPortfolioSweepExecutionStatus.ERROR.value,
+                        order_type=order_type_value,
+                        client_order_id=client_order_id,
+                        exchange_order_id=None,
+                        submitted_notional_usdc=(
+                            submission.submitted_notional_usdc
+                        ),
+                        executed_notional_usdc="0",
+                        planned_quote_size=item.planned_quote_size,
+                        planned_base_size=item.planned_base_size,
+                        limit_price=submission.limit_price,
+                        response_success=True,
+                        submission_attempted=True,
+                        submission_event_recorded=False,
+                        error="coinbase_create_order_id_missing",
+                    )
+                )
+                continue
             submission_event_recorded = _publish_sweep_order_submission_event(
                 event_publisher=order_event_publisher,
                 client_order_id=client_order_id,
@@ -1197,7 +1306,7 @@ def execute_usdc_portfolio_sweep_plan(
                 if order_id
                 else {}
             )
-            exchange_status = str(order.get("status") or "") or None
+            exchange_status = _sanitized_exchange_status(order.get("status"))
             _, executed_notional = fetch_sweep_order_executed_notional(
                 rest_client,
                 order_id=order_id,
@@ -1218,7 +1327,8 @@ def execute_usdc_portfolio_sweep_plan(
                     planned_base_size=item.planned_base_size,
                     limit_price=submission.limit_price,
                     exchange_status=exchange_status,
-                    response_success=_response_success(response),
+                    response_success=True,
+                    submission_attempted=True,
                     submission_event_recorded=submission_event_recorded,
                 )
             )
@@ -1236,15 +1346,18 @@ def execute_usdc_portfolio_sweep_plan(
                     client_order_id=client_order_id,
                     exchange_order_id=order_id,
                     submitted_notional_usdc=(
-                        submission.submitted_notional_usdc if order_id else "0"
+                        submission.submitted_notional_usdc
+                        if submission_attempted
+                        else "0"
                     ),
                     executed_notional_usdc="0",
                     planned_quote_size=item.planned_quote_size,
                     planned_base_size=item.planned_base_size,
                     limit_price=submission.limit_price,
                     exchange_status=exchange_status,
+                    submission_attempted=submission_attempted,
                     submission_event_recorded=submission_event_recorded,
-                    error=f"{type(exc).__name__}: {exc}",
+                    error=_value_blind_exception_detail(exc),
                 )
             )
     return reports
@@ -1719,7 +1832,7 @@ def evaluate_sweep_safety_policy(
                         "allowed": False,
                         "status": InventoryAuthorityStatus.UNAVAILABLE.value,
                         "product_id": item.product_id,
-                        "reason": f"{type(exc).__name__}: {exc}",
+                        "reason": _value_blind_exception_detail(exc),
                     }
                 if not authority.get("allowed"):
                     violations.append({
@@ -1830,7 +1943,7 @@ def build_sweep_plan_explain(
                     "allowed": False,
                     "status": InventoryAuthorityStatus.UNAVAILABLE.value,
                     "product_id": item.product_id,
-                    "reason": f"{type(exc).__name__}: {exc}",
+                    "reason": _value_blind_exception_detail(exc),
                 }
         items.append(row)
 
@@ -2407,7 +2520,9 @@ def reconcile_sweep_run_record(
                 "reconciliation_status": status,
                 "client_order_id_match": client_order_id_match,
                 "exchange_client_order_id": live_client_order_id,
-                "exchange_status": str(live_order.get("status") or "") or None,
+                "exchange_status": _sanitized_exchange_status(
+                    live_order.get("status")
+                ),
                 "reconciled_base_size": _format_decimal(fill_size) or "0",
                 "reconciled_executed_notional_usdc": (
                     _format_decimal(fill_notional) or "0"
@@ -2433,7 +2548,7 @@ def reconcile_sweep_run_record(
                 "reconciled_base_size": "0",
                 "reconciled_executed_notional_usdc": "0",
                 "fill_ledger_match": fill_ledger_match,
-                "error": f"{type(exc).__name__}: {exc}",
+                "error": _value_blind_exception_detail(exc),
             })
 
     return {
@@ -2782,7 +2897,7 @@ def _inventory_lot_quantities(
             "available": False,
             "known_quantity": Decimal("0"),
             "unknown_cost_basis_quantity": Decimal("0"),
-            "error": f"{type(exc).__name__}: {exc}",
+            "error": _value_blind_exception_detail(exc),
         }
 
     known = Decimal("0")

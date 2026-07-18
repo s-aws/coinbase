@@ -27,6 +27,12 @@ from logging_service import get_logger
 logger = get_logger("OrderEventStream")
 
 
+def _value_blind_exception_detail(exc: BaseException) -> str:
+    """Classify an exception without logging exception-carried values."""
+
+    return f"exception_class:{type(exc).__name__}"
+
+
 class OrderEventStreamPublisher:
     """Append-only event stream publisher for reconstructive timelines."""
 
@@ -51,7 +57,10 @@ class OrderEventStreamPublisher:
         except TypeError:
             fee_info = self._fee_info_provider()
         except Exception as exc:
-            logger.warning(f"Failed to capture fee-manager audit context: {exc}")
+            logger.warning(
+                "Failed to capture fee-manager audit context: "
+                f"{_value_blind_exception_detail(exc)}"
+            )
             return None
 
         if not isinstance(fee_info, dict):
@@ -81,7 +90,10 @@ class OrderEventStreamPublisher:
             logger.info("order_event_stream integration enabled")
         except Exception as exc:
             self.enabled = False
-            logger.warning(f"order_event_stream integration disabled: {exc}")
+            logger.warning(
+                "order_event_stream integration disabled: "
+                f"{_value_blind_exception_detail(exc)}"
+            )
 
     def publish_event(
         self,
@@ -137,7 +149,10 @@ class OrderEventStreamPublisher:
             )
             return inserted_id is not None
         except Exception as exc:
-            logger.warning(f"Failed to publish event {event_type}: {exc}")
+            logger.warning(
+                f"Failed to publish event {event_type}: "
+                f"{_value_blind_exception_detail(exc)}"
+            )
             return False
 
     def register_hook_integrations(
@@ -410,7 +425,8 @@ class OrderEventStreamPublisher:
         except Exception as exc:
             logger.warning(
                 f"[OrderEventStream] Failed to write lifecycle history "
-                f"{event_str} for {stealth_order_id}: {exc}"
+                f"{event_str} for {stealth_order_id}: "
+                f"{_value_blind_exception_detail(exc)}"
             )
 
         # Event-scoped snapshots for reveal-timing forensics.
@@ -428,7 +444,8 @@ class OrderEventStreamPublisher:
             except Exception as exc:
                 logger.warning(
                     f"[OrderEventStream] Failed to write lifecycle snapshot "
-                    f"{event_str} for {stealth_order_id}: {exc}"
+                    f"{event_str} for {stealth_order_id}: "
+                    f"{_value_blind_exception_detail(exc)}"
                 )
 
         # Persist last_lifecycle_event (and failure_reason if present) to DB
@@ -442,5 +459,6 @@ class OrderEventStreamPublisher:
         except Exception as exc:
             logger.warning(
                 f"[OrderEventStream] Failed to persist lifecycle event "
-                f"{event_str} for {stealth_order_id}: {exc}"
+                f"{event_str} for {stealth_order_id}: "
+                f"{_value_blind_exception_detail(exc)}"
             )

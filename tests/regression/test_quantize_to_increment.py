@@ -45,7 +45,8 @@ def test_only_one_def_in_repo():
         # Skip venv / build / cache.
         parts = py.parts
         if any(part in {".venv", "venv", "__pycache__", ".git",
-                        "build", "dist", "coinbase_engine.egg-info"}
+                        ".pytest_cache", "build", "dist", "genai_tools",
+                        "artifacts", "node_modules", "coinbase_engine.egg-info"}
                for part in parts):
             continue
         try:

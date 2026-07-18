@@ -62,16 +62,16 @@ python3.13 tools/run_spot_release_gate.py --campaign-config-file runtime_state/s
 ```
 
 This remains read-only. It validates campaign release readiness and the broad
-all-USDC intent before any rendered sweep config is handed to the live runner.
+all-USDC intent. Rendered sweep configs are review artifacts; the historical
+sweep mutation mode is source-disabled.
 
-For an explicitly approved live Coinbase spot smoke, run:
+The historical raw live-smoke command was:
 
 ```powershell
 python3.13 tools/run_live_spot_usdc_smoke.py --approved-live-orders
 ```
 
-This places real orders. It selects the lowest-minimum-notional tradable USDC
-spot pair that previews successfully for the account, then prints
-`LIVE_COINBASE_SPOT_SMOKE_SUMMARY` with submitted and executed notional for
-each live order. Use `--retain-inventory` when the acquired base should remain
-in the account for future sell-path tests instead of being sold immediately.
+It is retained only for traceability and now exits before SDK construction with
+a fixed source-disabled diagnostic. Do not run it as an operator workflow.
+Controlled-live testing uses only authenticated Admin API manual Spot
+LIMIT/GTC place/cancel under the manager lease and backend per-request gates.

@@ -26,8 +26,9 @@ SUMMARY_PREFIX = "SPOT_CONTEXTLESS_AGENT_CHECKLIST "
 BLIND_PROMPT = """You are in the local repository at c:\\coinbase. You have no prior session
 context. Do not edit files. Task: determine how a spot order is created in
 this project and explain, from the code/docs you find, the intended flow for a
-spot BUY or SELL order, including which modules own planning/admission, wallet
-checks, live placement, campaign/sweep paths, and safety/reconciliation. Do not
+spot BUY or SELL order, including which modules own Admin API admission, wallet
+checks, Controlled-live placement/cancel, source-disabled compatibility paths,
+campaign/sweep reporting, and safety/reconciliation. Do not
 ask for guidance and do not rely on this prompt for architecture beyond the
 task itself. Report: (1) where a new human/small agent should start reading,
 (2) the canonical code path, (3) any confusing or missing context you found,
@@ -37,26 +38,21 @@ repo context alone."""
 PASS_CRITERIA = [
     "README.spot-trading.md and docs/README.md are entry points",
     "spot uses the existing order lifecycle, not a spot-only placement engine",
-    "direct/dashboard spot order admission goes through ActionConditionGuard",
-    "direct dashboard spot placement requires manual_live_acknowledgement, an explicit planning max_notional cap, enabled order_event_stream audit, and known_inventory_available for SELL",
-    "stealth planning and reveal wallet checks include reveal-time recheck",
+    "authenticated Admin API manual Spot LIMIT/GTC place/cancel is the sole supported Controlled-live operator surface",
+    "exact outer authority, manager lease, current service decision, RBAC, intent, idempotency, approval, caps, Test portfolio/wallet, audit, reconciliation, and final route scope are backend gates",
+    "the browser forwards requests and readback without Coinbase credentials or execution authority",
     "campaign/sweep paths are business/spot_portfolio_sweep.py, tools/run_spot_portfolio_sweep_live.py, business/spot_campaign.py, and tools/run_spot_campaign.py",
-    "campaign tools do not submit Coinbase orders; live sweep requires --approved-live-orders",
-    "live USDC sweep SELL requires --require-known-profitable-inventory",
+    "campaign/sweep mutation modes are source-disabled and --approved-live-orders grants no authority",
+    "dashboard place/cancel/hotpoint and legacy main.py Controlled-live startup are source-disabled",
     "wallet sellability is distinct from known profitable inventory",
     "client_order_id is internal tracking id; order_id is exchange evidence only",
     "reconciliation/fill-backfill compares local state against Coinbase reality",
     "planned skips are audit rows, not failed Coinbase submissions",
-    "direct dashboard, stealth reveal, and portfolio sweep each have a submission/audit evidence path",
-    "live USDC sweep placements use UUID client_order_id values and sweep-ledger/event payload identity",
-    "direct dashboard and live sweep publish order_submitted/rest_submit evidence when available",
+    "supported Admin API place/cancel has durable submission, audit, and terminal readback evidence",
     "direct-order audit separates read-only audit command fields from audited-order submission/fill evidence fields",
     "dashboard create_parent_order is local DB CRUD and does not submit Coinbase orders",
-    "direct dashboard place_order is immediate manual placement and does not pre-insert order_parent",
-    "Hotpoint Manager live placement is gated and spot is blocked unless explicitly enabled",
-    "direct/stealth spot scope comes from products.json while sweep/campaign scope is USDC-only",
-    "failed stealth REST placement records failed evidence without claiming a live revealed placement",
-    "new spot order-creation surfaces must reuse or extend the canonical audit path",
+    "dashboard exchange mutation messages return fixed source-disabled responses before runtime lookup",
+    "new Spot order-creation surfaces cannot bypass authenticated Admin API admission or mint a parallel execution scope",
 ]
 
 

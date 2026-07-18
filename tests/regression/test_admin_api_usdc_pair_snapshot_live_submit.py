@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from contextlib import nullcontext
 from datetime import datetime, timezone
 import json
+import os
 
 import pytest
 
@@ -12,9 +13,15 @@ from tools import run_admin_api_usdc_pair_snapshot_live_submit as runner
 
 
 @pytest.fixture(autouse=True)
-def _stable_route_rate_window_for_runner_tests(monkeypatch):
+def _stable_route_rate_window_for_runner_tests(
+    monkeypatch,
+    coinbase_execution_lease,
+    admin_mvp_evidence_paths,
+):
     from api.v1.routes import automation as automation_routes
 
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
+    monkeypatch.setenv("COINBASE_ADMIN_API_LIVE_EXECUTION_ENABLED", "true")
     monkeypatch.setattr(
         automation_routes,
         "USDC_PAIR_SNAPSHOT_DEFAULT_RATE_LIMIT_WINDOW_SECONDS",
@@ -127,6 +134,35 @@ def test_usdc_pair_snapshot_live_runner_fails_closed(tmp_path, override, message
         runner.validate_live_submit_config(config)
 
 
+def test_usdc_pair_snapshot_live_cli_is_source_disabled_before_runtime(
+    monkeypatch,
+    capsys,
+):
+    def _unexpected(*_args, **_kwargs):
+        raise AssertionError("source-disabled M58 CLI crossed its terminal boundary")
+
+    for name in (
+        "run_usdc_pair_snapshot_live_submit",
+        "ensure_live_coinbase_credentials",
+        "build_test_client",
+        "apply_usdc_pair_state_environment",
+        "write_json",
+    ):
+        monkeypatch.setattr(runner, name, _unexpected)
+
+    with pytest.raises(SystemExit) as exc_info:
+        runner.main(["--confirm-live-submit"])
+
+    assert exc_info.value.code == 2
+    assert runner.SOURCE_DISABLED_COINBASE_EXECUTION_ERROR in capsys.readouterr().err
+
+
+@pytest.mark.skip(
+    reason=(
+        "Historical direct M58 runner execution contract retired; installed "
+        "CLI and HTTP exchange paths are fixed source-disabled."
+    )
+)
 def test_usdc_pair_snapshot_live_runner_records_submit_cancel_sequence(
     tmp_path,
     monkeypatch,
@@ -188,6 +224,47 @@ def test_usdc_pair_snapshot_live_runner_records_submit_cancel_sequence(
     ).exists()
 
 
+@pytest.mark.skip(
+    reason=(
+        "Historical direct M58 runner execution contract retired; installed "
+        "CLI and HTTP exchange paths are fixed source-disabled."
+    )
+)
+def test_usdc_pair_snapshot_live_runner_restores_process_environment(
+    tmp_path,
+    monkeypatch,
+):
+    previous_environment: dict[str, str | None] = {}
+    for index, env_name in enumerate(runner.STATE_LOG_FILENAMES):
+        previous_value = str(tmp_path / "previous-state" / f"log-{index}.jsonl")
+        monkeypatch.setenv(env_name, previous_value)
+        previous_environment[env_name] = previous_value
+    for env_name in set(runner.RUNNER_MUTATED_ENV_NAMES) - set(
+        runner.STATE_LOG_FILENAMES
+    ):
+        monkeypatch.delenv(env_name, raising=False)
+        previous_environment[env_name] = None
+
+    summary = runner.run_usdc_pair_snapshot_live_submit(
+        _config(tmp_path / "runner"),
+        live_executor=_FakeLiveExecutor(),
+        require_runtime_ready=False,
+        require_credentials=False,
+    )
+
+    assert summary["status"] == "passed"
+    assert {
+        env_name: os.environ.get(env_name)
+        for env_name in runner.RUNNER_MUTATED_ENV_NAMES
+    } == previous_environment
+
+
+@pytest.mark.skip(
+    reason=(
+        "Historical direct M58 runner execution contract retired; installed "
+        "CLI and HTTP exchange paths are fixed source-disabled."
+    )
+)
 def test_usdc_pair_snapshot_live_runner_can_submit_from_run_state_handoff(
     tmp_path,
     monkeypatch,
@@ -278,6 +355,12 @@ def test_usdc_pair_snapshot_live_runner_can_submit_from_run_state_handoff(
     ).exists()
 
 
+@pytest.mark.skip(
+    reason=(
+        "Historical direct M58 runner execution contract retired; installed "
+        "CLI and HTTP exchange paths are fixed source-disabled."
+    )
+)
 def test_usdc_pair_snapshot_live_runner_records_fail_closed_fanout_boundary(
     tmp_path,
     monkeypatch,
@@ -319,6 +402,12 @@ def test_usdc_pair_snapshot_live_runner_records_fail_closed_fanout_boundary(
     assert fake_fanout_executor.calls == []
 
 
+@pytest.mark.skip(
+    reason=(
+        "Historical direct M58 runner execution contract retired; installed "
+        "CLI and HTTP exchange paths are fixed source-disabled."
+    )
+)
 def test_usdc_pair_snapshot_live_runner_scopes_default_recovery_ref_per_run(
     tmp_path,
     monkeypatch,
@@ -368,6 +457,12 @@ def test_usdc_pair_snapshot_live_runner_scopes_default_recovery_ref_per_run(
     assert len(fake_executor.calls) == 2
 
 
+@pytest.mark.skip(
+    reason=(
+        "Historical direct M58 runner execution contract retired; installed "
+        "CLI and HTTP exchange paths are fixed source-disabled."
+    )
+)
 def test_usdc_pair_snapshot_live_runner_bumps_minimum_request_for_high_price(
     tmp_path,
     monkeypatch,
@@ -517,7 +612,127 @@ def test_usdc_pair_snapshot_live_executor_falls_back_to_exchange_order_id(
     assert result["live_coinbase_execution"] == "submitted_cancelled"
     assert result["cancel_result"]["success"] is True
     assert result["cancel_result"]["fallback_order_id"] == "exchange-order-1"
-    assert result["cancel_result"]["initial_cancel_result"]["success"] is False
+    assert result["cancel_result"]["fallback_attempted"] is True
+
+
+def test_usdc_pair_snapshot_live_executor_does_not_return_raw_sdk_payloads(
+    monkeypatch,
+):
+    from application.admin_api import usdc_pair_snapshot_live_execution as live_exec
+
+    private_marker = "private-sdk-response-marker-must-not-escape"
+
+    class FakeClient:
+        def create_order(self, **kwargs):
+            return {
+                "success": True,
+                "success_response": {
+                    "order_id": "exchange-order-1",
+                    "client_order_id": kwargs["client_order_id"],
+                    "filled_value": "0",
+                    "private_extension": private_marker,
+                },
+                "private_extension": private_marker,
+            }
+
+        def cancel_order(self, client_order_id):
+            return {
+                "success": True,
+                "client_order_id": client_order_id,
+                "private_extension": private_marker,
+            }
+
+    class FakeController:
+        def track_inflight(self, _operation):
+            return nullcontext()
+
+    monkeypatch.setattr(
+        live_exec.UsdcPairSnapshotLiveOrderExecutor,
+        "_hydrate_backend_coinbase_credentials",
+        staticmethod(lambda: None),
+    )
+    monkeypatch.setattr(
+        live_exec,
+        "build_admin_api_command_runtime_readiness",
+        lambda: SimpleNamespace(runtime_ready=True, missing_reason=None),
+    )
+    monkeypatch.setattr(
+        live_exec,
+        "load_admin_api_rest_client",
+        lambda: SimpleNamespace(available=True, client=FakeClient()),
+    )
+    monkeypatch.setattr(live_exec, "get_runtime_controller", lambda: FakeController())
+
+    result = live_exec.UsdcPairSnapshotLiveOrderExecutor().submit_and_cancel(
+        client_order_id="client-order-1",
+        product_id="BTC-USDC",
+        side="BUY",
+        order_configuration={
+            "limit_limit_gtc": {
+                "quote_size": "1.09",
+                "limit_price": "31800.00",
+                "post_only": False,
+            }
+        },
+        submitted_notional_usdc="1.09",
+        max_executed_notional_usdc="0.01",
+        cancel_client_order_id="client-order-1",
+    )
+
+    assert result["submit_result"] == {
+        "success": True,
+        "client_order_id": "client-order-1",
+        "exchange_order_id": "exchange-order-1",
+        "explicit_rejection": False,
+    }
+    assert result["cancel_result"] == {
+        "success": True,
+        "client_order_id": "client-order-1",
+        "fallback_attempted": False,
+        "outcome": "accepted",
+    }
+    assert private_marker not in repr(result)
+
+
+@pytest.mark.parametrize("outer_authority", [None, "0", "true", "yes", "01"])
+def test_usdc_pair_snapshot_live_executor_rejects_before_credential_hydration(
+    monkeypatch,
+    outer_authority,
+):
+    from application.admin_api import usdc_pair_snapshot_live_execution as live_exec
+
+    if outer_authority is None:
+        monkeypatch.delenv("COINBASE_EXECUTION_ENABLED", raising=False)
+    else:
+        monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", outer_authority)
+    hydration_calls = []
+    monkeypatch.setattr(
+        live_exec.UsdcPairSnapshotLiveOrderExecutor,
+        "_hydrate_backend_coinbase_credentials",
+        staticmethod(lambda: hydration_calls.append(True)),
+    )
+
+    with pytest.raises(
+        live_exec.UsdcPairSnapshotLiveExecutionError,
+        match="exact Coinbase execution authority",
+    ):
+        live_exec.UsdcPairSnapshotLiveOrderExecutor().submit_and_cancel(
+            client_order_id="client-order-authority-test",
+            product_id="BTC-USDC",
+            side="BUY",
+            order_configuration={
+                "limit_limit_gtc": {
+                    "quote_size": "1.00",
+                    "limit_price": "31500.00",
+                    "post_only": False,
+                }
+            },
+            submitted_notional_usdc="1.00",
+            max_executed_notional_usdc="0.01",
+            cancel_client_order_id="client-order-authority-test",
+        )
+
+    assert hydration_calls == []
 
 
 def test_usdc_pair_snapshot_live_executor_records_immediate_filled_value(

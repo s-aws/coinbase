@@ -23,6 +23,12 @@ from core.enums import (
 )
 
 
+def _value_blind_exception_detail(exc: BaseException) -> str:
+    """Classify an exception without returning exception-carried values."""
+
+    return f"exception_class:{type(exc).__name__}"
+
+
 def _enum_value(value: Any) -> Any:
     if isinstance(value, Enum):
         return value.value
@@ -297,7 +303,7 @@ def backfill_fill_ledger_from_order_reports(
                     appended_fill_count=0,
                     skipped_fill_count=0,
                     status=SpotFillBackfillStatus.ERROR.value,
-                    error=f"{type(exc).__name__}: {exc}",
+                    error=_value_blind_exception_detail(exc),
                 )
             )
     return {

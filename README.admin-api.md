@@ -1,8 +1,8 @@
 ﻿# Admin API
 
-This repository exposes the professional backend API for the separate
-enterprise admin platform at `/home/developer/coinbase/coinbase-frontend` in
-the local Linux Docker workspace.
+This repository exposes the professional backend API for the separate operator
+review stack at `/home/developer/coinbase/coinbase-frontend` in the local Linux
+Docker workspace.
 Spot is the first complete product module consumed by that platform; it is not
 the generic contract shape for every backend feature.
 The repository association is documented in
@@ -10,14 +10,20 @@ The repository association is documented in
 Maintainer handoff for contextless agents starts at
 [Maintainer Handoff](docs/MAINTAINER_HANDOFF.md).
 
+The product is the **operator review stack**. **No-live** is its safe startup
+mode; **Controlled-live** is the explicit operator-testing mode. Only installed
+authenticated Admin API manual Spot LIMIT/GTC place/cancel can enter
+Controlled-live. Historical dashboard, legacy engine, raw smoke/sweep, and
+controlled-batch mutation paths are source-disabled.
+
 ## Current Status
 
-Goal `futures_preview_acceptance_recovery_r12` is prepared but production
-release-disabled. Its separate eligibility ledger permits at most ten
-non-attempt state-refresh cycles; only a fresh exact-V3 success can create the
-single-use R12 claim and reach at most one Preview-only call. The source-bound
-`R12_RELEASE_READY` value remains `False` pending focused validation, local
-deployment validation, independent safety audit, and blind contextless audit.
+Goal `futures_preview_acceptance_recovery_r12` is
+`complete_terminal_unknown_consumed`. Eligibility cycle 2 created the one
+durable R12 claim, and offline claim recovery recorded terminal blocker
+`claim_only_recovery_unknown_consumed` without constructing a Coinbase client
+or factory. `R12_RELEASE_READY` remains `False`; R12 is consumed and no further
+Coinbase call, R13 attempt, or Slice 3/4/5 activation is authorized.
 See [R12 Preparation](docs/FUTURES_SLICE_2R12_PREPARATION.md).
 
 The predecessor goal `futures_preview_acceptance_recovery_r11` is complete.
@@ -28,8 +34,8 @@ exchange mutation remained `0`. The exact boundary is
 `margin_window_type_documented_but_operator_rejected` for row `1`, profile
 `retail_intraday_margin_1`, field `margin_window_type`, value type `string`.
 It does not authorize schema or acceptance broadening, Slice 3/4/5, or other
-live authority. R12 exists only under its separate prepared, hard-disabled
-boundary. See
+live authority. R12 remains terminal only under its separate consumed,
+hard-disabled boundary. See
 [R11 Terminal Diagnosis](docs/FUTURES_SLICE_2R11_TERMINAL_DIAGNOSIS.md).
 
 Historically, goal `selected_order_execution_closeout_slice` recorded the completed
@@ -45,27 +51,31 @@ routes, read-only stealth command-suite readiness evidence, live-disabled
 stealth create, reveal, move, cancel, recovery, and reconciliation command contracts, movement/repricing evidence routes, a
 live-disabled movement reprice command contract, read-only futures/perpetual
 account, position, command-suite contract, and risk-proof record read routes,
-a no-live append-only futures/perpetual risk-proof record route, read-only guard/risk policy evidence, read-only
+a No-live append-only futures/perpetual risk-proof record route, read-only guard/risk policy evidence, read-only
 cross-module audit workbench evidence, backend-owned approval, cap/guard,
 admission audit, reconciliation plan, and live-service decision evidence
 routes, and read-only spot operator routes. Command posture is route-specific:
-manual Spot placement can reach the shared live service after exact backend
-admission, while HTTP Spot cancel, Futures commands, Stealth commands,
-movement/reprice, campaign, and sweep routes remain no-live or local-evidence
-boundaries. See [Live Order Surfaces](docs/LIVE_ORDER_SURFACES.md). The guarded
-fill-follow-up trigger is the no-live local-state compatibility exception:
+manual Spot placement and cancel can reach the shared live service after exact
+backend admission, while Futures commands, Stealth commands, movement/reprice,
+campaign, and sweep routes remain No-live or local-evidence boundaries. See
+[Live Order Surfaces](docs/LIVE_ORDER_SURFACES.md). The guarded
+fill-follow-up trigger is the No-live local-state compatibility exception:
 after exact route-bound approval, cap/guard wallet proof, reconciliation,
 duplicate-claim, and audit-correlation refs, it can return accepted
 parent/child readback evidence while Coinbase submit/cancel and live exchange
 mutation remain disallowed. Fill-follow-up live-readiness may surface
 `operator_visible_audit_ref=admin_order_audit:<audit_id>` when the selected
-order row has backend audit evidence. Spot fill-readback records
+order row has backend audit evidence. Ordinary
+`GET /api/v1/orders/{client_order_id}/fill-readback` is a local-only read of
+previously persisted sanitized evidence: selecting or refreshing a row makes
+zero Coinbase calls and writes zero proof records. The separate acknowledged,
+idempotent selected-root synchronization action may record
 `live_fill_readback_proof_ref=spot_fill_readback:<client_order_id>:<audit_id>`
-only after a passed backend read finds a live Coinbase fill for the
-`client_order_id` without submitting/canceling Coinbase orders. Live-readiness
-may surface that ref and remove only the live-fill readback blocker. It may
+only after exact portfolio/order identity and a complete bounded fill read are
+proven, without submitting/canceling Coinbase orders. Live-readiness may
+surface that ref and remove only the live-fill readback blocker. It may
 also surface `rollback_readback_ref=spot_recovery_rollback_journal:<journal_id>`
-from an accepted route-bound no-live Spot recovery rollback journal and remove
+from an accepted route-bound No-live Spot recovery rollback journal and remove
 only the rollback blocker. It may also surface the route-bound order approval
 id through the legacy-compatible `fill_testing_approval_id` field,
 `wallet_proof_ref=cap_guard_wallet:<cap_guard_decision_id>`,
@@ -75,6 +85,14 @@ wallet, and reconciliation rows, clearing only those proof blockers.
 That field name does not define a separate fill-testing permission category;
 duplicate-claim blockers remain fail-closed until their own backend evidence
 exists.
+
+The integrated operator bootstrap is call-free. Ordinary authenticated GETs
+for account management, wallet, products, fees, Spot readiness, and all
+Futures panels use local sanitized evidence or fixed unavailable/source-disabled
+classifications even when the backend is started in `controlled-live` mode.
+Page load and refresh never donate Coinbase read authority. Fresh reads remain
+inside separately acknowledged, route-specific backend actions only; the
+installed Futures GETs, including fill readback, make zero Coinbase calls.
 
 `POST /api/v1/orders` is the enterprise manual Spot order command contract.
 The route requires backend auth, RBAC, idempotency, correlation, and
@@ -86,13 +104,74 @@ inventory/no-short, notional, durable-audit, event-stream, and Coinbase
 response checks. The UI label "operator" names a human workflow role; backend
 order creation still requires `trader` or `admin` RBAC authority.
 
+The installed `3.10` USDC submitted and `1.00` USDC possible-execution limits
+are backend-owned **per-command ceilings**, not a cumulative session allowance.
+The separate durable unresolved-root and authoritative active-order gates allow
+only one Admin manual root to remain active at a time, so operators cannot use
+parallel roots to bypass those per-command limits.
+
+### Manual Spot operator lifecycle
+
+The installed operator runtime deliberately provides a synchronous manual
+place/cancel lifecycle rather than starting the legacy autonomous engine or
+bridge loops:
+
+1. The operator submits the **Manual Order** card with explicit acknowledgement.
+   The installed contract is exact `LIMIT` + `GOOD_UNTIL_CANCELLED` base-size
+   input; an off-increment size is rejected and is never rounded, floored, or
+   rewritten by the backend.
+   An accepted response is returned only after Coinbase create reports explicit
+   success, the exact `client_order_id`, exchange evidence, product, and status
+   are authoritatively read back, and the durable root status is updated. An
+   ambiguous create or readback is classified as unknown and leaves the root
+   unresolved; it is never treated as accepted.
+2. The operator reviews the returned `client_order_id`, then selects that row
+   in the Admin order table. Read-only refresh loads the local order, fill
+   readback, direct audit, audit workbench, child-chain, and recovery evidence
+   with GETs bound to that exact root. No timer, polling loop, or exchange
+   mutation is started. **Synchronize from Coinbase** is a separate explicit,
+   acknowledged, authenticated, idempotent action. It performs bounded
+   authoritative order readback, synchronizes only the exact durable root
+   status, and, for a proven filled root, persists only sanitized exact
+   fill-proof evidence. It never submits, cancels, or otherwise mutates an
+   exchange order.
+3. The operator enters that same `client_order_id` in the **Cancel Order** card.
+   Before any cancel call, the backend performs one authoritative exact-identity
+   order read. A root already proven `FILLED`, `CANCELLED`, `EXPIRED`, or
+   `FAILED` is reconciled locally with zero exchange mutation. Only a recognized
+   cancellable active status can cross the cancel boundary. Cancel acceptance
+   then requires authoritative exact-identity terminal readback; `CANCELLED` is
+   proven rather than inferred from an API acknowledgement or from absence.
+   An ambiguous result fails closed, persists the root as
+   `SUBMISSION_UNKNOWN`, and remains visible for review. That durable status
+   blocks a later cancel after process restart or under a different
+   idempotency key; only the explicit selected-root reconciliation action can
+   resolve it from authoritative evidence.
+4. The operator selects or refreshes the root again and reviews terminal order,
+   fill-ledger, audit, and reconciliation evidence. Another manual root is
+   blocked while either the durable unresolved-root admission read or the
+   authoritative active-order read reports prior work.
+
+If an uncertain create has no exact Coinbase row, synchronization records the
+fixed `quarantined_unresolved_absence` disposition and keeps
+`safe_to_submit_another_root=false`. Absence is never inferred as cancellation
+or failure. The operator must inspect the Coinbase account/support evidence and
+retry only the explicit readback action later; the backend does not clear the
+durable root until one exact recognized status is proven.
+
+The route adapter is installed canonical backend capability. It does not grant
+request authority, and the legacy stored live-adapter decision log is optional
+diagnostic readback rather than an input to manual place/cancel admission.
+
 The generated OpenAPI contract documents accepted/replayed and fail-closed
 command responses. Status depends on the route and backend decision; do not
-infer one global `501` posture. HTTP Spot cancel, Stealth lifecycle,
-movement/reprice, campaign, sweep, and Futures command methods currently remain
-live-disabled even though separate backend-only controlled-live tools exist for
-some Spot and Futures operations. The fill-follow-up trigger's `200` path is
-no-live local compatibility evidence, not HTTP live execution approval. Read routes document
+infer one global `501` posture. Manual HTTP Spot place/cancel are the installed
+Controlled-live routes; Stealth lifecycle, movement/reprice, campaign, sweep,
+and Futures command methods remain live-disabled. Historical direct-service
+tools and synthetic fixtures for some Spot/Futures operations are
+source-disabled and grant no executable mutation surface. The
+fill-follow-up trigger's `200` path is
+No-live local compatibility evidence, not HTTP live execution approval. Read routes document
 typed `200` payloads plus structured `401` and `403` errors.
 Enterprise-readiness evidence also includes structured per-module
 `command_gaps` and a top-level `command_gap_count` so unsupported, not
@@ -193,7 +272,7 @@ authority.
 M55 phases 3661-3680 add blocked per-artifact acceptance evidence readback rows
 for those requirements. M55 phases 3681-3700 add a blocked contract-level
 aggregate over those rows with total, missing, and accepted counts, blockers,
-next evidence ids, false construction satisfaction, and no-live authority.
+next evidence ids, false construction satisfaction, and No-live authority.
 M55 phases 3701-3720 add a blocked producer contract over those missing
 acceptance evidence ids so future backend work knows which contract must
 create or record each evidence id. M55 phases 3721-3740 add blocked
@@ -202,7 +281,7 @@ validation/replay gate. M55 phases 3741-3760 add a blocked contract-level
 aggregate over those producer-readiness rows with total, missing, and
 satisfied readiness counts, category lists, producer contract ids, next
 required readiness item ids, blockers, first blocker, disabled route/store/
-validation/replay/writer/acceptance flags, false satisfaction, and no-live
+validation/replay/writer/acceptance flags, false satisfaction, and No-live
 authority. M55 phases 3761-3780 add blocked clearance-action rows for each
 missing producer-readiness item so future backend work can see the exact
 required ref, route/method, verification gate, source blocker, and disabled
@@ -365,7 +444,7 @@ Coinbase, reconciliation, browser, and BFF execution authority blocked.
 Completed phases 4581-4600 expand partial evidence to the remaining concrete M55
 blocker rows for active-placement cancel/replace, reveal exchange submission,
 recovery repair/rollback, and post-write reconciliation execution while
-keeping every blocker unresolved and no-live. Completed phases 4601-4620 add
+keeping every blocker unresolved and No-live. Completed phases 4601-4620 add
 structured closure-readiness criteria, missing criteria, verification gates,
 and readiness blockers to the same six rows while keeping every blocker
 unresolved and every live/manager/Coinbase/reconciliation/state-mutation flag
@@ -660,7 +739,7 @@ payload-field contract registry evidence through
 validate submitted proof payloads, register validators, accept proof records,
 create proof writers, create command drafts, call Coinbase, execute
 reconciliation, mutate futures/order/exchange state, or grant browser/BFF
-authority. M57 phases 6341-6360 added route-bound no-live futures/perpetual
+authority. M57 phases 6341-6360 added route-bound No-live futures/perpetual
 command drafts for placement, close/reduce, cancel by `client_order_id`, and
 reconciliation through the shared Admin API command service. These routes
 return disabled command responses and do not bind live adapters, submit or
@@ -1274,9 +1353,11 @@ Completed 6721-6740 review-output evidence remains available through
 `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_CONTRACTS`
 and
 `iter_futures_request_payload_validation_record_semantic_artifact_definition_review_outputs`.
-M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
-through the shared `AdminApiCommandService.place_manual_order` method. It is
-configured evidence only and remains non-executable. M54 starts the Spot
+M53 historically introduced one route-bound dry-run pilot adapter for
+`POST /api/v1/orders`. The current installed runtime supersedes that pilot:
+manual Spot place and cancel map to their canonical `AdminApiCommandService`
+methods and report executable route/runtime capability, while every request
+still requires its exact backend admission chain. M54 starts the Spot
 command-suite with `GET /api/v1/spot/command-suite`, a read-only readiness
 contract for manual order placement, cancel by `client_order_id`, spot
 campaign execution, and spot sweep automation. The route reports blockers,
@@ -1358,7 +1439,7 @@ POST contract, required inputs, and remaining blockers. The route
 disabled shared-command-service boundary: it is idempotent, audited, and
 RBAC-protected, but it returns rejected evidence until the backend
 reconciliation executor and live Coinbase read authority exist. The backend
-snapshot record contract exists as no-live local evidence through
+snapshot record contract exists as No-live local evidence through
 `POST /api/v1/spot/recovery/exchange-state-snapshots`; it does not read
 Coinbase or prove live exchange truth. Order/exchange-state mutation,
 Coinbase reads, Coinbase submissions, and actual reconciliation execution
@@ -1466,21 +1547,21 @@ command context.
 The same detail route also exposes `reveal_trigger_audit` as local
 reveal-condition evidence for the reveal workflow. It reports whether a
 condition is present, the condition type/payload when available, missing
-trigger-guard contracts, and fail-closed no-live flags. It does not evaluate
+trigger-guard contracts, and fail-closed No-live flags. It does not evaluate
 triggers, call `should_trigger_reveal`, call `reveal_order_slice`, submit
 Coinbase orders, mutate lifecycle state, execute reconciliation, or grant
 browser/BFF reveal authority.
 The same detail route also exposes `reveal_submission_audit` as read-only
 evidence for the future backend reveal submission adapter. It reports the
 route, shared service method, manager method, local active-placement evidence,
-missing submission/reconciliation contracts, and fail-closed no-live flags. It
+missing submission/reconciliation contracts, and fail-closed No-live flags. It
 does not call `reveal_order_slice`, create active placements, submit or cancel
 Coinbase orders, read Coinbase, mutate lifecycle state, execute
 reconciliation, or grant browser/BFF reveal authority.
 The same detail route also exposes `reveal_reconciliation_audit` as read-only
 evidence for the future reveal post-submit reconciliation proof. It reports
 required plan/proof posture, local active-placement evidence, read-evidence
-routes, missing proof contracts, and fail-closed no-live flags. It does not
+routes, missing proof contracts, and fail-closed No-live flags. It does not
 read Coinbase, resolve or write proof records, execute reconciliation, mutate
 order or lifecycle state, or grant browser/BFF reveal authority.
 Active-placement exchange-truth evidence is exposed through
@@ -1547,7 +1628,7 @@ recovery, reconciliation, and movement/reprice may also include
 `stealth_command_execution_contract`. That contract reports exact command
 context, common admission prerequisites, command-specific prerequisites such
 as reveal-trigger or active-placement exchange truth, disabled live
-service/adapter posture, blockers, and no-live/no-write flags. It is response
+service/adapter posture, blockers, and No-live/no-write flags. It is response
 evidence only: no stealth manager method is invoked, no active placement is
 cancelled or replaced, no Coinbase order is submitted/cancelled/read, no
 reconciliation runs, and no lifecycle/order/exchange state is mutated.
@@ -1629,7 +1710,7 @@ claim.
 The same rows expose `resolution_readiness_items` as a structured readiness
 matrix over those plan-step, dependency, and verification-gate strings. Each
 item is blocked, unresolved, backend-owned, route-bound, command-context-bound,
-no-live, browser `display_only`, BFF `forward_only_no_execution`, and has
+No-live, browser `display_only`, BFF `forward_only_no_execution`, and has
 `execution_allowed=false` plus `executed=false`.
 The rows also expose `resolution_readiness_summary`, a backend-derived
 aggregate over that matrix with total/blocked/resolved/type counts,
@@ -1732,7 +1813,7 @@ Those exact command responses also expose
 backend-owned exchange-truth boundary used by command-suite
 `exchange_truth_checks`. It may show route, method, mutation family, resolved
 local proof id, current read evidence routes, rejected command identities,
-missing contracts, and no-live flags. It is display evidence only; it does not
+missing contracts, and No-live flags. It is display evidence only; it does not
 read Coinbase, prove live exchange truth, invoke managers, execute recovery or
 reconciliation, mutate state, or grant browser/BFF authority. Create and
 reveal command responses leave this nested active-placement prerequisite
@@ -1820,10 +1901,9 @@ Coinbase, build cancel/replace plans, execute reconciliation, mutate state, or
 grant browser/BFF authority.
 
 The legacy dashboard `place_order`, `cancel_order`, and
-`place_hotpoint_test_order` WebSocket messages now delegate to
-`application.admin_api.command_service.AdminApiCommandService` as compatibility
-adapters. New product UI must use the HTTP API contract, not the dashboard
-WebSocket.
+`place_hotpoint_test_order` WebSocket messages are source-disabled and return a
+fixed error before runtime or command-service lookup. Controlled-live product
+UI must use the authenticated HTTP Admin API manual Spot place/cancel contract.
 
 Mutating HTTP command responses include the current fail-closed live execution
 gate decision and M34 route-bound admission decision evidence. M35 persists
@@ -1919,7 +1999,7 @@ cap/guard decision record routes. Only records with `allowed=true` and
 matching; blocked and warning records remain durable fail-closed evidence.
 M51 adds the `admin.admission_audits` taxonomy row for backend-owned
 admission audit records. Admission audit records are exact proof input only;
-they remain blocked/no-live evidence and cannot mark live admission allowed.
+they remain blocked/No-live evidence and cannot mark live admission allowed.
 M52 adds the `admin.reconciliation_plans` taxonomy row for backend-owned
 reconciliation plan records. Passed records are exact resolver input only;
 they do not execute reconciliation or mark exchange/order state reconciled.
@@ -2002,7 +2082,7 @@ HTTP routes, and sweep/campaign execution, see
 
 The frontend release-hardening gate is owned by
 `/home/developer/coinbase/coinbase-frontend` and is
-the canonical no-live command:
+the canonical No-live command:
 
 ```powershell
 npm run release:gate
@@ -2011,7 +2091,7 @@ npm run release:gate
 That gate expands to build, typecheck, lint, generated API freshness, command
 security, release/deployment checks, release artifact generation, runtime
 evidence, deployment/MVP/backend smoke evidence, unit tests, dry
-read/command/BFF smokes, and Playwright e2e. Those checks are no-live checks
+read/command/BFF smokes, and Playwright e2e. Those checks are No-live checks
 and must report live Coinbase execution as not run with notional `$0`. They
 are not approval for live Coinbase execution. The release artifact is written
 in the frontend repository at `artifacts/release-readiness.json`; the package
@@ -2031,8 +2111,8 @@ When that full backend gate is required, use
 runner cannot be used.
 
 The frontend `npm run autonomous:check` command remains available for
-historical autonomous queue maintenance. It is not part of the local MVP
-release/deployment gate.
+historical autonomous queue maintenance. It is not part of the local operator
+review stack release/deployment gate.
 
 In short: runtime evidence is saved, and these artifacts are not approval for
 live Coinbase execution.
@@ -2072,40 +2152,32 @@ The platform/module split is documented in
   `ADMIN_API_ROUTE_INVENTORY`; frontend route checks consume this artifact
   instead of scraping backend Python source.
 - Keep the backend as the only authority for trading behavior.
-- Keep HTTP live-order execution disabled until approval/cap gates are complete.
-- Keep legacy dashboard WebSocket handlers as compatibility adapters.
-- If a legacy WebSocket live command does not pass through enterprise
-  idempotency, approval, and cap gates, label it compatibility-only and exclude
-  it from new frontend workflows.
+- Keep every HTTP live-order route disabled except the installed manual Spot
+  place/root-cancel pair, and admit those only under exact backend execution
+  authority plus the full route-bound runtime, approval, wallet/cap,
+  reconciliation, product, and one-active-root gates.
+- Keep legacy dashboard WebSocket read handlers only for local compatibility.
+  Every legacy dashboard WebSocket mutation handler is unconditionally
+  source-disabled before runtime, command-service, guard, or REST lookup. No
+  WebSocket gate, environment value, or localhost/operator mode can grant it
+  live authority; exclude all such mutation messages from frontend workflows.
 - Use `client_order_id` for internal and operator-facing order tracking.
 - Manual order create may omit `client_order_id`; the backend route derives it
   before approval/admission evidence. Frontend and BFF code must display the
   returned id but must not generate or override it.
 - Preserve `client_order_id` as cancellation's operator/local ownership,
-  lineage, claim, and audit identity. Older and generic backend cancel paths
-  retain the project wrapper's `cancel_order(client_order_id)` behavior and
-  recorded exchange-id fallback. The narrow schema-24 controlled recovery
-  exception may, only after authoritative exact readback binds
-  `client_order_id` to `exchange_order_id`, have the canonical wrapper submit
-  the verified `exchange_order_id` exactly once. It makes no client-ID exchange
-  call and permits no fallback, retry, or second submission.
-- For that schema-24 recovery only, the transition rechecks the exact
-  predecessor process, the 120-minute TTL, absence of every successor
-  artifact, and tracked-clean backend/frontend worktrees exactly synced with
-  `origin/main` immediately before its one allowed `SIGTERM`. It exclusively
-  writes an immutable owner-only pre-signal attempt claim, so an ambiguous
-  signal outcome permanently consumes the attempt. The sealed predecessor
-  proof must match both distinct service-disable record hashes
-  (`service_disabled` and `parent_loss_service_disabled`, each approval-false
-  with zero caps), and completion freezes the hash of a terminal
-  `runtime_exited` sentinel with zero root/child placement SDK calls or
-  in-flight placement. Transition and cleanup never force-kill; an unproven
-  shutdown fails closed without escalating, preserving any still-live runtime
-  for reconciliation.
+  lineage, claim, and audit identity. Authenticated Admin API manual cancel
+  binds authoritative exact `exchange_order_id` readback evidence for one
+  route-scoped SDK call, with no identity fallback, retry, or second
+  submission.
+- Treat schema-24 recovery and predecessor-process transition procedures as
+  completed historical evidence only. Their immutable claims, service-disable
+  hashes, and terminal sentinels grant no current SDK call, process signal,
+  fallback, retry, or installed execution exception.
 - Treat exchange-native `order_id` as exchange evidence only. The order read
   model exposes it as `exchange_order_id`; it is not an operator identity or
   browser-supplied cancel key.
-- 2026-07-10 controlled-live Spot evidence:
+- 2026-07-10 Controlled-live Spot evidence:
   `artifacts/coinbase-backend-spot-live-cancel-usdt-usdc-20260710-1707.json`
   and
   `artifacts/coinbase-backend-spot-live-order-readback-usdt-usdc-20260710-1707.json`
@@ -2130,27 +2202,27 @@ The platform/module split is documented in
   handling and reconciliation are implemented.
 - Stealth detail rows include `active_placement_audit` so operators can see
   local active-placement evidence, required mutation families, missing
-  exchange-truth contracts, and no-live Coinbase flags without turning active
+  exchange-truth contracts, and No-live Coinbase flags without turning active
   placement ids or exchange ids into command inputs.
 - Stealth detail rows also include `mutation_claim_audit` so operators can see
   runtime mutation-claim snapshot status, required move/reprice claim
-  contracts, missing claim contracts, and no-live Coinbase flags without
+  contracts, missing claim contracts, and No-live Coinbase flags without
   acquiring or releasing claims or turning claim state into browser/BFF command
   authority.
 - Stealth detail rows also include `reveal_trigger_audit` so operators can see
   local reveal-condition evidence, required reveal-trigger guard contracts,
-  missing trigger contracts, and no-live Coinbase flags without evaluating
+  missing trigger contracts, and No-live Coinbase flags without evaluating
   triggers, calling `should_trigger_reveal`, calling `reveal_order_slice`, or
   turning condition state into browser/BFF command authority.
 - Stealth detail rows also include `reveal_submission_audit` so operators can
   see the future backend reveal route, shared service method, manager method,
   local active-placement blockers, required submission/reconciliation
-  contracts, and no-live Coinbase flags without calling `reveal_order_slice`,
+  contracts, and No-live Coinbase flags without calling `reveal_order_slice`,
   submitting or cancelling Coinbase orders, creating active placements, or
   turning placement evidence into browser/BFF command authority.
 - Stealth detail rows also include `reveal_reconciliation_audit` so operators
   can see required reconciliation plan/proof posture, local active-placement
-  evidence, missing proof contracts, read-evidence routes, and no-live flags
+  evidence, missing proof contracts, read-evidence routes, and No-live flags
   without reading Coinbase, writing proof records, executing reconciliation,
   mutating order/lifecycle state, or turning proof evidence into browser/BFF
   command authority.
@@ -2178,7 +2250,7 @@ The platform/module split is documented in
   intentional because approved live repricing would be cancel/replace-shaped;
   no standalone browser repricing permission exists. Dry-submit for this
   command means preserving the backend `501` response, idempotency, audit,
-  operator-intent, and no-live evidence.
+  operator-intent, and No-live evidence.
 - Futures/perpetual read rows use backend-defined `position_key` identity.
   Account evidence separates `configured_product_scope` from
   `observed_position_scope`; close/reduce sides are backend-derived from
@@ -2197,7 +2269,7 @@ The platform/module split is documented in
   execute live Coinbase orders.
 - Live-enablement reads expose controlled M8 live path readiness, cap
   posture, approval requirements, guard requirements, audit requirements, and
-  reconciliation requirements. They also expose per-route controlled-live
+  reconciliation requirements. They also expose per-route Controlled-live
   preflight checks that separate passed backend-owned prerequisites from
   blocking approval, cap/guard, live-execution-service, and reconciliation
   prerequisites. M30 route-specific approval snapshot evidence makes the
@@ -2262,7 +2334,7 @@ The platform/module split is documented in
 - M43 disabled live execution service foundation makes that backend service
   boundary present as evidence with source `disabled_backend_service`. The
   descriptor has no create, cancel, submit, execute, browser, BFF, or Coinbase
-  authority methods, so command routes remain no-live.
+  authority methods, so command routes remain No-live.
 - M44 live execution adapter contract evidence maps live-shaped routes to
   shared `AdminApiCommandService` methods on read-only live-enablement path
   rows. The adapter evidence is disabled, unconfigured, and non-executable.
@@ -2311,30 +2383,73 @@ for `http://127.0.0.1:3000`, and keeps live Coinbase execution disabled. It is
 an app-only contract runner, so the fill-follow-up trigger intentionally stays
 fail-closed without a process-local engine.
 
-The operator-selected production topology is implemented as an opt-in embedded
-server in `main.py`, guarded by `COINBASE_ADMIN_API_EMBEDDED_ENABLED=true`.
-It strictly hydrates placement lookup, root/child linkage, and partial-fill
-watermarks, completes startup reconciliation, then binds with reads available
-and mutations gated. The bridge and engine producers start afterward; mutation
-routes open only after the same retained WebSocket worker receives Coinbase's
-authenticated `user` subscription acknowledgement and its user-event consumer
-is alive. Hidden SDK retries are disabled: every mutation rechecks the actual
-socket, and loss of the last acknowledged transport or the user-event consumer
-synchronously closes runtime admission before draining the canonical runtime.
-Bridge reveal/reprice/reentry entry points also honor that admission state, so
-cached market data cannot originate a new placement in the drain handoff. HTTP
-ingress stops before bridge/engine shutdown. Enabling this mode is not a
-separate fill-testing permission: every order is governed by the current
-goal's explicit side, price, notional, rate, and cancellation limits and by
-backend authorization, wallet, cap, audit, reconciliation, rollback, and
-readback gates, whether it fills or not.
+For the installed persistent operator review stack, use the lifecycle commands in the
+sibling frontend repository. Exact `COINBASE_EXECUTION_ENABLED=1` is the outer
+execution authority and is enforced by both Admin API runtime gates. Internal
+`COINBASE_ADMIN_API_LIVE_EXECUTION_ENABLED` and
+`COINBASE_ADMIN_API_LIVE_COINBASE_EXECUTION_ENABLED` values are insufficient
+without exact outer value `1`; `true`, `yes`, and other truthy variants fail
+closed. The generated backend deployment manifest records that exact outer
+authority separately and marks internal enablement flags as necessary but
+insufficient on their own. For the installed operator runtime it also records a
+nonblank `COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID` and a manager-generated,
+owner-only execution lease as mandatory Controlled-live startup prerequisites;
+missing either fails closed before live startup. A live-service decision must be
+recorded no earlier than that lease before an exchange mutation can be admitted,
+so a prior runtime session cannot donate authority to a replacement process.
+The same verified owner-only lease is mandatory at every canonical final
+Coinbase mutation boundary; the exact flag alone is never sufficient. Direct
+compatibility runners therefore require a current manager-issued lease in their
+environment and cannot manufacture flag-only authority.
+In an installed leased runtime, the global service record is also bound to the
+`operator_ready_admin_mvp_runtime_v1` integration contract and
+`manager_execution_lease_v1` runtime configuration, must target the global
+`admin_system_health` service with an empty product scope, and cannot replace
+the installed canonical route/runtime capability or route-, method-, module-,
+service-, account-, product-, cap-, and request-specific command evidence
+required downstream. A stored legacy live-adapter decision is diagnostic
+readback only and is not resolved by manual place/cancel admission. The
+outer flag only makes Controlled-live capability available. Ordinary UI GETs
+remain local and call-free. Every Coinbase read or mutation inside an explicit
+operator action still requires its route-specific RBAC, operator intent,
+idempotency, account/portfolio/wallet, product, cap, admission, audit,
+reconciliation, and per-action backend authorization. Starting or checking the
+operator review stack uses the call-free health/session path and makes no Coinbase call.
+On bootstrap/health, `live_execution_enabled=true` and
+`mutating_routes_live_disabled=false` mean only that the Controlled-live
+runtime is armed and the two manual Spot routes are supported. Health
+diagnostics still state that per-request authorization is required; these
+aggregate fields are not an approval or an eligible order decision.
 
-FILLED follow-ups use a deterministic child `client_order_id` derived from the
-source placement and atomically commit both `order_parent` and `stealth_orders`
-rows before becoming visible in memory. Chain readback requires corroborating
-evidence from both rows. Queued user events retain drain accounting until the
-user worker exits, so shutdown cannot report clean while an accepted fill is
-still waiting to be processed.
+The installed manual place/cancel flow uses one exact two-pass command key.
+After the first pass persists a fail-closed command context, the admin-only
+`/api/v1/spot/manual-order/proof-chain` or
+`/api/v1/spot/cancel-order/proof-chain` composite action writes the canonical
+typed approval, admission-audit, cap/guard, and reconciliation records consumed
+by the second pass. This is a single-operator admin action, not a four-eyes
+workflow. The backend derives all proof IDs and the fixed `3.10/1.00 USDC`
+manual or `0/0 USDC` cancel caps; body-supplied IDs or caps cannot broaden the
+records. Manual proof recording performs one backend-authoritative USDC wallet
+read. Neither proof route submits, cancels, replaces, or otherwise mutates a
+Coinbase order, and the resulting records remain insufficient without current
+runtime authority and every downstream per-action guard.
+
+The installed Controlled-live topology uses
+`tools/run_admin_api_operator_runtime.py` under the operator review-stack
+manager. It validates the exact outer flag and owner-only manager lease, keeps
+credentials backend-only, and constructs only the canonical manual root
+registrar and durable event publisher. It deliberately does not start
+`main.py`, the legacy order engine, stealth bridge, Coinbase WebSocket, reveal,
+reprice, re-entry, hotpoint, campaign, sweep, batch, or follow-up loops.
+Operator manual Spot LIMIT/GTC place/cancel remains synchronous and
+route-scoped; every request still requires the current lease-bound service
+decision and full proof chain, and only the authenticated route may mint the
+final SDK scope. Exact-live `main.py` startup is source-disabled.
+
+Fill-follow-up contracts may persist and report local parent/child evidence,
+but the installed runtime starts no autonomous follow-up consumer and those
+contracts cannot mint manual place/cancel SDK scope or authorize Coinbase
+mutation.
 
 For a deployment-like local run, configure auth explicitly instead of using
 `--dev-token`:
@@ -2370,9 +2485,9 @@ backend `oidc_jwt` verifier configuration. Browser-visible RBAC remains a UI
 hint; backend RBAC is the enforcement authority.
 `GET /api/v1/admin/oidc-readiness` exposes backend OIDC verifier evidence for
 release checks, including active auth mode, required/missing environment
-settings, claim mapping, JWKS reachability, and no-live notional posture.
+settings, claim mapping, JWKS reachability, and No-live notional posture.
 
-Run the no-live OIDC readiness smoke as optional production-auth evidence
+Run the No-live OIDC readiness smoke as optional production-auth evidence
 before treating production OIDC evidence as usable by frontend production-auth
 evidence:
 

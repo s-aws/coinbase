@@ -274,6 +274,19 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflicts with a prior runtime command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminRuntimeControlResponse'
+        '503':
+          description: Runtime transition outcome is unknown and the durable claim
+            cannot be retried.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminRuntimeControlResponse'
         '422':
           description: Validation Error
           content:
@@ -362,6 +375,19 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflicts with a prior runtime command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminRuntimeControlResponse'
+        '503':
+          description: Runtime transition outcome is unknown and the durable claim
+            cannot be retried.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminRuntimeControlResponse'
         '422':
           description: Validation Error
           content:
@@ -450,6 +476,19 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflicts with a prior runtime command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminRuntimeControlResponse'
+        '503':
+          description: Runtime transition outcome is unknown and the durable claim
+            cannot be retried.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminRuntimeControlResponse'
         '422':
           description: Validation Error
           content:
@@ -460,7 +499,7 @@ paths:
     get:
       tags:
       - admin
-      summary: Read backend-owned Account Management reality
+      summary: Read call-free local Account Management evidence
       operationId: admin_account_management_api_v1_admin_account_management_get
       parameters:
       - name: Idempotency-Key
@@ -546,7 +585,7 @@ paths:
     get:
       tags:
       - admin
-      summary: Read backend-owned wallet inventory and admission inputs
+      summary: Read call-free local unavailable wallet evidence
       operationId: admin_wallet_api_v1_admin_wallet_get
       parameters:
       - name: Idempotency-Key
@@ -632,7 +671,7 @@ paths:
     get:
       tags:
       - admin
-      summary: Read backend-owned fee evidence
+      summary: Read call-free local unavailable fee evidence
       operationId: admin_fees_api_v1_admin_fees_get
       parameters:
       - name: Idempotency-Key
@@ -718,7 +757,7 @@ paths:
     get:
       tags:
       - admin
-      summary: Read backend-owned Coinbase product metadata
+      summary: Read call-free local unavailable product metadata evidence
       operationId: admin_products_api_v1_admin_products_get
       parameters:
       - name: product_id
@@ -814,7 +853,7 @@ paths:
     post:
       tags:
       - admin
-      summary: Refresh backend-owned local product metadata
+      summary: Return fixed source-disabled product refresh evidence
       operationId: refresh_admin_products_api_v1_admin_products_refresh_post
       parameters:
       - name: Idempotency-Key
@@ -877,7 +916,7 @@ paths:
             schema:
               $ref: '#/components/schemas/AdminProductsRefreshRequest'
       responses:
-        '200':
+        '501':
           description: Successful Response
           content:
             application/json:
@@ -2778,9 +2817,8 @@ paths:
     post:
       tags:
       - automation
-      summary: Submit and cancel one backend-owned USDC pair snapshot order
-      description: Submit one preflighted M58 order and cancel before any additional
-        order.
+      summary: Source-parked M58 one-order exchange submission contract
+      description: Return parked evidence for the unsupported M58 operator workflow.
       operationId: submit_usdc_pair_snapshot_order_plan_live_order_api_v1_automation_usdc_pair_snapshot_order_plans__plan_id__live_submit_post
       parameters:
       - name: plan_id
@@ -2847,9 +2885,9 @@ paths:
             schema:
               $ref: '#/components/schemas/UsdcPairSnapshotOrderPlanLiveSubmitRequest'
       responses:
-        '200':
-          description: USDC pair snapshot order-plan controlled-live submit/cancel
-            accepted, rejected, or replayed.
+        '501':
+          description: M58 exchange execution is source-parked because it is not an
+            operator-ready MVP workflow.
           content:
             application/json:
               schema:
@@ -2866,12 +2904,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
-        '409':
-          description: Idempotency key conflict.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UsdcPairSnapshotOrderPlanLiveSubmitResponse'
         '422':
           description: Validation Error
           content:
@@ -2882,9 +2914,8 @@ paths:
     post:
       tags:
       - automation
-      summary: Submit and cancel one USDC pair snapshot order from run-state evidence
-      description: Submit one run-state-selected M58 order and cancel before any additional
-        order.
+      summary: Source-parked M58 run-state exchange submission contract
+      description: Return parked evidence for the unsupported M58 operator workflow.
       operationId: submit_usdc_pair_snapshot_allowlist_run_state_live_order_api_v1_automation_usdc_pair_snapshot_allowlist_run_states__run_state_id__live_submit_post
       parameters:
       - name: run_state_id
@@ -2951,9 +2982,9 @@ paths:
             schema:
               $ref: '#/components/schemas/UsdcPairSnapshotOrderPlanLiveSubmitRequest'
       responses:
-        '200':
-          description: USDC pair snapshot order-plan controlled-live submit/cancel
-            accepted, rejected, or replayed.
+        '501':
+          description: M58 exchange execution is source-parked because it is not an
+            operator-ready MVP workflow.
           content:
             application/json:
               schema:
@@ -2970,12 +3001,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
-        '409':
-          description: Idempotency key conflict.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UsdcPairSnapshotOrderPlanLiveSubmitResponse'
         '422':
           description: Validation Error
           content:
@@ -2986,9 +3011,8 @@ paths:
     post:
       tags:
       - automation
-      summary: Submit/cancel backend-owned USDC pair snapshot run-state live fan-out
-      description: Submit queued M58 products through backend fan-out and cancel each
-        one.
+      summary: Source-parked M58 fan-out exchange submission contract
+      description: Return parked evidence for the unsupported M58 fan-out workflow.
       operationId: submit_usdc_pair_snapshot_allowlist_run_state_live_fanout_api_v1_automation_usdc_pair_snapshot_allowlist_run_states__run_state_id__live_fanout_submit_post
       parameters:
       - name: run_state_id
@@ -3055,9 +3079,9 @@ paths:
             schema:
               $ref: '#/components/schemas/UsdcPairSnapshotAllowlistRunStateLiveFanoutSubmitRequest'
       responses:
-        '200':
-          description: USDC pair snapshot order-plan controlled-live submit/cancel
-            accepted, rejected, or replayed.
+        '501':
+          description: M58 exchange execution is source-parked because it is not an
+            operator-ready MVP workflow.
           content:
             application/json:
               schema:
@@ -3074,12 +3098,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
-        '409':
-          description: Idempotency key conflict.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UsdcPairSnapshotOrderPlanLiveSubmitResponse'
         '422':
           description: Validation Error
           content:
@@ -5447,9 +5465,8 @@ paths:
     post:
       tags:
       - futures
-      summary: Create a futures or perpetual order draft through the shared command
-        service
-      description: Route-bound no-live futures/perpetual placement command draft.
+      summary: Return fixed source-disabled Futures placement evidence
+      description: Reject Futures placement at the installed source-disabled boundary.
       operationId: place_futures_order_api_v1_futures_orders_post
       parameters:
       - name: Idempotency-Key
@@ -5510,14 +5527,9 @@ paths:
             schema:
               $ref: '#/components/schemas/FuturesPlaceOrderRequest'
       responses:
-        '200':
-          description: Command accepted or replayed after all backend gates pass.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminApiCommandResponse'
-        '400':
-          description: Command rejected before live exchange execution.
+        '501':
+          description: Fixed source-disabled response; no replay, admission, audit,
+            service, adapter, or Coinbase execution occurs.
           content:
             application/json:
               schema:
@@ -5534,18 +5546,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
-        '409':
-          description: Idempotency key conflict.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminApiCommandResponse'
-        '501':
-          description: Live HTTP execution is not implemented for this command.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminApiCommandResponse'
         '422':
           description: Validation Error
           content:
@@ -5556,8 +5556,8 @@ paths:
     post:
       tags:
       - futures
-      summary: Create a futures or perpetual close/reduce draft
-      description: Route-bound no-live futures/perpetual close/reduce command draft.
+      summary: Return fixed source-disabled Futures close/reduce evidence
+      description: Reject Futures close/reduce at the source-disabled boundary.
       operationId: close_or_reduce_futures_position_api_v1_futures_positions__position_key__close_reduce_post
       parameters:
       - name: position_key
@@ -5625,14 +5625,9 @@ paths:
             schema:
               $ref: '#/components/schemas/FuturesCloseReduceRequest'
       responses:
-        '200':
-          description: Command accepted or replayed after all backend gates pass.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminApiCommandResponse'
-        '400':
-          description: Command rejected before live exchange execution.
+        '501':
+          description: Fixed source-disabled response; no replay, admission, audit,
+            service, adapter, or Coinbase execution occurs.
           content:
             application/json:
               schema:
@@ -5649,18 +5644,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
-        '409':
-          description: Idempotency key conflict.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminApiCommandResponse'
-        '501':
-          description: Live HTTP execution is not implemented for this command.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminApiCommandResponse'
         '422':
           description: Validation Error
           content:
@@ -5671,8 +5654,8 @@ paths:
     post:
       tags:
       - futures
-      summary: Create a futures or perpetual cancel draft by client_order_id
-      description: Route-bound no-live futures/perpetual cancel command draft.
+      summary: Return fixed source-disabled Futures cancel evidence
+      description: Reject Futures cancel at the installed source-disabled boundary.
       operationId: cancel_futures_order_api_v1_futures_orders__client_order_id__cancel_post
       parameters:
       - name: client_order_id
@@ -5740,14 +5723,9 @@ paths:
             schema:
               $ref: '#/components/schemas/FuturesCancelOrderRequest'
       responses:
-        '200':
-          description: Command accepted or replayed after all backend gates pass.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminApiCommandResponse'
-        '400':
-          description: Command rejected before live exchange execution.
+        '501':
+          description: Fixed source-disabled response; no replay, admission, audit,
+            service, adapter, or Coinbase execution occurs.
           content:
             application/json:
               schema:
@@ -5764,18 +5742,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
-        '409':
-          description: Idempotency key conflict.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminApiCommandResponse'
-        '501':
-          description: Live HTTP execution is not implemented for this command.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminApiCommandResponse'
         '422':
           description: Validation Error
           content:
@@ -5786,8 +5752,8 @@ paths:
     post:
       tags:
       - futures
-      summary: Create a futures or perpetual reconciliation draft
-      description: Route-bound no-live futures/perpetual reconciliation command draft.
+      summary: Return fixed source-disabled Futures reconciliation evidence
+      description: Reject Futures reconciliation at the source-disabled boundary.
       operationId: reconcile_futures_position_api_v1_futures_positions__position_key__reconciliation_post
       parameters:
       - name: position_key
@@ -5855,14 +5821,9 @@ paths:
             schema:
               $ref: '#/components/schemas/FuturesReconciliationRequest'
       responses:
-        '200':
-          description: Command accepted or replayed after all backend gates pass.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminApiCommandResponse'
-        '400':
-          description: Command rejected before live exchange execution.
+        '501':
+          description: Fixed source-disabled response; no replay, admission, audit,
+            service, adapter, or Coinbase execution occurs.
           content:
             application/json:
               schema:
@@ -5879,18 +5840,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
-        '409':
-          description: Idempotency key conflict.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminApiCommandResponse'
-        '501':
-          description: Live HTTP execution is not implemented for this command.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminApiCommandResponse'
         '422':
           description: Validation Error
           content:
@@ -6740,9 +6689,11 @@ paths:
       description: 'Route adapter for manual placement.
 
 
-        The route is authenticated, idempotent, audited, and still live-disabled
+        The route is authenticated, idempotent, and audited. It can reach the
 
-        until enterprise approval/cap gates are completed.'
+        installed controlled-live service only after the exact backend authority,
+
+        runtime, approval, cap/wallet, reconciliation, and product gates pass.'
       operationId: create_manual_order_api_v1_orders_post
       parameters:
       - name: Idempotency-Key
@@ -6915,12 +6866,128 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/orders/{client_order_id}/reconciliation:
+    post:
+      tags:
+      - orders
+      summary: Reconcile one durable Spot root from authoritative Coinbase readback
+      description: Run one bounded readback action and synchronize only the matching
+        root.
+      operationId: reconcile_order_by_client_order_id_api_v1_orders__client_order_id__reconciliation_post
+      parameters:
+      - name: client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Client Order Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReconcileOrderRequest'
+      responses:
+        '200':
+          description: Command accepted or replayed after all backend gates pass.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '400':
+          description: Command rejected before live exchange execution.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '501':
+          description: Live HTTP execution is not implemented for this command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/orders/{client_order_id}/fill-readback:
     get:
       tags:
       - orders
-      summary: Read Spot order fill evidence by client_order_id
-      description: Read backend-owned Spot order/fill evidence without mutation.
+      summary: Read locally persisted Spot fill evidence by client_order_id
+      description: Read sanitized durable Spot fill evidence with zero Coinbase calls/writes.
       operationId: get_spot_order_fill_readback_api_v1_orders__client_order_id__fill_readback_get
       parameters:
       - name: client_order_id
@@ -7249,7 +7316,7 @@ paths:
     get:
       tags:
       - orders
-      summary: Resolve V15 deterministic first-child cancel readiness from a root
+      summary: Read historical selected-child cancel evidence as source-disabled
       description: Resolve child and sealed plan authority without browser child identity.
       operationId: get_order_fill_follow_up_child_cancel_readiness_api_v1_orders__root_client_order_id__fill_follow_up_child_cancel_readiness_get
       parameters:
@@ -7328,8 +7395,8 @@ paths:
     post:
       tags:
       - orders
-      summary: Cancel one backend-resolved V15 first child from its root
-      description: Claim once by plan/root/resolved-child, then use canonical cancellation.
+      summary: Return fixed source-disabled selected-child cancel evidence
+      description: Reject selected-child cancellation before any executable dependency.
       operationId: cancel_order_fill_follow_up_child_by_root_client_order_id_api_v1_orders__root_client_order_id__fill_follow_up_child_cancel_post
       parameters:
       - name: root_client_order_id
@@ -7397,14 +7464,9 @@ paths:
             schema:
               $ref: '#/components/schemas/AdminOrderFillFollowUpChildCancelRequest'
       responses:
-        '200':
-          description: Command accepted or replayed after all backend gates pass.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminApiCommandResponse'
-        '400':
-          description: Command rejected before live exchange execution.
+        '501':
+          description: Fixed source-disabled response; no admission, replay, store,
+            service, adapter, or Coinbase execution occurs.
           content:
             application/json:
               schema:
@@ -7421,18 +7483,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
-        '409':
-          description: Idempotency key conflict.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminApiCommandResponse'
-        '501':
-          description: Live HTTP execution is not implemented for this command.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminApiCommandResponse'
         '422':
           description: Validation Error
           content:
@@ -8668,7 +8718,7 @@ paths:
     get:
       tags:
       - spot
-      summary: Read spot trading readiness
+      summary: Read local value-blind spot readiness evidence
       operationId: spot_readiness_api_v1_spot_readiness_get
       parameters:
       - name: product_id
@@ -9248,7 +9298,7 @@ paths:
     get:
       tags:
       - spot
-      summary: Read spot sweep P/L
+      summary: Read local value-blind spot P/L availability evidence
       operationId: spot_sweep_pnl_api_v1_spot_sweep_pnl_get
       parameters:
       - name: product_id
@@ -9382,19 +9432,18 @@ paths:
           Ignored in oidc_jwt mode because role evidence is derived from verified
           JWT claims.
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: true
-              title: Body
+              $ref: '#/components/schemas/SpotManualOrderProofChainRequest'
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AdminMvpEvidenceResponse'
+                $ref: '#/components/schemas/SpotManualOrderProofChainResponse'
         '401':
           description: Missing or invalid Admin API authentication.
           content:
@@ -9472,19 +9521,18 @@ paths:
           Ignored in oidc_jwt mode because role evidence is derived from verified
           JWT claims.
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: true
-              title: Body
+              $ref: '#/components/schemas/SpotCancelOrderProofChainRequest'
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AdminMvpEvidenceResponse'
+                $ref: '#/components/schemas/SpotCancelOrderProofChainResponse'
         '401':
           description: Missing or invalid Admin API authentication.
           content:
@@ -13847,7 +13895,7 @@ components:
       - coinbase_read_enabled
       - live_coinbase_read_ran
       title: AdminAccountManagementReadResponse
-      description: Backend-owned Account Management read model for local operators.
+      description: Call-free local Account Management evidence for operators.
     AdminAccountOperatorEvidence:
       properties:
         actor_id:
@@ -14438,6 +14486,10 @@ components:
           type: boolean
           title: Live Coinbase Orders Ran
           default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
         live_command_runtime_enabled:
           type: boolean
           title: Live Command Runtime Enabled
@@ -14716,6 +14768,7 @@ components:
       type: string
       enum:
       - live_execution_disabled
+      - unsupported_live_route
       - approval_snapshot_missing
       - approval_store_missing
       - admission_audit_missing
@@ -14910,6 +14963,8 @@ components:
       - reconciliation:record
       - order:create
       - order:cancel
+      - spot_manual_order_proof:record
+      - spot_order_cancel_proof:record
       - campaign:read
       - campaign:execute
       - spot_sweep:execute
@@ -17289,7 +17344,7 @@ components:
       - coinbase_read_enabled
       - live_coinbase_read_ran
       title: AdminFeesReadResponse
-      description: Backend-owned fee evidence read model for admission and risk gates.
+      description: Call-free local unavailable fee evidence.
     AdminFrontendFixturesResponse:
       properties:
         type:
@@ -17369,6 +17424,16 @@ components:
           type: string
           title: Bff Authority
           default: forward_only_no_execution
+        readback_source:
+          type: string
+          const: backend_admin_api_local_evidence
+          title: Readback Source
+          default: backend_admin_api_local_evidence
+        coinbase_read_attempted:
+          type: boolean
+          const: false
+          title: Coinbase Read Attempted
+          default: false
         live_coinbase_read_ran:
           type: boolean
           title: Live Coinbase Read Ran
@@ -21412,7 +21477,7 @@ components:
         bff_authority:
           type: string
           title: Bff Authority
-          default: forward_only_no_execution
+          default: source_disabled_not_forwarded
         detail:
           type: string
           title: Detail
@@ -21538,7 +21603,7 @@ components:
         bff_authority:
           type: string
           title: Bff Authority
-          default: forward_only_no_execution
+          default: source_disabled_not_forwarded
         detail:
           type: string
           title: Detail
@@ -21640,7 +21705,7 @@ components:
         bff_authority:
           type: string
           title: Bff Authority
-          default: forward_only_no_execution
+          default: source_disabled_not_forwarded
         detail:
           type: string
           title: Detail
@@ -21736,7 +21801,7 @@ components:
         bff_authority:
           type: string
           title: Bff Authority
-          default: forward_only_no_execution
+          default: source_disabled_not_forwarded
         detail:
           type: string
           title: Detail
@@ -22594,7 +22659,7 @@ components:
         bff_authority:
           type: string
           title: Bff Authority
-          default: forward_only_no_execution
+          default: source_disabled_not_forwarded
         detail:
           type: string
           title: Detail
@@ -22609,6 +22674,7 @@ components:
     AdminFuturesCommandReadinessDecision:
       type: string
       enum:
+      - source_disabled_not_implemented
       - blocked_backend_contracts_required
       - ready_for_backend_command_route
       title: AdminFuturesCommandReadinessDecision
@@ -22617,7 +22683,7 @@ components:
       properties:
         decision:
           $ref: '#/components/schemas/AdminFuturesCommandReadinessDecision'
-          default: blocked_backend_contracts_required
+          default: source_disabled_not_implemented
         status:
           $ref: '#/components/schemas/AdminApiGateStatus'
           default: blocked
@@ -22701,7 +22767,7 @@ components:
         bff_authority:
           type: string
           title: Bff Authority
-          default: forward_only_no_execution
+          default: source_disabled_not_forwarded
         detail:
           type: string
           title: Detail
@@ -22841,7 +22907,7 @@ components:
         bff_authority:
           type: string
           title: Bff Authority
-          default: forward_only_no_execution
+          default: source_disabled_not_forwarded
         detail:
           type: string
           title: Detail
@@ -101610,6 +101676,7 @@ components:
           - coinbase_api_key_permissions_and_portfolio_catalog
           - backend_rest_unavailable
           - backend_admin_read_contract
+          - backend_admin_api_local_evidence
           title: Source
         freshness_status:
           type: string
@@ -101618,6 +101685,7 @@ components:
           - backend_rest_blocked
           - local_default_not_connected
           - offline_fixture
+          - local_sanitized_evidence
           title: Freshness Status
         observed_at:
           type: string
@@ -101742,6 +101810,16 @@ components:
           type: string
           title: Bff Authority
           default: forward_only_no_execution
+        readback_source:
+          type: string
+          const: backend_admin_api_local_evidence
+          title: Readback Source
+          default: backend_admin_api_local_evidence
+        coinbase_read_attempted:
+          type: boolean
+          const: false
+          title: Coinbase Read Attempted
+          default: false
         live_coinbase_read_ran:
           type: boolean
           title: Live Coinbase Read Ran
@@ -101815,6 +101893,16 @@ components:
           type: string
           title: Bff Authority
           default: forward_only_no_execution
+        readback_source:
+          type: string
+          const: backend_admin_api_local_evidence
+          title: Readback Source
+          default: backend_admin_api_local_evidence
+        coinbase_read_attempted:
+          type: boolean
+          const: false
+          title: Coinbase Read Attempted
+          default: false
         live_coinbase_read_ran:
           type: boolean
           title: Live Coinbase Read Ran
@@ -139873,68 +139961,6 @@ components:
       - source
       title: AdminMutationClaimEvidence
       description: Runtime claim evidence for repeatable stealth mutations.
-    AdminMvpEvidenceResponse:
-      properties:
-        type:
-          type: string
-          title: Type
-        status:
-          type: string
-          title: Status
-        module_id:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Module Id
-        route:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Route
-        method:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Method
-        action_class:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Action Class
-        required_permission:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Required Permission
-        service_method:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Service Method
-        live_coinbase_execution:
-          type: string
-          title: Live Coinbase Execution
-          default: not_run
-        notional_usdc:
-          type: string
-          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
-          title: Notional Usdc
-          description: Decimal value serialized as a string; floats are not part of
-            the API contract.
-          default: '0'
-          examples:
-          - '1.00'
-        live_coinbase_orders_ran:
-          type: boolean
-          title: Live Coinbase Orders Ran
-          default: false
-      additionalProperties: true
-      type: object
-      required:
-      - type
-      - status
-      title: AdminMvpEvidenceResponse
-      description: Flexible backend-owned MVP evidence response.
     AdminOidcJwtReadinessResponse:
       properties:
         type:
@@ -140418,7 +140444,7 @@ components:
         browser_authority:
           type: string
           title: Browser Authority
-          default: display_and_submit_root_only
+          default: display_only
         detail:
           type: string
           title: Detail
@@ -141327,7 +141353,7 @@ components:
       - coinbase_read_enabled
       - live_coinbase_read_ran
       title: AdminProductsReadResponse
-      description: Backend-owned Coinbase product metadata read evidence.
+      description: Call-free local unavailable product metadata evidence.
     AdminProductsRefreshRequest:
       properties:
         reason:
@@ -141345,7 +141371,7 @@ components:
       additionalProperties: true
       type: object
       title: AdminProductsRefreshRequest
-      description: Local product metadata refresh request.
+      description: Source-disabled product refresh compatibility request.
     AdminProductsRefreshResponse:
       properties:
         type:
@@ -141504,7 +141530,7 @@ components:
       - bff_authority
       - command_routes_mode
       title: AdminProductsRefreshResponse
-      description: Backend-owned local product metadata refresh evidence.
+      description: Fixed source-disabled product refresh evidence; no read or write.
     AdminReconciliationPlanCreateRequest:
       properties:
         route:
@@ -142225,6 +142251,37 @@ components:
           - type: string
           - type: 'null'
           title: State
+        correlation_id:
+          type: string
+          title: Correlation Id
+        idempotency_key:
+          type: string
+          title: Idempotency Key
+        audit_id:
+          type: string
+          title: Audit Id
+        attempt_audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Attempt Audit Id
+        failure_stage:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Failure Stage
+        idempotency_replayed:
+          type: boolean
+          title: Idempotency Replayed
+          default: false
+        operator:
+          additionalProperties: true
+          type: object
+          title: Operator
+        audit:
+          additionalProperties: true
+          type: object
+          title: Audit
         runtime_state_before:
           type: string
           title: Runtime State Before
@@ -142237,6 +142294,10 @@ components:
         runtime_state_mutated:
           type: boolean
           title: Runtime State Mutated
+        local_state_mutated:
+          type: boolean
+          title: Local State Mutated
+          default: false
         admitting:
           anyOf:
           - type: boolean
@@ -142257,6 +142318,10 @@ components:
             type: integer
           type: object
           title: Inflight
+        runtime_source:
+          type: string
+          title: Runtime Source
+          default: core.runtime_controller.RuntimeController
         order_state_mutated:
           type: boolean
           title: Order State Mutated
@@ -142277,10 +142342,51 @@ components:
           type: boolean
           title: Live Exchange Submitted
           default: false
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+          default: not_run
         live_coinbase_orders_ran:
           type: boolean
           title: Live Coinbase Orders Ran
           default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        drain_requested:
+          type: boolean
+          title: Drain Requested
+          default: false
+        drain_executed:
+          type: boolean
+          title: Drain Executed
+          default: false
+        read_only:
+          type: boolean
+          title: Read Only
+          default: false
+        frontend_safe:
+          type: boolean
+          title: Frontend Safe
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
       additionalProperties: true
       type: object
       required:
@@ -142290,6 +142396,9 @@ components:
       - required_permission
       - service_method
       - action
+      - correlation_id
+      - idempotency_key
+      - audit_id
       - runtime_state_before
       - runtime_state_after
       - transition_applied
@@ -143385,7 +143494,7 @@ components:
       - coinbase_read_enabled
       - live_coinbase_read_ran
       title: AdminWalletReadResponse
-      description: Backend-owned wallet inventory and admission input read evidence.
+      description: Call-free local unavailable wallet/admission evidence.
     AdminWalletRowEvidence:
       properties:
         currency:
@@ -143566,7 +143675,8 @@ components:
       additionalProperties: false
       type: object
       title: FuturesCancelOrderRequest
-      description: Futures/perpetual cancel draft request keyed by ``client_order_id``.
+      description: Source-disabled cancel compatibility envelope validated before
+        fixed 501.
     FuturesCloseReduceRequest:
       properties:
         order_type:
@@ -143649,7 +143759,7 @@ components:
       additionalProperties: false
       type: object
       title: FuturesCloseReduceRequest
-      description: Futures/perpetual close/reduce draft request keyed by ``position_key``.
+      description: Source-disabled close/reduce envelope validated before fixed 501.
     FuturesFillReadbackResponse:
       properties:
         type:
@@ -143708,7 +143818,7 @@ components:
       required:
       - status
       title: FuturesFillReadbackResponse
-      description: Read-only Futures/Perpetual order fill readback evidence.
+      description: Fixed source-disabled, call-free Futures fill-readback evidence.
     FuturesPlaceOrderRequest:
       properties:
         product_id:
@@ -143797,7 +143907,8 @@ components:
       - order_type
       - size
       title: FuturesPlaceOrderRequest
-      description: Futures/perpetual placement draft request keyed by ``product_id``.
+      description: Source-disabled placement compatibility envelope validated before
+        fixed 501.
     FuturesReconciliationRequest:
       properties:
         reconciliation_reason:
@@ -143851,7 +143962,8 @@ components:
       required:
       - reconciliation_reason
       title: FuturesReconciliationRequest
-      description: Futures/perpetual reconciliation draft request keyed by ``position_key``.
+      description: Source-disabled reconciliation envelope validated before fixed
+        501.
     FuturesRiskProofDetailResponse:
       properties:
         type:
@@ -144418,6 +144530,22 @@ components:
       - FUTURE
       title: ProductType
       description: Type of trading product.
+    ReconcileOrderRequest:
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          title: Reason
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - reason
+      title: ReconcileOrderRequest
+      description: Operator request to synchronize one durable Spot root from Coinbase.
     SpotCampaignStatusResponse:
       properties:
         type:
@@ -144452,6 +144580,263 @@ components:
       type: object
       title: SpotCampaignStatusResponse
       description: Spot campaign status response.
+    SpotCancelOrderProofChainEvidence:
+      properties:
+        admission_audit:
+          additionalProperties: true
+          type: object
+          title: Admission Audit
+        cancel_proof_chain:
+          additionalProperties: true
+          type: object
+          title: Cancel Proof Chain
+        typed_production_stores:
+          $ref: '#/components/schemas/SpotProofChainTypedProductionStores'
+      additionalProperties: false
+      type: object
+      required:
+      - admission_audit
+      - cancel_proof_chain
+      - typed_production_stores
+      title: SpotCancelOrderProofChainEvidence
+      description: Named legacy and canonical evidence produced for Spot cancellation.
+    SpotCancelOrderProofChainRequest:
+      properties:
+        route:
+          type: string
+          const: /api/v1/orders/{client_order_id}/cancel
+          title: Route
+        method:
+          type: string
+          const: POST
+          title: Method
+        module_id:
+          type: string
+          const: spot_operations
+          title: Module Id
+        identity_key:
+          type: string
+          const: client_order_id
+          title: Identity Key
+        identity_value:
+          type: string
+          minLength: 1
+          title: Identity Value
+        action_class:
+          type: string
+          const: live_exchange_cancel
+          title: Action Class
+        required_permission:
+          type: string
+          const: order:cancel
+          title: Required Permission
+        service_method:
+          type: string
+          const: cancel_order_by_client_order_id
+          title: Service Method
+        actor_id:
+          type: string
+          minLength: 1
+          title: Actor Id
+        operator_intent:
+          type: string
+          minLength: 1
+          title: Operator Intent
+        command_idempotency_key:
+          type: string
+          minLength: 1
+          title: Command Idempotency Key
+        payload_hash:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Payload Hash
+      type: object
+      required:
+      - route
+      - method
+      - module_id
+      - identity_key
+      - identity_value
+      - action_class
+      - required_permission
+      - service_method
+      - actor_id
+      - operator_intent
+      - command_idempotency_key
+      - payload_hash
+      title: SpotCancelOrderProofChainRequest
+      description: 'Exact first-pass binding asserted for one Spot cancellation proof
+        chain.
+
+
+        Unknown browser fields are intentionally ignored. Durable proof ids, caps,
+
+        and other authoritative evidence are always derived by the backend.'
+    SpotCancelOrderProofChainResponse:
+      properties:
+        type:
+          type: string
+          const: spot_cancel_order_proof_chain_result
+          title: Type
+        status:
+          type: string
+          const: accepted
+          title: Status
+        route:
+          type: string
+          const: /api/v1/spot/cancel-order/proof-chain
+          title: Route
+        method:
+          type: string
+          const: POST
+          title: Method
+        module_id:
+          type: string
+          const: spot_operations
+          title: Module Id
+        action_class:
+          type: string
+          const: local_state_mutation
+          title: Action Class
+        required_permission:
+          type: string
+          const: spot_order_cancel_proof:record
+          title: Required Permission
+        service_method:
+          type: string
+          const: record_spot_cancel_order_proof_chain
+          title: Service Method
+        message:
+          type: string
+          minLength: 1
+          title: Message
+        target_route:
+          type: string
+          const: /api/v1/orders/{client_order_id}/cancel
+          title: Target Route
+        target_method:
+          type: string
+          const: POST
+          title: Target Method
+        identity_key:
+          type: string
+          const: client_order_id
+          title: Identity Key
+        identity_value:
+          type: string
+          minLength: 1
+          title: Identity Value
+        command_idempotency_key:
+          type: string
+          minLength: 1
+          title: Command Idempotency Key
+        payload_hash:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Payload Hash
+        proof_chain_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        resolved_gate_chain:
+          items:
+            type: string
+          type: array
+          title: Resolved Gate Chain
+        missing_gate_chain:
+          items:
+            type: string
+          type: array
+          title: Missing Gate Chain
+        admission_audit_id:
+          type: string
+          minLength: 1
+          title: Admission Audit Id
+        cancel_proof_chain_id:
+          type: string
+          minLength: 1
+          title: Cancel Proof Chain Id
+        evidence:
+          $ref: '#/components/schemas/SpotCancelOrderProofChainEvidence'
+        correlation_id:
+          type: string
+          minLength: 1
+          title: Correlation Id
+        idempotency_key:
+          type: string
+          minLength: 1
+          title: Idempotency Key
+        audit_id:
+          type: string
+          minLength: 1
+          title: Audit Id
+        browser_authority:
+          type: string
+          const: display_only
+          title: Browser Authority
+        bff_authority:
+          type: string
+          const: forward_only_no_execution
+          title: Bff Authority
+        coinbase_cancel_submission_allowed:
+          type: boolean
+          const: false
+          title: Coinbase Cancel Submission Allowed
+        live_exchange_submitted:
+          type: boolean
+          const: false
+          title: Live Exchange Submitted
+        live_coinbase_execution:
+          type: string
+          const: not_run
+          title: Live Coinbase Execution
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          examples:
+          - '1.00'
+        live_coinbase_orders_ran:
+          type: boolean
+          const: false
+          title: Live Coinbase Orders Ran
+      additionalProperties: false
+      type: object
+      required:
+      - type
+      - status
+      - route
+      - method
+      - module_id
+      - action_class
+      - required_permission
+      - service_method
+      - message
+      - target_route
+      - target_method
+      - identity_key
+      - identity_value
+      - command_idempotency_key
+      - payload_hash
+      - proof_chain_status
+      - resolved_gate_chain
+      - missing_gate_chain
+      - admission_audit_id
+      - cancel_proof_chain_id
+      - evidence
+      - correlation_id
+      - idempotency_key
+      - audit_id
+      - browser_authority
+      - bff_authority
+      - coinbase_cancel_submission_allowed
+      - live_exchange_submitted
+      - live_coinbase_execution
+      - notional_usdc
+      - live_coinbase_orders_ran
+      title: SpotCancelOrderProofChainResponse
+      description: Typed success evidence for the Spot cancellation composite proof
+        route.
     SpotCommandSuiteCommandItem:
       properties:
         mutation_family:
@@ -144991,6 +145376,299 @@ components:
       type: object
       title: SpotDirectOrderAuditResponse
       description: Direct spot order audit response keyed by ``client_order_id``.
+    SpotManualOrderProofChainEvidence:
+      properties:
+        approval_request:
+          additionalProperties: true
+          type: object
+          title: Approval Request
+        approval_snapshot:
+          additionalProperties: true
+          type: object
+          title: Approval Snapshot
+        admission_audit:
+          additionalProperties: true
+          type: object
+          title: Admission Audit
+        cap_guard:
+          additionalProperties: true
+          type: object
+          title: Cap Guard
+        reconciliation_plan:
+          additionalProperties: true
+          type: object
+          title: Reconciliation Plan
+        typed_production_stores:
+          $ref: '#/components/schemas/SpotProofChainTypedProductionStores'
+      additionalProperties: false
+      type: object
+      required:
+      - approval_request
+      - approval_snapshot
+      - admission_audit
+      - cap_guard
+      - reconciliation_plan
+      - typed_production_stores
+      title: SpotManualOrderProofChainEvidence
+      description: Named legacy and canonical evidence produced for manual Spot admission.
+    SpotManualOrderProofChainRequest:
+      properties:
+        route:
+          type: string
+          const: /api/v1/orders
+          title: Route
+        method:
+          type: string
+          const: POST
+          title: Method
+        module_id:
+          type: string
+          const: spot_operations
+          title: Module Id
+        identity_key:
+          type: string
+          const: client_order_id
+          title: Identity Key
+        identity_value:
+          type: string
+          minLength: 1
+          title: Identity Value
+        action_class:
+          type: string
+          const: live_exchange_place
+          title: Action Class
+        required_permission:
+          type: string
+          const: order:create
+          title: Required Permission
+        service_method:
+          type: string
+          const: place_manual_order
+          title: Service Method
+        actor_id:
+          type: string
+          minLength: 1
+          title: Actor Id
+        operator_intent:
+          type: string
+          minLength: 1
+          title: Operator Intent
+        command_idempotency_key:
+          type: string
+          minLength: 1
+          title: Command Idempotency Key
+        payload_hash:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Payload Hash
+      type: object
+      required:
+      - route
+      - method
+      - module_id
+      - identity_key
+      - identity_value
+      - action_class
+      - required_permission
+      - service_method
+      - actor_id
+      - operator_intent
+      - command_idempotency_key
+      - payload_hash
+      title: SpotManualOrderProofChainRequest
+      description: 'Exact first-pass binding asserted for one manual Spot proof chain.
+
+
+        Unknown browser fields are intentionally ignored. Durable proof ids, caps,
+
+        and other authoritative evidence are always derived by the backend.'
+    SpotManualOrderProofChainResponse:
+      properties:
+        type:
+          type: string
+          const: spot_manual_order_proof_chain_result
+          title: Type
+        status:
+          type: string
+          const: accepted
+          title: Status
+        route:
+          type: string
+          const: /api/v1/spot/manual-order/proof-chain
+          title: Route
+        method:
+          type: string
+          const: POST
+          title: Method
+        module_id:
+          type: string
+          const: spot_operations
+          title: Module Id
+        action_class:
+          type: string
+          const: local_state_mutation
+          title: Action Class
+        required_permission:
+          type: string
+          const: spot_manual_order_proof:record
+          title: Required Permission
+        service_method:
+          type: string
+          const: record_spot_manual_order_proof_chain
+          title: Service Method
+        message:
+          type: string
+          minLength: 1
+          title: Message
+        target_route:
+          type: string
+          const: /api/v1/orders
+          title: Target Route
+        target_method:
+          type: string
+          const: POST
+          title: Target Method
+        identity_key:
+          type: string
+          const: client_order_id
+          title: Identity Key
+        identity_value:
+          type: string
+          minLength: 1
+          title: Identity Value
+        command_idempotency_key:
+          type: string
+          minLength: 1
+          title: Command Idempotency Key
+        payload_hash:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Payload Hash
+        proof_chain_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        resolved_gate_chain:
+          items:
+            type: string
+          type: array
+          title: Resolved Gate Chain
+        missing_gate_chain:
+          items:
+            type: string
+          type: array
+          title: Missing Gate Chain
+        approval_request_id:
+          type: string
+          minLength: 1
+          title: Approval Request Id
+        approval_snapshot_id:
+          type: string
+          minLength: 1
+          title: Approval Snapshot Id
+        admission_audit_id:
+          type: string
+          minLength: 1
+          title: Admission Audit Id
+        cap_guard_decision_id:
+          type: string
+          minLength: 1
+          title: Cap Guard Decision Id
+        reconciliation_plan_id:
+          type: string
+          minLength: 1
+          title: Reconciliation Plan Id
+        admission_decision:
+          $ref: '#/components/schemas/AdminLiveAdmissionDecisionEvidence'
+        evidence:
+          $ref: '#/components/schemas/SpotManualOrderProofChainEvidence'
+        correlation_id:
+          type: string
+          minLength: 1
+          title: Correlation Id
+        idempotency_key:
+          type: string
+          minLength: 1
+          title: Idempotency Key
+        audit_id:
+          type: string
+          minLength: 1
+          title: Audit Id
+        browser_authority:
+          type: string
+          const: display_only
+          title: Browser Authority
+        bff_authority:
+          type: string
+          const: forward_only_no_execution
+          title: Bff Authority
+        wallet_check_source:
+          type: string
+          const: account_management_snapshot
+          title: Wallet Check Source
+        coinbase_order_submission_allowed:
+          type: boolean
+          const: false
+          title: Coinbase Order Submission Allowed
+        live_exchange_submitted:
+          type: boolean
+          const: false
+          title: Live Exchange Submitted
+        live_coinbase_execution:
+          type: string
+          const: not_run
+          title: Live Coinbase Execution
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          examples:
+          - '1.00'
+        live_coinbase_orders_ran:
+          type: boolean
+          const: false
+          title: Live Coinbase Orders Ran
+      additionalProperties: false
+      type: object
+      required:
+      - type
+      - status
+      - route
+      - method
+      - module_id
+      - action_class
+      - required_permission
+      - service_method
+      - message
+      - target_route
+      - target_method
+      - identity_key
+      - identity_value
+      - command_idempotency_key
+      - payload_hash
+      - proof_chain_status
+      - resolved_gate_chain
+      - missing_gate_chain
+      - approval_request_id
+      - approval_snapshot_id
+      - admission_audit_id
+      - cap_guard_decision_id
+      - reconciliation_plan_id
+      - admission_decision
+      - evidence
+      - correlation_id
+      - idempotency_key
+      - audit_id
+      - browser_authority
+      - bff_authority
+      - wallet_check_source
+      - coinbase_order_submission_allowed
+      - live_exchange_submitted
+      - live_coinbase_execution
+      - notional_usdc
+      - live_coinbase_orders_ran
+      title: SpotManualOrderProofChainResponse
+      description: Typed success evidence for the manual Spot composite proof route.
     SpotOrderFillReadbackResponse:
       properties:
         type:
@@ -145425,6 +146103,53 @@ components:
       - message
       title: SpotPnlCheckpointResponse
       description: Response for Spot P/L checkpoint mutations and detail reads.
+    SpotProofChainTypedProductionStores:
+      properties:
+        required:
+          type: boolean
+          const: true
+          title: Required
+        status:
+          type: string
+          const: passed
+          title: Status
+        source:
+          type: string
+          const: canonical_admin_api_typed_stores
+          title: Source
+        approval:
+          additionalProperties: true
+          type: object
+          title: Approval
+        admission_audit:
+          additionalProperties: true
+          type: object
+          title: Admission Audit
+        cap_guard:
+          additionalProperties: true
+          type: object
+          title: Cap Guard
+        reconciliation_plan:
+          additionalProperties: true
+          type: object
+          title: Reconciliation Plan
+        live_exchange_submitted:
+          type: boolean
+          const: false
+          title: Live Exchange Submitted
+      additionalProperties: false
+      type: object
+      required:
+      - required
+      - status
+      - source
+      - approval
+      - admission_audit
+      - cap_guard
+      - reconciliation_plan
+      - live_exchange_submitted
+      title: SpotProofChainTypedProductionStores
+      description: Canonical durable records consumed by the real Spot order routes.
     SpotReadinessResponse:
       properties:
         type:
@@ -145464,6 +146189,48 @@ components:
           - type: string
           - type: 'null'
           title: Message
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        local_only:
+          type: boolean
+          title: Local Only
+          default: true
+        values_withheld:
+          type: boolean
+          title: Values Withheld
+          default: true
+        coinbase_read_attempted:
+          type: boolean
+          title: Coinbase Read Attempted
+          default: false
+        coinbase_read_succeeded:
+          type: boolean
+          title: Coinbase Read Succeeded
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        external_state_refresh_available:
+          type: boolean
+          title: External State Refresh Available
+          default: false
+        external_state_refresh_route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: External State Refresh Route
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: read_only_forward
       additionalProperties: true
       type: object
       title: SpotReadinessResponse
@@ -148756,6 +149523,57 @@ components:
           - type: string
           - type: 'null'
           title: Message
+        requested_product_ids:
+          items:
+            type: string
+          type: array
+          title: Requested Product Ids
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        local_only:
+          type: boolean
+          title: Local Only
+          default: true
+        values_withheld:
+          type: boolean
+          title: Values Withheld
+          default: true
+        coinbase_average_cost_requested:
+          type: boolean
+          title: Coinbase Average Cost Requested
+          default: false
+        coinbase_read_attempted:
+          type: boolean
+          title: Coinbase Read Attempted
+          default: false
+        coinbase_read_succeeded:
+          type: boolean
+          title: Coinbase Read Succeeded
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        external_state_refresh_available:
+          type: boolean
+          title: External State Refresh Available
+          default: false
+        external_state_refresh_route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: External State Refresh Route
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: read_only_forward
       additionalProperties: true
       type: object
       title: SpotSweepPnlResponse
@@ -175655,7 +176473,8 @@ components:
       additionalProperties: false
       type: object
       title: UsdcPairSnapshotAllowlistRunStateLiveFanoutSubmitRequest
-      description: Explicit M58 live fan-out submit attempt envelope.
+      description: Source-parked M58 fan-out compatibility envelope returning fixed
+        501.
     UsdcPairSnapshotAllowlistRunStateProductItem:
       properties:
         product_id:
@@ -177688,9 +178507,9 @@ components:
         detail:
           type: string
           title: Detail
-          default: M58 USDC pair snapshot live-readiness readback exposes backend-owned
-            single-row preflight evidence only; it does not submit Coinbase orders,
-            allocate wallet balance, or grant browser execution authority.
+          default: 'M58 live-readiness is offline historical evidence: submit_route_ready
+            is always false with m58_operator_workflow_unavailable because all installed
+            M58 exchange-submit routes are source-parked.'
       additionalProperties: false
       type: object
       required:
@@ -178229,9 +179048,8 @@ components:
         detail:
           type: string
           title: Detail
-          default: M58 USDC pair snapshot live-submission readback exposes backend-owned
-            single-row submit/cancel evidence only; it does not grant browser execution
-            authority, fan out orders, or run a scheduler.
+          default: Historical M58 submit/cancel evidence may be read, but every current
+            installed M58 exchange-submit route is source-parked and unavailable.
       additionalProperties: false
       type: object
       required:
@@ -178294,7 +179112,8 @@ components:
       - product_id
       - client_order_id
       title: UsdcPairSnapshotOrderPlanLiveSubmitRequest
-      description: Controlled-live Phase E submit/cancel request for one M58 row.
+      description: Source-parked M58 one-row compatibility envelope returning fixed
+        501.
     UsdcPairSnapshotOrderPlanLiveSubmitResponse:
       properties:
         status:

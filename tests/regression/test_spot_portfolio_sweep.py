@@ -75,6 +75,16 @@ from core.enums import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _synthetic_execution_authority(
+    monkeypatch: pytest.MonkeyPatch,
+    coinbase_execution_lease,
+) -> None:
+    """Arm synthetic live-executor tests without granting external authority."""
+
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
+
+
 pytestmark = pytest.mark.regression
 
 
@@ -683,6 +693,37 @@ def test_live_executor_rechecks_guard_before_rest_submission():
     assert rest_client.create_order_calls == []
 
 
+def test_live_executor_value_blinds_guard_exception_text():
+    private_marker = "PRIVATE-SWEEP-GUARD-EXCEPTION-MARKER"
+    products = [_product("AAA-USDC", price="1", quote_min_size="1")]
+    plan = build_usdc_portfolio_sweep_plan(
+        side=OrderSide.BUY,
+        quote_notional="1",
+        products=products,
+        wallets=_wallet("USDC", "10"),
+    )
+
+    def fail_wallet_fetch():
+        raise RuntimeError(private_marker)
+
+    rest_client = _FakeSweepRestClient()
+    reports = execute_usdc_portfolio_sweep_plan(
+        plan=plan,
+        rest_client=rest_client,
+        wallet_fetcher=fail_wallet_fetch,
+        product_metadata=build_sweep_product_metadata(products),
+        poll_timeout_seconds=0.0,
+        poll_interval_seconds=0.0,
+        client_order_id_factory=lambda: "coid-live-guard-failure",
+    )
+
+    assert reports[0].status == SpotPortfolioSweepExecutionStatus.BLOCKED.value
+    assert reports[0].guard_failure["reason"] == "wallet_available_check_failed"
+    assert reports[0].error == "wallet_available_check_failed"
+    assert private_marker not in str(reports[0].to_dict())
+    assert rest_client.create_order_calls == []
+
+
 def test_live_executor_submits_market_buy_and_reports_notional():
     products = [_product("AAA-USDC", price="0.5", quote_min_size="1")]
     plan = build_usdc_portfolio_sweep_plan(
@@ -857,10 +898,111 @@ def test_live_executor_preserves_exchange_id_when_post_submit_fill_fetch_fails()
     assert reports[0].exchange_order_id == "exchange-order-1"
     assert reports[0].submitted_notional_usdc == "1"
     assert reports[0].executed_notional_usdc == "0"
-    assert reports[0].error == "RuntimeError: fill fetch failed"
+    assert reports[0].error == "exception_class:RuntimeError"
+    assert "fill fetch failed" not in str(reports[0].to_dict())
     assert summary["live_coinbase_orders_ran"] is True
     assert summary["run_status"] == SpotPortfolioSweepRunStatus.PARTIAL.value
     assert summary["total_submitted_notional_usdc"] == "1"
+
+
+def test_live_executor_fails_closed_on_create_response_without_explicit_success():
+    private_marker = "PRIVATE-SWEEP-CREATE-RESPONSE-MARKER"
+
+    class MissingSuccessClient(_FakeSweepRestClient):
+        def create_order(self, **kwargs):
+            self.create_order_calls.append(kwargs)
+            return {
+                "success_response": {
+                    "order_id": "exchange-order-ambiguous",
+                    "private_extension": private_marker,
+                },
+                "private_top_level": private_marker,
+            }
+
+    products = [_product("AAA-USDC", price="0.5", quote_min_size="1")]
+    plan = build_usdc_portfolio_sweep_plan(
+        side=OrderSide.BUY,
+        quote_notional="1",
+        products=products,
+        wallets=_wallet("USDC", "10"),
+    )
+    event_publisher = _FakeOrderEventPublisher()
+
+    reports = execute_usdc_portfolio_sweep_plan(
+        plan=plan,
+        rest_client=MissingSuccessClient(),
+        wallet_fetcher=lambda: _wallet("USDC", "10"),
+        product_metadata=build_sweep_product_metadata(products),
+        poll_timeout_seconds=0.0,
+        poll_interval_seconds=0.0,
+        client_order_id_factory=lambda: "coid-live-ambiguous",
+        order_event_publisher=event_publisher,
+    )
+    summary = summarize_sweep_execution(reports=reports)
+
+    assert reports[0].status == SpotPortfolioSweepExecutionStatus.ERROR.value
+    assert reports[0].response_success is None
+    assert reports[0].submission_attempted is True
+    assert reports[0].submission_event_recorded is False
+    assert reports[0].error == "coinbase_create_acceptance_unknown"
+    assert private_marker not in str(reports[0].to_dict())
+    assert event_publisher.publish_event_calls == []
+    assert summary["run_status"] == SpotPortfolioSweepRunStatus.FAILED.value
+    assert summary["live_coinbase_orders_ran"] is True
+    assert summary["submission_attempted_count"] == 1
+    assert summary["submitted_order_count"] == 0
+
+
+def test_live_executor_value_blinds_unrecognized_exchange_status():
+    private_marker = "PRIVATE-SWEEP-STATUS-MARKER"
+
+    class PrivateStatusClient(_FakeSweepRestClient):
+        def get_order(self, order_id):
+            assert order_id == "exchange-order-1"
+            return {"order": {"status": private_marker}}
+
+    products = [_product("AAA-USDC", price="0.5", quote_min_size="1")]
+    plan = build_usdc_portfolio_sweep_plan(
+        side=OrderSide.BUY,
+        quote_notional="1",
+        products=products,
+        wallets=_wallet("USDC", "10"),
+    )
+
+    reports = execute_usdc_portfolio_sweep_plan(
+        plan=plan,
+        rest_client=PrivateStatusClient(),
+        wallet_fetcher=lambda: _wallet("USDC", "10"),
+        product_metadata=build_sweep_product_metadata(products),
+        poll_timeout_seconds=0.01,
+        poll_interval_seconds=0.0,
+        client_order_id_factory=lambda: "coid-live-private-status",
+    )
+
+    assert reports[0].exchange_status == "UNKNOWN"
+    assert private_marker not in str(reports[0].to_dict())
+
+
+def test_live_sweep_runner_value_blinds_fill_backfill_exception_text(monkeypatch):
+    from business import spot_fill_backfill as backfill_module
+    from tools import run_spot_portfolio_sweep_live as runner
+
+    private_marker = "PRIVATE-SWEEP-BACKFILL-MARKER"
+
+    def fail_backfill(**_kwargs):
+        raise RuntimeError(private_marker)
+
+    monkeypatch.setattr(runner, "_build_fill_ledger_repo", lambda: object())
+    monkeypatch.setattr(
+        backfill_module,
+        "backfill_fill_ledger_from_order_reports",
+        fail_backfill,
+    )
+
+    result = runner._backfill_sweep_fills(rest_client=object(), reports=[])
+
+    assert result["error"] == "exception_class:RuntimeError"
+    assert private_marker not in str(result)
 
 
 def test_live_executor_submits_limit_buy_with_offset_and_reports_notional():
@@ -1396,6 +1538,33 @@ def test_spot_fill_backfill_reports_append_failure_as_error():
 
     assert report["orders"][0]["status"] == SpotFillBackfillStatus.ERROR.value
     assert report["orders"][0]["skipped_fill_count"] == 1
+
+
+def test_spot_fill_backfill_value_blinds_exchange_exception_text():
+    from business.spot_fill_backfill import backfill_fill_ledger_from_order_reports
+
+    private_marker = "PRIVATE-FILL-BACKFILL-EXCEPTION-MARKER"
+
+    class RestClient:
+        def list_fills(self, **_kwargs):
+            raise RuntimeError(private_marker)
+
+    report = backfill_fill_ledger_from_order_reports(
+        fill_ledger_repo=object(),
+        rest_client=RestClient(),
+        order_reports=[
+            {
+                "product_id": "AAA-USDC",
+                "side": "BUY",
+                "client_order_id": "coid-1",
+                "exchange_order_id": "exchange-1",
+            },
+        ],
+    )
+
+    assert report["orders"][0]["status"] == SpotFillBackfillStatus.ERROR.value
+    assert report["orders"][0]["error"] == "exception_class:RuntimeError"
+    assert private_marker not in str(report)
 
 
 def test_spot_fill_backfill_fetches_order_fills_without_product_filter():
@@ -2049,7 +2218,7 @@ def test_sell_authority_allowlist_freshness_blocks_invalid_metadata():
     assert blocked["decision"] == SpotPortfolioSweepSafetyDecision.BLOCKED.value
 
 
-def test_live_sweep_rejects_stale_sell_authority_allowlist_before_credentials(capsys):
+def test_live_sweep_is_source_disabled_before_credentials(capsys):
     from tools.run_spot_portfolio_sweep_live import main
 
     scratch_dir = Path("genai_tools")
@@ -2097,7 +2266,10 @@ def test_live_sweep_rejects_stale_sell_authority_allowlist_before_credentials(ca
             )
 
         assert exc.value.code == 2
-        assert "SELL authority allowlist is stale" in capsys.readouterr().err
+        assert (
+            "coinbase_execution_surface_source_disabled_use_authenticated_admin_api"
+            in capsys.readouterr().err
+        )
     finally:
         config_file.unlink(missing_ok=True)
         state_file.unlink(missing_ok=True)
@@ -2139,7 +2311,84 @@ def test_live_sweep_rejects_disabled_safety_policy(capsys):
     assert "--disable-safety-policy cannot be used" in capsys.readouterr().err
 
 
-def test_live_sell_sweep_requires_known_profitable_inventory_policy(capsys):
+@pytest.mark.parametrize("configured_value", [None, "", "0", "true", "yes", "01"])
+def test_live_sweep_requires_exact_outer_authority_before_client_load(
+    monkeypatch,
+    configured_value,
+):
+    import configuration
+    from tools.run_spot_portfolio_sweep_live import main
+
+    if configured_value is None:
+        monkeypatch.delenv("COINBASE_EXECUTION_ENABLED", raising=False)
+    else:
+        monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", configured_value)
+    monkeypatch.setenv("COINBASE_API_KEY", "synthetic-key")
+    monkeypatch.setenv("COINBASE_API_SECRET", "synthetic-secret")
+
+    def unexpected_rest_client():
+        raise AssertionError("client must not load without exact authority")
+
+    monkeypatch.setattr(configuration, "get_rest_client", unexpected_rest_client)
+
+    with pytest.raises(SystemExit) as exc:
+        main(
+            [
+                "--side",
+                "BUY",
+                "--quote-notional",
+                "1",
+                "--approved-live-orders",
+                "--disable-run-lock",
+            ]
+        )
+
+    assert exc.value.code == 2
+
+
+def test_live_sweep_main_is_source_disabled_before_sdk_construction(
+    monkeypatch,
+    tmp_path,
+    capsys,
+):
+    import configuration
+    from tools import run_spot_portfolio_sweep_live as runner
+
+    private_marker = "PRIVATE-SWEEP-MAIN-EXCEPTION-MARKER"
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
+    monkeypatch.setenv("COINBASE_API_KEY", "synthetic-key")
+    monkeypatch.setenv("COINBASE_API_SECRET", "synthetic-secret")
+
+    def fail_client_load():
+        raise RuntimeError(private_marker)
+
+    monkeypatch.setattr(configuration, "get_rest_client", fail_client_load)
+
+    with pytest.raises(SystemExit) as exc_info:
+        runner.main(
+            [
+                "--side",
+                "BUY",
+                "--quote-notional",
+                "1",
+                "--approved-live-orders",
+                "--disable-run-lock",
+                "--state-file",
+                str(tmp_path / "sweep.jsonl"),
+            ]
+        )
+
+    output = capsys.readouterr()
+    assert exc_info.value.code == 2
+    assert private_marker not in output.out
+    assert private_marker not in output.err
+    assert (
+        "coinbase_execution_surface_source_disabled_use_authenticated_admin_api"
+        in output.err
+    )
+
+
+def test_live_sell_sweep_is_source_disabled(capsys):
     from tools.run_spot_portfolio_sweep_live import main
 
     with pytest.raises(SystemExit) as exc:
@@ -2154,7 +2403,10 @@ def test_live_sell_sweep_requires_known_profitable_inventory_policy(capsys):
         )
 
     assert exc.value.code == 2
-    assert "live SELL sweeps require" in capsys.readouterr().err
+    assert (
+        "coinbase_execution_surface_source_disabled_use_authenticated_admin_api"
+        in capsys.readouterr().err
+    )
 
 
 def test_operation_lock_blocks_overlapping_scheduled_jobs():
@@ -2166,8 +2418,10 @@ def test_operation_lock_blocks_overlapping_scheduled_jobs():
     first = _OperationLock(lock_file, stale_after_seconds=3600).acquire()
     try:
         assert lock_file.exists()
-        with pytest.raises(RuntimeError):
+        with pytest.raises(RuntimeError) as exc_info:
             _OperationLock(lock_file, stale_after_seconds=3600).acquire()
+        assert str(exc_info.value) == "operation_lock_busy"
+        assert str(lock_file) not in str(exc_info.value)
     finally:
         first.release()
         lock_file.unlink(missing_ok=True)

@@ -1,8 +1,8 @@
 """Run read-only gates for USDC spot campaign configs.
 
-This tool does not submit Coinbase orders. Live campaign canaries are executed
-by rendering a sweep config and passing it to run_spot_portfolio_sweep_live.py
-with that tool's explicit --approved-live-orders gate.
+This tool does not submit Coinbase orders. Rendered sweep configs are offline
+review artifacts; the historical sweep mutation mode is source-disabled and
+``--approved-live-orders`` grants no execution authority.
 """
 
 from __future__ import annotations

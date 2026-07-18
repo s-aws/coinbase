@@ -29,6 +29,10 @@ from .models import (
     AdminLiveServiceDecisionCreateRequest,
     AdminLiveServiceDecisionItem,
 )
+from .operator_mvp_policy import (
+    OPERATOR_MVP_MAX_EXECUTED_NOTIONAL_USDC,
+    OPERATOR_MVP_MAX_SUBMITTED_NOTIONAL_USDC,
+)
 from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 
 
@@ -129,6 +133,11 @@ class AdminApiLiveServiceDecisionService:
     def _validate_decision_consistency(
         body: AdminLiveServiceDecisionCreateRequest,
     ) -> None:
+        if body.target_module_id == "futures_perpetuals":
+            raise LiveServiceDecisionError(
+                "Futures command service is source-disabled; live-service "
+                "decision records cannot enable or authorize it."
+            )
         submitted_notional = _decimal_value(body.max_submitted_notional_usdc)
         executed_notional = _decimal_value(body.max_executed_notional_usdc)
         if not body.service_enabled:
@@ -178,13 +187,27 @@ class AdminApiLiveServiceDecisionService:
             raise LiveServiceDecisionError(
                 "Enabled live-service decisions cannot execute more notional than submitted."
             )
+        if submitted_notional > OPERATOR_MVP_MAX_SUBMITTED_NOTIONAL_USDC:
+            raise LiveServiceDecisionError(
+                "Live-service decision exceeds the installed MVP submitted-notional ceiling."
+            )
+        if executed_notional > OPERATOR_MVP_MAX_EXECUTED_NOTIONAL_USDC:
+            raise LiveServiceDecisionError(
+                "Live-service decision exceeds the installed MVP executed-notional ceiling."
+            )
 
 
 def _item_from_record(
     record: LiveServiceDecisionRecord,
 ) -> AdminLiveServiceDecisionItem:
+    source_disabled_futures_record = (
+        record.target_module_id == "futures_perpetuals"
+    )
     required_artifacts = list(LIVE_EXECUTION_SERVICE_REQUIRED_ENABLEMENT_ARTIFACTS)
-    resolver_eligible = live_service_decision_allows_backend_admission(record)
+    resolver_eligible = bool(
+        not source_disabled_futures_record
+        and live_service_decision_allows_backend_admission(record)
+    )
     recorded_artifacts = (
         required_artifacts
         if resolver_eligible
@@ -192,6 +215,10 @@ def _item_from_record(
     )
     missing_artifacts = [] if resolver_eligible else required_artifacts
     detail = (
+        "Persisted predecessor Futures live-service evidence is historical and "
+        "source-disabled; it cannot enable or authorize execution."
+        if source_disabled_futures_record
+        else
         "Live-service decision is resolver-eligible for backend runtime admission; "
         "browser and BFF layers still cannot execute Coinbase orders."
         if resolver_eligible
@@ -209,14 +236,20 @@ def _item_from_record(
         action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
         required_permission=LIVE_SERVICE_DECISION_REQUIRED_PERMISSION,
         service_method=LIVE_SERVICE_DECISION_SERVICE_METHOD,
-        status=record.status,
+        status=(
+            AdminApiGateStatus.BLOCKED
+            if source_disabled_futures_record
+            else record.status
+        ),
         requested_service_status=record.requested_service_status,
         live_execution_service_status=(
             record.requested_service_status
             if resolver_eligible
             else AdminApiLiveExecutionStatus.LIVE_DISABLED
         ),
-        service_enabled=record.service_enabled,
+        service_enabled=(
+            False if source_disabled_futures_record else record.service_enabled
+        ),
         target_module_id=record.target_module_id,
         account_family=record.account_family,
         venue_scope=record.venue_scope,
@@ -226,9 +259,21 @@ def _item_from_record(
         deployment_ref=record.deployment_ref,
         runtime_configuration_ref=record.runtime_configuration_ref,
         decision_reason=record.decision_reason,
-        live_coinbase_execution_approved=record.live_coinbase_execution_approved,
-        max_submitted_notional_usdc=record.max_submitted_notional_usdc,
-        max_executed_notional_usdc=record.max_executed_notional_usdc,
+        live_coinbase_execution_approved=(
+            False
+            if source_disabled_futures_record
+            else record.live_coinbase_execution_approved
+        ),
+        max_submitted_notional_usdc=(
+            "0"
+            if source_disabled_futures_record
+            else record.max_submitted_notional_usdc
+        ),
+        max_executed_notional_usdc=(
+            "0"
+            if source_disabled_futures_record
+            else record.max_executed_notional_usdc
+        ),
         enablement_precondition_required=True,
         enablement_precondition_resolved=resolver_eligible,
         enablement_precondition_authority=LIVE_EXECUTION_SERVICE_ENABLEMENT_AUTHORITY,
@@ -237,7 +282,11 @@ def _item_from_record(
         missing_enablement_artifacts=missing_artifacts,
         resolver_eligible=resolver_eligible,
         browser_authority="display_only",
-        bff_authority="forward_only_no_execution",
+        bff_authority=(
+            "source_disabled_not_forwarded"
+            if source_disabled_futures_record
+            else "forward_only_no_execution"
+        ),
         live_exchange_submitted=False,
         live_coinbase_orders_ran=False,
         detail=detail,

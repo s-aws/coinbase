@@ -71,7 +71,17 @@ PAYLOAD_PATHS = (
 REQUIRED_PAYLOAD_PATHS = (
     "api/v1/app.py",
     "application/admin_api/mvp_service.py",
+    "application/admin_api/operator_mvp_policy.py",
+    "application/admin_api/spot_portfolio_binding.py",
+    "application/admin_api/command_runtime.py",
+    "core/coinbase_execution_authority.py",
+    "core/runtime_composition.py",
+    "database/order.py",
     "tools/run_admin_api.py",
+    "tools/run_admin_api_operator_runtime.py",
+    "tools/coinbase_live_credentials.py",
+    "configuration.py",
+    "dashboard_server.py",
     "logging_service.py",
     "tests/regression/test_admin_api_contract.py",
     "tests/regression/test_admin_mvp_api.py",
@@ -182,6 +192,7 @@ def apply_local_deployment(
     remove_path(release_path, root)
     release_path.mkdir(parents=True)
     extract_archive_safely(archive_path, release_path)
+    validate_required_payload(release_path)
     write_json(release_path / LOCAL_DEPLOYMENT_MANIFEST_NAME, local_manifest)
 
     remove_path(current_path, root)

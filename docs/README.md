@@ -4,12 +4,10 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 
 ## Project Entry
 
-Goal `futures_preview_acceptance_recovery_r12` is prepared but production
-release-disabled. Up to ten durably counted non-attempt eligibility cycles are
-separate from the single-use R12 claim and at most one Preview-only call. The
-source-bound release gate remains `False` until focused validation, local
-deployment validation, independent safety audit, and blind contextless audit
-all pass.
+Goal `futures_preview_acceptance_recovery_r12` is terminal
+`complete_terminal_unknown_consumed`. Its single durable claim is consumed,
+the source-bound release gate remains `False`, and no further eligibility read,
+Preview call, R13 attempt, or Slice 3/4/5 activation is authorized.
 
 The predecessor R11 goal is complete. R11 is consumed, terminal `blocked`,
 immutable, and cannot be retried. It stopped at
@@ -17,7 +15,7 @@ immutable, and cannot be retried. It stopped at
 retry, fallback, submission, and mutation counts remained `0`. The exact V3
 operator-policy boundary is `margin_window_type_documented_but_operator_rejected`.
 No acceptance broadening, Slice 3/4/5, or other live authority follows from
-R11. R12 is governed only by its separate prepared boundary.
+R11. R12 is governed only by its consumed terminal boundary.
 
 Historical goal `futures_post_r10_preview_compatibility_and_direction_selection`
 is a completed compatibility/direction record, not current work authority.

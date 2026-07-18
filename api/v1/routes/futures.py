@@ -13,7 +13,11 @@ from application.admin_api.auth import get_authenticated_actor, require_permissi
 from application.admin_api.approval import FileAdminApiApprovalStore
 from application.admin_api.audit import FileAdminApiAuditStore
 from application.admin_api.cap_guard import FileAdminApiCapGuardStore
-from application.admin_api.command_service import AdminApiCommandService
+from application.admin_api.command_service import (
+    FUTURES_COMMAND_SERVICE_SOURCE_DISABLED,
+    FUTURES_COMMAND_SOURCE_DISABLED_MESSAGE,
+    AdminApiCommandService,
+)
 from application.admin_api.futures_risk_proof import FileFuturesRiskProofStore
 from application.admin_api.futures_order_preview import (
     FuturesOrderPreviewArtifactError,
@@ -71,6 +75,7 @@ from application.admin_api.read_service import (
 from application.admin_api.reconciliation import FileAdminApiReconciliationStore
 from core.enums import (
     AdminApiActionClass,
+    AdminApiCommandStatus,
     AdminApiPermission,
     AdminFuturesCommandAction,
     AdminFuturesCommandRiskProofKind,
@@ -86,6 +91,7 @@ from .orders import (
     get_live_execution_service,
     get_reconciliation_store,
     _build_envelope,
+    _command_response,
     _execute_idempotent_command,
     _idempotency_payload_hash,
 )
@@ -106,6 +112,24 @@ READ_ONLY_ROUTE_RESPONSES = {
     403: {
         "model": AdminApiErrorResponse,
         "description": "Actor lacks the required Admin API permission.",
+    },
+}
+
+SOURCE_DISABLED_COMMAND_ROUTE_RESPONSES = {
+    401: {
+        "model": AdminApiErrorResponse,
+        "description": "Missing or invalid Admin API authentication.",
+    },
+    403: {
+        "model": AdminApiErrorResponse,
+        "description": "Actor lacks the required Admin API permission.",
+    },
+    501: {
+        "model": AdminApiCommandResponse,
+        "description": (
+            "Fixed source-disabled response; no replay, admission, audit, "
+            "service, adapter, or Coinbase execution occurs."
+        ),
     },
 }
 
@@ -152,7 +176,7 @@ def get_read_service(
 
 
 def get_authoritative_futures_read_service() -> AdminMvpService:
-    """Return the existing backend-owned Coinbase Futures read service."""
+    """Return the local source-disabled Futures evidence service."""
 
     return get_admin_mvp_service()
 
@@ -345,313 +369,178 @@ def get_futures_order_fill_readback(
     )
 
 
+def _source_disabled_futures_command_response(
+    *,
+    actor: AdminApiActor,
+    idempotency_key: str,
+    correlation_id: str,
+    operator_intent: str,
+    action_class: AdminApiActionClass,
+    required_permission: AdminApiPermission,
+    service_method: str,
+    command: AdminFuturesCommandAction,
+    identity_key: str,
+    identity_value: str,
+) -> JSONResponse:
+    """Return fixed 501 evidence before admission, replay, or mutation code."""
+
+    require_permission(actor, required_permission)
+    response = AdminApiCommandResponse(
+        status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+        action_class=action_class,
+        required_permission=required_permission,
+        service_method=service_method,
+        message=FUTURES_COMMAND_SOURCE_DISABLED_MESSAGE,
+        client_order_id=(
+            identity_value if identity_key == "client_order_id" else None
+        ),
+        correlation_id=correlation_id,
+        idempotency_key=idempotency_key,
+        live_exchange_submitted=False,
+        live_coinbase_orders_ran=False,
+        data={
+            "command": command.value,
+            "identity_key": identity_key,
+            "identity_value": identity_value,
+            "operator_intent_present": bool(operator_intent.strip()),
+            "source_disabled": True,
+            "source_disabled_reason": FUTURES_COMMAND_SERVICE_SOURCE_DISABLED,
+            "coinbase_order_submitted": False,
+            "coinbase_cancel_submitted": False,
+            "reconciliation_executed": False,
+            "futures_state_mutated": False,
+            "order_state_mutated": False,
+            "exchange_state_mutated": False,
+            "live_adapter_invoked": False,
+            "browser_authority": "display_only",
+            "bff_authority": "source_disabled_not_forwarded",
+            "spot_rule_authority": False,
+        },
+        failure_stage=FUTURES_COMMAND_SERVICE_SOURCE_DISABLED,
+    )
+    return _command_response(response)
+
+
 @router.post(
     "/futures/orders",
     response_model=AdminApiCommandResponse,
-    status_code=status.HTTP_200_OK,
-    responses=COMMAND_ROUTE_RESPONSES,
-    summary="Create a futures or perpetual order draft through the shared command service",
+    status_code=status.HTTP_501_NOT_IMPLEMENTED,
+    responses=SOURCE_DISABLED_COMMAND_ROUTE_RESPONSES,
+    summary="Return fixed source-disabled Futures placement evidence",
 )
 def place_futures_order(
-    request: Request,
     body: FuturesPlaceOrderRequest,
     idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
     correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
     operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
-    service: Annotated[AdminApiCommandService, Depends(get_command_service)],
-    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
-    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
-    approval_store: Annotated[FileAdminApiApprovalStore, Depends(get_approval_store)],
-    cap_guard_store: Annotated[FileAdminApiCapGuardStore, Depends(get_cap_guard_store)],
-    reconciliation_store: Annotated[
-        FileAdminApiReconciliationStore,
-        Depends(get_reconciliation_store),
-    ],
-    live_execution_service: Annotated[
-        AdminApiLiveExecutionService,
-        Depends(get_live_execution_service),
-    ],
 ) -> JSONResponse:
-    """Route-bound no-live futures/perpetual placement command draft."""
+    """Reject Futures placement at the installed source-disabled boundary."""
 
-    endpoint = f"{request.method} {request.url.path}"
-    envelope: AdminApiCommandEnvelope = _build_envelope(
+    return _source_disabled_futures_command_response(
+        actor=actor,
         idempotency_key=idempotency_key,
         correlation_id=correlation_id,
         operator_intent=operator_intent,
-        actor=actor,
-    )
-    payload_hash = _idempotency_payload_hash(
-        endpoint=endpoint,
-        actor=actor,
-        operator_intent=operator_intent,
-        body=body.model_dump(mode="json"),
-    )
-    return _execute_idempotent_command(
-        idempotency_key=idempotency_key,
-        payload_hash=payload_hash,
-        actor=actor,
-        endpoint=endpoint,
-        request_id=correlation_id,
-        operator_intent=operator_intent,
-        permission=AdminApiPermission.ORDER_CREATE,
         action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        required_permission=AdminApiPermission.ORDER_CREATE,
         service_method="place_futures_order",
-        route_template="/api/v1/futures/orders",
-        module_id="futures_perpetuals",
+        command=AdminFuturesCommandAction.PLACE,
         identity_key="product_id",
         identity_value=body.product_id,
-        idempotency_store=idempotency_store,
-        audit_store=audit_store,
-        approval_store=approval_store,
-        cap_guard_store=cap_guard_store,
-        reconciliation_store=reconciliation_store,
-        live_execution_service=live_execution_service,
-        command_runner_with_admission=lambda admission_decision: (
-            service.place_futures_order(
-                FuturesPlaceOrderCommand(
-                    envelope=envelope,
-                    request=body,
-                    admission_decision=admission_decision,
-                )
-            )
-        ),
     )
 
 
 @router.post(
     "/futures/positions/{position_key}/close-reduce",
     response_model=AdminApiCommandResponse,
-    status_code=status.HTTP_200_OK,
-    responses=COMMAND_ROUTE_RESPONSES,
-    summary="Create a futures or perpetual close/reduce draft",
+    status_code=status.HTTP_501_NOT_IMPLEMENTED,
+    responses=SOURCE_DISABLED_COMMAND_ROUTE_RESPONSES,
+    summary="Return fixed source-disabled Futures close/reduce evidence",
 )
 def close_or_reduce_futures_position(
-    request: Request,
     body: FuturesCloseReduceRequest,
     position_key: Annotated[str, Path(min_length=1)],
     idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
     correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
     operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
-    service: Annotated[AdminApiCommandService, Depends(get_command_service)],
-    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
-    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
-    approval_store: Annotated[FileAdminApiApprovalStore, Depends(get_approval_store)],
-    cap_guard_store: Annotated[FileAdminApiCapGuardStore, Depends(get_cap_guard_store)],
-    reconciliation_store: Annotated[
-        FileAdminApiReconciliationStore,
-        Depends(get_reconciliation_store),
-    ],
-    live_execution_service: Annotated[
-        AdminApiLiveExecutionService,
-        Depends(get_live_execution_service),
-    ],
 ) -> JSONResponse:
-    """Route-bound no-live futures/perpetual close/reduce command draft."""
+    """Reject Futures close/reduce at the source-disabled boundary."""
 
-    endpoint = f"{request.method} {request.url.path}"
-    envelope: AdminApiCommandEnvelope = _build_envelope(
+    return _source_disabled_futures_command_response(
+        actor=actor,
         idempotency_key=idempotency_key,
         correlation_id=correlation_id,
         operator_intent=operator_intent,
-        actor=actor,
-    )
-    payload_hash = _idempotency_payload_hash(
-        endpoint=endpoint,
-        actor=actor,
-        operator_intent=operator_intent,
-        body=body.model_dump(mode="json"),
-        path_params={"position_key": position_key},
-    )
-    return _execute_idempotent_command(
-        idempotency_key=idempotency_key,
-        payload_hash=payload_hash,
-        actor=actor,
-        endpoint=endpoint,
-        request_id=correlation_id,
-        operator_intent=operator_intent,
-        permission=AdminApiPermission.ORDER_CANCEL,
         action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        required_permission=AdminApiPermission.ORDER_CANCEL,
         service_method="close_or_reduce_futures_position",
-        route_template="/api/v1/futures/positions/{position_key}/close-reduce",
-        module_id="futures_perpetuals",
+        command=AdminFuturesCommandAction.CLOSE_REDUCE,
         identity_key="position_key",
         identity_value=position_key,
-        idempotency_store=idempotency_store,
-        audit_store=audit_store,
-        approval_store=approval_store,
-        cap_guard_store=cap_guard_store,
-        reconciliation_store=reconciliation_store,
-        live_execution_service=live_execution_service,
-        command_runner_with_admission=lambda admission_decision: (
-            service.close_or_reduce_futures_position(
-                FuturesCloseReduceCommand(
-                    envelope=envelope,
-                    position_key=position_key,
-                    request=body,
-                    admission_decision=admission_decision,
-                )
-            )
-        ),
     )
 
 
 @router.post(
     "/futures/orders/{client_order_id}/cancel",
     response_model=AdminApiCommandResponse,
-    status_code=status.HTTP_200_OK,
-    responses=COMMAND_ROUTE_RESPONSES,
-    summary="Create a futures or perpetual cancel draft by client_order_id",
+    status_code=status.HTTP_501_NOT_IMPLEMENTED,
+    responses=SOURCE_DISABLED_COMMAND_ROUTE_RESPONSES,
+    summary="Return fixed source-disabled Futures cancel evidence",
 )
 def cancel_futures_order(
-    request: Request,
     body: FuturesCancelOrderRequest,
     client_order_id: Annotated[str, Path(min_length=1)],
     idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
     correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
     operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
-    service: Annotated[AdminApiCommandService, Depends(get_command_service)],
-    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
-    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
-    approval_store: Annotated[FileAdminApiApprovalStore, Depends(get_approval_store)],
-    cap_guard_store: Annotated[FileAdminApiCapGuardStore, Depends(get_cap_guard_store)],
-    reconciliation_store: Annotated[
-        FileAdminApiReconciliationStore,
-        Depends(get_reconciliation_store),
-    ],
-    live_execution_service: Annotated[
-        AdminApiLiveExecutionService,
-        Depends(get_live_execution_service),
-    ],
 ) -> JSONResponse:
-    """Route-bound no-live futures/perpetual cancel command draft."""
+    """Reject Futures cancel at the installed source-disabled boundary."""
 
-    endpoint = f"{request.method} {request.url.path}"
-    envelope: AdminApiCommandEnvelope = _build_envelope(
+    return _source_disabled_futures_command_response(
+        actor=actor,
         idempotency_key=idempotency_key,
         correlation_id=correlation_id,
         operator_intent=operator_intent,
-        actor=actor,
-    )
-    payload_hash = _idempotency_payload_hash(
-        endpoint=endpoint,
-        actor=actor,
-        operator_intent=operator_intent,
-        body=body.model_dump(mode="json"),
-        path_params={"client_order_id": client_order_id},
-    )
-    return _execute_idempotent_command(
-        idempotency_key=idempotency_key,
-        payload_hash=payload_hash,
-        actor=actor,
-        endpoint=endpoint,
-        request_id=correlation_id,
-        operator_intent=operator_intent,
-        permission=AdminApiPermission.ORDER_CANCEL,
         action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        required_permission=AdminApiPermission.ORDER_CANCEL,
         service_method="cancel_futures_order",
-        route_template="/api/v1/futures/orders/{client_order_id}/cancel",
-        module_id="futures_perpetuals",
+        command=AdminFuturesCommandAction.CANCEL,
         identity_key="client_order_id",
         identity_value=client_order_id,
-        idempotency_store=idempotency_store,
-        audit_store=audit_store,
-        approval_store=approval_store,
-        cap_guard_store=cap_guard_store,
-        reconciliation_store=reconciliation_store,
-        live_execution_service=live_execution_service,
-        client_order_id=client_order_id,
-        command_runner_with_admission=lambda admission_decision: (
-            service.cancel_futures_order(
-                FuturesCancelOrderCommand(
-                    envelope=envelope,
-                    client_order_id=client_order_id,
-                    request=body,
-                    admission_decision=admission_decision,
-                )
-            )
-        ),
     )
 
 
 @router.post(
     "/futures/positions/{position_key}/reconciliation",
     response_model=AdminApiCommandResponse,
-    status_code=status.HTTP_200_OK,
-    responses=COMMAND_ROUTE_RESPONSES,
-    summary="Create a futures or perpetual reconciliation draft",
+    status_code=status.HTTP_501_NOT_IMPLEMENTED,
+    responses=SOURCE_DISABLED_COMMAND_ROUTE_RESPONSES,
+    summary="Return fixed source-disabled Futures reconciliation evidence",
 )
 def reconcile_futures_position(
-    request: Request,
     body: FuturesReconciliationRequest,
     position_key: Annotated[str, Path(min_length=1)],
     idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
     correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
     operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
-    service: Annotated[AdminApiCommandService, Depends(get_command_service)],
-    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
-    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
-    approval_store: Annotated[FileAdminApiApprovalStore, Depends(get_approval_store)],
-    cap_guard_store: Annotated[FileAdminApiCapGuardStore, Depends(get_cap_guard_store)],
-    reconciliation_store: Annotated[
-        FileAdminApiReconciliationStore,
-        Depends(get_reconciliation_store),
-    ],
-    live_execution_service: Annotated[
-        AdminApiLiveExecutionService,
-        Depends(get_live_execution_service),
-    ],
 ) -> JSONResponse:
-    """Route-bound no-live futures/perpetual reconciliation command draft."""
+    """Reject Futures reconciliation at the source-disabled boundary."""
 
-    endpoint = f"{request.method} {request.url.path}"
-    envelope: AdminApiCommandEnvelope = _build_envelope(
+    return _source_disabled_futures_command_response(
+        actor=actor,
         idempotency_key=idempotency_key,
         correlation_id=correlation_id,
         operator_intent=operator_intent,
-        actor=actor,
-    )
-    payload_hash = _idempotency_payload_hash(
-        endpoint=endpoint,
-        actor=actor,
-        operator_intent=operator_intent,
-        body=body.model_dump(mode="json"),
-        path_params={"position_key": position_key},
-    )
-    return _execute_idempotent_command(
-        idempotency_key=idempotency_key,
-        payload_hash=payload_hash,
-        actor=actor,
-        endpoint=endpoint,
-        request_id=correlation_id,
-        operator_intent=operator_intent,
-        permission=AdminApiPermission.RECONCILIATION_RECORD,
         action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        required_permission=AdminApiPermission.RECONCILIATION_RECORD,
         service_method="reconcile_futures_position",
-        route_template="/api/v1/futures/positions/{position_key}/reconciliation",
-        module_id="futures_perpetuals",
+        command=AdminFuturesCommandAction.RECONCILE,
         identity_key="position_key",
         identity_value=position_key,
-        idempotency_store=idempotency_store,
-        audit_store=audit_store,
-        approval_store=approval_store,
-        cap_guard_store=cap_guard_store,
-        reconciliation_store=reconciliation_store,
-        live_execution_service=live_execution_service,
-        command_runner_with_admission=lambda admission_decision: (
-            service.reconcile_futures_position(
-                FuturesReconciliationCommand(
-                    envelope=envelope,
-                    position_key=position_key,
-                    request=body,
-                    admission_decision=admission_decision,
-                )
-            )
-        ),
     )
 
 

@@ -50,6 +50,23 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="spot_operations",
+        surface="POST /api/v1/orders/{client_order_id}/reconciliation",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.ORDER_CANCEL,
+        idempotency="required",
+        approval="not applicable; exact backend execution authority required",
+        caps="not applicable; Coinbase read and local status synchronization only",
+        audit="required",
+        shared_method="reconcile_order_by_client_order_id",
+        parity_test=(
+            "exact durable Admin root ownership plus Test portfolio, product, "
+            "client_order_id, and stored exchange identity; recognized status "
+            "only; a filled root requires bounded exact fill proof persistence; "
+            "no create, cancel, or other exchange mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
         surface="GET /api/v1/orders/{client_order_id}/fill-follow-up/replay",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.AUDIT_READ,
@@ -109,14 +126,14 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.AUDIT_READ,
         idempotency="not required",
-        approval="backend-resolved active V15 plan/marker/handoff evidence",
-        caps="backend-resolved root/child/aggregate plan and active tuple caps",
-        audit="backend-resolved route admission audit evidence",
+        approval="historical local V15 plan/marker/handoff evidence only",
+        caps="historical local root/child/aggregate plan evidence only",
+        audit="historical local route audit evidence only",
         shared_method="build_order_fill_follow_up_child_cancel_readiness",
         parity_test=(
-            "root-only deterministic first-child resolution, exact Test "
-            "portfolio and BTC-USDC scope, active zero-fill exchange readback, "
-            "sealed command headers, and semantic claim posture"
+            "display-only historical deterministic-child evidence; always "
+            "reports source_disabled_not_implemented and never promotes local "
+            "evidence into current exchange revalidation or cancel readiness"
         ),
     ),
     AdminApiRouteInventoryItem(
@@ -127,17 +144,18 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         ),
         action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
         permission=AdminApiPermission.ORDER_CANCEL,
-        idempotency="required and sealed by V15 authority",
-        approval="required and bound through active V15 handoff",
-        caps="required no-new-notional cancel proof",
-        audit="required route-bound admission and semantic claim outcome",
+        idempotency="not_applicable_source_disabled",
+        approval="not_applicable_source_disabled",
+        caps="not_applicable_source_disabled",
+        audit="not_implemented_no_mutation",
         shared_method=(
             "cancel_order_fill_follow_up_child_by_root_client_order_id"
         ),
         parity_test=(
-            "durably claims plan+root+backend-resolved-child before delegation "
-            "to canonical client_order_id-first child cancellation; different "
-            "keys conflict and unknown outcomes require reconciliation"
+            "fixed source-disabled 501 after authentication and RBAC but "
+            "before admission, idempotency, audit, services, stores, Coinbase "
+            "reads, local writes, or exchange mutation; restoration requires "
+            "separate operator authorization"
         ),
     ),
     AdminApiRouteInventoryItem(
@@ -904,10 +922,9 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         audit="optional read audit",
         shared_method="build_futures_command_suite",
         parity_test=(
-            "read-only futures command contract matrix; exposes route-bound "
-            "no-live command draft evidence, request payload contract refs, "
-            "semantic guard summaries, and blocked request fields while "
-            "execution remains false; no spot rules or live routes"
+            "read-only Futures source-disabled contract matrix; the four command "
+            "POSTs return NOT_IMPLEMENTED and permit no draft, forwarding, gate "
+            "progression, spot rules, or exchange execution"
         ),
     ),
     AdminApiRouteInventoryItem(
@@ -915,15 +932,14 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         surface="POST /api/v1/futures/orders",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
         permission=AdminApiPermission.ORDER_CREATE,
-        idempotency="required",
-        approval="required by current HTTP live-disabled gate",
-        caps="required for futures placement admission and margin/risk controls",
-        audit="required",
+        idempotency="not_applicable_source_disabled",
+        approval="not_applicable_source_disabled",
+        caps="not_applicable_source_disabled",
+        audit="not_implemented_no_mutation",
         shared_method="place_futures_order",
         parity_test=(
-            "product_id identity; route-bound draft only with no live adapter, "
-            "Coinbase submission, reconciliation execution, state mutation, "
-            "browser authority, BFF authority, or spot-rule authority"
+            "product_id identity; source-disabled fixed NOT_IMPLEMENTED response "
+            "before replay, admission, audit, service, adapter, or Coinbase code"
         ),
     ),
     AdminApiRouteInventoryItem(
@@ -931,15 +947,14 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         surface="POST /api/v1/futures/positions/{position_key}/close-reduce",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
         permission=AdminApiPermission.ORDER_CANCEL,
-        idempotency="required",
-        approval="required by current HTTP live-disabled gate",
-        caps="required for futures close/reduce admission and position controls",
-        audit="required",
+        idempotency="not_applicable_source_disabled",
+        approval="not_applicable_source_disabled",
+        caps="not_applicable_source_disabled",
+        audit="not_implemented_no_mutation",
         shared_method="close_or_reduce_futures_position",
         parity_test=(
-            "position_key identity; route-bound draft only with no live adapter, "
-            "Coinbase submission, reconciliation execution, state mutation, "
-            "browser authority, BFF authority, or spot-rule authority"
+            "position_key identity; source-disabled fixed NOT_IMPLEMENTED response "
+            "before replay, admission, audit, service, adapter, or Coinbase code"
         ),
     ),
     AdminApiRouteInventoryItem(
@@ -947,15 +962,14 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         surface="POST /api/v1/futures/orders/{client_order_id}/cancel",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
         permission=AdminApiPermission.ORDER_CANCEL,
-        idempotency="required",
-        approval="required by current HTTP live-disabled gate",
-        caps="required for futures cancel admission and exchange-reality controls",
-        audit="required",
+        idempotency="not_applicable_source_disabled",
+        approval="not_applicable_source_disabled",
+        caps="not_applicable_source_disabled",
+        audit="not_implemented_no_mutation",
         shared_method="cancel_futures_order",
         parity_test=(
-            "client_order_id identity; route-bound draft only with no live "
-            "adapter, Coinbase cancellation, reconciliation execution, state "
-            "mutation, browser authority, BFF authority, or spot-rule authority"
+            "client_order_id identity; source-disabled fixed NOT_IMPLEMENTED "
+            "response before replay, admission, audit, service, adapter, or Coinbase code"
         ),
     ),
     AdminApiRouteInventoryItem(
@@ -963,16 +977,14 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         surface="POST /api/v1/futures/positions/{position_key}/reconciliation",
         action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
         permission=AdminApiPermission.RECONCILIATION_RECORD,
-        idempotency="required",
-        approval="required by current HTTP live-disabled gate",
-        caps="required for futures reconciliation admission controls",
-        audit="required",
+        idempotency="not_applicable_source_disabled",
+        approval="not_applicable_source_disabled",
+        caps="not_applicable_source_disabled",
+        audit="not_implemented_no_mutation",
         shared_method="reconcile_futures_position",
         parity_test=(
-            "position_key identity; route-bound draft only with no "
-            "reconciliation execution, futures/order/exchange mutation, "
-            "live adapter, Coinbase call, browser authority, BFF authority, "
-            "or spot-rule authority"
+            "position_key identity; source-disabled fixed NOT_IMPLEMENTED response "
+            "before replay, admission, audit, service, reconciliation, or mutation code"
         ),
     ),
     AdminApiRouteInventoryItem(
@@ -1128,11 +1140,14 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
         permission=AdminApiPermission.ORDER_CANCEL,
         idempotency="required",
-        approval="required by current HTTP live-disabled gate",
+        approval="required by controlled-live request admission",
         caps="required for rate/session controls",
         audit="required",
         shared_method="cancel_order_by_client_order_id",
-        parity_test="HTTP vs cancel_order parity",
+        parity_test=(
+            "controlled-live HTTP vs cancel_order parity with full request "
+            "admission and final execution-authority enforcement"
+        ),
     ),
     AdminApiRouteInventoryItem(
         module_id="spot_operations",
@@ -1279,8 +1294,9 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         audit="optional read audit",
         shared_method="list_usdc_pair_snapshot_order_plan_live_submissions",
         parity_test=(
-            "M58 read-only controlled-live submit/cancel evidence; no "
-            "browser execution authority, no fan-out, and no scheduler"
+            "M58 read-only historical or synthetic submit/cancel evidence; "
+            "it does not imply that the source-parked exchange routes are "
+            "operator executable"
         ),
     ),
     AdminApiRouteInventoryItem(
@@ -1372,8 +1388,8 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         permission=AdminApiPermission.CAMPAIGN_EXECUTE,
         idempotency="required",
         approval=(
-            "required existing proof-chain approval evidence and exact enabled "
-            "live-service decision; does not grant Coinbase submission"
+            "offline proof-chain evidence only; source parking cannot grant "
+            "Coinbase submission"
         ),
         caps=(
             "required validation for one selected order-plan row, preferred spot live-test "
@@ -1383,10 +1399,10 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         audit="required",
         shared_method="record_usdc_pair_snapshot_order_plan_live_readiness",
         parity_test=(
-            "M58 backend-owned live-readiness preflight persists one-row "
-            "submit-readiness evidence while submit_route_ready is true; "
-            "no Coinbase order submission, no wallet allocation, and no "
-            "browser execution authority"
+            "M58 backend-owned offline readiness preflight persists one-row "
+            "evidence with submit_route_ready false and blocker "
+            "m58_operator_workflow_unavailable; no Coinbase order submission, "
+            "wallet allocation, or browser execution authority"
         ),
     ),
     AdminApiRouteInventoryItem(
@@ -1397,23 +1413,17 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         ),
         action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
         permission=AdminApiPermission.CAMPAIGN_EXECUTE,
-        idempotency="required",
-        approval=(
-            "required exact existing live-readiness evidence, proof-chain "
-            "approval evidence, and enabled live-service decision"
-        ),
-        caps=(
-            "required one selected spot order only, preferred live-test "
-            "notional cap, far-from-bid/non-fill price distance, immediate "
-            "cancel by client_order_id, and no additional orders"
-        ),
-        audit="required",
+        idempotency="not_applicable_source_disabled",
+        approval="not_applicable_source_disabled",
+        caps="not_applicable_source_disabled",
+        audit="not_implemented_no_mutation",
         shared_method="submit_usdc_pair_snapshot_order_plan_live_order",
         parity_test=(
-            "M58 backend-owned controlled-live one-order submit/cancel uses "
-            "client_order_id for operator tracking and cancellation; Coinbase "
-            "order_id is exchange evidence only; no fan-out, no scheduler, "
-            "and no browser execution authority"
+            "M58 exchange execution is source-parked with fixed typed 501 "
+            "m58_operator_workflow_unavailable before idempotency, approval, "
+            "cap, audit, or persistence; the installed dependency makes zero "
+            "Coinbase executor calls and zero new submission-record writes; "
+            "future restoration requires separate authorization"
         ),
     ),
     AdminApiRouteInventoryItem(
@@ -1424,24 +1434,17 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         ),
         action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
         permission=AdminApiPermission.CAMPAIGN_EXECUTE,
-        idempotency="required",
-        approval=(
-            "required exact allowlist run-state evidence, live-readiness "
-            "evidence, proof-chain approval evidence, and enabled "
-            "live-service decision"
-        ),
-        caps=(
-            "required one selected queued spot order only, preferred live-test "
-            "notional cap, far-from-bid/non-fill price distance, immediate "
-            "cancel by client_order_id, and no additional orders"
-        ),
-        audit="required",
+        idempotency="not_applicable_source_disabled",
+        approval="not_applicable_source_disabled",
+        caps="not_applicable_source_disabled",
+        audit="not_implemented_no_mutation",
         shared_method="submit_usdc_pair_snapshot_allowlist_run_state_live_order",
         parity_test=(
-            "M58 backend-owned allowlist run-state controlled-live handoff "
-            "submits and cancels one selected queued product by client_order_id; "
-            "Coinbase order_id is exchange evidence only; no fan-out, no "
-            "scheduler, and no browser execution authority"
+            "M58 exchange execution is source-parked with fixed typed 501 "
+            "m58_operator_workflow_unavailable before idempotency, approval, "
+            "cap, audit, or persistence; the installed dependency makes zero "
+            "Coinbase executor calls and zero new submission-record writes; "
+            "future restoration requires separate authorization"
         ),
     ),
     AdminApiRouteInventoryItem(
@@ -1452,25 +1455,17 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         ),
         action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
         permission=AdminApiPermission.CAMPAIGN_EXECUTE,
-        idempotency="required",
-        approval=(
-            "required exact allowlist run-state fan-out evidence and explicit "
-            "backend-owned live fan-out operator confirmations, including "
-            "pause-before-full-fill confirmation and operator stop conditions; "
-            "current implementation is fail-closed"
-        ),
-        caps=(
-            "required maximum fan-out notional <= 100 USDC, cancel/rollback "
-            "before phase completion, and default 5 orders per second rate "
-            "limit evidence"
-        ),
-        audit="required",
+        idempotency="not_applicable_source_disabled",
+        approval="not_applicable_source_disabled",
+        caps="not_applicable_source_disabled",
+        audit="not_implemented_no_mutation",
         shared_method="submit_usdc_pair_snapshot_allowlist_run_state_live_fanout",
         parity_test=(
-            "M58 backend-owned live fan-out boundary accepts only explicit "
-            "run-state fan-out submit attempts and rejects before Coinbase "
-            "execution unless all backend route proof gates clear; no scheduler "
-            "and no browser execution authority"
+            "M58 fan-out exchange execution is source-parked with fixed typed "
+            "501 m58_operator_workflow_unavailable before idempotency, approval, "
+            "cap, audit, or persistence; no installed operator path can select "
+            "the real fan-out executor; future restoration requires separate "
+            "authorization"
         ),
     ),
     AdminApiRouteInventoryItem(
@@ -2275,7 +2270,10 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         caps="not applicable",
         audit="optional read audit",
         shared_method="get_account_management",
-        parity_test="backend-owned account reality only; browser remains display-only",
+        parity_test=(
+            "local sanitized account reality only; zero Coinbase reads or "
+            "writes; browser remains display-only"
+        ),
     ),
     AdminApiRouteInventoryItem(
         module_id="account_management",
@@ -2287,7 +2285,10 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         caps="not applicable",
         audit="optional read audit",
         shared_method="get_admin_wallet",
-        parity_test="backend-owned wallet inventory and admission inputs only",
+        parity_test=(
+            "local unavailable wallet evidence only; zero Coinbase reads or "
+            "writes and no admission authority"
+        ),
     ),
     AdminApiRouteInventoryItem(
         module_id="account_management",
@@ -2299,7 +2300,10 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         caps="not applicable",
         audit="optional read audit",
         shared_method="get_admin_fees",
-        parity_test="backend-owned fee evidence only; no exchange mutation",
+        parity_test=(
+            "local unavailable fee evidence only; zero Coinbase reads, "
+            "writes, or exchange mutations"
+        ),
     ),
     AdminApiRouteInventoryItem(
         module_id="account_management",
@@ -2311,19 +2315,25 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         caps="not applicable",
         audit="optional read audit",
         shared_method="get_admin_products",
-        parity_test="backend-owned product metadata read only",
+        parity_test=(
+            "local unavailable product evidence only; zero Coinbase reads "
+            "or writes"
+        ),
     ),
     AdminApiRouteInventoryItem(
         module_id="account_management",
         surface="POST /api/v1/admin/products/refresh",
         action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
         permission=AdminApiPermission.CONFIG_UPDATE,
-        idempotency="required",
+        idempotency="not consumed; source-disabled before local mutation",
         approval="not required",
         caps="not applicable",
-        audit="required",
+        audit="fixed response only; no durable audit while source-disabled",
         shared_method="refresh_admin_products",
-        parity_test="refreshes local product metadata cache only; no order execution",
+        parity_test=(
+            "source-disabled before Coinbase reads or products.json writes; "
+            "no order execution"
+        ),
     ),
     AdminApiRouteInventoryItem(
         module_id="spot_operations",
@@ -2336,8 +2346,8 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         audit="optional read audit",
         shared_method="read_spot_order_fill_readback",
         parity_test=(
-            "client_order_id spot order/fill readback only; exchange order id "
-            "remains evidence and no Coinbase submission or cancellation occurs"
+            "client_order_id local durable sanitized fill-proof read only; zero "
+            "Coinbase calls and writes; exchange order id remains evidence"
         ),
     ),
     AdminApiRouteInventoryItem(
@@ -2350,13 +2360,16 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         caps="not applicable",
         audit="optional read audit",
         shared_method="read_futures_order_fill_readback",
-        parity_test="client_order_id readback only; exchange order id remains evidence and no Coinbase submission occurs",
+        parity_test=(
+            "fixed source-disabled local response; zero Coinbase order/fill "
+            "reads, writes, or exchange mutations"
+        ),
     ),
     AdminApiRouteInventoryItem(
         module_id="spot_operations",
         surface="POST /api/v1/spot/manual-order/proof-chain",
         action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
-        permission="spot_manual_order_proof:record",
+        permission=AdminApiPermission.SPOT_MANUAL_ORDER_PROOF_RECORD,
         idempotency="required",
         approval="required",
         caps="required",
@@ -2368,7 +2381,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         module_id="spot_operations",
         surface="POST /api/v1/spot/cancel-order/proof-chain",
         action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
-        permission="spot_order_cancel_proof:record",
+        permission=AdminApiPermission.SPOT_ORDER_CANCEL_PROOF_RECORD,
         idempotency="required",
         approval="proof evidence only",
         caps="proof evidence only",

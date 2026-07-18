@@ -10,6 +10,7 @@ import shutil
 import tempfile
 import time
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
@@ -55,6 +56,7 @@ from application.admin_api.cap_guard import (
     FileAdminApiCapGuardStore,
     resolve_cap_guard_decision,
 )
+from application.admin_api.cap_guard_service import AdminApiCapGuardDecisionService
 from application.admin_api.reconciliation import (
     FileAdminApiReconciliationStore,
     ReconciliationPlanRecord,
@@ -337,6 +339,8 @@ from application.admin_api.live_execution import (
     LIVE_EXECUTION_SERVICE_ENABLEMENT_VERIFICATION_GATES,
     LIVE_EXECUTION_SERVICE_REQUIRED_ENABLEMENT_ARTIFACTS,
     LIVE_EXECUTION_RUNTIME_ENABLED_ENV,
+    OPERATOR_READY_MVP_DEPLOYMENT_REF,
+    OPERATOR_READY_MVP_RUNTIME_CONFIGURATION_REF,
     M55_STEALTH_REVEAL_DRY_RUN_SERVICE_MISSING_REASON,
     M55_STEALTH_REVEAL_DRY_RUN_SERVICE_SOURCE,
     POST_WRITE_RECONCILIATION_METHOD,
@@ -486,7 +490,10 @@ ROUTE_INVENTORY_DOC = ROOT / "docs" / "plans" / "ADMIN_API_ROUTE_INVENTORY.md"
 
 # This file imports the full FastAPI app/route graph. Keep it in the serial
 # regression lane so xdist cannot multiply the route-model memory footprint.
-pytestmark = pytest.mark.serial
+pytestmark = [
+    pytest.mark.serial,
+    pytest.mark.usefixtures("coinbase_execution_lease"),
+]
 
 _ACTIVE_TEST_CLIENTS: list[TestClient] = []
 _ACTIVE_TEST_STORE_DIRS: list[Path] = []
@@ -925,6 +932,11 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     app.dependency_overrides[cap_guard_routes.get_cap_guard_store] = (
         lambda: cap_guard_store
     )
+    app.dependency_overrides[cap_guard_routes.get_cap_guard_decision_service] = (
+        lambda: AdminApiCapGuardDecisionService(
+            wallet_evidence_resolver=lambda _product_scope: Decimal("3.10")
+        )
+    )
     app.dependency_overrides[live_execution_routes.get_idempotency_store] = (
         lambda: idempotency_store
     )
@@ -962,6 +974,13 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
         lambda: idempotency_store
     )
     app.dependency_overrides[spot_routes.get_audit_store] = lambda: audit_store
+    app.dependency_overrides[spot_routes.get_approval_store] = lambda: approval_store
+    app.dependency_overrides[spot_routes.get_cap_guard_store] = (
+        lambda: cap_guard_store
+    )
+    app.dependency_overrides[spot_routes.get_reconciliation_store] = (
+        lambda: reconciliation_store
+    )
     app.dependency_overrides[spot_routes.get_spot_pnl_checkpoint_store] = (
         lambda: pnl_checkpoint_store
     )
@@ -1117,12 +1136,14 @@ def _manual_order_payload(
     quote_size: str = "1.00",
     client_order_id: str | None = None,
     base_size: str | None = None,
+    limit_price: str = "65000.00",
 ) -> dict:
     payload = {
         "product_id": "BTC-USDC",
         "side": "BUY",
         "order_type": "LIMIT",
-        "limit_price": "65000.00",
+        "limit_price": limit_price,
+        "time_in_force": "GOOD_UNTIL_CANCELLED",
         "manual_live_acknowledgement": True,
     }
     if base_size is not None:
@@ -1195,6 +1216,7 @@ def _manual_order_approval_payload(
     client_order_id: str = "client-approved",
     idempotency_key: str = "idem-approved",
     base_size: str | None = None,
+    limit_price: str = "65000.00",
 ) -> dict:
     return {
         "endpoint": "POST /api/v1/orders",
@@ -1205,6 +1227,7 @@ def _manual_order_approval_payload(
             _manual_order_payload(
                 client_order_id=client_order_id,
                 base_size=base_size,
+                limit_price=limit_price,
             )
         ).model_dump(mode="json"),
         "path_params": {},
@@ -1443,7 +1466,7 @@ def _append_manual_order_cap_guard_decision(
         status=status,
         cap_policy_ref="submitted_notional_cap:3.10",
         guard_policy_ref="action_condition_guard:manual_order",
-        product_scope="USDC spot product scope",
+        product_scope="BTC-USDC",
         max_submitted_notional_usdc="3.10",
         max_executed_notional_usdc="1.00",
         wallet_check_required=True,
@@ -1494,7 +1517,7 @@ def _cap_guard_decision_payload(
         "status": status.value,
         "cap_policy_ref": "submitted_notional_cap:3.10",
         "guard_policy_ref": "action_condition_guard:manual_order",
-        "product_scope": "USDC spot product scope",
+        "product_scope": "BTC-USDC",
         "max_submitted_notional_usdc": "3.10",
         "max_executed_notional_usdc": "1.00",
         "wallet_check_required": True,
@@ -10693,7 +10716,9 @@ def test_admin_api_cancel_contract_is_keyed_by_client_order_id(monkeypatch):
     assert payload["live_command_runtime_enabled"] is False
     assert payload["live_command_rest_client_available"] is False
     assert payload["live_command_runtime_ready"] is False
-    assert payload["live_command_runtime_missing_reason"] == "live_runtime_disabled"
+    assert payload["live_command_runtime_missing_reason"] == (
+        "coinbase_execution_authority_disabled"
+    )
     assert (
         payload["live_command_runtime_source"]
         == "application/admin_api/command_runtime.py"
@@ -31827,7 +31852,10 @@ def test_admin_api_stealth_post_write_reconciliation_verification_rejects_unsafe
         assert response.status_code == 400, case["label"]
         payload = response.json()
         assert payload["status"] == AdminApiCommandStatus.REJECTED.value
-        assert case["expected_message"] in payload["message"]
+        assert payload["message"] == (
+            "exception_class:StealthPostWriteReconciliationVerificationError"
+        )
+        assert case["expected_message"] not in payload["message"]
         assert (
             client.admin_api_test_stealth_post_write_reconciliation_verification_store.find_by_verification_id(
                 case["body"]["reconciliation_verification_id"]
@@ -31875,7 +31903,10 @@ def test_admin_api_stealth_post_write_reconciliation_verification_rejects_unsafe
     assert duplicate_response.json()["status"] == (
         AdminApiCommandStatus.REJECTED.value
     )
-    assert "already exists" in duplicate_response.json()["message"]
+    assert duplicate_response.json()["message"] == (
+        "exception_class:StealthPostWriteReconciliationVerificationError"
+    )
+    assert "already exists" not in duplicate_response.json()["message"]
 
     readback = client.get(
         verification_path,
@@ -43075,6 +43106,117 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_pause_abort_fail_close
 
 
 @pytest.mark.regression
+@pytest.mark.parametrize(
+    ("route", "body"),
+    [
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/parked-plan/live-submit",
+            {
+                "readiness_id": "parked-readiness",
+                "product_id": "BTC-USDC",
+                "client_order_id": "parked-client-order",
+            },
+        ),
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/parked-run/live-submit",
+            {
+                "readiness_id": "parked-readiness",
+                "product_id": "BTC-USDC",
+                "client_order_id": "parked-client-order",
+            },
+        ),
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/parked-run/live-fanout-submit",
+            {},
+        ),
+    ],
+)
+def test_admin_api_m58_exchange_submit_routes_are_fixed_source_parked(
+    monkeypatch,
+    route: str,
+    body: dict[str, object],
+):
+    from api.v1.routes import automation as automation_routes
+
+    client = _client(monkeypatch)
+    headers = _headers(
+        idempotency_key=f"idem-m58-parked-{route.rsplit('/', 1)[-1]}",
+        operator_intent="inspect_m58_source_parked_boundary",
+    )
+
+    unauthenticated_headers = dict(headers)
+    unauthenticated_headers.pop("Authorization")
+    assert client.post(
+        route,
+        headers=unauthenticated_headers,
+        json=body,
+    ).status_code == 401
+    assert client.post(
+        route,
+        headers={**headers, "X-Admin-Roles": AdminApiRole.VIEWER.value},
+        json=body,
+    ).status_code == 403
+
+    protected_paths = (
+        client.admin_api_test_idempotency_store.path,
+        client.admin_api_test_audit_store.path,
+    )
+    before = {
+        path: path.read_bytes() if path.exists() else None
+        for path in protected_paths
+    }
+
+    def _unexpected_dependency():
+        raise AssertionError("source-parked M58 route resolved a dependency")
+
+    for dependency in (
+        automation_routes.get_usdc_pair_snapshot_order_plan_store,
+        automation_routes.get_usdc_pair_snapshot_order_plan_live_readiness_store,
+        automation_routes.get_usdc_pair_snapshot_cap_guard_store,
+        automation_routes.get_usdc_pair_snapshot_live_service_decision_store,
+        automation_routes.get_usdc_pair_snapshot_order_plan_live_submit_store,
+        automation_routes.get_usdc_pair_snapshot_allowlist_run_state_store,
+        automation_routes.get_usdc_pair_snapshot_order_plan_allowlist_readiness_store,
+        automation_routes.get_usdc_pair_snapshot_live_wallet_reservation_store,
+        automation_routes.get_usdc_pair_snapshot_live_wallet_ledger_store,
+        automation_routes.get_usdc_pair_snapshot_live_order_executor,
+        automation_routes.get_usdc_pair_snapshot_live_fanout_executor,
+        automation_routes.get_idempotency_store,
+        automation_routes.get_audit_store,
+    ):
+        client.app.dependency_overrides[dependency] = _unexpected_dependency
+
+    response = client.post(
+        route,
+        headers=headers,
+        json=body,
+    )
+
+    assert response.status_code == 501
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.NOT_IMPLEMENTED.value
+    assert payload["failure_stage"] == "m58_operator_workflow_unavailable"
+    assert payload["message"] == (
+        "M58 exchange execution is parked: m58_operator_workflow_unavailable."
+    )
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+    assert {
+        path: path.read_bytes() if path.exists() else None
+        for path in protected_paths
+    } == before
+
+
+@pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_queued_live_readiness(
     monkeypatch,
 ):
@@ -43198,9 +43340,13 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_q
         ),
         json=ready_body,
     )
-    assert replay.status_code == 200
-    assert replay.headers["x-idempotency-replayed"] == "true"
-    assert replay.json() == ready_payload
+    assert replay.status_code == 501
+    assert "x-idempotency-replayed" not in replay.headers
+    replay_payload = replay.json()
+    assert replay_payload["status"] == AdminApiCommandStatus.NOT_IMPLEMENTED.value
+    assert replay_payload["failure_stage"] == "m58_operator_workflow_unavailable"
+    assert replay_payload["live_exchange_submitted"] is False
+    assert replay_payload["live_coinbase_orders_ran"] is False
     assert len(client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls) == 1
 
     readback = client.get(
@@ -43216,6 +43362,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_q
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_replays_rejection_after_proofs_change(
     monkeypatch,
 ):
@@ -43324,6 +43476,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_replays_re
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_treats_positive_execution_as_failed_rollback(
     monkeypatch,
 ):
@@ -43414,6 +43572,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_treats_pos
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_treats_missing_execution_evidence_as_failed_rollback(
     monkeypatch,
 ):
@@ -43507,6 +43671,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_treats_mis
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_legacy_fanout_approval_blocker(
     monkeypatch,
 ):
@@ -43580,6 +43750,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_le
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_is_fail_closed(
     monkeypatch,
 ):
@@ -43641,6 +43817,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_is_
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_requires_pause_before_full_fill_confirmation(
     monkeypatch,
 ):
@@ -43701,6 +43883,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_req
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_requires_operator_stop_conditions(
     monkeypatch,
 ):
@@ -43756,6 +43944,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_req
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_replays_rejection_after_proofs_change(
     monkeypatch,
 ):
@@ -43880,6 +44074,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rep
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_reports_runtime_proof_blockers(
     monkeypatch,
 ):
@@ -43955,6 +44155,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rep
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_status_only_runtime_proof(
     monkeypatch,
 ):
@@ -44044,6 +44250,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_reports_scheduler_proof_blockers(
     monkeypatch,
 ):
@@ -44117,6 +44329,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rep
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_request_cap_above_run_state_cap(
     monkeypatch,
 ):
@@ -44192,6 +44410,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_stale_cap_readback(
     monkeypatch,
 ):
@@ -44268,6 +44492,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_prior_live_execution_readback(
     monkeypatch,
 ):
@@ -44347,6 +44577,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_stale_parent_readiness(
     monkeypatch,
 ):
@@ -44434,6 +44670,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_queued_product_blockers(
     monkeypatch,
 ):
@@ -44515,6 +44757,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_product_set_count_mismatch(
     monkeypatch,
 ):
@@ -44608,6 +44856,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_stale_partial_success_readback(
     monkeypatch,
 ):
@@ -44739,6 +44993,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_aggregate_notional_mismatch(
     monkeypatch,
 ):
@@ -44828,6 +45088,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_stale_queued_product_state(
     monkeypatch,
 ):
@@ -44939,6 +45205,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_conflict_readback(
     monkeypatch,
 ):
@@ -45054,6 +45326,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_stale_parent_runtime_readback(
     monkeypatch,
 ):
@@ -45180,6 +45458,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_stale_live_wallet_readback(
     monkeypatch,
 ):
@@ -45746,6 +46030,12 @@ def _append_usdc_pair_snapshot_multi_product_live_fanout_ready_fixture(
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_accepts_proof_cleared_single_product(
     monkeypatch,
 ):
@@ -45840,6 +46130,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_acc
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_replays_accepted_response_after_proofs_change(
     monkeypatch,
 ):
@@ -45937,9 +46233,13 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rep
         operator_notes="accepted fan-out replay must not submit again",
     )
 
-    assert replay.status_code == 200
-    assert replay.headers["X-Idempotency-Replayed"] == "true"
-    assert replay.json() == payload
+    assert replay.status_code == 501
+    assert "X-Idempotency-Replayed" not in replay.headers
+    replay_payload = replay.json()
+    assert replay_payload["status"] == AdminApiCommandStatus.NOT_IMPLEMENTED.value
+    assert replay_payload["failure_stage"] == "m58_operator_workflow_unavailable"
+    assert replay_payload["live_exchange_submitted"] is False
+    assert replay_payload["live_coinbase_orders_ran"] is False
     assert (
         client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls
         == live_calls
@@ -45996,6 +46296,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rep
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_accepts_proof_cleared_multi_product(
     monkeypatch,
 ):
@@ -46064,6 +46370,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_acc
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_inconsistent_partial_success(
     monkeypatch,
 ):
@@ -46176,6 +46488,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_count_summary_mismatch(
     monkeypatch,
 ):
@@ -46289,6 +46607,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_notional_summary_mismatch(
     monkeypatch,
 ):
@@ -46405,6 +46729,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_control_summary_mismatch(
     monkeypatch,
 ):
@@ -46521,6 +46851,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_live_summary_mismatch(
     monkeypatch,
 ):
@@ -46635,6 +46971,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_cancel_summary_mismatch(
     monkeypatch,
 ):
@@ -46751,6 +47093,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_execution_row_identity_mismatch(
     monkeypatch,
 ):
@@ -46872,6 +47220,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_execution_row_order_configuration_mismatch(
     monkeypatch,
 ):
@@ -46991,6 +47345,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_result_client_order_id_mismatch(
     monkeypatch,
 ):
@@ -47119,6 +47479,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_records_cancel_failure_without_second_order(
     monkeypatch,
 ):
@@ -47211,13 +47577,23 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rec
         operator_notes="cancel failure must stop before second fanout order",
     )
 
-    assert replay.status_code == 200
-    assert replay.headers["X-Idempotency-Replayed"] == "true"
-    assert replay.json() == payload
+    assert replay.status_code == 501
+    assert "X-Idempotency-Replayed" not in replay.headers
+    replay_payload = replay.json()
+    assert replay_payload["status"] == AdminApiCommandStatus.NOT_IMPLEMENTED.value
+    assert replay_payload["failure_stage"] == "m58_operator_workflow_unavailable"
+    assert replay_payload["live_exchange_submitted"] is False
+    assert replay_payload["live_coinbase_orders_ran"] is False
     assert fake_order_executor.calls == live_calls
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_treats_positive_execution_as_failed_rollback(
     monkeypatch,
 ):
@@ -47302,6 +47678,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_tre
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_preserves_missing_execution_evidence_status(
     monkeypatch,
 ):
@@ -47387,6 +47769,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_pre
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_requires_live_readiness_record(
     monkeypatch,
 ):
@@ -47446,6 +47834,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_req
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_requires_cap_guard_record(
     monkeypatch,
 ):
@@ -47505,6 +47899,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_req
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_requires_order_plan_row(
     monkeypatch,
 ):
@@ -47547,6 +47947,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_req
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_stale_order_plan_snapshot(
     monkeypatch,
 ):
@@ -47595,6 +48001,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_requires_allowlist_readiness_record(
     monkeypatch,
 ):
@@ -47634,6 +48046,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_req
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_stale_allowlist_readiness_snapshot(
     monkeypatch,
 ):
@@ -47688,6 +48106,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_stale_allowlist_readiness_products(
     monkeypatch,
 ):
@@ -47736,6 +48160,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_stale_allowlist_readiness_rows(
     monkeypatch,
 ):
@@ -47784,6 +48214,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_stale_allowlist_readiness_row_content(
     monkeypatch,
 ):
@@ -47847,6 +48283,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_stale_allowlist_readiness_fanout_blockers(
     monkeypatch,
 ):
@@ -47900,6 +48342,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_recomputes_retry_budget_attempts(
     monkeypatch,
 ):
@@ -47974,6 +48422,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rec
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_revalidates_retry_backoff_ref_conflicts(
     monkeypatch,
 ):
@@ -48069,6 +48523,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rev
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_revalidates_recovery_ref_conflicts(
     monkeypatch,
 ):
@@ -48133,6 +48593,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rev
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_revalidates_runtime_ref_conflicts(
     monkeypatch,
 ):
@@ -48192,6 +48658,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rev
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_requires_live_service_record(
     monkeypatch,
 ):
@@ -48243,6 +48715,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_req
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_requires_wallet_reservation_record(
     monkeypatch,
 ):
@@ -48340,6 +48818,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_req
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_stale_wallet_reservation_record(
     monkeypatch,
 ):
@@ -48433,6 +48917,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_requires_wallet_ledger_record(
     monkeypatch,
 ):
@@ -48509,6 +48999,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_req
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_stale_wallet_ledger_record(
     monkeypatch,
 ):
@@ -48592,6 +49088,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_wallet_evidence(
     monkeypatch,
 ):
@@ -48652,6 +49154,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_w
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidates_wallet_reservation(
     monkeypatch,
 ):
@@ -48755,6 +49263,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidate
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidates_wallet_ref_uniqueness(
     monkeypatch,
 ):
@@ -48847,6 +49361,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidate
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_wallet_ref_conflict_sources(
     monkeypatch,
 ):
@@ -48936,6 +49456,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_wa
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_active_wallet_overcommit_readback(
     monkeypatch,
 ):
@@ -49030,6 +49556,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_ac
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_stale_product_wallet_notional_readback(
     monkeypatch,
 ):
@@ -49123,6 +49655,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidates_active_wallet_overcommit(
     monkeypatch,
 ):
@@ -49236,6 +49774,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidate
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_ambiguous_product_rows(
     monkeypatch,
 ):
@@ -49332,6 +49876,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_am
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_ambiguous_order_plan_rows(
     monkeypatch,
 ):
@@ -49409,6 +49959,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_am
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_replays_rejection_after_proofs_change(
     monkeypatch,
 ):
@@ -49512,6 +50068,12 @@ def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_replays_rejection_a
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 cross-endpoint executor contract retired while "
+        "installed exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_live_submit_conflicts_cross_endpoint_idempotency_key(
     monkeypatch,
 ):
@@ -49726,6 +50288,12 @@ def test_admin_api_usdc_pair_snapshot_live_readiness_replays_rejection_after_pro
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_requires_snapshot_match(
     monkeypatch,
 ):
@@ -49799,6 +50367,12 @@ def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_requires_snapshot_m
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_requires_row_notional_match(
     monkeypatch,
 ):
@@ -49873,6 +50447,12 @@ def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_requires_row_notion
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_requires_readiness_max_submitted_notional_match(
     monkeypatch,
 ):
@@ -49944,6 +50524,12 @@ def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_requires_readiness_
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_requires_minimum_order_size_preferred(
     monkeypatch,
 ):
@@ -50015,6 +50601,12 @@ def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_requires_minimum_or
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_requires_cancel_rollback_plan_ref(
     monkeypatch,
 ):
@@ -50086,6 +50678,12 @@ def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_requires_cancel_rol
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_requires_row_proof_refs(
     monkeypatch,
 ):
@@ -50165,6 +50763,12 @@ def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_requires_row_proof_
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_requires_row_proof_chain_accepted(
     monkeypatch,
 ):
@@ -50242,6 +50846,12 @@ def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_requires_row_proof_
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_requires_row_limit_price_match(
     monkeypatch,
 ):
@@ -50315,6 +50925,12 @@ def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_requires_row_limit_
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_requires_row_side_match(
     monkeypatch,
 ):
@@ -50388,6 +51004,12 @@ def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_requires_row_side_m
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_requires_row_quote_size_match(
     monkeypatch,
 ):
@@ -50546,6 +51168,12 @@ def test_admin_api_usdc_pair_snapshot_order_plan_live_readiness_rejects_ambiguou
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidates_price_distance_status(
     monkeypatch,
 ):
@@ -50619,6 +51247,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidate
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidates_price_freshness_status(
     monkeypatch,
 ):
@@ -50691,6 +51325,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidate
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidates_price_freshness_timestamps(
     monkeypatch,
 ):
@@ -50762,6 +51402,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidate
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_recomputes_price_distance(
     monkeypatch,
 ):
@@ -50835,6 +51481,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_recomputes
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidates_cap_guard(
     monkeypatch,
 ):
@@ -50930,6 +51582,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidate
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_cap_guard_scope_mismatch(
     monkeypatch,
 ):
@@ -51022,6 +51680,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_ca
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_runtime_evidence(
     monkeypatch,
 ):
@@ -51099,6 +51763,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_r
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_stale_fanout_scope_readback(
     monkeypatch,
 ):
@@ -51169,6 +51839,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_stale_wallet_ledger_readback(
     monkeypatch,
 ):
@@ -51239,6 +51915,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_wallet_ledger_record(
     monkeypatch,
 ):
@@ -51309,6 +51991,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_w
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_stale_wallet_ledger_private_readback(
     monkeypatch,
 ):
@@ -51401,6 +52089,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_stale_wallet_ledger_tuple_set(
     monkeypatch,
 ):
@@ -51487,6 +52181,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_stale_wallet_ledger_client_order_set(
     monkeypatch,
 ):
@@ -51570,6 +52270,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_stale_wallet_ledger_mode_source(
     monkeypatch,
 ):
@@ -51645,6 +52351,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_stale_wallet_ledger_overcommit_sources(
     monkeypatch,
 ):
@@ -51727,6 +52439,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hidden_product_overcommit_readback(
     monkeypatch,
 ):
@@ -51912,6 +52630,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hidden_product_conflict_sources(
     monkeypatch,
 ):
@@ -52081,6 +52805,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hidden_product_blockers(
     monkeypatch,
 ):
@@ -52239,6 +52969,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hidden_queued_product_status_drift(
     monkeypatch,
 ):
@@ -52409,6 +53145,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hidden_queued_live_readiness_drift(
     monkeypatch,
 ):
@@ -52567,6 +53309,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hidden_queued_live_readiness_source_mismatch(
     monkeypatch,
 ):
@@ -52748,6 +53496,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hidden_queued_live_readiness_content_drift(
     monkeypatch,
 ):
@@ -52968,6 +53722,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hidden_queued_live_service_missing(
     monkeypatch,
 ):
@@ -53190,6 +53950,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hidden_queued_live_readiness_notional_drift(
     monkeypatch,
 ):
@@ -53470,6 +54236,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
             "run_state_product_order_plan_readiness_limit_price_mismatch",
         ),
     ],
+)
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
 )
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hidden_queued_order_plan_row_gaps(
     monkeypatch,
@@ -53813,6 +54585,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hidden_queued_cap_guard_scope_drift(
     monkeypatch,
 ):
@@ -54059,6 +54837,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hidden_queued_wallet_ref_gaps(
     monkeypatch,
 ):
@@ -54215,6 +54999,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_stale_runtime_fanout_readback(
     monkeypatch,
 ):
@@ -54433,6 +55223,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_stale_scheduler_readback(
     monkeypatch,
 ):
@@ -54599,6 +55395,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_missing_runtime_timestamps(
     monkeypatch,
 ):
@@ -54678,6 +55480,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_mi
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_relaxed_rate_window_policy(
     monkeypatch,
 ):
@@ -54761,6 +55569,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_re
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_run_lock_outside_rate_window(
     monkeypatch,
 ):
@@ -54845,6 +55659,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_ru
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_rate_limit_count_mismatch(
     monkeypatch,
 ):
@@ -54920,6 +55740,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_ra
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_rate_limit_capacity_readback_mismatch(
     monkeypatch,
 ):
@@ -55001,6 +55827,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_ra
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_product_set_count_mismatch(
     monkeypatch,
 ):
@@ -55081,6 +55913,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_pr
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_aggregate_notional_mismatch(
     monkeypatch,
 ):
@@ -55169,6 +56007,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_ag
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_fanout_cap_readback_mismatch(
     monkeypatch,
 ):
@@ -55242,6 +56086,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_fa
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_live_readiness_aggregate_mismatch(
     monkeypatch,
 ):
@@ -55326,6 +56176,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_li
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_stale_product_live_readiness_source(
     monkeypatch,
 ):
@@ -55400,6 +56256,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_missing_live_readiness_source(
     monkeypatch,
 ):
@@ -55485,6 +56347,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_mi
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_wallet_aggregate_mismatch(
     monkeypatch,
 ):
@@ -55562,6 +56430,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_wa
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_live_wallet_id_aggregate_mismatch(
     monkeypatch,
 ):
@@ -55649,6 +56523,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_li
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_missing_retry_backoff_ref(
     monkeypatch,
 ):
@@ -55722,6 +56602,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_mi
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_missing_cancel_recovery_plan_ref(
     monkeypatch,
 ):
@@ -55790,6 +56676,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_mi
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_retry_budget_count_mismatch(
     monkeypatch,
 ):
@@ -55869,6 +56761,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_re
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_recomputes_retry_budget_attempts(
     monkeypatch,
 ):
@@ -55976,6 +56874,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_recomputes
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidates_retry_backoff_ref_conflicts(
     monkeypatch,
 ):
@@ -56099,6 +57003,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidate
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidates_live_service_decision(
     monkeypatch,
 ):
@@ -56185,6 +57095,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidate
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_unblocked_fanout_execution_status(
     monkeypatch,
 ):
@@ -56255,6 +57171,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_un
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_expired_rate_window(
     monkeypatch,
 ):
@@ -56335,6 +57257,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_ex
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_runtime_conflict_sources(
     monkeypatch,
 ):
@@ -56409,6 +57337,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_ru
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidates_runtime_ref_conflicts(
     monkeypatch,
 ):
@@ -56513,6 +57447,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidate
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_retry_recovery_conflict_sources(
     monkeypatch,
 ):
@@ -56593,6 +57533,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_re
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_retry_recovery_evidence(
     monkeypatch,
 ):
@@ -56692,6 +57638,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_r
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_recovery_ref(
     monkeypatch,
 ):
@@ -56762,6 +57714,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_r
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_recovery_ref_product_match(
     monkeypatch,
 ):
@@ -56838,6 +57796,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_r
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_reused_recovery_ref(
     monkeypatch,
 ):
@@ -56920,6 +57884,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_re
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_retry_recovery_membership(
     monkeypatch,
 ):
@@ -56997,6 +57967,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_r
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_aggregate_readiness(
     monkeypatch,
 ):
@@ -57082,6 +58058,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_a
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_stale_partial_success_readback(
     monkeypatch,
 ):
@@ -57211,6 +58193,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_product_allocation_readiness(
     monkeypatch,
 ):
@@ -57310,6 +58298,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_p
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_empty_product_blockers(
     monkeypatch,
 ):
@@ -57389,6 +58383,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_e
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_unexpected_parent_fanout_blockers(
     monkeypatch,
 ):
@@ -57464,6 +58464,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_un
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_product_admission_refs(
     monkeypatch,
 ):
@@ -57544,6 +58550,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_p
 
 
 @pytest.mark.regression
+@pytest.mark.skip(
+    reason=(
+        "Historical M58 executor HTTP contract retired while installed "
+        "exchange-submit routes are source-parked."
+    )
+)
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_plan_snapshot_match(
     monkeypatch,
 ):
@@ -58503,10 +59515,13 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
     assert readiness["product_id"] == "BTC-USDC"
     assert readiness["client_order_id"] == enabled_live_row["client_order_id"]
     assert readiness["side"] == "BUY"
-    assert readiness["preflight_passed"] is True
-    assert readiness["preflight_blockers"] == []
-    assert readiness["submit_route_ready"] is True
-    assert readiness["submit_blockers"] == []
+    assert readiness["preflight_passed"] is False
+    assert readiness["preflight_blockers"] == [
+        "m58_operator_workflow_unavailable"
+    ]
+    assert readiness["submit_route_ready"] is False
+    assert readiness["submit_blockers"] == ["m58_operator_workflow_unavailable"]
+    assert "source-parked" in readiness["detail"]
     assert readiness["single_order_only"] is True
     assert readiness["order_count"] == 1
     assert readiness["minimum_order_size_preferred"] is True
@@ -58549,6 +59564,36 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
     assert readiness["live_coinbase_execution"] == "not_run"
     assert readiness["notional_usdc"] == "0"
 
+    stored_readiness = (
+        client.admin_api_test_usdc_pair_snapshot_order_plan_live_readiness_store.read_recent(
+            limit=10
+        )[0]
+    )
+    assert stored_readiness.preflight_passed is True
+    assert stored_readiness.preflight_blockers == []
+    assert stored_readiness.submit_route_ready is False
+    assert stored_readiness.submit_blockers == [
+        "m58_operator_workflow_unavailable"
+    ]
+    predecessor_projection = automation_routes._live_readiness_item_from_record(
+        stored_readiness.model_copy(
+            update={
+                "submit_route_ready": True,
+                "submit_blockers": [],
+                "detail": "Historical predecessor M58 submit-ready evidence.",
+            }
+        )
+    )
+    assert predecessor_projection.submit_route_ready is False
+    assert predecessor_projection.preflight_passed is False
+    assert predecessor_projection.preflight_blockers == [
+        "m58_operator_workflow_unavailable"
+    ]
+    assert predecessor_projection.submit_blockers == [
+        "m58_operator_workflow_unavailable"
+    ]
+    assert "source-parked" in predecessor_projection.detail
+
     readiness_replay = client.post(
         (
             "/api/v1/automation/usdc-pair-snapshot-order-plans/"
@@ -58587,8 +59632,8 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
     )
     assert readiness_readback_payload["returned_count"] == 1
     assert readiness_readback_payload["total_count"] == 1
-    assert readiness_readback_payload["ready_count"] == 1
-    assert readiness_readback_payload["submit_route_ready_count"] == 1
+    assert readiness_readback_payload["ready_count"] == 0
+    assert readiness_readback_payload["submit_route_ready_count"] == 0
     assert readiness_readback_payload["live_exchange_submitted"] is False
     assert readiness_readback_payload["live_coinbase_orders_ran"] is False
     assert readiness_readback_payload["live_coinbase_execution"] == "not_run"
@@ -58651,58 +59696,24 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
         ),
         json=live_submit_body,
     )
-    assert live_submit_response.status_code == 200
+    assert live_submit_response.status_code == 501
     live_submit_payload = live_submit_response.json()
-    assert live_submit_payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert live_submit_payload["status"] == (
+        AdminApiCommandStatus.NOT_IMPLEMENTED.value
+    )
     assert (
         live_submit_payload["service_method"]
         == "submit_usdc_pair_snapshot_order_plan_live_order"
     )
-    assert live_submit_payload["live_exchange_submitted"] is True
-    assert live_submit_payload["live_coinbase_orders_ran"] is True
-    assert live_submit_payload["live_coinbase_execution"] == "submitted_cancelled"
-    assert live_submit_payload["notional_usdc"] == "1.00"
-    submission = live_submit_payload["submission"]
-    assert submission["submission_id"] == "m58-usdc-live-submit-test"
-    assert submission["readiness_id"] == readiness["readiness_id"]
-    assert submission["plan_id"] == "m58-usdc-order-plan-refresh-test"
-    assert submission["product_id"] == "BTC-USDC"
-    assert submission["client_order_id"] == enabled_live_row["client_order_id"]
-    assert submission["side"] == "BUY"
-    assert submission["order_count"] == 1
-    assert submission["single_order_only"] is True
-    assert submission["submitted_notional_usdc"] == "1.00"
-    assert submission["executed_notional_usdc"] == "0"
-    assert submission["max_executed_notional_usdc"] == "0.01"
-    assert submission["cancel_before_additional_orders"] is True
-    assert submission["additional_orders_blocked"] is True
-    assert submission["cancel_submitted"] is True
-    assert submission["cancel_rollback_complete"] is True
-    assert submission["coinbase_order_id"] == "exchange-m58-live-submit-1"
-    assert submission["coinbase_order_id_evidence_only"] is True
-    assert submission["live_exchange_submitted"] is True
-    assert submission["live_coinbase_orders_ran"] is True
-    assert submission["live_coinbase_execution"] == "submitted_cancelled"
-    assert submission["notional_usdc"] == "1.00"
-    assert submission["backend_owned"] is True
-    assert submission["browser_authority"] == "display_only"
-    assert submission["bff_authority"] == "forward_only_no_execution"
-    assert submission["submit_result"]["success"] is True
-    assert submission["cancel_result"]["success"] is True
-    assert submission["order_configuration"] == {
-        "limit_limit_gtc": {
-            "quote_size": "1.00",
-            "limit_price": enabled_live_row["limit_price"],
-            "post_only": False,
-        }
-    }
-    assert len(client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls) == 1
-    live_call = client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls[0]
-    assert live_call["client_order_id"] == enabled_live_row["client_order_id"]
-    assert live_call["product_id"] == "BTC-USDC"
-    assert live_call["side"] == "BUY"
-    assert live_call["cancel_client_order_id"] == enabled_live_row["client_order_id"]
-    assert live_call["order_configuration"] == submission["order_configuration"]
+    assert live_submit_payload["failure_stage"] == (
+        "m58_operator_workflow_unavailable"
+    )
+    assert live_submit_payload["submission"] is None
+    assert live_submit_payload["live_exchange_submitted"] is False
+    assert live_submit_payload["live_coinbase_orders_ran"] is False
+    assert live_submit_payload["live_coinbase_execution"] == "not_run"
+    assert live_submit_payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
 
     live_submit_replay = client.post(
         (
@@ -58715,17 +59726,20 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
         ),
         json=live_submit_body,
     )
-    assert live_submit_replay.status_code == 200
-    assert live_submit_replay.headers["x-idempotency-replayed"] == "true"
-    assert live_submit_replay.json() == live_submit_payload
-    assert len(client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls) == 1
+    assert live_submit_replay.status_code == 501
+    assert live_submit_replay.headers.get("x-idempotency-replayed") is None
+    live_submit_replay_payload = live_submit_replay.json()
+    assert live_submit_replay_payload == live_submit_payload
+    assert live_submit_replay_payload["live_exchange_submitted"] is False
+    assert live_submit_replay_payload["live_coinbase_orders_ran"] is False
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
     assert (
         len(
             client.admin_api_test_usdc_pair_snapshot_order_plan_live_submit_store.read_recent(
                 limit=10
             )
         )
-        == 1
+        == 0
     )
 
     live_submit_readback = client.get(
@@ -58741,18 +59755,15 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
     assert live_submit_readback_payload["type"] == (
         "usdc_pair_snapshot_order_plan_live_submission_list"
     )
-    assert live_submit_readback_payload["returned_count"] == 1
-    assert live_submit_readback_payload["total_count"] == 1
-    assert live_submit_readback_payload["submitted_count"] == 1
-    assert live_submit_readback_payload["cancelled_count"] == 1
-    assert live_submit_readback_payload["live_exchange_submitted"] is True
-    assert live_submit_readback_payload["live_coinbase_orders_ran"] is True
-    assert (
-        live_submit_readback_payload["live_coinbase_execution"]
-        == "submitted_cancelled"
-    )
-    assert live_submit_readback_payload["notional_usdc"] == "1.00"
-    assert live_submit_readback_payload["submissions"][0] == submission
+    assert live_submit_readback_payload["returned_count"] == 0
+    assert live_submit_readback_payload["total_count"] == 0
+    assert live_submit_readback_payload["submitted_count"] == 0
+    assert live_submit_readback_payload["cancelled_count"] == 0
+    assert live_submit_readback_payload["live_exchange_submitted"] is False
+    assert live_submit_readback_payload["live_coinbase_orders_ran"] is False
+    assert live_submit_readback_payload["live_coinbase_execution"] == "not_run"
+    assert live_submit_readback_payload["notional_usdc"] == "0"
+    assert live_submit_readback_payload["submissions"] == []
 
     live_submission_refresh_response = client.post(
         (
@@ -58774,19 +59785,21 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
         "order_plan_rows"
     ][0]
     assert live_submission_refresh_payload["plan"]["proof_chain_planned_count"] == 1
-    assert live_submission_refresh_payload["plan"]["proof_chain_blocked_count"] == 0
+    assert live_submission_refresh_payload["plan"]["proof_chain_blocked_count"] == 1
     assert (
         live_submission_refresh_payload["plan"][
             "proof_chain_missing_evidence_count"
         ]
-        == 0
+        == 1
     )
-    assert live_submitted_row["proof_chain_status"] == "accepted"
-    assert live_submitted_row["proof_chain_blockers"] == []
-    assert live_submitted_row["live_exchange_submitted"] is True
-    assert live_submitted_row["live_coinbase_orders_ran"] is True
-    assert live_submitted_row["live_coinbase_execution"] == "submitted_cancelled"
-    assert live_submitted_row["notional_usdc"] == "1.00"
+    assert live_submitted_row["proof_chain_status"] == "blocked"
+    assert live_submitted_row["proof_chain_blockers"] == [
+        "live_submission_missing"
+    ]
+    assert live_submitted_row["live_exchange_submitted"] is False
+    assert live_submitted_row["live_coinbase_orders_ran"] is False
+    assert live_submitted_row["live_coinbase_execution"] == "not_run"
+    assert live_submitted_row["notional_usdc"] == "0"
 
     full_fill_response = client.post(
         (
@@ -59765,7 +60778,7 @@ def test_admin_api_command_audit_is_durable(monkeypatch):
     assert audit_rows[-1]["live_command_runtime_ready"] is False
     assert (
         audit_rows[-1]["live_command_runtime_missing_reason"]
-        == "live_runtime_disabled"
+        == "coinbase_execution_authority_disabled"
     )
     assert (
         audit_rows[-1]["live_command_runtime_source"]
@@ -60956,7 +61969,7 @@ def test_admin_api_cap_guard_decision_routes_record_replay_and_resolve(monkeypat
     assert decision["wallet_available_notional_usdc"] == "3.10"
     assert (
         decision["wallet_check_source"]
-        == "coinbase_accounts:list_account_available_balance"
+        == "backend_coinbase_account_wallet_read"
     )
 
     listed = client.get(
@@ -61001,11 +62014,46 @@ def test_admin_api_cap_guard_decision_routes_record_replay_and_resolve(monkeypat
             approval_snapshot_id=approval.approval_id,
             approval_cap_guard_decision_ref=approval.cap_guard_decision_ref,
             admission_audit_id=audit_event.audit_id,
+            product_scope="BTC-USDC",
         ),
     )
     assert proof is not None
     assert proof.decision_id == approval.cap_guard_decision_ref
     assert proof.source == "admin_api_cap_guard_log"
+    exact_request = CapGuardDecisionRequest(
+        route="/api/v1/orders",
+        method="POST",
+        module_id="spot_operations",
+        identity_key="client_order_id",
+        identity_value="client-cap-guard-route",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        service_method="place_manual_order",
+        actor_id="operator-001",
+        operator_intent="manual_one_off",
+        idempotency_key="idem-approved",
+        payload_hash=body["payload_hash"],
+        approval_snapshot_id=approval.approval_id,
+        approval_cap_guard_decision_ref=approval.cap_guard_decision_ref,
+        admission_audit_id=audit_event.audit_id,
+        product_scope="BTC-USDC",
+    )
+    assert resolve_cap_guard_decision(
+        store=client.admin_api_test_cap_guard_store,
+        request=exact_request.model_copy(
+            update={"max_submitted_notional_usdc": "3.09"}
+        ),
+    ) is None
+    assert resolve_cap_guard_decision(
+        store=client.admin_api_test_cap_guard_store,
+        request=exact_request.model_copy(
+            update={"max_executed_notional_usdc": "0.99"}
+        ),
+    ) is None
+    assert resolve_cap_guard_decision(
+        store=client.admin_api_test_cap_guard_store,
+        request=exact_request.model_copy(update={"product_scope": "ETH-USDC"}),
+    ) is None
 
     replayed = client.post(
         "/api/v1/admin/cap-guard/decisions",
@@ -61032,6 +62080,8 @@ def test_admin_api_cap_guard_decision_routes_record_replay_and_resolve(monkeypat
 
 @pytest.mark.regression
 def test_admin_api_cap_guard_decision_routes_fail_closed(monkeypatch):
+    from api.v1.routes import cap_guard as cap_guard_routes
+
     client = _client(monkeypatch)
     approval = _append_manual_order_approval(
         store=client.admin_api_test_approval_store,
@@ -61075,6 +62125,67 @@ def test_admin_api_cap_guard_decision_routes_fail_closed(monkeypatch):
     assert rejected.status_code == 400
     assert rejected.json()["status"] == "rejected"
     assert "allowed must be true only for passed" in rejected.json()["message"]
+    assert client.admin_api_test_cap_guard_store.read_recent() == []
+
+    oversized = dict(body)
+    oversized["max_submitted_notional_usdc"] = "3.11"
+    oversized_response = client.post(
+        "/api/v1/admin/cap-guard/decisions",
+        headers=_headers(
+            idempotency_key="cap-guard-record-oversized-idem",
+            operator_intent="record_oversized_cap_guard",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=oversized,
+    )
+    assert oversized_response.status_code == 400
+    assert "installed MVP submitted-notional ceiling" in (
+        oversized_response.json()["message"]
+    )
+    assert client.admin_api_test_cap_guard_store.read_recent() == []
+
+    underfunded = dict(body)
+    underfunded["wallet_available_notional_usdc"] = "999999.00"
+    underfunded["wallet_check_status"] = AdminApiGateStatus.PASSED.value
+    underfunded["wallet_check_source"] = "admin_ui_backend_wallet_inventory_evidence"
+    client.app.dependency_overrides[
+        cap_guard_routes.get_cap_guard_decision_service
+    ] = lambda: AdminApiCapGuardDecisionService(
+        wallet_evidence_resolver=lambda _product_scope: Decimal("3.09")
+    )
+    underfunded_response = client.post(
+        "/api/v1/admin/cap-guard/decisions",
+        headers=_headers(
+            idempotency_key="cap-guard-record-underfunded-idem",
+            operator_intent="record_underfunded_cap_guard",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=underfunded,
+    )
+    assert underfunded_response.status_code == 400
+    assert "Authoritative backend wallet evidence must cover" in (
+        underfunded_response.json()["message"]
+    )
+    assert client.admin_api_test_cap_guard_store.read_recent() == []
+    client.app.dependency_overrides[
+        cap_guard_routes.get_cap_guard_decision_service
+    ] = lambda: AdminApiCapGuardDecisionService(
+        wallet_evidence_resolver=lambda _product_scope: Decimal("3.10")
+    )
+
+    generic_scope = dict(body)
+    generic_scope["product_scope"] = "USDC spot product scope"
+    generic_scope_response = client.post(
+        "/api/v1/admin/cap-guard/decisions",
+        headers=_headers(
+            idempotency_key="cap-guard-record-generic-scope-idem",
+            operator_intent="record_generic_scope_cap_guard",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=generic_scope,
+    )
+    assert generic_scope_response.status_code == 400
+    assert "concrete USDC Spot product" in generic_scope_response.json()["message"]
     assert client.admin_api_test_cap_guard_store.read_recent() == []
 
     blocked = _cap_guard_decision_payload(
@@ -61154,8 +62265,8 @@ def _live_service_decision_payload(
         "status": status.value,
         "requested_service_status": requested_service_status,
         "service_enabled": service_enabled,
-        "deployment_ref": "deployment-live-disabled-review",
-        "runtime_configuration_ref": "runtime-live-service-disabled",
+        "deployment_ref": OPERATOR_READY_MVP_DEPLOYMENT_REF,
+        "runtime_configuration_ref": OPERATOR_READY_MVP_RUNTIME_CONFIGURATION_REF,
         "decision_reason": (
             "Record explicit backend live-service decision evidence while "
             "keeping execution disabled."
@@ -61262,6 +62373,7 @@ def test_admin_api_live_service_decision_routes_record_and_replay(monkeypatch):
 def test_admin_api_live_service_decision_routes_record_enabled_backend_decision(
     monkeypatch,
 ):
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
     client = _client(monkeypatch)
     body = _live_service_decision_payload(
         decision_id="live-service-enabled-approved",
@@ -61462,13 +62574,38 @@ def test_admin_api_live_service_decision_routes_fail_closed(monkeypatch):
     assert "positive submitted notional cap" in (
         rejected_unbounded_enabled.json()["message"]
     )
+
+    oversized_enabled = _live_service_decision_payload(
+        decision_id="live-service-enabled-oversized",
+        status=AdminApiGateStatus.PASSED,
+        requested_service_status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED.value,
+        service_enabled=True,
+        live_coinbase_execution_approved=True,
+        max_submitted_notional_usdc="3.11",
+        max_executed_notional_usdc="1.00",
+    )
+    rejected_oversized = client.post(
+        "/api/v1/admin/live-execution/service-decisions",
+        headers=_headers(
+            idempotency_key="live-service-decision-oversized-idem",
+            operator_intent="record_oversized_live_service_decision",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=oversized_enabled,
+    )
+    assert rejected_oversized.status_code == 400
+    assert "installed MVP submitted-notional ceiling" in (
+        rejected_oversized.json()["message"]
+    )
     assert client.admin_api_test_live_service_decision_store.read_recent() == []
 
 
 @pytest.mark.regression
 def test_admin_api_decision_backed_live_execution_service_requires_runtime_opt_in(
+    monkeypatch,
     tmp_path,
 ):
+    monkeypatch.delenv("COINBASE_EXECUTION_ENABLED", raising=False)
     store = FileAdminApiLiveServiceDecisionStore(
         tmp_path / "live_service_decisions.jsonl"
     )
@@ -61478,8 +62615,8 @@ def test_admin_api_decision_backed_live_execution_service_requires_runtime_opt_i
             status=AdminApiGateStatus.PASSED,
             requested_service_status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
             service_enabled=True,
-            deployment_ref="deployment-controlled-live-mvp",
-            runtime_configuration_ref="runtime-controlled-live-mvp",
+            deployment_ref=OPERATOR_READY_MVP_DEPLOYMENT_REF,
+            runtime_configuration_ref=OPERATOR_READY_MVP_RUNTIME_CONFIGURATION_REF,
             decision_reason="Enable bounded backend Admin API live service.",
             live_coinbase_execution_approved=True,
             max_submitted_notional_usdc="3.10",
@@ -61491,6 +62628,16 @@ def test_admin_api_decision_backed_live_execution_service_requires_runtime_opt_i
         store=store,
         runtime_enabled=False,
     ).admission_state()
+    missing_master_state = get_decision_backed_live_execution_service(
+        store=store,
+        runtime_enabled=True,
+    ).admission_state()
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "true")
+    alternate_truthy_state = get_decision_backed_live_execution_service(
+        store=store,
+        runtime_enabled=True,
+    ).admission_state()
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
     enabled_state = get_decision_backed_live_execution_service(
         store=store,
         runtime_enabled=True,
@@ -61504,8 +62651,8 @@ def test_admin_api_decision_backed_live_execution_service_requires_runtime_opt_i
             status=AdminApiGateStatus.PASSED,
             requested_service_status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
             service_enabled=True,
-            deployment_ref="deployment-controlled-live-mvp",
-            runtime_configuration_ref="runtime-controlled-live-mvp",
+            deployment_ref=OPERATOR_READY_MVP_DEPLOYMENT_REF,
+            runtime_configuration_ref=OPERATOR_READY_MVP_RUNTIME_CONFIGURATION_REF,
             decision_reason="Malformed direct log record must not enable service.",
             live_coinbase_execution_approved=True,
             max_submitted_notional_usdc="1.00",
@@ -61520,9 +62667,44 @@ def test_admin_api_decision_backed_live_execution_service_requires_runtime_opt_i
     assert disabled_state.status == AdminApiLiveExecutionStatus.LIVE_DISABLED
     assert disabled_state.source == DISABLED_LIVE_EXECUTION_SERVICE_SOURCE
     assert disabled_state.missing_reason == "live_execution_disabled"
+    assert missing_master_state.status == AdminApiLiveExecutionStatus.LIVE_DISABLED
+    assert missing_master_state.missing_reason == "live_execution_disabled"
+    assert alternate_truthy_state.status == AdminApiLiveExecutionStatus.LIVE_DISABLED
+    assert alternate_truthy_state.missing_reason == "live_execution_disabled"
     assert enabled_state.status == AdminApiLiveExecutionStatus.APPROVAL_REQUIRED
     assert enabled_state.source == CONFIGURED_LIVE_EXECUTION_SERVICE_SOURCE
     assert enabled_state.missing_reason is None
+    assert enabled_state.max_submitted_notional_usdc == "3.10"
+    assert enabled_state.max_executed_notional_usdc == "1.00"
+    assert enabled_state.supported_routes == frozenset(
+        {
+            ("POST", "/api/v1/orders"),
+            ("POST", "/api/v1/orders/{client_order_id}/cancel"),
+        }
+    )
+    unsupported = evaluate_command_live_admission(
+        route="/api/v1/stealth/orders/{stealth_order_id}/reveal",
+        method="POST",
+        module_id="stealth_orders",
+        identity_key="stealth_order_id",
+        identity_value="child-not-installed",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        service_method="reveal_stealth_order",
+        actor_id="operator-001",
+        idempotency_key="idem-unsupported-installed-route",
+        operator_intent="attempt_unsupported_installed_route",
+        payload_hash="f" * 64,
+        live_execution_service=get_decision_backed_live_execution_service(
+            store=store,
+            runtime_enabled=True,
+        ),
+    )
+    assert unsupported.allowed is False
+    assert AdminApiLiveAdmissionBlocker.UNSUPPORTED_LIVE_ROUTE in (
+        unsupported.blockers
+    )
+    assert "does not support this route" in " ".join(unsupported.evidence)
     assert malformed_state.status == AdminApiLiveExecutionStatus.APPROVAL_REQUIRED
     assert malformed_state.source == "admin_api_live_service_decision_log"
     assert malformed_state.missing_reason == (
@@ -61545,8 +62727,8 @@ def test_admin_api_order_live_execution_service_dependency_reads_decision_log(
             status=AdminApiGateStatus.PASSED,
             requested_service_status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
             service_enabled=True,
-            deployment_ref="deployment-controlled-live-mvp",
-            runtime_configuration_ref="runtime-controlled-live-mvp",
+            deployment_ref=OPERATOR_READY_MVP_DEPLOYMENT_REF,
+            runtime_configuration_ref=OPERATOR_READY_MVP_RUNTIME_CONFIGURATION_REF,
             decision_reason="Enable route dependency from backend decision log.",
             live_coinbase_execution_approved=True,
             max_submitted_notional_usdc="3.10",
@@ -61558,6 +62740,7 @@ def test_admin_api_order_live_execution_service_dependency_reads_decision_log(
         str(decision_log),
     )
     monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
 
     state = order_routes.get_live_execution_service().admission_state()
 
@@ -61575,6 +62758,7 @@ def test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision
 ):
     import configuration
 
+    from application.admin_api import command_runtime
     from application.admin_api.read_service import (
         AdminApiReadService,
         lightweight_futures_command_suite_frontend_fixture_payload,
@@ -61588,8 +62772,8 @@ def test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision
             status=AdminApiGateStatus.PASSED,
             requested_service_status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
             service_enabled=True,
-            deployment_ref="deployment-controlled-live-mvp",
-            runtime_configuration_ref="runtime-controlled-live-mvp",
+            deployment_ref=OPERATOR_READY_MVP_DEPLOYMENT_REF,
+            runtime_configuration_ref=OPERATOR_READY_MVP_RUNTIME_CONFIGURATION_REF,
             decision_reason="Expose controlled-live manual order through read evidence.",
             live_coinbase_execution_approved=True,
             max_submitted_notional_usdc="3.10",
@@ -61601,6 +62785,7 @@ def test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision
         str(decision_log),
     )
     monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
     monkeypatch.setenv(
         "COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID",
         "11111111-2222-4333-8444-555555555555",
@@ -61626,6 +62811,22 @@ def test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision
                     "type": "CONSUMER",
                 }
             ],
+        ),
+    )
+    monkeypatch.setattr(
+        command_runtime,
+        "get_admin_api_order_root_registrar",
+        lambda: SimpleNamespace(
+            register_manual_spot_root=lambda **_kwargs: None,
+            get_unresolved_admin_manual_root_submissions=lambda: [],
+        ),
+    )
+    monkeypatch.setattr(
+        command_runtime,
+        "get_admin_api_order_event_stream_publisher",
+        lambda: SimpleNamespace(
+            enabled=True,
+            publish_event=lambda **_kwargs: None,
         ),
     )
 
@@ -61668,10 +62869,17 @@ def test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision
     assert manual_live_route["live_eligible"] is True
     assert manual_live_route["live_command_runtime_ready"] is True
     assert manual_live_route["live_command_runtime_missing_reason"] is None
-    assert manual_live_route["portfolio_scope"]["status"] == "matched"
+    assert manual_live_route["portfolio_scope"]["status"] == (
+        "verification_required"
+    )
     assert manual_live_route["portfolio_scope"]["profile_alias"] == "Test"
-    assert manual_live_route["portfolio_scope"]["portfolio_id"] == (
-        "11111111-2222-4333-8444-555555555555"
+    assert manual_live_route["portfolio_scope"]["portfolio_id"] is None
+    assert manual_live_route["portfolio_scope"]["expected_portfolio_id"] is None
+    assert manual_live_route["portfolio_scope"]["observed_portfolio_id"] is None
+    assert manual_live_route["portfolio_scope"]["can_view"] is None
+    assert manual_live_route["portfolio_scope"]["can_trade"] is None
+    assert manual_live_route["portfolio_scope"]["blocker"] == (
+        "spot_test_portfolio_verification_required"
     )
     assert not any(
         precondition["precondition"] == "live_execution_service"
@@ -61688,12 +62896,15 @@ def test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision
     cancel_command = spot_commands["/api/v1/orders/{client_order_id}/cancel"]
 
     assert spot_suite["live_enabled_command_count"] == 2
+    assert spot_suite["executable_command_count"] == 2
     assert manual_command["live_enabled"] is True
     assert manual_command["live_eligible"] is True
+    assert manual_command["executable"] is True
     assert "live_execution_service" not in manual_command["missing_gate_chain"]
     assert "approval_snapshot" in manual_command["missing_gate_chain"]
     assert cancel_command["live_enabled"] is True
     assert cancel_command["live_eligible"] is True
+    assert cancel_command["executable"] is True
 
 
 @pytest.mark.regression
@@ -61716,8 +62927,8 @@ def test_live_enablement_separates_admission_from_missing_command_runtime(
             status=AdminApiGateStatus.PASSED,
             requested_service_status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
             service_enabled=True,
-            deployment_ref="deployment-controlled-live-mvp",
-            runtime_configuration_ref="runtime-controlled-live-mvp",
+            deployment_ref=OPERATOR_READY_MVP_DEPLOYMENT_REF,
+            runtime_configuration_ref=OPERATOR_READY_MVP_RUNTIME_CONFIGURATION_REF,
             decision_reason="Expose admission while runtime is not yet bound.",
             live_coinbase_execution_approved=True,
             max_submitted_notional_usdc="3.10",
@@ -61729,6 +62940,7 @@ def test_live_enablement_separates_admission_from_missing_command_runtime(
         str(decision_log),
     )
     monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
     monkeypatch.setattr(configuration, "API_KEY", None, raising=False)
     monkeypatch.setattr(configuration, "API_SECRET", None, raising=False)
 
@@ -61814,8 +63026,8 @@ def _futures_live_adapter_decision_payload(
         adapter_constructed=True,
         adapter_enabled=True,
         live_coinbase_execution_approved=True,
-        max_submitted_notional_usdc="100.00",
-        max_executed_notional_usdc="100.00",
+        max_submitted_notional_usdc="3.10",
+        max_executed_notional_usdc="1.00",
     )
     body.update(
         {
@@ -61934,7 +63146,7 @@ def test_admin_api_live_adapter_decision_routes_record_and_replay(monkeypatch):
 
 
 @pytest.mark.regression
-def test_admin_api_live_adapter_decision_route_accepts_controlled_us_cfm_futures_records(
+def test_admin_api_live_adapter_decision_route_rejects_source_disabled_futures_records(
     monkeypatch,
 ):
     client = _client(monkeypatch)
@@ -61950,30 +63162,19 @@ def test_admin_api_live_adapter_decision_route_accepts_controlled_us_cfm_futures
         json=body,
     )
 
-    assert created.status_code == 200
+    assert created.status_code == 400
     created_payload = created.json()
-    assert created_payload["status"] == "accepted"
+    assert created_payload["status"] == "rejected"
     assert created_payload["live_coinbase_orders_ran"] is False
-    decision = created_payload["decision"]
-    assert decision["decision_id"] == "futures-us-cfm-place-adapter"
-    assert decision["status"] == "passed"
-    assert decision["requested_adapter_status"] == "approval_required"
-    assert decision["live_execution_adapter_status"] == "approval_required"
-    assert decision["target_route"] == "/api/v1/futures/orders"
-    assert decision["target_service_method"] == "place_futures_order"
-    assert decision["adapter_constructed"] is True
-    assert decision["adapter_enabled"] is True
-    assert decision["live_coinbase_execution_approved"] is True
-    assert decision["construction_precondition_resolved"] is True
-    assert decision["route_mapping_satisfies_construction"] is True
-    assert decision["adapter_configuration_satisfies_construction"] is True
-    assert decision["missing_construction_artifacts"] == []
-    assert decision["resolver_eligible"] is True
-    assert decision["live_exchange_submitted"] is False
+    assert "Futures command service is source-disabled" in created_payload["message"]
+    assert (
+        client.admin_api_test_live_adapter_decision_store.read_recent(limit=10)
+        == []
+    )
 
 
 @pytest.mark.regression
-def test_admin_api_futures_command_suite_reads_persisted_live_decision_records(
+def test_admin_api_futures_command_suite_ignores_persisted_source_disabled_decisions(
     monkeypatch,
 ):
     client = _client(monkeypatch)
@@ -61983,8 +63184,8 @@ def test_admin_api_futures_command_suite_reads_persisted_live_decision_records(
         requested_service_status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED.value,
         service_enabled=True,
         live_coinbase_execution_approved=True,
-        max_submitted_notional_usdc="100.00",
-        max_executed_notional_usdc="100.00",
+        max_submitted_notional_usdc="3.10",
+        max_executed_notional_usdc="1.00",
     )
     service_body.update(
         {
@@ -62011,7 +63212,54 @@ def test_admin_api_futures_command_suite_reads_persisted_live_decision_records(
         ),
         json=service_body,
     )
-    assert service_recorded.status_code == 200
+    assert service_recorded.status_code == 400
+    assert "Futures command service is source-disabled" in (
+        service_recorded.json()["message"]
+    )
+
+    client.admin_api_test_live_service_decision_store.append(
+        LiveServiceDecisionRecord(
+            decision_id="historical-futures-us-cfm-live-service",
+            status=AdminApiGateStatus.PASSED,
+            requested_service_status=(
+                AdminApiLiveExecutionStatus.APPROVAL_REQUIRED
+            ),
+            service_enabled=True,
+            target_module_id="futures_perpetuals",
+            account_family="coinbase_futures_us_cfm",
+            venue_scope="coinbase_futures_us_cfm",
+            intx_applicability="not_applicable_us_account",
+            product_scope=["AVP-20DEC30-CDE"],
+            deployment_ref="historical-futures-controlled-live-deployment",
+            runtime_configuration_ref="historical-futures-controlled-live-runtime",
+            decision_reason="Historical source-disabled Futures evidence.",
+            live_coinbase_execution_approved=True,
+            max_submitted_notional_usdc="3.10",
+            max_executed_notional_usdc="1.00",
+        )
+    )
+
+    listed_services = client.get(
+        "/api/v1/admin/live-execution/service-decisions",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    assert listed_services.status_code == 200
+    listed_service_payload = listed_services.json()
+    assert listed_service_payload["resolver_eligible_count"] == 0
+    assert listed_service_payload["passed_count"] == 0
+    assert listed_service_payload["blocked_count"] == 1
+    historical_service = listed_service_payload["decisions"][0]
+    assert historical_service["target_module_id"] == "futures_perpetuals"
+    assert historical_service["status"] == "blocked"
+    assert historical_service["live_execution_service_status"] == "live_disabled"
+    assert historical_service["service_enabled"] is False
+    assert historical_service["live_coinbase_execution_approved"] is False
+    assert historical_service["max_submitted_notional_usdc"] == "0"
+    assert historical_service["max_executed_notional_usdc"] == "0"
+    assert historical_service["enablement_precondition_resolved"] is False
+    assert historical_service["resolver_eligible"] is False
+    assert historical_service["bff_authority"] == "source_disabled_not_forwarded"
+    assert "source-disabled" in historical_service["detail"]
 
     adapter_targets = (
         (
@@ -62036,20 +63284,59 @@ def test_admin_api_futures_command_suite_reads_persisted_live_decision_records(
         ),
     )
     for decision_id, target_route, target_service_method in adapter_targets:
-        created = client.post(
-            "/api/v1/admin/live-execution/adapter-decisions",
-            headers=_headers(
-                idempotency_key=f"{decision_id}-idem",
-                operator_intent="record_futures_live_adapter_decision",
-                roles=AdminApiRole.ADMIN.value,
-            ),
-            json=_futures_live_adapter_decision_payload(
+        client.admin_api_test_live_adapter_decision_store.append(
+            LiveAdapterDecisionRecord(
                 decision_id=decision_id,
+                status=AdminApiGateStatus.PASSED,
+                requested_adapter_status=(
+                    AdminApiLiveExecutionStatus.APPROVAL_REQUIRED
+                ),
                 target_route=target_route,
+                target_method="POST",
+                target_module_id="futures_perpetuals",
                 target_service_method=target_service_method,
+                account_family="coinbase_futures_us_cfm",
+                venue_scope="coinbase_futures_us_cfm",
+                intx_applicability="not_applicable_us_account",
+                product_scope=["AVP-20DEC30-CDE"],
+                adapter_reference=(
+                    f"AdminApiCommandService.{target_service_method}"
+                ),
+                adapter_constructed=True,
+                adapter_enabled=True,
+                construction_review_ref="historical-futures-adapter-review",
+                decision_reason="Historical source-disabled Futures evidence.",
+                live_coinbase_execution_approved=True,
+                max_submitted_notional_usdc="3.10",
+                max_executed_notional_usdc="1.00",
             ),
         )
-        assert created.status_code == 200
+
+    listed_adapters = client.get(
+        "/api/v1/admin/live-execution/adapter-decisions",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    assert listed_adapters.status_code == 200
+    listed_adapter_payload = listed_adapters.json()
+    assert listed_adapter_payload["resolver_eligible_count"] == 0
+    assert listed_adapter_payload["constructed_count"] == 0
+    assert listed_adapter_payload["passed_count"] == 0
+    assert listed_adapter_payload["blocked_count"] == 4
+    for item in listed_adapter_payload["decisions"]:
+        assert item["target_module_id"] == "futures_perpetuals"
+        assert item["status"] == "blocked"
+        assert item["live_execution_adapter_status"] == "live_disabled"
+        assert item["adapter_constructed"] is False
+        assert item["adapter_enabled"] is False
+        assert item["live_coinbase_execution_approved"] is False
+        assert item["max_submitted_notional_usdc"] == "0"
+        assert item["max_executed_notional_usdc"] == "0"
+        assert item["construction_precondition_resolved"] is False
+        assert item["route_mapping_satisfies_construction"] is False
+        assert item["adapter_configuration_satisfies_construction"] is False
+        assert item["resolver_eligible"] is False
+        assert item["bff_authority"] == "source_disabled_not_forwarded"
+        assert "source-disabled" in item["detail"]
 
     from application.admin_api.read_service import (
         AdminApiReadService,
@@ -62061,7 +63348,7 @@ def test_admin_api_futures_command_suite_reads_persisted_live_decision_records(
         live_adapter_decision_store=client.admin_api_test_live_adapter_decision_store,
     )
     payload = service.build_futures_live_decision_context(
-        live_runtime_ready=False,
+        live_runtime_ready=True,
     )
 
     assert payload["futures_live_execution_scope"] == {
@@ -62071,27 +63358,30 @@ def test_admin_api_futures_command_suite_reads_persisted_live_decision_records(
         "execution_allowed": False,
     }
     live_evidence = payload["futures_live_decision_evidence"]
-    assert live_evidence["service_decision_status"] == "ready"
-    assert live_evidence["matching_service_decision_id"] == (
-        "futures-us-cfm-live-service"
-    )
-    assert live_evidence["adapter_decision_ready_count"] == 4
-    assert live_evidence["adapter_decision_missing_count"] == 0
-    assert live_evidence["all_command_adapters_ready"] is True
+    assert live_evidence["service_decision_status"] == "source_disabled"
+    assert live_evidence["matching_service_decision_id"] is None
+    assert live_evidence["adapter_decision_ready_count"] == 0
+    assert live_evidence["adapter_decision_missing_count"] == 4
+    assert live_evidence["all_command_adapters_ready"] is False
     assert live_evidence["executor_boundary_status"] == "observed_live_disabled"
-    assert live_evidence["executor_boundary_ready"] is True
-    assert live_evidence["first_blocker"] == "futures_executor_live_disabled"
+    assert live_evidence["executor_boundary_ready"] is False
+    assert live_evidence["executor_boundary_source"] is None
+    assert live_evidence["first_blocker"] == (
+        "futures_command_service_source_disabled"
+    )
     assert live_evidence["execution_allowed"] is False
+    assert live_evidence["manual_live_acknowledgement_required"] is False
+    assert live_evidence["live_runtime_ready"] is False
     assert live_evidence["live_coinbase_orders_ran"] is False
     fixture = lightweight_futures_command_suite_frontend_fixture_payload(
         live_decision_context=payload,
     )
     assert fixture["futures_live_decision_evidence"]["service_decision_status"] == (
-        "ready"
+        "source_disabled"
     )
     assert fixture["futures_live_decision_evidence"][
         "adapter_decision_ready_count"
-    ] == 4
+    ] == 0
 
 
 @pytest.mark.regression
@@ -63128,6 +64418,7 @@ def test_admin_api_manual_order_route_retries_non_live_idempotency_after_admissi
         str(client.admin_api_test_live_service_decision_store.path),
     )
     monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
 
     client_order_id = "client-route-retry-after-admission"
     idempotency_key = "idem-route-retry-after-admission"
@@ -63196,8 +64487,8 @@ def test_admin_api_manual_order_route_retries_non_live_idempotency_after_admissi
             status=AdminApiGateStatus.PASSED,
             requested_service_status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
             service_enabled=True,
-            deployment_ref="deployment-controlled-live-mvp",
-            runtime_configuration_ref="runtime-controlled-live-mvp",
+            deployment_ref=OPERATOR_READY_MVP_DEPLOYMENT_REF,
+            runtime_configuration_ref=OPERATOR_READY_MVP_RUNTIME_CONFIGURATION_REF,
             decision_reason="Enable bounded manual order retry after admission.",
             live_coinbase_execution_approved=True,
             max_submitted_notional_usdc="3.10",
@@ -63272,6 +64563,7 @@ def test_admin_api_manual_order_route_passes_backend_admission_to_command_servic
         str(client.admin_api_test_live_service_decision_store.path),
     )
     monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
 
     client_order_id = "client-route-admission-ready"
     idempotency_key = "idem-route-admission-ready"
@@ -63324,8 +64616,8 @@ def test_admin_api_manual_order_route_passes_backend_admission_to_command_servic
             status=AdminApiGateStatus.PASSED,
             requested_service_status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
             service_enabled=True,
-            deployment_ref="deployment-controlled-live-mvp",
-            runtime_configuration_ref="runtime-controlled-live-mvp",
+            deployment_ref=OPERATOR_READY_MVP_DEPLOYMENT_REF,
+            runtime_configuration_ref=OPERATOR_READY_MVP_RUNTIME_CONFIGURATION_REF,
             decision_reason="Enable bounded manual order route admission.",
             live_coinbase_execution_approved=True,
             max_submitted_notional_usdc="3.10",
@@ -63356,6 +64648,89 @@ def test_admin_api_manual_order_route_passes_backend_admission_to_command_servic
         cap_guard.decision_id
     )
     assert command_service.commands[0].admin_max_submitted_notional_usdc == "3.10"
+    assert command_service.commands[0].admin_max_executed_notional_usdc == "1.00"
+
+
+@pytest.mark.regression
+def test_admin_api_selected_root_reconciliation_is_local_idempotent_and_audited(
+    monkeypatch,
+):
+    from api.v1.routes import orders as order_routes
+
+    class RecordingCommandService:
+        def __init__(self) -> None:
+            self.commands = []
+
+        def reconcile_order_by_client_order_id(self, command):
+            self.commands.append(command)
+            return AdminApiCommandResponse(
+                status=AdminApiCommandStatus.ACCEPTED,
+                action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+                required_permission=AdminApiPermission.ORDER_CANCEL,
+                service_method="reconcile_order_by_client_order_id",
+                message="Selected root reconciled by fake backend service.",
+                client_order_id=command.client_order_id,
+                correlation_id=command.envelope.correlation_id,
+                idempotency_key=command.envelope.idempotency_key,
+                audit_id=command.audit_id,
+                live_exchange_submitted=False,
+                live_coinbase_orders_ran=False,
+                live_coinbase_read_ran=True,
+                data={"live_coinbase_read_ran": True},
+            )
+
+    client = _client(monkeypatch)
+    command_service = RecordingCommandService()
+    client.app.dependency_overrides[order_routes.get_command_service] = (
+        lambda: command_service
+    )
+    route = "/api/v1/orders/client-root-reconcile/reconciliation"
+    headers = _headers(
+        idempotency_key="idem-root-reconcile",
+        roles=AdminApiRole.ADMIN.value,
+    )
+    body = {
+        "reason": "refresh authoritative selected-root status",
+        "manual_live_acknowledgement": True,
+    }
+
+    response = client.post(route, headers=headers, json=body)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["action_class"] == AdminApiActionClass.LOCAL_STATE_MUTATION.value
+    assert payload["required_permission"] == (
+        AdminApiPermission.ORDER_CANCEL.value
+    )
+    assert payload["audit_id"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_read_ran"] is True
+    recorded_audit = next(
+        event
+        for event in client.admin_api_test_audit_store.read_recent()
+        if event.audit_id == payload["audit_id"]
+    )
+    assert recorded_audit.live_coinbase_read_ran is True
+    assert len(command_service.commands) == 1
+    assert command_service.commands[0].allow_live_read is True
+    assert command_service.commands[0].audit_id == payload["audit_id"]
+    assert recorded_audit.request_id == payload["correlation_id"]
+    assert recorded_audit.idempotency_key == payload["idempotency_key"]
+
+    replay = client.post(route, headers=headers, json=body)
+    assert replay.status_code == 200
+    assert replay.headers["X-Idempotency-Replayed"] == "true"
+    assert len(command_service.commands) == 1
+
+    conflict = client.post(
+        route,
+        headers=headers,
+        json={**body, "reason": "different reconciliation request"},
+    )
+    assert conflict.status_code == 409
+    assert len(command_service.commands) == 1
 
 
 @pytest.mark.regression
@@ -63478,7 +64853,8 @@ def test_admin_api_cancel_route_passes_backend_admission_to_command_service(
     assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
     assert payload["admission_decision"]["allowed"] is True
     assert payload["data"]["allow_live_execution_seen"] is True
-    assert payload["portfolio_scope"]["portfolio_id"] == test_portfolio_id
+    assert payload["portfolio_scope"]["portfolio_id"] is None
+    assert test_portfolio_id not in repr(payload)
     assert len(command_service.commands) == 2
     assert command_service.commands[1].allow_live_execution is True
 
@@ -63564,6 +64940,7 @@ def test_admin_api_cancel_public_proof_chain_admits_same_key_once_without_coinba
         str(client.admin_api_test_live_service_decision_store.path),
     )
     monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
 
     client_order_id = "client-cancel-public-proof-chain"
     command_idempotency_key = "idem-cancel-public-proof-chain"
@@ -63759,8 +65136,8 @@ def test_admin_api_cancel_public_proof_chain_admits_same_key_once_without_coinba
                 AdminApiLiveExecutionStatus.APPROVAL_REQUIRED.value
             ),
             "service_enabled": True,
-            "deployment_ref": "fake-backend-public-cancel-proof-chain",
-            "runtime_configuration_ref": "test-runtime-public-cancel-proof-chain",
+            "deployment_ref": OPERATOR_READY_MVP_DEPLOYMENT_REF,
+            "runtime_configuration_ref": OPERATOR_READY_MVP_RUNTIME_CONFIGURATION_REF,
             "decision_reason": "Enable only the bounded fake-backed cancel proof.",
             "live_coinbase_execution_approved": True,
             "max_submitted_notional_usdc": "3.10",
@@ -64065,6 +65442,7 @@ def test_admin_api_manual_order_route_executes_through_backend_runtime_dependenc
         str(client.admin_api_test_live_service_decision_store.path),
     )
     monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
     monkeypatch.setenv(
         "COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID",
         "11111111-2222-4333-8444-555555555555",
@@ -64117,6 +65495,7 @@ def test_admin_api_manual_order_route_executes_through_backend_runtime_dependenc
             client_order_id=client_order_id,
             idempotency_key=idempotency_key,
             base_size="0.00002",
+            limit_price="50000.00",
         )
     )
     approval = _append_manual_order_approval(
@@ -64160,8 +65539,8 @@ def test_admin_api_manual_order_route_executes_through_backend_runtime_dependenc
             status=AdminApiGateStatus.PASSED,
             requested_service_status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
             service_enabled=True,
-            deployment_ref="deployment-controlled-live-mvp",
-            runtime_configuration_ref="runtime-controlled-live-mvp",
+            deployment_ref=OPERATOR_READY_MVP_DEPLOYMENT_REF,
+            runtime_configuration_ref=OPERATOR_READY_MVP_RUNTIME_CONFIGURATION_REF,
             decision_reason="Enable bounded manual order route runtime.",
             live_coinbase_execution_approved=True,
             max_submitted_notional_usdc="3.10",
@@ -64175,6 +65554,7 @@ def test_admin_api_manual_order_route_executes_through_backend_runtime_dependenc
         json=_manual_order_payload(
             client_order_id=client_order_id,
             base_size="0.00002",
+            limit_price="50000.00",
         ),
     )
 
@@ -64185,9 +65565,7 @@ def test_admin_api_manual_order_route_executes_through_backend_runtime_dependenc
     assert payload["coinbase_order_id"] == "exchange-admin-route-1"
     assert payload["admission_decision"]["allowed"] is True
     assert payload["admission_decision"]["browser_authority"] == "backend_admin_api"
-    assert payload["admission_decision"]["execution_scope"]["portfolio_id"] == (
-        "11111111-2222-4333-8444-555555555555"
-    )
+    assert payload["admission_decision"]["execution_scope"]["portfolio_id"] is None
     assert payload["admission_decision"]["execution_scope"]["profile_alias"] == (
         "Test"
     )
@@ -64200,15 +65578,13 @@ def test_admin_api_manual_order_route_executes_through_backend_runtime_dependenc
     assert payload["submission_event_recorded"] is True
     assert payload["data"]["portfolio_scope"]["status"] == "matched"
     assert payload["data"]["portfolio_scope"]["profile_alias"] == "Test"
-    assert payload["data"]["portfolio_scope"]["portfolio_id"] == (
-        "11111111-2222-4333-8444-555555555555"
-    )
+    assert payload["data"]["portfolio_scope"]["portfolio_id"] is None
     assert payload["data"]["root_registration"]["parent_row_id"] == 42
+    assert "retail_portfolio_id" not in payload["data"]["root_registration"]
     assert payload["data"]["root_status_update_error"] is None
     assert payload["portfolio_scope"]["scope_consistent"] is True
-    assert payload["portfolio_scope"]["portfolio_id"] == (
-        "11111111-2222-4333-8444-555555555555"
-    )
+    assert payload["portfolio_scope"]["portfolio_id"] is None
+    assert "11111111-2222-4333-8444-555555555555" not in repr(payload)
     assert payload["portfolio_scope"]["proof_bindings"] == {
         "payload_hash": payload_hash,
         "approval_snapshot_id": approval.approval_id,
@@ -64229,8 +65605,8 @@ def test_admin_api_manual_order_route_executes_through_backend_runtime_dependenc
             "side": "BUY",
             "order_configuration": {
                 "limit_limit_gtc": {
-                    "base_size": "2e-05",
-                    "limit_price": "65000.00",
+                    "base_size": "0.00002",
+                    "limit_price": "50000.00",
                     "post_only": False,
                 }
             },
@@ -64256,14 +65632,28 @@ def test_admin_api_manual_order_route_executes_through_backend_runtime_dependenc
     assert submission_event["status_to"] == "PENDING"
     assert submission_event["payload"]["client_order_id"] == client_order_id
     assert submission_event["payload"]["order_id"] == "exchange-admin-route-1"
-    assert submission_event["payload"]["base_size"] == "2e-05"
+    assert submission_event["payload"]["base_size"] == "0.00002"
     assert submission_event["payload"]["retail_portfolio_id"] == (
         "11111111-2222-4333-8444-555555555555"
+    )
+    persisted = client.admin_api_test_idempotency_store.get_record(idempotency_key)
+    assert persisted is not None
+    assert "11111111-2222-4333-8444-555555555555" not in repr(
+        persisted.response
+    )
+    public_audit_rows = [
+        row.model_dump(mode="json")
+        for row in client.admin_api_test_audit_store.read_recent(limit=20)
+        if row.endpoint == "POST /api/v1/orders"
+    ]
+    assert public_audit_rows
+    assert "11111111-2222-4333-8444-555555555555" not in repr(
+        public_audit_rows
     )
 
 
 @pytest.mark.regression
-def test_admin_api_manual_order_route_blocks_admitted_quote_above_backend_cap(
+def test_admin_api_manual_order_route_blocks_limit_notional_above_backend_cap(
     monkeypatch,
 ):
     import configuration
@@ -64324,6 +65714,7 @@ def test_admin_api_manual_order_route_blocks_admitted_quote_above_backend_cap(
         str(client.admin_api_test_live_service_decision_store.path),
     )
     monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
     monkeypatch.setenv(
         "COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID",
         "11111111-2222-4333-8444-555555555555",
@@ -64352,13 +65743,21 @@ def test_admin_api_manual_order_route_blocks_admitted_quote_above_backend_cap(
         "get_admin_api_order_event_stream_publisher",
         lambda: fake_event_publisher,
     )
+    monkeypatch.setattr(
+        command_runtime,
+        "get_admin_api_order_root_registrar",
+        lambda: SimpleNamespace(
+            register_manual_spot_root=lambda **_kwargs: None,
+            get_unresolved_admin_manual_root_submissions=lambda *_args: [],
+        ),
+    )
 
     client_order_id = "client-route-runtime-over-cap"
     idempotency_key = "idem-route-runtime-over-cap"
     operator_intent = "manual_one_off"
     oversized_body = _manual_order_payload(
-        quote_size="4.00",
         client_order_id=client_order_id,
+        base_size="0.00002",
     )
     approval_payload = _manual_order_approval_payload(
         operator_intent=operator_intent,
@@ -64410,8 +65809,8 @@ def test_admin_api_manual_order_route_blocks_admitted_quote_above_backend_cap(
             status=AdminApiGateStatus.PASSED,
             requested_service_status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
             service_enabled=True,
-            deployment_ref="deployment-controlled-live-mvp",
-            runtime_configuration_ref="runtime-controlled-live-mvp",
+            deployment_ref=OPERATOR_READY_MVP_DEPLOYMENT_REF,
+            runtime_configuration_ref=OPERATOR_READY_MVP_RUNTIME_CONFIGURATION_REF,
             decision_reason="Enable bounded manual order route runtime.",
             live_coinbase_execution_approved=True,
             max_submitted_notional_usdc="3.10",
@@ -64439,8 +65838,8 @@ def test_admin_api_manual_order_route_blocks_admitted_quote_above_backend_cap(
     assert payload["live_command_runtime_ready"] is True
     assert payload["live_command_runtime_missing_reason"] is None
     assert payload["guard"]["condition"] == ActionConditionType.MAX_NOTIONAL.value
-    assert payload["guard"]["configured_limit"] == 3.1
-    assert payload["guard"]["actual"] == 4.0
+    assert payload["guard"]["configured_limit"] == 1.0
+    assert payload["guard"]["actual"] == 1.3
     assert fake_rest_client.create_order_calls == []
     assert fake_event_publisher.events == []
 
@@ -64459,6 +65858,7 @@ def test_admin_api_manual_order_route_reports_missing_command_runtime(
         str(client.admin_api_test_live_service_decision_store.path),
     )
     monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
     monkeypatch.setattr(configuration, "API_KEY", None, raising=False)
     monkeypatch.setattr(configuration, "API_SECRET", None, raising=False)
 
@@ -64470,11 +65870,13 @@ def test_admin_api_manual_order_route_reports_missing_command_runtime(
     client_order_id = "client-route-runtime-missing"
     idempotency_key = "idem-route-runtime-missing"
     operator_intent = "manual_one_off"
+    base_size = "0.00001"
     payload_hash = make_payload_hash(
         _manual_order_approval_payload(
             operator_intent=operator_intent,
             client_order_id=client_order_id,
             idempotency_key=idempotency_key,
+            base_size=base_size,
         )
     )
     approval = _append_manual_order_approval(
@@ -64518,8 +65920,8 @@ def test_admin_api_manual_order_route_reports_missing_command_runtime(
             status=AdminApiGateStatus.PASSED,
             requested_service_status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
             service_enabled=True,
-            deployment_ref="deployment-controlled-live-mvp",
-            runtime_configuration_ref="runtime-controlled-live-mvp",
+            deployment_ref=OPERATOR_READY_MVP_DEPLOYMENT_REF,
+            runtime_configuration_ref=OPERATOR_READY_MVP_RUNTIME_CONFIGURATION_REF,
             decision_reason="Enable admission while command runtime is missing.",
             live_coinbase_execution_approved=True,
             max_submitted_notional_usdc="3.10",
@@ -64530,7 +65932,10 @@ def test_admin_api_manual_order_route_reports_missing_command_runtime(
     response = client.post(
         "/api/v1/orders",
         headers=_headers(idempotency_key=idempotency_key),
-        json=_manual_order_payload(client_order_id=client_order_id),
+        json=_manual_order_payload(
+            client_order_id=client_order_id,
+            base_size=base_size,
+        ),
     )
 
     payload = response.json()
@@ -64607,6 +66012,7 @@ def test_admin_api_command_service_uses_backend_runtime_dependencies_when_enable
         publish_event=lambda **_kwargs: True,
     )
     monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
     monkeypatch.setenv(
         "COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID",
         "11111111-2222-4333-8444-555555555555",
@@ -64619,6 +66025,14 @@ def test_admin_api_command_service_uses_backend_runtime_dependencies_when_enable
         command_runtime,
         "get_admin_api_order_event_stream_publisher",
         lambda: event_publisher,
+    )
+    monkeypatch.setattr(
+        command_runtime,
+        "get_admin_api_order_root_registrar",
+        lambda: SimpleNamespace(
+            register_manual_spot_root=lambda **_kwargs: None,
+            get_unresolved_admin_manual_root_submissions=lambda *_args: [],
+        ),
     )
 
     service = order_routes.get_command_service(order_routes.get_read_service())
@@ -64652,6 +66066,8 @@ def test_admin_api_manual_order_command_fails_closed_on_rest_exception(
     monkeypatch,
 ):
     import configuration
+
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
 
     class FakeRuntimeController:
         def track_inflight(self, _name):
@@ -64768,7 +66184,10 @@ def test_admin_api_manual_order_command_fails_closed_on_rest_exception(
 
     assert response.status == AdminApiCommandStatus.REJECTED
     assert response.failure_stage == "coinbase_submission_unknown"
-    assert "placeholder credentials rejected" in response.message
+    assert response.message == (
+        "Coinbase REST submission failed: exception_class:RuntimeError"
+    )
+    assert "placeholder credentials rejected" not in response.model_dump_json()
     assert response.live_exchange_submitted is False
     assert response.live_coinbase_orders_ran is True
     assert response.live_command_runtime_enabled is True
@@ -64796,6 +66215,7 @@ def test_admin_api_command_service_fails_closed_when_rest_client_unavailable(
         raise RuntimeError("missing Coinbase REST credentials")
 
     monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
     monkeypatch.setattr(configuration, "API_KEY", "test-key", raising=False)
     monkeypatch.setattr(configuration, "API_SECRET", "test-secret", raising=False)
     monkeypatch.setattr(configuration, "get_rest_client", fail_rest_client)
@@ -64828,6 +66248,7 @@ def test_admin_api_command_service_does_not_load_rest_client_without_credentials
         return SimpleNamespace(name="should-not-load")
 
     monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
     monkeypatch.setattr(configuration, "API_KEY", None, raising=False)
     monkeypatch.setattr(configuration, "API_SECRET", None, raising=False)
     monkeypatch.setattr(configuration, "get_rest_client", unexpected_rest_client_load)
@@ -65155,7 +66576,7 @@ def test_admin_api_disabled_live_execution_service_is_evidence_only(tmp_path):
 
 
 @pytest.mark.regression
-def test_admin_api_live_pilots_are_route_bound_dry_run_only():
+def test_admin_api_manual_spot_adapters_are_current_and_parked_routes_stay_dry_run():
     pilot = build_live_execution_adapter_contract(
         method="POST",
         route="/api/v1/orders",
@@ -65205,44 +66626,38 @@ def test_admin_api_live_pilots_are_route_bound_dry_run_only():
     assert pilot["service_method"] == "place_manual_order"
     assert pilot["adapter_reference"] == "AdminApiCommandService.place_manual_order"
     assert pilot["status"] == AdminApiLiveExecutionStatus.APPROVAL_REQUIRED
-    assert pilot["source"] == "m53_backend_pilot_dry_run"
-    assert pilot["missing_reason"] == "pilot_dry_run_only"
-    assert pilot["executable"] is False
-    assert pilot["route_mapping_satisfies_construction"] is False
-    assert pilot["adapter_configuration_satisfies_construction"] is False
-    assert pilot["construction_contract_available"] is True
+    assert pilot["source"] == "canonical_admin_operator_runtime"
+    assert pilot["missing_reason"] == "per_request_admission_required"
+    assert pilot["executable"] is True
+    assert pilot["route_mapping_satisfies_construction"] is True
+    assert pilot["adapter_configuration_satisfies_construction"] is True
+    assert pilot["construction_precondition_resolved"] is True
+    assert pilot["construction_contract_available"] is False
     assert pilot["construction_contract_ref"] == (
-        LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT
+        "installed_canonical_admin_command_runtime"
     )
     assert pilot["construction_contract_satisfies_construction"] is False
-    _assert_live_adapter_construction_contract(
-        pilot["construction_contract"],
-        route="/api/v1/orders",
-        module_id="spot_operations",
-        service_method="place_manual_order",
-        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
-    )
+    assert pilot["construction_contract"] is None
     assert pilot["construction_satisfaction_authority"] == (
-        "backend_live_adapter_construction_only"
+        "installed_canonical_admin_command_runtime"
     )
-    assert pilot["satisfied_construction_artifacts"] == []
-    assert pilot["unsatisfied_construction_artifacts"] == list(
-        LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS
-    )
+    assert pilot["satisfied_construction_artifacts"] == [
+        "shared_command_service_adapter",
+        "route_inventory_execution_binding",
+    ]
+    assert pilot["unsatisfied_construction_artifacts"] == []
     assert pilot["latest_adapter_decision_available"] is False
     assert pilot["latest_adapter_decision_recorded_artifacts"] == []
     assert pilot["latest_adapter_decision_resolves_construction"] is False
     assert pilot["browser_authority"] == "display_only"
     assert pilot["bff_authority"] == "forward_only_no_execution"
     assert pilot["forbidden_methods"] == [
-        "create_order",
-        "cancel_order",
-        "execute",
-        "submit",
-        "coinbase_client",
+        "browser_coinbase_client",
+        "bff_coinbase_client",
+        "parallel_exchange_execution_path",
     ]
-    assert any("dry-run only" in item for item in pilot["evidence"])
-    assert "non-executable" in pilot["detail"]
+    assert any("not an admission input" in item for item in pilot["evidence"])
+    assert "does not authorize a request" in pilot["detail"]
 
     assert cancel_pilot["configured"] is True
     assert cancel_pilot["route"] == "/api/v1/orders/{client_order_id}/cancel"
@@ -65253,9 +66668,9 @@ def test_admin_api_live_pilots_are_route_bound_dry_run_only():
         == "AdminApiCommandService.cancel_order_by_client_order_id"
     )
     assert cancel_pilot["status"] == AdminApiLiveExecutionStatus.APPROVAL_REQUIRED
-    assert cancel_pilot["source"] == "m53_backend_pilot_dry_run"
-    assert cancel_pilot["missing_reason"] == "pilot_dry_run_only"
-    assert cancel_pilot["executable"] is False
+    assert cancel_pilot["source"] == "canonical_admin_operator_runtime"
+    assert cancel_pilot["missing_reason"] == "per_request_admission_required"
+    assert cancel_pilot["executable"] is True
 
     assert reveal_pilot["configured"] is True
     assert reveal_pilot["route"] == (
@@ -65362,7 +66777,7 @@ def test_admin_api_live_pilots_are_route_bound_dry_run_only():
 
 
 @pytest.mark.regression
-def test_admin_api_routes_have_no_direct_coinbase_path_and_dashboard_delegates():
+def test_admin_api_routes_have_no_direct_coinbase_path_and_dashboard_is_disabled():
     service_source = inspect.getsource(command_service)
     route_source = "\n".join(
         [
@@ -65390,9 +66805,9 @@ def test_admin_api_routes_have_no_direct_coinbase_path_and_dashboard_delegates()
         assert token not in route_source
     assert "dashboard_server" not in service_source
     assert "cancel_orders(" not in service_source
-    assert "_dashboard_command_service().place_manual_order" in dashboard_source
-    assert "_dashboard_command_service().cancel_order_by_client_order_id" in dashboard_source
-    assert "_dashboard_command_service().place_hotpoint_test_order" in dashboard_source
+    assert "_dashboard_command_service" not in dashboard_source
+    assert "SOURCE_DISABLED_COINBASE_EXECUTION_ERROR" in dashboard_source
+    assert "_SOURCE_DISABLED_EXCHANGE_MUTATION_RESPONSES" in dashboard_source
     assert "REST_CLIENT.limit_order_gtc" not in dashboard_source
     assert "_coinbase_order_response_to_dict" not in dashboard_source
 
@@ -65435,6 +66850,57 @@ def test_admin_api_read_only_spot_readiness_uses_read_service(monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["products"] == ["BTC-USDC"]
+
+
+@pytest.mark.regression
+def test_admin_api_ordinary_spot_gets_are_call_free_and_value_blind(monkeypatch):
+    import dashboard_server
+
+    def fail_if_legacy_live_read_builder_runs(*_args, **_kwargs):
+        raise AssertionError("ordinary Spot GET delegated to legacy live-read builder")
+
+    monkeypatch.setattr(
+        dashboard_server,
+        "_build_spot_readiness_payload",
+        fail_if_legacy_live_read_builder_runs,
+    )
+    monkeypatch.setattr(
+        dashboard_server,
+        "_build_spot_sweep_pnl_payload",
+        fail_if_legacy_live_read_builder_runs,
+    )
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID",
+        "11111111-2222-4333-8444-555555555555",
+    )
+    client = _client(monkeypatch)
+    headers = _headers(roles=AdminApiRole.VIEWER.value)
+
+    readiness_response = client.get(
+        "/api/v1/spot/readiness?product_id=BTC-USDC",
+        headers=headers,
+    )
+    pnl_response = client.get(
+        "/api/v1/spot/sweep/pnl?product_id=BTC-USDC&include_coinbase_average_cost=true",
+        headers=headers,
+    )
+
+    assert readiness_response.status_code == 200
+    assert pnl_response.status_code == 200
+    readiness = readiness_response.json()
+    pnl = pnl_response.json()
+    assert readiness["status"] == "blocked"
+    assert readiness["values_withheld"] is True
+    assert readiness["coinbase_read_attempted"] is False
+    assert readiness["live_coinbase_read_ran"] is False
+    assert pnl["status"] == "blocked"
+    assert pnl["pnl_report"] is None
+    assert pnl["read_only_coinbase_requests"] == []
+    assert pnl["values_withheld"] is True
+    assert pnl["coinbase_read_attempted"] is False
+    assert pnl["live_coinbase_read_ran"] is False
+    serialized = json.dumps([readiness, pnl], sort_keys=True)
+    assert "11111111-2222-4333-8444-555555555555" not in serialized
 
 
 @pytest.mark.regression
@@ -71746,7 +73212,7 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
     assert manual["status"] == AdminApiGateStatus.BLOCKED.value
     assert (
         manual["live_execution_status"]
-        == AdminApiLiveExecutionStatus.APPROVAL_REQUIRED.value
+        == AdminApiLiveExecutionStatus.LIVE_DISABLED.value
     )
     assert "approval_snapshot" in manual["required_gate_chain"]
     assert "live_execution_service" in manual["missing_gate_chain"]
@@ -71837,12 +73303,15 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
     assert cancel["live_adapter_configured"] is True
     assert (
         cancel["live_execution_status"]
-        == AdminApiLiveExecutionStatus.APPROVAL_REQUIRED.value
+        == AdminApiLiveExecutionStatus.LIVE_DISABLED.value
     )
-    assert cancel["live_enabled"] is True
-    assert cancel["live_eligible"] is True
+    assert cancel["live_enabled"] is False
+    assert cancel["live_eligible"] is False
     assert cancel["executable"] is False
-    assert "cancel_order(client_order_id)" in cancel["backend_contract_refs"]
+    assert (
+        "cancel_order(client_order_id, verified_exchange_order_id=...)"
+        in cancel["backend_contract_refs"]
+    )
     assert all(
         item["command_identity_key"] == "client_order_id"
         for item in cancel["proof_routes"]
@@ -72400,6 +73869,30 @@ def test_admin_api_backend_rbac_matches_frontend_role_hints():
 
 
 @pytest.mark.regression
+def test_admin_api_health_reports_call_free_live_runtime_opt_in(monkeypatch):
+    monkeypatch.setenv("COINBASE_ADMIN_API_LIVE_EXECUTION_ENABLED", "true")
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
+
+    def fail_if_live_readiness_is_built():
+        raise AssertionError("health must not build Coinbase-backed live readiness")
+
+    monkeypatch.setattr(
+        "application.admin_api.read_service.build_admin_api_command_runtime_readiness",
+        fail_if_live_readiness_is_built,
+    )
+    client = _client(monkeypatch)
+
+    response = client.get(
+        "/api/v1/admin/health",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["live_execution_enabled"] is True
+    assert response.json()["live_coinbase_orders_ran"] is False
+
+
+@pytest.mark.regression
 def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     client = _client(monkeypatch)
     headers = _headers(roles=AdminApiRole.VIEWER.value)
@@ -72436,6 +73929,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert bootstrap.json()["auth_mode"] == AdminApiAuthMode.BOOTSTRAP_BEARER.value
     assert health.status_code == 200
     assert health.json()["failed_route_count"] == 0
+    assert health.json()["live_execution_enabled"] is False
     assert health.json()["live_coinbase_orders_ran"] is False
     assert session.status_code == 200
     assert AdminApiPermission.AUDIT_READ.value in session.json()["permissions"]
@@ -72543,35 +74037,35 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     )
     assert live_payload["live_enabled_path_count"] == 0
     assert live_payload["live_eligible_path_count"] == 0
-    assert live_payload["preflight_check_count"] == 120
-    assert live_payload["blocking_preflight_check_count"] == 60
-    assert live_payload["passed_preflight_check_count"] == 60
-    assert live_payload["approval_snapshot_required_count"] == 15
+    assert live_payload["preflight_check_count"] == 72
+    assert live_payload["blocking_preflight_check_count"] == 36
+    assert live_payload["passed_preflight_check_count"] == 36
+    assert live_payload["approval_snapshot_required_count"] == 9
     assert live_payload["approval_snapshot_present_count"] == 0
-    assert live_payload["approval_snapshot_missing_count"] == 15
-    assert live_payload["approval_snapshot_required_field_count"] == 225
-    assert live_payload["approval_snapshot_missing_field_count"] == 225
-    assert live_payload["approval_store_required_count"] == 15
-    assert live_payload["approval_store_configured_count"] == 15
+    assert live_payload["approval_snapshot_missing_count"] == 9
+    assert live_payload["approval_snapshot_required_field_count"] == 135
+    assert live_payload["approval_snapshot_missing_field_count"] == 135
+    assert live_payload["approval_store_required_count"] == 9
+    assert live_payload["approval_store_configured_count"] == 9
     assert live_payload["approval_store_missing_count"] == 0
-    assert live_payload["approval_store_requirement_count"] == 180
+    assert live_payload["approval_store_requirement_count"] == 108
     assert live_payload["approval_store_missing_requirement_count"] == 0
-    assert live_payload["admission_audit_required_count"] == 15
+    assert live_payload["admission_audit_required_count"] == 9
     assert live_payload["admission_audit_configured_count"] == 0
-    assert live_payload["admission_audit_missing_count"] == 15
-    assert live_payload["admission_audit_fact_count"] == 150
-    assert live_payload["admission_audit_missing_fact_count"] == 135
-    assert live_payload["cap_guard_required_count"] == 15
+    assert live_payload["admission_audit_missing_count"] == 9
+    assert live_payload["admission_audit_fact_count"] == 90
+    assert live_payload["admission_audit_missing_fact_count"] == 81
+    assert live_payload["cap_guard_required_count"] == 9
     assert live_payload["cap_guard_configured_count"] == 0
-    assert live_payload["cap_guard_missing_count"] == 15
-    assert live_payload["cap_guard_requirement_count"] == 210
-    assert live_payload["cap_guard_missing_requirement_count"] == 210
-    assert live_payload["live_execution_adapter_required_count"] == 15
+    assert live_payload["cap_guard_missing_count"] == 9
+    assert live_payload["cap_guard_requirement_count"] == 126
+    assert live_payload["cap_guard_missing_requirement_count"] == 126
+    assert live_payload["live_execution_adapter_required_count"] == 9
     assert live_payload["live_execution_adapter_configured_count"] == 3
-    assert live_payload["live_execution_adapter_missing_count"] == 12
-    assert live_payload["readiness_precondition_count"] == 135
-    assert live_payload["blocking_readiness_precondition_count"] == 86
-    assert live_payload["passed_readiness_precondition_count"] == 49
+    assert live_payload["live_execution_adapter_missing_count"] == 6
+    assert live_payload["readiness_precondition_count"] == 81
+    assert live_payload["blocking_readiness_precondition_count"] == 50
+    assert live_payload["passed_readiness_precondition_count"] == 31
     assert live_payload["live_coinbase_orders_ran"] is False
     live_routes = {item["route"]: item for item in live_payload["paths"]}
     assert "/api/v1/orders" in live_routes
@@ -72583,47 +74077,19 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
         in live_routes
     )
-    assert "/api/v1/futures/orders" in live_routes
-    assert "/api/v1/futures/positions/{position_key}/close-reduce" in live_routes
-    assert "/api/v1/futures/orders/{client_order_id}/cancel" in live_routes
     assert "/api/v1/spot/campaign/executions" in live_routes
     assert "/api/v1/spot/sweep/automation-runs" in live_routes
-    assert (
-        "/api/v1/automation/usdc-pair-snapshot-order-plans/{plan_id}/live-submit"
-        in live_routes
-    )
-    assert (
-        "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/{run_state_id}/live-submit"
-        in live_routes
-    )
-    assert live_routes["/api/v1/futures/orders"]["identity_key"] == "product_id"
-    assert (
-        live_routes["/api/v1/futures/positions/{position_key}/close-reduce"][
-            "identity_key"
-        ]
-        == "position_key"
-    )
-    assert (
-        live_routes["/api/v1/futures/orders/{client_order_id}/cancel"][
-            "identity_key"
-        ]
-        == "client_order_id"
-    )
+    assert not {
+        "/api/v1/futures/orders",
+        "/api/v1/futures/positions/{position_key}/close-reduce",
+        "/api/v1/futures/orders/{client_order_id}/cancel",
+        "/api/v1/automation/usdc-pair-snapshot-order-plans/{plan_id}/live-submit",
+        "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/{run_state_id}/live-submit",
+        "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/{run_state_id}/live-fanout-submit",
+    } & set(live_routes)
     assert (
         live_routes["/api/v1/spot/sweep/automation-runs"]["identity_key"]
         == "sweep_config_id"
-    )
-    assert (
-        live_routes[
-            "/api/v1/automation/usdc-pair-snapshot-order-plans/{plan_id}/live-submit"
-        ]["identity_key"]
-        == "request_id"
-    )
-    assert (
-        live_routes[
-            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/{run_state_id}/live-submit"
-        ]["identity_key"]
-        == "request_id"
     )
     assert all(item["live_enabled"] is False for item in live_routes.values())
     configured_adapter_routes = {
@@ -72839,8 +74305,20 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         for item in live_routes.values()
     )
     assert all(
+        item["live_execution_adapter"]["executable"] is True
+        for route, item in live_routes.items()
+        if route in {
+            "/api/v1/orders",
+            "/api/v1/orders/{client_order_id}/cancel",
+        }
+    )
+    assert all(
         item["live_execution_adapter"]["executable"] is False
-        for item in live_routes.values()
+        for route, item in live_routes.items()
+        if route not in {
+            "/api/v1/orders",
+            "/api/v1/orders/{client_order_id}/cancel",
+        }
     )
     assert all(
         item["live_execution_adapter"]["browser_authority"] == "display_only"
@@ -72851,10 +74329,10 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         for item in live_routes.values()
     )
     assert live_routes["/api/v1/orders"]["live_execution_adapter"]["source"] == (
-        "m53_backend_pilot_dry_run"
+        "canonical_admin_operator_runtime"
     )
     assert live_routes["/api/v1/orders"]["live_execution_adapter"]["missing_reason"] == (
-        "pilot_dry_run_only"
+        "per_request_admission_required"
     )
     assert (
         live_routes["/api/v1/stealth/orders/{stealth_order_id}/reveal"][
@@ -72880,8 +74358,25 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     )
     assert all(
         item["live_execution_adapter"]["forbidden_methods"]
+        == [
+            "browser_coinbase_client",
+            "bff_coinbase_client",
+            "parallel_exchange_execution_path",
+        ]
+        for route, item in live_routes.items()
+        if route in {
+            "/api/v1/orders",
+            "/api/v1/orders/{client_order_id}/cancel",
+        }
+    )
+    assert all(
+        item["live_execution_adapter"]["forbidden_methods"]
         == ["create_order", "cancel_order", "execute", "submit", "coinbase_client"]
-        for item in live_routes.values()
+        for route, item in live_routes.items()
+        if route not in {
+            "/api/v1/orders",
+            "/api/v1/orders/{client_order_id}/cancel",
+        }
     )
     assert all(
         item["live_execution_adapter"]["construction_contract"] is None
@@ -72951,9 +74446,10 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert spot_adapter["action_class"] == "live_exchange_place"
     assert spot_adapter["configured"] is True
     assert spot_adapter["status"] == "approval_required"
-    assert spot_adapter["source"] == "m53_backend_pilot_dry_run"
-    assert spot_adapter["missing_reason"] == "pilot_dry_run_only"
-    assert "non-executable" in spot_adapter["detail"]
+    assert spot_adapter["source"] == "canonical_admin_operator_runtime"
+    assert spot_adapter["missing_reason"] == "per_request_admission_required"
+    assert spot_adapter["executable"] is True
+    assert "does not authorize a request" in spot_adapter["detail"]
     reveal_adapter = live_routes[
         "/api/v1/stealth/orders/{stealth_order_id}/reveal"
     ]["live_execution_adapter"]
@@ -73272,6 +74768,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "admin.live_adapter_decisions",
         "spot.manual_order",
         "spot.order_cancel",
+        "spot.selected_root_reconciliation",
         "spot.fill_follow_up_trigger",
         "spot.campaign_execution",
         "spot.usdc_pair_snapshot_dry_run",
@@ -73331,10 +74828,13 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     } <= set(inventory_by_id)
     spot_command_inventory = inventory_by_id["spot.order_command_drafts"]
     assert spot_command_inventory["workflow_type"] == (
-        AdminApiFunctionalityWorkflowType.COMMAND_DRAFT.value
+        AdminApiFunctionalityWorkflowType.LIVE_EXECUTION.value
     )
     assert spot_command_inventory["exposure_status"] == (
-        AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED.value
+        AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED.value
+    )
+    assert spot_command_inventory["support_status"] == (
+        AdminApiModuleSupportStatus.PLATFORM_READY.value
     )
     assert spot_command_inventory["command_capable"] is True
     assert spot_command_inventory["live_designated"] is True
@@ -73343,6 +74843,16 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "client_order_id" in spot_command_inventory["identity_keys"]
     assert "POST /api/v1/orders/{client_order_id}/cancel" in (
         spot_command_inventory["command_routes"]
+    )
+    assert "POST /api/v1/spot/campaign/executions" not in (
+        spot_command_inventory["command_routes"]
+    )
+    assert "POST /api/v1/spot/sweep/automation-runs" not in (
+        spot_command_inventory["command_routes"]
+    )
+    assert "live_execution_disabled" not in spot_command_inventory["blockers"]
+    assert "current_live_runtime_readback_required" in (
+        spot_command_inventory["blockers"]
     )
     assert "no-shorting" in spot_command_inventory["spot_rule_boundary"]
     stealth_create_inventory = inventory_by_id["stealth.create_command_draft"]
@@ -73616,18 +75126,24 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         ),
     } <= set(sweep_automation_inventory["command_routes"])
     assert "run_state_id" in sweep_automation_inventory["identity_keys"]
-    assert "fan-out" in " ".join(sweep_automation_inventory["blockers"])
+    assert "m58_operator_workflow_unavailable" in (
+        sweep_automation_inventory["blockers"]
+    )
+    assert "m58_exchange_submit_routes_source_parked" in (
+        sweep_automation_inventory["blockers"]
+    )
     futures_command_inventory = inventory_by_id["futures.command_drafts_live_disabled"]
     assert futures_command_inventory["exposure_status"] == (
-        AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED.value
+        AdminApiFunctionalityExposureStatus.ADMIN_UNSUPPORTED.value
     )
     assert futures_command_inventory["support_status"] == (
-        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+        AdminApiModuleSupportStatus.UNSUPPORTED.value
     )
     assert futures_command_inventory["admin_api_exposed"] is True
-    assert futures_command_inventory["frontend_exposed"] is True
-    assert futures_command_inventory["command_capable"] is True
-    assert futures_command_inventory["live_designated"] is True
+    assert futures_command_inventory["backend_supported"] is False
+    assert futures_command_inventory["frontend_exposed"] is False
+    assert futures_command_inventory["command_capable"] is False
+    assert futures_command_inventory["live_designated"] is False
     assert futures_command_inventory["live_enabled"] is False
     assert futures_command_inventory["command_routes"] == [
         "POST /api/v1/futures/orders",
@@ -73637,6 +75153,11 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     ]
     assert "client_order_id" in futures_command_inventory["identity_keys"]
     assert "position_key" in futures_command_inventory["identity_keys"]
+    assert futures_command_inventory["blockers"] == [
+        "futures_command_service_source_disabled"
+    ]
+    assert "not command drafts" in futures_command_inventory["summary"]
+    assert "must not forward" in futures_command_inventory["frontend_boundary"]
     assert "Spot rules are forbidden" in futures_command_inventory[
         "spot_rule_boundary"
     ]
@@ -73669,6 +75190,12 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     ]
     assert spot_cancel_taxonomy["required_permissions"] == ["order:cancel"]
     assert spot_cancel_taxonomy["identity_keys"] == ["client_order_id"]
+    assert spot_cancel_taxonomy["exposure_status"] == (
+        AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED.value
+    )
+    assert spot_cancel_taxonomy["support_status"] == (
+        AdminApiModuleSupportStatus.PLATFORM_READY.value
+    )
     assert spot_cancel_taxonomy["idempotency_required"] is True
     assert spot_cancel_taxonomy["rbac_required"] is True
     assert spot_cancel_taxonomy["approval_required"] is True
@@ -73677,8 +75204,32 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert spot_cancel_taxonomy["reconciliation_required"] is True
     assert spot_cancel_taxonomy["route_local_execution_allowed"] is False
     assert spot_cancel_taxonomy["browser_authority"] == "display_only"
-    assert "cancel_order(client_order_id)" in spot_cancel_taxonomy["summary"]
+    assert "live_execution_disabled" not in spot_cancel_taxonomy["blockers"]
+    assert "current_live_runtime_readback_required" in (
+        spot_cancel_taxonomy["blockers"]
+    )
+    assert "verified_exchange_order_id" in spot_cancel_taxonomy["summary"]
+    assert "No retry or identity fallback is permitted" in (
+        spot_cancel_taxonomy["summary"]
+    )
+    assert "after client-id cancellation" not in spot_cancel_taxonomy["summary"]
     assert "exchange order_id" in spot_cancel_taxonomy["frontend_boundary"]
+    selected_root_reconciliation_taxonomy = taxonomy_by_id[
+        "spot.selected_root_reconciliation"
+    ]
+    assert selected_root_reconciliation_taxonomy["command_surfaces"] == [
+        "POST /api/v1/orders/{client_order_id}/reconciliation"
+    ]
+    assert selected_root_reconciliation_taxonomy["required_permissions"] == [
+        "order:cancel"
+    ]
+    assert selected_root_reconciliation_taxonomy["identity_keys"] == [
+        "client_order_id"
+    ]
+    assert (
+        selected_root_reconciliation_taxonomy["route_local_execution_allowed"]
+        is False
+    )
     fill_follow_up_taxonomy = taxonomy_by_id["spot.fill_follow_up_trigger"]
     assert fill_follow_up_taxonomy["mutation_family"] == (
         AdminApiMutationFamilyType.SPOT_MANUAL_ORDER.value
@@ -73753,9 +75304,12 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     ]
     assert usdc_snapshot_handoff_taxonomy["live_adapter_required"] is True
     assert usdc_snapshot_handoff_taxonomy["route_local_execution_allowed"] is False
+    assert "m58_operator_workflow_unavailable" in (
+        usdc_snapshot_handoff_taxonomy["blockers"]
+    )
     assert "live_fanout_blocked" in usdc_snapshot_handoff_taxonomy["blockers"]
     assert "scheduler_blocked" in usdc_snapshot_handoff_taxonomy["blockers"]
-    assert "one selected product" in usdc_snapshot_handoff_taxonomy["summary"]
+    assert "source-parked" in usdc_snapshot_handoff_taxonomy["summary"]
     assert "must not fan out" in usdc_snapshot_handoff_taxonomy["frontend_boundary"]
     approval_taxonomy = taxonomy_by_id["admin.approval_lifecycle"]
     assert approval_taxonomy["mutation_family"] == (
@@ -73891,10 +75445,10 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     ]
     futures_taxonomy = taxonomy_by_id["futures.commands_contract_required"]
     assert futures_taxonomy["exposure_status"] == (
-        AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED.value
+        AdminApiFunctionalityExposureStatus.ADMIN_UNSUPPORTED.value
     )
     assert futures_taxonomy["support_status"] == (
-        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+        AdminApiModuleSupportStatus.UNSUPPORTED.value
     )
     assert futures_taxonomy["workflow_id"] == "futures.command_drafts_live_disabled"
     assert futures_taxonomy["command_surfaces"] == [
@@ -73902,7 +75456,6 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "POST /api/v1/futures/positions/{position_key}/close-reduce",
         "POST /api/v1/futures/orders/{client_order_id}/cancel",
         "POST /api/v1/futures/positions/{position_key}/reconciliation",
-        "POST /api/v1/futures/risk-proofs",
     ]
     assert futures_taxonomy["action_classes"] == [
         "live_exchange_place",
@@ -73913,21 +75466,28 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "order:create",
         "order:cancel",
         "reconciliation:record",
-        "futures_risk_proof:record"
     ]
-    assert futures_taxonomy["idempotency_required"] is True
-    assert futures_taxonomy["approval_required"] is True
-    assert futures_taxonomy["cap_guard_required"] is True
-    assert futures_taxonomy["admission_audit_required"] is True
+    assert futures_taxonomy["idempotency_required"] is False
+    assert futures_taxonomy["approval_required"] is False
+    assert futures_taxonomy["cap_guard_required"] is False
+    assert futures_taxonomy["admission_audit_required"] is False
     assert futures_taxonomy["reconciliation_required"] is False
     assert futures_taxonomy["live_adapter_required"] is False
     assert futures_taxonomy["route_local_execution_allowed"] is False
     assert "client_order_id" in futures_taxonomy["identity_keys"]
     assert "position_key" in futures_taxonomy["identity_keys"]
-    assert "live_execution_disabled" in futures_taxonomy["blockers"]
-    assert "futures live adapter contract missing" in futures_taxonomy["blockers"]
-    assert "futures reconciliation execution missing" in futures_taxonomy["blockers"]
+    assert futures_taxonomy["blockers"] == [
+        "futures_command_service_source_disabled"
+    ]
+    assert "fixed typed 501" in futures_taxonomy["route_local_boundary"]
+    assert "must not forward" in futures_taxonomy["bff_boundary"]
     assert "Spot rules are forbidden" in futures_taxonomy["spot_rule_boundary"]
+    futures_risk_proof_taxonomy = taxonomy_by_id["futures.risk_proof_recording"]
+    assert futures_risk_proof_taxonomy["command_surfaces"] == [
+        "POST /api/v1/futures/risk-proofs"
+    ]
+    assert futures_risk_proof_taxonomy["live_adapter_required"] is False
+    assert "append-only local evidence" in futures_risk_proof_taxonomy["summary"]
     repair_taxonomy = taxonomy_by_id["audit.fill_ledger_repair_contract_required"]
     assert repair_taxonomy["mutation_family"] == (
         AdminApiMutationFamilyType.FILL_LEDGER_REPAIR_CONTRACT_REQUIRED.value
@@ -73990,13 +75550,13 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
     )
     assert module_statuses["Futures / Perpetuals"] == (
-        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+        AdminApiModuleSupportStatus.UNSUPPORTED.value
     )
     assert module_statuses["Legacy Dashboard WebSocket"] == (
         AdminApiModuleSupportStatus.UNSUPPORTED.value
     )
-    assert enterprise_payload["supported_module_count"] >= 7
-    assert enterprise_payload["unsupported_module_count"] == 1
+    assert enterprise_payload["supported_module_count"] == 6
+    assert enterprise_payload["unsupported_module_count"] == 2
     spot_module = next(
         item
         for item in enterprise_payload["modules"]
@@ -74006,6 +75566,10 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "client_order_id" in spot_module["identity_keys"]
     assert "sweep_config_id" in spot_module["identity_keys"]
     assert "POST /api/v1/orders" in spot_module["command_routes"]
+    assert (
+        "POST /api/v1/orders/{client_order_id}/reconciliation"
+        in spot_module["command_routes"]
+    )
     assert (
         "POST /api/v1/orders/{client_order_id}/fill-follow-up/trigger"
         in spot_module["command_routes"]
@@ -74049,7 +75613,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         in spot_module["read_routes"]
     )
     assert spot_module["action_posture"]["read_route_count"] == 21
-    assert spot_module["action_posture"]["command_route_count"] == 15
+    assert spot_module["action_posture"]["command_route_count"] == 16
     assert spot_module["action_posture"]["live_route_count"] == 5
     assert spot_module["action_posture"]["command_gap_count"] == 2
     admin_module = registry_by_id["admin_system_health"]
@@ -74108,23 +75672,23 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     futures_gaps = {
         item["action"]: item for item in futures_module["command_gaps"]
     }
-    assert futures_gaps["futures live placement execution"] == {
-        "action": "futures live placement execution",
-        "status": AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value,
-        "reason": "Futures/perpetual placement now has a route-bound Admin API command draft, but live execution remains disabled until margin, leverage, liquidation, collateral, approval, cap, audit, adapter, and reconciliation contracts are wired.",
-        "required_backend_contract": "Backend live placement executor with durable approval, cap/guard, audit, live adapter, Coinbase submission, and post-submit reconciliation evidence.",
-        "frontend_boundary": "Display and forward the disabled draft only; do not submit futures orders, call Coinbase, or create browser/BFF execution authority.",
-        "live_coinbase_execution": "not_run",
-        "notional_usdc": "0",
-    }
+    placement_gap = futures_gaps["futures live placement execution"]
+    assert placement_gap["status"] == AdminApiModuleSupportStatus.UNSUPPORTED.value
+    assert "source-disabled" in placement_gap["reason"]
+    assert "separate source restoration and authorization" in (
+        placement_gap["required_backend_contract"].lower()
+    )
+    assert "must not forward" in placement_gap["frontend_boundary"]
+    assert placement_gap["live_coinbase_execution"] == "not_run"
+    assert placement_gap["notional_usdc"] == "0"
     assert futures_gaps["futures live cancel close reduce execution"]["status"] == (
-        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+        AdminApiModuleSupportStatus.UNSUPPORTED.value
     )
     assert (
         futures_gaps["futures live cancel close reduce execution"]["notional_usdc"]
         == "0"
     )
-    assert "client_order_id" in futures_gaps[
+    assert "must not forward" in futures_gaps[
         "futures live cancel close reduce execution"
     ]["frontend_boundary"]
     assert "spot inventory" in futures_gaps["spot inventory rules in futures workflows"][
@@ -74170,7 +75734,10 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         release_checks["m58_usdc_pair_live_fanout_gate"]["status"]
         == AdminApiGateStatus.WARNING.value
     )
-    assert "one selected run-state product" in release_checks[
+    assert "All M58 Admin API exchange submission" in release_checks[
+        "m58_usdc_pair_live_fanout_gate"
+    ]["detail"]
+    assert "source-parked" in release_checks[
         "m58_usdc_pair_live_fanout_gate"
     ]["detail"]
     assert "two-product no-live wallet lifecycle readback" in release_checks[
@@ -74406,9 +75973,12 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     ) in runtime_fanout_detail
     assert (
         release_checks["m58_usdc_pair_release_gate_clearance"]["status"]
-        == AdminApiGateStatus.WARNING.value
+        == AdminApiGateStatus.PASSED.value
     )
-    assert "must clear remaining warning checks" in release_checks[
+    assert "cannot unpark" in release_checks[
+        "m58_usdc_pair_release_gate_clearance"
+    ]["detail"]
+    assert "separate source restoration" in release_checks[
         "m58_usdc_pair_release_gate_clearance"
     ]["detail"]
     assert (
@@ -74421,7 +75991,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "fanout_execution_not_approved" in release_checks[
         "m58_usdc_pair_fanout_contextless_review_gate"
     ]["detail"]
-    assert "remaining live fan-out blockers" in release_checks[
+    assert "cannot unpark any M58 route" in release_checks[
         "m58_usdc_pair_fanout_contextless_review_gate"
     ]["detail"]
     assert "5 orders per second" in release_checks["m58_usdc_pair_scheduler_gate"][
@@ -74620,9 +76190,12 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         release_checks["m58_usdc_pair_contextless_review_gate"]["status"]
         == AdminApiGateStatus.PASSED.value
     )
-    assert "2026-07-09" in release_checks["m58_usdc_pair_contextless_review_gate"][
-        "detail"
-    ]
+    assert "source-parked" in release_checks[
+        "m58_usdc_pair_contextless_review_gate"
+    ]["detail"]
+    assert "repeat review is required" in release_checks[
+        "m58_usdc_pair_contextless_review_gate"
+    ]["detail"]
     assert recovery_gate.status_code == 200
     recovery_payload = recovery_gate.json()
     assert recovery_payload["type"] == "admin_recovery_gate"
@@ -74742,7 +76315,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert futures_command_suite_fixture["approved_phase_range"] == "7961-7980"
     assert futures_command_suite_fixture["risk_proof_payload_field_count"] == 200
     assert futures_command_suite_fixture["command_route_count"] == 4
-    assert futures_command_suite_fixture["command_draft_allowed_count"] == 4
+    assert futures_command_suite_fixture["command_draft_allowed_count"] == 0
     assert futures_command_suite_fixture["executable_command_count"] == 0
     assert futures_command_suite_fixture["live_coinbase_orders_ran"] is False
     assert "required_backend_contracts" not in futures_command_suite_fixture
@@ -75455,7 +77028,10 @@ def test_admin_api_spot_recovery_execution_journals_are_prerequisite_gated(
     )
     assert rejected_repair.status_code == 400
     assert rejected_repair.json()["failure_stage"] == "execution_prerequisite"
-    assert "repair guard rejected" in rejected_repair.json()["message"]
+    assert rejected_repair.json()["message"] == (
+        "exception_class:SpotRecoveryExecutionError"
+    )
+    assert "repair guard rejected" not in rejected_repair.json()["message"]
 
     guarded_apply_body = {
         **apply_body,
@@ -78173,7 +79749,7 @@ def test_admin_api_order_fill_follow_up_chain_surfaces_parent_child_readback(
     assert payload["root_parent_client_order_id"] == root_id
     assert payload["active_client_order_id"] == root_id
     assert payload["root_order"]["client_order_id"] == root_id
-    assert payload["root_order"]["retail_portfolio_id"] == test_portfolio_id
+    assert payload["root_order"]["retail_portfolio_id"] is None
     assert payload["root_order"]["ownership_provenance"] == "ADMIN_MANUAL_ROOT"
     assert payload["active_order"]["client_order_id"] == root_id
     assert payload["follow_up_child_client_order_ids"] == [child_id]
@@ -78183,9 +79759,7 @@ def test_admin_api_order_fill_follow_up_chain_surfaces_parent_child_readback(
         "corr-child-follow-up"
     )
     assert payload["follow_up_children"][0]["audit_id"] == "audit-child-follow-up"
-    assert payload["follow_up_children"][0]["retail_portfolio_id"] == (
-        test_portfolio_id
-    )
+    assert payload["follow_up_children"][0]["retail_portfolio_id"] is None
     assert payload["follow_up_children"][0]["ownership_provenance"] == (
         "ADMIN_FILL_FOLLOW_UP"
     )
@@ -78202,12 +79776,13 @@ def test_admin_api_order_fill_follow_up_chain_surfaces_parent_child_readback(
     assert payload["portfolio_scope"] == {
         "product_family": "SPOT",
         "profile_alias": "Test",
-        "expected_portfolio_id": test_portfolio_id,
-        "root_portfolio_id": test_portfolio_id,
-        "child_portfolio_ids": {child_id: test_portfolio_id},
+        "expected_portfolio_id": None,
+        "root_portfolio_id": None,
+        "child_portfolio_ids": {child_id: None},
         "scope_consistent": True,
         "status": "matched",
     }
+    assert test_portfolio_id not in repr(payload)
     assert payload["duplicate_child_client_order_ids"] == []
     assert not any(
         blocker.startswith("follow_up_child_missing_")
@@ -84593,7 +86168,7 @@ def test_admin_api_offline_futures_read_service_does_not_promote_runtime_positio
     assert command_suite.blocked_command_count == 4
     assert command_suite.executable_command_count == 0
     assert command_suite.command_route_count == 4
-    assert command_suite.command_draft_allowed_count == 4
+    assert command_suite.command_draft_allowed_count == 0
     assert command_suite.request_field_count == 22
     assert command_suite.required_request_field_count == 22
     assert command_suite.blocking_request_field_count == 22
@@ -84689,7 +86264,7 @@ def test_admin_api_offline_futures_read_service_does_not_promote_runtime_positio
     assert command_suite.readiness_decision_summary_count == 1
     assert command_suite.readiness_decision_summary_blocking_count == 1
     readiness_summary = command_suite.readiness_decision_summaries[0]
-    assert readiness_summary.decision.value == "blocked_backend_contracts_required"
+    assert readiness_summary.decision.value == "source_disabled_not_implemented"
     assert readiness_summary.command_count == 4
     assert readiness_summary.blocked_command_count == 4
     assert readiness_summary.ready_command_count == 0
@@ -84699,10 +86274,12 @@ def test_admin_api_offline_futures_read_service_does_not_promote_runtime_positio
     api_readiness_summary = command_suite_api_payload[
         "readiness_decision_summaries"
     ][0]
-    assert api_readiness_summary["decision"] == "blocked_backend_contracts_required"
+    assert api_readiness_summary["decision"] == "source_disabled_not_implemented"
     assert api_readiness_summary["command_count"] == 4
     assert api_readiness_summary["blocked_command_count"] == 4
-    assert api_readiness_summary["first_blockers"]
+    assert api_readiness_summary["first_blockers"] == [
+        "futures_command_service_source_disabled"
+    ]
     assert api_readiness_summary["execution_allowed_count"] == 0
     assert api_readiness_summary["live_coinbase_orders_ran_count"] == 0
     assert command_suite.readiness_closure_step_count == 20
@@ -86281,7 +87858,9 @@ def test_admin_api_offline_futures_read_service_does_not_promote_runtime_positio
             contract.endswith("_post_exchange_submission_reconciliation_contract")
             for contract in command_item.missing_backend_contracts
         )
-        assert command_item.readiness_decision.next_required_backend_contract is None
+        assert command_item.readiness_decision.next_required_backend_contract == (
+            "separate_source_restoration_and_authorization"
+        )
         backend_service_prerequisites = [
             item
             for item in command_item.prerequisites
@@ -89986,18 +91565,22 @@ def test_admin_api_offline_futures_read_service_does_not_promote_runtime_positio
     assert place.route == "/api/v1/futures/orders"
     assert place.method == "POST"
     assert place.command_route_registered is True
-    assert place.command_draft_allowed is True
+    assert place.command_draft_allowed is False
     assert place.execution_allowed is False
     assert place.readiness_decision.ready is False
     assert place.readiness_decision.decision.value == (
-        "blocked_backend_contracts_required"
+        "source_disabled_not_implemented"
     )
     assert place.readiness_decision.command_route_registered is True
-    assert place.readiness_decision.command_draft_allowed is True
+    assert place.readiness_decision.command_draft_allowed is False
     assert place.readiness_decision.execution_allowed is False
     assert place.readiness_decision.spot_rule_authority is False
-    assert place.readiness_decision.first_blocker is not None
-    assert place.readiness_decision.next_required_backend_contract is None
+    assert place.readiness_decision.first_blocker == (
+        "futures_command_service_source_disabled"
+    )
+    assert place.readiness_decision.next_required_backend_contract == (
+        "separate_source_restoration_and_authorization"
+    )
     backend_service_prerequisite = next(
         item
         for item in place.prerequisites
@@ -90016,7 +91599,7 @@ def test_admin_api_offline_futures_read_service_does_not_promote_runtime_positio
     )
     assert place.readiness_closure_steps[0].blocking is True
     assert place.readiness_closure_steps[0].command_route_registered is True
-    assert place.readiness_closure_steps[0].command_draft_allowed is True
+    assert place.readiness_closure_steps[0].command_draft_allowed is False
     assert place.readiness_closure_steps[0].execution_allowed is False
     assert place.readiness_closure_steps[0].proof_writer_enabled is False
     assert place.readiness_closure_steps[0].spot_rule_authority is False
@@ -91585,7 +93168,7 @@ def test_admin_api_offline_futures_read_service_does_not_promote_runtime_positio
     assert "wallet inventory" in close_reduce_semantic_guards["position_scope"].detail
     cancel = commands_by_id["futures_cancel"]
     assert cancel.identity_key == "client_order_id"
-    assert "client_order_id discipline" in cancel.detail
+    assert "source-disabled" in cancel.detail
     assert cancel.semantic_guard_count == 5
     assert cancel.risk_semantic_guard_count == 0
     cancel_request_fields = {item.field.value: item for item in cancel.request_fields}
@@ -91958,10 +93541,12 @@ def test_admin_api_guard_risk_policy_surfaces_capability_evaluation_errors(
     assert response.product_capability_policy.status == "unavailable"
     assert response.product_capability_policy.value["decision_count"] == 0
     assert response.product_capability_policy.value["decision_error_count"] >= 1
+    decision_errors = response.product_capability_policy.value["decision_errors"]
     assert any(
-        "capability evaluator unavailable" in error
-        for error in response.product_capability_policy.value["decision_errors"]
+        error == "direct_placement:exception_class:RuntimeError"
+        for error in decision_errors
     )
+    assert "capability evaluator unavailable" not in repr(decision_errors)
     assert response.live_coinbase_orders_ran is False
     assert response.live_coinbase_read_ran is False
 
@@ -92285,6 +93870,14 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert rows["POST /api/v1/orders/{client_order_id}/cancel"].action_class == (
         AdminApiActionClass.LIVE_EXCHANGE_CANCEL
     )
+    assert rows["POST /api/v1/orders/{client_order_id}/cancel"].approval == (
+        "required by controlled-live request admission"
+    )
+    assert (
+        "| `POST /api/v1/orders/{client_order_id}/cancel` | "
+        "`live_exchange_cancel` | `order:cancel` | required | "
+        "required by controlled-live request admission |"
+    ) in doc
     assert rows["GET /api/v1/orders"].shared_method == "build_order_list"
     assert rows["GET /api/v1/orders/{client_order_id}"].shared_method == (
         "build_order_detail"
@@ -92470,7 +94063,7 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     )
     assert live_submission_read_route.action_class == AdminApiActionClass.READ_ONLY
     assert live_submission_read_route.permission == AdminApiPermission.AUDIT_READ
-    assert "controlled-live submit/cancel evidence" in (
+    assert "historical or synthetic submit/cancel evidence" in (
         live_submission_read_route.parity_test
     )
     live_readiness_route = rows[
@@ -92492,11 +94085,12 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
             live_readiness_route.parity_test,
         )
     )
-    assert "exact enabled live-service decision" in live_readiness_evidence
+    assert "offline proof-chain evidence only" in live_readiness_evidence
     assert "preferred spot live-test notional cap" in live_readiness_evidence
     assert "far-from-bid" in live_readiness_evidence
     assert "cancel-before-additional-orders" in live_readiness_evidence
-    assert "submit_route_ready is true" in live_readiness_evidence
+    assert "submit_route_ready false" in live_readiness_evidence
+    assert "m58_operator_workflow_unavailable" in live_readiness_evidence
     assert "no Coinbase order submission" in live_readiness_route.parity_test
     live_submit_route = rows[
         "POST /api/v1/automation/usdc-pair-snapshot-order-plans/"
@@ -92515,11 +94109,10 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
             live_submit_route.parity_test,
         )
     )
-    assert "one selected spot order only" in live_submit_evidence
-    assert "client_order_id" in live_submit_evidence
-    assert "Coinbase order_id is exchange evidence only" in live_submit_evidence
-    assert "no fan-out" in live_submit_evidence
-    assert "no scheduler" in live_submit_evidence
+    assert "source-parked" in live_submit_evidence
+    assert "m58_operator_workflow_unavailable" in live_submit_evidence
+    assert "zero Coinbase executor calls" in live_submit_evidence
+    assert "not_applicable_source_disabled" in live_submit_evidence
     run_state_live_submit_route = rows[
         "POST /api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
         "{run_state_id}/live-submit"
@@ -92541,16 +94134,12 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
             run_state_live_submit_route.parity_test,
         )
     )
-    assert "exact allowlist run-state evidence" in run_state_live_submit_evidence
-    assert "one selected queued spot order only" in (
+    assert "source-parked" in run_state_live_submit_evidence
+    assert "m58_operator_workflow_unavailable" in (
         run_state_live_submit_evidence
     )
-    assert "client_order_id" in run_state_live_submit_evidence
-    assert "Coinbase order_id is exchange evidence only" in (
-        run_state_live_submit_evidence
-    )
-    assert "no fan-out" in run_state_live_submit_evidence
-    assert "no scheduler" in run_state_live_submit_evidence
+    assert "zero Coinbase executor calls" in run_state_live_submit_evidence
+    assert "not_applicable_source_disabled" in run_state_live_submit_evidence
     run_state_live_fanout_submit_route = rows[
         "POST /api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
         "{run_state_id}/live-fanout-submit"
@@ -92572,22 +94161,12 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
             run_state_live_fanout_submit_route.parity_test,
         )
     )
-    assert "exact allowlist run-state fan-out evidence" in (
+    assert "source-parked" in run_state_live_fanout_submit_evidence
+    assert "m58_operator_workflow_unavailable" in (
         run_state_live_fanout_submit_evidence
     )
-    assert "maximum fan-out notional <= 100 USDC" in (
-        run_state_live_fanout_submit_evidence
-    )
-    assert "pause-before-full-fill confirmation" in (
-        run_state_live_fanout_submit_evidence
-    )
-    assert "operator stop conditions" in run_state_live_fanout_submit_evidence
-    assert "5 orders per second" in run_state_live_fanout_submit_evidence
-    assert "unless all backend route proof gates clear" in (
-        run_state_live_fanout_submit_evidence
-    )
-    assert "fail-closed" in run_state_live_fanout_submit_evidence
-    assert "no browser execution authority" in (
+    assert "no installed operator path" in run_state_live_fanout_submit_evidence
+    assert "not_applicable_source_disabled" in (
         run_state_live_fanout_submit_evidence
     )
     order_plan_refresh_route = rows[

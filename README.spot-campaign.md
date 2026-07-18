@@ -1,9 +1,9 @@
 # Spot Campaigns
 
 Spot campaigns are read-only operator workflows for preparing, validating, and
-tracking repeated USDC spot portfolio sweeps. They sit above the existing Spot
-Portfolio Sweep planner and live runner; they do not introduce a second order
-placement path.
+tracking historical USDC Spot portfolio sweeps. Campaign and sweep mutation
+modes are source-disabled; rendered configs are offline review artifacts and
+do not introduce an order-placement path.
 
 ## When To Use
 
@@ -17,7 +17,7 @@ Use a spot campaign when you want to:
 - build a local run index and P/L checkpoints from durable ledgers
 - compare durable P/L checkpoints with a scoped delta report
 - expose campaign readiness in the dashboard
-- render an equivalent sweep config for explicitly approved live canaries
+- render an equivalent sweep config for offline review
 - build a targeted retry config for products that were not submitted during a
   partial campaign sweep run
 - inspect unrecorded sweep runs before recording or deliberately ignoring them
@@ -44,8 +44,7 @@ Use a spot campaign when you want to:
   allowlist audit, a narrowed campaign config, and the rendered sweep config.
 - Rendered SELL allowlist sweep configs include a
   `sell_authority_allowlist` freshness block. `--validate-config` reports that
-  freshness state, and live sweep mode rejects stale or invalid allowlist
-  metadata before any Coinbase order can be submitted.
+  state for offline review; mutation mode is source-disabled.
 - Strict fill-ledger SELL authority reconstructs remaining lots after prior
   local SELL fills are applied; a previous profitable BUY does not keep
   authorizing future sells after it has already been consumed.
@@ -56,36 +55,29 @@ Use a spot campaign when you want to:
   SELL row actually relies on that authority, the shared gate blocks stale
   average-cost records and stale local-vs-Coinbase drift for that product.
 - Average-cost SELL allowlists exclude rows blocked by the average-cost
-  freshness or drift gate. A rendered average-cost allowlist sweep config must
-  still be validated immediately before live approval.
-- Live campaign canaries use a rendered sweep config and the existing sweep
-  runner with `--approved-live-orders`.
-- Live campaign canaries require Coinbase REST credentials in the environment
-  because the rendered sweep config is executed by
-  `tools/run_spot_portfolio_sweep_live.py`. The campaign CLI itself remains
-  read-only with respect to Coinbase orders.
+  freshness or drift gate. Rendered configs remain offline evidence.
+- `--approved-live-orders` on the historical sweep runner grants no authority;
+  its mutation mode is source-disabled.
 - The campaign dry-run matrix reuses `build_usdc_portfolio_sweep_plan`,
   `evaluate_sweep_safety_policy`, and `build_sweep_plan_explain`.
 - Durable campaign snapshots are local JSONL records in
   `runtime_state/spot_campaigns.jsonl` by default.
-- After a live sweep canary runs, `--record-latest-sweep-run` records the latest
-  matching sweep run into the campaign ledger without calling Coinbase.
-- If a live canary is partial, `--retry-plan` can derive a normal campaign and
-  sweep config for only the products with no exchange order id and zero
-  submitted/executed notional.
-- Planned sweep skips are not retry candidates and do not make a live campaign
-  canary blocked by themselves. Campaign recording uses the effective sweep
-  outcome while preserving the raw recorded sweep status in the snapshot.
+- `--record-latest-sweep-run` can associate historical sweep evidence with the
+  campaign ledger without calling Coinbase.
+- `--retry-plan` can derive an offline review config from historical partial
+  evidence; it cannot enable a new exchange attempt.
+- Planned sweep skips are not retry candidates. Campaign recording preserves
+  historical raw sweep status in the snapshot.
 - `--ledger-cleanup-plan` is local-only and reports unrecorded sweep runs that
   should be recorded into the campaign ledger or deliberately documented as
   no-order legacy runs.
 - `--sell-authority-drift-report` compares a previous and current SELL
-  authority allowlist. Product removals are blocking evidence that the older
-  allowlist must not be used for live execution.
+  authority allowlist. Product removals show that the older allowlist is stale
+  evidence.
 - `--authority-operator-report` separates strict fill-ledger authority from
   Coinbase average-cost authority, including stale or drift-blocked counts.
-- `--strict-sell-canary-candidates` selects capped strict SELL candidates while
-  excluding products sold by recent live SELL sweep runs.
+- `--strict-sell-canary-candidates` selects capped rows for offline review from
+  historical evidence.
 - `--pnl-delta-report` compares durable P/L checkpoints across portfolio,
   since-last-purchase, realized-lot, product, and average-cost scopes when
   those fields are present in recorded snapshots.
@@ -101,9 +93,9 @@ Use a spot campaign when you want to:
 
 ## USDC Campaign Design Lock
 
-The all-USDC campaign feature is a configuration layer over the existing spot
-portfolio sweep planner and live runner. Do not add a parallel spot campaign
-executor.
+The all-USDC campaign feature is a configuration layer over the existing Spot
+portfolio sweep planner and historical ledger/reporting surface. Do not add a
+parallel Spot executor.
 
 Operator intent maps to fields this way:
 
@@ -126,11 +118,9 @@ Operator intent maps to fields this way:
   cost-basis snapshots in `runtime_state/spot_cost_basis_snapshots.jsonl`.
 
 BUY campaigns can use the broad all-USDC gate once wallet and safety caps pass.
-SELL campaigns must first prove authority. The normal live SELL path is a
-freshly regenerated SELL authority allowlist rendered to a sweep config and
-then executed by `tools/run_spot_portfolio_sweep_live.py` with
-`--approved-live-orders`. Coinbase average cost is allowed only through the
-named buffered profile and should not be used for strict fill-ledger canaries.
+SELL campaigns can calculate offline authority evidence. No campaign/sweep
+path can execute it. Controlled-live manual Spot execution is available only
+through authenticated Admin API LIMIT/GTC place/cancel.
 
 ## Outputs And Artifacts
 
@@ -206,21 +196,15 @@ named buffered profile and should not be used for strict fill-ledger canaries.
 - Dashboard campaign status is read-only. It shows readiness, due state,
   operation-lock state, recovery state, planned skips, notional, and P/L from
   durable local snapshots; it does not approve or submit live orders.
-- Live canaries must use `tools/run_spot_portfolio_sweep_live.py` with
-  `--approved-live-orders`.
-- Broad all-USDC campaigns must pass `--all-usdc-readiness-gate` before live
-  execution. The gate requires the canonical all-USDC selector, no allow/deny
-  restriction, no `max_products` restriction, and explicit total/order/count
-  safety caps.
+- Campaign/sweep mutation modes are source-disabled; readiness gates are
+  offline review only.
 - Retry plans exclude any product with submission evidence. A product with an
   exchange order id, successful response, submitted notional, or executed
   notional is not eligible for retry.
 - Retry plans also exclude planned skips such as below-minimum quote notional
   rows, because no Coinbase placement was expected for those products.
-- SELL allowlists must be regenerated immediately before live SELL approval.
-  Account inventory can change outside this project, and local lots can be
-  consumed by earlier live sells. The rendered sweep config expires quickly and
-  live mode rejects stale or invalid allowlist metadata.
+- SELL allowlists should be regenerated before offline review because account
+  inventory can change outside this project. They grant no live approval.
 - A broad BUY campaign that passes all-USDC readiness is not evidence that a
   broad SELL campaign is ready. SELL readiness is authority-bound and may
   narrow to a small current allowlist.

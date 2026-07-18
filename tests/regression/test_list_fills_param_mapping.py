@@ -42,6 +42,14 @@ from unittest.mock import MagicMock
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _synthetic_execution_authority(
+    monkeypatch: pytest.MonkeyPatch,
+    coinbase_execution_lease,
+) -> None:
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
+
+
 @pytest.mark.regression
 def test_list_orders_forwards_exact_retail_portfolio_scope():
     """The backend wrapper must preserve Coinbase's profile filter."""
@@ -238,7 +246,8 @@ def test_verified_exchange_id_cancel_preserves_structured_rejection_evidence():
     )
 
     assert evidence["outcome"] == "explicitly_rejected"
-    assert evidence["failure_reasons"] == ["UNKNOWN_CANCEL_ORDER"]
+    assert evidence["failure_reasons"] == ["cancel_identity_rejected"]
+    assert "UNKNOWN_CANCEL_ORDER" not in repr(evidence)
     assert evidence["operator_identity_value"] == "client-order-1"
     assert evidence["exchange_order_id"] == "exchange-order-1"
     assert evidence["submitted_identity_key"] == "exchange_order_id"

@@ -1,10 +1,9 @@
-"""Run an explicitly approved live USDC spot portfolio sweep.
+"""Historical USDC Spot sweep runner with mutation mode source-disabled.
 
-This tool can place real Coinbase Advanced Trade sweep orders. It builds the
-same USDC-only sweep plan as the dry-run tool, rechecks the shared
-action-condition guard for each order, records a durable JSONL run record, and
-exits. Recurring automation is "run if due" per invocation; use Windows Task
-Scheduler or another supervisor to invoke it periodically.
+Read-only reporting/configuration modes and pure helpers remain available.
+Any mode that formerly submitted Coinbase orders exits with a fixed diagnostic;
+Controlled-live operator execution uses authenticated Admin API manual Spot
+place/cancel.
 """
 
 from __future__ import annotations
@@ -66,6 +65,11 @@ from core.enums import (
     SpotPortfolioSweepSafetyDecision,
     SpotSellAuthorityAllowlistFreshness,
 )
+from core.coinbase_execution_authority import (
+    CoinbaseExecutionAuthorityError,
+    SOURCE_DISABLED_COINBASE_EXECUTION_ERROR,
+    require_coinbase_execution_authority,
+)
 from external.coinbase_client import (
     coinbase_sdk_response_to_dict,
     list_all_account_dicts,
@@ -78,6 +82,12 @@ DEFAULT_COST_BASIS_STATE_FILE = (
     Path("runtime_state") / "spot_cost_basis_snapshots.jsonl"
 )
 DEFAULT_OPERATION_LOCK_FILE = Path("runtime_state") / "spot_portfolio_sweep.lock"
+
+
+def _value_blind_exception_detail(exc: BaseException) -> str:
+    """Classify an exception without returning exception-carried values."""
+
+    return f"exception_class:{type(exc).__name__}"
 
 
 def _load_public_products() -> list[dict[str, Any]]:
@@ -178,9 +188,7 @@ class _OperationLock:
             )
         except FileExistsError as exc:
             self.status = SpotOperationLockStatus.BUSY.value
-            raise RuntimeError(
-                f"operation lock is already held: {self.path}"
-            ) from exc
+            raise RuntimeError("operation_lock_busy") from exc
         payload = {
             "pid": os.getpid(),
             "created_at": datetime.now(timezone.utc).isoformat(),
@@ -589,7 +597,7 @@ def _backfill_sweep_fills(
             "total_appended_fill_count": 0,
             "total_skipped_fill_count": 0,
             "orders": [],
-            "error": f"{type(exc).__name__}: {exc}",
+            "error": _value_blind_exception_detail(exc),
         }
 
 
@@ -644,15 +652,15 @@ def _build_summary(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Place explicitly approved live orders for a USDC-only spot "
-            "portfolio sweep, or run one due automation attempt."
+            "Inspect historical/read-only USDC Spot sweep state. Exchange "
+            "mutation mode is source-disabled."
         )
     )
     parser.add_argument(
         "--side",
         default=None,
         choices=[OrderSide.BUY.value, OrderSide.SELL.value],
-        help="Sweep side to execute.",
+        help="Historical/offline plan side.",
     )
     parser.add_argument(
         "--quote-notional",
@@ -670,7 +678,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--order-type",
         default=None,
         choices=[order_type.value for order_type in SpotPortfolioSweepOrderType],
-        help="Live order policy. Limit modes use rounded planned base size.",
+        help="Historical order policy for offline validation.",
     )
     parser.add_argument(
         "--limit-price-offset-bps",
@@ -684,24 +692,24 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--approved-live-orders",
         action="store_true",
-        help="Required for any live Coinbase order submission.",
+        help="Historical option only; mutation mode is source-disabled.",
     )
     parser.add_argument(
         "--repeat-every-hours",
         type=Decimal,
         default=None,
-        help="Run only when this recurring interval has elapsed.",
+        help="Recurring interval metadata for local status/validation.",
     )
     parser.add_argument(
         "--max-runs",
         type=int,
         default=None,
-        help="Maximum live run attempts for this recurring config.",
+        help="Historical run-count limit for local status/validation.",
     )
     parser.add_argument(
         "--disable-automation",
         action="store_true",
-        help="Write a stop record for this config and exit without live orders.",
+        help="Write a local stop record for the historical automation config.",
     )
     parser.add_argument(
         "--status",
@@ -821,7 +829,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Safety policy: require known profitable lots for planned SELL "
-            "sweeps. Required for live SELL execution."
+            "sweeps in offline review."
         ),
     )
     parser.add_argument(
@@ -889,28 +897,28 @@ def build_parser() -> argparse.ArgumentParser:
         "--poll-timeout-seconds",
         type=float,
         default=20.0,
-        help="Seconds to poll each submitted order for terminal status.",
+        help="Historical parser option; mutation mode cannot submit orders.",
     )
     parser.add_argument(
         "--poll-interval-seconds",
         type=float,
         default=0.5,
-        help="Polling interval for submitted order status.",
+        help="Historical parser option; mutation mode cannot poll submissions.",
     )
     parser.add_argument(
         "--summary-only",
         action="store_true",
-        help="Omit per-product plan items. Live order reports are still included.",
+        help="Omit per-product offline plan items.",
     )
     parser.add_argument(
         "--skip-fill-backfill",
         action="store_true",
-        help="Skip REST-fill backfill into fill_ledger after submitted live sweep orders.",
+        help="Historical parser option; no live sweep fill backfill can run.",
     )
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+def _run_main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
@@ -918,7 +926,7 @@ def main(argv: list[str] | None = None) -> int:
         file_config = _load_sweep_config_file(args.config_file)
         _apply_config_file(args, file_config)
     except ValueError as exc:
-        parser.error(str(exc))
+        parser.error(_value_blind_exception_detail(exc))
     if args.order_type is None:
         args.order_type = SpotPortfolioSweepOrderType.MARKET_IOC.value
     if args.limit_price_offset_bps is None:
@@ -1032,7 +1040,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         operation_lock = _install_operation_lock(args)
     except RuntimeError as exc:
-        parser.error(str(exc))
+        parser.error(_value_blind_exception_detail(exc))
 
     if args.status:
         operator_status = build_sweep_operator_status(
@@ -1482,7 +1490,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.disable_automation and (
         args.side is None or args.quote_notional is None
     ):
-        parser.error("--side and --quote-notional are required for live mode")
+        parser.error("--side and --quote-notional are required for sweep review")
 
     if args.disable_automation:
         record = build_sweep_disabled_record(config_id=config_id, config=config)
@@ -1498,7 +1506,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if not args.approved_live_orders:
-        parser.error("--approved-live-orders is required because this can place live orders")
+        parser.error(SOURCE_DISABLED_COINBASE_EXECUTION_ERROR)
+    parser.error(SOURCE_DISABLED_COINBASE_EXECUTION_ERROR)
     if (
         args.side == OrderSide.SELL.value
         and not config["safety_policy"].get("require_known_profitable_inventory")
@@ -1508,6 +1517,13 @@ def main(argv: list[str] | None = None) -> int:
         )
     if _sell_authority_allowlist_blocks(allowlist_freshness):
         parser.error(_allowlist_freshness_violation(allowlist_freshness)["reason"])
+    try:
+        require_coinbase_execution_authority()
+    except CoinbaseExecutionAuthorityError:
+        parser.error(
+            "Exact COINBASE_EXECUTION_ENABLED=1 plus a verified execution lease "
+            "is required for Coinbase execution"
+        )
     if not os.environ.get("COINBASE_API_KEY") or not os.environ.get("COINBASE_API_SECRET"):
         parser.error("COINBASE_API_KEY and COINBASE_API_SECRET are required")
 
@@ -1724,6 +1740,25 @@ def main(argv: list[str] | None = None) -> int:
     ]
     print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    try:
+        return _run_main(argv)
+    except SystemExit:
+        raise
+    except Exception as exc:  # pragma: no cover - terminal live safety boundary
+        summary = {
+            "status": SpotPortfolioSweepRunStatus.FAILED.value,
+            "live_coinbase_orders_ran": None,
+            "live_coinbase_execution_outcome": "unknown",
+            "submitted_order_count": None,
+            "total_submitted_notional_usdc": None,
+            "total_executed_notional_usdc": None,
+            "error": _value_blind_exception_detail(exc),
+        }
+        print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
+        return 1
 
 
 if __name__ == "__main__":

@@ -1,9 +1,14 @@
 # Spot Portfolio Sweep Examples
 
 This is a parked Spot automation reference, not the current work queue.
-Current goal id is `selected_order_execution_closeout_slice`. Live sweep,
-fan-out, cadence, and scheduler examples require explicit operator
-reprioritization; their presence here does not authorize or prioritize them.
+Standing closeout is `operator_ready_admin_mvp_runtime_v1`. Live sweep, fan-out,
+cadence, and scheduler examples require explicit operator reprioritization;
+their presence here does not authorize or prioritize them.
+
+All mutation examples in this file are historical and source-disabled. The
+sweep CLI retains read-only reporting modes, but no longer submits orders.
+Controlled-live operator testing uses only authenticated Admin API manual Spot
+LIMIT/GTC place/cancel under the manager lease and backend per-request gates.
 
 ## Dry-Run A USDC BUY Sweep
 
@@ -42,20 +47,21 @@ python3.13 tools/run_spot_portfolio_sweep_dry_run.py --side BUY --quote-notional
 The output includes `automation_preview.live_scheduler_enabled: false`.
 This does not place live orders.
 
-## Run One Live BUY Sweep
+## Historical Live BUY Sweep (Source-Disabled)
 
 ```powershell
 python3.13 tools/run_spot_portfolio_sweep_live.py --side BUY --quote-notional 1 --max-products 10 --approved-live-orders
 ```
 
-This can place real Coinbase market IOC orders. The output uses the
+This formerly placed real Coinbase market IOC orders. The command now exits
+with a fixed source-disabled diagnostic. Historical output used the
 `SPOT_PORTFOLIO_SWEEP_LIVE` prefix and reports submitted/executed notional.
 Submitted order rows include UUID `client_order_id` values and
 `submission_event_recorded`. Use the JSONL `run_id`/`config_id` and event
 payload fields to identify sweep orders; do not expect a `client_order_id`
 prefix.
 
-## Run One Live Limit BUY Sweep
+## Historical Live Limit BUY Sweep (Source-Disabled)
 
 ```powershell
 python3.13 tools/run_spot_portfolio_sweep_live.py --side BUY --quote-notional 1 --max-products 10 --order-type limit_gtc --limit-price-offset-bps 25 --approved-live-orders
@@ -64,7 +70,7 @@ python3.13 tools/run_spot_portfolio_sweep_live.py --side BUY --quote-notional 1 
 Limit BUY uses the rounded planned base size and a limit price above the
 current product mark by the configured basis-point offset.
 
-## Run One Live SELL Sweep
+## Historical Live SELL Sweep (Source-Disabled)
 
 ```powershell
 python3.13 tools/run_spot_portfolio_sweep_live.py --side SELL --quote-notional 1 --max-products 10 --require-known-profitable-inventory --approved-live-orders
@@ -91,14 +97,12 @@ summary reports `live_coinbase_orders_ran: false` and zero submitted notional.
 python3.13 tools/run_spot_portfolio_sweep_live.py --side SELL --quote-notional 1 --max-products 10 --require-known-profitable-inventory --approved-live-orders
 ```
 
-This live SELL safety policy is mandatory. It requires every planned SELL item
-to be covered by known profitable fill-ledger or imported baseline lots before
-any Coinbase order is submitted. Wallet balance alone is not treated as profit
-authority.
+Historically this SELL policy required every planned item to be covered by
+known profitable fill-ledger or imported baseline lots. The mutation mode is
+now source-disabled, so no Coinbase order is submitted.
 
-`--disable-safety-policy` is for read-only diagnostics and local validation
-only. The live runner rejects `--disable-safety-policy` when
-`--approved-live-orders` is also supplied.
+`--disable-safety-policy` remains for read-only diagnostics and local
+validation only. `--approved-live-orders` grants no execution authority.
 
 ## Allow Coinbase Average Cost For SELL Authority
 
@@ -106,10 +110,9 @@ only. The live runner rejects `--disable-safety-policy` when
 python3.13 tools/run_spot_portfolio_sweep_live.py --side SELL --quote-notional 1 --max-products 10 --require-known-profitable-inventory --allow-coinbase-average-cost-basis --coinbase-average-cost-profit-buffer-pct 0.5 --approved-live-orders
 ```
 
-This is an explicit opt-in. The tool first checks local fill-ledger/imported
-known lots. If those do not cover a planned SELL, Coinbase average cost can
-authorize the SELL only when the planned price clears the normal profit target
-plus the extra configured buffer. The command can submit real Coinbase orders.
+This was an explicit historical opt-in. The read-only authority calculation
+can still compare local lots and Coinbase average cost, but the command cannot
+submit Coinbase orders because mutation mode is source-disabled.
 
 ## Validate A Sweep Config File
 
@@ -143,7 +146,7 @@ This prints a wallet-aware plan, safety evaluation, and per-product explain
 rows. It does not require `--approved-live-orders`.
 For generated SELL allowlist configs, validation reports
 `sell_authority_allowlist_freshness`; stale or invalid allowlist metadata is a
-live-mode blocker. Omit `--summary-only` for the final pre-live check when you
+validation error. Omit `--summary-only` for detailed offline review when you
 need exact product ids, base sizes, estimated notional, and `sell_authority`
 rows.
 
@@ -158,32 +161,13 @@ Validation is still read-only. It fetches fresh products, wallets, portfolios,
 and portfolio breakdown data, then reports the SELL authority source in the
 plan explain output.
 
-## Run If Due
+## Historical Run-If-Due Automation (Source-Disabled)
 
-```powershell
-python3.13 tools/run_spot_portfolio_sweep_live.py --side BUY --quote-notional 1 --repeat-every-hours 6 --max-runs 4 --approved-live-orders --summary-only
-```
-
-Each invocation checks `runtime_state/spot_portfolio_sweeps.jsonl`, runs at
-most one due sweep, records the result, and exits. Use Windows Task Scheduler
-or another supervisor to invoke this command periodically.
-
-Submitted live sweep orders backfill Coinbase REST fills into `fill_ledger` by
-default. Use `--skip-fill-backfill` only when deliberately testing without a
-local database write.
-
-## Windows Task Scheduler Recipe
-
-Use a config file for repeatable automation and let Task Scheduler invoke the
-run-if-due command more frequently than the configured interval:
-
-```powershell
-schtasks /Create /TN "Coinbase Spot Sweep BUY" /SC HOURLY /MO 1 /TR "py -3.13 C:\coinbase\tools\run_spot_portfolio_sweep_live.py --config-file C:\coinbase\runtime_state\spot_sweep_buy.json --approved-live-orders --summary-only" /F
-```
-
-The tool still enforces `repeat_every_hours` and `max_runs` from the durable
-ledger. The scheduled task only starts the process; it does not bypass the
-CLI's approval flag, action guard, safety policy, fill backfill, or run ledger.
+The old run-if-due and Task Scheduler recipes are intentionally not provided as
+runnable commands. Sweep mutation mode is source-disabled, and
+`--approved-live-orders` cannot grant authority. Durable ledger status,
+validation, P/L, and reconciliation review remain available as read-only or
+local-evidence operations.
 
 ## Disable A Recurring Sweep
 
@@ -403,17 +387,15 @@ This runs the focused spot readiness regression gate and prints
 gate and `--include-coinbase-readonly` for read-only sweep status, P/L,
 average-cost coverage, and drift checks.
 
-## Run The Approved Live Validation Matrix
+## Historical Live Validation Matrix (Source-Disabled)
 
 ```powershell
 python3.13 tools/run_live_spot_usdc_smoke.py --approved-live-orders --validation-matrix
 ```
 
-This places real Coinbase orders on the cheapest previewable USDC spot product:
-market BUY, post-only limit BUY cancel, post-only limit SELL cancel, and market
-SELL. The summary reports every live order and total submitted/executed USDC
-notional. Use `--retain-inventory` to leave the bought base in the account and
-skip the final market SELL.
+This historically placed market/limit BUY and SELL orders. It is retained only
+for traceability and now exits before SDK construction with a fixed
+source-disabled diagnostic.
 
 For the Phase 34 reconciliation gate:
 
@@ -421,8 +403,8 @@ For the Phase 34 reconciliation gate:
 python3.13 tools/run_live_spot_usdc_smoke.py --approved-live-orders --validation-matrix --reconciliation-gate
 ```
 
-This still places live Coinbase orders. It exits nonzero if executed market
-orders cannot fetch REST fills and backfill local `fill_ledger` evidence.
+This historical combination is also source-disabled and cannot place or
+reconcile new live orders.
 
 ## Required Environment
 
@@ -434,6 +416,5 @@ $env:COINBASE_API_KEY = "..."
 $env:COINBASE_API_SECRET = "..."
 ```
 
-The dry-run tool has no live order approval flag because it is read-only. The
-live tool requires `--approved-live-orders` for any path that can submit
-Coinbase orders.
+The dry-run tool is read-only. The historical live CLI is source-disabled;
+`--approved-live-orders` cannot enable submission.

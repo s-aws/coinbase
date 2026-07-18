@@ -15,6 +15,20 @@ import os
 from pathlib import Path
 import subprocess
 
+from application.admin_api.spot_portfolio_binding import (
+    DEFAULT_SPOT_PORTFOLIO_LABEL,
+    SPOT_PORTFOLIO_ID_ENV,
+    SPOT_PORTFOLIO_LABEL_ENV,
+)
+from application.admin_api.live_execution import (
+    OPERATOR_READY_MVP_DEPLOYMENT_REF,
+    OPERATOR_READY_MVP_GLOBAL_SERVICE_MODULE_ID,
+    OPERATOR_READY_MVP_RUNTIME_CONFIGURATION_REF,
+)
+from core.coinbase_execution_authority import (
+    COINBASE_EXECUTION_LEASE_PATH_ENV,
+    COINBASE_EXECUTION_LEASE_TOKEN_ENV,
+)
 from tools import run_admin_api
 
 
@@ -47,6 +61,13 @@ BOOTSTRAP_ENV_VARS = (
     run_admin_api.CORS_ORIGINS_ENV,
     run_admin_api.ENVIRONMENT_ENV,
 )
+OUTER_EXECUTION_AUTHORITY_ENV = run_admin_api.EXECUTION_AUTHORITY_ENV
+OUTER_EXECUTION_AUTHORITY_EXACT_VALUE = "1"
+INTERNAL_LIVE_ENABLEMENT_ENV_VARS = (
+    run_admin_api.LIVE_RUNTIME_ENABLED_ENV,
+    "COINBASE_ADMIN_LIVE_COINBASE_EXECUTION",
+    "COINBASE_ADMIN_API_LIVE_COINBASE_EXECUTION_ENABLED",
+)
 
 
 def build_deployment_manifest(
@@ -69,6 +90,11 @@ def build_deployment_manifest(
         "python tools/run_admin_api.py "
         f"--host 0.0.0.0 --port {run_admin_api.DEFAULT_PORT}"
     )
+    controlled_live_start_command = (
+        f"{OUTER_EXECUTION_AUTHORITY_ENV}=1 "
+        "python tools/run_admin_api_operator_runtime.py "
+        f"--host 0.0.0.0 --port {run_admin_api.DEFAULT_PORT}"
+    )
     default_host = "0.0.0.0"
     install_command = INSTALL_COMMAND
     if deploy_root is not None:
@@ -77,6 +103,12 @@ def build_deployment_manifest(
             f"--host {run_admin_api.DEFAULT_HOST} "
             f"--port {run_admin_api.DEFAULT_PORT} "
             "--dev-token local-admin-token"
+        )
+        controlled_live_start_command = (
+            f"$env:{OUTER_EXECUTION_AUTHORITY_ENV}='1'; "
+            "py -3.13 tools/run_admin_api_operator_runtime.py "
+            f"--host {run_admin_api.DEFAULT_HOST} "
+            f"--port {run_admin_api.DEFAULT_PORT}"
         )
         default_host = run_admin_api.DEFAULT_HOST
         install_command = "py -3.13 -m pip install -e ."
@@ -108,6 +140,15 @@ def build_deployment_manifest(
             "default_port": run_admin_api.DEFAULT_PORT,
             "health_check": "GET /api/v1/admin/health",
             "runner": "tools/run_admin_api.py",
+            "controlled_live_runner": (
+                "tools/run_admin_api_operator_runtime.py"
+            ),
+            "controlled_live_start_command": controlled_live_start_command,
+            "controlled_live_autonomous_loops_started": False,
+            "controlled_live_operator_actions": [
+                "manual_spot_order",
+                "spot_order_cancel",
+            ],
             "auth_token_env": run_admin_api.AUTH_TOKEN_ENV,
         },
         "auth": {
@@ -120,9 +161,56 @@ def build_deployment_manifest(
         "live_execution_enablement": {
             "default_enabled": False,
             "accepted_env_vars": [
-                "COINBASE_ADMIN_LIVE_COINBASE_EXECUTION",
-                "COINBASE_ADMIN_API_LIVE_COINBASE_EXECUTION_ENABLED",
+                OUTER_EXECUTION_AUTHORITY_ENV,
+                *INTERNAL_LIVE_ENABLEMENT_ENV_VARS,
             ],
+            "outer_authority": {
+                "env_var": OUTER_EXECUTION_AUTHORITY_ENV,
+                "required_exact_value": OUTER_EXECUTION_AUTHORITY_EXACT_VALUE,
+                "alternate_truthy_values_fail_closed": True,
+            },
+            "internal_enablement": {
+                "env_vars": list(INTERNAL_LIVE_ENABLEMENT_ENV_VARS),
+                "necessary": True,
+                "sufficient_without_outer_authority": False,
+            },
+            "operator_runtime_prerequisites": {
+                "fail_closed_without_all_startup_prerequisites": True,
+                "spot_portfolio_binding": {
+                    "portfolio_id_env": SPOT_PORTFOLIO_ID_ENV,
+                    "portfolio_id_requirement": "nonblank",
+                    "portfolio_label_env": SPOT_PORTFOLIO_LABEL_ENV,
+                    "default_portfolio_label": DEFAULT_SPOT_PORTFOLIO_LABEL,
+                    "credential_scope_must_match": True,
+                    "required_for_live_startup": True,
+                },
+                "runtime_lease": {
+                    "path_env": COINBASE_EXECUTION_LEASE_PATH_ENV,
+                    "token_env": COINBASE_EXECUTION_LEASE_TOKEN_ENV,
+                    "manager_generated": True,
+                    "owner_only_regular_file_required": True,
+                    "required_for_live_startup": True,
+                    "token_format": "lowercase_hex_64",
+                },
+                "runtime_session_binding": {
+                    "live_service_decision_must_not_predate_runtime_lease": True,
+                    "operator_ready_integration_goal": (
+                        OPERATOR_READY_MVP_DEPLOYMENT_REF
+                    ),
+                    "global_service_target_module_id": (
+                        OPERATOR_READY_MVP_GLOBAL_SERVICE_MODULE_ID
+                    ),
+                    "global_service_product_scope": [],
+                    "deployment_ref": OPERATOR_READY_MVP_DEPLOYMENT_REF,
+                    "runtime_configuration_ref": (
+                        OPERATOR_READY_MVP_RUNTIME_CONFIGURATION_REF
+                    ),
+                    "stored_route_specific_adapter_decision_required": False,
+                    "canonical_route_runtime_capability_required": True,
+                    "request_bound_command_evidence_required": True,
+                    "required_before_exchange_mutation": True,
+                },
+            },
             "requires_backend_proof_chain": True,
         },
         "verification": {

@@ -1,7 +1,8 @@
 # Futures/Perpetuals Examples
 
-The M57 range references below are historical examples. Current work is goal
-id `selected_order_execution_closeout_slice`; futures expansion is parked.
+The M57 range references below are historical examples. Standing closeout is
+`operator_ready_admin_mvp_runtime_v1`; Slice 2R12 is terminal consumed and
+Futures expansion remains parked pending separate authority.
 
 These examples use the enterprise Admin API. They are read-only examples and
 do not place, close, cancel, or modify Coinbase orders.

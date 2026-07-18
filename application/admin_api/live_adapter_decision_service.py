@@ -188,8 +188,11 @@ class AdminApiLiveAdapterDecisionService:
     def _validate_decision_consistency(
         body: AdminLiveAdapterDecisionCreateRequest,
     ) -> None:
-        if _is_controlled_us_cfm_futures_adapter_decision(body):
-            return
+        if body.target_module_id == CONTROLLED_FUTURES_MODULE_ID:
+            raise LiveAdapterDecisionError(
+                "Futures command service is source-disabled; live-adapter "
+                "decision records cannot enable or authorize it."
+            )
         if body.adapter_constructed:
             raise LiveAdapterDecisionError(
                 "This phase cannot record constructed live-adapter decisions."
@@ -223,7 +226,10 @@ class AdminApiLiveAdapterDecisionService:
 def _item_from_record(
     record: LiveAdapterDecisionRecord,
 ) -> AdminLiveAdapterDecisionItem:
-    controlled_futures_record = _is_controlled_us_cfm_futures_adapter_record(record)
+    source_disabled_futures_record = (
+        record.target_module_id == CONTROLLED_FUTURES_MODULE_ID
+    )
+    controlled_futures_record = False
     required_artifacts = list(LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS)
     recorded_artifacts = (
         required_artifacts
@@ -232,9 +238,9 @@ def _item_from_record(
     )
     missing_artifacts = [] if controlled_futures_record else required_artifacts
     detail = (
-        "Controlled US CFM Futures live-adapter decision evidence is recorded "
-        "as backend-owned route binding; it does not call Coinbase by itself."
-        if controlled_futures_record
+        "Persisted predecessor Futures live-adapter evidence is historical and "
+        "source-disabled; it cannot resolve construction or authorize execution."
+        if source_disabled_futures_record
         else (
             "Live-adapter decision evidence is recorded as fail-closed local state; "
             "it does not construct an adapter, resolve construction, or permit "
@@ -250,7 +256,11 @@ def _item_from_record(
         action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
         required_permission=LIVE_ADAPTER_DECISION_REQUIRED_PERMISSION,
         service_method=LIVE_ADAPTER_DECISION_SERVICE_METHOD,
-        status=record.status,
+        status=(
+            AdminApiGateStatus.BLOCKED
+            if source_disabled_futures_record
+            else record.status
+        ),
         requested_adapter_status=record.requested_adapter_status,
         live_execution_adapter_status=(
             record.requested_adapter_status
@@ -266,14 +276,32 @@ def _item_from_record(
         intx_applicability=record.intx_applicability,
         product_scope=record.product_scope,
         adapter_reference=record.adapter_reference,
-        adapter_constructed=record.adapter_constructed,
-        adapter_enabled=record.adapter_enabled,
+        adapter_constructed=(
+            False
+            if source_disabled_futures_record
+            else record.adapter_constructed
+        ),
+        adapter_enabled=(
+            False if source_disabled_futures_record else record.adapter_enabled
+        ),
         source=LIVE_ADAPTER_DECISION_SOURCE,
         construction_review_ref=record.construction_review_ref,
         decision_reason=record.decision_reason,
-        live_coinbase_execution_approved=record.live_coinbase_execution_approved,
-        max_submitted_notional_usdc=record.max_submitted_notional_usdc,
-        max_executed_notional_usdc=record.max_executed_notional_usdc,
+        live_coinbase_execution_approved=(
+            False
+            if source_disabled_futures_record
+            else record.live_coinbase_execution_approved
+        ),
+        max_submitted_notional_usdc=(
+            "0"
+            if source_disabled_futures_record
+            else record.max_submitted_notional_usdc
+        ),
+        max_executed_notional_usdc=(
+            "0"
+            if source_disabled_futures_record
+            else record.max_executed_notional_usdc
+        ),
         construction_precondition_required=True,
         construction_precondition_resolved=controlled_futures_record,
         construction_precondition_authority=(
@@ -286,7 +314,11 @@ def _item_from_record(
         adapter_configuration_satisfies_construction=controlled_futures_record,
         resolver_eligible=controlled_futures_record,
         browser_authority="display_only",
-        bff_authority="forward_only_no_execution",
+        bff_authority=(
+            "source_disabled_not_forwarded"
+            if source_disabled_futures_record
+            else "forward_only_no_execution"
+        ),
         live_exchange_submitted=False,
         live_coinbase_orders_ran=False,
         detail=detail,

@@ -15,9 +15,10 @@ command path after exact backend admission and Test-profile authority, while
 Futures, Stealth, movement/repricing, campaign, and sweep command routes remain
 no-live or local-evidence boundaries. The frontend does not own live authority.
 
-Current goal id is `selected_order_execution_closeout_slice`. The completed
-vertical slice binds one selected Admin root to exact fill-ledger/audit,
-terminal-child, and read-only recovery closeout evidence.
+The next proposed MVP is `operator_attach_single_follow_up_intent`, pending
+distinct operator authorization. It is local intent-recording scope only and
+grants no child creation, Coinbase call, or live authority. The completed
+`selected_order_execution_closeout_slice` remains historical evidence.
 
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
@@ -1491,9 +1492,9 @@ Current behavior:
   `code`, `message`, `severity`, optional `field_path`, and correlation id
 - responses include `X-Correlation-Id`, `X-Request-Id`,
   `X-Admin-Api-Version`, and `X-Live-Execution-Enabled`
-- legacy dashboard `place_order` and `cancel_order` messages now delegate to
-  `application.admin_api.command_service.AdminApiCommandService` as
-  compatibility adapters
+- legacy dashboard `place_order`, `cancel_order`, and
+  `place_hotpoint_test_order` messages return a fixed source-disabled response
+  before runtime, command-service, guard, or REST lookup
 - read-only spot routes are available for operator views and remain
   permission-gated; the OpenAPI contract documents `401` and `403` for those
   auth/RBAC failures
@@ -1506,19 +1507,15 @@ frontend request
 -> auth/RBAC
 -> idempotency and approval gate
 -> shared command service
--> existing domain/bridge/exchange path
+-> canonical route-owned adapter/exchange path
 -> durable audit
 -> typed response
 ```
 
 Cancel remains `client_order_id` keyed for operator/local ownership, lineage,
-claims, and audit. Older and generic backend cancel paths retain the project
-Coinbase wrapper's `cancel_order(client_order_id)` behavior and recorded
-exchange-id fallback. The narrow schema-24 controlled recovery exception may,
-only after authoritative exact readback binds `client_order_id` to
-`exchange_order_id`, have the canonical wrapper submit the verified
-`exchange_order_id` exactly once. It makes no client-ID exchange call and
-permits no fallback, retry, or second submission, while preserving
+claims, and audit. Authenticated Admin API manual cancel binds authoritative
+exact `exchange_order_id` readback evidence for one route-scoped SDK call. It
+permits no identity fallback, retry, or second submission, while preserving
 `operator_identity_key=client_order_id` and
 `exchange_order_id_evidence_only=true`.
 
@@ -1600,18 +1597,13 @@ building the currency-to-wallet map. Do not replace it with a single
 ### Notes
 - `place_limit_order` returns raw SDK response dict (do not coerce to `Order`).
 - `list_fills` maps user-facing params to SDK keys (`order_ids`, `product_ids`, `start_sequence_timestamp`, `end_sequence_timestamp`).
-- `cancel_order(client_order_id)` retains the older/generic behavior: it calls
-  Coinbase with the project `client_order_id`, treats only explicit
-  `success: true` cancel evidence as success, and may use the existing recorded
-  exchange-id fallback only through its established caller path. Non-empty
-  failure payloads such as `success: false` are rejected.
-- The narrow schema-24 controlled recovery caller may provide
-  `verified_exchange_order_id` only after authoritative exact readback binds
-  `client_order_id` to `exchange_order_id`. The same canonical wrapper then
-  submits that verified exchange id exactly once and records both operator and
-  exchange identities. It makes no client-ID exchange call and permits no
-  fallback, retry, or second submission; `client_order_id` remains the
-  ownership, lineage, claim, and audit identity.
+- The wrapper retains historical generic input compatibility, but no installed
+  legacy/generic/schema-24 caller can mint its required route scope.
+  Authenticated Admin API manual cancel supplies authoritative exact
+  `verified_exchange_order_id` evidence for the one permitted SDK call and
+  records both identities. It permits no identity fallback, retry, or second
+  submission; `client_order_id` remains the ownership, lineage, claim, and
+  audit identity.
 
 ## Spot Sweep And Campaign CLI Outputs
 
@@ -1627,8 +1619,8 @@ Rendered SELL allowlist sweep configs include a
 estimated allowlisted quote notional. `tools/run_spot_portfolio_sweep_live.py`
 copies that block from config files, reports
 `sell_authority_allowlist_freshness` during `--validate-config`, and rejects
-stale or invalid allowlist metadata before live mode can submit Coinbase
-orders.
+stale or invalid allowlist metadata during offline validation. Its mutation
+mode is source-disabled and cannot submit Coinbase orders.
 
 Spot inventory coverage and sweep validation include
 `inventory_baseline_freshness_audit`. Imported baseline lots should carry
@@ -1681,45 +1673,18 @@ Parent order views and CRUD:
 - `update_parent_target_movement`
 
 `create_parent_order` is local dashboard/database CRUD only. It creates an
-`order_parent` row and does not submit a Coinbase order. Live dashboard
-submission uses `place_order`.
+`order_parent` row and does not submit a Coinbase order. Dashboard exchange
+mutation messages are source-disabled.
 
 Compatibility warning: the enterprise admin frontend must not build product
 workflows on this dashboard WebSocket surface. New frontend work uses the HTTP
 Admin API contract and BFF/session boundary described above. The dashboard
 messages below remain legacy/operator compatibility surfaces.
 
-`place_order` submits a live Coinbase order when REST is available and the
-product capability, size validator, manual spot live acknowledgement, and
-action-condition guard admit the request. For spot products,
-`params.manual_live_acknowledgement=true` is required before the handler reaches
-REST submission. Direct spot placement also requires a matching planning-phase
-`max_notional` action-condition guard, and direct spot `SELL` requires
-`known_inventory_available` to be enabled before REST submission. Direct spot
-placement also requires an enabled local `order_event_stream` publisher before
-REST submission. On success, `order_response` includes both the internal
-`client_order_id` and Coinbase `order_id` so dashboard submissions can be
-correlated with websocket, reconciliation, and fill-ledger evidence. The
-handler also writes an `order_submitted` event with source channel
-`rest_submit` to `order_event_stream` when the local event stream is available.
-The handler normalizes SDK objects, `to_dict()` responses, and nested
-`success_response.order_id` payloads before building that audit response.
-Base-sized orders are validated through `validate_and_quantize_size`.
-Quote-sized market BUYs validate `quote_size` directly against product
-`quote_increment` and `quote_min_size`. The direct dashboard handler does not
-pre-insert `order_parent` or opt the order into automated follow-up policy
-state before submission. It is an immediate manual order surface; websocket
-lifecycle and reconciliation own later local evidence rows.
-
-`cancel_order` is a manual dashboard cancellation request keyed by
-`client_order_id`. The handler accepts top-level `client_order_id` or
-`params.client_order_id`, rejects requests that provide only `order_id`, and
-calls `REST_CLIENT.cancel_order(client_order_id)`. Do not add an exchange-id
-resolver to this dashboard path. Raw batch `cancel_orders(order_ids=[...])`
-remains exchange-id oriented for paths that explicitly use the batch API. The
-schema-24 verified-exchange-id exception is confined to its sealed
-backend-controlled recovery path and does not change this generic dashboard
-behavior.
+`place_order` and `cancel_order` return fixed source-disabled responses before
+runtime or command-service lookup. They make no Coinbase mutation. Supported
+Controlled-live manual place/cancel uses the installed authenticated Admin API
+contract with route-bound backend admission.
 
 Stealth views/actions:
 - `request_stealth_orders`
@@ -1751,17 +1716,8 @@ Hotpoint manager:
 - `set_hotpoint_kill_switch`
 - `place_hotpoint_test_order`
 
-`place_hotpoint_test_order` is a live Coinbase submission surface used by
-`ui_hotpoint_manager.html` to seed the hotpoint detector with a normal limit
-order whose `order_parent` row has `enable_hotpoint_replication=TRUE`. It is
-not a generic spot bypass. The handler is runtime-admission gated, requires
-`ProductCapability.HOTPOINT_AUTO_PLACEMENT`, validates size, runs the
-planning-phase `ActionConditionGuard`, pre-inserts the parent row, and submits
-through `AdminApiCommandService.place_hotpoint_test_order`. That shared service
-calls `REST_CLIENT.limit_order_gtc` and writes `order_submitted` /
-`rest_submit` evidence when the local event stream is available. Spot products
-are blocked by default unless the hotpoint capability is explicitly enabled in
-product capability policy.
+`place_hotpoint_test_order` is source-disabled and returns the same fixed
+compatibility error before runtime lookup. It cannot submit or seed an order.
 
 Analytics/storyboard:
 - `request_slide_calibration_summary`
@@ -2027,16 +1983,9 @@ Operator contract:
   does not submit orders.
 - Planned skips, such as below-minimum quote-notional rows, remain visible in
   order details but are not counted as Coinbase submission failures.
-- Live sweep placement still requires
-  `tools/run_spot_portfolio_sweep_live.py --approved-live-orders`.
-- Live SELL sweep placement also requires
-  `--require-known-profitable-inventory`; wallet balance alone cannot
-  authorize live SELL sweep execution.
-- Live sweep order reports include UUID `client_order_id` values and
-  `submission_event_recorded`. When the local event stream is available,
-  accepted placements publish `order_submitted` / `rest_submit` evidence to
-  `order_event_stream`; the JSONL sweep ledger remains the run-level audit
-  record.
+- Sweep mutation mode is source-disabled. `--approved-live-orders` and SELL
+  policy flags grant no execution authority. Historical reports remain ledger
+  evidence only.
 
 ### `request_spot_sweep_pnl`
 
@@ -2232,10 +2181,8 @@ Operator contract:
   or `tools/run_spot_campaign.py --config-file <path> --release-gate --record-snapshot`.
 - Generate a narrowed SELL authority allowlist with
   `tools/run_spot_campaign.py --config-file <path> --sell-authority-allowlist --write-allowlist-sweep-config-file <path>`.
-- Live campaign canaries use a rendered sweep config and
-  `tools/run_spot_portfolio_sweep_live.py --approved-live-orders`.
-- SELL canaries also require the rendered config or CLI to set
-  `--require-known-profitable-inventory`.
+- Rendered campaign configs are offline review artifacts. Campaign and sweep
+  mutation modes are source-disabled.
 
 ### `request_spot_direct_order_audit`
 

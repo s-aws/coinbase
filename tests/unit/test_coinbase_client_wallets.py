@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import pytest
 
+
+pytestmark = pytest.mark.usefixtures("coinbase_execution_lease")
+
 from external.coinbase_client import CoinbaseRestClient
 
 
@@ -336,7 +339,10 @@ def test_get_futures_margin_collateral_snapshot_blocks_on_missing_cfm_balance_su
     assert snapshot["errors"][0]["error"] == "RuntimeError:PERMISSION_DENIED"
 
 
-def test_close_position_passes_us_cfm_position_payload_to_sdk():
+def test_close_position_passes_us_cfm_position_payload_to_sdk(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
     sdk = FakeFuturesSdkClient()
     client = CoinbaseRestClient(sdk)
 

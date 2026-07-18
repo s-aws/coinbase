@@ -17,16 +17,16 @@ replace the local sibling paths below.
 
 - Use `client_order_id` for all internal and operator-facing tracking,
   ownership, lineage, claims, and audit; use `order_id` only for
-  exchange-native evidence and exchange API calls that require it. Older and
-  generic Coinbase cancellation behavior remains
-  `cancel_order(client_order_id)` with its recorded exchange-id fallback. The
-  narrow schema-24 controlled recovery exception may, only after authoritative
-  exact readback binds `client_order_id` to `exchange_order_id`, have that
-  canonical wrapper submit the verified `exchange_order_id` exactly once. It
-  makes no client-ID exchange call and permits no fallback, retry, or second
-  submission. The operator and local identity remains `client_order_id`, with
+  exchange-native evidence and the one exchange API call that requires it.
+  Authenticated Admin API manual cancel is requested by `client_order_id`; the
+  backend binds authoritative exact `exchange_order_id` readback evidence for
+  exactly one route-scoped SDK call, with no identity fallback, retry, or
+  second submission. The operator and local identity remains
+  `client_order_id`, with
   `operator_identity_key=client_order_id` and
-  `exchange_order_id_evidence_only=true`.
+  `exchange_order_id_evidence_only=true`. Legacy generic, schema-24, stealth,
+  batch, and direct-service cancellation paths are historical/source-disabled
+  and are not installed execution exceptions.
   Public rules: `docs/agents/INVARIANTS.md`. Expanded local rules: `genai_data/ORDER_ID_HANDLING.md` when present.
 - Single code path per behavior; do not introduce parallel implementations.
 - Use enums (`core/enums.py`), not magic strings.
@@ -70,13 +70,57 @@ replace the local sibling paths below.
   explicitly asks for a GitHub Actions run.
 - Before ending a work session, stop repo-owned dev servers, test watchers, and
   long-running helper processes that are no longer needed, and confirm required
-  commits are pushed. The local Linux Docker environment may remain running;
-  host or container shutdown is not a routine session-closeout requirement.
+  commits are pushed. The installed backend/frontend operator review stack is
+  the sole lifecycle exception: after validation and local deployment apply,
+  the frontend repository runs `npm run slice:handoff` and leaves that stack
+  running. Stop it with frontend `npm run review:stop` before replacing the
+  deployment or running validation that owns ports 3000 or 8787. The local
+  Linux Docker environment may remain running; host or container shutdown is
+  not a routine session-closeout requirement.
+- Exact `COINBASE_EXECUTION_ENABLED=1` is the outer backend execution
+  authority. Internal Admin API live-runtime flags remain necessary but are
+  insufficient without that exact value; alternate truthy spellings fail
+  closed. The flag does not initiate or authorize a particular Coinbase call,
+  and it never replaces RBAC, explicit intent, idempotency, product/account/
+  wallet admission, caps, audit, reconciliation, or applicable per-action
+  backend authorization.
+- Raw Coinbase SDK exchange mutations are prohibited outside the canonical
+  guarded wrapper and explicitly audited legacy boundaries in the repository
+  static allowlist. Do not bypass that rule through `RESTClient`,
+  `get_sdk_client()`, `_client`, imports renamed with aliases, or reassigned SDK
+  objects. Every permitted raw exchange boundary must perform a final
+  `require_coinbase_execution_authority()` check immediately before each
+  mutation; an entrypoint-only check is insufficient because authority or its
+  runtime lease can be revoked mid-workflow. Add a focused call-order and
+  revocation test before changing an allowed boundary, and expand the static
+  allowlist only after explicit safety review.
+- The installed exact-authority stack also requires the approved Test portfolio
+  UUID and the frontend review manager's owner-only current-runtime execution
+  lease. A prior live-service decision cannot cross that lease boundary. Do not
+  introduce a default portfolio identifier, auto-discover one, or make the
+  browser own the binding.
 - This infrastructure rule does not weaken trading-runtime safety. When a
   trading runtime is intentionally stopped, use its graceful admission,
   drain, reconciliation, and shutdown path rather than forced termination.
 - If the local Docker workspace is unavailable, state that clearly and restore
   or wait for access. Do not use stale Windows or EC2 checkouts as a substitute.
+
+## Operator-Ready MVP Definition of Done
+
+- A backend slice may be implemented and validated incrementally, but it is not
+  MVP-complete until its supported operator workflow is reachable through the
+  authenticated Admin API/BFF/UI path in the installed local deployment.
+- Operator-ready closeout requires canonical route authorization, truthful
+  runtime authority/readback, generated OpenAPI/client consistency, durable
+  audit and idempotency behavior, value-blind diagnostics, graceful admission
+  drain/reconciliation, required tests and release gates, and a persistent
+  frontend `npm run slice:handoff` review deployment.
+- A capability that remains no-live, draft-only, route-disabled, or dependent
+  on synthetic evidence must be labeled that way and retained as roadmap work;
+  it must not be represented as a completed operator mutation path.
+- A narrow live authorization may limit what validation can execute, but it
+  does not waive these integration requirements before the capability is later
+  described as operator-ready.
 
 ## Codex Desktop Terminal Bridge Guard
 

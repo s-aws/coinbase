@@ -29,6 +29,17 @@ from core.enums import (
     AdminApiPermission,
     AdminFuturesCommandAction,
 )
+from core.coinbase_execution_authority import (
+    COINBASE_EXECUTION_AUTHORITY_ENV,
+    coinbase_execution_authority_enabled,
+    coinbase_execution_lease_started_at,
+)
+
+from .operator_mvp_policy import (
+    OPERATOR_MVP_MAX_EXECUTED_NOTIONAL_USDC,
+    OPERATOR_MVP_MAX_SUBMITTED_NOTIONAL_USDC,
+    OPERATOR_MVP_SUPPORTED_LIVE_ROUTES,
+)
 
 
 DISABLED_LIVE_EXECUTION_SERVICE_SOURCE = "disabled_backend_service"
@@ -84,6 +95,9 @@ LIVE_SERVICE_DECISION_METHOD = "POST"
 LIVE_SERVICE_DECISION_MODULE_ID = "admin_system_health"
 LIVE_SERVICE_DECISION_SERVICE_METHOD = "record_live_service_decision"
 LIVE_SERVICE_DECISION_REQUIRED_PERMISSION = AdminApiPermission.CONFIG_UPDATE
+OPERATOR_READY_MVP_DEPLOYMENT_REF = "operator_ready_admin_mvp_runtime_v1"
+OPERATOR_READY_MVP_RUNTIME_CONFIGURATION_REF = "manager_execution_lease_v1"
+OPERATOR_READY_MVP_GLOBAL_SERVICE_MODULE_ID = "admin_system_health"
 LIVE_ADAPTER_DECISION_SOURCE = "admin_api_live_adapter_decision_log"
 LIVE_ADAPTER_DECISION_ROUTE = "/api/v1/admin/live-execution/adapter-decisions"
 LIVE_ADAPTER_DECISION_METHOD = "POST"
@@ -812,28 +826,43 @@ LIVE_EXECUTION_ADAPTER_CONSTRUCTION_BLOCKERS = (
     "route_bound_stealth_live_execution_adapter_missing",
 )
 LIVE_EXECUTION_ADAPTER_CONTRACT_EVIDENCE_REF = "live_execution_adapter_contract"
-M53_PILOT_LIVE_ADAPTER_ROUTE = "/api/v1/orders"
-M53_PILOT_LIVE_ADAPTER_METHOD = "POST"
-M53_PILOT_LIVE_ADAPTER_MODULE_ID = "spot_operations"
-M53_PILOT_LIVE_ADAPTER_SERVICE_METHOD = "place_manual_order"
-M53_PILOT_LIVE_ADAPTER_CANCEL_ROUTE = "/api/v1/orders/{client_order_id}/cancel"
-M53_PILOT_LIVE_ADAPTER_CANCEL_SERVICE_METHOD = "cancel_order_by_client_order_id"
-M53_PILOT_LIVE_ADAPTER_ROUTES = {
+CONTROLLED_LIVE_MVP_ADAPTER_ROUTE = "/api/v1/orders"
+CONTROLLED_LIVE_MVP_ADAPTER_METHOD = "POST"
+CONTROLLED_LIVE_MVP_ADAPTER_MODULE_ID = "spot_operations"
+CONTROLLED_LIVE_MVP_ADAPTER_SERVICE_METHOD = "place_manual_order"
+CONTROLLED_LIVE_MVP_ADAPTER_CANCEL_ROUTE = (
+    "/api/v1/orders/{client_order_id}/cancel"
+)
+CONTROLLED_LIVE_MVP_ADAPTER_CANCEL_SERVICE_METHOD = (
+    "cancel_order_by_client_order_id"
+)
+CONTROLLED_LIVE_MVP_ADAPTER_ROUTES = {
     (
-        M53_PILOT_LIVE_ADAPTER_METHOD,
-        M53_PILOT_LIVE_ADAPTER_ROUTE,
-        M53_PILOT_LIVE_ADAPTER_MODULE_ID,
-        M53_PILOT_LIVE_ADAPTER_SERVICE_METHOD,
+        CONTROLLED_LIVE_MVP_ADAPTER_METHOD,
+        CONTROLLED_LIVE_MVP_ADAPTER_ROUTE,
+        CONTROLLED_LIVE_MVP_ADAPTER_MODULE_ID,
+        CONTROLLED_LIVE_MVP_ADAPTER_SERVICE_METHOD,
     ),
     (
-        M53_PILOT_LIVE_ADAPTER_METHOD,
-        M53_PILOT_LIVE_ADAPTER_CANCEL_ROUTE,
-        M53_PILOT_LIVE_ADAPTER_MODULE_ID,
-        M53_PILOT_LIVE_ADAPTER_CANCEL_SERVICE_METHOD,
+        CONTROLLED_LIVE_MVP_ADAPTER_METHOD,
+        CONTROLLED_LIVE_MVP_ADAPTER_CANCEL_ROUTE,
+        CONTROLLED_LIVE_MVP_ADAPTER_MODULE_ID,
+        CONTROLLED_LIVE_MVP_ADAPTER_CANCEL_SERVICE_METHOD,
     ),
 }
-M53_PILOT_LIVE_ADAPTER_SOURCE = "m53_backend_pilot_dry_run"
-M53_PILOT_LIVE_ADAPTER_MISSING_REASON = "pilot_dry_run_only"
+CONTROLLED_LIVE_MVP_ADAPTER_SOURCE = "canonical_admin_operator_runtime"
+CONTROLLED_LIVE_MVP_ADAPTER_MISSING_REASON = (
+    "per_request_admission_required"
+)
+CONTROLLED_LIVE_MVP_ADAPTER_CONSTRUCTION_ARTIFACTS = (
+    "shared_command_service_adapter",
+    "route_inventory_execution_binding",
+)
+CONTROLLED_LIVE_MVP_ADAPTER_FORBIDDEN_METHODS = (
+    "browser_coinbase_client",
+    "bff_coinbase_client",
+    "parallel_exchange_execution_path",
+)
 M55_STEALTH_REVEAL_DRY_RUN_ADAPTER_ROUTE = (
     "/api/v1/stealth/orders/{stealth_order_id}/reveal"
 )
@@ -1648,6 +1677,9 @@ class AdminApiLiveExecutionServiceState:
     status: AdminApiLiveExecutionStatus = AdminApiLiveExecutionStatus.LIVE_DISABLED
     source: str = "not_configured"
     missing_reason: str | None = LIVE_EXECUTION_DISABLED_REASON
+    max_submitted_notional_usdc: str | None = None
+    max_executed_notional_usdc: str | None = None
+    supported_routes: frozenset[tuple[str, str]] | None = None
 
 
 class LiveServiceDecisionRecord(BaseModel):
@@ -1882,13 +1914,25 @@ class DecisionBackedAdminApiLiveExecutionService:
     runtime_enabled: bool | None = None
 
     def admission_state(self) -> AdminApiLiveExecutionServiceState:
-        runtime_enabled = (
+        internal_runtime_enabled = (
             _env_flag_enabled(LIVE_EXECUTION_RUNTIME_ENABLED_ENV)
             if self.runtime_enabled is None
             else self.runtime_enabled
         )
+        runtime_enabled = bool(
+            coinbase_execution_authority_enabled()
+            and internal_runtime_enabled
+        )
         if not runtime_enabled:
-            return get_disabled_live_execution_service().admission_state()
+            disabled = get_disabled_live_execution_service().admission_state()
+            return AdminApiLiveExecutionServiceState(
+                required=disabled.required,
+                present=disabled.present,
+                status=disabled.status,
+                source=disabled.source,
+                missing_reason=disabled.missing_reason,
+                supported_routes=OPERATOR_MVP_SUPPORTED_LIVE_ROUTES,
+            )
 
         decision = read_latest_live_service_decision(self.store)
         if decision is None:
@@ -1898,6 +1942,7 @@ class DecisionBackedAdminApiLiveExecutionService:
                 status=AdminApiLiveExecutionStatus.LIVE_DISABLED,
                 source=LIVE_SERVICE_DECISION_SOURCE,
                 missing_reason=LIVE_EXECUTION_DECISION_MISSING_REASON,
+                supported_routes=OPERATOR_MVP_SUPPORTED_LIVE_ROUTES,
             )
         if not live_service_decision_allows_backend_admission(decision):
             return AdminApiLiveExecutionServiceState(
@@ -1906,6 +1951,7 @@ class DecisionBackedAdminApiLiveExecutionService:
                 status=decision.requested_service_status,
                 source=decision.source,
                 missing_reason=LIVE_EXECUTION_DECISION_NOT_ELIGIBLE_REASON,
+                supported_routes=OPERATOR_MVP_SUPPORTED_LIVE_ROUTES,
             )
         return AdminApiLiveExecutionServiceState(
             required=True,
@@ -1913,6 +1959,9 @@ class DecisionBackedAdminApiLiveExecutionService:
             status=decision.requested_service_status,
             source=CONFIGURED_LIVE_EXECUTION_SERVICE_SOURCE,
             missing_reason=None,
+            max_submitted_notional_usdc=decision.max_submitted_notional_usdc,
+            max_executed_notional_usdc=decision.max_executed_notional_usdc,
+            supported_routes=OPERATOR_MVP_SUPPORTED_LIVE_ROUTES,
         )
 
 
@@ -1934,8 +1983,40 @@ def live_service_decision_allows_backend_admission(
 ) -> bool:
     """Return whether a live-service decision can satisfy admission state."""
 
+    lease_started_at = coinbase_execution_lease_started_at()
+    decision_recorded_at: datetime | None = None
+    if decision is not None:
+        try:
+            decision_recorded_at = datetime.fromisoformat(decision.recorded_at)
+            if decision_recorded_at.tzinfo is None:
+                decision_recorded_at = None
+            elif decision_recorded_at.utcoffset() is None:
+                decision_recorded_at = None
+            else:
+                decision_recorded_at = decision_recorded_at.astimezone(timezone.utc)
+        except (TypeError, ValueError):
+            decision_recorded_at = None
+    current_runtime_session = bool(
+        lease_started_at is not None
+        and decision_recorded_at is not None
+        and decision_recorded_at > lease_started_at
+    )
+    installed_operator_binding = bool(
+        decision is not None
+        and decision.target_module_id
+        == OPERATOR_READY_MVP_GLOBAL_SERVICE_MODULE_ID
+        and decision.account_family == "unscoped"
+        and decision.venue_scope == "unscoped"
+        and decision.intx_applicability == "not_applicable"
+        and decision.product_scope == []
+        and decision.deployment_ref == OPERATOR_READY_MVP_DEPLOYMENT_REF
+        and decision.runtime_configuration_ref
+        == OPERATOR_READY_MVP_RUNTIME_CONFIGURATION_REF
+    )
     return (
         decision is not None
+        and current_runtime_session
+        and installed_operator_binding
         and decision.status == AdminApiGateStatus.PASSED
         and decision.service_enabled
         and decision.live_coinbase_execution_approved
@@ -1979,6 +2060,8 @@ def _bounded_positive_notional_caps(*, submitted: str, executed: str) -> bool:
         submitted_notional > Decimal("0")
         and executed_notional > Decimal("0")
         and executed_notional <= submitted_notional
+        and submitted_notional <= OPERATOR_MVP_MAX_SUBMITTED_NOTIONAL_USDC
+        and executed_notional <= OPERATOR_MVP_MAX_EXECUTED_NOTIONAL_USDC
     )
 
 
@@ -16569,7 +16652,7 @@ def build_disabled_live_execution_adapter_contract(
     }
 
 
-def build_m53_pilot_live_execution_adapter_contract(
+def build_controlled_live_mvp_execution_adapter_contract(
     *,
     method: str,
     route: str,
@@ -16579,87 +16662,97 @@ def build_m53_pilot_live_execution_adapter_contract(
     live_adapter_decision_store: FileAdminApiLiveAdapterDecisionStore | None = None,
     include_construction_contract: bool = True,
 ) -> dict[str, Any]:
-    """Return the M53 route-bound pilot adapter evidence.
+    """Return installed manual Spot route/runtime capability evidence.
 
-    This contract deliberately stops short of executable live submission. It
-    proves the selected route is mapped to the shared command service and can
-    be dry-run admitted, while the live execution service remains the final
-    backend-only boundary before any Coinbase call is possible.
+    ``executable`` describes the canonical backend adapter capability only.
+    It is not request authority: the route still fails closed unless the
+    current runtime decision and every request-bound admission gate pass.
     """
 
     adapter_reference = f"AdminApiCommandService.{service_method}"
+    decision_readback = build_live_execution_adapter_decision_readback(
+        method=method,
+        route=route,
+        module_id=module_id,
+        service_method=service_method,
+        live_adapter_decision_store=live_adapter_decision_store,
+    )
+    decision_readback.update(
+        {
+            "latest_adapter_decision_satisfaction_authority": (
+                "optional_historical_readback_no_runtime_authority"
+            ),
+            "latest_adapter_decision_satisfied_construction_artifacts": [],
+            "latest_adapter_decision_unsatisfied_construction_artifacts": [],
+            "latest_adapter_decision_required_resolution_artifacts": [],
+            "latest_adapter_decision_missing_resolution_artifacts": [],
+            "latest_adapter_decision_forbidden_resolution_claims": [],
+            "latest_adapter_decision_next_required_contract": None,
+            "latest_adapter_decision_resolver_eligible": False,
+            "latest_adapter_decision_resolves_construction": False,
+        }
+    )
     return {
         "required": True,
         "configured": True,
         "backend_owned": True,
         "route_bound": True,
         "status": AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
-        "source": M53_PILOT_LIVE_ADAPTER_SOURCE,
-        "missing_reason": M53_PILOT_LIVE_ADAPTER_MISSING_REASON,
+        "source": CONTROLLED_LIVE_MVP_ADAPTER_SOURCE,
+        "missing_reason": CONTROLLED_LIVE_MVP_ADAPTER_MISSING_REASON,
         "module_id": module_id,
         "route": route,
         "method": method,
         "service_method": service_method,
         "adapter_reference": adapter_reference,
         "action_class": action_class,
-        "executable": False,
+        "executable": True,
         "construction_precondition_required": True,
-        "construction_precondition_resolved": False,
-        "construction_precondition_authority": (
-            LIVE_EXECUTION_ADAPTER_CONSTRUCTION_AUTHORITY
-        ),
+        "construction_precondition_resolved": True,
+        "construction_precondition_authority": "installed_canonical_runtime",
         "required_construction_artifacts": list(
-            LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS
+            CONTROLLED_LIVE_MVP_ADAPTER_CONSTRUCTION_ARTIFACTS
         ),
-        "missing_construction_artifacts": list(
-            LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS
-        ),
+        "missing_construction_artifacts": [],
         "construction_contract_refs": list(
             LIVE_EXECUTION_ADAPTER_CONSTRUCTION_CONTRACT_REFS
         ),
         "construction_verification_gates": list(
             LIVE_EXECUTION_ADAPTER_CONSTRUCTION_VERIFICATION_GATES
         ),
-        "construction_blockers": list(
-            LIVE_EXECUTION_ADAPTER_CONSTRUCTION_BLOCKERS
-        ),
-        "construction_contract_available": True,
-        "construction_contract_ref": LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT,
+        "construction_blockers": [],
+        "construction_contract_available": False,
+        "construction_contract_ref": "installed_canonical_admin_command_runtime",
         "construction_contract_satisfies_construction": False,
-        "construction_contract": (
-            build_live_adapter_construction_contract(
-                method=method,
-                route=route,
-                module_id=module_id,
-                service_method=service_method,
-                action_class=action_class,
-            )
-            if include_construction_contract
-            else None
+        "construction_contract": None,
+        "route_mapping_satisfies_construction": True,
+        "adapter_configuration_satisfies_construction": True,
+        "construction_satisfaction_authority": (
+            "installed_canonical_admin_command_runtime"
         ),
-        **build_live_execution_adapter_construction_satisfaction(),
-        **build_live_execution_adapter_decision_readback(
-            method=method,
-            route=route,
-            module_id=module_id,
-            service_method=service_method,
-            live_adapter_decision_store=live_adapter_decision_store,
+        "satisfied_construction_artifacts": list(
+            CONTROLLED_LIVE_MVP_ADAPTER_CONSTRUCTION_ARTIFACTS
         ),
+        "unsatisfied_construction_artifacts": [],
+        **decision_readback,
         "browser_authority": "display_only",
         "bff_authority": "forward_only_no_execution",
-        "forbidden_methods": list(DISABLED_LIVE_EXECUTION_FORBIDDEN_METHODS),
+        "forbidden_methods": list(
+            CONTROLLED_LIVE_MVP_ADAPTER_FORBIDDEN_METHODS
+        ),
         "evidence": [
-            "M53 pilot maps a route-bound spot command to the shared backend command service.",
-            "Pilot adapter admission is dry-run only and exposes no submit method.",
-            "Live execution service admission remains required before Coinbase submission.",
-            "Backend live adapter construction preconditions remain unresolved.",
-            "Browser and BFF layers cannot make the pilot adapter executable.",
+            "The installed route maps directly to the canonical AdminApiCommandService method.",
+            "No parallel manager, browser, BFF, or exchange execution path is introduced.",
+            "Current runtime authority and the full request-bound admission chain remain mandatory.",
+            "A stored legacy adapter decision is diagnostic readback only and is not an admission input.",
+            "Browser and BFF layers cannot authorize or execute the adapter.",
         ],
         "detail": (
-            f"{method} {route} is configured as the M53 dry-run pilot for "
-            f"{adapter_reference}; it remains non-executable until backend "
-            "live execution service admission, route-bound approvals, caps, "
-            "admission audit, reconciliation proof, and live caps all pass."
+            f"{method} {route} is the installed canonical backend adapter for "
+            f"{adapter_reference}. This capability does not authorize a request; "
+            "the current execution lease and service decision plus RBAC, explicit "
+            "operator intent, idempotency, portfolio, product, cap/guard, audit, "
+            "reconciliation, and applicable per-action gates must pass."
         ),
     }
 
@@ -16766,8 +16859,13 @@ def build_live_execution_adapter_contract(
 ) -> dict[str, Any]:
     """Return route-specific live adapter evidence for Admin API readiness."""
 
-    if (method, route, module_id, service_method) in M53_PILOT_LIVE_ADAPTER_ROUTES:
-        return build_m53_pilot_live_execution_adapter_contract(
+    if (
+        method,
+        route,
+        module_id,
+        service_method,
+    ) in CONTROLLED_LIVE_MVP_ADAPTER_ROUTES:
+        return build_controlled_live_mvp_execution_adapter_contract(
             method=method,
             route=route,
             module_id=module_id,

@@ -2,12 +2,24 @@ from __future__ import annotations
 
 import pytest
 
+
+@pytest.fixture(autouse=True)
+def _synthetic_execution_authority(
+    monkeypatch: pytest.MonkeyPatch,
+    coinbase_execution_lease,
+    admin_mvp_evidence_paths,
+) -> None:
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
+
 from application.admin_api.mvp_service import (
     AdminMvpDependencies,
     AdminMvpEvidenceLog,
     AdminMvpRequestContext,
     AdminMvpService,
 )
+from application.admin_api.idempotency import FileIdempotencyStore
+from application.admin_api.models import AdminApiCommandResponse
+from core.enums import AdminApiCommandStatus, AdminApiGateStatus
 from tests.regression.test_admin_mvp_api import (
     FakeAccountRestClient,
     FakeRestClient,
@@ -18,6 +30,7 @@ from tools.run_admin_api_manual_order_live_submit import (
     LiveSubmitCapExceededError,
     LiveSubmitConfirmationError,
     ManualLiveSubmitConfig,
+    RUNNER_COMMAND_IDEMPOTENCY_FILENAME,
     apply_manual_live_submit_state_environment,
     build_manual_order_body,
     run_manual_live_submit,
@@ -70,6 +83,7 @@ def test_manual_live_submit_requires_explicit_confirmation_before_service_calls(
             rest_client=rest_client,
             rest_client_available=True,
             live_coinbase_execution_enabled=True,
+        _synthetic_test_only_legacy_execution_enabled=True,
         )
     )
 
@@ -90,6 +104,7 @@ def test_manual_live_submit_records_admin_proof_chain_before_backend_rest_submis
             rest_client=rest_client,
             rest_client_available=True,
             live_coinbase_execution_enabled=True,
+        _synthetic_test_only_legacy_execution_enabled=True,
         )
     )
 
@@ -136,6 +151,50 @@ def test_manual_live_submit_records_admin_proof_chain_before_backend_rest_submis
     ]
 
 
+def test_manual_live_submit_binds_proof_to_separate_durable_first_pass_store(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID", "portfolio-test-1")
+    rest_client = FakeAccountRestClient()
+    bind_fake_account_rest_client_to_spot_test(rest_client)
+    service = AdminMvpService(
+        AdminMvpDependencies(
+            rest_client=rest_client,
+            rest_client_available=True,
+            live_coinbase_execution_enabled=True,
+        _synthetic_test_only_legacy_execution_enabled=True,
+        )
+    )
+    key = "manual-live-submit-durable-first-pass"
+
+    summary = run_manual_live_submit(
+        service,
+        ManualLiveSubmitConfig(
+            confirm_live_submit=True,
+            idempotency_key=key,
+            correlation_id=f"{key}-correlation",
+            state_dir=str(tmp_path),
+        ),
+    )
+
+    store = FileIdempotencyStore(tmp_path / RUNNER_COMMAND_IDEMPOTENCY_FILENAME)
+    record = store.get_record(key)
+    assert record is not None
+    response = AdminApiCommandResponse.model_validate(record.response)
+    assert record.endpoint == "POST /api/v1/orders"
+    assert record.status == AdminApiCommandStatus.NOT_IMPLEMENTED
+    assert response.status == AdminApiCommandStatus.NOT_IMPLEMENTED
+    assert response.client_order_id == summary["client_order_id"]
+    assert response.live_exchange_submitted is False
+    assert response.live_coinbase_orders_ran is False
+    assert response.admission_decision is not None
+    assert response.admission_decision.status == AdminApiGateStatus.BLOCKED
+    assert response.admission_decision.allowed is False
+    assert summary["status"] == "passed"
+    assert rest_client.create_order_calls != []
+
+
 def test_manual_live_submit_blocks_when_state_would_exceed_submitted_cap(tmp_path):
     state_dir = tmp_path / "state"
     state_dir.mkdir()
@@ -158,6 +217,7 @@ def test_manual_live_submit_blocks_when_state_would_exceed_submitted_cap(tmp_pat
             rest_client=rest_client,
             rest_client_available=True,
             live_coinbase_execution_enabled=True,
+        _synthetic_test_only_legacy_execution_enabled=True,
         )
     )
 
@@ -189,6 +249,7 @@ def test_manual_live_submit_persists_local_admin_evidence_for_restart(
             rest_client=rest_client,
             rest_client_available=True,
             live_coinbase_execution_enabled=True,
+        _synthetic_test_only_legacy_execution_enabled=True,
         ),
         evidence_log=AdminMvpEvidenceLog.from_env(environ),
     )

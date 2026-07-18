@@ -61,21 +61,26 @@ M57 phase ranges and M58 fan-out/scheduler blockers do not select default work.
   controls for the requested scope.
 - `client_order_id` is the internal tracking key. Exchange `order_id` is
   exchange evidence only unless a Coinbase endpoint specifically requires it.
-- Frontend code consumes generated contracts and read-only evidence; Coinbase
-  credentials and trading decisions stay backend-side.
+- Frontend code consumes generated contracts and may forward explicit operator
+  requests to backend gates; Coinbase credentials, trading decisions, and
+  execution authority stay backend-side.
 
 ## Runtime Boundaries
 
 The checked-in `products.json` is a minimal local catalog, not the full
 Coinbase spot universe. Legacy direct dashboard and stealth order entry use
-configured products from that catalog. Modern USDC campaign and Admin API
-workflows fetch or persist their own backend evidence and must prove dry-run,
-cap, approval, retry, audit, wallet, reconciliation, and rollback posture before
-live submission.
+configured products from that catalog. Ordinary Admin UI account, wallet,
+product, fee, Spot-readiness, and Futures GETs are local and call-free in both
+No-live and Controlled-live modes. Product refresh is source-disabled before
+any Coinbase read or `products.json` write.
 
-The legacy dashboard WebSocket remains available for compatibility and source
-material. It is not the authority for new frontend product UI. New operator UI
-work should use the generated Admin API contract and backend read models.
+The legacy dashboard WebSocket remains available for read/control compatibility
+and source material, but its exchange mutation messages are source-disabled.
+Legacy `main.py` Controlled-live startup and historical raw smoke/sweep/batch
+mutation modes are also source-disabled. The only supported Controlled-live
+operator path is installed authenticated Admin API manual Spot LIMIT/GTC
+place/cancel; new UI work must use its generated contract and backend read
+models.
 
 For the ordered documentation index, start at [docs/README.md](docs/README.md).
 For spot setup notes, see [README.spot-trading.md](README.spot-trading.md).

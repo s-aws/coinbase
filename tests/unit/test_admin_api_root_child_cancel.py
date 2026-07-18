@@ -13,6 +13,10 @@ from application.admin_api.command_service import (
     CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT,
     AdminApiCommandDependencies,
     AdminApiCommandService,
+    exact_coinbase_order_readback as _real_exact_coinbase_order_readback,
+)
+from application.admin_api.command_runtime import (
+    AdminApiControlledFirstChildRuntimeAdapter,
 )
 from application.admin_api.models import (
     AdminApiActor,
@@ -147,6 +151,8 @@ def _runtime() -> MagicMock:
         "active_placement_client_order_id": CHILD_ID,
         "active_exchange_order_id": EXCHANGE_ID,
         "executed_size": "0",
+        "base_size": "0.00001718",
+        "limit_price": "104772.99",
         "controlled_plan_sha256": PLAN_SHA256,
     }
     return runtime
@@ -175,6 +181,20 @@ def _exchange_readback(*_args, **_kwargs):
             "limit_price": "104772.99",
         },
     }
+
+
+class _BombRestClient:
+    """Record and reject any Coinbase client access from local-only reads."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def __getattr__(self, name: str):
+        def reject(*_args, **_kwargs):
+            self.calls.append(name)
+            raise AssertionError(f"unexpected_coinbase_call:{name}")
+
+        return reject
 
 
 def _plan_authority():
@@ -616,40 +636,26 @@ def _recovery_plan_authority() -> dict[str, object]:
 
 
 @pytest.mark.parametrize(
-    ("field", "container"),
+    ("field", "expected_blocker"),
     [
-        ("executed_size", "runtime"),
-        ("filled_size", "exchange"),
-        ("filled_value", "exchange"),
-        ("total_fees", "exchange"),
-        ("number_of_fills", "exchange"),
-        ("pagination_complete", "readback"),
+        ("executed_size", "active_child_zero_fill_unproven"),
+        ("base_size", "active_child_reference_scope_unproven"),
+        ("limit_price", "active_child_reference_scope_unproven"),
     ],
 )
-def test_root_child_cancel_readiness_requires_explicit_zero_fill_fields(
+def test_root_child_cancel_readiness_requires_explicit_local_evidence_fields(
     tmp_path,
     monkeypatch,
     field,
-    container,
+    expected_blocker,
 ):
     service, _read_service, runtime, _rest, _claims = _service(
         tmp_path,
         monkeypatch,
     )
-    if container == "runtime":
-        runtime_row = dict(runtime.read_controlled_first_child.return_value)
-        runtime_row.pop(field)
-        runtime.read_controlled_first_child.return_value = runtime_row
-    else:
-        readback = deepcopy(_exchange_readback())
-        if container == "readback":
-            readback.pop(field)
-        else:
-            readback["matched_order"].pop(field)
-        monkeypatch.setattr(
-            "application.admin_api.command_service.exact_coinbase_order_readback",
-            lambda *_args, **_kwargs: readback,
-        )
+    runtime_row = dict(runtime.read_controlled_first_child.return_value)
+    runtime_row.pop(field)
+    runtime.read_controlled_first_child.return_value = runtime_row
 
     readiness = service.build_order_fill_follow_up_child_cancel_readiness(
         root_client_order_id=ROOT_ID,
@@ -657,16 +663,7 @@ def test_root_child_cancel_readiness_requires_explicit_zero_fill_fields(
     )
 
     assert readiness.ready is False
-    expected = (
-        "active_first_child_identity_unproven"
-        if container == "runtime"
-        else (
-            "active_child_exchange_identity_unproven"
-            if container == "readback"
-            else "active_child_zero_fill_unproven"
-        )
-    )
-    assert expected in readiness.blockers
+    assert expected_blocker in readiness.blockers
 
 
 @pytest.mark.parametrize(
@@ -984,20 +981,9 @@ def test_v15r2_readiness_uses_root_evidence_and_recovery_cap_names(
         "stealth_order_id": R2_CHILD_ID,
         "root_client_order_id": R2_ROOT_ID,
         "active_placement_client_order_id": R2_CHILD_ID,
+        "base_size": "0.00001583",
         "controlled_plan_sha256": plan_hash,
     }
-    monkeypatch.setattr(
-        "application.admin_api.command_service.exact_coinbase_order_readback",
-        lambda *_args, **_kwargs: {
-            **_exchange_readback(),
-            "exchange_order_id": EXCHANGE_ID,
-            "matched_order": {
-                **_exchange_readback()["matched_order"],
-                "client_order_id": R2_CHILD_ID,
-                "base_size": "0.00001583",
-            },
-        },
-    )
 
     readiness = service.build_order_fill_follow_up_child_cancel_readiness(
         root_client_order_id=R2_ROOT_ID,
@@ -1151,6 +1137,114 @@ def test_root_child_cancel_readiness_resolves_exact_child_without_browser_identi
     rest_client.cancel_order_by_exchange_order_id.assert_not_called()
 
 
+def test_root_child_cancel_readiness_is_strictly_local_and_write_free(
+    tmp_path,
+    monkeypatch,
+):
+    service, _read_service, _runtime_mock, _rest_client, claim_store = _service(
+        tmp_path,
+        monkeypatch,
+    )
+    child_row = {
+        "client_order_id": CHILD_ID,
+        "parent_order_id": ROOT_ID,
+        "product_id": "BTC-USDC",
+        "side": "SELL",
+        "status": "OPEN",
+        "ownership_provenance": "ADMIN_FILL_FOLLOW_UP",
+        "retail_portfolio_id": PORTFOLIO_ID,
+        "correlation_id": "corr-v15",
+        "audit_id": "audit-v15",
+        "exchange_order_id": EXCHANGE_ID,
+    }
+    root_row = {
+        "client_order_id": ROOT_ID,
+        "parent_order_id": None,
+        "product_id": "BTC-USDC",
+        "side": "BUY",
+        "status": "FILLED",
+        "ownership_provenance": "ADMIN_MANUAL_ROOT",
+        "retail_portfolio_id": PORTFOLIO_ID,
+        "correlation_id": "corr-v15",
+        "audit_id": "audit-v15",
+    }
+    manager = MagicMock()
+    manager._get_stealth_order.return_value = {
+        "stealth_order_id": CHILD_ID,
+        "parent_order_id": ROOT_ID,
+        "product_id": "BTC-USDC",
+        "side": "SELL",
+        "status": "REVEALED",
+        "total_size": "0.00001718",
+        "executed_size": "0",
+        "limit_price": "104772.99",
+        "anchor_repricing_state_json": {
+            "active_placement_client_order_id": CHILD_ID,
+            "active_exchange_order_id": EXCHANGE_ID,
+            "active_exchange_price": "104772.99",
+            "controlled_admin_first_child_reveal_preparation": {
+                "batch_id": BATCH_ID,
+                "batch_slot": 1,
+                "controlled_plan_sha256": PLAN_SHA256,
+            },
+        },
+        "revealed_orders": [
+            {
+                "placed_order_id": CHILD_ID,
+                "exchange_order_id": EXCHANGE_ID,
+                "placement_success": True,
+            }
+        ],
+    }
+    runtime = AdminApiControlledFirstChildRuntimeAdapter(manager)
+    service.dependencies.stealth_order_runtime_getter = lambda: runtime
+    monkeypatch.setattr(
+        "database.order.get_parent_order",
+        lambda client_order_id: (
+            child_row if client_order_id == CHILD_ID else root_row
+        ),
+    )
+    bomb_rest_client = _BombRestClient()
+    service.dependencies.rest_client = bomb_rest_client
+    monkeypatch.setattr(
+        "application.admin_api.command_service.exact_coinbase_order_readback",
+        _real_exact_coinbase_order_readback,
+    )
+    write_spies = [
+        MagicMock(side_effect=AssertionError("unexpected_claim_write")),
+        MagicMock(side_effect=AssertionError("unexpected_boundary_write")),
+        MagicMock(side_effect=AssertionError("unexpected_completion_write")),
+        MagicMock(side_effect=AssertionError("unexpected_reconciliation_write")),
+    ]
+    monkeypatch.setattr(claim_store, "claim", write_spies[0])
+    monkeypatch.setattr(claim_store, "mark_exchange_boundary", write_spies[1])
+    monkeypatch.setattr(claim_store, "complete", write_spies[2])
+    runtime.reconcile_controlled_first_child_terminal = write_spies[3]
+
+    assert not claim_store.path.exists()
+    readiness = service.build_order_fill_follow_up_child_cancel_readiness(
+        root_client_order_id=ROOT_ID,
+        controlled_plan_sha256=PLAN_SHA256,
+    )
+
+    assert readiness.ready is True
+    assert readiness.active_placement_proven is True
+    assert readiness.zero_fill_proven is True
+    assert readiness.exchange_order_id_evidence_present is True
+    assert readiness.authoritative_exchange_status is None
+    assert readiness.child_reference_notional_usdc == "1.7999999682"
+    assert readiness.read_only is True
+    assert readiness.local_state_mutated is False
+    assert readiness.exchange_state_mutated is False
+    assert readiness.live_coinbase_read_ran is False
+    assert bomb_rest_client.calls == []
+    manager._get_stealth_order.assert_called_once_with(CHILD_ID)
+    manager.update_execution.assert_not_called()
+    assert not claim_store.path.exists()
+    for write_spy in write_spies:
+        write_spy.assert_not_called()
+
+
 def test_root_child_cancel_readiness_discovers_backend_plan_hash(
     tmp_path,
     monkeypatch,
@@ -1188,17 +1282,15 @@ def test_root_child_cancel_expiry_preserves_started_child_cleanup_authority(
     assert "controlled_v15_plan_expired" not in readiness.blockers
 
 
-def test_root_child_cancel_readiness_allows_zero_fill_terminal_local_cleanup(
+def test_root_child_cancel_readiness_ignores_exchange_readback_on_get(
     tmp_path,
     monkeypatch,
 ):
-    readback = deepcopy(_exchange_readback())
-    readback["authoritative_status"] = "CANCELLED"
-    readback["matched_order"]["status"] = "CANCELLED"
     service, *_ = _service(tmp_path, monkeypatch)
+    exchange_readback = MagicMock(side_effect=AssertionError("unexpected read"))
     monkeypatch.setattr(
         "application.admin_api.command_service.exact_coinbase_order_readback",
-        lambda *_args, **_kwargs: readback,
+        exchange_readback,
     )
 
     readiness = service.build_order_fill_follow_up_child_cancel_readiness(
@@ -1207,8 +1299,10 @@ def test_root_child_cancel_readiness_allows_zero_fill_terminal_local_cleanup(
     )
 
     assert readiness.ready is True
-    assert readiness.authoritative_exchange_status == "CANCELLED"
+    assert readiness.authoritative_exchange_status is None
     assert readiness.zero_fill_proven is True
+    assert readiness.live_coinbase_read_ran is False
+    exchange_readback.assert_not_called()
 
 
 def test_root_child_cancel_readiness_rejects_unresolved_handoff_proof_id(
@@ -1346,16 +1440,8 @@ def test_root_child_cancel_readiness_fails_closed(
         read_service.chain.portfolio_scope.status = "blocked"
         read_service.chain.portfolio_scope.scope_consistent = False
     else:
-        monkeypatch.setattr(
-            "application.admin_api.command_service.exact_coinbase_order_readback",
-            lambda *_args, **_kwargs: {
-                **_exchange_readback(),
-                "matched_order": {
-                    **_exchange_readback()["matched_order"],
-                    "filled_size": "0.00000001",
-                    "number_of_fills": 1,
-                },
-            },
+        runtime.read_controlled_first_child.return_value["executed_size"] = (
+            "0.00000001"
         )
 
     readiness = service.build_order_fill_follow_up_child_cancel_readiness(

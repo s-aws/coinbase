@@ -15,6 +15,7 @@ from core.runtime_controller import (
 from tools.coinbase_live_credentials import ensure_live_coinbase_credentials
 
 from .command_runtime import (
+    admin_api_live_runtime_enabled,
     build_admin_api_command_runtime_readiness,
     load_admin_api_rest_client,
 )
@@ -46,6 +47,10 @@ class UsdcPairSnapshotLiveOrderExecutor:
             raise UsdcPairSnapshotLiveExecutionError(
                 "M58 live submit requires cancel by the same client_order_id."
             )
+        if not admin_api_live_runtime_enabled():
+            raise UsdcPairSnapshotLiveExecutionError(
+                "M58 live submit requires exact Coinbase execution authority."
+            )
 
         self._hydrate_backend_coinbase_credentials()
         readiness = build_admin_api_command_runtime_readiness()
@@ -62,14 +67,20 @@ class UsdcPairSnapshotLiveOrderExecutor:
 
         controller = get_runtime_controller()
         submitted_at = datetime.now(timezone.utc).isoformat()
-        with controller.track_inflight(INFLIGHT_REST_PLACE):
-            submit_result = binding.client.create_order(
-                client_order_id=client_order_id,
-                product_id=product_id,
-                side=side,
-                order_configuration=dict(order_configuration),
-            )
-        submit_result_data = _object_to_dict(submit_result)
+        try:
+            with controller.track_inflight(INFLIGHT_REST_PLACE):
+                submit_result = binding.client.create_order(
+                    client_order_id=client_order_id,
+                    product_id=product_id,
+                    side=side,
+                    order_configuration=dict(order_configuration),
+                )
+            submit_result_data = _object_to_dict(submit_result)
+        except Exception as exc:
+            raise UsdcPairSnapshotLiveExecutionError(
+                "M58 live submit outcome unknown: "
+                f"exception_class:{type(exc).__name__}"
+            ) from None
         submit_success = _coinbase_create_order_success(
             submit_result,
             submit_result_data,
@@ -112,13 +123,13 @@ class UsdcPairSnapshotLiveOrderExecutor:
                     cancel_submitted = fallback_submitted
             cancel_error = None
         except Exception as exc:
+            cancel_error = f"exception_class:{type(exc).__name__}"
             cancel_result_data = {
                 "success": False,
                 "client_order_id": client_order_id,
-                "error": str(exc),
+                "error": cancel_error,
             }
             cancel_submitted = False
-            cancel_error = str(exc)
 
         cancelled_at = datetime.now(timezone.utc).isoformat()
         executed_notional_usdc = _coinbase_executed_notional_usdc(
@@ -136,10 +147,29 @@ class UsdcPairSnapshotLiveOrderExecutor:
             if cancel_rollback_complete
             else "submitted_cancel_failed"
         )
+        sanitized_submit_result = {
+            "success": submit_success is True,
+            "client_order_id": client_order_id,
+            "exchange_order_id": coinbase_order_id,
+            "explicit_rejection": submit_success is False,
+        }
+        sanitized_cancel_result = {
+            "success": cancel_submitted,
+            "client_order_id": client_order_id,
+            "fallback_attempted": bool(
+                isinstance(cancel_result_data, Mapping)
+                and cancel_result_data.get("fallback_order_id")
+            ),
+            "outcome": "accepted" if cancel_submitted else "unknown",
+        }
+        if sanitized_cancel_result["fallback_attempted"]:
+            sanitized_cancel_result["fallback_order_id"] = coinbase_order_id
+        if cancel_error:
+            sanitized_cancel_result["error"] = cancel_error
         result = {
             "coinbase_order_id": coinbase_order_id,
-            "submit_result": submit_result_data,
-            "cancel_result": cancel_result_data,
+            "submit_result": sanitized_submit_result,
+            "cancel_result": sanitized_cancel_result,
             "submitted_at": submitted_at,
             "cancelled_at": cancelled_at,
             "order_configuration": dict(order_configuration),

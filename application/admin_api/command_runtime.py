@@ -24,12 +24,15 @@ from core.runtime_controller import (
 from logging_service import get_logger
 
 from .command_service import AdminApiCommandDependencies, AdminApiCommandService
-from .live_execution import LIVE_EXECUTION_RUNTIME_ENABLED_ENV
+from .live_execution import (
+    LIVE_EXECUTION_RUNTIME_ENABLED_ENV,
+    coinbase_execution_authority_enabled,
+)
 from .spot_portfolio_binding import (
     DEFAULT_SPOT_PORTFOLIO_LABEL,
+    EXPECTED_SPOT_PORTFOLIO_TYPE,
     SPOT_PORTFOLIO_ID_ENV,
     SPOT_PORTFOLIO_LABEL_ENV,
-    evaluate_spot_test_portfolio_binding,
 )
 
 
@@ -61,30 +64,54 @@ class AdminApiCommandRuntimeReadiness:
     rest_client_available: bool
     runtime_ready: bool
     missing_reason: str | None
+    order_root_registrar_available: bool
+    order_event_publisher_available: bool
     spot_portfolio_scope: dict[str, Any]
     source: str = "application/admin_api/command_runtime.py"
 
 
-def _spot_portfolio_scope(rest_client: Any | None) -> dict[str, Any]:
-    return evaluate_spot_test_portfolio_binding(
-        rest_client=rest_client,
-        expected_portfolio_id=os.environ.get(SPOT_PORTFOLIO_ID_ENV),
-        expected_portfolio_label=(
-            os.environ.get(SPOT_PORTFOLIO_LABEL_ENV, "").strip()
-            or DEFAULT_SPOT_PORTFOLIO_LABEL
+def _configured_spot_portfolio_scope() -> dict[str, Any]:
+    """Return identifier-free local scope posture without a Coinbase read."""
+
+    configured = bool(os.environ.get(SPOT_PORTFOLIO_ID_ENV, "").strip())
+    profile_alias = (
+        os.environ.get(SPOT_PORTFOLIO_LABEL_ENV, "").strip()
+        or DEFAULT_SPOT_PORTFOLIO_LABEL
+    )
+    return {
+        "ready": False,
+        "blocker": (
+            "spot_test_portfolio_verification_required"
+            if configured
+            else "spot_test_portfolio_id_missing"
         ),
-    ).to_dict()
+        "status": "verification_required" if configured else "blocked",
+        "product_family": "SPOT",
+        # Concrete portfolio identifiers remain backend-only. Exact CDP-key
+        # permission and catalog binding runs inside each admitted action.
+        "portfolio_id": None,
+        "profile_alias": profile_alias,
+        "expected_portfolio_id": None,
+        "expected_portfolio_label": profile_alias,
+        "expected_portfolio_type": EXPECTED_SPOT_PORTFOLIO_TYPE,
+        "observed_portfolio_id": None,
+        "observed_portfolio_label": None,
+        "observed_portfolio_type": None,
+        "can_view": None,
+        "can_trade": None,
+        "selection_authority": "cdp_api_key_permissioned_portfolio",
+        "request_portfolio_override_allowed": False,
+        "source": "runtime_configuration_then_per_action_coinbase_verification",
+    }
 
 
 def admin_api_live_runtime_enabled() -> bool:
     """Return whether backend Admin API live runtime wiring is enabled."""
 
-    return os.environ.get(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
+    return coinbase_execution_authority_enabled() and os.environ.get(
+        LIVE_EXECUTION_RUNTIME_ENABLED_ENV,
+        "",
+    ).strip().lower() in {"1", "true", "yes", "on"}
 
 
 def admin_api_order_event_stream_disabled() -> bool:
@@ -98,6 +125,27 @@ def admin_api_order_event_stream_disabled() -> bool:
     }
 
 
+def _order_root_registrar_available(registrar: Any | None) -> bool:
+    return bool(
+        callable(getattr(registrar, "register_manual_spot_root", None))
+        and callable(
+            getattr(
+                registrar,
+                "get_unresolved_admin_manual_root_submissions",
+                None,
+            )
+        )
+    )
+
+
+def _order_event_publisher_available(publisher: Any | None) -> bool:
+    return bool(
+        publisher is not None
+        and getattr(publisher, "enabled", False) is True
+        and callable(getattr(publisher, "publish_event", None))
+    )
+
+
 def load_admin_api_rest_client() -> AdminApiRestClientBinding:
     """Load the canonical Coinbase REST client when Admin API live runtime is on."""
 
@@ -109,7 +157,10 @@ def load_admin_api_rest_client() -> AdminApiRestClientBinding:
 
         client = configuration.get_rest_client()
     except Exception as exc:
-        logger.warning("Admin API REST client unavailable: %s", exc)
+        logger.warning(
+            "Admin API REST client unavailable [%s]",
+            type(exc).__name__,
+        )
         return AdminApiRestClientBinding(client=None, available=False)
 
     return AdminApiRestClientBinding(client=client, available=client is not None)
@@ -125,7 +176,9 @@ def build_admin_api_command_runtime_readiness() -> AdminApiCommandRuntimeReadine
             rest_client_available=False,
             runtime_ready=False,
             missing_reason="live_runtime_disabled",
-            spot_portfolio_scope=_spot_portfolio_scope(None),
+            order_root_registrar_available=False,
+            order_event_publisher_available=False,
+            spot_portfolio_scope=_configured_spot_portfolio_scope(),
         )
     if not rest_credentials_configured():
         return AdminApiCommandRuntimeReadiness(
@@ -133,7 +186,9 @@ def build_admin_api_command_runtime_readiness() -> AdminApiCommandRuntimeReadine
             rest_client_available=False,
             runtime_ready=False,
             missing_reason="coinbase_rest_credentials_missing",
-            spot_portfolio_scope=_spot_portfolio_scope(None),
+            order_root_registrar_available=False,
+            order_event_publisher_available=False,
+            spot_portfolio_scope=_configured_spot_portfolio_scope(),
         )
 
     rest_client = load_admin_api_rest_client()
@@ -143,23 +198,39 @@ def build_admin_api_command_runtime_readiness() -> AdminApiCommandRuntimeReadine
             rest_client_available=False,
             runtime_ready=False,
             missing_reason="coinbase_rest_client_unavailable",
-            spot_portfolio_scope=_spot_portfolio_scope(None),
+            order_root_registrar_available=False,
+            order_event_publisher_available=False,
+            spot_portfolio_scope=_configured_spot_portfolio_scope(),
         )
-    portfolio_scope = _spot_portfolio_scope(rest_client.client)
-    if portfolio_scope["status"] != "matched":
+    portfolio_scope = _configured_spot_portfolio_scope()
+    if not os.environ.get(SPOT_PORTFOLIO_ID_ENV, "").strip():
         return AdminApiCommandRuntimeReadiness(
             live_runtime_enabled=True,
             rest_client_available=True,
             runtime_ready=False,
-            missing_reason=portfolio_scope.get("blocker")
-            or "spot_test_portfolio_blocked",
+            missing_reason="spot_test_portfolio_id_missing",
+            order_root_registrar_available=False,
+            order_event_publisher_available=False,
             spot_portfolio_scope=portfolio_scope,
         )
+
+    root_registrar = get_admin_api_order_root_registrar()
+    event_publisher = get_admin_api_order_event_stream_publisher()
+    root_registrar_available = _order_root_registrar_available(root_registrar)
+    event_publisher_available = _order_event_publisher_available(event_publisher)
+    if not root_registrar_available:
+        missing_reason = "order_root_registrar_unavailable"
+    elif not event_publisher_available:
+        missing_reason = "order_event_publisher_unavailable"
+    else:
+        missing_reason = None
     return AdminApiCommandRuntimeReadiness(
         live_runtime_enabled=True,
         rest_client_available=True,
-        runtime_ready=True,
-        missing_reason=None,
+        runtime_ready=missing_reason is None,
+        missing_reason=missing_reason,
+        order_root_registrar_available=root_registrar_available,
+        order_event_publisher_available=event_publisher_available,
         spot_portfolio_scope=portfolio_scope,
     )
 
@@ -183,7 +254,10 @@ def get_admin_api_order_event_stream_publisher() -> Any | None:
 
             _order_event_stream_publisher = OrderEventStreamPublisher(order_db)
         except Exception as exc:
-            logger.warning("Admin API order_event_stream publisher unavailable: %s", exc)
+            logger.warning(
+                "Admin API order_event_stream publisher unavailable [%s]",
+                type(exc).__name__,
+            )
             _order_event_stream_publisher = None
         return _order_event_stream_publisher
 
@@ -225,7 +299,10 @@ def get_admin_api_spot_market_reference(
                         "observed_at": market.get("time"),
                     }
     except Exception as exc:
-        logger.warning("Admin API Spot market reference unavailable: %s", exc)
+        logger.warning(
+            "Admin API Spot market reference unavailable [%s]",
+            type(exc).__name__,
+        )
 
     if rest_client is None:
         return None
@@ -273,7 +350,10 @@ def get_admin_api_spot_market_reference(
             "observed_at": observed_at,
         }
     except Exception as exc:
-        logger.warning("Admin API Coinbase REST best bid unavailable: %s", exc)
+        logger.warning(
+            "Admin API Coinbase REST best bid unavailable [%s]",
+            type(exc).__name__,
+        )
         return None
 
 
@@ -570,15 +650,15 @@ class AdminApiOrderRootRuntimeRegistrar:
         if not callable(updater):
             raise RuntimeError("order_parent_status_update_unavailable")
         if exchange_order_id is None:
-            updater(client_order_id, status)
-            return
-        rows_updated = updater(
-            client_order_id,
-            status,
-            exchange_order_id=exchange_order_id,
-        )
+            rows_updated = updater(client_order_id, status)
+        else:
+            rows_updated = updater(
+                client_order_id,
+                status,
+                exchange_order_id=exchange_order_id,
+            )
         if int(rows_updated or 0) != 1:
-            raise RuntimeError("order_parent_exchange_identity_update_failed")
+            raise RuntimeError("order_parent_status_update_failed")
 
     def read_registered_order(self, client_order_id: str) -> dict[str, Any] | None:
         getter = getattr(
@@ -624,7 +704,10 @@ def get_admin_api_order_root_registrar() -> Any | None:
             return None
         return AdminApiOrderRootRuntimeRegistrar(order_engine)
     except Exception as exc:
-        logger.warning("Admin API order root registrar unavailable: %s", exc)
+        logger.warning(
+            "Admin API order root registrar unavailable [%s]",
+            type(exc).__name__,
+        )
         return None
 
 
@@ -685,7 +768,10 @@ def get_admin_api_fill_follow_up_executor() -> Any | None:
             return None
         return AdminApiFillFollowUpRuntimeExecutor(order_engine)
     except Exception as exc:
-        logger.warning("Admin API fill follow-up executor unavailable: %s", exc)
+        logger.warning(
+            "Admin API fill follow-up executor unavailable [%s]",
+            type(exc).__name__,
+        )
         return None
 
 
@@ -765,7 +851,7 @@ class AdminApiControlledFirstChildRuntimeAdapter:
                 raise RuntimeError("controlled_child_market_source_invalid")
         except Exception as exc:
             raise ControlledChildPrePlacementError(
-                str(exc),
+                "controlled_child_market_reference_unavailable",
                 stage="market_reference",
                 cause_type=type(exc).__name__,
                 stealth_order_id=stealth_order_id,
@@ -799,7 +885,7 @@ class AdminApiControlledFirstChildRuntimeAdapter:
             )
         except Exception as exc:
             raise ControlledChildPrePlacementError(
-                str(exc),
+                "controlled_child_preparation_unavailable",
                 stage="preparation",
                 cause_type=type(exc).__name__,
                 stealth_order_id=stealth_order_id,
@@ -814,7 +900,7 @@ class AdminApiControlledFirstChildRuntimeAdapter:
                 )
         except Exception as exc:
             raise ControlledChildPrePlacementError(
-                str(exc),
+                "controlled_child_price_alignment_unavailable",
                 stage="price_alignment",
                 cause_type=type(exc).__name__,
                 stealth_order_id=stealth_order_id,
@@ -990,6 +1076,15 @@ class AdminApiControlledFirstChildRuntimeAdapter:
             "active_placement_client_order_id": active_client_order_id,
             "active_exchange_order_id": active_exchange_order_id,
             "executed_size": self._decimal_text(state.get("executed_size") or 0),
+            "base_size": self._decimal_text(
+                state.get("total_size") or child_row.get("size") or 0
+            ),
+            "limit_price": self._decimal_text(
+                active_state.get("active_exchange_price")
+                or state.get("limit_price")
+                or child_row.get("price")
+                or 0
+            ),
             **(
                 {
                     "controlled_plan_sha256": preparation.get(
@@ -1114,7 +1209,10 @@ def get_admin_api_controlled_first_child_runtime(
             market_reference_getter=market_reference_getter,
         )
     except Exception as exc:
-        logger.warning("Admin API controlled first-child runtime unavailable: %s", exc)
+        logger.warning(
+            "Admin API controlled first-child runtime unavailable [%s]",
+            type(exc).__name__,
+        )
         return None
 
 
@@ -1131,30 +1229,41 @@ def build_admin_api_command_dependencies(
         if live_runtime_enabled and credentials_configured
         else AdminApiRestClientBinding(client=None, available=False)
     )
-    portfolio_scope = (
-        _spot_portfolio_scope(rest_client.client)
-        if rest_client.available
-        else None
-    )
     if not live_runtime_enabled:
         missing_reason = "live_runtime_disabled"
     elif not credentials_configured:
         missing_reason = "coinbase_rest_credentials_missing"
     elif not rest_client.available:
         missing_reason = "coinbase_rest_client_unavailable"
-    elif portfolio_scope is None or portfolio_scope["status"] != "matched":
-        missing_reason = (
-            (portfolio_scope or {}).get("blocker")
-            or "spot_test_portfolio_blocked"
-        )
+    elif not os.environ.get(SPOT_PORTFOLIO_ID_ENV, "").strip():
+        missing_reason = "spot_test_portfolio_id_missing"
     else:
         missing_reason = None
+
+    root_registrar = None
+    event_publisher = None
+    if missing_reason is None:
+        root_registrar = get_admin_api_order_root_registrar()
+        event_publisher = get_admin_api_order_event_stream_publisher()
+        if not _order_root_registrar_available(root_registrar):
+            missing_reason = "order_root_registrar_unavailable"
+        elif not _order_event_publisher_available(event_publisher):
+            missing_reason = "order_event_publisher_unavailable"
 
     def spot_market_reference(product_id: str) -> dict[str, Any] | None:
         return get_admin_api_spot_market_reference(
             product_id,
             rest_client=rest_client.client,
         )
+
+    def record_spot_fill_readback_proof(
+        record: Mapping[str, Any],
+    ) -> str | None:
+        # Lazy import avoids a command-runtime/MVP-service import cycle while
+        # retaining one process-local store and its configured durable log.
+        from .mvp_service import get_admin_mvp_service
+
+        return get_admin_mvp_service().record_spot_fill_readback_proof(record)
 
     return AdminApiCommandDependencies(
         rest_client=rest_client.client,
@@ -1168,10 +1277,11 @@ def build_admin_api_command_dependencies(
             or DEFAULT_SPOT_PORTFOLIO_LABEL
         ),
         spot_market_reference_getter=spot_market_reference,
-        order_root_registrar_getter=get_admin_api_order_root_registrar,
+        order_root_registrar_getter=lambda: root_registrar,
+        spot_fill_readback_proof_recorder=record_spot_fill_readback_proof,
         runtime_controller_factory=get_runtime_controller,
         add_log_entry=log_admin_api_command,
-        order_event_publisher_getter=get_admin_api_order_event_stream_publisher,
+        order_event_publisher_getter=lambda: event_publisher,
         fill_follow_up_executor_getter=get_admin_api_fill_follow_up_executor,
         stealth_order_runtime_getter=lambda: (
             get_admin_api_controlled_first_child_runtime(

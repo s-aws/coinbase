@@ -86,14 +86,19 @@ This is a multithreaded Coinbase trading engine with:
 - Runtime lifecycle control (`RUNNING`, `PAUSED`, `DRAINING`, `STOPPED`) via `core/runtime_controller.py`.
 - Startup and periodic reconciliation against exchange truth (`core/startup_reconciler.py`, `core/periodic_reconciler.py`).
 - Fill ledger + cross-source fill reconciliation (`business/fill_ledger.py`, `business/fill_reconciler.py`).
-- Dashboard WebSocket server (`dashboard_server.py`) plus browser/terminal consumers.
+- Historical dashboard WebSocket source (`dashboard_server.py`), now
+  source-disabled as product authority; the installed browser uses the Admin API.
 - Enterprise Admin API (`api/v1/app.py`) with fail-closed auth/RBAC, durable
   idempotency/audit stores, read-only spot routes, and a generated OpenAPI
   contract at `openapi/coinbase-admin-api.yaml`. Command posture is
-  route-specific: manual Spot placement can reach the shared live service only
-  after exact backend admission; HTTP Spot cancel, Futures, Stealth,
-  movement/reprice, campaign, and sweep command routes remain no-live or
-  local-evidence boundaries. The guarded fill-follow-up trigger is a no-live local-state
+  route-specific: manual Spot LIMIT/GTC placement and cancellation of a durable
+  Admin manual Spot root can reach their shared live service only after exact
+  backend admission. Cancel remains operator-keyed by `client_order_id`; the
+  backend proves its exact active exchange `order_id` and submits that identity
+  once through the canonical wrapper, with no retry or fallback. Futures,
+  Stealth, movement/reprice, campaign, sweep, and every other exchange-mutation
+  route remain No-live or source-disabled local-evidence boundaries. The guarded
+  fill-follow-up trigger is a No-live local-state
   compatibility exception that can return accepted parent/child readback
   evidence after exact proof refs while Coinbase submit/cancel and live exchange
   mutation remain disallowed.

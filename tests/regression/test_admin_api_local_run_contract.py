@@ -77,6 +77,44 @@ def test_admin_api_runner_uses_deployment_tier_as_environment_default():
 
 
 @pytest.mark.regression
+@pytest.mark.parametrize("outer_authority", [None, "0", "true", "yes", "01"])
+def test_admin_api_runner_does_not_hydrate_credentials_without_exact_authority(
+    outer_authority,
+):
+    environ = {run_admin_api.LIVE_RUNTIME_ENABLED_ENV: "true"}
+    if outer_authority is not None:
+        environ[run_admin_api.EXECUTION_AUTHORITY_ENV] = outer_authority
+    calls = []
+
+    source = run_admin_api.prepare_live_coinbase_credentials(
+        environ=environ,
+        credential_hydrator=lambda target: calls.append(target)
+        or SimpleNamespace(source="unexpected"),
+    )
+
+    assert source == "disabled"
+    assert calls == []
+
+
+@pytest.mark.regression
+def test_admin_api_runner_hydrates_credentials_only_for_exact_controlled_live():
+    environ = {
+        run_admin_api.EXECUTION_AUTHORITY_ENV: "1",
+        run_admin_api.LIVE_RUNTIME_ENABLED_ENV: "true",
+    }
+    calls = []
+
+    source = run_admin_api.prepare_live_coinbase_credentials(
+        environ=environ,
+        credential_hydrator=lambda target: calls.append(target)
+        or SimpleNamespace(source="secrets_manager"),
+    )
+
+    assert source == "secrets_manager"
+    assert calls == [environ]
+
+
+@pytest.mark.regression
 def test_admin_api_local_runner_fails_closed_without_backend_auth(monkeypatch, capsys):
     monkeypatch.delenv(run_admin_api.AUTH_MODE_ENV, raising=False)
     monkeypatch.delenv(run_admin_api.AUTH_TOKEN_ENV, raising=False)

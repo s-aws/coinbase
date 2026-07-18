@@ -29,6 +29,7 @@ from application.admin_api.spot_portfolio_binding import (
     DEFAULT_SPOT_PORTFOLIO_LABEL,
     SPOT_PORTFOLIO_ID_ENV,
     SPOT_PORTFOLIO_LABEL_ENV,
+    serialize_public_spot_portfolio_scope,
 )
 from application.admin_api.idempotency import (
     FileIdempotencyStore,
@@ -84,7 +85,6 @@ from application.admin_api.models import (
     AdminApiErrorResponse,
     AdminLiveAdmissionDecisionEvidence,
     AdminOrderDetailResponse,
-    AdminOrderFillFollowUpChildCancelCommand,
     AdminOrderFillFollowUpChildCancelReadinessResponse,
     AdminOrderFillFollowUpChildCancelRequest,
     AdminOrderFillFollowUpChainResponse,
@@ -99,6 +99,8 @@ from application.admin_api.models import (
     CancelOrderRequest,
     ManualOrderCommand,
     ManualOrderRequest,
+    ReconcileOrderCommand,
+    ReconcileOrderRequest,
     SpotRecoveryApplyExecutionCommand,
     SpotRecoveryApplyExecutionRequest,
     SpotRecoveryExchangeStateProofCommand,
@@ -126,11 +128,17 @@ from application.admin_api.mvp_service import (
     AdminMvpService,
     get_admin_mvp_service,
 )
+from core.coinbase_execution_authority import (
+    COINBASE_EXECUTION_SCOPE_SPOT_CANCEL,
+    COINBASE_EXECUTION_SCOPE_SPOT_PLACE,
+    canonical_coinbase_execution_scope,
+)
 from core.enums import (
     AdminApiActionClass,
     AdminApiCommandStatus,
     AdminApiGateStatus,
     AdminApiIdempotencyDecision,
+    AdminApiLiveAdmissionBlocker,
     AdminApiMutationFamilyType,
     AdminApiPermission,
     AdminApiStealthAdmissionContextField,
@@ -163,6 +171,24 @@ COMMAND_ROUTE_RESPONSES = {
     501: {
         "model": AdminApiCommandResponse,
         "description": "Live HTTP execution is not implemented for this command.",
+    },
+}
+
+SOURCE_DISABLED_COMMAND_ROUTE_RESPONSES = {
+    401: {
+        "model": AdminApiErrorResponse,
+        "description": "Missing or invalid Admin API authentication.",
+    },
+    403: {
+        "model": AdminApiErrorResponse,
+        "description": "Actor lacks the required Admin API permission.",
+    },
+    501: {
+        "model": AdminApiCommandResponse,
+        "description": (
+            "Fixed source-disabled response; no admission, replay, store, "
+            "service, adapter, or Coinbase execution occurs."
+        ),
     },
 }
 
@@ -611,6 +637,7 @@ def _record_audit(
         "coinbase_order_id": response.coinbase_order_id,
         "live_exchange_submitted": response.live_exchange_submitted,
         "live_coinbase_orders_ran": response.live_coinbase_orders_ran,
+        "live_coinbase_read_ran": response.live_coinbase_read_ran,
         "live_command_runtime_enabled": response.live_command_runtime_enabled,
         "live_command_rest_client_available": response.live_command_rest_client_available,
         "live_command_runtime_ready": response.live_command_runtime_ready,
@@ -628,6 +655,86 @@ def _record_audit(
     return audit_store.append(AdminApiAuditEvent(**event_fields))
 
 
+@serialize_idempotent_command
+def _execute_idempotent_local_command(
+    *,
+    idempotency_key: str,
+    payload_hash: str,
+    actor: AdminApiActor,
+    endpoint: str,
+    request_id: str,
+    operator_intent: str,
+    permission: AdminApiPermission,
+    action_class: AdminApiActionClass,
+    service_method: str,
+    client_order_id: str,
+    idempotency_store: FileIdempotencyStore,
+    audit_store: FileAdminApiAuditStore,
+    command_runner: Callable[[], AdminApiCommandResponse],
+) -> JSONResponse:
+    """Run one audited local mutation without live-exchange admission proofs."""
+
+    require_permission(actor, permission)
+    check = idempotency_store.evaluate(
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+    )
+    if check.decision == AdminApiIdempotencyDecision.REPLAY and check.record:
+        response = AdminApiCommandResponse.model_validate(check.record.response)
+        return _command_response(response, replayed=True)
+    if check.decision == AdminApiIdempotencyDecision.CONFLICT:
+        response = AdminApiCommandResponse(
+            status=AdminApiCommandStatus.CONFLICT,
+            action_class=action_class,
+            required_permission=permission,
+            service_method=service_method,
+            message="Idempotency-Key was already used with a different payload.",
+            correlation_id=request_id,
+            idempotency_key=idempotency_key,
+            client_order_id=client_order_id,
+            failure_stage="idempotency",
+        )
+        response.audit_id = _record_audit(
+            audit_store=audit_store,
+            actor=actor,
+            endpoint=endpoint,
+            request_id=request_id,
+            operator_intent=operator_intent,
+            response=response,
+        )
+        return _command_response(response)
+
+    response = command_runner()
+    if (
+        response.action_class != action_class
+        or response.required_permission != permission
+        or response.service_method != service_method
+        or response.client_order_id != client_order_id
+    ):
+        raise RuntimeError("local_command_response_contract_mismatch")
+    response.audit_id = _record_audit(
+        audit_store=audit_store,
+        actor=actor,
+        endpoint=endpoint,
+        request_id=request_id,
+        operator_intent=operator_intent,
+        response=response,
+    )
+    idempotency_store.put_record(
+        IdempotencyRecord(
+            idempotency_key=idempotency_key,
+            payload_hash=payload_hash,
+            client_order_id=response.client_order_id,
+            stealth_order_id=response.stealth_order_id,
+            status=response.status,
+            response=response.model_dump(mode="json"),
+            actor_id=actor.actor_id,
+            endpoint=endpoint,
+        )
+    )
+    return _command_response(response)
+
+
 def _attach_portfolio_scope_evidence(
     response: AdminApiCommandResponse,
     admission_decision: AdminLiveAdmissionDecisionEvidence,
@@ -643,12 +750,13 @@ def _attach_portfolio_scope_evidence(
         if isinstance(candidate, dict):
             observed_scope = dict(candidate)
     portfolio_scope = {**expected_scope, **observed_scope}
-    expected_portfolio_id = expected_scope.get("portfolio_id")
-    observed_portfolio_id = observed_scope.get("portfolio_id")
     portfolio_scope["scope_consistent"] = bool(
         observed_scope.get("status") == "matched"
-        and expected_portfolio_id
-        and observed_portfolio_id == expected_portfolio_id
+        and observed_scope.get("ready") is True
+        and observed_scope.get("product_family")
+        == expected_scope.get("product_family")
+        and observed_scope.get("profile_alias")
+        == expected_scope.get("profile_alias")
     )
     portfolio_scope["proof_bindings"] = {
         "payload_hash": admission_decision.payload_hash,
@@ -771,6 +879,29 @@ def _manual_order_admin_cap_guard_context(
         return None, None
 
     return record.decision_id, record.max_submitted_notional_usdc
+
+
+def _manual_order_admin_cap_guard_limits(
+    *,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+    cap_guard_store: FileAdminApiCapGuardStore,
+) -> tuple[str | None, str | None, str | None]:
+    """Return exact submitted and possible-execution ceilings for placement."""
+
+    decision_id, submitted = _manual_order_admin_cap_guard_context(
+        admission_decision=admission_decision,
+        cap_guard_store=cap_guard_store,
+    )
+    if decision_id is None:
+        return None, None, None
+    record = cap_guard_store.find_by_decision_id(decision_id)
+    if record is None:
+        return None, None, None
+    return (
+        decision_id,
+        submitted,
+        record.max_executed_notional_usdc,
+    )
 
 
 def _fill_follow_up_cap_guard_wallet_context(
@@ -1135,6 +1266,7 @@ def _execute_idempotent_command(
         [AdminLiveAdmissionDecisionEvidence],
         AdminLiveAdmissionDecisionEvidence,
     ] | None = None,
+    cap_guard_product_scope: str | None = None,
     client_order_id: str | None = None,
     stealth_order_id: str | None = None,
 ) -> JSONResponse:
@@ -1157,10 +1289,26 @@ def _execute_idempotent_command(
         cap_guard_store=cap_guard_store,
         reconciliation_store=reconciliation_store,
         live_execution_service=live_execution_service,
+        cap_guard_product_scope=cap_guard_product_scope,
     )
-    if admission_override is not None and not admission_decision.allowed:
+    unsupported_live_route = (
+        AdminApiLiveAdmissionBlocker.UNSUPPORTED_LIVE_ROUTE
+        in admission_decision.blockers
+    )
+    if (
+        admission_override is not None
+        and not admission_decision.allowed
+        and not unsupported_live_route
+    ):
         admission_decision = admission_override(admission_decision)
-    admission_decision.execution_scope = execution_scope
+    public_execution_scope = (
+        serialize_public_spot_portfolio_scope(execution_scope)
+        if execution_scope is not None
+        else None
+    )
+    if public_execution_scope is not None and cap_guard_product_scope is not None:
+        public_execution_scope["product_scope"] = cap_guard_product_scope
+    admission_decision.execution_scope = public_execution_scope
     check = idempotency_store.evaluate(
         idempotency_key=idempotency_key,
         payload_hash=payload_hash,
@@ -1350,11 +1498,74 @@ def get_order_by_client_order_id(
     return _read_response(service.build_order_detail(client_order_id=client_order_id))
 
 
+@router.post(
+    "/orders/{client_order_id}/reconciliation",
+    response_model=AdminApiCommandResponse,
+    status_code=status.HTTP_200_OK,
+    responses=COMMAND_ROUTE_RESPONSES,
+    summary="Reconcile one durable Spot root from authoritative Coinbase readback",
+)
+def reconcile_order_by_client_order_id(
+    request: Request,
+    body: ReconcileOrderRequest,
+    client_order_id: Annotated[str, Path(min_length=1)],
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiCommandService, Depends(get_command_service)],
+    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+) -> JSONResponse:
+    """Run one bounded readback action and synchronize only the matching root."""
+
+    endpoint = f"{request.method} {request.url.path}"
+    execution_scope = _manual_order_backend_execution_scope()
+    envelope = _build_envelope(
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        actor=actor,
+    )
+    payload_hash = _idempotency_payload_hash(
+        endpoint=endpoint,
+        actor=actor,
+        operator_intent=operator_intent,
+        body=body.model_dump(mode="json"),
+        path_params={"client_order_id": client_order_id},
+        backend_execution_scope=execution_scope,
+    )
+    audit_id = str(uuid.uuid4())
+    return _execute_idempotent_local_command(
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        actor=actor,
+        endpoint=endpoint,
+        request_id=correlation_id,
+        operator_intent=operator_intent,
+        permission=AdminApiPermission.ORDER_CANCEL,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        service_method="reconcile_order_by_client_order_id",
+        client_order_id=client_order_id,
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        command_runner=lambda: service.reconcile_order_by_client_order_id(
+            ReconcileOrderCommand(
+                envelope=envelope,
+                audit_id=audit_id,
+                client_order_id=client_order_id,
+                request=body,
+                allow_live_read=True,
+            )
+        ),
+    )
+
+
 @router.get(
     "/orders/{client_order_id}/fill-readback",
     response_model=SpotOrderFillReadbackResponse,
     responses=READ_ROUTE_RESPONSES,
-    summary="Read Spot order fill evidence by client_order_id",
+    summary="Read locally persisted Spot fill evidence by client_order_id",
 )
 def get_spot_order_fill_readback(
     client_order_id: Annotated[str, Path(min_length=1)],
@@ -1367,7 +1578,7 @@ def get_spot_order_fill_readback(
     correlation_id: Annotated[str | None, Header(alias="X-Correlation-Id")] = None,
     operator_intent: Annotated[str | None, Header(alias="X-Operator-Intent")] = None,
 ) -> JSONResponse:
-    """Read backend-owned Spot order/fill evidence without mutation."""
+    """Read sanitized durable Spot fill evidence with zero Coinbase calls/writes."""
 
     require_permission(actor, AdminApiPermission.AUDIT_READ)
     query: dict[str, str] = {"fill_limit": str(fill_limit)}
@@ -1455,7 +1666,7 @@ def get_order_fill_follow_up_chain(
     "/orders/{root_client_order_id}/fill-follow-up/child-cancel/readiness",
     response_model=AdminOrderFillFollowUpChildCancelReadinessResponse,
     responses=READ_ROUTE_RESPONSES,
-    summary="Resolve V15 deterministic first-child cancel readiness from a root",
+    summary="Read historical selected-child cancel evidence as source-disabled",
 )
 def get_order_fill_follow_up_child_cancel_readiness(
     root_client_order_id: Annotated[str, Path(min_length=1)],
@@ -1473,101 +1684,73 @@ def get_order_fill_follow_up_child_cancel_readiness(
         root_client_order_id=root_client_order_id,
         controlled_plan_sha256=controlled_plan_sha256,
     )
+    blockers = list(payload.blockers)
+    if "source_disabled_not_implemented" not in blockers:
+        blockers.append("source_disabled_not_implemented")
+    payload = payload.model_copy(
+        update={
+            "ready": False,
+            "readiness_status": "source_disabled",
+            "backend_decision": "blocked",
+            "blockers": blockers,
+            "browser_authority": "display_only",
+            "detail": (
+                "Historical local evidence is display-only. Selected-chain "
+                "child cancellation and exchange revalidation are "
+                "source-disabled in the installed operator runtime."
+            ),
+        }
+    )
     return _read_response(payload)
 
 
 @router.post(
     "/orders/{root_client_order_id}/fill-follow-up/child-cancel",
     response_model=AdminApiCommandResponse,
-    status_code=status.HTTP_200_OK,
-    responses=COMMAND_ROUTE_RESPONSES,
-    summary="Cancel one backend-resolved V15 first child from its root",
+    status_code=status.HTTP_501_NOT_IMPLEMENTED,
+    responses=SOURCE_DISABLED_COMMAND_ROUTE_RESPONSES,
+    summary="Return fixed source-disabled selected-child cancel evidence",
 )
 def cancel_order_fill_follow_up_child_by_root_client_order_id(
-    request: Request,
     body: AdminOrderFillFollowUpChildCancelRequest,
     root_client_order_id: Annotated[str, Path(min_length=1)],
     idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
     correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
     operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
-    service: Annotated[AdminApiCommandService, Depends(get_command_service)],
-    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
-    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
-    approval_store: Annotated[FileAdminApiApprovalStore, Depends(get_approval_store)],
-    cap_guard_store: Annotated[FileAdminApiCapGuardStore, Depends(get_cap_guard_store)],
-    reconciliation_store: Annotated[
-        FileAdminApiReconciliationStore,
-        Depends(get_reconciliation_store),
-    ],
-    live_execution_service: Annotated[
-        AdminApiLiveExecutionService,
-        Depends(get_live_execution_service),
-    ],
 ) -> JSONResponse:
-    """Claim once by plan/root/resolved-child, then use canonical cancellation."""
+    """Reject selected-child cancellation before any executable dependency."""
 
-    endpoint = f"{request.method} {request.url.path}"
-    envelope = _build_envelope(
-        idempotency_key=idempotency_key,
-        correlation_id=correlation_id,
-        operator_intent=operator_intent,
-        actor=actor,
-    )
-    payload_hash = _idempotency_payload_hash(
-        endpoint=endpoint,
-        actor=actor,
-        operator_intent=operator_intent,
-        body=body.model_dump(mode="json"),
-        path_params={"root_client_order_id": root_client_order_id},
-    )
-    return _execute_idempotent_command(
-        idempotency_key=idempotency_key,
-        payload_hash=payload_hash,
-        actor=actor,
-        endpoint=endpoint,
-        request_id=correlation_id,
-        operator_intent=operator_intent,
-        permission=AdminApiPermission.ORDER_CANCEL,
-        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
-        service_method=(
-            "cancel_order_fill_follow_up_child_by_root_client_order_id"
-        ),
-        route_template=(
-            "/api/v1/orders/{root_client_order_id}/fill-follow-up/"
-            "child-cancel"
-        ),
-        module_id="spot_operations",
-        identity_key="client_order_id",
-        identity_value=root_client_order_id,
-        idempotency_store=idempotency_store,
-        audit_store=audit_store,
-        approval_store=approval_store,
-        cap_guard_store=cap_guard_store,
-        reconciliation_store=reconciliation_store,
-        live_execution_service=live_execution_service,
-        client_order_id=root_client_order_id,
-        admission_override=lambda blocked_admission: (
-            service.build_v15_active_child_cleanup_admission(
-                command=AdminOrderFillFollowUpChildCancelCommand(
-                    envelope=envelope,
-                    root_client_order_id=root_client_order_id,
-                    request=body,
-                    admission_decision=blocked_admission,
-                ),
-                admission=blocked_admission,
-            )
-        ),
-        command_runner_with_admission=lambda admission_decision: (
-            service.cancel_order_fill_follow_up_child_by_root_client_order_id(
-                AdminOrderFillFollowUpChildCancelCommand(
-                    envelope=envelope,
-                    root_client_order_id=root_client_order_id,
-                    request=body,
-                    admission_decision=admission_decision,
-                )
-            )
-        ),
+    require_permission(actor, AdminApiPermission.ORDER_CANCEL)
+    del body, operator_intent
+    return _command_response(
+        AdminApiCommandResponse(
+            status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+            required_permission=AdminApiPermission.ORDER_CANCEL,
+            service_method=(
+                "cancel_order_fill_follow_up_child_by_root_client_order_id"
+            ),
+            message=(
+                "Selected-chain child cancellation is source-disabled in the "
+                "installed operator runtime; only manual Spot root cancel is "
+                "supported."
+            ),
+            client_order_id=root_client_order_id,
+            correlation_id=correlation_id,
+            idempotency_key=idempotency_key,
+            live_exchange_submitted=False,
+            live_coinbase_orders_ran=False,
+            live_coinbase_read_ran=False,
+            data={
+                "source_disabled": True,
+                "browser_authority": "display_only",
+                "bff_authority": "source_disabled_not_forwarded",
+                "local_state_mutated": False,
+                "exchange_mutation_attempted": False,
+            },
+            failure_stage="source_disabled_not_implemented",
+        )
     )
 
 
@@ -1782,8 +1965,9 @@ def create_manual_order(
 ) -> JSONResponse:
     """Route adapter for manual placement.
 
-    The route is authenticated, idempotent, audited, and still live-disabled
-    until enterprise approval/cap gates are completed.
+    The route is authenticated, idempotent, and audited. It can reach the
+    installed controlled-live service only after the exact backend authority,
+    runtime, approval, cap/wallet, reconciliation, and product gates pass.
     """
 
     endpoint = f"{request.method} {request.url.path}"
@@ -1812,25 +1996,35 @@ def create_manual_order(
     def run_manual_order_with_admission(
         admission_decision: AdminLiveAdmissionDecisionEvidence,
     ) -> AdminApiCommandResponse:
-        cap_guard_decision_id, admin_max_notional = (
-            _manual_order_admin_cap_guard_context(
+        (
+            cap_guard_decision_id,
+            admin_max_notional,
+            admin_max_executed_notional,
+        ) = (
+            _manual_order_admin_cap_guard_limits(
                 admission_decision=admission_decision,
                 cap_guard_store=cap_guard_store,
             )
         )
-        return service.place_manual_order(
-            ManualOrderCommand(
-                envelope=envelope,
-                request=body,
-                admin_approval_snapshot_id=(
-                    admission_decision.approval_snapshot_id
-                ),
-                admin_cap_guard_decision_id=cap_guard_decision_id,
-                admin_max_submitted_notional_usdc=admin_max_notional,
-                admission_audit_id=admission_decision.admission_audit_id,
-                allow_live_execution=admission_decision.allowed,
+        with canonical_coinbase_execution_scope(
+            COINBASE_EXECUTION_SCOPE_SPOT_PLACE
+        ):
+            return service.place_manual_order(
+                ManualOrderCommand(
+                    envelope=envelope,
+                    request=body,
+                    admin_approval_snapshot_id=(
+                        admission_decision.approval_snapshot_id
+                    ),
+                    admin_cap_guard_decision_id=cap_guard_decision_id,
+                    admin_max_submitted_notional_usdc=admin_max_notional,
+                    admin_max_executed_notional_usdc=(
+                        admin_max_executed_notional
+                    ),
+                    admission_audit_id=admission_decision.admission_audit_id,
+                    allow_live_execution=admission_decision.allowed,
+                )
             )
-        )
 
     return _execute_idempotent_command(
         idempotency_key=idempotency_key,
@@ -1853,6 +2047,7 @@ def create_manual_order(
         cap_guard_store=cap_guard_store,
         reconciliation_store=reconciliation_store,
         live_execution_service=live_execution_service,
+        cap_guard_product_scope=body.product_id,
         client_order_id=body.client_order_id,
         command_runner_with_admission=run_manual_order_with_admission,
     )
@@ -1905,6 +2100,22 @@ def cancel_order_by_client_order_id(
         path_params={"client_order_id": client_order_id},
         backend_execution_scope=execution_scope,
     )
+
+    def run_cancel_with_admission(
+        admission_decision: AdminLiveAdmissionDecisionEvidence,
+    ) -> AdminApiCommandResponse:
+        with canonical_coinbase_execution_scope(
+            COINBASE_EXECUTION_SCOPE_SPOT_CANCEL
+        ):
+            return service.cancel_order_by_client_order_id(
+                CancelOrderCommand(
+                    envelope=envelope,
+                    client_order_id=client_order_id,
+                    request=body,
+                    allow_live_execution=admission_decision.allowed,
+                )
+            )
+
     return _execute_idempotent_command(
         idempotency_key=idempotency_key,
         payload_hash=payload_hash,
@@ -1927,16 +2138,7 @@ def cancel_order_by_client_order_id(
         reconciliation_store=reconciliation_store,
         live_execution_service=live_execution_service,
         client_order_id=client_order_id,
-        command_runner_with_admission=lambda admission_decision: (
-            service.cancel_order_by_client_order_id(
-                CancelOrderCommand(
-                    envelope=envelope,
-                    client_order_id=client_order_id,
-                    request=body,
-                    allow_live_execution=admission_decision.allowed,
-                )
-            )
-        ),
+        command_runner_with_admission=run_cancel_with_admission,
     )
 
 

@@ -81,6 +81,15 @@ def test_backend_deployment_manifest_describes_admin_runtime_without_live_execut
     assert manifest["runtime"]["start_command"] == (
         "python tools/run_admin_api.py --host 0.0.0.0 --port 8787"
     )
+    assert manifest["runtime"]["controlled_live_runner"] == (
+        "tools/run_admin_api_operator_runtime.py"
+    )
+    assert manifest["runtime"]["controlled_live_start_command"] == (
+        "COINBASE_EXECUTION_ENABLED=1 "
+        "python tools/run_admin_api_operator_runtime.py "
+        "--host 0.0.0.0 --port 8787"
+    )
+    assert manifest["runtime"]["controlled_live_autonomous_loops_started"] is False
     assert manifest["runtime"]["health_check"] == "GET /api/v1/admin/health"
     assert manifest["auth"]["production_mode"] == "oidc_jwt"
     assert "COINBASE_ADMIN_API_BEARER_TOKEN" in manifest["auth"]["bootstrap_env"]
@@ -89,6 +98,63 @@ def test_backend_deployment_manifest_describes_admin_runtime_without_live_execut
     assert manifest["notional_usdc"] == "0"
     assert manifest["frontend_authority"] == "operator_ui_only"
     assert manifest["live_action_path"] == "auditable_backend_admin_interfaces_only"
+    assert manifest["live_execution_enablement"] == {
+        "default_enabled": False,
+        "accepted_env_vars": [
+            "COINBASE_EXECUTION_ENABLED",
+            "COINBASE_ADMIN_API_LIVE_EXECUTION_ENABLED",
+            "COINBASE_ADMIN_LIVE_COINBASE_EXECUTION",
+            "COINBASE_ADMIN_API_LIVE_COINBASE_EXECUTION_ENABLED",
+        ],
+        "outer_authority": {
+            "env_var": "COINBASE_EXECUTION_ENABLED",
+            "required_exact_value": "1",
+            "alternate_truthy_values_fail_closed": True,
+        },
+        "internal_enablement": {
+            "env_vars": [
+                "COINBASE_ADMIN_API_LIVE_EXECUTION_ENABLED",
+                "COINBASE_ADMIN_LIVE_COINBASE_EXECUTION",
+                "COINBASE_ADMIN_API_LIVE_COINBASE_EXECUTION_ENABLED",
+            ],
+            "necessary": True,
+            "sufficient_without_outer_authority": False,
+        },
+        "operator_runtime_prerequisites": {
+            "fail_closed_without_all_startup_prerequisites": True,
+            "spot_portfolio_binding": {
+                "portfolio_id_env": "COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID",
+                "portfolio_id_requirement": "nonblank",
+                "portfolio_label_env": "COINBASE_ADMIN_API_SPOT_PORTFOLIO_LABEL",
+                "default_portfolio_label": "Test",
+                "credential_scope_must_match": True,
+                "required_for_live_startup": True,
+            },
+            "runtime_lease": {
+                "path_env": "COINBASE_EXECUTION_LEASE_PATH",
+                "token_env": "COINBASE_EXECUTION_LEASE_TOKEN",
+                "manager_generated": True,
+                "owner_only_regular_file_required": True,
+                "required_for_live_startup": True,
+                "token_format": "lowercase_hex_64",
+            },
+            "runtime_session_binding": {
+                "live_service_decision_must_not_predate_runtime_lease": True,
+                "operator_ready_integration_goal": (
+                    "operator_ready_admin_mvp_runtime_v1"
+                ),
+                "global_service_target_module_id": "admin_system_health",
+                "global_service_product_scope": [],
+                "deployment_ref": "operator_ready_admin_mvp_runtime_v1",
+                "runtime_configuration_ref": "manager_execution_lease_v1",
+                "stored_route_specific_adapter_decision_required": False,
+                "canonical_route_runtime_capability_required": True,
+                "request_bound_command_evidence_required": True,
+                "required_before_exchange_mutation": True,
+            },
+        },
+        "requires_backend_proof_chain": True,
+    }
     assert manifest["verification"]["controlled_live_mvp_smoke"] == {
         "command": "python tools/run_admin_api_controlled_live_mvp_smoke.py",
         "timing_artifact": CONTROLLED_LIVE_SMOKE_TIMING_PATH,
@@ -127,7 +193,7 @@ def test_controlled_live_mvp_smoke_runner_records_timing_summary() -> None:
         "test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision",
         "test_admin_api_manual_order_route_passes_backend_admission_to_command_service",
         "test_admin_api_manual_order_route_executes_through_backend_runtime_dependencies",
-        "test_admin_api_manual_order_route_blocks_admitted_quote_above_backend_cap",
+        "test_admin_api_manual_order_route_blocks_limit_notional_above_backend_cap",
     ]:
         assert any(nodeid in part for part in command)
 
@@ -381,12 +447,15 @@ def test_backend_local_deployment_rejects_non_local_manifest(
 def test_backend_local_deployment_applies_archive_to_versioned_target(
     tmp_path: Path,
 ) -> None:
-    source_path = tmp_path / "source" / "README.md"
-    source_path.parent.mkdir(parents=True)
-    source_path.write_text("admin api artifact\n", encoding="utf-8")
+    source_root = tmp_path / "source"
+    for relative_path in local_deployment.REQUIRED_PAYLOAD_PATHS:
+        source_path = source_root / relative_path
+        source_path.parent.mkdir(parents=True, exist_ok=True)
+        source_path.write_text(f"{relative_path}\n", encoding="utf-8")
     archive_path = tmp_path / "coinbase-backend-deployment.tgz"
     with tarfile.open(archive_path, mode="w:gz") as archive:
-        archive.add(source_path, arcname="README.md")
+        for relative_path in local_deployment.REQUIRED_PAYLOAD_PATHS:
+            archive.add(source_root / relative_path, arcname=relative_path)
 
     manifest_path = tmp_path / "deployment-manifest.json"
     local_deployment.write_json(
@@ -417,14 +486,56 @@ def test_backend_local_deployment_applies_archive_to_versioned_target(
         generated_at="2026-07-01T00:00:00Z",
     )
 
-    assert (deploy_root / "current" / "README.md").read_text(
-        encoding="utf-8"
-    ) == "admin api artifact\n"
+    assert (
+        deploy_root / "current" / "tools" / "run_admin_api_operator_runtime.py"
+    ).exists()
     assert (deploy_root / "current-release.json").exists()
     assert output_path.exists()
     assert manifest["artifact_type"] == "coinbase_admin_api_local_deployment_manifest"
     assert manifest["live_coinbase_execution"] == "not_run"
     assert manifest["notional_usdc"] == "0"
+
+
+def test_backend_local_deployment_rejects_incomplete_archive_without_replacing_current(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "source" / "README.md"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text("incomplete artifact\n", encoding="utf-8")
+    archive_path = tmp_path / "coinbase-backend-deployment.tgz"
+    with tarfile.open(archive_path, mode="w:gz") as archive:
+        archive.add(source_path, arcname="README.md")
+
+    manifest_path = tmp_path / "deployment-manifest.json"
+    local_deployment.write_json(
+        manifest_path,
+        {
+            "artifact_type": "coinbase_admin_api_deployment_manifest",
+            "commit": "abc123",
+            "deployment_tier": "local",
+            "live_coinbase_execution": "not_run",
+            "notional_usdc": "0",
+        },
+    )
+    smoke_timing_path = tmp_path / "smoke-timing.json"
+    local_deployment.write_json(smoke_timing_path, _passed_smoke_timing())
+    deploy_root = tmp_path / "coinbase-local" / "backend"
+    current_path = deploy_root / "current"
+    current_path.mkdir(parents=True)
+    marker_path = current_path / "existing-runtime.txt"
+    marker_path.write_text("preserve current\n", encoding="utf-8")
+
+    with pytest.raises(FileNotFoundError, match="payload is missing"):
+        local_deployment.apply_local_deployment(
+            archive_path=archive_path,
+            manifest_path=manifest_path,
+            smoke_timing_path=smoke_timing_path,
+            deploy_root=deploy_root,
+            commit="abc123",
+            deployment_tier="local",
+        )
+
+    assert marker_path.read_text(encoding="utf-8") == "preserve current\n"
 
 
 def test_backend_local_deployment_rejects_archive_path_escape(

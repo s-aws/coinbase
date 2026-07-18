@@ -47,11 +47,9 @@ from core.enums import (
     ActionGuardPhase,
     EngineState,
     FollowUpRevealDirection,
-    AdminApiRole,
     InventoryCostBasisStatus,
     InventoryLotSource,
     OrderSide,
-    OrderType,
     ProductCapability,
     ProductCapabilityMode,
     ProductType,
@@ -60,7 +58,10 @@ from core.enums import (
 )
 from core.models import RepricingPolicy
 from core.product_capability import evaluate_product_capability
-from core.exceptions import WebSocketMessageError, OrderCreationError
+from core.exceptions import WebSocketMessageError
+from core.coinbase_execution_authority import (
+    SOURCE_DISABLED_COINBASE_EXECUTION_ERROR,
+)
 from core.runtime_controller import (
     INFLIGHT_REST_CANCEL,
     EngineNotAdmittingError,
@@ -68,22 +69,6 @@ from core.runtime_controller import (
 )
 from database.database import PostgresDB
 from calculation.formatter import safe_float
-from application.admin_api.command_service import (
-    AdminApiCommandDependencies,
-    AdminApiCommandService,
-    cancel_response_to_dashboard_payload,
-    hotpoint_test_order_response_to_dashboard_payload,
-    manual_order_response_to_dashboard_payload,
-)
-from application.admin_api.models import (
-    AdminApiActor,
-    AdminApiCommandEnvelope,
-    CancelOrderCommand,
-    CancelOrderRequest,
-    ManualOrderCommand,
-    ManualOrderRequest,
-)
-
 # Message types that *originate* new work and are gated on EngineState.RUNNING.
 # Cancellations, queries, and admin commands are intentionally excluded so the
 # engine remains controllable and existing positions can be wound down while
@@ -99,6 +84,12 @@ _ORIGINATING_MSG_TYPES = frozenset({
     "import_stealth_orders",
     "place_hotpoint_test_order",
 })
+
+_SOURCE_DISABLED_EXCHANGE_MUTATION_RESPONSES = {
+    "place_order": "place_order_response",
+    "cancel_order": "cancel_response",
+    "place_hotpoint_test_order": "place_hotpoint_test_order_response",
+}
 
 # Stealth-order statuses considered "active" for export. Derived from the
 # canonical StealthOrderStatus enum by excluding terminal states (EXECUTED,
@@ -146,8 +137,6 @@ logger = get_logger("DashboardServer")
 # Global state
 connected_clients: Set[WebSocketServerProtocol] = set()
 state_lock = Lock()
-_order_event_stream_lock = Lock()
-_order_event_stream_publisher = None
 engine_state = {
     "orders": {},  # order_id -> order_data
     "positions": {},  # product_id -> position_data
@@ -169,89 +158,6 @@ engine_state = {
     "market_metrics": {},  # product_id -> {price, as_of, windows: [{minutes, avg, delta_pct}]}
 }
 max_logs = 100
-
-
-def _get_dashboard_order_event_stream_publisher():
-    """Return the shared order-event publisher for dashboard REST placement."""
-    global _order_event_stream_publisher
-    if _order_event_stream_publisher is not None:
-        return _order_event_stream_publisher
-
-    with _order_event_stream_lock:
-        if _order_event_stream_publisher is not None:
-            return _order_event_stream_publisher
-        try:
-            import database.order as order_db
-            from business.order_event_stream import OrderEventStreamPublisher
-
-            _order_event_stream_publisher = OrderEventStreamPublisher(order_db)
-        except Exception as exc:
-            logger.warning(
-                "dashboard order_event_stream publisher unavailable: %s",
-                exc,
-            )
-            _order_event_stream_publisher = None
-        return _order_event_stream_publisher
-
-
-def _direct_spot_live_acknowledged(order_params: Mapping[str, Any]) -> bool:
-    """Return True when a raw direct spot order includes manual live consent."""
-    direct_ack = order_params.get("manual_live_acknowledgement")
-    if direct_ack is None:
-        direct_ack = order_params.get("manual_live_acknowledged")
-    if isinstance(direct_ack, str):
-        return direct_ack.strip().lower() in {"true", "yes", "1"}
-    return bool(direct_ack)
-
-
-def _dashboard_admin_api_envelope(operator_intent: str) -> AdminApiCommandEnvelope:
-    return AdminApiCommandEnvelope(
-        idempotency_key=f"dashboard:{uuid.uuid4()}",
-        correlation_id=f"dashboard:{uuid.uuid4()}",
-        operator_intent=operator_intent,
-        actor=AdminApiActor(
-            actor_id="legacy-dashboard",
-            roles=[AdminApiRole.TRADER],
-        ),
-    )
-
-
-def _dashboard_command_service() -> AdminApiCommandService:
-    return AdminApiCommandService(
-        AdminApiCommandDependencies(
-            rest_client=REST_CLIENT if REST_CLIENT_AVAILABLE else None,
-            rest_client_available=REST_CLIENT_AVAILABLE,
-            runtime_controller_factory=get_runtime_controller,
-            add_log_entry=add_log_entry,
-            order_event_publisher_getter=_get_dashboard_order_event_stream_publisher,
-            planned_budget_fetcher=_get_dashboard_spot_planned_budget_commitments,
-            lot_authority_evaluator_getter=_get_dashboard_spot_lot_authority_evaluator,
-            uuid_factory=lambda: str(uuid.uuid4()),
-        )
-    )
-
-
-def _manual_order_request_from_dashboard_params(
-    order_params: Mapping[str, Any],
-) -> ManualOrderRequest:
-    order_configuration = order_params.get("order_configuration") or {}
-    inner_key = next(iter(order_configuration), None)
-    inner = order_configuration.get(inner_key, {}) if inner_key else {}
-    order_type = (
-        OrderType.MARKET
-        if str(inner_key or "").startswith("market_")
-        else OrderType.LIMIT
-    )
-    return ManualOrderRequest(
-        product_id=str(order_params.get("product_id") or ""),
-        side=OrderSide(str(order_params.get("side") or "").upper()),
-        order_type=order_type,
-        base_size=inner.get("base_size"),
-        quote_size=inner.get("quote_size"),
-        limit_price=inner.get("limit_price"),
-        post_only=bool(inner.get("post_only", False)),
-        manual_live_acknowledgement=_direct_spot_live_acknowledged(order_params),
-    )
 
 
 # Custom JSON encoder for handling Decimal and other non-standard types
@@ -314,6 +220,11 @@ def _extract_readiness_wallet_available(wallet: Any) -> float:
     return safe_float(raw_balance, default=0.0) or 0.0
 
 
+def _value_blind_exception_detail(exc: BaseException) -> str:
+    """Return a fixed diagnostic that never embeds exception values."""
+    return f"exception_class:{type(exc).__name__}"
+
+
 def _build_wallet_readiness_snapshot() -> Dict[str, Any]:
     fetched_at = datetime.utcnow()
     if not rest_credentials_configured():
@@ -332,7 +243,10 @@ def _build_wallet_readiness_snapshot() -> Dict[str, Any]:
             "fetched_at": None,
             "age_seconds": None,
             "currencies": {},
-            "reason": f"wallet fetch failed: {type(exc).__name__}: {exc}",
+            "reason": (
+                "wallet fetch failed: "
+                f"{_value_blind_exception_detail(exc)}"
+            ),
         }
 
     return {
@@ -455,7 +369,7 @@ def _build_spot_inventory_baseline_summary(product_id: str) -> Dict[str, Any]:
             "lots": [],
             "reason": (
                 "inventory baseline summary failed: "
-                f"{type(exc).__name__}: {exc}"
+                f"{_value_blind_exception_detail(exc)}"
             ),
         }
 
@@ -593,7 +507,10 @@ def _build_spot_sweep_status_payload(
             "type": "spot_sweep_status",
             "status": "error",
             "state_file": str(ledger_path),
-            "message": f"sweep status failed: {type(exc).__name__}: {exc}",
+            "message": (
+                "sweep status failed: "
+                f"{_value_blind_exception_detail(exc)}"
+            ),
         }
 
 
@@ -648,7 +565,10 @@ def _build_spot_sweep_pnl_payload(
         return {
             "type": "spot_sweep_pnl",
             "status": "error",
-            "message": f"sweep P/L report failed: {type(exc).__name__}: {exc}",
+            "message": (
+                "sweep P/L report failed: "
+                f"{_value_blind_exception_detail(exc)}"
+            ),
         }
 
 
@@ -677,7 +597,10 @@ def _build_spot_cost_basis_payload(
             "type": "spot_cost_basis_status",
             "status": "error",
             "state_file": str(ledger_path),
-            "message": f"cost-basis status failed: {type(exc).__name__}: {exc}",
+            "message": (
+                "cost-basis status failed: "
+                f"{_value_blind_exception_detail(exc)}"
+            ),
         }
 
 
@@ -706,7 +629,10 @@ def _build_spot_campaign_payload(
             "type": "spot_campaign_status",
             "status": "error",
             "state_file": str(ledger_path),
-            "message": f"campaign status failed: {type(exc).__name__}: {exc}",
+            "message": (
+                "campaign status failed: "
+                f"{_value_blind_exception_detail(exc)}"
+            ),
         }
 
 
@@ -779,7 +705,10 @@ def _build_spot_direct_order_audit_payload(
             "type": "spot_direct_order_audit",
             "status": "error",
             "client_order_id": client_id,
-            "message": f"direct order audit failed: {type(exc).__name__}: {exc}",
+            "message": (
+                "direct order audit failed: "
+                f"{_value_blind_exception_detail(exc)}"
+            ),
         }
 
 
@@ -1151,7 +1080,6 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
     
     Raises:
         WebSocketMessageError: If message parsing fails or required fields missing
-        OrderCreationError: If order placement fails
         CoinbaseAPIError: If API call fails
     """
     try:
@@ -1167,6 +1095,30 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
         
         # DEBUG: Log all incoming messages
         logger.debug(f"[HANDLER] Received message type: {msg_type}")
+
+        # The legacy dashboard remains a read/control compatibility surface.
+        # Exchange mutations are source-disabled here; the only supported
+        # operator path is the authenticated, RBAC/idempotency/audit-gated
+        # Admin API place/cancel route.
+        disabled_response_type = (
+            _SOURCE_DISABLED_EXCHANGE_MUTATION_RESPONSES.get(msg_type)
+        )
+        if disabled_response_type is not None:
+            await websocket.send(json.dumps({
+                "type": disabled_response_type,
+                "status": "error",
+                "success": False,
+                "error": SOURCE_DISABLED_COINBASE_EXECUTION_ERROR,
+                "message": (
+                    "Legacy dashboard exchange mutation is source-disabled; "
+                    "use the authenticated Admin API operator workflow."
+                ),
+            }))
+            add_log_entry(
+                "WARNING",
+                f"Rejected source-disabled legacy dashboard mutation: {msg_type}",
+            )
+            return
 
         # Admission gate: reject originating-work messages when the engine is
         # not RUNNING (paused / draining / stopped). Cancels, queries, and
@@ -1250,65 +1202,7 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             Thread(target=_drain_worker, daemon=True, name="admin-shutdown-drain").start()
             return
         
-        if msg_type == "place_order":
-            order_params = data.get("params", {})
-            logger.info(f"Order placement requested: {order_params}")
-
-            try:
-                command = ManualOrderCommand(
-                    envelope=_dashboard_admin_api_envelope("dashboard_place_order"),
-                    request=_manual_order_request_from_dashboard_params(order_params),
-                    order_configuration_override=(
-                        order_params.get("order_configuration") or {}
-                    ),
-                    allow_live_execution=True,
-                )
-                service_response = _dashboard_command_service().place_manual_order(
-                    command
-                )
-                response = manual_order_response_to_dashboard_payload(
-                    service_response
-                )
-            except Exception as e:
-                logger.error(f"Order placement failed: {type(e).__name__}: {str(e)}")
-                raise OrderCreationError(
-                    f"Failed to place order: {e}",
-                    client_order_id=None,
-                ) from e
-
-            await websocket.send(json.dumps(response))
-            
-        elif msg_type == "cancel_order":
-            params = data.get("params") or {}
-            client_order_id = data.get("client_order_id") or params.get("client_order_id")
-            logger.info("Cancel requested for client_order_id=%s", client_order_id)
-
-            if not client_order_id:
-                await websocket.send(json.dumps({
-                    "type": "cancel_response",
-                    "status": "error",
-                    "message": (
-                        "Missing client_order_id; pass client_order_id, not "
-                        "order_id, to dashboard cancel_order."
-                    ),
-                }))
-                return
-
-            command = CancelOrderCommand(
-                envelope=_dashboard_admin_api_envelope("dashboard_cancel_order"),
-                client_order_id=str(client_order_id),
-                request=CancelOrderRequest(reason=params.get("reason")),
-                allow_live_execution=True,
-            )
-            response = cancel_response_to_dashboard_payload(
-                _dashboard_command_service().cancel_order_by_client_order_id(
-                    command
-                )
-            )
-            
-            await websocket.send(json.dumps(response))
-            
-        elif msg_type == "request_stealth_orders":
+        if msg_type == "request_stealth_orders":
             # Send current stealth orders snapshot
             await send_stealth_orders_snapshot(websocket)
 
@@ -2443,55 +2337,6 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
                 logger.error(f"set_hotpoint_kill_switch failed: {e}")
                 await websocket.send(json.dumps({
                     "type": "hotpoint_kill_switch_response",
-                    "success": False,
-                    "error": str(e),
-                }))
-
-        elif msg_type == "place_hotpoint_test_order":
-            # Compatibility adapter for the shared hotpoint seed-order service.
-            payload = data.get("order") or {}
-            product_id = str(payload.get("product_id") or "").strip()
-            try:
-                side = OrderSide(str(payload.get("side") or "").upper())
-            except ValueError:
-                side = None
-            try:
-                price = float(payload.get("price"))
-                size = float(payload.get("size"))
-            except (TypeError, ValueError):
-                price = size = 0.0
-
-            if not (product_id and side and price > 0 and size > 0):
-                await websocket.send(json.dumps({
-                    "type": "place_hotpoint_test_order_response",
-                    "success": False,
-                    "error": "invalid_payload",
-                }))
-                return
-
-            try:
-                command = ManualOrderCommand(
-                    envelope=_dashboard_admin_api_envelope("dashboard_hotpoint_test_order"),
-                    request=ManualOrderRequest(
-                        product_id=product_id,
-                        side=side,
-                        order_type=OrderType.LIMIT,
-                        base_size=str(size),
-                        limit_price=str(price),
-                        post_only=False,
-                    ),
-                    allow_live_execution=True,
-                )
-                service_response = (
-                    _dashboard_command_service().place_hotpoint_test_order(command)
-                )
-                await websocket.send(json.dumps(
-                    hotpoint_test_order_response_to_dashboard_payload(service_response)
-                ))
-            except Exception as e:
-                logger.error(f"place_hotpoint_test_order failed: {e}")
-                await websocket.send(json.dumps({
-                    "type": "place_hotpoint_test_order_response",
                     "success": False,
                     "error": str(e),
                 }))

@@ -409,6 +409,52 @@ class StealthCommandAdmissionContextEvidence(BaseModel):
     detail: str
 
 
+class SpotManualOrderProofChainRequest(BaseModel):
+    """Exact first-pass binding asserted for one manual Spot proof chain.
+
+    Unknown browser fields are intentionally ignored. Durable proof ids, caps,
+    and other authoritative evidence are always derived by the backend.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    route: Literal["/api/v1/orders"]
+    method: Literal["POST"]
+    module_id: Literal["spot_operations"]
+    identity_key: Literal["client_order_id"]
+    identity_value: str = Field(min_length=1)
+    action_class: Literal["live_exchange_place"]
+    required_permission: Literal["order:create"]
+    service_method: Literal["place_manual_order"]
+    actor_id: str = Field(min_length=1)
+    operator_intent: str = Field(min_length=1)
+    command_idempotency_key: str = Field(min_length=1)
+    payload_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class SpotCancelOrderProofChainRequest(BaseModel):
+    """Exact first-pass binding asserted for one Spot cancellation proof chain.
+
+    Unknown browser fields are intentionally ignored. Durable proof ids, caps,
+    and other authoritative evidence are always derived by the backend.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    route: Literal["/api/v1/orders/{client_order_id}/cancel"]
+    method: Literal["POST"]
+    module_id: Literal["spot_operations"]
+    identity_key: Literal["client_order_id"]
+    identity_value: str = Field(min_length=1)
+    action_class: Literal["live_exchange_cancel"]
+    required_permission: Literal["order:cancel"]
+    service_method: Literal["cancel_order_by_client_order_id"]
+    actor_id: str = Field(min_length=1)
+    operator_intent: str = Field(min_length=1)
+    command_idempotency_key: str = Field(min_length=1)
+    payload_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 class ManualOrderRequest(BaseModel):
     """Manual order request shape for future enterprise placement."""
 
@@ -1177,7 +1223,7 @@ class FuturesRiskProofRecordRequest(BaseModel):
 
 
 class FuturesPlaceOrderRequest(BaseModel):
-    """Futures/perpetual placement draft request keyed by ``product_id``."""
+    """Source-disabled placement compatibility envelope validated before fixed 501."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -1199,7 +1245,7 @@ class FuturesPlaceOrderRequest(BaseModel):
 
 
 class FuturesCloseReduceRequest(BaseModel):
-    """Futures/perpetual close/reduce draft request keyed by ``position_key``."""
+    """Source-disabled close/reduce envelope validated before fixed 501."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -1220,7 +1266,7 @@ class FuturesCloseReduceRequest(BaseModel):
 
 
 class FuturesCancelOrderRequest(BaseModel):
-    """Futures/perpetual cancel draft request keyed by ``client_order_id``."""
+    """Source-disabled cancel compatibility envelope validated before fixed 501."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -1235,7 +1281,7 @@ class FuturesCancelOrderRequest(BaseModel):
 
 
 class FuturesReconciliationRequest(BaseModel):
-    """Futures/perpetual reconciliation draft request keyed by ``position_key``."""
+    """Source-disabled reconciliation envelope validated before fixed 501."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -1261,6 +1307,7 @@ class ManualOrderCommand(BaseModel):
     admin_approval_snapshot_id: str | None = Field(default=None, min_length=1)
     admin_cap_guard_decision_id: str | None = Field(default=None, min_length=1)
     admin_max_submitted_notional_usdc: DecimalString | None = None
+    admin_max_executed_notional_usdc: DecimalString | None = None
     admission_audit_id: str | None = Field(default=None, min_length=1)
     allow_live_execution: bool = False
 
@@ -1324,6 +1371,27 @@ class CancelOrderCommand(BaseModel):
     client_order_id: str = Field(min_length=1)
     request: CancelOrderRequest
     allow_live_execution: bool = False
+
+
+class ReconcileOrderRequest(BaseModel):
+    """Operator request to synchronize one durable Spot root from Coinbase."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(min_length=1)
+    manual_live_acknowledgement: bool = False
+
+
+class ReconcileOrderCommand(BaseModel):
+    """Shared service command for selected-root readback reconciliation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    audit_id: str = Field(min_length=1)
+    client_order_id: str = Field(min_length=1)
+    request: ReconcileOrderRequest
+    allow_live_read: bool = False
 
 
 class StealthCancelCommand(BaseModel):
@@ -2548,6 +2616,7 @@ class AdminApiCommandResponse(BaseModel):
     audit_id: str | None = None
     live_exchange_submitted: bool = False
     live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
     live_command_runtime_enabled: bool = False
     live_command_rest_client_available: bool = False
     live_command_runtime_ready: bool = False
@@ -2978,9 +3047,9 @@ class UsdcPairSnapshotOrderPlanLiveReadinessListResponse(BaseModel):
     live_coinbase_execution: str = "not_run"
     notional_usdc: DecimalString = "0"
     detail: str = (
-        "M58 USDC pair snapshot live-readiness readback exposes backend-owned "
-        "single-row preflight evidence only; it does not submit Coinbase "
-        "orders, allocate wallet balance, or grant browser execution authority."
+        "M58 live-readiness is offline historical evidence: submit_route_ready "
+        "is always false with m58_operator_workflow_unavailable because all "
+        "installed M58 exchange-submit routes are source-parked."
     )
 
 
@@ -3440,7 +3509,7 @@ class UsdcPairSnapshotAllowlistRunStateRequest(BaseModel):
 
 
 class UsdcPairSnapshotAllowlistRunStateLiveFanoutSubmitRequest(BaseModel):
-    """Explicit M58 live fan-out submit attempt envelope."""
+    """Source-parked M58 fan-out compatibility envelope returning fixed 501."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -3880,7 +3949,7 @@ class UsdcPairSnapshotAllowlistRunStateListResponse(BaseModel):
 
 
 class UsdcPairSnapshotOrderPlanLiveSubmitRequest(BaseModel):
-    """Controlled-live Phase E submit/cancel request for one M58 row."""
+    """Source-parked M58 one-row compatibility envelope returning fixed 501."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -4002,9 +4071,8 @@ class UsdcPairSnapshotOrderPlanLiveSubmitListResponse(BaseModel):
     live_coinbase_execution: str = "not_run"
     notional_usdc: DecimalString = "0"
     detail: str = (
-        "M58 USDC pair snapshot live-submission readback exposes backend-owned "
-        "single-row submit/cancel evidence only; it does not grant browser "
-        "execution authority, fan out orders, or run a scheduler."
+        "Historical M58 submit/cancel evidence may be read, but every current "
+        "installed M58 exchange-submit route is source-parked and unavailable."
     )
 
 
@@ -4109,20 +4177,39 @@ class AdminRuntimeControlResponse(BaseModel):
     action: str
     accepted: bool | None = None
     state: EngineState | str | None = None
+    correlation_id: str
+    idempotency_key: str
+    audit_id: str
+    attempt_audit_id: str | None = None
+    failure_stage: str | None = None
+    idempotency_replayed: bool = False
+    operator: dict[str, Any] = Field(default_factory=dict)
+    audit: dict[str, Any] = Field(default_factory=dict)
     runtime_state_before: str
     runtime_state_after: str
     transition_applied: bool
     runtime_state_mutated: bool
+    local_state_mutated: bool = False
     admitting: bool | None = None
     stopping: bool | None = None
     total_inflight: int = Field(default=0, ge=0)
     inflight: dict[str, int] = Field(default_factory=dict)
+    runtime_source: str = "core.runtime_controller.RuntimeController"
     order_state_mutated: bool = False
     exchange_state_mutated: bool = False
     coinbase_order_submitted: bool = False
     coinbase_order_cancel_submitted: bool = False
     live_exchange_submitted: bool = False
+    live_coinbase_execution: str = "not_run"
     live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    notional_usdc: DecimalString = "0"
+    drain_requested: bool = False
+    drain_executed: bool = False
+    read_only: bool = False
+    frontend_safe: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
 
 
 class AdminAccountRealityEvidence(BaseModel):
@@ -4304,7 +4391,7 @@ class AdminAccountManagementEnvironment(BaseModel):
 
 
 class AdminAccountManagementReadResponse(BaseModel):
-    """Backend-owned Account Management read model for local operators."""
+    """Call-free local Account Management evidence for operators."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -4333,7 +4420,7 @@ class AdminAccountManagementReadResponse(BaseModel):
 
 
 class AdminWalletReadResponse(BaseModel):
-    """Backend-owned wallet inventory and admission input read evidence."""
+    """Call-free local unavailable wallet/admission evidence."""
 
     model_config = ConfigDict(extra="allow")
 
@@ -4362,7 +4449,7 @@ class AdminWalletReadResponse(BaseModel):
 
 
 class AdminFeesReadResponse(BaseModel):
-    """Backend-owned fee evidence read model for admission and risk gates."""
+    """Call-free local unavailable fee evidence."""
 
     model_config = ConfigDict(extra="allow")
 
@@ -4405,8 +4492,127 @@ class AdminMvpEvidenceResponse(BaseModel):
     live_coinbase_orders_ran: bool = False
 
 
+class SpotProofChainTypedProductionStores(BaseModel):
+    """Canonical durable records consumed by the real Spot order routes."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    required: Literal[True]
+    status: Literal["passed"]
+    source: Literal["canonical_admin_api_typed_stores"]
+    approval: FlexibleDict
+    admission_audit: FlexibleDict
+    cap_guard: FlexibleDict
+    reconciliation_plan: FlexibleDict
+    live_exchange_submitted: Literal[False]
+
+
+class SpotManualOrderProofChainEvidence(BaseModel):
+    """Named legacy and canonical evidence produced for manual Spot admission."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    approval_request: FlexibleDict
+    approval_snapshot: FlexibleDict
+    admission_audit: FlexibleDict
+    cap_guard: FlexibleDict
+    reconciliation_plan: FlexibleDict
+    typed_production_stores: SpotProofChainTypedProductionStores
+
+
+class SpotCancelOrderProofChainEvidence(BaseModel):
+    """Named legacy and canonical evidence produced for Spot cancellation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    admission_audit: FlexibleDict
+    cancel_proof_chain: FlexibleDict
+    typed_production_stores: SpotProofChainTypedProductionStores
+
+
+class SpotManualOrderProofChainResponse(BaseModel):
+    """Typed success evidence for the manual Spot composite proof route."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["spot_manual_order_proof_chain_result"]
+    status: Literal["accepted"]
+    route: Literal["/api/v1/spot/manual-order/proof-chain"]
+    method: Literal["POST"]
+    module_id: Literal["spot_operations"]
+    action_class: Literal["local_state_mutation"]
+    required_permission: Literal["spot_manual_order_proof:record"]
+    service_method: Literal["record_spot_manual_order_proof_chain"]
+    message: str = Field(min_length=1)
+    target_route: Literal["/api/v1/orders"]
+    target_method: Literal["POST"]
+    identity_key: Literal["client_order_id"]
+    identity_value: str = Field(min_length=1)
+    command_idempotency_key: str = Field(min_length=1)
+    payload_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    proof_chain_status: AdminApiGateStatus
+    resolved_gate_chain: list[str]
+    missing_gate_chain: list[str]
+    approval_request_id: str = Field(min_length=1)
+    approval_snapshot_id: str = Field(min_length=1)
+    admission_audit_id: str = Field(min_length=1)
+    cap_guard_decision_id: str = Field(min_length=1)
+    reconciliation_plan_id: str = Field(min_length=1)
+    admission_decision: AdminLiveAdmissionDecisionEvidence
+    evidence: SpotManualOrderProofChainEvidence
+    correlation_id: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    audit_id: str = Field(min_length=1)
+    browser_authority: Literal["display_only"]
+    bff_authority: Literal["forward_only_no_execution"]
+    wallet_check_source: Literal["account_management_snapshot"]
+    coinbase_order_submission_allowed: Literal[False]
+    live_exchange_submitted: Literal[False]
+    live_coinbase_execution: Literal["not_run"]
+    notional_usdc: DecimalString
+    live_coinbase_orders_ran: Literal[False]
+
+
+class SpotCancelOrderProofChainResponse(BaseModel):
+    """Typed success evidence for the Spot cancellation composite proof route."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["spot_cancel_order_proof_chain_result"]
+    status: Literal["accepted"]
+    route: Literal["/api/v1/spot/cancel-order/proof-chain"]
+    method: Literal["POST"]
+    module_id: Literal["spot_operations"]
+    action_class: Literal["local_state_mutation"]
+    required_permission: Literal["spot_order_cancel_proof:record"]
+    service_method: Literal["record_spot_cancel_order_proof_chain"]
+    message: str = Field(min_length=1)
+    target_route: Literal["/api/v1/orders/{client_order_id}/cancel"]
+    target_method: Literal["POST"]
+    identity_key: Literal["client_order_id"]
+    identity_value: str = Field(min_length=1)
+    command_idempotency_key: str = Field(min_length=1)
+    payload_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    proof_chain_status: AdminApiGateStatus
+    resolved_gate_chain: list[str]
+    missing_gate_chain: list[str]
+    admission_audit_id: str = Field(min_length=1)
+    cancel_proof_chain_id: str = Field(min_length=1)
+    evidence: SpotCancelOrderProofChainEvidence
+    correlation_id: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    audit_id: str = Field(min_length=1)
+    browser_authority: Literal["display_only"]
+    bff_authority: Literal["forward_only_no_execution"]
+    coinbase_cancel_submission_allowed: Literal[False]
+    live_exchange_submitted: Literal[False]
+    live_coinbase_execution: Literal["not_run"]
+    notional_usdc: DecimalString
+    live_coinbase_orders_ran: Literal[False]
+
+
 class FuturesFillReadbackResponse(AdminMvpEvidenceResponse):
-    """Read-only Futures/Perpetual order fill readback evidence."""
+    """Fixed source-disabled, call-free Futures fill-readback evidence."""
 
     type: str = "admin_futures_order_fill_readback"
     module_id: str = "futures_perpetuals"
@@ -4426,7 +4632,7 @@ class SpotOrderFillReadbackResponse(AdminMvpEvidenceResponse):
 
 
 class AdminProductsReadResponse(BaseModel):
-    """Backend-owned Coinbase product metadata read evidence."""
+    """Call-free local unavailable product metadata evidence."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -4456,7 +4662,7 @@ class AdminProductsReadResponse(BaseModel):
 
 
 class AdminProductsRefreshRequest(BaseModel):
-    """Local product metadata refresh request."""
+    """Source-disabled product refresh compatibility request."""
 
     model_config = ConfigDict(extra="allow")
 
@@ -4465,7 +4671,7 @@ class AdminProductsRefreshRequest(BaseModel):
 
 
 class AdminProductsRefreshResponse(BaseModel):
-    """Backend-owned local product metadata refresh evidence."""
+    """Fixed source-disabled product refresh evidence; no read or write."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -5064,7 +5270,7 @@ class AdminOrderFillFollowUpChildCancelReadinessResponse(BaseModel):
     coinbase_order_cancel_submitted: bool = False
     local_state_mutated: bool = False
     exchange_state_mutated: bool = False
-    browser_authority: str = "display_and_submit_root_only"
+    browser_authority: str = "display_only"
     detail: str
 
 
@@ -6368,12 +6574,14 @@ class AdminFuturesPortfolioBindingEvidence(BaseModel):
         "coinbase_api_key_permissions_and_portfolio_catalog",
         "backend_rest_unavailable",
         "backend_admin_read_contract",
+        "backend_admin_api_local_evidence",
     ]
     freshness_status: Literal[
         "backend_rest_fresh",
         "backend_rest_blocked",
         "local_default_not_connected",
         "offline_fixture",
+        "local_sanitized_evidence",
     ]
     observed_at: str
     permissions_read_ran: bool
@@ -6469,6 +6677,10 @@ class AdminFuturesPositionListResponse(BaseModel):
     command_routes_mode: str = "not_modeled"
     browser_authority: str = "display_only"
     bff_authority: str = "forward_only_no_execution"
+    readback_source: Literal["backend_admin_api_local_evidence"] = (
+        "backend_admin_api_local_evidence"
+    )
+    coinbase_read_attempted: Literal[False] = False
     live_coinbase_read_ran: bool = False
     live_coinbase_execution: str = "not_run"
     notional_usdc: DecimalString = "0"
@@ -6491,6 +6703,10 @@ class AdminFuturesPositionDetailResponse(BaseModel):
     command_routes_mode: str = "not_modeled"
     browser_authority: str = "display_only"
     bff_authority: str = "forward_only_no_execution"
+    readback_source: Literal["backend_admin_api_local_evidence"] = (
+        "backend_admin_api_local_evidence"
+    )
+    coinbase_read_attempted: Literal[False] = False
     live_coinbase_read_ran: bool = False
     live_coinbase_execution: str = "not_run"
     notional_usdc: DecimalString = "0"
@@ -6520,6 +6736,10 @@ class AdminFuturesAccountReadResponse(BaseModel):
     command_routes_mode: str = "not_modeled"
     browser_authority: str = "display_only"
     bff_authority: str = "forward_only_no_execution"
+    readback_source: Literal["backend_admin_api_local_evidence"] = (
+        "backend_admin_api_local_evidence"
+    )
+    coinbase_read_attempted: Literal[False] = False
     live_coinbase_read_ran: bool = False
     live_coinbase_execution: str = "not_run"
     notional_usdc: DecimalString = "0"
@@ -14287,7 +14507,7 @@ class AdminFuturesCommandReadinessDecisionItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     decision: AdminFuturesCommandReadinessDecision = (
-        AdminFuturesCommandReadinessDecision.BLOCKED_BACKEND_CONTRACTS_REQUIRED
+        AdminFuturesCommandReadinessDecision.SOURCE_DISABLED_NOT_IMPLEMENTED
     )
     status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
     ready: bool = False
@@ -14307,7 +14527,7 @@ class AdminFuturesCommandReadinessDecisionItem(BaseModel):
     read_only: bool = True
     spot_rule_authority: bool = False
     browser_authority: str = "display_only"
-    bff_authority: str = "forward_only_no_execution"
+    bff_authority: str = "source_disabled_not_forwarded"
     detail: str
 
 
@@ -14345,7 +14565,7 @@ class AdminFuturesCommandReadinessDecisionSummaryItem(BaseModel):
     read_only: bool = True
     spot_rule_authority: bool = False
     browser_authority: str = "display_only"
-    bff_authority: str = "forward_only_no_execution"
+    bff_authority: str = "source_disabled_not_forwarded"
     detail: str
 
 
@@ -14370,7 +14590,7 @@ class AdminFuturesCommandReadinessClosureStepItem(BaseModel):
     read_only: bool = True
     spot_rule_authority: bool = False
     browser_authority: str = "display_only"
-    bff_authority: str = "forward_only_no_execution"
+    bff_authority: str = "source_disabled_not_forwarded"
     detail: str
 
 
@@ -14401,7 +14621,7 @@ class AdminFuturesCommandEnablementBlockerSummaryItem(BaseModel):
     read_only: bool = True
     spot_rule_authority: bool = False
     browser_authority: str = "display_only"
-    bff_authority: str = "forward_only_no_execution"
+    bff_authority: str = "source_disabled_not_forwarded"
     detail: str
 
 
@@ -14430,7 +14650,7 @@ class AdminFuturesCommandEnablementSequenceStepItem(BaseModel):
     read_only: bool = True
     spot_rule_authority: bool = False
     browser_authority: str = "display_only"
-    bff_authority: str = "forward_only_no_execution"
+    bff_authority: str = "source_disabled_not_forwarded"
     detail: str
 
 
@@ -14463,7 +14683,7 @@ class AdminFuturesCommandEnablementSequenceCommandTraceItem(BaseModel):
     read_only: bool = True
     spot_rule_authority: bool = False
     browser_authority: str = "display_only"
-    bff_authority: str = "forward_only_no_execution"
+    bff_authority: str = "source_disabled_not_forwarded"
     detail: str
 
 
@@ -21178,7 +21398,7 @@ class AdminFuturesCommandContractItem(BaseModel):
     submitted_notional_usdc: DecimalString = "0"
     executed_notional_usdc: DecimalString = "0"
     browser_authority: str = "display_only"
-    bff_authority: str = "forward_only_no_execution"
+    bff_authority: str = "source_disabled_not_forwarded"
     detail: str
 
 
@@ -31903,6 +32123,16 @@ class SpotReadinessResponse(AdminApiReadPayload):
     wallet_snapshot: AdminApiFlexibleObject | None = None
     action_guard_summary: list[AdminApiFlexibleObject] = Field(default_factory=list)
     message: str | None = None
+    blockers: list[str] = Field(default_factory=list)
+    local_only: bool = True
+    values_withheld: bool = True
+    coinbase_read_attempted: bool = False
+    coinbase_read_succeeded: bool = False
+    live_coinbase_read_ran: bool = False
+    external_state_refresh_available: bool = False
+    external_state_refresh_route: str | None = None
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
 
 
 class SpotSweepStatusResponse(AdminApiReadPayload):
@@ -31919,6 +32149,18 @@ class SpotSweepPnlResponse(AdminApiReadPayload):
     pnl_report: AdminApiFlexibleObject | None = None
     read_only_coinbase_requests: list[str] = Field(default_factory=list)
     message: str | None = None
+    requested_product_ids: list[str] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    local_only: bool = True
+    values_withheld: bool = True
+    coinbase_average_cost_requested: bool = False
+    coinbase_read_attempted: bool = False
+    coinbase_read_succeeded: bool = False
+    live_coinbase_read_ran: bool = False
+    external_state_refresh_available: bool = False
+    external_state_refresh_route: str | None = None
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
 
 
 class SpotCostBasisStatusResponse(AdminApiReadPayload):

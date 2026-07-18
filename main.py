@@ -70,6 +70,9 @@ from core.runtime_composition import (
 )
 from core.runtime_controller import get_runtime_controller
 from core.startup_reconciler import run_startup_reconciliation
+from core.coinbase_execution_authority import (
+    SOURCE_DISABLED_COINBASE_EXECUTION_ERROR,
+)
 from dashboard_server import start_dashboard_server, set_stealth_order_bridge, update_order, update_position, add_log_entry, update_engine_status
 
 # Set up custom logging backend to use dashboard's add_log_entry function
@@ -78,6 +81,9 @@ set_backend(add_log_entry)
 if __name__ == "__main__":
     import os
     import sys
+
+    if os.environ.get("COINBASE_EXECUTION_ENABLED") == "1":
+        raise RuntimeError(SOURCE_DISABLED_COINBASE_EXECUTION_ERROR)
 
     embedded_admin_api_requested = (
         build_embedded_admin_api_config() is not None

@@ -1,12 +1,9 @@
-"""Run explicit M58 USDC-pair snapshot live submit/cancel pilot evidence.
+"""Historical M58 USDC-pair snapshot submit/cancel regression helpers.
 
-This helper is backend-only operator tooling. It builds one USDC snapshot,
-derives one order-plan row, records exact durable proof-chain evidence, runs
-the M58 live-readiness preflight, then calls the controlled submit/cancel route.
-It never submits to Coinbase unless ``--confirm-live-submit`` is passed and the
-Admin API live runtime flag is already enabled for this process.
-The optional fan-out attempt mode records the backend live-fanout-submit
-boundary and treats proof-blocked rejection as successful fail-closed evidence.
+The installed CLI mutation path is source-disabled. Operators use the
+authenticated Admin UI/API manual Spot LIMIT/GTC workflow; no CLI flag,
+credential, or local service configuration can enable this entrypoint.
+The callable helpers remain available only for synthetic regression coverage.
 """
 
 from __future__ import annotations
@@ -16,13 +13,14 @@ from collections.abc import Mapping, MutableMapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation, ROUND_CEILING, ROUND_FLOOR
+from functools import wraps
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
 import time
-from typing import Any
+from typing import Any, Callable
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -66,6 +64,9 @@ from core.enums import (  # noqa: E402
     AdminApiLiveExecutionStatus,
     AdminApiPermission,
     OrderSide,
+)
+from core.coinbase_execution_authority import (  # noqa: E402
+    SOURCE_DISABLED_COINBASE_EXECUTION_ERROR,
 )
 from tools import run_admin_api  # noqa: E402
 from tools.coinbase_live_credentials import ensure_live_coinbase_credentials  # noqa: E402
@@ -143,6 +144,13 @@ STATE_LOG_FILENAMES = {
         "admin_api_usdc_pair_snapshot_order_plan_live_submit.jsonl"
     ),
 }
+RUNNER_MUTATED_ENV_NAMES = (
+    *STATE_LOG_FILENAMES,
+    AUTH_TOKEN_ENV,
+    run_admin_api.CORS_ORIGINS_ENV,
+    run_admin_api.ENVIRONMENT_ENV,
+    run_admin_api.OS_TRUSTSTORE_ENV,
+)
 
 
 class LiveSubmitConfirmationError(RuntimeError):
@@ -196,63 +204,14 @@ class UsdcPairSnapshotLiveSubmitConfig:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Create the M58 live-submit parser."""
+    """Create the source-disabled compatibility parser."""
 
-    parser = argparse.ArgumentParser(
-        description="Submit and cancel one M58 USDC snapshot order-plan row."
+    return argparse.ArgumentParser(
+        description=(
+            "Historical M58 snapshot submit/cancel is source-disabled. "
+            "Use the installed authenticated Admin UI/API workflow."
+        )
     )
-    parser.add_argument("--summary-output", type=Path, default=DEFAULT_SUMMARY_OUTPUT)
-    parser.add_argument("--state-dir", type=Path, default=default_state_dir())
-    parser.add_argument("--confirm-live-submit", action="store_true")
-    parser.add_argument("--product-id", required=True)
-    parser.add_argument("--side", choices=("BUY", "SELL"), default="BUY")
-    parser.add_argument(
-        "--submitted-notional-usdc",
-        default=DEFAULT_SUBMITTED_NOTIONAL_USDC,
-    )
-    parser.add_argument(
-        "--max-executed-notional-usdc",
-        default=DEFAULT_MAX_EXECUTED_NOTIONAL_USDC,
-    )
-    parser.add_argument("--reference-bid-price", required=True)
-    parser.add_argument(
-        "--reference-bid-price-source",
-        default="operator_reference_bid_price",
-    )
-    parser.add_argument("--reference-bid-price-captured-at", default=None)
-    parser.add_argument("--last-filled-price", required=True)
-    parser.add_argument(
-        "--last-filled-price-source",
-        default="operator_last_filled_price",
-    )
-    parser.add_argument("--last-filled-price-captured-at", default=None)
-    parser.add_argument("--intended-limit-price", required=True)
-    parser.add_argument("--run-id", default=None)
-    parser.add_argument("--plan-id", default=None)
-    parser.add_argument("--readiness-id", default=None)
-    parser.add_argument("--submission-id", default=None)
-    parser.add_argument("--submit-from-run-state", action="store_true")
-    parser.add_argument("--attempt-live-fanout-from-run-state", action="store_true")
-    parser.add_argument("--allowlist-readiness-id", default=None)
-    parser.add_argument("--run-state-id", default=None)
-    parser.add_argument("--max-fanout-notional-usdc", default="100")
-    parser.add_argument("--retry-budget-per-product", type=int, default=1)
-    parser.add_argument("--run-rate-limit-budget-ref", default=None)
-    parser.add_argument("--run-lock-ref", default=None)
-    parser.add_argument("--rate-limit-window-ref", default=None)
-    parser.add_argument("--idempotency-prefix", default=None)
-    parser.add_argument("--correlation-id", default=None)
-    parser.add_argument("--actor-id", default="local-operator")
-    parser.add_argument("--roles", default="admin,trader")
-    parser.add_argument("--account-id", default=None)
-    parser.add_argument("--portfolio-id", default=None)
-    parser.add_argument("--price-increment", default=DEFAULT_PRICE_INCREMENT)
-    parser.add_argument("--base-increment", default=DEFAULT_BASE_INCREMENT)
-    parser.add_argument("--base-min-size", default=DEFAULT_BASE_MIN_SIZE)
-    parser.add_argument("--quote-increment", default=DEFAULT_QUOTE_INCREMENT)
-    parser.add_argument("--quote-min-size", default=DEFAULT_QUOTE_MIN_SIZE)
-    parser.add_argument("--cancel-rollback-plan-ref", default=None)
-    return parser
 
 
 def config_from_args(args: argparse.Namespace) -> UsdcPairSnapshotLiveSubmitConfig:
@@ -417,6 +376,30 @@ def apply_usdc_pair_state_environment(
     return applied
 
 
+def _preserve_runner_environment(
+    operation: Callable[..., Any],
+) -> Callable[..., Any]:
+    """Restore process-global bindings applied for one in-process runner call."""
+
+    @wraps(operation)
+    def wrapped(*args: Any, **kwargs: Any) -> Any:
+        previous = {
+            env_name: os.environ.get(env_name)
+            for env_name in RUNNER_MUTATED_ENV_NAMES
+        }
+        try:
+            return operation(*args, **kwargs)
+        finally:
+            for env_name, value in previous.items():
+                if value is None:
+                    os.environ.pop(env_name, None)
+                else:
+                    os.environ[env_name] = value
+
+    return wrapped
+
+
+@_preserve_runner_environment
 def run_usdc_pair_snapshot_live_submit(
     config: UsdcPairSnapshotLiveSubmitConfig,
     *,
@@ -1718,28 +1701,13 @@ def write_json(path: Path, payload: Mapping[str, Any]) -> None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run the explicit M58 live submit and write evidence."""
+    """Fail closed before credential, service, state, or SDK access."""
 
-    args = build_parser().parse_args(argv)
-    config = config_from_args(args)
-    try:
-        summary = run_usdc_pair_snapshot_live_submit(config)
-    except LiveSubmitConfirmationError as exc:
-        print(f"Backend M58 live submit blocked: {exc}")
-        return 1
-    except Exception as exc:
-        print(f"Backend M58 live submit blocked: {exc}")
-        return 1
-    summary_output = Path(config.summary_output)
-    write_json(summary_output, summary)
-    print(
-        "Backend M58 live submit: "
-        f"{summary['status']}; live {summary['live_coinbase_execution']}; "
-        f"submitted {summary['submitted_notional_usdc']} USDC; "
-        f"executed {summary['executed_notional_usdc']} USDC; "
-        f"artifact {summary_output.resolve()}"
-    )
-    return 0 if summary["status"] == "passed" else 1
+    parser = build_parser()
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments in (["-h"], ["--help"]):
+        parser.parse_args(arguments)
+    parser.error(SOURCE_DISABLED_COINBASE_EXECUTION_ERROR)
 
 
 if __name__ == "__main__":

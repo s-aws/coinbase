@@ -164,6 +164,8 @@ class AdminApiPermission(str, Enum):
     RECONCILIATION_RECORD = "reconciliation:record"
     ORDER_CREATE = "order:create"
     ORDER_CANCEL = "order:cancel"
+    SPOT_MANUAL_ORDER_PROOF_RECORD = "spot_manual_order_proof:record"
+    SPOT_ORDER_CANCEL_PROOF_RECORD = "spot_order_cancel_proof:record"
     CAMPAIGN_READ = "campaign:read"
     CAMPAIGN_EXECUTE = "campaign:execute"
     SPOT_SWEEP_EXECUTE = "spot_sweep:execute"
@@ -950,6 +952,7 @@ class AdminApiLiveAdmissionBlocker(str, Enum):
     """Blocking reasons before an Admin API command may reach live execution."""
 
     LIVE_EXECUTION_DISABLED = "live_execution_disabled"
+    UNSUPPORTED_LIVE_ROUTE = "unsupported_live_route"
     APPROVAL_SNAPSHOT_MISSING = "approval_snapshot_missing"
     APPROVAL_STORE_MISSING = "approval_store_missing"
     ADMISSION_AUDIT_MISSING = "admission_audit_missing"
@@ -1180,6 +1183,7 @@ class AdminFuturesCommandEvidenceRoute(str, Enum):
 class AdminFuturesCommandReadinessDecision(str, Enum):
     """Backend-owned futures/perpetual command readiness decision states."""
 
+    SOURCE_DISABLED_NOT_IMPLEMENTED = "source_disabled_not_implemented"
     BLOCKED_BACKEND_CONTRACTS_REQUIRED = "blocked_backend_contracts_required"
     READY_FOR_BACKEND_COMMAND_ROUTE = "ready_for_backend_command_route"
 

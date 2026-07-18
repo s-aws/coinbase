@@ -205,6 +205,23 @@ USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_LIVE_FANOUT_SUBMIT_ENDPOINT = (
 USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_LIVE_FANOUT_SUBMIT_SERVICE_METHOD = (
     "submit_usdc_pair_snapshot_allowlist_run_state_live_fanout"
 )
+M58_ADMIN_API_EXCHANGE_EXECUTION_AVAILABLE = False
+M58_OPERATOR_WORKFLOW_UNAVAILABLE = "m58_operator_workflow_unavailable"
+
+
+class M58OperatorWorkflowUnavailableError(RuntimeError):
+    """Raised at the final M58 API boundary while the workflow is parked."""
+
+
+def _require_m58_admin_api_exchange_execution_available() -> None:
+    """Keep unsupported M58 exchange execution unreachable from FastAPI."""
+
+    if not M58_ADMIN_API_EXCHANGE_EXECUTION_AVAILABLE:
+        raise M58OperatorWorkflowUnavailableError(
+            M58_OPERATOR_WORKFLOW_UNAVAILABLE
+        )
+
+
 USDC_PAIR_SNAPSHOT_MODULE_ID = "automation"
 USDC_PAIR_SNAPSHOT_PROOF_BLOCKERS = [
     "approval_snapshot_missing",
@@ -535,13 +552,6 @@ LIVE_READINESS_ROUTE_RESPONSES = {
 }
 
 LIVE_SUBMIT_ROUTE_RESPONSES = {
-    200: {
-        "model": UsdcPairSnapshotOrderPlanLiveSubmitResponse,
-        "description": (
-            "USDC pair snapshot order-plan controlled-live submit/cancel "
-            "accepted, rejected, or replayed."
-        ),
-    },
     401: {
         "model": AdminApiErrorResponse,
         "description": "Missing or invalid Admin API authentication.",
@@ -550,9 +560,12 @@ LIVE_SUBMIT_ROUTE_RESPONSES = {
         "model": AdminApiErrorResponse,
         "description": "Actor lacks the required Admin API permission.",
     },
-    409: {
+    501: {
         "model": UsdcPairSnapshotOrderPlanLiveSubmitResponse,
-        "description": "Idempotency key conflict.",
+        "description": (
+            "M58 exchange execution is source-parked because it is not an "
+            "operator-ready MVP workflow."
+        ),
     },
 }
 
@@ -634,20 +647,40 @@ def get_usdc_pair_snapshot_order_plan_live_submit_store() -> (
     return FileUsdcPairSnapshotOrderPlanLiveSubmitStore()
 
 
+class ParkedUsdcPairSnapshotLiveOrderExecutor(
+    UsdcPairSnapshotLiveOrderExecutor
+):
+    """Installed FastAPI adapter that cannot submit or cancel M58 orders."""
+
+    def submit_and_cancel(self, **_: Any) -> dict[str, Any]:
+        _require_m58_admin_api_exchange_execution_available()
+        raise AssertionError("unreachable")
+
+
+class ParkedUsdcPairSnapshotLiveFanoutExecutor(
+    UsdcPairSnapshotLiveFanoutExecutor
+):
+    """Installed FastAPI adapter that cannot run M58 order fan-out."""
+
+    def submit_and_cancel_all(self, **_: Any) -> dict[str, Any]:
+        _require_m58_admin_api_exchange_execution_available()
+        raise AssertionError("unreachable")
+
+
 def get_usdc_pair_snapshot_live_order_executor() -> (
     UsdcPairSnapshotLiveOrderExecutor
 ):
-    """Return the backend-only M58 controlled-live order executor."""
+    """Return the source-parked M58 Admin API order executor."""
 
-    return UsdcPairSnapshotLiveOrderExecutor()
+    return ParkedUsdcPairSnapshotLiveOrderExecutor()
 
 
 def get_usdc_pair_snapshot_live_fanout_executor() -> (
     UsdcPairSnapshotLiveFanoutExecutor
 ):
-    """Return the backend-only M58 controlled-live fan-out executor."""
+    """Return the source-parked M58 Admin API fan-out executor."""
 
-    return UsdcPairSnapshotLiveFanoutExecutor()
+    return ParkedUsdcPairSnapshotLiveFanoutExecutor()
 
 
 def get_idempotency_store() -> FileIdempotencyStore:
@@ -1187,6 +1220,11 @@ def _allowlist_run_state_list_response(
 def _live_readiness_item_from_record(
     record: UsdcPairSnapshotOrderPlanLiveReadinessRecord,
 ) -> UsdcPairSnapshotOrderPlanLiveReadinessItem:
+    submit_blockers = list(
+        dict.fromkeys(
+            [M58_OPERATOR_WORKFLOW_UNAVAILABLE, *record.submit_blockers]
+        )
+    )
     return UsdcPairSnapshotOrderPlanLiveReadinessItem(
         readiness_id=record.readiness_id,
         plan_id=record.plan_id,
@@ -1221,10 +1259,14 @@ def _live_readiness_item_from_record(
         quote_size=record.quote_size,
         min_base_size=record.min_base_size,
         min_quote_size=record.min_quote_size,
-        preflight_passed=record.preflight_passed,
-        preflight_blockers=record.preflight_blockers,
-        submit_route_ready=record.submit_route_ready,
-        submit_blockers=record.submit_blockers,
+        preflight_passed=False,
+        preflight_blockers=list(
+            dict.fromkeys(
+                [M58_OPERATOR_WORKFLOW_UNAVAILABLE, *record.preflight_blockers]
+            )
+        ),
+        submit_route_ready=False,
+        submit_blockers=submit_blockers,
         cancel_before_additional_orders=record.cancel_before_additional_orders,
         cancel_rollback_plan_ref=record.cancel_rollback_plan_ref,
         full_snapshot_fill_test=record.full_snapshot_fill_test,
@@ -1247,7 +1289,10 @@ def _live_readiness_item_from_record(
         payload_hash=record.payload_hash,
         audit_id=record.audit_id,
         operator_notes=record.operator_notes,
-        detail=record.detail,
+        detail=(
+            "M58 live-readiness evidence is offline preflight history only; "
+            "the installed submit workflow is source-parked and unavailable."
+        ),
     )
 
 
@@ -1323,7 +1368,11 @@ def _live_submit_item_from_record(
         live_coinbase_orders_ran=record.live_coinbase_orders_ran,
         live_coinbase_execution=record.live_coinbase_execution,
         notional_usdc=record.notional_usdc,
-        detail=record.detail,
+        detail=(
+            "Historical or synthetic M58 submit/cancel evidence only; all "
+            "installed M58 exchange-submit routes are source-parked and "
+            "unavailable."
+        ),
     )
 
 
@@ -1570,6 +1619,8 @@ def _live_readiness_base_response(
 def _live_submit_http_status(
     response: UsdcPairSnapshotOrderPlanLiveSubmitResponse,
 ) -> int:
+    if response.status == AdminApiCommandStatus.NOT_IMPLEMENTED:
+        return status.HTTP_501_NOT_IMPLEMENTED
     if response.status == AdminApiCommandStatus.CONFLICT:
         return status.HTTP_409_CONFLICT
     return status.HTTP_200_OK
@@ -2267,6 +2318,31 @@ def _execute_idempotent_live_readiness(
     return _live_readiness_response(response)
 
 
+def _source_disabled_m58_live_submit_response(
+    *,
+    actor: AdminApiActor,
+    idempotency_key: str,
+    correlation_id: str,
+    service_method: str,
+) -> JSONResponse:
+    """Return the fixed M58 501 before any executable dependency or store."""
+
+    require_permission(actor, AdminApiPermission.CAMPAIGN_EXECUTE)
+    return _live_submit_response(
+        _live_submit_base_response(
+            status_value=AdminApiCommandStatus.NOT_IMPLEMENTED,
+            message=(
+                "M58 exchange execution is parked: "
+                "m58_operator_workflow_unavailable."
+            ),
+            correlation_id=correlation_id,
+            idempotency_key=idempotency_key,
+            failure_stage=M58_OPERATOR_WORKFLOW_UNAVAILABLE,
+            service_method=service_method,
+        )
+    )
+
+
 def _execute_idempotent_live_submit(
     *,
     idempotency_key: str,
@@ -2291,11 +2367,37 @@ def _execute_idempotent_live_submit(
     cache_rejected_response: bool = False,
 ) -> JSONResponse:
     require_permission(actor, AdminApiPermission.CAMPAIGN_EXECUTE)
+
+    def parked_response() -> JSONResponse:
+        response = _live_submit_base_response(
+            status_value=AdminApiCommandStatus.NOT_IMPLEMENTED,
+            message=(
+                "M58 exchange execution is parked: "
+                "m58_operator_workflow_unavailable."
+            ),
+            correlation_id=request_id,
+            idempotency_key=idempotency_key,
+            failure_stage=M58_OPERATOR_WORKFLOW_UNAVAILABLE,
+            service_method=service_method,
+        )
+        return _live_submit_response(response)
+
+    # The installed M58 exchange path is literally source-parked.  This fixed
+    # boundary precedes replay/conflict checks and any operation, audit, or
+    # persistence callback so dependency substitution cannot turn it on.
+    if not M58_ADMIN_API_EXCHANGE_EXECUTION_AVAILABLE:
+        return parked_response()
+
     check = idempotency_store.evaluate(
         idempotency_key=idempotency_key,
         payload_hash=payload_hash,
     )
     if check.decision == AdminApiIdempotencyDecision.REPLAY and check.record:
+        if (
+            not M58_ADMIN_API_EXCHANGE_EXECUTION_AVAILABLE
+            and check.record.status == AdminApiCommandStatus.ACCEPTED
+        ):
+            return parked_response()
         return _live_submit_response(
             UsdcPairSnapshotOrderPlanLiveSubmitResponse.model_validate(
                 check.record.response
@@ -2344,6 +2446,8 @@ def _execute_idempotent_live_submit(
             submissions=submissions,
             service_method=service_method,
         )
+    except M58OperatorWorkflowUnavailableError:
+        return parked_response()
     except UsdcPairSnapshotError as exc:
         response = _live_submit_base_response(
             status_value=AdminApiCommandStatus.REJECTED,
@@ -6840,8 +6944,8 @@ def _record_usdc_pair_live_readiness_preflight(
         min_quote_size=row.min_quote_size,
         preflight_passed=True,
         preflight_blockers=[],
-        submit_route_ready=True,
-        submit_blockers=[],
+        submit_route_ready=False,
+        submit_blockers=[M58_OPERATOR_WORKFLOW_UNAVAILABLE],
         cancel_before_additional_orders=body.cancel_before_additional_orders,
         cancel_rollback_plan_ref=body.cancel_rollback_plan_ref,
         full_snapshot_fill_test=body.full_snapshot_fill_test,
@@ -6858,9 +6962,9 @@ def _record_usdc_pair_live_readiness_preflight(
         audit_id=audit_id,
         operator_notes=body.operator_notes,
         detail=(
-            "M58 Phase E readiness preflight accepted for one backend-owned "
-            "USDC spot order-plan row. Coinbase submission is available only "
-            "through the separate backend controlled-live submit/cancel route."
+            "M58 Phase E offline readiness preflight accepted for one "
+            "backend-owned USDC Spot order-plan row; the installed submit "
+            "workflow is source-parked and unavailable."
         ),
     )
     readiness_store.append(record)
@@ -11813,418 +11917,80 @@ def record_usdc_pair_snapshot_order_plan_live_readiness(
 @router.post(
     "/automation/usdc-pair-snapshot-order-plans/{plan_id}/live-submit",
     response_model=UsdcPairSnapshotOrderPlanLiveSubmitResponse,
-    status_code=status.HTTP_200_OK,
+    status_code=status.HTTP_501_NOT_IMPLEMENTED,
     responses=LIVE_SUBMIT_ROUTE_RESPONSES,
-    summary="Submit and cancel one backend-owned USDC pair snapshot order",
+    summary="Source-parked M58 one-order exchange submission contract",
 )
 def submit_usdc_pair_snapshot_order_plan_live_order(
-    request: Request,
     plan_id: str,
     body: UsdcPairSnapshotOrderPlanLiveSubmitRequest,
     idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
     correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
     operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
-    order_plan_store: Annotated[
-        FileUsdcPairSnapshotOrderPlanStore,
-        Depends(get_usdc_pair_snapshot_order_plan_store),
-    ],
-    readiness_store: Annotated[
-        FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
-        Depends(get_usdc_pair_snapshot_order_plan_live_readiness_store),
-    ],
-    cap_guard_store: Annotated[
-        FileAdminApiCapGuardStore,
-        Depends(get_usdc_pair_snapshot_cap_guard_store),
-    ],
-    live_service_decision_store: Annotated[
-        FileAdminApiLiveServiceDecisionStore,
-        Depends(get_usdc_pair_snapshot_live_service_decision_store),
-    ],
-    submit_store: Annotated[
-        FileUsdcPairSnapshotOrderPlanLiveSubmitStore,
-        Depends(get_usdc_pair_snapshot_order_plan_live_submit_store),
-    ],
-    executor: Annotated[
-        UsdcPairSnapshotLiveOrderExecutor,
-        Depends(get_usdc_pair_snapshot_live_order_executor),
-    ],
-    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
-    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
 ) -> JSONResponse:
-    """Submit one preflighted M58 order and cancel before any additional order."""
+    """Return parked evidence for the unsupported M58 operator workflow."""
 
-    endpoint = f"{request.method} {request.url.path}"
-    payload_hash = _payload_hash(
-        endpoint=endpoint,
+    del plan_id, body, operator_intent
+    return _source_disabled_m58_live_submit_response(
         actor=actor,
-        operator_intent=operator_intent,
-        body=body.model_dump(mode="json"),
-    )
-
-    def operation(audit_id: str) -> UsdcPairSnapshotOrderPlanLiveSubmitItem:
-        plan = order_plan_store.find_by_plan_id(plan_id)
-        if plan is None:
-            raise UsdcPairSnapshotError(
-                "USDC pair snapshot order-plan not found."
-            )
-        matching_plan_rows = _matching_usdc_pair_order_plan_rows(
-            plan,
-            product_id=body.product_id,
-            client_order_id=body.client_order_id,
-        )
-        row = matching_plan_rows[0] if matching_plan_rows else None
-        if row is None:
-            raise UsdcPairSnapshotError(
-                "USDC pair snapshot order-plan row not found."
-            )
-        if len(matching_plan_rows) > 1:
-            raise UsdcPairSnapshotError(
-                "USDC pair snapshot order-plan row ambiguous: "
-                "order_plan_row_selection_ambiguous."
-            )
-        readiness = _find_usdc_pair_live_readiness_record(
-            store=readiness_store,
-            readiness_id=body.readiness_id,
-            product_id=body.product_id,
-            client_order_id=body.client_order_id,
-        )
-        if readiness is None:
-            raise UsdcPairSnapshotError(
-                "USDC pair snapshot live-readiness record not found."
-            )
-        return _record_usdc_pair_live_submission(
-            plan=plan,
-            row=row,
-            readiness=readiness,
-            body=body,
-            cap_guard_store=cap_guard_store,
-            live_service_decision_store=live_service_decision_store,
-            submit_store=submit_store,
-            executor=executor,
-            actor=actor,
-            operator_intent=operator_intent,
-            idempotency_key=idempotency_key,
-            payload_hash=payload_hash,
-            audit_id=audit_id,
-        )
-
-    return _execute_idempotent_live_submit(
         idempotency_key=idempotency_key,
-        payload_hash=payload_hash,
-        actor=actor,
-        request_id=correlation_id,
-        operator_intent=operator_intent,
-        idempotency_store=idempotency_store,
-        audit_store=audit_store,
-        operation=operation,
-        cache_rejected_response=True,
+        correlation_id=correlation_id,
+        service_method=USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_SUBMIT_SERVICE_METHOD,
     )
 
 
 @router.post(
     "/automation/usdc-pair-snapshot-allowlist-run-states/{run_state_id}/live-submit",
     response_model=UsdcPairSnapshotOrderPlanLiveSubmitResponse,
-    status_code=status.HTTP_200_OK,
+    status_code=status.HTTP_501_NOT_IMPLEMENTED,
     responses=LIVE_SUBMIT_ROUTE_RESPONSES,
-    summary="Submit and cancel one USDC pair snapshot order from run-state evidence",
+    summary="Source-parked M58 run-state exchange submission contract",
 )
 def submit_usdc_pair_snapshot_allowlist_run_state_live_order(
-    request: Request,
     run_state_id: str,
     body: UsdcPairSnapshotOrderPlanLiveSubmitRequest,
     idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
     correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
     operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
-    run_state_store: Annotated[
-        FileUsdcPairSnapshotAllowlistRunStateStore,
-        Depends(get_usdc_pair_snapshot_allowlist_run_state_store),
-    ],
-    order_plan_store: Annotated[
-        FileUsdcPairSnapshotOrderPlanStore,
-        Depends(get_usdc_pair_snapshot_order_plan_store),
-    ],
-    readiness_store: Annotated[
-        FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
-        Depends(get_usdc_pair_snapshot_order_plan_live_readiness_store),
-    ],
-    cap_guard_store: Annotated[
-        FileAdminApiCapGuardStore,
-        Depends(get_usdc_pair_snapshot_cap_guard_store),
-    ],
-    live_service_decision_store: Annotated[
-        FileAdminApiLiveServiceDecisionStore,
-        Depends(get_usdc_pair_snapshot_live_service_decision_store),
-    ],
-    live_wallet_reservation_store: Annotated[
-        FileUsdcPairSnapshotLiveWalletReservationStore,
-        Depends(get_usdc_pair_snapshot_live_wallet_reservation_store),
-    ],
-    live_wallet_ledger_store: Annotated[
-        FileUsdcPairSnapshotLiveWalletLedgerStore,
-        Depends(get_usdc_pair_snapshot_live_wallet_ledger_store),
-    ],
-    submit_store: Annotated[
-        FileUsdcPairSnapshotOrderPlanLiveSubmitStore,
-        Depends(get_usdc_pair_snapshot_order_plan_live_submit_store),
-    ],
-    executor: Annotated[
-        UsdcPairSnapshotLiveOrderExecutor,
-        Depends(get_usdc_pair_snapshot_live_order_executor),
-    ],
-    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
-    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
 ) -> JSONResponse:
-    """Submit one run-state-selected M58 order and cancel before any additional order."""
+    """Return parked evidence for the unsupported M58 operator workflow."""
 
-    endpoint = f"{request.method} {request.url.path}"
-    payload_hash = _payload_hash(
-        endpoint=endpoint,
+    del run_state_id, body, operator_intent
+    return _source_disabled_m58_live_submit_response(
         actor=actor,
-        operator_intent=operator_intent,
-        body=body.model_dump(mode="json"),
-    )
-
-    def operation(audit_id: str) -> UsdcPairSnapshotOrderPlanLiveSubmitItem:
-        run_state = run_state_store.find_by_run_state_id(run_state_id)
-        if run_state is None:
-            raise UsdcPairSnapshotError(
-                "USDC pair snapshot allowlist run-state was not found."
-            )
-        product_row = _validate_usdc_pair_allowlist_run_state_live_submit(
-            run_state=run_state,
-            run_state_store=run_state_store,
-            body=body,
-        )
-        plan = order_plan_store.find_by_plan_id(run_state.plan_id)
-        if plan is None:
-            raise UsdcPairSnapshotError(
-                "USDC pair snapshot order-plan not found."
-            )
-        matching_plan_rows = _matching_usdc_pair_order_plan_rows(
-            plan,
-            product_id=body.product_id,
-            client_order_id=body.client_order_id,
-        )
-        row = matching_plan_rows[0] if matching_plan_rows else None
-        if row is None:
-            raise UsdcPairSnapshotError(
-                "USDC pair snapshot order-plan row not found."
-            )
-        if len(matching_plan_rows) > 1:
-            raise UsdcPairSnapshotError(
-                "USDC pair snapshot order-plan row ambiguous: "
-                "order_plan_row_selection_ambiguous."
-            )
-        readiness = _find_usdc_pair_live_readiness_record(
-            store=readiness_store,
-            readiness_id=body.readiness_id,
-            product_id=body.product_id,
-            client_order_id=body.client_order_id,
-        )
-        if readiness is None:
-            raise UsdcPairSnapshotError(
-                "USDC pair snapshot live-readiness record not found."
-            )
-        _validate_usdc_pair_allowlist_run_state_live_submit_association(
-            run_state=run_state,
-            product_row=product_row,
-            plan=plan,
-            readiness=readiness,
-        )
-        _validate_usdc_pair_allowlist_run_state_live_submit_queued_live_readiness(
-            run_state=run_state,
-            selected_product_row=product_row,
-            readiness_store=readiness_store,
-            live_service_decision_store=live_service_decision_store,
-        )
-        _validate_usdc_pair_allowlist_run_state_live_submit_queued_cap_guard(
-            run_state=run_state,
-            selected_product_row=product_row,
-            cap_guard_store=cap_guard_store,
-        )
-        _validate_usdc_pair_allowlist_run_state_live_submit_queued_order_plan(
-            run_state=run_state,
-            selected_product_row=product_row,
-            plan=plan,
-            readiness_store=readiness_store,
-        )
-        _validate_usdc_pair_allowlist_run_state_live_submit_wallet_evidence(
-            run_state=run_state,
-            product_row=product_row,
-            reservation_store=live_wallet_reservation_store,
-        )
-        _validate_usdc_pair_allowlist_run_state_live_submit_wallet_ledger(
-            run_state=run_state,
-            ledger_store=live_wallet_ledger_store,
-        )
-        return _record_usdc_pair_live_submission(
-            plan=plan,
-            row=row,
-            readiness=readiness,
-            body=body,
-            cap_guard_store=cap_guard_store,
-            live_service_decision_store=live_service_decision_store,
-            submit_store=submit_store,
-            executor=executor,
-            actor=actor,
-            operator_intent=operator_intent,
-            idempotency_key=idempotency_key,
-            payload_hash=payload_hash,
-            audit_id=audit_id,
-            live_submit_source="allowlist_run_state",
-            run_state_id=run_state.run_state_id,
-        )
-
-    return _execute_idempotent_live_submit(
         idempotency_key=idempotency_key,
-        payload_hash=payload_hash,
-        actor=actor,
-        request_id=correlation_id,
-        operator_intent=operator_intent,
-        idempotency_store=idempotency_store,
-        audit_store=audit_store,
-        operation=operation,
-        endpoint=USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_LIVE_SUBMIT_ENDPOINT,
+        correlation_id=correlation_id,
         service_method=(
             USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_LIVE_SUBMIT_SERVICE_METHOD
         ),
-        failure_stage="usdc_pair_snapshot_allowlist_run_state_live_submit",
-        accepted_message=(
-            "USDC pair snapshot allowlist run-state controlled-live "
-            "submit/cancel accepted for one selected order."
-        ),
-        cache_rejected_response=True,
     )
 
 
 @router.post(
     "/automation/usdc-pair-snapshot-allowlist-run-states/{run_state_id}/live-fanout-submit",
     response_model=UsdcPairSnapshotOrderPlanLiveSubmitResponse,
-    status_code=status.HTTP_200_OK,
+    status_code=status.HTTP_501_NOT_IMPLEMENTED,
     responses=LIVE_SUBMIT_ROUTE_RESPONSES,
-    summary="Submit/cancel backend-owned USDC pair snapshot run-state live fan-out",
+    summary="Source-parked M58 fan-out exchange submission contract",
 )
 def submit_usdc_pair_snapshot_allowlist_run_state_live_fanout(
-    request: Request,
     run_state_id: str,
     body: UsdcPairSnapshotAllowlistRunStateLiveFanoutSubmitRequest,
     idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
     correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
     operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
-    run_state_store: Annotated[
-        FileUsdcPairSnapshotAllowlistRunStateStore,
-        Depends(get_usdc_pair_snapshot_allowlist_run_state_store),
-    ],
-    allowlist_readiness_store: Annotated[
-        FileUsdcPairSnapshotOrderPlanAllowlistReadinessStore,
-        Depends(get_usdc_pair_snapshot_order_plan_allowlist_readiness_store),
-    ],
-    order_plan_store: Annotated[
-        FileUsdcPairSnapshotOrderPlanStore,
-        Depends(get_usdc_pair_snapshot_order_plan_store),
-    ],
-    readiness_store: Annotated[
-        FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
-        Depends(get_usdc_pair_snapshot_order_plan_live_readiness_store),
-    ],
-    cap_guard_store: Annotated[
-        FileAdminApiCapGuardStore,
-        Depends(get_usdc_pair_snapshot_cap_guard_store),
-    ],
-    live_service_decision_store: Annotated[
-        FileAdminApiLiveServiceDecisionStore,
-        Depends(get_usdc_pair_snapshot_live_service_decision_store),
-    ],
-    live_wallet_reservation_store: Annotated[
-        FileUsdcPairSnapshotLiveWalletReservationStore,
-        Depends(get_usdc_pair_snapshot_live_wallet_reservation_store),
-    ],
-    live_wallet_ledger_store: Annotated[
-        FileUsdcPairSnapshotLiveWalletLedgerStore,
-        Depends(get_usdc_pair_snapshot_live_wallet_ledger_store),
-    ],
-    submit_store: Annotated[
-        FileUsdcPairSnapshotOrderPlanLiveSubmitStore,
-        Depends(get_usdc_pair_snapshot_order_plan_live_submit_store),
-    ],
-    fanout_executor: Annotated[
-        UsdcPairSnapshotLiveFanoutExecutor,
-        Depends(get_usdc_pair_snapshot_live_fanout_executor),
-    ],
-    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
-    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
 ) -> JSONResponse:
-    """Submit queued M58 products through backend fan-out and cancel each one."""
+    """Return parked evidence for the unsupported M58 fan-out workflow."""
 
-    endpoint = f"{request.method} {request.url.path}"
-    payload_hash = _payload_hash(
-        endpoint=endpoint,
+    del run_state_id, body, operator_intent
+    return _source_disabled_m58_live_submit_response(
         actor=actor,
-        operator_intent=operator_intent,
-        body=body.model_dump(mode="json"),
-    )
-
-    def operation(audit_id: str) -> list[UsdcPairSnapshotOrderPlanLiveSubmitItem]:
-        run_state = run_state_store.find_by_run_state_id(run_state_id)
-        if run_state is None:
-            raise UsdcPairSnapshotError(
-                "USDC pair snapshot allowlist run-state was not found."
-            )
-        allowlist_readiness = allowlist_readiness_store.find_by_readiness_id(
-            run_state.readiness_id
-        )
-        plan = order_plan_store.find_by_plan_id(run_state.plan_id)
-        if plan is None:
-            raise UsdcPairSnapshotError(
-                "USDC pair snapshot order-plan not found."
-            )
-        _validate_usdc_pair_allowlist_run_state_live_fanout_submit(
-            run_state=run_state,
-            run_state_store=run_state_store,
-            body=body,
-            allowlist_readiness=allowlist_readiness,
-            plan=plan,
-            readiness_store=readiness_store,
-            cap_guard_store=cap_guard_store,
-            live_service_decision_store=live_service_decision_store,
-            reservation_store=live_wallet_reservation_store,
-            ledger_store=live_wallet_ledger_store,
-        )
-        return _record_usdc_pair_live_fanout_submissions(
-            run_state=run_state,
-            plan=plan,
-            body=body,
-            readiness_store=readiness_store,
-            submit_store=submit_store,
-            executor=fanout_executor,
-            actor=actor,
-            operator_intent=operator_intent,
-            idempotency_key=idempotency_key,
-            payload_hash=payload_hash,
-            audit_id=audit_id,
-        )
-
-    return _execute_idempotent_live_submit(
         idempotency_key=idempotency_key,
-        payload_hash=payload_hash,
-        actor=actor,
-        request_id=correlation_id,
-        operator_intent=operator_intent,
-        idempotency_store=idempotency_store,
-        audit_store=audit_store,
-        operation=operation,
-        endpoint=USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_LIVE_FANOUT_SUBMIT_ENDPOINT,
+        correlation_id=correlation_id,
         service_method=(
             USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_LIVE_FANOUT_SUBMIT_SERVICE_METHOD
         ),
-        failure_stage=(
-            "usdc_pair_snapshot_allowlist_run_state_live_fanout_submit"
-        ),
-        accepted_message=(
-            "USDC pair snapshot allowlist run-state live fan-out submit accepted."
-        ),
-        cache_rejected_response=True,
     )

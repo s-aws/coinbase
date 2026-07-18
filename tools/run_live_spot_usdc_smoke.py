@@ -1,7 +1,8 @@
-"""Run an explicitly approved live Coinbase USDC spot smoke test.
+"""Historical Coinbase USDC spot smoke helpers with mutation mode disabled.
 
-This tool places real Coinbase Advanced Trade orders. It is intentionally kept
-outside the default regression and external test gates.
+The CLI is source-disabled and exits before SDK construction. Pure helper
+functions remain for regression and forensic compatibility only; Controlled-
+live operator execution uses authenticated Admin API manual Spot place/cancel.
 """
 
 from __future__ import annotations
@@ -19,6 +20,11 @@ from pathlib import Path
 from typing import Any
 
 from coinbase.rest import RESTClient
+from core.coinbase_execution_authority import (
+    CoinbaseExecutionAuthorityError,
+    SOURCE_DISABLED_COINBASE_EXECUTION_ERROR,
+    require_coinbase_execution_authority,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -30,6 +36,12 @@ from core.enums import SpotFillBackfillStatus, SpotLiveReconciliationGateStatus
 
 SUMMARY_PREFIX = "LIVE_COINBASE_SPOT_SMOKE_SUMMARY "
 DEFAULT_AUDIT_FILE = Path("runtime_state") / "live_spot_usdc_smoke.jsonl"
+
+
+def _value_blind_exception_detail(exc: BaseException) -> str:
+    """Classify an exception without returning exception-carried values."""
+
+    return f"exception_class:{type(exc).__name__}"
 
 
 def _append_jsonl(path: Path, record: dict[str, Any]) -> None:
@@ -52,6 +64,7 @@ class LiveOrderReport:
     status: str
     base_size: str | None = None
     response_success: bool | None = None
+    submission_attempted: bool = False
     error: str | None = None
 
 
@@ -156,10 +169,12 @@ def _first_previewable_product(
                 )
             )
         except Exception as exc:  # pragma: no cover - live integration path
-            errors.append((product.get("product_id"), str(exc).splitlines()[0]))
+            errors.append(
+                (product.get("product_id"), _value_blind_exception_detail(exc))
+            )
             continue
         if preview.get("errs"):
-            errors.append((product.get("product_id"), str(preview.get("errs"))))
+            errors.append((product.get("product_id"), "preview_rejected"))
             continue
         return product, quote_size, preview
     raise RuntimeError(f"No previewable live USDC spot product found: {errors[:5]}")
@@ -180,11 +195,48 @@ def _response_success(response: dict[str, Any]) -> bool | None:
     success = response.get("success")
     if isinstance(success, bool):
         return success
-    if response.get("success_response"):
-        return True
-    if response.get("error_response") or response.get("failure_reason"):
-        return False
     return None
+
+
+def _create_response_error_code(
+    response_success: bool | None,
+    order_id: str | None,
+) -> str | None:
+    if response_success is False:
+        return "coinbase_create_explicitly_rejected"
+    if response_success is None:
+        return "coinbase_create_acceptance_unknown"
+    if not order_id:
+        return "coinbase_create_order_id_missing"
+    return None
+
+
+_EXCHANGE_ORDER_STATUSES = {
+    "CANCELLED",
+    "CANCEL_QUEUED",
+    "EXPIRED",
+    "FAILED",
+    "FILLED",
+    "OPEN",
+    "PENDING",
+    "REJECTED",
+}
+
+
+def _submission_status(
+    *,
+    response_success: bool | None,
+    order_id: str | None,
+    exchange_order: dict[str, Any] | None = None,
+) -> str:
+    observed_status = str((exchange_order or {}).get("status") or "").upper()
+    if observed_status in _EXCHANGE_ORDER_STATUSES:
+        return observed_status
+    if response_success is False:
+        return "rejected"
+    if response_success is None or not order_id:
+        return "unknown"
+    return "submitted"
 
 
 def _poll_order(client: RESTClient, order_id: str, timeout_seconds: float = 15.0) -> dict[str, Any]:
@@ -265,11 +317,15 @@ def _submit_limit_cancel_smoke(
     submitted_notional = base_size * limit_price
     client_order_id = _client_order_id("lslb")
     response: dict[str, Any] = {}
+    response_success: bool | None = None
+    submission_attempted = False
     order_id: str | None = None
     status = "unknown"
     error: str | None = None
 
     try:
+        require_coinbase_execution_authority()
+        submission_attempted = True
         response = _dict(
             client.limit_order_gtc(
                 client_order_id=client_order_id,
@@ -281,17 +337,28 @@ def _submit_limit_cancel_smoke(
             )
         )
         order_id = _extract_order_id(response)
-        status = "submitted"
+        response_success = _response_success(response)
+        error = _create_response_error_code(response_success, order_id)
+        status = _submission_status(
+            response_success=response_success,
+            order_id=order_id,
+        )
         if order_id:
             try:
+                require_coinbase_execution_authority()
                 client.cancel_orders([order_id])
             finally:
-                status = _poll_order(client, order_id, timeout_seconds=10).get(
-                    "status",
-                    "cancel_requested",
+                status = _submission_status(
+                    response_success=response_success,
+                    order_id=order_id,
+                    exchange_order=_poll_order(
+                        client,
+                        order_id,
+                        timeout_seconds=10,
+                    ),
                 )
     except Exception as exc:  # pragma: no cover - live integration path
-        error = str(exc).splitlines()[0]
+        error = _value_blind_exception_detail(exc)
         status = "error"
 
     _, executed_notional = _order_executed_notional(client, product_id, order_id)
@@ -305,7 +372,8 @@ def _submit_limit_cancel_smoke(
         submitted_notional_usdc=_format_decimal(submitted_notional),
         executed_notional_usdc=_format_decimal(executed_notional),
         status=str(status),
-        response_success=_response_success(response),
+        response_success=response_success,
+        submission_attempted=submission_attempted,
         error=error,
     )
 
@@ -325,6 +393,8 @@ def _submit_limit_sell_cancel_smoke(
     submitted_notional = sell_size * limit_price
     client_order_id = _client_order_id("lsls")
     response: dict[str, Any] = {}
+    response_success: bool | None = None
+    submission_attempted = False
     order_id: str | None = None
     status = "unknown"
     error: str | None = None
@@ -346,6 +416,8 @@ def _submit_limit_sell_cancel_smoke(
         )
 
     try:
+        require_coinbase_execution_authority()
+        submission_attempted = True
         response = _dict(
             client.limit_order_gtc(
                 client_order_id=client_order_id,
@@ -357,17 +429,28 @@ def _submit_limit_sell_cancel_smoke(
             )
         )
         order_id = _extract_order_id(response)
-        status = "submitted"
+        response_success = _response_success(response)
+        error = _create_response_error_code(response_success, order_id)
+        status = _submission_status(
+            response_success=response_success,
+            order_id=order_id,
+        )
         if order_id:
             try:
+                require_coinbase_execution_authority()
                 client.cancel_orders([order_id])
             finally:
-                status = _poll_order(client, order_id, timeout_seconds=10).get(
-                    "status",
-                    "cancel_requested",
+                status = _submission_status(
+                    response_success=response_success,
+                    order_id=order_id,
+                    exchange_order=_poll_order(
+                        client,
+                        order_id,
+                        timeout_seconds=10,
+                    ),
                 )
     except Exception as exc:  # pragma: no cover - live integration path
-        error = str(exc).splitlines()[0]
+        error = _value_blind_exception_detail(exc)
         status = "error"
 
     _, executed_notional = _order_executed_notional(client, product_id, order_id)
@@ -382,7 +465,8 @@ def _submit_limit_sell_cancel_smoke(
         executed_notional_usdc=_format_decimal(executed_notional),
         status=str(status),
         base_size=_format_decimal(sell_size),
-        response_success=_response_success(response),
+        response_success=response_success,
+        submission_attempted=submission_attempted,
         error=error,
     )
 
@@ -399,6 +483,7 @@ def _submit_market_round_trip_smoke(
     quote_text = _format_decimal(quote_size)
 
     buy_client_order_id = _client_order_id("lsmb")
+    require_coinbase_execution_authority()
     buy_response = _dict(
         client.market_order_buy(
             client_order_id=buy_client_order_id,
@@ -407,6 +492,7 @@ def _submit_market_round_trip_smoke(
         )
     )
     buy_order_id = _extract_order_id(buy_response)
+    buy_response_success = _response_success(buy_response)
     buy_order = _poll_order(client, buy_order_id) if buy_order_id else {}
     bought_size, buy_executed_notional = _order_executed_notional(
         client,
@@ -423,9 +509,15 @@ def _submit_market_round_trip_smoke(
         exchange_order_id=buy_order_id,
         submitted_notional_usdc=quote_text,
         executed_notional_usdc=_format_decimal(buy_executed_notional),
-        status=str(buy_order.get("status") or "submitted"),
+        status=_submission_status(
+            response_success=buy_response_success,
+            order_id=buy_order_id,
+            exchange_order=buy_order,
+        ),
         base_size=_format_decimal(bought_size),
-        response_success=_response_success(buy_response),
+        response_success=buy_response_success,
+        submission_attempted=True,
+        error=_create_response_error_code(buy_response_success, buy_order_id),
     )
 
     sell_size = _round_down_to_increment(bought_size, base_increment)
@@ -470,6 +562,7 @@ def _submit_market_round_trip_smoke(
         ]
 
     sell_client_order_id = _client_order_id("lsms")
+    require_coinbase_execution_authority()
     sell_response = _dict(
         client.market_order_sell(
             client_order_id=sell_client_order_id,
@@ -478,6 +571,7 @@ def _submit_market_round_trip_smoke(
         )
     )
     sell_order_id = _extract_order_id(sell_response)
+    sell_response_success = _response_success(sell_response)
     sell_order = _poll_order(client, sell_order_id) if sell_order_id else {}
     _, sell_executed_notional = _order_executed_notional(
         client,
@@ -497,9 +591,15 @@ def _submit_market_round_trip_smoke(
         exchange_order_id=sell_order_id,
         submitted_notional_usdc=_format_decimal(submitted_sell_notional),
         executed_notional_usdc=_format_decimal(sell_executed_notional),
-        status=str(sell_order.get("status") or "submitted"),
+        status=_submission_status(
+            response_success=sell_response_success,
+            order_id=sell_order_id,
+            exchange_order=sell_order,
+        ),
         base_size=_format_decimal(sell_size),
-        response_success=_response_success(sell_response),
+        response_success=sell_response_success,
+        submission_attempted=True,
+        error=_create_response_error_code(sell_response_success, sell_order_id),
     )
     return [buy_report, sell_report]
 
@@ -517,6 +617,7 @@ def _submit_validation_matrix_smoke(
     quote_text = _format_decimal(quote_size)
 
     buy_client_order_id = _client_order_id("lmb")
+    require_coinbase_execution_authority()
     buy_response = _dict(
         client.market_order_buy(
             client_order_id=buy_client_order_id,
@@ -525,6 +626,7 @@ def _submit_validation_matrix_smoke(
         )
     )
     buy_order_id = _extract_order_id(buy_response)
+    buy_response_success = _response_success(buy_response)
     buy_order = _poll_order(client, buy_order_id) if buy_order_id else {}
     bought_size, buy_executed_notional = _order_executed_notional(
         client,
@@ -542,9 +644,15 @@ def _submit_validation_matrix_smoke(
             exchange_order_id=buy_order_id,
             submitted_notional_usdc=quote_text,
             executed_notional_usdc=_format_decimal(buy_executed_notional),
-            status=str(buy_order.get("status") or "submitted"),
+            status=_submission_status(
+                response_success=buy_response_success,
+                order_id=buy_order_id,
+                exchange_order=buy_order,
+            ),
             base_size=_format_decimal(bought_size),
-            response_success=_response_success(buy_response),
+            response_success=buy_response_success,
+            submission_attempted=True,
+            error=_create_response_error_code(buy_response_success, buy_order_id),
         )
     ]
 
@@ -609,6 +717,7 @@ def _submit_validation_matrix_smoke(
         return reports
 
     sell_client_order_id = _client_order_id("lms")
+    require_coinbase_execution_authority()
     sell_response = _dict(
         client.market_order_sell(
             client_order_id=sell_client_order_id,
@@ -617,6 +726,7 @@ def _submit_validation_matrix_smoke(
         )
     )
     sell_order_id = _extract_order_id(sell_response)
+    sell_response_success = _response_success(sell_response)
     sell_order = _poll_order(client, sell_order_id) if sell_order_id else {}
     _, sell_executed_notional = _order_executed_notional(
         client,
@@ -637,9 +747,15 @@ def _submit_validation_matrix_smoke(
             exchange_order_id=sell_order_id,
             submitted_notional_usdc=_format_decimal(submitted_sell_notional),
             executed_notional_usdc=_format_decimal(sell_executed_notional),
-            status=str(sell_order.get("status") or "submitted"),
+            status=_submission_status(
+                response_success=sell_response_success,
+                order_id=sell_order_id,
+                exchange_order=sell_order,
+            ),
             base_size=_format_decimal(sell_size),
-            response_success=_response_success(sell_response),
+            response_success=sell_response_success,
+            submission_attempted=True,
+            error=_create_response_error_code(sell_response_success, sell_order_id),
         )
     )
     return reports
@@ -670,7 +786,9 @@ def _build_summary(
             current + retained
         )
     return {
-        "live_coinbase_orders_ran": True,
+        "live_coinbase_orders_ran": any(
+            report.submission_attempted for report in reports
+        ),
         "ran_at": datetime.now(timezone.utc).isoformat(),
         "product_selection": {
             "product_id": product.get("product_id"),
@@ -717,7 +835,7 @@ def _backfill_live_smoke_fills(
             "total_appended_fill_count": 0,
             "total_skipped_fill_count": 0,
             "orders": [],
-            "error": f"{type(exc).__name__}: {exc}",
+            "error": _value_blind_exception_detail(exc),
         }
 
 
@@ -725,7 +843,7 @@ def _build_reconciliation_gate(summary: dict[str, Any]) -> dict[str, Any]:
     failures: list[str] = []
     backfill = summary.get("fill_backfill") or {}
     if backfill.get("error"):
-        failures.append(f"fill backfill failed: {backfill['error']}")
+        failures.append("fill backfill failed")
 
     backfill_by_order = {
         order.get("exchange_order_id"): order
@@ -751,10 +869,7 @@ def _build_reconciliation_gate(summary: dict[str, Any]) -> dict[str, Any]:
         if int(backfill_order.get("fetched_fill_count") or 0) <= 0:
             failures.append(f"no REST fills fetched for {order_id}")
         if backfill_order.get("status") == SpotFillBackfillStatus.ERROR.value:
-            failures.append(
-                f"fill-ledger backfill errored for {order_id}: "
-                f"{backfill_order.get('error') or 'unknown error'}"
-            )
+            failures.append(f"fill-ledger backfill errored for {order_id}")
 
     return {
         "status": (
@@ -772,14 +887,14 @@ def _build_reconciliation_gate(summary: dict[str, Any]) -> dict[str, Any]:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Place explicitly approved live Coinbase USDC spot smoke orders "
-            "and print notional reporting."
+            "Inspect historical Coinbase USDC spot smoke options. Exchange "
+            "mutation is source-disabled."
         )
     )
     parser.add_argument(
         "--approved-live-orders",
         action="store_true",
-        help="Required. Confirms this run may place real Coinbase orders.",
+        help="Historical option only; it grants no execution authority.",
     )
     parser.add_argument(
         "--quote-size",
@@ -790,65 +905,48 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--skip-limit",
         action="store_true",
-        help="Skip the post-only limit submit/cancel smoke.",
+        help="Historical parser option; mutation mode remains source-disabled.",
     )
     parser.add_argument(
         "--skip-market",
         action="store_true",
-        help="Skip the market buy/sell round-trip smoke.",
+        help="Historical parser option; mutation mode remains source-disabled.",
     )
     parser.add_argument(
         "--validation-matrix",
         action="store_true",
         help=(
-            "Run market BUY, post-only limit BUY cancel, post-only limit SELL "
-            "cancel, and market SELL on the selected cheapest USDC product."
+            "Historical parser option for synthetic matrix fixtures; no "
+            "market, limit, or cancel call can run."
         ),
     )
     parser.add_argument(
         "--audit-file",
         type=Path,
         default=DEFAULT_AUDIT_FILE,
-        help="Durable JSONL audit file for live smoke summaries.",
+        help="JSONL path for historical or synthetic summary evidence.",
     )
     parser.add_argument(
         "--skip-fill-backfill",
         action="store_true",
-        help="Skip REST-fill backfill into fill_ledger after live smoke orders.",
+        help="Historical parser option; no live fill backfill can run.",
     )
     parser.add_argument(
         "--reconciliation-gate",
         action="store_true",
-        help="Require validation-matrix REST fills to reconcile into fill_ledger and exit nonzero on failure.",
+        help="Evaluate synthetic reconciliation fixtures; grants no Coinbase call.",
     )
     parser.add_argument(
         "--retain-inventory",
         action="store_true",
         help=(
-            "After the market buy, skip the market sell and intentionally "
-            "leave acquired base inventory in the account for future sell tests."
+            "Historical parser option; no account inventory mutation can run."
         ),
     )
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = build_parser()
-    args = parser.parse_args(argv)
-
-    if not args.approved_live_orders:
-        parser.error("--approved-live-orders is required because this places live orders")
-    if args.validation_matrix and (args.skip_limit or args.skip_market):
-        parser.error("--validation-matrix cannot be combined with --skip-limit or --skip-market")
-    if args.reconciliation_gate and not args.validation_matrix:
-        parser.error("--reconciliation-gate requires --validation-matrix")
-    if args.reconciliation_gate and args.skip_fill_backfill:
-        parser.error("--reconciliation-gate cannot be combined with --skip-fill-backfill")
-    if not args.validation_matrix and args.skip_limit and args.skip_market:
-        parser.error("At least one of limit or market smoke must run")
-    if not os.environ.get("COINBASE_API_KEY") or not os.environ.get("COINBASE_API_SECRET"):
-        parser.error("COINBASE_API_KEY and COINBASE_API_SECRET are required")
-
+def _run_live_smoke(args: argparse.Namespace) -> int:
     client = RESTClient(
         api_key=os.environ["COINBASE_API_KEY"],
         api_secret=os.environ["COINBASE_API_SECRET"],
@@ -920,6 +1018,12 @@ def main(argv: list[str] | None = None) -> int:
     ):
         return 1
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    parser.parse_args(argv)
+    parser.error(SOURCE_DISABLED_COINBASE_EXECUTION_ERROR)
 
 
 if __name__ == "__main__":

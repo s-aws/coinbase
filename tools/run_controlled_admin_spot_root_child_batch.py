@@ -1,16 +1,10 @@
 #!/usr/bin/env python3.13
-"""Controlled v14 successor proof for the ten-slot Admin Spot root/child batch.
+"""Historical v14 proof tooling for the ten-slot Admin Spot root/child batch.
 
-Default mode is read-only. Exchange mutation additionally requires an
-owner-only, unexpired immutable plan, its exact SHA-256, the exact
-``--execute-controlled-batch`` flag, and the audited backend commit. One
-embedded backend runtime freshly proves completed, flat root/child chains for
-slots 1 through 7, the exact safe V13 terminal boundary, and account-wide
-absence of every unused burned V13 identity. It executes Test-profile
-``BTC-USDC`` BUY/LIMIT/FOK roots for slots 8 through 10 only.
-Each fully filled root authorizes exactly its deterministic first
-SELL/LIMIT/GTC child, which is submitted far from market and cancelled through
-the guarded Admin routes before the next root.
+Installed exchange mutation and runtime-child modes are source-disabled before
+runtime or SDK construction. No flag, plan, hash, environment value, or
+historical authority can enable them. Offline self-test, read-only evidence,
+and plan-preparation compatibility remain available.
 
 The original predecessor and failed successors are read-only hash-bound
 evidence. V4 completed and cancelled the deterministic slot-1 child with zero
@@ -61,6 +55,35 @@ from uuid import NAMESPACE_OID, NAMESPACE_URL, UUID, uuid4, uuid5
 
 import psycopg2
 import requests
+
+from core.coinbase_execution_authority import (
+    SOURCE_DISABLED_COINBASE_EXECUTION_ERROR,
+)
+
+
+# These sealed historical modules are hash-bound evidence and cannot be edited.
+# They all import this umbrella module before touching a plan, process, state, or
+# Coinbase client, so this shared guard disables direct installed execution
+# while leaving their exact bytes and importable synthetic helpers intact.
+SOURCE_DISABLED_SEALED_VARIANT_ENTRYPOINTS = frozenset(
+    {
+        "run_controlled_admin_spot_child_cancel_slice.py",
+        "run_controlled_admin_spot_child_cancel_recovery.py",
+        "run_controlled_admin_spot_child_cancel_recovery_v15r4.py",
+        "run_controlled_admin_spot_child_cancel_recovery_v15r5.py",
+        "run_controlled_admin_spot_child_cancel_recovery_v15r6.py",
+    }
+)
+
+
+def _deny_source_disabled_sealed_variant_entrypoint() -> None:
+    """Fail direct retired-variant execution before any operational access."""
+
+    if Path(sys.argv[0]).name in SOURCE_DISABLED_SEALED_VARIANT_ENTRYPOINTS:
+        raise SystemExit(SOURCE_DISABLED_COINBASE_EXECUTION_ERROR)
+
+
+_deny_source_disabled_sealed_variant_entrypoint()
 
 
 ROOT = Path("/home/ec2-user/coinbase")
@@ -29320,7 +29343,11 @@ def _run_v14_cli(
 def main() -> int:
     parser = argparse.ArgumentParser()
     mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--execute-controlled-batch", action="store_true")
+    mode.add_argument(
+        "--execute-controlled-batch",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
     mode.add_argument("--prepare-controlled-batch-plan", type=Path)
     mode.add_argument("--offline-self-test", action="store_true")
     mode.add_argument("--runtime-child", action="store_true", help=argparse.SUPPRESS)
@@ -29347,18 +29374,11 @@ def main() -> int:
         print(json.dumps(run_offline_self_test(), sort_keys=True))
         return 0
 
+    if args.execute_controlled_batch:
+        parser.error(SOURCE_DISABLED_COINBASE_EXECUTION_ERROR)
+
     if args.runtime_child:
-        require(args.runtime_state_dir is not None, "runtime_state_dir_required")
-        require(args.runtime_auth_file is not None, "runtime_auth_file_required")
-        require(args.plan_file is None, "plan_file_not_allowed_in_runtime_child")
-        require(
-            args.confirm_plan_sha256 is None,
-            "plan_hash_not_allowed_in_runtime_child",
-        )
-        return run_embedded_runtime_child(
-            state_dir=args.runtime_state_dir,
-            auth_file=args.runtime_auth_file,
-        )
+        parser.error(SOURCE_DISABLED_COINBASE_EXECUTION_ERROR)
 
     require(
         args.runtime_state_dir is None,

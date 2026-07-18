@@ -10,33 +10,104 @@ from application.admin_api.mvp_service import (
     AdminMvpService,
     AdminMvpStore,
 )
-from tests.regression.test_admin_mvp_api import FakeAccountRestClient
-from tools.run_admin_api_futures_live_cancel import (
-    FuturesLiveCancelConfig,
-    LiveCancelConfirmationError,
-    build_futures_live_cancel_body,
-    refresh_existing_futures_live_cancel_summary,
-    run_futures_live_cancel,
+from core.coinbase_execution_authority import (
+    SOURCE_DISABLED_COINBASE_EXECUTION_ERROR,
 )
+from tests.regression.test_admin_mvp_api import FakeAccountRestClient
+from tools import run_admin_api_futures_live_cancel as live_cancel_cli
 
 
-def _isolated_service(rest_client):
+CLIENT_ORDER_ID = "historical-futures-cancel-client"
+SUBMISSION_EVENT_ID = "historical-futures-cancel-event"
+CAP_GUARD_ID = "historical-futures-cancel-cap"
+RECONCILIATION_PLAN_ID = "historical-futures-cancel-reconciliation"
+RECORDED_AT = "2026-01-01T00:00:00Z"
+
+
+def _historical_service(
+    rest_client: FakeAccountRestClient,
+) -> AdminMvpService:
+    store = AdminMvpStore()
+    store.cap_guard_decisions[CAP_GUARD_ID] = {"recorded_at": RECORDED_AT}
+    store.reconciliation_plans[RECONCILIATION_PLAN_ID] = {
+        "recorded_at": RECORDED_AT,
+    }
+    store.futures_command_decisions[SUBMISSION_EVENT_ID] = {
+        "decision_id": SUBMISSION_EVENT_ID,
+        "mutation_family": "futures_live_cancel",
+        "identity_key": "client_order_id",
+        "identity_value": CLIENT_ORDER_ID,
+        "client_order_id": CLIENT_ORDER_ID,
+        "status": "accepted",
+        "recorded_at": RECORDED_AT,
+        "cap_guard_present": True,
+        "cap_guard_decision_id": CAP_GUARD_ID,
+        "reconciliation_plan_present": True,
+        "reconciliation_plan_id": RECONCILIATION_PLAN_ID,
+        "live_exchange_submitted": True,
+        "live_coinbase_orders_ran": True,
+    }
     return AdminMvpService(
         AdminMvpDependencies(
             rest_client=rest_client,
             rest_client_available=True,
-            live_coinbase_execution_enabled=True,
         ),
-        store=AdminMvpStore(),
+        store=store,
         evidence_log=AdminMvpEvidenceLog(),
     )
 
 
-def test_futures_live_cancel_body_defaults_to_backend_controlled_acknowledgement():
-    body = build_futures_live_cancel_body(
-        FuturesLiveCancelConfig(
-            confirm_live_cancel=True,
-            client_order_id="client-futures-live-cancel-test",
+def _historical_artifact() -> dict[str, object]:
+    return {
+        "schema_version": "1",
+        "artifact_type": live_cancel_cli.ARTIFACT_TYPE,
+        "status": "failed",
+        "backend_git_commit": "historical-ref",
+        "backend_git_branch": "historical",
+        "backend_contract_ref": "historical-ref",
+        "route": (
+            f"/api/v1/futures/orders/{CLIENT_ORDER_ID}/cancel"
+        ),
+        "product_id": "AVP-20DEC30-CDE",
+        "client_order_id": CLIENT_ORDER_ID,
+        "operator_identity_key": "client_order_id",
+        "submission_event_id": SUBMISSION_EVENT_ID,
+        "cap_guard_present": True,
+        "cap_guard_decision_id": CAP_GUARD_ID,
+        "reconciliation_plan_present": True,
+        "reconciliation_plan_id": RECONCILIATION_PLAN_ID,
+        "live_coinbase_execution": "submitted",
+        "submitted_notional_usdc": "0",
+        "notional_usdc": "0",
+        "checks": [
+            {"name": "historical_terminal_cancel_evidence", "passed": True},
+            {
+                "name": "futures_audit_workbench_proof_chain_readback",
+                "passed": False,
+            },
+        ],
+    }
+
+
+def _assert_no_coinbase_rest_calls(rest_client: FakeAccountRestClient) -> None:
+    assert rest_client.create_order_calls == []
+    assert rest_client.cancel_order_calls == []
+    assert rest_client.close_position_calls == []
+    assert rest_client.list_orders_calls == []
+    assert rest_client.list_fills_calls == []
+    assert rest_client.get_account_wallets_calls == 0
+    assert rest_client.get_api_key_permissions_calls == 0
+    assert rest_client.list_portfolios_calls == 0
+    assert rest_client.get_futures_positions_calls == 0
+    assert rest_client.get_futures_margin_collateral_snapshot_calls == 0
+    assert rest_client.get_product_dict_calls == []
+    assert rest_client.get_transaction_summary_calls == 0
+
+
+def test_historical_futures_cancel_body_serializer_remains_stable():
+    body = live_cancel_cli.build_futures_live_cancel_body(
+        live_cancel_cli.FuturesLiveCancelConfig(
+            client_order_id=CLIENT_ORDER_ID,
         )
     )
 
@@ -48,261 +119,94 @@ def test_futures_live_cancel_body_defaults_to_backend_controlled_acknowledgement
     }
 
 
-def test_futures_live_cancel_requires_explicit_confirmation_before_service_calls():
-    rest_client = FakeAccountRestClient()
-    service = _isolated_service(rest_client)
+def test_futures_cancel_cli_is_source_disabled_before_state_service_or_sdk(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    calls: list[str] = []
 
-    with pytest.raises(LiveCancelConfirmationError):
-        run_futures_live_cancel(
-            service,
-            FuturesLiveCancelConfig(
-                confirm_live_cancel=False,
-                client_order_id="client-futures-live-cancel-test",
-            ),
+    def forbidden(name: str):
+        def fail(*_args, **_kwargs):
+            calls.append(name)
+            raise AssertionError(f"{name} must not run")
+
+        return fail
+
+    monkeypatch.setattr(
+        live_cancel_cli,
+        "apply_manual_live_submit_state_environment",
+        forbidden("state_environment"),
+    )
+    monkeypatch.setattr(
+        live_cancel_cli,
+        "apply_runner_environment",
+        forbidden("runner_environment"),
+    )
+    monkeypatch.setattr(
+        live_cancel_cli,
+        "get_admin_mvp_service",
+        forbidden("credential_service_sdk"),
+    )
+
+    with pytest.raises(SystemExit) as error:
+        live_cancel_cli.main(
+            [
+                "--confirm-live-cancel",
+                "--client-order-id",
+                CLIENT_ORDER_ID,
+            ]
         )
 
-    assert rest_client.cancel_order_calls == []
-    assert rest_client.create_order_calls == []
-    assert service.store.service_decisions == {}
-    assert service.store.live_adapter_decisions == {}
+    assert error.value.code == 2
+    assert SOURCE_DISABLED_COINBASE_EXECUTION_ERROR in capsys.readouterr().err
+    assert calls == []
 
 
-def test_futures_live_cancel_records_backend_evidence_before_rest_submission():
-    rest_client = FakeAccountRestClient()
-    rest_client.cancel_orders_response = {
-        "results": [
-            {
-                "success": True,
-                "order_id": "client-futures-live-cancel-test",
-            }
-        ]
-    }
-    service = _isolated_service(rest_client)
-
-    summary = run_futures_live_cancel(
-        service,
-        FuturesLiveCancelConfig(
-            confirm_live_cancel=True,
-            client_order_id="client-futures-live-cancel-test",
-            product_id="AVP-20DEC30-CDE",
-            idempotency_key="futures-live-cancel-test",
-            correlation_id="futures-live-cancel-test-correlation",
-            backend_contract_ref="backend-ref",
-        ),
-    )
-
-    assert summary["status"] == "passed"
-    assert summary["artifact_type"] == "coinbase_admin_api_futures_live_cancel"
-    assert summary["live_coinbase_execution"] == "submitted"
-    assert summary["submitted_notional_usdc"] == "0"
-    assert summary["notional_usdc"] == "0"
-    assert summary["final_status_code"] == 200
-    assert summary["final_status"] == "accepted"
-    assert summary["failure_stage"] is None
-    assert summary["route"] == "/api/v1/futures/orders/client-futures-live-cancel-test/cancel"
-    assert summary["client_order_id"] == "client-futures-live-cancel-test"
-    assert summary["product_id"] == "AVP-20DEC30-CDE"
-    assert summary["coinbase_cancel_submission_allowed"] is True
-    assert summary["coinbase_cancel_identity_used"] == "client_order_id"
-    assert summary["operator_identity_key"] == "client_order_id"
-    assert summary["coinbase_cancel_initial_identity_used"] == "client_order_id"
-    assert summary["coinbase_cancel_initial_result_present"] is True
-    assert summary["coinbase_cancel_initial_result_success"] is True
-    assert summary["coinbase_cancel_fallback_attempted"] is False
-    assert summary["coinbase_cancel_fallback_reason"] is None
-    assert summary["coinbase_cancel_fallback_identity_used"] is None
-    assert summary["coinbase_cancel_order_read_attempted"] is False
-    assert summary["coinbase_cancel_order_read_succeeded"] is False
-    assert summary["exchange_order_id_present"] is False
-    assert summary["cancel_result_present"] is True
-    assert summary["cancel_result_success"] is True
-    assert summary["live_exchange_submitted"] is True
-    assert summary["live_coinbase_orders_ran"] is True
-    assert summary["exchange_order_id_evidence_only"] is True
-    assert summary["service_decision_status"] == "accepted"
-    assert summary["adapter_decision_count"] == 4
-    assert summary["audit_event_count"] == 1
-    assert summary["cap_guard_decision_id"] == (
-        "futures-cap-guard-futures-live-cancel-test"
-    )
-    assert summary["reconciliation_plan_id"] == (
-        "futures-reconciliation-futures-live-cancel-test"
-    )
-    assert summary["audit_proof_chain_readback_present"] is True
-    assert summary["audit_submission_event_id"] == summary["submission_event_id"]
-    assert summary["audit_cap_guard_present"] is True
-    assert summary["audit_cap_guard_decision_id"] == summary["cap_guard_decision_id"]
-    assert summary["audit_cap_guard_source"] == "admin_api_cap_guard_log"
-    assert summary["audit_cap_guard_recorded_at"]
-    assert summary["audit_reconciliation_plan_present"] is True
-    assert summary["audit_reconciliation_plan_id"] == summary["reconciliation_plan_id"]
-    assert summary["audit_reconciliation_plan_source"] == (
-        "admin_api_reconciliation_plan_log"
-    )
-    assert summary["audit_reconciliation_plan_recorded_at"]
-    assert {
-        item["name"]: item["passed"] for item in summary["checks"]
-    }["futures_audit_workbench_proof_chain_readback"] is True
-    assert all(check["passed"] for check in summary["checks"])
-    assert rest_client.cancel_order_calls == [
-        {"order_ids": ["client-futures-live-cancel-test"]}
-    ]
-    assert rest_client.create_order_calls == []
-
-
-def test_futures_live_cancel_summary_audits_exchange_order_id_fallback():
-    rest_client = FakeAccountRestClient()
-    rest_client.cancel_orders_responses = [
-        {
-            "results": [
-                {
-                    "success": False,
-                    "failure_reason": "UNKNOWN_CANCEL_ORDER",
-                }
-            ]
-        },
-        {
-            "results": [
-                {
-                    "success": True,
-                    "order_id": "exchange-futures-live-cancel-test",
-                }
-            ]
-        },
-    ]
-    rest_client.list_orders_response = {
-        "orders": [
-            {
-                "client_order_id": "client-futures-live-cancel-test",
-                "order_id": "exchange-futures-live-cancel-test",
-                "product_id": "AVP-20DEC30-CDE",
-                "status": "OPEN",
-            }
-        ]
-    }
-    service = _isolated_service(rest_client)
-
-    summary = run_futures_live_cancel(
-        service,
-        FuturesLiveCancelConfig(
-            confirm_live_cancel=True,
-            client_order_id="client-futures-live-cancel-test",
-            product_id="AVP-20DEC30-CDE",
-            idempotency_key="futures-live-cancel-test",
-            correlation_id="futures-live-cancel-test-correlation",
-            backend_contract_ref="backend-ref",
-        ),
-    )
-
-    assert summary["status"] == "passed"
-    assert summary["client_order_id"] == "client-futures-live-cancel-test"
-    assert summary["coinbase_cancel_identity_used"] == "exchange_order_id"
-    assert summary["operator_identity_key"] == "client_order_id"
-    assert summary["coinbase_cancel_initial_identity_used"] == "client_order_id"
-    assert summary["coinbase_cancel_initial_result_present"] is True
-    assert summary["coinbase_cancel_initial_result_success"] is False
-    assert summary["coinbase_cancel_fallback_attempted"] is True
-    assert (
-        summary["coinbase_cancel_fallback_reason"]
-        == "client_order_id_cancel_not_accepted"
-    )
-    assert summary["coinbase_cancel_fallback_identity_used"] == "exchange_order_id"
-    assert summary["coinbase_cancel_order_read_attempted"] is True
-    assert summary["coinbase_cancel_order_read_succeeded"] is True
-    assert summary["exchange_order_id_present"] is True
-    assert all(check["passed"] for check in summary["checks"])
-    assert rest_client.cancel_order_calls == [
-        {"order_ids": ["client-futures-live-cancel-test"]},
-        {"order_ids": ["exchange-futures-live-cancel-test"]},
-    ]
-
-
-def test_futures_live_cancel_refreshes_existing_artifact_without_resubmitting(
+def test_futures_cancel_cli_refreshes_sanitized_artifact_without_coinbase_calls(
     tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     rest_client = FakeAccountRestClient()
-    rest_client.cancel_orders_response = {
-        "results": [
-            {
-                "success": True,
-                "order_id": "client-futures-live-cancel-refresh",
-            }
-        ]
-    }
-    service = _isolated_service(rest_client)
+    service = _historical_service(rest_client)
     artifact_path = tmp_path / "futures-live-cancel.json"
-    summary = run_futures_live_cancel(
-        service,
-        FuturesLiveCancelConfig(
-            confirm_live_cancel=True,
-            client_order_id="client-futures-live-cancel-refresh",
-            product_id="AVP-20DEC30-CDE",
-            idempotency_key="futures-live-cancel-refresh",
-            correlation_id="futures-live-cancel-refresh-correlation",
-            backend_contract_ref="old-ref",
-            summary_output=artifact_path,
-        ),
-    )
-    stale_summary = {
-        **summary,
-        "backend_git_commit": "old-ref",
-        "backend_contract_ref": "old-ref",
-        "audit_proof_chain_readback_present": False,
-        "audit_submission_event_id": None,
-        "audit_cap_guard_present": None,
-        "audit_cap_guard_decision_id": None,
-        "audit_cap_guard_source": None,
-        "audit_cap_guard_recorded_at": None,
-        "audit_reconciliation_plan_present": None,
-        "audit_reconciliation_plan_id": None,
-        "audit_reconciliation_plan_source": None,
-        "audit_reconciliation_plan_recorded_at": None,
-        "checks": [
-            {
-                **check,
-                "passed": (
-                    False
-                    if check["name"]
-                    == "futures_audit_workbench_proof_chain_readback"
-                    else check["passed"]
-                ),
-            }
-            for check in summary["checks"]
-        ],
-    }
     artifact_path.write_text(
-        json.dumps(stale_summary, indent=2, sort_keys=True) + "\n",
+        json.dumps(_historical_artifact(), indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    monkeypatch.setattr(
+        live_cancel_cli,
+        "apply_manual_live_submit_state_environment",
+        lambda _state_dir: None,
+    )
+    monkeypatch.setattr(live_cancel_cli, "apply_runner_environment", lambda: None)
+    monkeypatch.setattr(live_cancel_cli, "get_admin_mvp_service", lambda: service)
 
-    refreshed = refresh_existing_futures_live_cancel_summary(
-        service,
-        FuturesLiveCancelConfig(
-            refresh_existing_artifact=True,
-            summary_output=artifact_path,
-            backend_contract_ref="current-ref",
-            client_order_id="client-futures-live-cancel-refresh",
-            idempotency_key="unrelated-refresh-key",
-            correlation_id="futures-live-cancel-refresh-correlation",
-        ),
+    exit_code = live_cancel_cli.main(
+        [
+            "--refresh-existing-artifact",
+            "--summary-output",
+            str(artifact_path),
+            "--client-order-id",
+            CLIENT_ORDER_ID,
+            "--backend-contract-ref",
+            "current-ref",
+        ]
     )
 
+    refreshed = json.loads(artifact_path.read_text(encoding="utf-8"))
+    assert exit_code == 0
     assert refreshed["status"] == "passed"
     assert refreshed["refreshed_existing_artifact"] is True
     assert refreshed["refresh_live_coinbase_execution"] == "not_run"
     assert refreshed["refresh_notional_usdc"] == "0"
     assert refreshed["backend_contract_ref"] == "current-ref"
-    assert refreshed["audit_proof_chain_readback_present"] is True
-    assert refreshed["audit_submission_event_id"] == refreshed["submission_event_id"]
-    assert refreshed["audit_cap_guard_decision_id"] == refreshed["cap_guard_decision_id"]
+    assert refreshed["client_order_id"] == CLIENT_ORDER_ID
+    assert refreshed["audit_submission_event_id"] == SUBMISSION_EVENT_ID
+    assert refreshed["audit_cap_guard_decision_id"] == CAP_GUARD_ID
     assert (
-        refreshed["audit_reconciliation_plan_id"]
-        == refreshed["reconciliation_plan_id"]
+        refreshed["audit_reconciliation_plan_id"] == RECONCILIATION_PLAN_ID
     )
     assert {
         item["name"]: item["passed"] for item in refreshed["checks"]
     }["futures_audit_workbench_proof_chain_readback"] is True
-    assert rest_client.cancel_order_calls == [
-        {"order_ids": ["client-futures-live-cancel-refresh"]}
-    ]
-    assert rest_client.create_order_calls == []
+    _assert_no_coinbase_rest_calls(rest_client)

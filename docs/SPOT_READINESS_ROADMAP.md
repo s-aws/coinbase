@@ -1,8 +1,16 @@
 # Spot Readiness Roadmap
 
-This is a domain readiness reference, not the current work queue. Current work
-is goal id `selected_order_execution_closeout_slice`; only readiness failures that
-directly block that operator slice are eligible by default.
+> **Current operator boundary:** historical raw Spot smoke, portfolio-sweep,
+> campaign, legacy dashboard, and legacy engine mutation paths are
+> source-disabled. The supported Controlled-live surface is the installed,
+> authenticated Admin API manual Spot LIMIT/GTC place/cancel workflow under
+> its manager lease and per-request backend gates. Commands retained below are
+> historical/read-only reference, not runnable mutation instructions.
+
+This is a domain readiness reference, not the current work queue. Standing
+closeout is `operator_ready_admin_mvp_runtime_v1`; only readiness failures that
+directly block that operator-ready runtime are eligible by default. Slice 2R12
+is terminal consumed and grants no successor authority.
 
 This roadmap tracks the work needed before spot-specific features should be
 added on top of the trading engine. Spot uses the same canonical order,
@@ -17,24 +25,24 @@ Implemented:
 - Product type resolution uses `ProductType.SPOT` for configured spot products.
 - Spot sizing uses product metadata for base increments and quote minimums.
 - Spot profitability uses the spot fee multiplier.
-- The shared action-condition guard runs for:
+- The shared action-condition guard remains exercised by offline/historical
+  compatibility paths for:
   - stealth planning
   - stealth reveal
   - manual stealth move planning and execution
   - revealed anchor reprice before cancel-and-replace
   - hidden anchor reprice as a planning-budget change
-  - raw dashboard `place_order`
+  - historical raw dashboard placement tests
 - The wallet guard checks spot base balance for `SELL` and spot quote balance
   for `BUY` when Coinbase REST credentials are configured. Coinbase account
   pagination is followed before wallet availability is evaluated.
 - Configured artificial limits can apply to spot, futures, or both.
 - Product capability policy is implemented through
   `core.product_capability.evaluate_product_capability`.
-- Spot move/reprice replacement, cancel/re-entry, and hotpoint auto-placement
-  are disabled by default before they can create local state or exchange work.
-- If spot move/reprice replacement is explicitly enabled, replacement wallet
-  checks evaluate only the net new requirement after crediting the active
-  same-currency Coinbase hold. Execution rechecks before exchange cancel.
+- Spot dashboard, move/reprice replacement, cancel/re-entry, hotpoint,
+  stealth/engine, sweep, and campaign exchange mutations are source-disabled;
+  capability settings cannot mint canonical Admin API request scope.
+- Replacement wallet calculations remain regression/reference helpers only.
 - Spot follow-up automation is classified by intent before local follow-up
   state is created.
 - Fill-ledger lot reconstruction has a working repository read API.
@@ -54,13 +62,13 @@ Implemented:
   `python3.13 tools/run_spot_readiness_browser_smoke.py`.
 - Public-release readiness docs describe local, browser, sandbox, and approved
   live spot smoke gates.
-- Approved live Coinbase USDC spot smoke tooling is available through
-  `python3.13 tools/run_live_spot_usdc_smoke.py --approved-live-orders`.
+- The historical Coinbase USDC spot smoke mutation mode is source-disabled;
+  its helpers remain only as regression/reference material.
 - Paper-mode spot replay is covered in the focused spot readiness gate.
 - USDC-only spot portfolio sweep dry-run planning is available through
   `python3.13 tools/run_spot_portfolio_sweep_dry_run.py`.
-- Explicitly approved USDC-only spot portfolio sweep live execution is
-  available through `python3.13 tools/run_spot_portfolio_sweep_live.py`.
+- The portfolio-sweep runner retains read-only reporting modes, but its live
+  order mode is source-disabled.
 - Durable run-if-due sweep automation records JSONL history under
   `runtime_state/spot_portfolio_sweeps.jsonl` by default.
 - Durable spot portfolio P/L snapshot helpers can report by product, by all
@@ -69,24 +77,21 @@ Implemented:
   `request_spot_sweep_status` and the stealth orders manager panel.
 - Sweep run reconciliation can append Coinbase order/fill evidence records to
   the durable sweep JSONL ledger without live-order approval.
-- Sweep live execution supports explicit market IOC, limit GTC, and post-only
-  limit GTC order policies.
-- Sweep safety policy can block live runs before Coinbase submission when
-  artificial per-run, per-order, product allow/deny, planned-count, or
-  skipped-count limits are configured.
+- Historical sweep execution supported market IOC and limit GTC policies; its
+  mutation mode is now source-disabled.
+- Sweep safety evaluation remains useful for offline review; it cannot enable
+  Coinbase submission.
 - Sweep P/L reports are available through `--pnl-report`,
   `request_spot_sweep_pnl`, and the dashboard P/L panel.
-- Optional SELL sweep safety can require known profitable fill-ledger or
-  imported baseline lots before live execution starts.
-- Approved live spot smoke tooling can run a four-action validation matrix:
-  market BUY, post-only limit BUY cancel, post-only limit SELL cancel, and
-  market SELL.
-- Live smoke summaries are appended to a durable JSONL audit file and can
-  backfill Coinbase REST fills into local `fill_ledger`.
+- SELL sweep safety can evaluate known profitable fill-ledger or imported
+  baseline lots for offline review.
+- Historical live-smoke matrix helpers remain regression material, but their
+  CLI mutation mode is source-disabled before SDK construction.
+- Historical smoke summaries and fill backfill remain audit evidence only.
 - Sweep reconciliation compares Coinbase REST fill totals against local
   fill-ledger rows by `client_order_id` when the repository is available.
-- Sweep live execution can load versioned JSON config files and validate them
-  with read-only per-product explain output before live approval.
+- Sweep tooling can load versioned JSON config files and produce read-only
+  per-product explain output; validation grants no live approval.
 - The dashboard shows sweep order detail, fill-backfill counts, and richer
   per-product P/L detail rows.
 - A read-only spot release gate command is available through
@@ -240,6 +245,10 @@ roadmap history. The former blanket approval is no longer active. No phase,
 status line, or execution note in this document authorizes new work or live
 execution; current work must qualify under goal id
 `selected_order_execution_closeout_slice`.
+Imperative wording and command lines below quote former phase goals only. Every
+raw dashboard/smoke/sweep/campaign/legacy-engine mutation path referenced in
+those records is now source-disabled; only authenticated Admin API manual Spot
+place/cancel can enter Controlled-live.
 
 ### Phase 1 - Product Capability Matrix
 
@@ -449,13 +458,13 @@ Acceptance:
 - Live Coinbase spot smoke is documented as manual, explicit, and notional
   reporting required.
 
-### Phase 9 - Approved Live Spot USDC Smoke
+### Phase 9 - Historical Live Spot USDC Smoke
 
-Status: implemented.
+Status: historically implemented; mutation mode now source-disabled.
 
-Add a manual live smoke runner for the cheapest eligible USDC spot pair.
+This phase recorded the former manual smoke-runner design.
 
-Required behavior:
+Historical behavior was:
 
 - Select online, tradable, USDC-quoted spot products by lowest
   `quote_min_size`, then lowest price.
@@ -466,7 +475,7 @@ Required behavior:
   or intentionally retain it with `--retain-inventory`.
 - Print submitted/executed notional per live order and total notional.
 
-Acceptance:
+Historical acceptance was:
 
 - The runner is not part of default regression or default CI.
 - Live runs are reported with product, side/type, timestamp, and notional.
@@ -540,14 +549,13 @@ Acceptance:
 - The focused spot readiness gate includes
   `tests/regression/test_spot_portfolio_sweep.py`.
 
-### Phase 13 - Sweep Live Execution Admission
+### Phase 13 - Historical Sweep Execution Admission
 
-Status: implemented for market IOC sweep execution.
+Status: historical; sweep mutation mode is now source-disabled.
 
-Add live execution only after the dry-run output is reviewed against real
-account inventory.
+This phase recorded the former sweep admission design.
 
-Required behavior:
+Historical behavior was:
 
 - Require an explicit live-approval flag.
 - Use the canonical order placement path and shared action-condition guards.
@@ -557,10 +565,9 @@ Required behavior:
 - Surface partial failures with enough product/client-order context to
   reconcile manually.
 
-Implemented scope:
+Historical implemented scope:
 
-- `tools/run_spot_portfolio_sweep_live.py` requires
-  `--approved-live-orders` before any Coinbase submission path.
+- `--approved-live-orders` was formerly required; it now grants no authority.
 - BUY sweep execution submits market IOC quote-size orders.
 - SELL sweep execution submits market IOC base-size orders derived by the
   planner.
@@ -703,20 +710,16 @@ Implemented scope:
 - Reconciliation records are appended to the same JSONL ledger as sweep runs.
 - Operator status displays the latest reconciliation summary per config.
 
-### Phase 22 - Approved Live Spot Validation Matrix
+### Phase 22 - Historical Live Spot Validation Matrix
 
-Status: implemented in tooling; live execution remains manual and explicit.
+Status: historical; the CLI mutation mode is now source-disabled.
 
-Add a small real-Coinbase validation matrix for spot order types.
+This phase recorded the former real-Coinbase validation matrix.
 
 Implemented scope:
 
-- `tools/run_live_spot_usdc_smoke.py --validation-matrix` selects the cheapest
-  previewable USDC spot product and runs market BUY, post-only limit BUY
-  cancel, post-only limit SELL cancel, and market SELL.
-- The summary reports every live order and submitted/executed notional.
-- `--retain-inventory` skips the final market SELL when acquired base should
-  remain in the account for future tests.
+- The former matrix selected a previewable USDC Spot product and recorded
+  market/limit BUY and SELL evidence. Its CLI is now source-disabled.
 
 ### Phase 23 - SELL Sweep Known-Inventory Policy
 
@@ -728,7 +731,7 @@ Implemented scope:
 
 - `SpotPortfolioSweepSafetyPolicy` supports
   `require_known_profitable_inventory`.
-- The live CLI exposes this through `--require-known-profitable-inventory`.
+- The historical CLI exposed this option; it now grants no live authority.
 - When enabled for SELL, each planned sweep item must be covered by known
   profitable fill-ledger or imported baseline lots at the planned market
   estimate or exact limit price.
@@ -742,30 +745,27 @@ Document public-safe operating modes and failure handling.
 
 Implemented scope:
 
-- The feature README and examples document read-only P/L, reconciliation,
-  safety caps, known-inventory SELL gating, and the live validation matrix.
-- The external testing runbook documents live matrix use and the requirement to
-  report all submitted/executed notional.
+- The feature README and examples now distinguish read-only diagnostics from
+  source-disabled historical mutation modes.
 
-### Phase 25 - Durable Live Smoke Audit
+### Phase 25 - Historical Live Smoke Audit
 
-Status: implemented.
+Status: historical; smoke mutation mode is now source-disabled.
 
-Persist approved live spot smoke summaries to a JSONL audit file.
+This phase recorded historical smoke-summary persistence.
 
 Implemented scope:
 
-- `tools/run_live_spot_usdc_smoke.py` appends each live summary to
-  `runtime_state/live_spot_usdc_smoke.jsonl` by default.
+- Existing historical summaries remain in their audit ledger; the CLI cannot
+  append a new live run.
 - The summary records product selection, every order, retained inventory,
   submitted/executed notional, fill-backfill result, and audit file path.
 
-### Phase 26 - Fill Ledger Backfill From Live Smoke
+### Phase 26 - Historical Fill Ledger Backfill From Live Smoke
 
 Status: implemented.
 
-Backfill Coinbase REST fills from approved live smoke orders into
-`fill_ledger`.
+This phase recorded read-only fill backfill for already-existing smoke orders.
 
 Implemented scope:
 
@@ -864,19 +864,16 @@ Implemented scope:
   checks.
 - The command never submits live Coinbase orders.
 
-### Phase 34 - Live Matrix Reconciliation Gate
+### Phase 34 - Historical Live Matrix Reconciliation Gate
 
-Status: implemented; live execution remains explicit.
+Status: historical; the CLI mutation mode is now source-disabled.
 
-Add a live pass/fail gate for the approved validation matrix.
+This phase recorded the former live pass/fail gate.
 
 Implemented scope:
 
-- `python3.13 tools/run_live_spot_usdc_smoke.py --approved-live-orders --validation-matrix --reconciliation-gate`
-  runs the live matrix and fails if executed market orders cannot fetch REST
-  fills and backfill local fill-ledger evidence.
-- Live runs must still report product, every order, submitted notional, and
-  executed notional.
+- The historical command is preserved for traceability but now exits
+  source-disabled before SDK construction.
 
 ### Phase 35 - Failure Mode Runbook
 
@@ -1386,8 +1383,7 @@ Implemented scope:
 - Campaign config normalizes to a stable campaign id and existing sweep config
   id.
 - `tools/run_spot_campaign.py --write-sweep-config-file` renders the equivalent
-  existing sweep config schema for live canary execution through the sweep
-  runner.
+  existing sweep config schema for offline review only.
 
 ### Phase 69 - Durable Campaign P/L Snapshots
 
@@ -1594,10 +1590,10 @@ Implemented scope:
   candidates and do not block campaign readiness by themselves.
 - `tools/run_spot_campaign.py --retry-plan` can print the retry plan and write
   a normal campaign retry config with `--write-retry-config-file`.
-- Retry planning submits no Coinbase orders. Live retry execution still uses
-  the existing sweep runner and its explicit `--approved-live-orders` gate.
+- Retry planning submits no Coinbase orders. The historical retry mutation
+  mode is now source-disabled.
 
-Implemented live retry result:
+Historical live retry result:
 
 - Live Coinbase run: yes.
 - Product: `ACX-USDC`.
@@ -1938,8 +1934,9 @@ Result on 2026-06-09:
   passed with `phase_50_ready: true`.
 - The only warning was expected: the all-product selection rule resolves to
   concrete eligible product ids at run time.
-- No new placement primitive is needed. The feature maps to the existing spot
-  campaign layer plus the existing USDC portfolio sweep live runner.
+- No new placement primitive was added. Current campaign/sweep mutation modes
+  are source-disabled; supported Controlled-live testing uses authenticated
+  Admin API manual Spot place/cancel.
 - No live Coinbase orders were submitted for this phase. Submitted notional:
   `0` USDC. Executed notional: `0` USDC.
 
@@ -2119,9 +2116,9 @@ Implemented live result:
 - Total live Coinbase notional for this phase: `4.04728` USDC submitted and
   `4.04467857713` USDC executed.
 
-### Phase 97 - All-USDC Campaign Readiness Gate
+### Phase 97 - All-USDC Campaign Offline Readiness Gate
 
-Add a broad-stage gate before any all-USDC campaign reaches live execution.
+Add a broad offline review gate for all-USDC campaign intent.
 
 Result:
 
@@ -2302,7 +2299,8 @@ Result:
 
 ### Phase 106 - Spot Order Lifecycle Audit Matrix
 
-Maintain a contextless-reader matrix for every spot order surface.
+Maintain a historical contextless-reader matrix for then-existing Spot order
+surfaces.
 
 Status:
 
@@ -2314,6 +2312,10 @@ Status:
 - Campaign-rendered sweep execution.
 - Evidence expected from each surface.
 - No live Coinbase orders are approved for this phase.
+
+Current note: dashboard, hotpoint, sweep, and campaign mutations are
+source-disabled; the installed authenticated Admin API manual Spot place/cancel
+routes are the sole supported Controlled-live surface.
 
 Result:
 
@@ -3021,8 +3023,8 @@ Result:
 
 - No Phase 134 live Coinbase orders were submitted, so there were no new
   exchange orders or fills to reconcile.
-- The next approved live SELL execution must still be followed by the normal
-  sweep reconciliation and fill-backfill checks.
+- No later SELL execution is authorized through the source-disabled sweep
+  runner.
 - Submitted notional: `0` USDC. Executed notional: `0` USDC.
 
 ### Phase 136 - Contextless Blind-Agent Review
@@ -3397,9 +3399,9 @@ Result:
 
 ### Phase 153 - Optional Limited Strict SELL Live Canary
 
-Only if explicitly approved for live execution, run at most three products,
-about `1.01` USDC each, maximum `4` USDC total, strict fill-ledger authority
-only, no average-cost authority.
+Historical authorization constrained the completed run to at most three
+products, about `1.01` USDC each, maximum `4` USDC total, strict fill-ledger
+authority only, and no average-cost authority.
 
 Status:
 
@@ -3713,8 +3715,9 @@ Result:
 - Added the USDC campaign design lock to `README.spot-campaign.md`.
 - Added config-field and durable-tracking examples to
   `docs/examples/spot-campaign.md`.
-- The locked design keeps `tools/run_spot_campaign.py` read-only and routes
-  all approved live execution through `tools/run_spot_portfolio_sweep_live.py`.
+- The locked design kept `tools/run_spot_campaign.py` read-only. The former
+  sweep execution route is now source-disabled; current Controlled-live uses
+  authenticated Admin API manual Spot place/cancel.
 - No live Coinbase orders were submitted for this phase. Submitted notional:
   `0` USDC. Executed notional: `0` USDC.
 

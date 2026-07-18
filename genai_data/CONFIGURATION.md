@@ -42,8 +42,8 @@ validation; relative paths fail at import and R8 remains metadata-only.
 - `ACTION_CONDITION_GUARDS_JSON`
   - optional JSON object for stealth planning, reveal, and replacement
     account-condition guards.
-  - direct dashboard `place_order` also evaluates this policy before REST
-    placement.
+  - historical dashboard regression fixtures may evaluate this policy, but
+    installed dashboard mutations are source-disabled before guard/REST lookup.
   - overrides top-level `products.json::action_condition_guards` when set.
   - supported keys: `wallet_available`, `known_inventory_available`, and
     `limits`.
@@ -53,11 +53,11 @@ validation; relative paths fail at import and R8 remains metadata-only.
   - optional JSON object for product capability overrides.
   - overrides top-level `products.json::product_capabilities` when set.
   - supports `product_type` and `product_id` maps.
-  - default spot policy enables direct placement, stealth planning, and stealth
-    reveal, while disabling spot move/reprice replacement, cancel/re-entry, and
-    hotpoint auto-placement by default. If move/reprice is explicitly enabled,
-    the replacement action guard credits the active same-currency Coinbase hold
-    and checks only the net new wallet requirement before cancel-and-replace.
+  - records local/historical feature policy for direct placement, stealth
+    planning/reveal, replacement, cancel/re-entry, and hotpoint behavior. It
+    cannot enable a source-disabled mutation path or mint authenticated Admin
+    API request scope. Replacement guard calculations remain offline/reference
+    helpers that credit the modeled same-currency hold.
 
 - `SPOT_FOLLOW_UP_POLICY_JSON`
   - optional JSON object for spot follow-up intent policy.

@@ -47,10 +47,10 @@ phase-end or milestone-closeout sweep result before advancing.
 - Use one code path per behavior.
 - Use `client_order_id` for internal order identity.
 - Cancellation remains operator- and local-state keyed by `client_order_id`.
-  Backend paths first call the project wrapper `cancel_order(client_order_id)`;
-  controlled-live backend cancel evidence may use `exchange_order_id` only as a
-  recorded fallback exchange API parameter after client-id cancellation is
-  rejected and exchange readback evidence exists.
+  Authoritative pre-read must prove the exact active `exchange_order_id`, then
+  the installed route calls the project wrapper as
+  `cancel_order(client_order_id, verified_exchange_order_id=...)` exactly once.
+  No retry, identity fallback, or second cancel submission is permitted.
 - Do not put trading decisions in browser code or generated frontend clients.
 - Do not import spot no-shorting or wallet-inventory rules into futures or
   perpetual workflows.
@@ -873,14 +873,14 @@ audit ids. Expected fill status does not create a separate approval class.
   only displayed backend contracts without browser/BFF/live execution
   authority, no spot-only wallet/cost-basis/sell-guard rule was imported into
   futures/perpetuals, and phase-end subagent cleanup was completed.
-- Current enterprise manual Spot order path is dry-submit/review only:
-  `POST /api/v1/orders` remains live-disabled, may derive backend-owned
-  `client_order_id`, and exits before Spot wallet, no-short sell authority,
-  product capability, event-stream audit, or REST submission checks unless a
-  future HTTP live-execution gate explicitly passes
-  `allow_live_execution=true`. Backend `trader` or `admin` RBAC authority is
-  required for order-create command tests; a frontend human "operator" label is
-  not enough backend authority.
+- Current enterprise manual Spot order posture is route-specific. Safe No-live
+  startup keeps `POST /api/v1/orders` dry-submit/review only. Controlled-live
+  admission is possible only when the manager-owned execution lease, exact
+  outer flag, current live decision, authenticated `trader` or `admin` RBAC,
+  operator intent, idempotency, manual acknowledgement, Test portfolio/wallet,
+  caps, audit, reconciliation, and final canonical route scope all pass. The
+  backend derives `client_order_id`; a frontend human "operator" label alone is
+  never execution authority.
 - Active range adds futures request payload validation record
   execution-eligibility resolution-plan step evidence through
   `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps.py`.

@@ -25,7 +25,21 @@ from core.models import RevealExecutionPlan
 from core.stealth_order_manager import StealthOrderManager
 
 
-pytestmark = pytest.mark.regression
+pytestmark = [
+    pytest.mark.regression,
+    pytest.mark.usefixtures("coinbase_execution_lease"),
+]
+
+
+_PRIVATE_EXCEPTION_MARKER = "private-wallet-account-7d91"
+
+
+def _raise_private_guard_error(*_args, **_kwargs):
+    raise RuntimeError(_PRIVATE_EXCEPTION_MARKER)
+
+
+def _available_usdc_wallet():
+    return {"USDC": {"available_balance": {"value": "1000.0"}}}
 
 
 def _manager():
@@ -204,6 +218,127 @@ def test_spot_replacement_guard_subtracts_planned_budget_from_delta():
     assert failure["replacement"] is True
 
 
+@pytest.mark.parametrize(
+    ("wallet_fetcher", "planned_budget_fetcher", "expected_reason"),
+    [
+        (
+            _raise_private_guard_error,
+            None,
+            "wallet check failed: exception_class:RuntimeError",
+        ),
+        (
+            _available_usdc_wallet,
+            _raise_private_guard_error,
+            "planned budget check failed: exception_class:RuntimeError",
+        ),
+    ],
+)
+def test_spot_guard_fetch_failures_use_value_blind_exception_diagnostics(
+    wallet_fetcher,
+    planned_budget_fetcher,
+    expected_reason,
+):
+    guard = ActionConditionGuard(
+        policy={ActionConditionType.WALLET_AVAILABLE.value: {"enabled": True}},
+        credentials_configured=lambda: True,
+        wallet_fetcher=wallet_fetcher,
+        planned_budget_fetcher=planned_budget_fetcher,
+        product_metadata=_spot_metadata(),
+        spot_product_ids=["BTC-USDC"],
+    )
+
+    ok, failure = guard.evaluate(
+        phase=ActionGuardPhase.PLANNING,
+        product_id="BTC-USDC",
+        side=OrderSide.BUY.value,
+        size=0.1,
+        limit_price=100.0,
+    )
+
+    assert ok is False
+    assert failure["reason"] == expected_reason
+    assert _PRIVATE_EXCEPTION_MARKER not in json.dumps(failure)
+
+
+@pytest.mark.parametrize(
+    ("wallet_fetcher", "planned_budget_fetcher", "expected_reason"),
+    [
+        (
+            _raise_private_guard_error,
+            None,
+            "replacement wallet check failed: exception_class:RuntimeError",
+        ),
+        (
+            _available_usdc_wallet,
+            _raise_private_guard_error,
+            (
+                "replacement planned budget check failed: "
+                "exception_class:RuntimeError"
+            ),
+        ),
+    ],
+)
+def test_spot_replacement_guard_fetch_failures_use_value_blind_diagnostics(
+    wallet_fetcher,
+    planned_budget_fetcher,
+    expected_reason,
+):
+    guard = ActionConditionGuard(
+        policy={ActionConditionType.WALLET_AVAILABLE.value: {"enabled": True}},
+        credentials_configured=lambda: True,
+        wallet_fetcher=wallet_fetcher,
+        planned_budget_fetcher=planned_budget_fetcher,
+        product_metadata=_spot_metadata(),
+        spot_product_ids=["BTC-USDC"],
+    )
+
+    ok, failure = guard.evaluate_replacement(
+        phase=ActionGuardPhase.REVEAL,
+        product_id="BTC-USDC",
+        side=OrderSide.BUY.value,
+        size=0.1,
+        limit_price=200.0,
+        existing_size=0.1,
+        existing_limit_price=100.0,
+        stealth_order_id="sid-private-failure",
+        replaced_client_order_id="old-placement",
+        replaced_exchange_order_id="old-exchange",
+    )
+
+    assert ok is False
+    assert failure["reason"] == expected_reason
+    assert _PRIVATE_EXCEPTION_MARKER not in json.dumps(failure)
+
+
+def test_known_inventory_failure_uses_value_blind_exception_diagnostic():
+    guard = ActionConditionGuard(
+        policy={
+            ActionConditionType.WALLET_AVAILABLE.value: {"enabled": False},
+            ActionConditionType.KNOWN_INVENTORY_AVAILABLE.value: {
+                "enabled": True,
+                "fail_open_on_error": False,
+            },
+        },
+        lot_authority_evaluator=_raise_private_guard_error,
+        product_metadata=_spot_metadata(),
+        spot_product_ids=["BTC-USDC"],
+    )
+
+    ok, failure = guard.evaluate(
+        phase=ActionGuardPhase.PLANNING,
+        product_id="BTC-USDC",
+        side=OrderSide.SELL.value,
+        size=0.1,
+        limit_price=100.0,
+    )
+
+    assert ok is False
+    assert failure["reason"] == (
+        "known inventory authority check failed: exception_class:RuntimeError"
+    )
+    assert _PRIVATE_EXCEPTION_MARKER not in json.dumps(failure)
+
+
 def test_spot_planning_blocks_when_hidden_budget_would_overcommit():
     manager = _manager()
     manager._rest_credentials_configured = MagicMock(return_value=True)
@@ -322,51 +457,10 @@ def _admitting_controller():
     return ctrl
 
 
-def test_dashboard_direct_spot_order_subtracts_hidden_stealth_budget(monkeypatch):
-    import configuration
-    import application.admin_api.command_service as command_service
-    import core.action_condition_guard as guard_module
+def test_dashboard_direct_spot_order_is_source_disabled_before_budget_guard():
     import dashboard_server
-    from application.admin_api.spot_portfolio_binding import (
-        EXPECTED_SPOT_PORTFOLIO_TYPE,
-        SpotPortfolioBindingEvidence,
-    )
-
-    test_portfolio_id = "11111111-2222-4333-8444-555555555555"
-    monkeypatch.setattr(
-        command_service,
-        "evaluate_spot_test_portfolio_binding",
-        lambda **_kwargs: SpotPortfolioBindingEvidence(
-            ready=True,
-            blocker=None,
-            expected_portfolio_id=test_portfolio_id,
-            expected_portfolio_label="Test",
-            expected_portfolio_type=EXPECTED_SPOT_PORTFOLIO_TYPE,
-            observed_portfolio_id=test_portfolio_id,
-            observed_portfolio_label="Test",
-            observed_portfolio_type=EXPECTED_SPOT_PORTFOLIO_TYPE,
-            can_view=True,
-            can_trade=True,
-        ),
-    )
-
-    monkeypatch.setattr(
-        configuration,
-        "ACTION_CONDITION_GUARDS",
-        {
-            "limits": [{
-                "name": "direct_spot_cap",
-                "product_type": ProductType.SPOT.value,
-                "max_notional": 1000,
-                "phases": [ActionGuardPhase.PLANNING.value],
-            }]
-        },
-    )
-    monkeypatch.setattr(guard_module, "rest_credentials_configured", lambda: True)
-    monkeypatch.setattr(
-        guard_module,
-        "fetch_account_wallets",
-        lambda: {"USDC": {"available_balance": {"value": "1000"}}},
+    from core.coinbase_execution_authority import (
+        SOURCE_DISABLED_COINBASE_EXECUTION_ERROR,
     )
 
     manager = MagicMock()
@@ -401,8 +495,6 @@ def test_dashboard_direct_spot_order_subtracts_hidden_stealth_budget(monkeypatch
 
     payload = _sent_payload(ws)
     assert payload["status"] == "error"
-    assert payload["guard"]["block_category"] == (
-        ActionConditionType.PLANNED_BUDGET_AVAILABLE.value
-    )
-    assert payload["guard"]["planned_commitment"] == 900.0
+    assert payload["error"] == SOURCE_DISABLED_COINBASE_EXECUTION_ERROR
+    manager._get_spot_planned_budget_commitments.assert_not_called()
     rest_client.create_order.assert_not_called()

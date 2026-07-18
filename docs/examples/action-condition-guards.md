@@ -1,5 +1,11 @@
 # Action Condition Guard Examples
 
+These examples exercise offline/local guard evaluation and historical
+regression fixtures. They do not grant exchange authority. Legacy dashboard,
+stealth/reveal, replacement, sweep, and engine mutation paths are
+source-disabled; Controlled-live manual Spot LIMIT/GTC place/cancel is admitted
+only by the authenticated Admin API chain.
+
 ## Enable Default Spot Wallet Checks
 
 With Coinbase REST credentials configured, `wallet_available` is enabled by
@@ -43,9 +49,11 @@ $env:ACTION_CONDITION_GUARDS_JSON = '{"wallet_available":{"enabled":true,"block_
 $env:ACTION_CONDITION_GUARDS_JSON = '{"limits":[{"name":"btc_spot_cap","product_id":"BTC-USD","max_notional":5000,"phases":["planning","reveal"]}]}'
 ```
 
-A `BTC-USD` stealth action with `size * limit_price > 5000` is blocked before
-planning persistence or reveal placement. A raw dashboard `place_order` with
-the same notional is blocked before `REST_CLIENT.create_order`.
+A synthetic `BTC-USD` stealth action with `size * limit_price > 5000` is
+blocked before offline planning persistence or simulated reveal. Historical
+raw-dashboard fixtures can assert the same guard result, but the dashboard
+mutation message itself returns a fixed source-disabled response before guard
+or REST lookup.
 
 For a direct spot-only cap across configured spot products, scope the rule by
 product type and planning phase:
@@ -55,17 +63,17 @@ $env:ACTION_CONDITION_GUARDS_JSON = '{"limits":[{"name":"direct_spot_cap","produ
 ```
 
 The checked-in `products.json` intentionally does not include an account-wide
-direct-order cap. Raw dashboard spot placement blocks until operators set a
-matching planning-phase `max_notional` guard policy explicitly.
+direct-order cap. A planning-phase `max_notional` policy can be used for
+offline guard evidence, but it cannot enable raw-dashboard placement or mint
+the canonical Admin API request scope.
 
-## Production Direct Spot Guard Baseline
+## Offline Direct Spot Guard Baseline
 
-Use this shape when direct dashboard spot orders need a cap and spot `SELL`
-orders should be allowed through known profitable inventory. It applies to
-configured spot products in `products.json`; USDC sweep/campaign has separate
-run-level caps and authority allowlists.
-Direct spot placement also requires the local `order_event_stream` publisher to
-be enabled before REST submission.
+Use this shape to test a direct-order planning cap and known-profitable-
+inventory policy against configured spot products in `products.json`.
+USDC sweep/campaign fixtures have separate run-level caps and authority
+allowlists. This configuration is guard input only; it does not enable an
+exchange submission surface.
 
 ```powershell
 $env:ACTION_CONDITION_GUARDS_JSON = '{"wallet_available":{"enabled":true,"block_without_credentials":true},"known_inventory_available":{"enabled":true,"phases":["planning"]},"limits":[{"name":"direct_spot_order_cap","product_type":"SPOT","max_notional":25,"phases":["planning"]}]}'
@@ -130,10 +138,10 @@ If `entry_price` is omitted or non-positive, the baseline lot is imported as
 unknown cost basis. It appears in inventory reports but blocks
 `known_inventory_available` until replaced by a known-cost import.
 
-## Guard A Direct Dashboard Market BUY
+## Inspect A Historical Dashboard Market-BUY Fixture
 
-For market BUY payloads that use `quote_size`, configured notional caps and
-quote-wallet checks can still run:
+Historical regression fixtures for market BUY payloads that use `quote_size`
+can evaluate configured notional caps and quote-wallet checks:
 
 ```json
 {
@@ -151,24 +159,19 @@ quote-wallet checks can still run:
 }
 ```
 
-With `max_notional` below `250`, the dashboard returns an `order_response`
-error and does not submit the REST order.
-
-Without `manual_live_acknowledgement: true`, direct spot `place_order` blocks
-before the guard and before REST because the raw dashboard surface submits live
-immediately.
-
-If hidden spot stealth orders already reserve most of the quote wallet, the same
-dashboard path returns `block_category: "planned_budget_available"` before REST
-placement.
+With `max_notional` below `250`, the guard fixture records a blocked result. If
+synthetic hidden stealth orders reserve most of the quote wallet, it records
+`block_category: "planned_budget_available"`. These assertions preserve legacy
+calculation coverage only: the installed dashboard `place_order` message always
+returns the fixed source-disabled response and never reaches REST.
 
 ## Inspect A Spot Replacement Delta
 
-Live spot replacements credit the existing same-currency Coinbase hold instead
-of checking the full replacement notional:
+The synthetic replacement calculator credits an existing same-currency hold
+instead of checking the full replacement notional:
 
 ```powershell
-python -c "from core.action_condition_guard import estimate_spot_replacement_budget_delta; from core.enums import OrderSide; print(estimate_spot_replacement_budget_delta(product_id='BTC-USD', side=OrderSide.BUY.value, size=0.1, limit_price=110000, existing_size=0.1, existing_limit_price=100000))"
+python3.13 -c "from core.action_condition_guard import estimate_spot_replacement_budget_delta; from core.enums import OrderSide; print(estimate_spot_replacement_budget_delta(product_id='BTC-USD', side=OrderSide.BUY.value, size=0.1, limit_price=110000, existing_size=0.1, existing_limit_price=100000))"
 ```
 
 Expected shape: `currency` is `USD`, `new_required` is `11000`, and `amount`

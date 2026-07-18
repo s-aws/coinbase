@@ -2,15 +2,20 @@
 
 Status: completed.
 
+This is a historical phase report. Raw dashboard, smoke, sweep, campaign, and
+legacy engine mutation paths described below are now source-disabled; they are
+not current operator instructions.
+
 No live Coinbase execution is approved or run in this phase group. Submitted
 notional: `0` USDC. Executed notional: `0` USDC.
 
 ## Scope
 
 These phases harden the existing USDC spot campaign and direct-order surfaces.
-They do not add a second spot execution path. Live spot campaign execution, if
-approved later, must still use `tools/run_spot_portfolio_sweep_live.py` with
-`--approved-live-orders`.
+They did not add a second Spot execution path. The former sweep mutation mode
+is now source-disabled. Current Controlled-live testing uses only authenticated
+Admin API manual Spot LIMIT/GTC place/cancel under the manager lease and
+backend per-request gates.
 
 ## Phase Results
 
@@ -97,21 +102,20 @@ Current proposal values:
 - Skipped rows in the source proposal: `384`, all below quote minimum in the
   captured artifact
 
-Pre-live regeneration and validation shape:
+Historical pre-live regeneration/validation shape:
 
 ```powershell
 python tools/run_spot_campaign.py --config-file runtime_state/phase184_sell_strict_proposal_allowlist.config.json --sell-authority-profile fill_ledger_strict --sell-authority-allowlist --write-allowlist-file runtime_state/phase195_perp_sell_canary.allowlist.json --write-allowlist-config-file runtime_state/phase195_perp_sell_canary.config.json --write-allowlist-sweep-config-file runtime_state/phase195_perp_sell_canary.sweep.json --summary-only
 python tools/run_spot_portfolio_sweep_live.py --config-file runtime_state/phase195_perp_sell_canary.sweep.json --validate-config --max-products 1 --max-total-notional-per-run 1 --max-notional-per-order 1 --max-planned-orders 1
 ```
 
-Live command shape only if live Coinbase execution is explicitly approved
-later:
+Historical live command shape (now source-disabled):
 
 ```powershell
 python tools/run_spot_portfolio_sweep_live.py --config-file runtime_state/phase195_perp_sell_canary.sweep.json --require-known-profitable-inventory --approved-live-orders --max-products 1 --max-total-notional-per-run 1 --max-notional-per-order 1 --max-planned-orders 1 --summary-only
 ```
 
-Required post-live evidence if executed later:
+Historical post-live evidence requirements were:
 
 - Report `LIVE COINBASE EXECUTION`.
 - Report submitted and executed notional.

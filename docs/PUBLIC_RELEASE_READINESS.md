@@ -1,7 +1,15 @@
 # Public Release Readiness
 
-This is a closeout policy, not a work queue. Current scope remains goal id
-`selected_order_execution_closeout_slice`.
+> **Current operator boundary:** raw smoke, sweep, campaign, legacy dashboard,
+> and legacy engine mutations are source-disabled. Release validation must use
+> synthetic/no-live checks. Separately authorized Controlled-live operator
+> testing may use only the installed authenticated Admin API manual Spot
+> LIMIT/GTC place/cancel workflow under the manager-issued lease and all
+> backend per-request gates.
+
+This is a closeout policy, not a work queue. Current scope is
+`operator_ready_admin_mvp_runtime_v1`; Slice 2R12 is terminal consumed and
+grants no retry or successor authority.
 
 Use these gates when preparing the project for public release or validating a
 spot-specific feature before live trading.
@@ -137,34 +145,33 @@ $env:COINBASE_USE_SANDBOX = "true"
 pytest tests/external/ -v -m external --tb=short
 ```
 
-## Live Coinbase Spot Smoke
+## Historical Live Coinbase Spot Smoke (Source-Disabled)
 
-Live spot smoke is a manual release-readiness check. It places real Coinbase
-Advanced Trade spot orders and must never be part of default regression or
-default local Docker validation.
+The commands in this section are retained as historical evidence. Their raw
+mutation CLI is now source-disabled and exits before constructing a Coinbase
+SDK client. They must not be used as operator execution instructions.
 
-Required:
+Historical prerequisites were:
 
 - `COINBASE_API_KEY`
 - `COINBASE_API_SECRET`
 - explicit human approval for live orders
 - enough USDC to cover the selected product's minimum quote size and fees
 
-Command:
+Historical command (now exits source-disabled):
 
 ```powershell
 python3.13 tools/run_live_spot_usdc_smoke.py --approved-live-orders
 ```
 
-Validation matrix with reconciliation gate:
+Historical validation/reconciliation combination (also source-disabled):
 
 ```powershell
 python3.13 tools/run_live_spot_usdc_smoke.py --approved-live-orders --validation-matrix --reconciliation-gate
 ```
 
-The runner selects the lowest-minimum-notional, lowest-price, online,
-tradable USDC-quoted spot pair that previews successfully for the account. It
-prints a `LIVE_COINBASE_SPOT_SMOKE_SUMMARY` JSON line with:
+Before retirement, the runner selected a previewable USDC pair and printed a
+`LIVE_COINBASE_SPOT_SMOKE_SUMMARY`. Historical summaries contained:
 
 - product selection rule and product id
 - every submitted live order
@@ -175,15 +182,9 @@ prints a `LIVE_COINBASE_SPOT_SMOKE_SUMMARY` JSON line with:
 - fill-ledger REST backfill result and reconciliation-gate status, when the
   gate is used
 
-When a live run is reported in project discussion, call it out explicitly as a
-live Coinbase run and include the notional totals from the summary.
+No current live run can originate from this CLI.
 
-The live smoke runner uses short prefixed `client_order_id` values for its
-standalone smoke artifacts. That is a smoke-tool exception. Campaign and
-portfolio sweep live orders must keep UUID `client_order_id` values and record
-workflow identity through sweep/campaign ledger fields instead of Coinbase-
-facing prefixes.
-
-The smoke does not have to zero out the account. Use `--retain-inventory` when
-the bought base should remain in the account for future sell-path tests instead
-of being sold immediately.
+Historical smoke artifacts used short prefixed `client_order_id` values. That
+historical exception grants no current order authority. Current Controlled-live
+manual Spot place/cancel uses the Admin API identity, audit, and reconciliation
+contract.

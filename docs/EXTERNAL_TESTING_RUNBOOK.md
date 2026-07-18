@@ -1,5 +1,11 @@
 # External Testing Runbook
 
+> **Current operator boundary:** the raw live Spot smoke commands preserved in
+> this historical runbook are source-disabled and exit before SDK construction.
+> Controlled-live operator testing uses only the installed authenticated Admin
+> API manual Spot place/cancel workflow. External REST/WebSocket tests below
+> remain sandbox/read-only unless their own documented read-only opt-in applies.
+
 ## Purpose
 
 This runbook defines the standard way to run external Coinbase integration tests safely.
@@ -57,10 +63,11 @@ Bash:
 export COINBASE_ENABLE_WEBSOCKET_EXTERNAL=true
 ```
 
-### Optional for Approved Live Spot Smoke
+### Historical Raw Live Spot Smoke (Source-Disabled)
 
-Live spot smoke does not use `tests/external/` sandbox fixtures. It uses the
-live Coinbase Advanced Trade API and places real spot orders.
+These examples formerly used the live Coinbase Advanced Trade API. They are
+retained for historical traceability, but the CLI now rejects every mutation
+mode with a fixed source-disabled diagnostic.
 
 PowerShell:
 
@@ -105,23 +112,12 @@ pytest tests/external/test_coinbase_api.py -v -m websocket --tb=short
 Notes:
 - With no opt-in flag, deterministic WebSocket contract/wrapper tests run and live smoke tests skip.
 - With `COINBASE_ENABLE_WEBSOCKET_EXTERNAL=true`, live ticker smoke test is enabled.
-- Live spot smoke is not a pytest default. Run
-  `python3.13 tools/run_live_spot_usdc_smoke.py --approved-live-orders` only after
-  explicit approval, and report the `LIVE_COINBASE_SPOT_SMOKE_SUMMARY`
-  notional totals.
-- The approved live validation matrix is:
-  `python3.13 tools/run_live_spot_usdc_smoke.py --approved-live-orders --validation-matrix`.
-  It places market BUY, post-only limit BUY cancel, post-only limit SELL
-  cancel, and market SELL on the cheapest previewable USDC spot product.
-  Report every order plus total submitted/executed notional from the summary.
-- The approved live reconciliation gate is:
-  `python3.13 tools/run_live_spot_usdc_smoke.py --approved-live-orders --validation-matrix --reconciliation-gate`.
-  It places the same live orders and also requires executed market orders to
-  have Coinbase REST fills that can be backfilled into local `fill_ledger`.
-  Report the gate status and all notional totals from the summary.
-- Live spot smoke does not have to return inventory to zero. Use
-  `--retain-inventory` when bought base should remain available for future
-  sell-path tests.
+- The raw Spot smoke commands shown earlier are historical. Their CLI is
+  source-disabled before SDK construction, including validation-matrix,
+  reconciliation-gate, and retain-inventory combinations.
+- Controlled-live operator testing is outside this external-test runbook and
+  uses only authenticated Admin API manual Spot LIMIT/GTC place/cancel under
+  the manager lease and backend per-request gates.
 
 ## What Is Covered
 

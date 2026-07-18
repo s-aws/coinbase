@@ -134,7 +134,10 @@ from .auth import (
     configured_auth_mode,
 )
 from .cap_guard import CapGuardDecisionRecord, FileAdminApiCapGuardStore
-from .command_runtime import build_admin_api_command_runtime_readiness
+from .command_runtime import (
+    admin_api_live_runtime_enabled,
+    build_admin_api_command_runtime_readiness,
+)
 from .live_execution import (
     DISABLED_LIVE_EXECUTION_SERVICE_SOURCE,
     DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE,
@@ -144,6 +147,10 @@ from .live_execution import (
     build_live_execution_adapter_contract,
     build_live_execution_service_contract,
     get_decision_backed_live_execution_service,
+)
+from .operator_mvp_policy import (
+    OPERATOR_MVP_MAX_EXECUTED_NOTIONAL_TEXT,
+    OPERATOR_MVP_MAX_SUBMITTED_NOTIONAL_TEXT,
 )
 from core.spot_follow_up_policy import evaluate_spot_follow_up_policy
 from .live_adapter_decision_service import (
@@ -771,8 +778,12 @@ LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
 )
-LIVE_ENABLEMENT_MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
-LIVE_ENABLEMENT_MAX_EXECUTED_NOTIONAL_USDC = "1.00"
+LIVE_ENABLEMENT_MAX_SUBMITTED_NOTIONAL_USDC = (
+    OPERATOR_MVP_MAX_SUBMITTED_NOTIONAL_TEXT
+)
+LIVE_ENABLEMENT_MAX_EXECUTED_NOTIONAL_USDC = (
+    OPERATOR_MVP_MAX_EXECUTED_NOTIONAL_TEXT
+)
 LIVE_ENABLEMENT_CAP_POSTURE = "approved_ceiling_only_not_execution"
 LIVE_ENABLEMENT_NOTIONAL_POSTURE = "actual_submitted_and_executed_notional_remain_zero"
 FILL_FOLLOW_UP_TRIGGER_ROUTE = (
@@ -784,6 +795,10 @@ FILL_FOLLOW_UP_TRIGGER_ENDPOINT = (
 )
 FILL_FOLLOW_UP_TRIGGER_MODULE_ID = "spot_operations"
 FILL_FOLLOW_UP_TRIGGER_SERVICE_METHOD = "trigger_order_fill_follow_up"
+
+
+def _value_blind_exception_detail(exc: BaseException) -> str:
+    return f"exception_class:{type(exc).__name__}"
 
 
 def _string_or_none(value: Any) -> str | None:
@@ -858,6 +873,45 @@ CONTROLLED_LIVE_MVP_ROUTES = {
     ("POST", "/api/v1/orders"),
     ("POST", "/api/v1/orders/{client_order_id}/cancel"),
 }
+
+M58_SOURCE_PARKED_EXCHANGE_ROUTES = {
+    (
+        "POST",
+        "/api/v1/automation/usdc-pair-snapshot-order-plans/{plan_id}/live-submit",
+    ),
+    (
+        "POST",
+        "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+        "{run_state_id}/live-submit",
+    ),
+    (
+        "POST",
+        "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+        "{run_state_id}/live-fanout-submit",
+    ),
+}
+FUTURES_SOURCE_DISABLED_COMMAND_ROUTES = {
+    ("POST", "/api/v1/futures/orders"),
+    (
+        "POST",
+        "/api/v1/futures/positions/{position_key}/close-reduce",
+    ),
+    ("POST", "/api/v1/futures/orders/{client_order_id}/cancel"),
+    (
+        "POST",
+        "/api/v1/futures/positions/{position_key}/reconciliation",
+    ),
+}
+SOURCE_DISABLED_OPERATOR_COMMAND_ROUTES = (
+    M58_SOURCE_PARKED_EXCHANGE_ROUTES
+    | FUTURES_SOURCE_DISABLED_COMMAND_ROUTES
+)
+FUTURES_COMMAND_SOURCE_DISABLED_DETAIL = (
+    "Current Futures command execution is source-disabled and returns "
+    "status=not_implemented. Historical contract evidence is read-only; "
+    "restoring source code and obtaining separate authorization are required, "
+    "and no approval, cap, audit, reconciliation, or adapter record can enable it."
+)
 
 
 def _decision_backed_live_service_state() -> AdminApiLiveExecutionServiceState:
@@ -1829,8 +1883,10 @@ def lightweight_futures_command_suite_frontend_fixture_payload(
             "fixture_scope": "bounded_frontend_smoke",
             "status": AdminApiGateStatus.BLOCKED.value,
             "command_route_registered": True,
-            "command_draft_allowed": True,
+            "command_draft_allowed": False,
             "execution_allowed": False,
+            "bff_authority": "source_disabled_not_forwarded",
+            "detail": FUTURES_COMMAND_SOURCE_DISABLED_DETAIL,
             "live_coinbase_orders_ran": False,
             output_schema_field_type_count_key: 1,
             f"materialized_{output_schema_field_type_count_key}": 1,
@@ -1849,19 +1905,17 @@ def lightweight_futures_command_suite_frontend_fixture_payload(
             "account_family": CONTROLLED_FUTURES_ACCOUNT_FAMILY,
             "intx_applicability": CONTROLLED_FUTURES_INTX_APPLICABILITY,
             "product_scope": product_scope,
-            "service_decision_status": (
-                "missing_matching_us_cfm_service_decision"
-            ),
+            "service_decision_status": "source_disabled",
             "matching_service_decision_id": None,
             "adapter_decision_ready_count": 0,
             "adapter_decision_missing_count": len(
                 CONTROLLED_FUTURES_ADAPTER_TARGETS
             ),
             "all_command_adapters_ready": False,
-            "executor_boundary_status": "pending_live_decision",
+            "executor_boundary_status": "observed_live_disabled",
             "executor_boundary_ready": False,
             "executor_boundary_source": None,
-            "first_blocker": "execution_disabled",
+            "first_blocker": "futures_command_service_source_disabled",
             "required_evidence_refs": [
                 FUTURES_LIVE_DECISION_SERVICE_ROUTE,
                 FUTURES_LIVE_DECISION_ADAPTER_ROUTE,
@@ -1871,7 +1925,7 @@ def lightweight_futures_command_suite_frontend_fixture_payload(
             "live_runtime_ready": False,
             "spot_rule_authority": False,
             "browser_authority": "display_only",
-            "bff_authority": "forward_only_no_execution",
+            "bff_authority": "source_disabled_not_forwarded",
             "live_coinbase_orders_ran": False,
         },
     }
@@ -1893,7 +1947,7 @@ def lightweight_futures_command_suite_frontend_fixture_payload(
         "blocked_command_count": len(commands),
         "executable_command_count": 0,
         "command_route_count": len(commands),
-        "command_draft_allowed_count": len(commands),
+        "command_draft_allowed_count": 0,
         "request_payload_validator_contract_count": 22,
         "blocking_request_payload_validator_contract_count": 22,
         "ready_request_payload_validator_contract_count": 0,
@@ -1909,8 +1963,8 @@ def lightweight_futures_command_suite_frontend_fixture_payload(
         "fixture_scope": "bounded_frontend_smoke",
         "live_coinbase_orders_ran": False,
         "detail": (
-            "Offline frontend smoke fixture. It preserves futures command-suite "
-            "summary counts without materializing the full nested readiness graph."
+            "Offline frontend smoke fixture for four source-disabled Futures "
+            "commands; no draft or BFF forwarding authority exists."
         ),
     }
 
@@ -2874,7 +2928,9 @@ def _order_item_from_row(row: dict[str, Any]) -> AdminOrderReadItem:
         ownership_provenance=_ownership_provenance_or_none(
             row.get("ownership_provenance")
         ),
-        retail_portfolio_id=_string_or_none(row.get("retail_portfolio_id")),
+        # The durable portfolio binding remains available to backend admission
+        # and consistency checks, but it is not part of ordinary Admin readback.
+        retail_portfolio_id=None,
         created_at=_string_or_none(row.get("created_at")),
         updated_at=_string_or_none(row.get("updated_at")),
         exchange_order_id=_string_or_none(
@@ -3131,7 +3187,7 @@ def _order_fill_follow_up_decision_audit(
                 0,
                 f"spot_follow_up_policy_unavailable:{type(exc).__name__}",
             )
-            policy_reason = str(exc)
+            policy_reason = _value_blind_exception_detail(exc)
 
     durable_automatic_completion = bool(
         admin_manual_root_owned
@@ -3612,6 +3668,40 @@ def _json_object_or_none(value: Any) -> dict[str, Any] | None:
     return {"value": value}
 
 
+_PRIVATE_ANCHOR_REPRICING_STATE_KEYS = frozenset(
+    {
+        "child_portfolio_ids",
+        "child_portfolio_uuids",
+        "expected_portfolio_id",
+        "expected_portfolio_uuid",
+        "observed_portfolio_id",
+        "observed_portfolio_uuid",
+        "parent_row_id",
+        "portfolio_id",
+        "portfolio_uuid",
+        "profile_id",
+        "retail_portfolio_id",
+        "retail_portfolio_uuid",
+        "root_portfolio_id",
+        "root_portfolio_uuid",
+    }
+)
+
+
+def _public_anchor_repricing_state(value: Any) -> Any:
+    """Recursively remove backend-only binding fields from anchor evidence."""
+
+    if isinstance(value, dict):
+        return {
+            key: _public_anchor_repricing_state(child)
+            for key, child in value.items()
+            if str(key) not in _PRIVATE_ANCHOR_REPRICING_STATE_KEYS
+        }
+    if isinstance(value, list):
+        return [_public_anchor_repricing_state(child) for child in value]
+    return value
+
+
 def _json_list(value: Any) -> list[dict[str, Any]]:
     if value is None:
         return []
@@ -3639,14 +3729,16 @@ def _json_list(value: Any) -> list[dict[str, Any]]:
 
 def _stealth_item_from_row(row: dict[str, Any]) -> AdminStealthOrderReadItem:
     revealed_orders = _json_list(row.get("revealed_orders"))
-    anchor_state = _json_object_or_none(row.get("anchor_repricing_state_json")) or {}
+    internal_anchor_state = (
+        _json_object_or_none(row.get("anchor_repricing_state_json")) or {}
+    )
     active_placement_client_order_id = _string_or_none(
-        anchor_state.get("active_placement_client_order_id")
-        or anchor_state.get("active_placement_order_id")
-        or anchor_state.get("active_placed_order_id")
+        internal_anchor_state.get("active_placement_client_order_id")
+        or internal_anchor_state.get("active_placement_order_id")
+        or internal_anchor_state.get("active_placed_order_id")
     )
     active_exchange_order_id = _string_or_none(
-        anchor_state.get("active_exchange_order_id")
+        internal_anchor_state.get("active_exchange_order_id")
     )
     return AdminStealthOrderReadItem(
         stealth_order_id=str(row.get("stealth_order_id") or ""),
@@ -3675,7 +3767,9 @@ def _stealth_item_from_row(row: dict[str, Any]) -> AdminStealthOrderReadItem:
         cancel_reentry_state=_json_object_or_none(row.get("cancel_reentry_state_json")),
         post_fill_retreat_policy=_json_object_or_none(row.get("post_fill_retreat_policy_json")),
         anchor_repricing_policy=_json_object_or_none(row.get("anchor_repricing_policy_json")),
-        anchor_repricing_state=anchor_state,
+        anchor_repricing_state=_public_anchor_repricing_state(
+            internal_anchor_state
+        ),
         created_at=_string_or_none(row.get("created_at")),
         updated_at=_string_or_none(row.get("updated_at")),
     )
@@ -4530,7 +4624,7 @@ def _product_capability_decisions(
     try:
         from core.product_capability import evaluate_product_capability
     except Exception as exc:
-        return [], [f"import_error:{type(exc).__name__}: {exc}"]
+        return [], [f"import_error:{_value_blind_exception_detail(exc)}"]
 
     decisions: list[AdminProductCapabilityDecisionItem] = []
     errors: list[str] = []
@@ -4541,7 +4635,9 @@ def _product_capability_decisions(
                 capability=capability,
             )
         except Exception as exc:
-            errors.append(f"{capability.value}:{type(exc).__name__}: {exc}")
+            errors.append(
+                f"{capability.value}:{_value_blind_exception_detail(exc)}"
+            )
             continue
         decisions.append(
             AdminProductCapabilityDecisionItem(
@@ -4616,7 +4712,7 @@ def _query_admin_rows(
         rows = order_module.DB_CLIENT.execute_query(query, params) or []
         return [dict(row) for row in rows], None
     except Exception as exc:
-        return [], f"{type(exc).__name__}: {exc}"
+        return [], _value_blind_exception_detail(exc)
 
 
 def _runtime_bridge() -> Any | None:
@@ -4844,15 +4940,18 @@ def _stealth_repricing_item_from_row(
 ) -> AdminMovementRepricingEvidenceItem:
     stealth_order_id = _string_or_none(row.get("stealth_order_id"))
     parent_order_id = _string_or_none(row.get("parent_order_id"))
-    anchor_state = _json_object_or_none(row.get("anchor_repricing_state_json")) or {}
+    internal_anchor_state = (
+        _json_object_or_none(row.get("anchor_repricing_state_json")) or {}
+    )
     active_placement_client_order_id = _string_or_none(
-        anchor_state.get("active_placement_client_order_id")
-        or anchor_state.get("active_placement_order_id")
-        or anchor_state.get("active_placed_order_id")
+        internal_anchor_state.get("active_placement_client_order_id")
+        or internal_anchor_state.get("active_placement_order_id")
+        or internal_anchor_state.get("active_placed_order_id")
     )
     active_exchange_order_id = _string_or_none(
-        anchor_state.get("active_exchange_order_id")
+        internal_anchor_state.get("active_exchange_order_id")
     )
+    public_anchor_state = _public_anchor_repricing_state(internal_anchor_state)
     return AdminMovementRepricingEvidenceItem(
         evidence_id=f"stealth_repricing_state:{stealth_order_id}",
         evidence_type=AdminMovementRepricingEvidenceType.STEALTH_REPRICING_STATE,
@@ -4863,7 +4962,9 @@ def _stealth_repricing_item_from_row(
         status=_string_or_none(row.get("status")),
         active_placement_client_order_id=active_placement_client_order_id,
         active_exchange_order_id=active_exchange_order_id,
-        active_exchange_price=_string_or_none(anchor_state.get("active_exchange_price")),
+        active_exchange_price=_string_or_none(
+            internal_anchor_state.get("active_exchange_price")
+        ),
         target_movement=_string_or_none(row.get("target_movement")),
         target_movement_type=_string_or_none(row.get("target_movement_type")),
         replacement_slots=_replacement_slots_for(parent_order_id, stealth_order_id),
@@ -4871,13 +4972,21 @@ def _stealth_repricing_item_from_row(
         anchor_repricing_policy=_json_object_or_none(
             row.get("anchor_repricing_policy_json")
         ),
-        anchor_repricing_state=anchor_state,
-        reprice_history=_list_or_empty(anchor_state.get("reprice_history")),
-        reprice_reason=_string_or_none(anchor_state.get("reprice_reason")),
-        last_reprice_at=_string_or_none(anchor_state.get("last_reprice_at")),
-        next_reprice_at=_string_or_none(anchor_state.get("next_reprice_at")),
+        anchor_repricing_state=public_anchor_state,
+        reprice_history=_list_or_empty(
+            public_anchor_state.get("reprice_history")
+        ),
+        reprice_reason=_string_or_none(
+            internal_anchor_state.get("reprice_reason")
+        ),
+        last_reprice_at=_string_or_none(
+            internal_anchor_state.get("last_reprice_at")
+        ),
+        next_reprice_at=_string_or_none(
+            internal_anchor_state.get("next_reprice_at")
+        ),
         post_fill_retreat_offset=_string_or_none(
-            anchor_state.get("post_fill_retreat_offset")
+            internal_anchor_state.get("post_fill_retreat_offset")
         ),
         created_at=_string_or_none(row.get("created_at")),
         updated_at=_string_or_none(row.get("updated_at")),
@@ -6923,13 +7032,14 @@ class AdminApiReadService:
         """Return backend association and live-action posture."""
 
         cors_configured = bool(os.environ.get("COINBASE_ADMIN_API_CORS_ORIGINS", "").strip())
+        live_runtime_armed = admin_api_live_runtime_enabled()
         return AdminBootstrapResponse(
             backend_repository="s-aws/coinbase",
             api_version=API_VERSION,
             schema_version=SCHEMA_VERSION,
             environment=os.environ.get("COINBASE_ADMIN_API_ENVIRONMENT", "local"),
-            mutating_routes_live_disabled=True,
-            live_execution_enabled=False,
+            mutating_routes_live_disabled=not live_runtime_armed,
+            live_execution_enabled=live_runtime_armed,
             auth_required=True,
             auth_mode=configured_auth_mode(),
             cors_configured=cors_configured,
@@ -6941,21 +7051,37 @@ class AdminApiReadService:
     def build_admin_health(self) -> AdminHealthResponse:
         """Return read-only API health without probing Coinbase."""
 
+        live_runtime_armed = admin_api_live_runtime_enabled()
         diagnostics = []
         for item in ADMIN_API_ROUTE_INVENTORY:
             method, path = _surface_method_and_path(item.surface)
             if "WebSocket" in item.surface:
                 continue
             availability = _route_availability(item.surface, item.action_class)
+            controlled_live_route = (method, path) in CONTROLLED_LIVE_MVP_ROUTES
+            if controlled_live_route and live_runtime_armed:
+                availability = AdminApiRouteAvailability.AVAILABLE
+                message = (
+                    "Controlled-live route is supported and the runtime is armed; "
+                    "per-request authorization is still required."
+                )
+            elif controlled_live_route:
+                message = (
+                    "Controlled-live route is supported but the runtime is not "
+                    "armed; per-request authorization would still be required."
+                )
+            elif availability == AdminApiRouteAvailability.LIVE_DISABLED:
+                message = (
+                    "Exchange mutation is not a controlled-live operator route "
+                    "and remains disabled or parked."
+                )
+            else:
+                message = "Route contract is available"
             diagnostics.append({
                 "path": path,
                 "method": method,
                 "status": availability,
-                "message": (
-                    "Live execution disabled by backend contract"
-                    if availability == AdminApiRouteAvailability.LIVE_DISABLED
-                    else "Route contract is available"
-                ),
+                "message": message,
             })
         failed_route_count = sum(
             1
@@ -6971,6 +7097,7 @@ class AdminApiReadService:
             api_version=API_VERSION,
             diagnostics=diagnostics,
             failed_route_count=failed_route_count,
+            live_execution_enabled=live_runtime_armed,
         )
 
     def build_admin_session(
@@ -7025,6 +7152,10 @@ class AdminApiReadService:
         for item in ADMIN_API_ROUTE_INVENTORY:
             method, path = _surface_method_and_path(item.surface)
             availability = _route_availability(item.surface, item.action_class)
+            source_disabled = (
+                method,
+                path,
+            ) in SOURCE_DISABLED_OPERATOR_COMMAND_ROUTES
             controlled_live_enabled = _controlled_live_mvp_route_enabled(
                 method=method,
                 path=path,
@@ -7032,6 +7163,8 @@ class AdminApiReadService:
             )
             if controlled_live_enabled:
                 availability = AdminApiRouteAvailability.AVAILABLE
+            elif source_disabled:
+                availability = AdminApiRouteAvailability.BACKEND_BLOCKED
             capabilities.append(
                 AdminCapabilityItem(
                     module_id=item.module_id,
@@ -7041,20 +7174,53 @@ class AdminApiReadService:
                     permission=item.permission,
                     availability=availability,
                     live_enabled=controlled_live_enabled,
-                    frontend_safe=_frontend_safe(item.surface, item.action_class),
+                    frontend_safe=(
+                        False
+                        if source_disabled
+                        else _frontend_safe(item.surface, item.action_class)
+                    ),
                     shared_method=item.shared_method,
-                    idempotency=item.idempotency,
-                    approval=item.approval,
-                    caps=item.caps,
-                    audit=item.audit,
+                    idempotency=(
+                        "not_applicable_source_disabled"
+                        if source_disabled
+                        else item.idempotency
+                    ),
+                    approval=(
+                        "not_applicable_source_disabled"
+                        if source_disabled
+                        else item.approval
+                    ),
+                    caps=(
+                        "not_applicable_source_disabled"
+                        if source_disabled
+                        else item.caps
+                    ),
+                    audit=(
+                        "not_implemented_no_mutation"
+                        if source_disabled
+                        else item.audit
+                    ),
                     command_contract=method == "POST"
                     and item.action_class != AdminApiActionClass.READ_ONLY,
-                    compatibility_mode=item.compatibility_mode,
+                    compatibility_mode=(
+                        "source_disabled"
+                        if source_disabled
+                        else item.compatibility_mode
+                    ),
                     parity_test=item.parity_test,
                     notes=(
-                        "Compatibility-only legacy dashboard surface"
-                        if "WebSocket" in item.surface
-                        else "Backend-owned Admin API route"
+                        "Futures command execution is source-disabled: "
+                        "futures_command_service_source_disabled"
+                        if (method, path)
+                        in FUTURES_SOURCE_DISABLED_COMMAND_ROUTES
+                        else "M58 exchange execution is source-parked: "
+                        "m58_operator_workflow_unavailable"
+                        if (method, path) in M58_SOURCE_PARKED_EXCHANGE_ROUTES
+                        else (
+                            "Compatibility-only legacy dashboard surface"
+                            if "WebSocket" in item.surface
+                            else "Backend-owned Admin API route"
+                        )
                     ),
                 )
             )
@@ -7571,54 +7737,47 @@ class AdminApiReadService:
                 module_id="futures_perpetuals",
                 module="Futures / Perpetuals",
                 primary_owner="admin_api_contract",
-                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.UNSUPPORTED,
                 unsupported_actions=[
-                    "frontend futures live execution",
+                    "source-disabled futures command forwarding or execution",
                     "frontend futures state mutation",
                     "spot inventory rules in futures workflows",
                 ],
                 command_gaps=[
                     command_gap(
                         action="futures live placement execution",
-                        status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                        status=AdminApiModuleSupportStatus.UNSUPPORTED,
                         reason=(
-                            "Futures/perpetual placement now has a route-bound "
-                            "Admin API command draft, but live execution remains "
-                            "disabled until margin, leverage, liquidation, "
-                            "collateral, approval, cap, audit, adapter, and "
-                            "reconciliation contracts are wired."
+                            "Futures/perpetual placement is source-disabled and "
+                            "returns fixed status=not_implemented evidence; no "
+                            "approval, cap, audit, adapter, or reconciliation "
+                            "record can enable it."
                         ),
                         required_backend_contract=(
-                            "Backend live placement executor with durable approval, "
-                            "cap/guard, audit, live adapter, Coinbase submission, "
-                            "and post-submit reconciliation evidence."
+                            "A separate source restoration and authorization are "
+                            "required before any new Futures placement implementation."
                         ),
                         frontend_boundary=(
-                            "Display and forward the disabled draft only; do not "
-                            "submit futures orders, call Coinbase, or create browser/"
-                            "BFF execution authority."
+                            "Display historical/source-disabled contract evidence "
+                            "only; the browser and BFF must not forward the command."
                         ),
                     ),
                     command_gap(
                         action="futures live cancel close reduce execution",
-                        status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                        status=AdminApiModuleSupportStatus.UNSUPPORTED,
                         reason=(
-                            "Futures close/reduce, cancel by client_order_id, and "
-                            "reconciliation now have route-bound drafts, but cannot "
-                            "execute until backend position-side, exchange-reality, "
-                            "adapter, audit, cap, approval, and reconciliation "
-                            "execution contracts are complete."
+                            "Futures close/reduce, cancel, and reconciliation are "
+                            "source-disabled and return fixed status=not_implemented "
+                            "evidence; runtime gate records cannot enable them."
                         ),
                         required_backend_contract=(
-                            "Backend live cancel/close/reduce/reconciliation executor "
-                            "keyed by position_key and client_order_id with reduce-only, "
-                            "close-only, margin, approval, cap, audit, adapter, and "
-                            "post-action reconciliation evidence."
+                            "A separate source restoration and authorization are "
+                            "required before any cancel, close/reduce, or reconciliation "
+                            "implementation."
                         ),
                         frontend_boundary=(
-                            "Do not execute futures cancel, close, reduce, or "
-                            "reconciliation from browser/BFF code; cancel remains "
-                            "keyed by client_order_id through the backend draft."
+                            "Display historical/source-disabled evidence only; the "
+                            "browser and BFF must not forward these commands."
                         ),
                     ),
                     command_gap(
@@ -8565,26 +8724,26 @@ class AdminApiReadService:
                 workflow_id="spot.order_command_drafts",
                 module_id="spot_operations",
                 module="Spot Operations",
-                workflow_type=AdminApiFunctionalityWorkflowType.COMMAND_DRAFT,
-                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
-                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                workflow_type=AdminApiFunctionalityWorkflowType.LIVE_EXECUTION,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
                 summary=(
-                    "Manual order, cancel by client_order_id, campaign execution, "
-                    "and sweep automation commands are exposed as authenticated "
-                    "live-disabled drafts."
+                    "Manual order and cancel by client_order_id are controlled-live "
+                    "backend route/runtime capabilities when current live-enablement "
+                    "readback is ready; this static catalog grants no per-request "
+                    "authority and performs no runtime eligibility reads."
                 ),
                 backend_supported=True,
                 admin_api_exposed=True,
                 frontend_exposed=True,
                 command_capable=True,
                 live_designated=True,
+                live_enabled=False,
                 command_routes=[
                     "POST /api/v1/orders",
                     "POST /api/v1/orders/{client_order_id}/cancel",
-                    "POST /api/v1/spot/campaign/executions",
-                    "POST /api/v1/spot/sweep/automation-runs",
                 ],
-                identity_keys=["client_order_id", "campaign_id", "sweep_config_id"],
+                identity_keys=["client_order_id"],
                 backend_contract_refs=[
                     "application/admin_api/command_service.py",
                     "api/v1/routes/orders.py",
@@ -8598,20 +8757,84 @@ class AdminApiReadService:
                     "docs/SPOT_ORDER_FRONTEND_FLOW.md",
                 ],
                 required_next_contract=(
-                    "Approval, cap/guard, audit, reconciliation, and live adapter "
-                    "admission must all pass before execution."
+                    "Each exact request must pass approval, cap/guard, audit, "
+                    "reconciliation, idempotency, operator intent, wallet/product "
+                    "guards, and final backend execution-authority checks."
                 ),
                 blockers=[
-                    "live_execution_disabled",
                     "approval_snapshot_missing",
+                    "admission_audit_missing",
                     "cap_guard_missing",
                     "reconciliation_plan_missing",
+                    "current_live_runtime_readback_required",
                 ],
                 frontend_boundary=(
-                    "Keep buttons dry-submit/live-disabled unless backend capability "
-                    "and live-enablement evidence explicitly admit execution."
+                    "The UI may invoke only the authenticated backend routes when "
+                    "current capability/readiness permits; it cannot grant request "
+                    "authority or bypass any downstream gate."
                 ),
                 spot_rule_boundary="Spot commands must preserve no-shorting and inventory authority.",
+            ),
+            functionality_item(
+                workflow_id="spot.selected_root_reconciliation",
+                module_id="spot_operations",
+                module="Spot Operations",
+                workflow_type=AdminApiFunctionalityWorkflowType.RECOVERY,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Selected-root reconciliation is an explicitly acknowledged "
+                    "backend Coinbase order/fill read followed by sanitized local "
+                    "status and proof persistence; it performs no exchange mutation."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=True,
+                command_capable=True,
+                live_designated=True,
+                live_enabled=False,
+                read_routes=[
+                    "GET /api/v1/orders/{client_order_id}",
+                    "GET /api/v1/orders/{client_order_id}/fill-readback",
+                ],
+                command_routes=[
+                    "POST /api/v1/orders/{client_order_id}/reconciliation",
+                ],
+                recovery_routes=[
+                    "POST /api/v1/orders/{client_order_id}/reconciliation",
+                ],
+                identity_keys=["client_order_id"],
+                backend_contract_refs=[
+                    "api/v1/routes/orders.py::reconcile_order_by_client_order_id",
+                    "application/admin_api/command_service.py::reconcile_order_by_client_order_id",
+                ],
+                frontend_contract_refs=[
+                    "src/features/spot-ops/SelectedOrderReconciliationWorkbench.tsx",
+                    "src/shared/api/contracts/backendApiClient.ts",
+                ],
+                documentation_refs=[
+                    "README.admin-api.md",
+                    "docs/LIVE_ORDER_SURFACES.md",
+                ],
+                required_next_contract=(
+                    "Each request must retain exact execution authority, explicit "
+                    "acknowledgement, durable Admin-root ownership, Test portfolio, "
+                    "product, client_order_id, and stored exchange-identity binding."
+                ),
+                blockers=[
+                    "current_live_runtime_readback_required",
+                    "explicit_manual_live_acknowledgement_required",
+                    "exact_durable_admin_root_identity_required",
+                ],
+                frontend_boundary=(
+                    "Selection and ordinary refresh remain local-only. The browser "
+                    "may invoke the bounded reconciliation POST only after explicit "
+                    "acknowledgement; it must not submit, cancel, or infer exchange state."
+                ),
+                spot_rule_boundary=(
+                    "This is an exact durable Admin Spot-root synchronization path; "
+                    "it grants no Futures, stealth, or generic exchange-read authority."
+                ),
             ),
             functionality_item(
                 workflow_id="spot.sweep_automation_and_live_executor",
@@ -8621,10 +8844,10 @@ class AdminApiReadService:
                 exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
                 support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
                 summary=(
-                    "Backend sweep planning, scheduling, safety policy, live executor, "
-                    "run records, and reconciliation helpers exist; enterprise admin "
-                    "currently exposes status, live-disabled campaign execution, "
-                    "and a live-disabled sweep automation run contract."
+                    "Backend sweep planning and offline M58 evidence remain available. "
+                    "All three M58 exchange-submit routes are source-parked and return "
+                    "fixed status=not_implemented evidence; historical live executor "
+                    "and CLI material is non-authorizing."
                 ),
                 backend_supported=True,
                 admin_api_exposed=True,
@@ -8659,6 +8882,11 @@ class AdminApiReadService:
                         "{run_state_id}/live-submit"
                     ),
                     (
+                        "POST /api/v1/automation/"
+                        "usdc-pair-snapshot-allowlist-run-states/"
+                        "{run_state_id}/live-fanout-submit"
+                    ),
+                    (
                         "POST /api/v1/automation/usdc-pair-snapshot-order-plans/"
                         "{plan_id}/proof-chain-refresh"
                     ),
@@ -8667,7 +8895,6 @@ class AdminApiReadService:
                     "tools/run_spot_portfolio_sweep_live.py",
                     "tools/run_spot_portfolio_sweep_dry_run.py",
                     "tools/run_spot_campaign.py",
-                    "tools/run_admin_api_usdc_pair_snapshot_live_submit.py",
                     "tools/run_admin_api_usdc_pair_snapshot_live_readback.py",
                 ],
                 identity_keys=[
@@ -8704,15 +8931,15 @@ class AdminApiReadService:
                     "reconciliation contracts for durable sweep runs."
                 ),
                 blockers=[
-                    "live_execution_disabled",
+                    "m58_operator_workflow_unavailable",
+                    "m58_exchange_submit_routes_source_parked",
                     "backend scheduling UI contract missing",
-                    "approval and reconciliation contracts incomplete",
-                    "M58 live fan-out blocked until wallet, runtime, retry, recovery, release-gate, and contextless-review evidence pass",
-                    "M58 scheduler blocked until durable run locks and non-reused 5 orders per second rate windows exist",
+                    "M58 scheduler requires a separate source restoration and authorization",
                 ],
                 frontend_boundary=(
-                    "Show automation status and draft execution only; do not launch "
-                    "live sweep tools or create a browser scheduler."
+                    "Show offline and historical automation evidence only; the "
+                    "browser and BFF must not forward source-parked exchange routes "
+                    "or create a scheduler."
                 ),
                 spot_rule_boundary=(
                     "Sweep automation is spot-only and must keep USDC, inventory, "
@@ -9189,22 +9416,18 @@ class AdminApiReadService:
                 module_id="futures_perpetuals",
                 module="Futures / Perpetuals",
                 workflow_type=AdminApiFunctionalityWorkflowType.COMMAND_DRAFT,
-                exposure_status=(
-                    AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED
-                ),
-                support_status=(
-                    AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
-                ),
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_UNSUPPORTED,
+                support_status=AdminApiModuleSupportStatus.UNSUPPORTED,
                 summary=(
                     "Futures placement, close, reduce, cancel, and reconciliation "
-                    "workflows are exposed as route-bound Admin API drafts with "
-                    "live execution disabled."
+                    "POSTs are source-disabled and return fixed status=not_implemented; "
+                    "they are not command drafts or a gate-clearable execution path."
                 ),
-                backend_supported=True,
+                backend_supported=False,
                 admin_api_exposed=True,
-                frontend_exposed=True,
-                command_capable=True,
-                live_designated=True,
+                frontend_exposed=False,
+                command_capable=False,
+                live_designated=False,
                 command_routes=[
                     "POST /api/v1/futures/orders",
                     "POST /api/v1/futures/positions/{position_key}/close-reduce",
@@ -9213,15 +9436,10 @@ class AdminApiReadService:
                 ],
                 identity_keys=["position_key", "product_id", "client_order_id"],
                 required_next_contract=(
-                    "Backend command contracts over position side, margin, leverage, "
-                    "liquidation, reduce-only, close-only, funding, cap, approval, audit, "
-                    "and reconciliation evidence."
+                    "A separately authorized source restoration and new Futures command "
+                    "implementation; current gate evidence cannot enable these routes."
                 ),
-                blockers=[
-                    "live_execution_disabled",
-                    "futures live adapter contract missing",
-                    "futures reconciliation execution missing",
-                ],
+                blockers=["futures_command_service_source_disabled"],
                 backend_contract_refs=[
                     "api/v1/routes/futures.py",
                     "application/admin_api/command_service.py::place_futures_order",
@@ -9232,9 +9450,8 @@ class AdminApiReadService:
                 frontend_contract_refs=["src/features/admin-shell/AdminShell.tsx"],
                 documentation_refs=["README.futures-perpetuals.md"],
                 frontend_boundary=(
-                    "Display and forward disabled futures command drafts only; do "
-                    "not submit, cancel, reconcile, or mutate futures state from "
-                    "the browser or BFF."
+                    "Display historical/source-disabled contract evidence only; "
+                    "the browser and BFF must not forward these commands."
                 ),
                 spot_rule_boundary="Spot rules are forbidden in futures command authority.",
             ),
@@ -9452,6 +9669,13 @@ class AdminApiReadService:
         spot_order_cancel_proof_chain_rows = [
             route_inventory_item(surface)
             for surface in spot_order_cancel_proof_chain_surfaces
+        ]
+        selected_root_reconciliation_surfaces = [
+            "POST /api/v1/orders/{client_order_id}/reconciliation",
+        ]
+        selected_root_reconciliation_rows = [
+            route_inventory_item(surface)
+            for surface in selected_root_reconciliation_surfaces
         ]
         usdc_pair_snapshot_allowlist_live_handoff_surfaces = [
             (
@@ -10345,11 +10569,12 @@ class AdminApiReadService:
                 mutation_family=AdminApiMutationFamilyType.SPOT_MANUAL_ORDER,
                 workflow_id="spot.order_command_drafts",
                 module="Spot Operations",
-                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
-                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
                 summary=(
-                    "Manual spot order placement is a live-disabled Admin API "
-                    "command family keyed by backend-supplied client_order_id."
+                    "Manual spot placement is controlled-live route/runtime-capable, "
+                    "but the generic taxonomy grants no per-request authority; the "
+                    "command remains blocked until every request gate passes."
                 ),
                 identity_keys=["client_order_id"],
                 owning_backend_service="application/admin_api/command_service.py",
@@ -10363,15 +10588,16 @@ class AdminApiReadService:
                 ],
                 documentation_refs=["docs/COMMAND_WORKFLOWS.md"],
                 required_next_contract=(
-                    "Route-specific approval snapshot, cap/guard decision, "
-                    "admission audit, reconciliation plan, and executable live "
-                    "adapter must all pass before Coinbase placement."
+                    "The exact request must bind and pass route-specific approval, "
+                    "cap/guard, admission audit, reconciliation, idempotency, "
+                    "operator intent, wallet/product guards, and final authority."
                 ),
                 blockers=[
-                    "live_execution_disabled",
                     "approval_snapshot_missing",
+                    "admission_audit_missing",
                     "cap_guard_missing",
                     "reconciliation_plan_missing",
+                    "current_live_runtime_readback_required",
                 ],
                 frontend_boundary=(
                     "The browser may draft and dry-submit through generated "
@@ -10389,13 +10615,15 @@ class AdminApiReadService:
                 mutation_family=AdminApiMutationFamilyType.SPOT_ORDER_CANCEL,
                 workflow_id="spot.order_command_drafts",
                 module="Spot Operations",
-                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
-                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
                 summary=(
-                    "Spot cancel is keyed by client_order_id and first calls the "
-                    "project cancel_order(client_order_id) wrapper. Controlled-live "
-                    "backend cancel may use exchange_order_id only as a recorded "
-                    "fallback after client-id cancellation is rejected."
+                    "Spot cancel is keyed by client_order_id. Backend authoritative "
+                    "readback proves the exact active exchange identity, then calls "
+                    "cancel_order(client_order_id, verified_exchange_order_id=...) "
+                    "exactly once. No retry or identity fallback is permitted. The "
+                    "route is runtime-capable, but this taxonomy grants no per-request "
+                    "authority."
                 ),
                 identity_keys=["client_order_id"],
                 owning_backend_service="application/admin_api/command_service.py",
@@ -10416,9 +10644,12 @@ class AdminApiReadService:
                     "exchange cancel evidence, and reconciliation by client_order_id."
                 ),
                 blockers=[
-                    "live_execution_disabled",
                     "approval_snapshot_missing",
+                    "admission_audit_missing",
+                    "cap_guard_missing",
                     "cancel reconciliation proof missing",
+                    "reconciliation_plan_missing",
+                    "current_live_runtime_readback_required",
                 ],
                 frontend_boundary=(
                     "Do not accept exchange order_id as the internal cancel identity; "
@@ -10427,6 +10658,89 @@ class AdminApiReadService:
                 spot_rule_boundary=(
                     "Spot cancel may release spot inventory holds only through backend "
                     "reconciliation; browser state is not wallet authority."
+                ),
+            ),
+            mutation_taxonomy_item(
+                mutation_id="spot.selected_root_reconciliation",
+                mutation_family=AdminApiMutationFamilyType.SPOT_MANUAL_ORDER,
+                workflow_id="spot.selected_root_reconciliation",
+                related_workflow_ids=[
+                    "spot.read_models",
+                    "spot.order_command_drafts",
+                ],
+                module_id="spot_operations",
+                module="Spot Operations",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "The explicitly acknowledged selected-root reconciliation "
+                    "command performs one bounded authoritative Coinbase order/fill "
+                    "read and sanitized local status/proof synchronization only."
+                ),
+                command_surfaces=selected_root_reconciliation_surfaces,
+                action_classes=[
+                    row.action_class for row in selected_root_reconciliation_rows
+                ],
+                required_permissions=[
+                    row.permission for row in selected_root_reconciliation_rows
+                ],
+                identity_keys=["client_order_id"],
+                payload_binding_fields=[
+                    "client_order_id",
+                    "reason",
+                    "manual_live_acknowledgement",
+                    "actor",
+                    "operator_intent",
+                    "idempotency_key",
+                    "correlation_id",
+                ],
+                idempotency_contract=selected_root_reconciliation_rows[0].idempotency,
+                approval_contract=selected_root_reconciliation_rows[0].approval,
+                cap_guard_contract=selected_root_reconciliation_rows[0].caps,
+                admission_audit_contract=selected_root_reconciliation_rows[0].audit,
+                reconciliation_contract=(
+                    selected_root_reconciliation_rows[0].parity_test
+                ),
+                owning_backend_service="application/admin_api/command_service.py",
+                shared_command_service_method=(
+                    selected_root_reconciliation_rows[0].shared_method
+                ),
+                route_inventory_refs=selected_root_reconciliation_surfaces,
+                backend_contract_refs=[
+                    "api/v1/routes/orders.py::reconcile_order_by_client_order_id",
+                    "application/admin_api/command_service.py::reconcile_order_by_client_order_id",
+                ],
+                frontend_contract_refs=[
+                    "src/features/spot-ops/SelectedOrderReconciliationWorkbench.tsx",
+                    "src/shared/api/contracts/backendApiClient.ts",
+                ],
+                documentation_refs=[
+                    "README.admin-api.md",
+                    "docs/LIVE_ORDER_SURFACES.md",
+                ],
+                blockers=[
+                    "current_live_runtime_readback_required",
+                    "explicit_manual_live_acknowledgement_required",
+                    "exact_durable_admin_root_identity_required",
+                ],
+                approval_required=False,
+                cap_guard_required=False,
+                reconciliation_required=False,
+                live_adapter_required=True,
+                frontend_boundary=(
+                    "Selection and ordinary refresh are local-only. The browser may "
+                    "request this bounded readback only after explicit acknowledgement "
+                    "and may never create, cancel, or otherwise mutate an exchange order."
+                ),
+                route_local_boundary=(
+                    "The route binds auth, order:cancel RBAC, idempotency, operator "
+                    "intent, acknowledgement, and exact selected-root identity before "
+                    "delegating all Coinbase read and local persistence behavior to "
+                    "the shared command service."
+                ),
+                spot_rule_boundary=(
+                    "This exact durable Admin Spot-root synchronization path grants "
+                    "no Futures, stealth, or generic exchange-read authority."
                 ),
             ),
             mutation_taxonomy_from_surface(
@@ -10743,9 +11057,10 @@ class AdminApiReadService:
                 support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
                 summary=(
                     "M58 USDC pair snapshot allowlist, run-state, live-readiness, "
-                    "proof-refresh, and controlled-live handoff evidence supports "
-                    "one selected product only; live fan-out and scheduling remain "
-                    "blocked."
+                    "and proof-refresh remain local/synthetic evidence. Every M58 "
+                    "Admin API exchange-submit route is source-parked with "
+                    "m58_operator_workflow_unavailable; fan-out and scheduling "
+                    "also remain blocked."
                 ),
                 command_surfaces=usdc_pair_snapshot_allowlist_live_handoff_surfaces,
                 action_classes=[
@@ -10765,8 +11080,8 @@ class AdminApiReadService:
                 ],
                 idempotency_contract="required for all M58 handoff mutations",
                 approval_contract=(
-                    "exact approval snapshot, proof-chain refresh, and enabled "
-                    "live-service decision required before controlled live submit"
+                    "proof evidence may be validated synthetically, but cannot "
+                    "unpark M58 Admin API exchange execution"
                 ),
                 cap_guard_contract=(
                     "exact cap-guard route/scope/notional/wallet proof required "
@@ -10785,7 +11100,7 @@ class AdminApiReadService:
                     "api/v1/routes/automation.py"
                 ),
                 shared_command_service_method=(
-                    "record/submit M58 allowlist and controlled-live handoff"
+                    "record M58 allowlist/readiness evidence; exchange submit parked"
                 ),
                 route_inventory_refs=(
                     usdc_pair_snapshot_allowlist_live_handoff_surfaces
@@ -10808,13 +11123,12 @@ class AdminApiReadService:
                     "docs/plans/USDC_PAIR_SNAPSHOT_LIMIT_AUTOMATION_MVP.md",
                 ],
                 required_next_contract=(
-                    "Live fan-out and scheduling require per-product live-grade "
-                    "price freshness, wallet allocation/debit/release semantics, "
-                    "runtime run locks, non-reused 5 orders per second rate "
-                    "windows, retry/recovery semantics, release-gate evidence, "
-                    "and contextless review."
+                    "A separately implemented authenticated operator workflow, "
+                    "truthful UI/readback, release-gate evidence, and contextless "
+                    "review are required before removing the source park."
                 ),
                 blockers=[
+                    "m58_operator_workflow_unavailable",
                     "live_fanout_blocked",
                     "scheduler_blocked",
                     "multi_product_wallet_lifecycle_missing",
@@ -10827,16 +11141,14 @@ class AdminApiReadService:
                     "execution, or call Coinbase."
                 ),
                 bff_boundary=(
-                    "BFF may forward only to backend M58 Admin API routes with "
-                    "server-held authority; it must not choose products, approve "
-                    "live execution, allocate wallet notional, fan out orders, "
-                    "or schedule retries."
+                    "BFF may display and forward local/synthetic M58 evidence only. "
+                    "It must not present the parked exchange routes as executable."
                 ),
                 route_local_boundary=(
-                    "Automation routes must consume durable proof-chain, cap, "
-                    "wallet, runtime, retry, recovery, and live-service evidence; "
-                    "they must not bypass the one-selected-product submit/cancel "
-                    "boundary."
+                    "The installed FastAPI dependency is a source-parked adapter "
+                    "that returns fixed typed 501 evidence before any Coinbase "
+                    "executor or submission store write. Synthetic fixture "
+                    "overrides remain test-only."
                 ),
                 spot_rule_boundary=(
                     "M58 handoff is spot USDC-pair evidence only and must not be "
@@ -12512,31 +12824,24 @@ class AdminApiReadService:
                 workflow_id="futures.command_drafts_live_disabled",
                 module_id="futures_perpetuals",
                 module="Futures / Perpetuals",
-                exposure_status=(
-                    AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED
-                ),
-                support_status=(
-                    AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
-                ),
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_UNSUPPORTED,
+                support_status=AdminApiModuleSupportStatus.UNSUPPORTED,
                 summary=(
-                    "Futures placement, close, reduce-only, close-only, cancel, "
-                    "funding, and collateral commands require backend-specific "
-                    "contracts before any execution authority exists. Current "
-                    "Admin API routes are route-bound drafts only."
+                    "Four Futures command POSTs are source-disabled and return fixed "
+                    "status=not_implemented evidence before admission, replay, audit, "
+                    "or mutation code. They are not gate-clearable drafts."
                 ),
                 command_surfaces=[
                     "POST /api/v1/futures/orders",
                     "POST /api/v1/futures/positions/{position_key}/close-reduce",
                     "POST /api/v1/futures/orders/{client_order_id}/cancel",
                     "POST /api/v1/futures/positions/{position_key}/reconciliation",
-                    "POST /api/v1/futures/risk-proofs",
                 ],
                 identity_keys=[
                     "position_key",
                     "product_id",
                     "client_order_id",
                     "portfolio_id",
-                    "proof_kind",
                 ],
                 action_classes=[
                     AdminApiActionClass.LIVE_EXCHANGE_PLACE,
@@ -12547,7 +12852,6 @@ class AdminApiReadService:
                     AdminApiPermission.ORDER_CREATE,
                     AdminApiPermission.ORDER_CANCEL,
                     AdminApiPermission.RECONCILIATION_RECORD,
-                    AdminApiPermission.FUTURES_RISK_PROOF_RECORD,
                 ],
                 payload_binding_fields=[
                     "command",
@@ -12561,63 +12865,116 @@ class AdminApiReadService:
                     "correlation_id",
                     "audit_id",
                 ],
-                idempotency_contract="backend futures idempotency contract missing",
-                approval_contract="backend futures approval contract missing",
-                cap_guard_contract=(
-                    "backend futures margin, collateral, liquidation, reduce-only, "
-                    "close-only, and funding guard contract missing"
+                idempotency_contract=(
+                    "not applicable while the route is source-disabled; historical "
+                    "idempotency records cannot replay"
                 ),
-                admission_audit_contract="backend futures admission audit contract missing",
-                reconciliation_contract="backend futures reconciliation contract missing",
+                approval_contract=(
+                    "not applicable while source-disabled; approval records cannot enable"
+                ),
+                cap_guard_contract=(
+                    "not applicable while source-disabled; cap and risk records cannot enable"
+                ),
+                admission_audit_contract=(
+                    "not applicable while source-disabled; no command audit is persisted"
+                ),
+                reconciliation_contract=(
+                    "not applicable while source-disabled; no reconciliation mutation runs"
+                ),
                 owning_backend_service=(
                     "application/admin_api/command_service.py::"
-                    "AdminApiCommandService futures draft methods"
+                    "fixed source-disabled FastAPI boundary"
                 ),
                 route_inventory_refs=[
                     "POST /api/v1/futures/orders",
                     "POST /api/v1/futures/positions/{position_key}/close-reduce",
                     "POST /api/v1/futures/orders/{client_order_id}/cancel",
                     "POST /api/v1/futures/positions/{position_key}/reconciliation",
-                    "POST /api/v1/futures/risk-proofs",
                 ],
                 backend_contract_refs=[
                     "api/v1/routes/futures.py::place_futures_order",
                     "api/v1/routes/futures.py::close_or_reduce_futures_position",
                     "api/v1/routes/futures.py::cancel_futures_order",
                     "api/v1/routes/futures.py::reconcile_futures_position",
-                    "api/v1/routes/futures.py::record_futures_risk_proof",
                     "application/admin_api/command_service.py::place_futures_order",
                     "application/admin_api/command_service.py::close_or_reduce_futures_position",
                     "application/admin_api/command_service.py::cancel_futures_order",
                     "application/admin_api/command_service.py::reconcile_futures_position",
-                    "application/admin_api/futures_risk_proof_service.py::record_futures_risk_proof",
-                    "application/admin_api/futures_risk_guard.py::evaluate_futures_margin_collateral_liquidation",
                 ],
                 frontend_contract_refs=["src/features/admin-shell/AdminShell.tsx"],
                 documentation_refs=["README.futures-perpetuals.md"],
                 required_next_contract=(
-                    "Futures/perpetual command contracts over position side, margin, "
-                    "collateral, liquidation, reduce-only, close-only, funding, "
-                    "order, cancel, and reconciliation semantics."
+                    "Separate source restoration and authorization followed by a new "
+                    "Futures command implementation and safety review."
                 ),
-                blockers=[
-                    "live_execution_disabled",
-                    "futures live adapter contract missing",
-                    "futures reconciliation execution missing",
-                ],
+                blockers=["futures_command_service_source_disabled"],
                 frontend_boundary=(
-                    "Do not create futures command drafts by copying spot order, "
-                    "wallet, no-shorting, or cost-basis behavior."
+                    "Display source-disabled evidence only; do not create or forward "
+                    "Futures commands."
+                ),
+                bff_boundary=(
+                    "The BFF must not forward source-disabled Futures command POSTs."
+                ),
+                route_local_boundary=(
+                    "Each installed command route returns a fixed typed 501 before "
+                    "idempotency, admission, audit, service, adapter, or Coinbase code."
                 ),
                 spot_rule_boundary=(
                     "Spot rules are forbidden in futures/perpetual command authority."
                 ),
-                idempotency_required=True,
+                idempotency_required=False,
                 operator_intent_required=True,
                 rbac_required=True,
-                approval_required=True,
-                cap_guard_required=True,
-                admission_audit_required=True,
+                approval_required=False,
+                cap_guard_required=False,
+                admission_audit_required=False,
+                reconciliation_required=False,
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_item(
+                mutation_id="futures.risk_proof_recording",
+                mutation_family=AdminApiMutationFamilyType.FUTURES_RISK_PROOF,
+                workflow_id="futures.read_models",
+                module_id="futures_perpetuals",
+                module="Futures / Perpetuals",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Futures risk-proof recording is append-only local evidence; it "
+                    "does not create a command draft or exchange authority."
+                ),
+                command_surfaces=["POST /api/v1/futures/risk-proofs"],
+                identity_keys=["product_id", "portfolio_id", "proof_kind"],
+                action_classes=[AdminApiActionClass.LOCAL_STATE_MUTATION],
+                required_permissions=[AdminApiPermission.FUTURES_RISK_PROOF_RECORD],
+                idempotency_contract="required for the append-only local evidence write",
+                approval_contract="not required; the proof record grants no authority",
+                cap_guard_contract="not required; the proof record grants no authority",
+                admission_audit_contract="append-only local command audit required",
+                reconciliation_contract="not required; no exchange state changes",
+                owning_backend_service=(
+                    "application/admin_api/futures_risk_proof_service.py::"
+                    "record_futures_risk_proof"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/futures.py::record_futures_risk_proof",
+                    "application/admin_api/futures_risk_proof_service.py::record_futures_risk_proof",
+                ],
+                frontend_contract_refs=["src/features/admin-shell/AdminShell.tsx"],
+                documentation_refs=["README.futures-perpetuals.md"],
+                frontend_boundary=(
+                    "Display sanitized risk-proof evidence; never treat it as command "
+                    "or exchange authority."
+                ),
+                route_local_boundary=(
+                    "The route may append sanitized proof/audit/idempotency evidence "
+                    "only; it must not call a Futures executor or Coinbase."
+                ),
+                spot_rule_boundary=(
+                    "Spot rules are forbidden in Futures risk-proof authority."
+                ),
+                approval_required=False,
+                cap_guard_required=False,
                 reconciliation_required=False,
                 live_adapter_required=False,
             ),
@@ -12748,7 +13105,8 @@ class AdminApiReadService:
                 frontend_contract_refs=["src/shared/api/contracts/adminBffProxy.ts"],
                 documentation_refs=["docs/LIVE_ORDER_SURFACES.md"],
                 required_next_contract=(
-                    "Use Admin API cancel routes and project cancel_order(client_order_id) "
+                    "Use the Admin API cancel route and canonical "
+                    "cancel_order(client_order_id, verified_exchange_order_id=...) "
                     "wrapper; do not add browser WebSocket cancel authority."
                 ),
                 blockers=["compatibility-only surface"],
@@ -13102,6 +13460,15 @@ class AdminApiReadService:
             method, path = _surface_method_and_path(item.surface)
             if method != "POST" or not path.startswith("/api/v1/"):
                 continue
+            if (method, path) in (
+                FUTURES_SOURCE_DISABLED_COMMAND_ROUTES
+                | M58_SOURCE_PARKED_EXCHANGE_ROUTES
+            ):
+                # This collection describes paths that may progress through
+                # live-enablement gates.  Literal source-disabled/source-parked
+                # routes have no such progression and are reported by the
+                # capability, functionality, and mutation-taxonomy readbacks.
+                continue
             if item.action_class not in {
                 AdminApiActionClass.LIVE_EXCHANGE_PLACE,
                 AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
@@ -13201,7 +13568,7 @@ class AdminApiReadService:
                     required_permission=item.permission,
                     shared_method=item.shared_method,
                     live_enabled=controlled_live_enabled,
-                    live_eligible=controlled_live_enabled,
+                    live_eligible=controlled_live_runtime_ready,
                     status=path_live_status,
                     governance_status=AdminApiGateStatus.BLOCKED,
                     approval_required=True,
@@ -13326,7 +13693,12 @@ class AdminApiReadService:
             AdminGateCheck(
                 name="m6_command_contracts",
                 status=AdminApiGateStatus.PASSED,
-                detail="Command contracts exist but remain live-disabled until explicit M8 approval.",
+                detail=(
+                    "Manual Spot place/cancel use installed canonical backend "
+                    "adapters; current runtime capability remains separate from "
+                    "per-request authorization. Other command routes retain "
+                    "their documented disabled or parked posture."
+                ),
             ),
             AdminGateCheck(
                 name="live_execution_default",
@@ -13336,7 +13708,11 @@ class AdminApiReadService:
             AdminGateCheck(
                 name="reconciliation_gate",
                 status=AdminApiGateStatus.BLOCKED,
-                detail="No path is live-enabled until post-live reconciliation evidence is wired for that path.",
+                detail=(
+                    "Every controlled-live request requires exact request-bound "
+                    "reconciliation evidence and terminal/readback handling; "
+                    "this generic read does not authorize a request."
+                ),
             ),
         ]
 
@@ -13536,7 +13912,10 @@ class AdminApiReadService:
                 for event in command_events
             )
         except Exception as exc:
-            source_errors.append(f"admin_api_audit_log:{type(exc).__name__}: {exc}")
+            source_errors.append(
+                "admin_api_audit_log:"
+                f"{_value_blind_exception_detail(exc)}"
+            )
 
         if normalized_module in {None, AdminAuditWorkbenchModule.ORDERS}:
             order_response = self.build_order_list(
@@ -13658,7 +14037,7 @@ class AdminApiReadService:
 
             rows = get_parent_orders() or []
         except Exception as exc:
-            filters["backend_read_error"] = f"{type(exc).__name__}: {exc}"
+            filters["backend_read_error"] = _value_blind_exception_detail(exc)
             rows = []
 
         filtered: list[dict[str, Any]] = []
@@ -14103,15 +14482,20 @@ class AdminApiReadService:
         root_portfolio_id = _string_or_none(
             root_row.get("retail_portfolio_id") if root_row else None
         )
-        child_portfolio_ids = {
-            item.client_order_id: item.retail_portfolio_id for item in child_items
+        internal_child_portfolio_ids = {
+            str(
+                child_row.get("client_order_id")
+                or child_row.get("stealth_order_id")
+                or ""
+            ): _string_or_none(child_row.get("retail_portfolio_id"))
+            for child_row in child_rows
         }
         portfolio_scope_consistent = bool(
             expected_portfolio_id
             and root_portfolio_id == expected_portfolio_id
             and all(
                 portfolio_id == root_portfolio_id
-                for portfolio_id in child_portfolio_ids.values()
+                for portfolio_id in internal_child_portfolio_ids.values()
             )
         )
         if expected_portfolio_id:
@@ -14119,7 +14503,9 @@ class AdminApiReadService:
                 blockers.append("root_portfolio_scope_missing")
             elif root_portfolio_id != expected_portfolio_id:
                 blockers.append("root_portfolio_scope_mismatch")
-            for child_id, child_portfolio_id in child_portfolio_ids.items():
+            for child_id, child_portfolio_id in (
+                internal_child_portfolio_ids.items()
+            ):
                 if child_portfolio_id is None:
                     blockers.append(
                         f"follow_up_child_portfolio_scope_missing:{child_id}"
@@ -14134,9 +14520,11 @@ class AdminApiReadService:
                 os.environ.get("COINBASE_ADMIN_API_SPOT_PORTFOLIO_LABEL", "").strip()
                 or "Test"
             ),
-            "expected_portfolio_id": expected_portfolio_id,
-            "root_portfolio_id": root_portfolio_id,
-            "child_portfolio_ids": child_portfolio_ids,
+            "expected_portfolio_id": None,
+            "root_portfolio_id": None,
+            "child_portfolio_ids": {
+                child_id: None for child_id in internal_child_portfolio_ids
+            },
             "scope_consistent": portfolio_scope_consistent,
             "status": (
                 "matched"
@@ -14206,7 +14594,7 @@ class AdminApiReadService:
                 "SELECT * FROM stealth_orders ORDER BY updated_at DESC, created_at DESC"
             ) or []
         except Exception as exc:
-            filters["backend_read_error"] = f"{type(exc).__name__}: {exc}"
+            filters["backend_read_error"] = _value_blind_exception_detail(exc)
             rows = []
 
         filtered: list[dict[str, Any]] = []
@@ -23589,109 +23977,44 @@ class AdminApiReadService:
         *,
         live_runtime_ready: bool | None = None,
     ) -> dict[str, Any]:
-        """Return route-bound US CFM Futures live-decision readback evidence."""
+        """Return fixed fail-closed US CFM Futures execution evidence.
 
-        runtime_ready = (
-            build_admin_api_command_runtime_readiness().runtime_ready
-            if live_runtime_ready is None
-            else live_runtime_ready
-        )
+        Futures command services and routes are source-disabled. Persisted
+        predecessor service or adapter decisions cannot be combined with the
+        installed Spot command runtime to imply Futures readiness.
+        """
+
+        _ = live_runtime_ready
         product_scope = sorted(CONTROLLED_FUTURES_PRODUCT_SCOPE)
-        service_decision = next(
-            (
-                record
-                for record in (
-                    _json_record(item)
-                    for item in self.live_service_decision_store.read_recent(
-                        limit=500
-                    )
-                )
-                if _is_controlled_futures_live_service_record(record)
-            ),
-            None,
-        )
-        adapter_decisions = {
-            route: next(
-                (
-                    record
-                    for record in (
-                        _json_record(item)
-                        for item in self.live_adapter_decision_store.read_recent(
-                            limit=500
-                        )
-                    )
-                    if _is_controlled_futures_live_adapter_record(
-                        record,
-                        target_route=route,
-                        target_service_method=service_method,
-                    )
-                ),
-                None,
-            )
-            for route, service_method in CONTROLLED_FUTURES_ADAPTER_TARGETS.items()
-        }
-        service_ready = service_decision is not None
-        ready_adapter_count = sum(
-            1 for record in adapter_decisions.values() if record is not None
-        )
-        missing_adapter_count = (
-            len(CONTROLLED_FUTURES_ADAPTER_TARGETS) - ready_adapter_count
-        )
-        executor_boundary_ready = service_ready and missing_adapter_count == 0
-        execution_allowed = bool(executor_boundary_ready and runtime_ready)
-        executor_boundary_status = (
-            "live_enabled"
-            if execution_allowed
-            else "observed_live_disabled"
-            if executor_boundary_ready
-            else "pending_live_decision"
-        )
-        first_blocker = (
-            "none"
-            if execution_allowed
-            else "futures_executor_live_disabled"
-            if executor_boundary_ready
-            else "execution_disabled"
-        )
         return {
             "futures_live_execution_scope": {
                 "account_family": CONTROLLED_FUTURES_ACCOUNT_FAMILY,
                 "intx_applicability": CONTROLLED_FUTURES_INTX_APPLICABILITY,
                 "product_scope": product_scope,
-                "execution_allowed": execution_allowed,
+                "execution_allowed": False,
             },
             "futures_live_decision_evidence": {
                 "account_family": CONTROLLED_FUTURES_ACCOUNT_FAMILY,
                 "intx_applicability": CONTROLLED_FUTURES_INTX_APPLICABILITY,
                 "product_scope": product_scope,
-                "service_decision_status": (
-                    "ready"
-                    if service_ready
-                    else "missing_matching_us_cfm_service_decision"
+                "service_decision_status": "source_disabled",
+                "matching_service_decision_id": None,
+                "adapter_decision_ready_count": 0,
+                "adapter_decision_missing_count": len(
+                    CONTROLLED_FUTURES_ADAPTER_TARGETS
                 ),
-                "matching_service_decision_id": (
-                    str(service_decision["decision_id"])
-                    if service_decision is not None
-                    else None
-                ),
-                "adapter_decision_ready_count": ready_adapter_count,
-                "adapter_decision_missing_count": missing_adapter_count,
-                "all_command_adapters_ready": missing_adapter_count == 0,
-                "executor_boundary_status": executor_boundary_status,
-                "executor_boundary_ready": executor_boundary_ready,
-                "executor_boundary_source": (
-                    FUTURES_EXECUTOR_BOUNDARY_SOURCE
-                    if executor_boundary_ready
-                    else None
-                ),
-                "first_blocker": first_blocker,
+                "all_command_adapters_ready": False,
+                "executor_boundary_status": "observed_live_disabled",
+                "executor_boundary_ready": False,
+                "executor_boundary_source": None,
+                "first_blocker": "futures_command_service_source_disabled",
                 "required_evidence_refs": [
                     FUTURES_LIVE_DECISION_SERVICE_ROUTE,
                     FUTURES_LIVE_DECISION_ADAPTER_ROUTE,
                 ],
-                "execution_allowed": execution_allowed,
-                "manual_live_acknowledgement_required": execution_allowed,
-                "live_runtime_ready": runtime_ready,
+                "execution_allowed": False,
+                "manual_live_acknowledgement_required": False,
+                "live_runtime_ready": False,
                 "spot_rule_authority": False,
                 "browser_authority": "display_only",
                 "bff_authority": "forward_only_no_execution",
@@ -35019,29 +35342,18 @@ class AdminApiReadService:
                     for route in guard.evidence_routes
                 }
             )
-            first_blocker = None
-            if blocking_prerequisites:
-                first_blocker = (
-                    f"prerequisite:{blocking_prerequisites[0].prerequisite.value}"
-                )
-            elif blocking_request_fields:
-                first_blocker = f"request_field:{blocking_request_fields[0].field.value}"
-            elif missing_evidence_refs:
-                first_blocker = f"evidence_ref:{missing_evidence_refs[0]}"
-            elif missing_backend_contracts:
-                first_blocker = f"backend_contract:{missing_backend_contracts[0]}"
+            first_blocker = "futures_command_service_source_disabled"
 
             blocker_count = (
-                len(blocking_prerequisites)
+                1
+                + len(blocking_prerequisites)
                 + len(blocking_request_fields)
                 + len(blocking_semantic_guards)
                 + len(missing_backend_contracts)
             )
-            ready = blocker_count == 0
+            ready = False
             decision = (
-                AdminFuturesCommandReadinessDecision.READY_FOR_BACKEND_COMMAND_ROUTE
-                if ready
-                else AdminFuturesCommandReadinessDecision.BLOCKED_BACKEND_CONTRACTS_REQUIRED
+                AdminFuturesCommandReadinessDecision.SOURCE_DISABLED_NOT_IMPLEMENTED
             )
             route_contract = FUTURES_ROUTE_CONTRACTS[command_id]
             return AdminFuturesCommandReadinessDecisionItem(
@@ -35061,19 +35373,13 @@ class AdminApiReadService:
                 evidence_route_count=len(evidence_routes),
                 first_blocker=first_blocker,
                 next_required_backend_contract=(
-                    missing_backend_contracts[0]
-                    if missing_backend_contracts
-                    else None
+                    "separate_source_restoration_and_authorization"
                 ),
                 command_route_registered=route_contract.route_registered,
                 command_draft_allowed=route_contract.command_draft_allowed,
                 execution_allowed=route_contract.execution_allowed,
-                detail=(
-                    f"{command_id.value} remains backend-blocked readiness "
-                    "evidence only. The route-bound draft does not enable a "
-                    "live adapter, Coinbase call, browser authority, or BFF "
-                    "execution authority."
-                ),
+                bff_authority="source_disabled_not_forwarded",
+                detail=FUTURES_COMMAND_SOURCE_DISABLED_DETAIL,
             )
 
         def readiness_closure_steps(
@@ -35207,6 +35513,15 @@ class AdminApiReadService:
                     "enablement slice can advance."
                 ),
             )
+            for row in rows:
+                row.command_draft_allowed = False
+                row.execution_allowed = False
+                row.bff_authority = "source_disabled_not_forwarded"
+                row.detail = (
+                    f"{command_id.value} historical {row.step.value} evidence is "
+                    "read-only. The current route is source-disabled; separate "
+                    "source restoration and authorization are required."
+                )
             return rows
 
         def safe_futures_risk_proof_record(
@@ -46383,11 +46698,7 @@ class AdminApiReadService:
                     )
                 ),
                 semantic_guards=placement_semantic_guards,
-                detail=(
-                    "Futures placement has a route-bound command draft, but "
-                    "futures-specific risk contracts must pass before any live "
-                    "placement adapter or Coinbase submission can exist."
-                ),
+                detail=FUTURES_COMMAND_SOURCE_DISABLED_DETAIL,
             ),
             command(
                 AdminFuturesCommandAction.CLOSE_REDUCE,
@@ -46720,12 +47031,7 @@ class AdminApiReadService:
                     )
                 ),
                 semantic_guards=close_reduce_semantic_guards,
-                detail=(
-                    "Futures close/reduce has a route-bound command draft, "
-                    "but must derive sides from backend position evidence and "
-                    "reduce-only/close-only contracts before any live adapter "
-                    "or Coinbase submission can exist."
-                ),
+                detail=FUTURES_COMMAND_SOURCE_DISABLED_DETAIL,
             ),
             command(
                 AdminFuturesCommandAction.CANCEL,
@@ -47058,13 +47364,7 @@ class AdminApiReadService:
                     )
                 ),
                 semantic_guards=cancel_semantic_guards,
-                detail=(
-                    "Futures cancel has a route-bound command draft keyed by "
-                    "client_order_id. The client_order_id discipline remains "
-                    "mandatory, and backend-owned exchange-reality "
-                    "reconciliation is still required before any live adapter "
-                    "or Coinbase cancellation can exist."
-                ),
+                detail=FUTURES_COMMAND_SOURCE_DISABLED_DETAIL,
             ),
             command(
                 AdminFuturesCommandAction.RECONCILE,
@@ -47397,12 +47697,7 @@ class AdminApiReadService:
                     )
                 ),
                 semantic_guards=reconciliation_semantic_guards,
-                detail=(
-                    "Futures reconciliation has a route-bound command draft, "
-                    "but must remain position, margin, collateral, funding, "
-                    "and liquidation aware before any reconciliation executor "
-                    "can exist."
-                ),
+                detail=FUTURES_COMMAND_SOURCE_DISABLED_DETAIL,
             ),
         ]
         suite_missing_backend_contracts = sorted(
@@ -49938,6 +50233,7 @@ class AdminApiReadService:
                             for command_item in decision_commands
                             if command_item.live_coinbase_orders_ran
                         ),
+                        bff_authority="source_disabled_not_forwarded",
                         detail=(
                             f"{decision_id.value} applies to "
                             f"{len(decision_commands)} futures/perpetual command "
@@ -50197,42 +50493,37 @@ class AdminApiReadService:
         def step_detail(step: AdminFuturesCommandReadinessClosureStep) -> str:
             details = {
                 AdminFuturesCommandReadinessClosureStep.RESOLVE_PREREQUISITE_CONTRACTS: (
-                    "Resolve futures/perpetual prerequisite contracts through "
-                    "backend-owned evidence before any route-bound command draft "
-                    "can become executable."
+                    "Historical futures/perpetual prerequisite evidence remains "
+                    "read-only and cannot progress the current source-disabled route."
                 ),
                 AdminFuturesCommandReadinessClosureStep.DEFINE_REQUEST_PAYLOAD_CONTRACT: (
-                    "Define backend-owned request payload contracts; browser "
-                    "fields remain display evidence and cannot become accepted "
-                    "command payloads."
+                    "Historical backend-owned request payload contracts remain "
+                    "display evidence and cannot become accepted command payloads."
                 ),
                 AdminFuturesCommandReadinessClosureStep.BIND_SEMANTIC_GUARD_EVIDENCE: (
-                    "Bind semantic guard and risk-proof acceptance evidence to "
-                    "backend-owned proof routes and writers before command "
-                    "enablement can advance."
+                    "Historical semantic-guard and risk-proof evidence cannot "
+                    "advance the current source-disabled command route."
                 ),
                 AdminFuturesCommandReadinessClosureStep.DEFINE_BACKEND_COMMAND_SERVICE: (
-                    "Define missing shared backend command service contracts "
-                    "before route-local or browser execution could be "
-                    "considered."
+                    "The shared backend command service is source-disabled and "
+                    "cannot be restored through route-local or browser evidence."
                 ),
                 AdminFuturesCommandReadinessClosureStep.REGISTER_ADMIN_COMMAND_ROUTE: (
-                    "Register Admin API command routes only after service, "
-                    "guard, audit, reconciliation, and review prerequisites "
-                    "are satisfied."
+                    "The registered Admin API route is a fixed source-disabled "
+                    "boundary and cannot progress through governance evidence."
                 ),
                 AdminFuturesCommandReadinessClosureStep.BIND_LIVE_SERVICE_ADAPTER: (
-                    "Bind live service adapter evidence only after route, "
-                    "draft, guard, audit, reconciliation, and live-boundary "
-                    "contracts are ready."
+                    "Historical live-service or adapter evidence cannot bind "
+                    "execution to the current source-disabled route."
                 ),
                 AdminFuturesCommandReadinessClosureStep.RUN_CONTEXTLESS_REVIEW_GATE: (
-                    "Run focused gates and blind/contextless review before any "
-                    "future enablement slice can advance."
+                    "Focused and blind/contextless review can verify the boundary "
+                    "but cannot restore command authority."
                 ),
             }
             return (
                 details[step]
+                + " Separate source restoration and authorization are required."
                 + " This aggregate sequence row is read-only evidence and "
                 "does not create execution authority, a live adapter, Coinbase "
                 "activity, reconciliation execution, state mutation, browser "
@@ -52254,11 +52545,10 @@ class AdminApiReadService:
             missing_backend_contracts=suite_missing_backend_contracts,
             forbidden_spot_assumptions=forbidden_spot_assumptions,
             message=(
-                "Futures/perpetual command contracts are M57 readiness evidence "
-                "only. Route-bound command drafts are registered for placement, "
-                "close/reduce, cancel, and reconciliation, but no live adapter, "
-                "Coinbase call, reconciliation execution, state mutation, browser "
-                "authority, or BFF execution authority exists."
+                "Futures command routes are source-disabled and return fixed "
+                "status=not_implemented evidence. Historical M57 contract rows "
+                "remain read-only and cannot enable browser, BFF, adapter, "
+                "reconciliation, state mutation, or Coinbase execution authority."
             ),
         )
 
@@ -52566,10 +52856,10 @@ class AdminApiReadService:
                 name="m58_usdc_pair_live_fanout_gate",
                 status=AdminApiGateStatus.WARNING,
                 detail=(
-                    "M58 live fan-out remains technically blocked. Current "
-                    "supported live behavior is one selected run-state product "
-                    "submitted and cancelled through the backend handoff only, "
-                    "and no-live evidence now includes standing-cap scope "
+                    "All M58 Admin API exchange submission, including the prior "
+                    "one-selected-product and fan-out routes, is source-parked "
+                    "with m58_operator_workflow_unavailable. Local/synthetic "
+                    "evidence remains available and includes standing-cap scope "
                     "readback, two-product no-live "
                     "wallet lifecycle readback with unique "
                     "reservation/debit/release refs plus explicit no-live "
@@ -52851,12 +53141,13 @@ class AdminApiReadService:
             ),
             AdminGateCheck(
                 name="m58_usdc_pair_release_gate_clearance",
-                status=AdminApiGateStatus.WARNING,
+                status=AdminApiGateStatus.PASSED,
                 detail=(
-                    "M58 live fan-out and scheduler release must clear remaining "
-                    "warning checks with focused backend evidence, no-live "
-                    "regression evidence, and a release-gate run that records "
-                    "no live Coinbase execution by default."
+                    "Release safety passes because every installed M58 "
+                    "exchange-submit route is source-parked. "
+                    "Focused evidence, warning clearance, or release-gate results "
+                    "cannot unpark it; separate source restoration and explicit "
+                    "authorization are required."
                 ),
             ),
             AdminGateCheck(
@@ -52868,21 +53159,20 @@ class AdminApiReadService:
                     "spot-only domain boundary and frontend display-only "
                     "posture, found the legacy fanout_execution_not_approved "
                     "parent blocker mismatch, and remediation now rejects that "
-                    "blocker; remaining live fan-out blockers are live-grade "
-                    "wallet, runtime, release-gate, and Coinbase execution "
-                    "proof."
+                    "blocker. These historical review results cannot unpark any "
+                    "M58 route; source restoration and separate authorization "
+                    "remain mandatory."
                 ),
             ),
             AdminGateCheck(
                 name="m58_usdc_pair_contextless_review_gate",
                 status=AdminApiGateStatus.PASSED,
                 detail=(
-                    "2026-07-07 blind contextless review confirmed the current "
-                    "boundary is backend-owned, spot-only, and one selected "
-                    "product only. 2026-07-09 blind contextless review rechecked "
-                    "M58 live-fanout broadening and the remediated "
-                    "fanout_execution_not_approved mismatch; repeat review before "
-                    "scheduler broadening or any new authority boundary."
+                    "Prior blind contextless reviews covered the backend-owned, "
+                    "spot-only M58 evidence boundary. The current operator MVP "
+                    "keeps every M58 exchange-submit route source-parked; repeat "
+                    "review is required before removing that park, broadening "
+                    "fan-out, or adding scheduling authority."
                 ),
             ),
         ]
@@ -53298,9 +53588,11 @@ class AdminApiReadService:
                     "docs/COMMAND_WORKFLOWS.md",
                 ],
                 "detail": (
-                    "Manual spot order placement is the M53 pilot route, but it "
-                    "remains non-executable until approval, cap/guard, audit, "
-                    "reconciliation, and live execution service admission pass."
+                    "Manual spot placement is a controlled-live backend route only "
+                    "when the current live decision and command runtime are ready. "
+                    "That route capability does not authorize a request; approval, "
+                    "cap/guard, audit, reconciliation, idempotency, operator intent, "
+                    "and all command guards still resolve per request."
                 ),
             },
             AdminApiMutationFamilyType.SPOT_ORDER_CANCEL: {
@@ -53309,7 +53601,7 @@ class AdminApiReadService:
                 "backend_contract_refs": [
                     "api/v1/routes/orders.py::cancel_order_by_client_order_id",
                     "application/admin_api/command_service.py::cancel_order_by_client_order_id",
-                    "cancel_order(client_order_id)",
+                    "cancel_order(client_order_id, verified_exchange_order_id=...)",
                 ],
                 "frontend_contract_refs": [
                     "src/shared/api/contracts/backendApiClient.ts::cancelOrderByClientOrderId",
@@ -53321,12 +53613,14 @@ class AdminApiReadService:
                     "docs/COMMAND_WORKFLOWS.md",
                 ],
                 "detail": (
-                    "Spot cancel is keyed by client_order_id. Backend cancel first "
-                    "uses the project cancel_order(client_order_id) wrapper; "
-                    "controlled-live backend cancel evidence may use exchange_order_id "
-                    "only as a recorded fallback after client-id cancellation is "
-                    "rejected. Admin API live cancel remains disabled until approval, "
-                    "audit, cap/guard, and reconciliation evidence pass."
+                    "Spot cancel is keyed by client_order_id. Authoritative readback "
+                    "must prove its exact active exchange order_id before the backend "
+                    "calls cancel_order(client_order_id, "
+                    "verified_exchange_order_id=...) exactly once. No retry or "
+                    "identity fallback is permitted. Current route capability requires "
+                    "the live decision and command runtime, and does not authorize a "
+                    "request; approval, audit, cap/guard, reconciliation, idempotency, "
+                    "operator intent, and all command guards still resolve per request."
                 ),
             },
             AdminApiMutationFamilyType.SPOT_CAMPAIGN_EXECUTION: {
@@ -53621,14 +53915,24 @@ class AdminApiReadService:
                     if precondition.blocking
                 ]
                 readiness_preconditions = list(live_path.readiness_preconditions)
-                live_execution_status = live_path.status
                 live_adapter_configured = live_path.live_execution_adapter.configured
-            admission_live_enabled = (
-                live_path.live_enabled if live_path is not None else False
+            controlled_live_enabled = bool(
+                live_path is not None and live_path.live_enabled
             )
-            controlled_live_enabled = admission_live_enabled or (
-                mutation_family == AdminApiMutationFamilyType.SPOT_ORDER_CANCEL
-                and live_adapter_configured
+            controlled_live_runtime_ready = bool(
+                controlled_live_enabled
+                and live_path is not None
+                and live_path.live_command_runtime_ready
+            )
+            if controlled_live_enabled and not controlled_live_runtime_ready:
+                missing_gate_chain = [
+                    *missing_gate_chain,
+                    "live_command_runtime",
+                ]
+            live_execution_status = (
+                live_path.status
+                if controlled_live_enabled and live_path is not None
+                else AdminApiLiveExecutionStatus.LIVE_DISABLED
             )
             required_gate_chain = [
                 "idempotency",
@@ -53655,8 +53959,8 @@ class AdminApiReadService:
                     status=AdminApiGateStatus.BLOCKED,
                     live_execution_status=live_execution_status,
                     live_enabled=controlled_live_enabled,
-                    live_eligible=controlled_live_enabled,
-                    executable=False,
+                    live_eligible=controlled_live_runtime_ready,
+                    executable=controlled_live_runtime_ready,
                     live_adapter_configured=live_adapter_configured,
                     approval_required=True,
                     cap_guard_required=True,
@@ -53698,9 +54002,13 @@ class AdminApiReadService:
                         "Spot-only wallet, no-shorting, USDC, average-cost, and lot authority remain backend guard evidence.",
                         *(
                             [
-                                "Manual order controlled-live submission is allowed only through backend Admin API admission."
+                                "The backend route and current command runtime are executable, but this generic readback does not authorize this request; every per-request gate must still pass."
                             ]
-                            if admission_live_enabled
+                            if controlled_live_runtime_ready
+                            else [
+                                "Current backend route/runtime evidence is not executable; no request authority is present."
+                            ]
+                            if controlled_live_enabled
                             else []
                         ),
                     ],
@@ -53983,7 +54291,6 @@ class AdminApiReadService:
                 1
                 for command in commands
                 if command.live_enabled
-                and "live_execution_service" not in command.missing_gate_chain
             ),
             executable_command_count=sum(1 for command in commands if command.executable),
             spot_rules_platform_default=False,
@@ -53998,14 +54305,17 @@ class AdminApiReadService:
             evidence=[
                 "M54 starts with read-only spot command-suite coverage before execution.",
                 "M54 gate linkage names backend proof routes for approval, admission audit, cap/guard, and reconciliation records.",
-                "Manual order, cancel, and campaign command families remain live-blocked.",
+                "Manual order and cancel report current backend live-decision and command-runtime capability; campaign remains live-blocked.",
+                "Executable means the backend route/runtime can process an eligible request; this readback does not authorize any request or satisfy its downstream gates.",
                 "Sweep automation, recovery workflow, and reconciliation workflow gaps remain explicit backend-owned evidence; spot recovery preview, apply-review, rollback-plan, reconciliation-proof, and execution-journal routes are backend-owned evidence while state repair and reconciliation execution remain blocked.",
                 "Spot recovery reconciliation-proof readback exposes fail-closed reconciliation execution boundaries and backend-owned exchange-state snapshot rows while the executor and live Coinbase read authority remain blocked.",
                 "Spot command readiness is not platform-wide authority for non-spot modules.",
             ],
             message=(
-                "Spot command-suite coverage is backend-owned readiness evidence; "
-                "live Coinbase execution remains disabled."
+                "Spot command-suite coverage is backend-owned route/runtime "
+                "readiness evidence. Even an executable controlled-live route "
+                "does not authorize a request; its full per-request gate chain "
+                "must pass before Coinbase execution."
             ),
         )
 
@@ -54014,9 +54324,53 @@ class AdminApiReadService:
         *,
         product_ids: list[str] | None = None,
     ) -> dict[str, Any]:
-        from dashboard_server import _build_spot_readiness_payload
-
-        return _build_spot_readiness_payload(product_ids=product_ids)
+        requested_product_ids = [
+            product_id
+            for raw_product_id in (product_ids or [])
+            if (product_id := str(raw_product_id).strip())
+        ]
+        return {
+            "type": "spot_readiness",
+            "status": "blocked",
+            "products": [
+                {"product_id": product_id}
+                for product_id in requested_product_ids
+            ],
+            "planned_budget": {},
+            "wallet_snapshot": {
+                "status": "withheld",
+                "available": False,
+                "values_withheld": True,
+                "reason": (
+                    "wallet_evidence_resolves_only_during_"
+                    "authorized_backend_action"
+                ),
+            },
+            "action_guard_summary": [
+                {
+                    "label": "Per-action wallet admission",
+                    "mode": "backend_only",
+                    "reason": (
+                        "wallet_evidence_resolves_only_during_"
+                        "authorized_backend_action"
+                    ),
+                }
+            ],
+            "message": (
+                "spot_readiness_requires_explicit_authorized_backend_action"
+            ),
+            "blockers": ["explicit_authorized_refresh_not_implemented"],
+            "local_only": True,
+            "values_withheld": True,
+            "coinbase_read_attempted": False,
+            "coinbase_read_succeeded": False,
+            "live_coinbase_read_ran": False,
+            "live_coinbase_orders_ran": False,
+            "external_state_refresh_available": False,
+            "external_state_refresh_route": None,
+            "browser_authority": "display_only",
+            "bff_authority": "read_only_forward",
+        }
 
     def build_spot_recovery_preview(
         self,
@@ -55540,12 +55894,33 @@ class AdminApiReadService:
         product_ids: list[str] | None = None,
         include_coinbase_average_cost: bool = False,
     ) -> dict[str, Any]:
-        from dashboard_server import _build_spot_sweep_pnl_payload
-
-        return _build_spot_sweep_pnl_payload(
-            product_ids=product_ids,
-            include_coinbase_average_cost=include_coinbase_average_cost,
-        )
+        requested_product_ids = [
+            product_id
+            for raw_product_id in (product_ids or [])
+            if (product_id := str(raw_product_id).strip())
+        ]
+        return {
+            "type": "spot_sweep_pnl",
+            "status": "blocked",
+            "pnl_report": None,
+            "read_only_coinbase_requests": [],
+            "message": "spot_pnl_values_withheld_from_ordinary_get",
+            "requested_product_ids": requested_product_ids,
+            "blockers": ["explicit_authorized_refresh_not_implemented"],
+            "local_only": True,
+            "values_withheld": True,
+            "coinbase_average_cost_requested": bool(
+                include_coinbase_average_cost
+            ),
+            "coinbase_read_attempted": False,
+            "coinbase_read_succeeded": False,
+            "live_coinbase_read_ran": False,
+            "live_coinbase_orders_ran": False,
+            "external_state_refresh_available": False,
+            "external_state_refresh_route": None,
+            "browser_authority": "display_only",
+            "bff_authority": "read_only_forward",
+        }
 
     def build_spot_cost_basis_status(
         self,

@@ -35,7 +35,7 @@ class SpotPortfolioBindingEvidence:
     source: str = "coinbase_get_api_key_permissions"
 
     def to_dict(self) -> dict[str, Any]:
-        """Return operator-safe evidence without credential material."""
+        """Return internal binding evidence, including enforcement identifiers."""
 
         payload = asdict(self)
         payload.update(
@@ -47,6 +47,34 @@ class SpotPortfolioBindingEvidence:
             }
         )
         return payload
+
+
+def serialize_public_spot_portfolio_scope(
+    evidence: Any,
+) -> dict[str, Any]:
+    """Return operator-visible scope evidence without concrete portfolio UUIDs.
+
+    The binding object deliberately retains the identifiers required for
+    fail-closed Coinbase selection and durable ownership checks.  Public API,
+    idempotency, audit, and readback structures must use this serializer rather
+    than exposing the internal dictionary directly.
+    """
+
+    converter = getattr(evidence, "to_dict", None)
+    if callable(converter):
+        payload = dict(converter())
+    elif isinstance(evidence, Mapping):
+        payload = dict(evidence)
+    else:
+        payload = {}
+    payload.update(
+        {
+            "expected_portfolio_id": None,
+            "observed_portfolio_id": None,
+            "portfolio_id": None,
+        }
+    )
+    return payload
 
 
 def evaluate_spot_test_portfolio_binding(

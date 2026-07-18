@@ -20,12 +20,13 @@
 
 ## Canonical Path
 
-Strategy modules decide intent. Live order placement, cancellation, and lifecycle
-mutation still flow through the canonical order/stealth paths.
+Strategy modules decide intent. They do not grant exchange authority. The sole
+Controlled-live surface is authenticated Admin API manual Spot LIMIT/GTC
+place/cancel under its backend admission chain.
 
 Spot campaign and portfolio sweep modules may plan, gate, explain, and record
-USDC spot strategy intent. Live campaign placement still renders to the existing
-spot portfolio sweep live runner; do not create a second spot placement engine.
+USDC spot strategy intent. Their mutation modes are source-disabled and cannot
+submit Coinbase orders; do not create a second spot placement engine.
 
 ## Must Not Do
 

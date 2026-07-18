@@ -368,7 +368,11 @@ class StealthOrderManager:
             create_stealth_orders_table()
             self.logger.debug("✓ Stealth order schema migration completed")
         except Exception as e:
-            self.logger.warning(f"✗ Failed to run schema migration: {type(e).__name__}: {e}")
+            self.logger.warning(
+                "Stealth schema migration failed "
+                "[exception_class:%s]",
+                type(e).__name__,
+            )
     
     def _default_log(self, log_type: str, message: str):
         """Log using proper logging_service with timestamps."""
@@ -6460,8 +6464,14 @@ class StealthOrderManager:
                     'condition_first_met_at': row.get('condition_first_met_at'),
                     'condition_confirmed_at': row.get('condition_confirmed_at'),
                 }
-        except Exception as e:
-            self.log_callback("error", {"event": "stealth_order_load_failed", "stealth_order_id": stealth_order_id, "error": str(e)})
+        except Exception as exc:
+            self.log_callback(
+                "error",
+                {
+                    "event": "stealth_order_load_failed",
+                    "error_class": type(exc).__name__,
+                },
+            )
         
         return None
     
@@ -6566,13 +6576,25 @@ class StealthOrderManager:
                             self._placed_order_index[str(placed_order_id)] = order_data
                     loaded_count += 1
                 except Exception as e:
-                    self.log_callback("error", {"event": "stealth_order_load_item_failed", "stealth_order_id": row.get('stealth_order_id'), "error": str(e)})
+                    self.log_callback(
+                        "error",
+                        {
+                            "event": "stealth_order_load_item_failed",
+                            "exception_class": type(e).__name__,
+                        },
+                    )
                     if raise_on_error:
                         raise
             
             return loaded_count
         except Exception as e:
-            self.log_callback("error", {"event": "stealth_orders_batch_load_failed", "error": str(e)})
+            self.log_callback(
+                "error",
+                {
+                    "event": "stealth_orders_batch_load_failed",
+                    "exception_class": type(e).__name__,
+                },
+            )
             if raise_on_error:
                 raise
             return 0

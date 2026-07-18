@@ -20,6 +20,34 @@ or reconcile exchange state.
   not recovery execution, reconciliation execution, Coinbase calls, or sell
   authority.
 
+## Runtime Read Posture And Identifier Privacy
+
+`no-live` describes the default operator-review runtime posture. Manager
+startup, status, health, and session probes are local and call-free. Ordinary
+authenticated UI bootstrap and refresh are call-free in both `no-live` and
+`controlled-live`: account-management, wallet, product, fee, Spot readiness,
+and every Futures read model use only local sanitized evidence or a fixed
+unavailable/source-disabled classification. Merely loading or refreshing a
+page never invokes Coinbase.
+
+`controlled-live` makes only the installed, route-specific operator actions
+eligible for their backend authority chains. A fresh wallet, product, order,
+fill, portfolio, or market read may occur only inside an explicit action whose
+RBAC, operator acknowledgement, idempotency, scope, cap, audit,
+reconciliation, and per-action authorization have passed. It does not donate
+read authority to ordinary GET routes. Futures account, position, risk-proof,
+command-suite, and fill-readback UI surfaces remain local and source-disabled;
+they never refresh Futures positions or margin/collateral from Coinbase.
+
+Concrete Coinbase portfolio UUIDs remain backend-only enforcement inputs. The
+backend retains exact credential/catalog bindings only inside explicit
+authorized action boundaries and never reflects them into ordinary read
+models. Public local evidence shows withheld identifiers and safe fixed
+classifications; raw position, margin, wallet, product, fee, order, and fill
+envelopes are never exposed. Action failures expose fixed value-blind
+classifications only; exception text and response extensions are never
+reflected into the Admin API.
+
 ## Spot Recovery Contracts
 
 The Spot recovery routes are read-only operator models for recovery triage:

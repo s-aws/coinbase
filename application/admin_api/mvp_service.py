@@ -8,7 +8,7 @@ submission only when explicit backend gates are satisfied.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation, ROUND_DOWN, ROUND_UP
 from enum import Enum
 import hashlib
@@ -19,14 +19,59 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 from urllib.parse import unquote
 import uuid
 
+from application.admin_api.approval import (
+    AdminApiApprovalLifecycleEvent,
+    AdminApiApprovalRecord,
+    FileAdminApiApprovalStore,
+)
+from application.admin_api.audit import AdminApiAuditEvent, FileAdminApiAuditStore
+from application.admin_api.cap_guard import FileAdminApiCapGuardStore
+from application.admin_api.cap_guard_service import AdminApiCapGuardDecisionService
+from application.admin_api.idempotency import (
+    FileIdempotencyStore,
+    IdempotencyRecord,
+    make_payload_hash,
+)
+from application.admin_api.models import (
+    AdminApiCommandResponse,
+    AdminCapGuardDecisionCreateRequest,
+    AdminLiveAdmissionDecisionEvidence,
+)
+from application.admin_api.reconciliation import (
+    FileAdminApiReconciliationStore,
+    ReconciliationPlanRecord,
+)
 from application.admin_api.futures_portfolio_binding import (
     evaluate_futures_default_portfolio_binding,
+    serialize_public_futures_portfolio_binding,
+)
+from application.admin_api.live_execution import coinbase_execution_authority_enabled
+from application.admin_api.operator_mvp_policy import (
+    OPERATOR_MVP_CANCEL_PRODUCT_SCOPE,
+    OPERATOR_MVP_MAX_EXECUTED_NOTIONAL_USDC,
+    OPERATOR_MVP_MAX_SUBMITTED_NOTIONAL_USDC,
 )
 from application.admin_api.spot_portfolio_binding import (
     DEFAULT_SPOT_PORTFOLIO_LABEL,
     SPOT_PORTFOLIO_ID_ENV,
     SPOT_PORTFOLIO_LABEL_ENV,
+    serialize_public_spot_portfolio_scope,
 )
+from core.enums import (
+    AdminApiActionClass,
+    AdminApiApprovalLifecycleEventType,
+    AdminApiApprovalLifecycleStatus,
+    AdminApiCommandStatus,
+    AdminApiGateStatus,
+    AdminApiIdempotencyDecision,
+    AdminApiPermission,
+)
+
+
+def _value_blind_exception_detail(exc: BaseException) -> str:
+    """Return exception-class evidence without exception-carried values."""
+
+    return f"exception_class:{type(exc).__name__}"
 
 
 class AdminMvpFuturesAccountFamily(str, Enum):
@@ -74,6 +119,20 @@ LOCAL_DEFAULT_FRESHNESS = "local_default_not_connected"
 SPOT_ADMISSION_QUOTE_CURRENCIES = ("USDC", "USD")
 DEFAULT_SPOT_PRODUCT_SCOPE = ("BTC-USDC",)
 FUTURES_MODULE_ID = "futures_perpetuals"
+FUTURES_COMMAND_SERVICE_SOURCE_DISABLED = (
+    "futures_command_service_source_disabled"
+)
+FUTURES_COMMAND_SOURCE_DISABLED_MESSAGE = (
+    "Futures command execution is source-disabled: "
+    "futures_command_service_source_disabled. Restoring source code and "
+    "obtaining separate authorization are required; approval, cap, audit, "
+    "reconciliation, or adapter evidence cannot enable this route."
+)
+FUTURES_LOCAL_READ_SOURCE = "backend_admin_api_local_evidence"
+FUTURES_COINBASE_READ_NOT_AUTHORIZED = "futures_coinbase_read_not_authorized"
+COINBASE_PAGE_LOAD_READ_NOT_AUTHORIZED = (
+    "coinbase_page_load_read_not_authorized"
+)
 FUTURES_ACCOUNT_FAMILY_US_CFM = AdminMvpFuturesAccountFamily.US_CFM.value
 FUTURES_INTX_APPLICABILITY_US_ACCOUNT = (
     AdminMvpFuturesIntxApplicability.NOT_APPLICABLE_US_ACCOUNT.value
@@ -248,8 +307,8 @@ ADMIN_RUNTIME_CONTROL_SPECS = {
         "target_states": {"DRAINING", "STOPPED"},
     },
 }
-DEFAULT_MAX_SUBMITTED_NOTIONAL_USDC = Decimal("3.10")
-DEFAULT_MAX_EXECUTED_NOTIONAL_USDC = Decimal("1.00")
+DEFAULT_MAX_SUBMITTED_NOTIONAL_USDC = OPERATOR_MVP_MAX_SUBMITTED_NOTIONAL_USDC
+DEFAULT_MAX_EXECUTED_NOTIONAL_USDC = OPERATOR_MVP_MAX_EXECUTED_NOTIONAL_USDC
 DEFAULT_FUTURES_MAX_SUBMITTED_NOTIONAL_USDC = Decimal("100.00")
 DEFAULT_FUTURES_MAX_EXECUTED_NOTIONAL_USDC = Decimal("100.00")
 DEFAULT_WALLET_AVAILABLE_NOTIONAL_USDC = Decimal("0")
@@ -506,22 +565,104 @@ def _spot_fill_readback_proof_ref(
     return f"spot_fill_readback:{client_order_id}:{audit_id}"
 
 
-def _spot_fill_readback_record_proves_live_fill(record: Mapping[str, Any]) -> bool:
-    """Return true only for read-only live Spot fill readback proof."""
+def _spot_fill_readback_record_proves_live_fill(
+    record: Mapping[str, Any],
+    *,
+    canonical_only: bool = False,
+) -> bool:
+    """Return true only for durable or durably projected live-fill evidence.
 
-    return (
+    The explicit reconciliation command persists the canonical proof with its
+    Coinbase-read facts at the top level.  The ordinary GET is deliberately
+    call-free and reports those historical facts under ``proof_origin_*`` so
+    its current-request flags remain false.  Older durable GET-era proofs used
+    the established summary shape and remain readable, but only when their
+    proof reference is bound to the exact client order and completion time.
+    """
+
+    summary_proven = (
         str(record.get("type") or "") == "admin_spot_order_fill_readback"
         and str(record.get("status") or "") == "passed"
-        and bool(record.get("read_only")) is True
-        and bool(record.get("live_coinbase_read_ran")) is True
-        and bool(record.get("live_coinbase_orders_ran")) is False
-        and bool(record.get("coinbase_read_succeeded")) is True
-        and bool(record.get("order_found")) is True
+        and record.get("read_only") is True
+        and record.get("live_coinbase_orders_ran") is False
+        and record.get("order_found") is True
+        and str(record.get("order_status") or "").upper() == "FILLED"
         and _positive_int(record.get("fill_count"))
         and str(record.get("fill_read_status") or "").lower() == "filled"
-        and bool(record.get("fill_order_id_matches_exchange_order_id")) is True
-        and bool(record.get("fill_product_id_matches_order")) is True
-        and bool(record.get("exchange_order_id_evidence_only")) is True
+        and record.get("fill_order_id_matches_exchange_order_id") is True
+        and record.get("fill_product_id_matches_order") is True
+        and record.get("exchange_order_id_evidence_only") is True
+    )
+    if not summary_proven:
+        return False
+
+    proof_origin_present = any(
+        str(key).startswith("proof_origin_") for key in record
+    )
+    if proof_origin_present or (
+        str(record.get("readback_source") or "") == "local_durable_evidence"
+    ):
+        if canonical_only:
+            return False
+        return (
+            _spot_fill_readback_ref_matches_client_order(record)
+            and str(record.get("readback_source") or "")
+            == "local_durable_evidence"
+            and str(record.get("route") or "")
+            == "/api/v1/orders/{client_order_id}/fill-readback"
+            and str(record.get("method") or "").upper() == "GET"
+            and record.get("current_request_coinbase_read_ran") is False
+            and record.get("current_request_local_state_mutated") is False
+            and record.get("live_coinbase_read_ran") is False
+            and record.get("coinbase_read_succeeded") is False
+            and record.get("proof_origin_live_coinbase_read_ran") is True
+            and record.get("proof_origin_coinbase_read_succeeded") is True
+            and record.get("proof_origin_order_read_attempted") is True
+            and record.get("proof_origin_order_read_succeeded") is True
+            and record.get("proof_origin_order_found") is True
+            and record.get("proof_origin_exchange_order_id_present") is True
+            and record.get("proof_origin_fill_read_attempted") is True
+            and record.get("proof_origin_fill_read_succeeded") is True
+            and record.get("proof_origin_fills_have_more_pages") is False
+        )
+
+    canonical_reconciliation_proof = (
+        record.get("live_coinbase_read_ran") is True
+        and record.get("coinbase_read_succeeded") is True
+        and record.get("order_read_attempted") is True
+        and record.get("order_read_succeeded") is True
+        and record.get("exchange_order_id_present") is True
+        and record.get("fill_read_attempted") is True
+        and record.get("fill_read_succeeded") is True
+        and record.get("fills_have_more_pages") is False
+    )
+    if canonical_only or canonical_reconciliation_proof:
+        return canonical_reconciliation_proof
+
+    return (
+        _spot_fill_readback_ref_matches_client_order(record)
+        and str(record.get("route") or "")
+        == "/api/v1/orders/{client_order_id}/fill-readback"
+        and str(record.get("method") or "").upper() == "GET"
+        and bool(str(record.get("ended_at") or "").strip())
+        and record.get("live_coinbase_read_ran") is True
+        and record.get("coinbase_read_succeeded") is True
+    )
+
+
+def _spot_fill_readback_ref_matches_client_order(
+    record: Mapping[str, Any],
+) -> bool:
+    client_order_id = str(record.get("client_order_id") or "").strip()
+    proof_ref = str(
+        record.get("live_fill_readback_proof_ref")
+        or record.get("proof_ref")
+        or ""
+    ).strip()
+    return bool(
+        client_order_id
+        and proof_ref.startswith(f"spot_fill_readback:{client_order_id}:")
+        and len(proof_ref) > len(f"spot_fill_readback:{client_order_id}:")
     )
 
 
@@ -532,6 +673,7 @@ def _spot_fill_readback_proof_record(
 ) -> dict[str, Any]:
     fields = (
         "type",
+        "status",
         "module_id",
         "route",
         "method",
@@ -545,14 +687,21 @@ def _spot_fill_readback_proof_record(
         "audit_id",
         "product_id",
         "order_status",
+        "order_read_attempted",
+        "order_read_succeeded",
         "order_found",
         "exchange_order_id",
+        "exchange_order_id_present",
         "exchange_order_id_evidence_only",
+        "fill_read_attempted",
+        "fill_read_succeeded",
         "fill_count",
         "fill_read_status",
         "fill_order_id_matches_exchange_order_id",
         "fill_product_id_matches_order",
+        "fills_have_more_pages",
         "executed_notional_usdc",
+        "coinbase_read_succeeded",
         "live_coinbase_read_ran",
         "live_coinbase_orders_ran",
         "live_coinbase_execution",
@@ -562,6 +711,22 @@ def _spot_fill_readback_proof_record(
         "backend_contract_ref",
     )
     proof = {field: record.get(field) for field in fields if field in record}
+    raw_checks = record.get("checks")
+    proof["checks"] = (
+        [
+            {
+                "name": str(check.get("name") or check.get("check") or "")[:100],
+                "passed": check.get("passed") is True,
+            }
+            for check in raw_checks
+            if isinstance(check, Mapping)
+            and str(check.get("name") or check.get("check") or "").startswith(
+                "spot_"
+            )
+        ]
+        if isinstance(raw_checks, list)
+        else []
+    )
     proof["live_fill_readback_proof_ref"] = proof_ref
     proof["proof_recorded"] = True
     return proof
@@ -574,6 +739,7 @@ class AdminMvpDependencies:
     rest_client: Any = None
     rest_client_available: bool = False
     live_coinbase_execution_enabled: bool = False
+    _synthetic_test_only_legacy_execution_enabled: bool = False
     runtime_controller_factory: Callable[[], Any] = field(
         default_factory=lambda: _default_runtime_controller_factory
     )
@@ -586,6 +752,8 @@ class AdminMvpDependencies:
 def live_coinbase_execution_enabled_from_env() -> bool:
     """Return True when local backend live execution is explicitly enabled."""
 
+    if not coinbase_execution_authority_enabled():
+        return False
     for name in (
         "COINBASE_ADMIN_LIVE_COINBASE_EXECUTION",
         "COINBASE_ADMIN_API_LIVE_COINBASE_EXECUTION_ENABLED",
@@ -610,15 +778,33 @@ class AdminMvpService:
         dependencies: AdminMvpDependencies | None = None,
         store: AdminMvpStore | None = None,
         evidence_log: AdminMvpEvidenceLog | None = None,
+        idempotency_store: FileIdempotencyStore | None = None,
+        audit_store: FileAdminApiAuditStore | None = None,
     ) -> None:
         self.dependencies = dependencies or AdminMvpDependencies(
             live_coinbase_execution_enabled=live_coinbase_execution_enabled_from_env(),
         )
         self.evidence_log = evidence_log or AdminMvpEvidenceLog.from_env()
         self.store = store or self.evidence_log.load_store()
+        self.idempotency_store = idempotency_store or FileIdempotencyStore()
+        self.audit_store = audit_store or FileAdminApiAuditStore()
         self._futures_product_metadata_cache: dict[
             str, tuple[dict[str, Any], str | None]
         ] = {}
+
+    def _live_execution_enabled(self) -> bool:
+        """Keep legacy singleton mutations source-disabled outside tests.
+
+        Operator execution must use the canonical authenticated Admin API command
+        routes. The private synthetic switch retains isolated adapter regression
+        coverage and is never set by shipped API routes, runners, or launchers.
+        """
+
+        return bool(
+            coinbase_execution_authority_enabled()
+            and self.dependencies.live_coinbase_execution_enabled
+            and self.dependencies._synthetic_test_only_legacy_execution_enabled
+        )
 
     def _persist_record(self, collection: str, key: str, record: Any) -> None:
         self.evidence_log.append(collection, key, record)
@@ -651,7 +837,10 @@ class AdminMvpService:
         self,
         record: Mapping[str, Any],
     ) -> str | None:
-        if not _spot_fill_readback_record_proves_live_fill(record):
+        if not _spot_fill_readback_record_proves_live_fill(
+            record,
+            canonical_only=True,
+        ):
             return None
         client_order_id = str(record.get("client_order_id") or "")
         audit_id = str(record.get("audit_id") or "")
@@ -664,6 +853,30 @@ class AdminMvpService:
         proof = _spot_fill_readback_proof_record(record, proof_ref=proof_ref)
         self.store.spot_fill_readback_proofs[proof_ref] = proof
         self._persist_record("spot_fill_readback_proofs", proof_ref, proof)
+        return proof_ref
+
+    def record_spot_fill_readback_proof(
+        self,
+        record: Mapping[str, Any],
+    ) -> str | None:
+        """Persist one validated sanitized proof produced by reconciliation."""
+
+        if "spot_fill_readback_proofs" not in self.evidence_log.collection_paths:
+            return None
+        proof_ref = self._record_spot_fill_readback_proof(record)
+        if not proof_ref:
+            return None
+        durable = self.evidence_log.load_store().spot_fill_readback_proofs.get(
+            proof_ref
+        )
+        if not isinstance(durable, Mapping) or not (
+            _spot_fill_readback_record_proves_live_fill(
+                durable,
+                canonical_only=True,
+            )
+        ):
+            self.store.spot_fill_readback_proofs.pop(proof_ref, None)
+            return None
         return proof_ref
 
     def control_runtime(
@@ -683,33 +896,240 @@ class AdminMvpService:
                 context,
             )
 
-        controller = self.dependencies.runtime_controller_factory()
-        before = self._runtime_controller_snapshot(controller)
-        transition = self._runtime_transition(controller, normalized_action)
-        transition_applied = bool(transition())
-        after = self._runtime_controller_snapshot(controller)
-        target_states = set(spec["target_states"])
-        if transition_applied:
-            status = AdminMvpCommandStatus.ACCEPTED.value
-            message = "Runtime control transition accepted."
-        elif after["runtime_state"] in target_states:
-            status = "already_in_requested_state"
-            message = "Runtime already reported the requested state."
-        else:
-            status = AdminMvpCommandStatus.REJECTED.value
-            message = "Runtime control transition rejected for the current state."
+        payload_hash = make_payload_hash(
+            {
+                "endpoint": f"POST {spec['route']}",
+                "action": normalized_action,
+                "actor_id": context.actor_id,
+                "roles": list(context.roles),
+                "operator_intent": context.operator_intent,
+                "body": dict(body),
+            }
+        )
+        with self.idempotency_store.command_execution(
+            idempotency_key=context.idempotency_key,
+        ):
+            check = self.idempotency_store.evaluate(
+                idempotency_key=context.idempotency_key,
+                payload_hash=payload_hash,
+            )
+            if (
+                check.decision == AdminApiIdempotencyDecision.REPLAY
+                and check.record is not None
+            ):
+                response = dict(check.record.response)
+                status_code = (
+                    503
+                    if response.get("failure_stage")
+                    == "runtime_transition_outcome_unknown"
+                    else 200
+                )
+                result = self._result(status_code, response, context)
+                return AdminMvpApiResult(
+                    status_code=result.status_code,
+                    body=result.body,
+                    headers={**result.headers, "X-Idempotency-Replayed": "true"},
+                )
 
-        runtime_state_mutated = before["runtime_state"] != after["runtime_state"]
-        response = {
+            if check.decision == AdminApiIdempotencyDecision.CONFLICT:
+                controller = self.dependencies.runtime_controller_factory()
+                snapshot = self._runtime_controller_snapshot(controller)
+                audit_id = self._append_runtime_control_audit(
+                    spec=spec,
+                    context=context,
+                    status=AdminApiCommandStatus.CONFLICT,
+                    failure_stage="idempotency",
+                    message=(
+                        "Idempotency-Key was already used with a different "
+                        "runtime control request."
+                    ),
+                )
+                response = self._runtime_control_response(
+                    action=normalized_action,
+                    spec=spec,
+                    context=context,
+                    before=snapshot,
+                    after=snapshot,
+                    status=AdminApiCommandStatus.CONFLICT.value,
+                    message=(
+                        "Idempotency-Key was already used with a different "
+                        "runtime control request."
+                    ),
+                    transition_applied=False,
+                    accepted=False,
+                    audit_id=audit_id,
+                    failure_stage="idempotency",
+                )
+                return self._result(409, response, context)
+
+            controller = self.dependencies.runtime_controller_factory()
+            before = self._runtime_controller_snapshot(controller)
+            attempt_audit_id = self._append_runtime_control_audit(
+                spec=spec,
+                context=context,
+                status=AdminApiCommandStatus.REJECTED,
+                failure_stage="runtime_transition_claimed",
+                message=(
+                    "Runtime transition attempt durably claimed; terminal "
+                    "outcome is pending."
+                ),
+            )
+            unknown_response = self._runtime_control_response(
+                action=normalized_action,
+                spec=spec,
+                context=context,
+                before=before,
+                after=before,
+                status="outcome_unknown",
+                message=(
+                    "Runtime transition outcome is unknown; the idempotency "
+                    "key cannot be retried."
+                ),
+                transition_applied=False,
+                accepted=None,
+                audit_id=attempt_audit_id,
+                attempt_audit_id=attempt_audit_id,
+                failure_stage="runtime_transition_outcome_unknown",
+            )
+            self.idempotency_store.put_record(
+                IdempotencyRecord(
+                    idempotency_key=context.idempotency_key,
+                    payload_hash=payload_hash,
+                    status=AdminApiCommandStatus.REJECTED,
+                    response=unknown_response,
+                    actor_id=context.actor_id,
+                    endpoint=f"POST {spec['route']}",
+                )
+            )
+
+            try:
+                transition = self._runtime_transition(controller, normalized_action)
+                transition_applied = bool(transition())
+                after = self._runtime_controller_snapshot(controller)
+            except Exception:
+                return self._result(503, unknown_response, context)
+
+            target_states = set(spec["target_states"])
+            if transition_applied:
+                response_status = AdminMvpCommandStatus.ACCEPTED.value
+                audit_status = AdminApiCommandStatus.ACCEPTED
+                message = "Runtime control transition accepted."
+                accepted = True
+            elif after["runtime_state"] in target_states:
+                response_status = "already_in_requested_state"
+                audit_status = AdminApiCommandStatus.ACCEPTED
+                message = "Runtime already reported the requested state."
+                accepted = True
+            else:
+                response_status = AdminMvpCommandStatus.REJECTED.value
+                audit_status = AdminApiCommandStatus.REJECTED
+                message = "Runtime control transition rejected for the current state."
+                accepted = False
+
+            try:
+                terminal_audit_id = self._append_runtime_control_audit(
+                    spec=spec,
+                    context=context,
+                    status=audit_status,
+                    failure_stage=None,
+                    message=message,
+                )
+                response = self._runtime_control_response(
+                    action=normalized_action,
+                    spec=spec,
+                    context=context,
+                    before=before,
+                    after=after,
+                    status=response_status,
+                    message=message,
+                    transition_applied=transition_applied,
+                    accepted=accepted,
+                    audit_id=terminal_audit_id,
+                    attempt_audit_id=attempt_audit_id,
+                )
+                self.idempotency_store.put_record(
+                    IdempotencyRecord(
+                        idempotency_key=context.idempotency_key,
+                        payload_hash=payload_hash,
+                        status=audit_status,
+                        response=response,
+                        actor_id=context.actor_id,
+                        endpoint=f"POST {spec['route']}",
+                    )
+                )
+            except Exception:
+                return self._result(503, unknown_response, context)
+            return self._ok(response, context)
+
+    def _append_runtime_control_audit(
+        self,
+        *,
+        spec: Mapping[str, Any],
+        context: AdminMvpRequestContext,
+        status: AdminApiCommandStatus,
+        failure_stage: str | None,
+        message: str,
+    ) -> str:
+        """Append value-blind lifecycle evidence before or after a transition."""
+
+        return self.audit_store.append(
+            AdminApiAuditEvent(
+                actor_id=context.actor_id,
+                action_class=AdminApiActionClass.ADMIN_RUNTIME,
+                permission=AdminApiPermission(str(spec["required_permission"])),
+                endpoint=f"POST {spec['route']}",
+                request_id=context.correlation_id,
+                operator_intent=context.operator_intent,
+                idempotency_key=context.idempotency_key,
+                live_exchange_submitted=False,
+                live_coinbase_orders_ran=False,
+                live_coinbase_read_ran=False,
+                status=status,
+                failure_stage=failure_stage,
+                message=message,
+            )
+        )
+
+    def _runtime_control_response(
+        self,
+        *,
+        action: str,
+        spec: Mapping[str, Any],
+        context: AdminMvpRequestContext,
+        before: Mapping[str, Any],
+        after: Mapping[str, Any],
+        status: str,
+        message: str,
+        transition_applied: bool,
+        accepted: bool | None,
+        audit_id: str,
+        attempt_audit_id: str | None = None,
+        failure_stage: str | None = None,
+    ) -> dict[str, Any]:
+        """Build one typed, Coinbase-call-free runtime-control response."""
+
+        runtime_state_mutated = (
+            before["runtime_state"] != after["runtime_state"]
+        )
+        return {
             "type": "admin_runtime_control",
             "status": status,
             "message": message,
             "route": spec["route"],
             "method": "POST",
             "module_id": "admin_system_health",
-            "action_class": "admin_runtime",
-            "required_permission": spec["required_permission"],
+            "action_class": AdminApiActionClass.ADMIN_RUNTIME.value,
+            "required_permission": str(spec["required_permission"]),
             "service_method": spec["service_method"],
+            "action": action,
+            "accepted": accepted,
+            "state": after["runtime_state"],
+            "correlation_id": context.correlation_id,
+            "idempotency_key": context.idempotency_key,
+            "audit_id": audit_id,
+            "attempt_audit_id": attempt_audit_id,
+            "failure_stage": failure_stage,
+            "idempotency_replayed": False,
             "operator": {
                 "actor_id": context.actor_id,
                 "roles": list(context.roles),
@@ -718,6 +1138,8 @@ class AdminMvpService:
             "audit": {
                 "correlation_id": context.correlation_id,
                 "idempotency_key": context.idempotency_key,
+                "audit_id": audit_id,
+                "attempt_audit_id": attempt_audit_id,
                 "audit_surface": spec["route"],
             },
             "runtime_state_before": before["runtime_state"],
@@ -730,7 +1152,8 @@ class AdminMvpService:
             "coinbase_order_submitted": False,
             "coinbase_order_cancel_submitted": False,
             "live_exchange_submitted": False,
-            "drain_requested": normalized_action == "shutdown",
+            "live_coinbase_read_ran": False,
+            "drain_requested": action == "shutdown",
             "drain_executed": False,
             "read_only": False,
             "frontend_safe": True,
@@ -739,7 +1162,6 @@ class AdminMvpService:
             **after,
             **self._live_outputs(False, Decimal("0")),
         }
-        return self._ok(response, context)
 
     def get_read_response(
         self,
@@ -1114,27 +1536,80 @@ class AdminMvpService:
         self,
         body: Mapping[str, Any],
         context: AdminMvpRequestContext,
+        *,
+        command_idempotency_store: FileIdempotencyStore,
+        approval_store: FileAdminApiApprovalStore | None = None,
+        audit_store: FileAdminApiAuditStore | None = None,
+        cap_guard_store: FileAdminApiCapGuardStore | None = None,
+        reconciliation_store: FileAdminApiReconciliationStore | None = None,
+        cap_guard_service: AdminApiCapGuardDecisionService | None = None,
     ) -> AdminMvpApiResult:
         """Record backend-owned proof-chain evidence for one spot manual order."""
 
-        proof_context = _spot_manual_order_context_from_body(body)
+        asserted_context = _spot_manual_order_context_from_body(body)
+        proof_context, binding_blocker = _bound_spot_proof_context_from_first_pass(
+            asserted_context=asserted_context,
+            command_idempotency_store=command_idempotency_store,
+            command_kind="manual",
+        )
         if proof_context is None:
             return self._error(
                 400,
-                "Spot manual-order proof chain requires route, client_order_id, command idempotency key, and payload hash evidence.",
+                "Spot manual-order proof chain requires exact durable no-live "
+                f"first-pass evidence ({binding_blocker}).",
                 context,
             )
-
         record_ids = self._spot_manual_order_proof_chain_record_ids(body, proof_context)
-        snapshot = self._account_snapshot()
-        cap_guard_allowed = bool(snapshot["readiness"]["usable_for_spot_admission"])
+        typed_evidence = self._record_typed_spot_proof_chain_evidence(
+            context=context,
+            proof_context=proof_context,
+            record_ids=record_ids,
+            command_kind="manual",
+            approval_store=approval_store,
+            audit_store=audit_store,
+            cap_guard_store=cap_guard_store,
+            reconciliation_store=reconciliation_store,
+            cap_guard_service=cap_guard_service,
+        )
+        if typed_evidence.get("status") == "blocked":
+            return self._error(
+                400,
+                "Spot manual-order typed proof persistence failed closed "
+                f"({typed_evidence['blocker']}).",
+                context,
+            )
+        typed_cap_guard = _mapping(typed_evidence.get("cap_guard"))
+        if typed_evidence.get("required"):
+            cap_guard_allowed = bool(
+                typed_cap_guard.get("allowed") is True
+                and str(typed_cap_guard.get("status") or "")
+                == AdminApiGateStatus.PASSED.value
+            )
+        else:
+            snapshot = self._account_snapshot()
+            cap_guard_allowed = bool(
+                snapshot["readiness"]["usable_for_spot_admission"]
+            )
+            typed_cap_guard = {
+                "wallet_check_status": (
+                    AdminMvpGateStatus.PASSED.value
+                    if cap_guard_allowed
+                    else AdminMvpGateStatus.BLOCKED.value
+                ),
+                "wallet_available_notional_usdc": snapshot[
+                    "wallet_inventory"
+                ]["available_notional_usdc"],
+                "wallet_check_source": ACCOUNT_SNAPSHOT_WALLET_SOURCE,
+            }
         evidence = self._record_spot_manual_order_proof_chain_evidence(
             body=body,
             context=context,
             proof_context=proof_context,
             record_ids=record_ids,
             cap_guard_allowed=cap_guard_allowed,
+            typed_cap_guard=typed_cap_guard,
         )
+        evidence["typed_production_stores"] = typed_evidence
 
         admission_context = AdminMvpRequestContext(
             idempotency_key=proof_context["command_idempotency_key"],
@@ -1204,21 +1679,11 @@ class AdminMvpService:
     ) -> dict[str, str]:
         suffix = _proof_chain_record_key(proof_context)
         return {
-            "approval_request_id": str(
-                body.get("approval_request_id") or f"mvp-approval-request-{suffix}"
-            ),
-            "approval_snapshot_id": str(
-                body.get("approval_snapshot_id") or f"mvp-approval-{suffix}"
-            ),
-            "admission_audit_id": str(
-                body.get("admission_audit_id") or f"mvp-admission-audit-{suffix}"
-            ),
-            "cap_guard_decision_id": str(
-                body.get("cap_guard_decision_id") or f"mvp-cap-guard-{suffix}"
-            ),
-            "reconciliation_plan_id": str(
-                body.get("reconciliation_plan_id") or f"mvp-reconciliation-{suffix}"
-            ),
+            "approval_request_id": f"mvp-approval-request-{suffix}",
+            "approval_snapshot_id": f"mvp-approval-{suffix}",
+            "admission_audit_id": f"mvp-admission-audit-{suffix}",
+            "cap_guard_decision_id": f"mvp-cap-guard-{suffix}",
+            "reconciliation_plan_id": f"mvp-reconciliation-{suffix}",
         }
 
     def _record_spot_manual_order_proof_chain_evidence(
@@ -1229,6 +1694,7 @@ class AdminMvpService:
         proof_context: Mapping[str, Any],
         record_ids: Mapping[str, str],
         cap_guard_allowed: bool,
+        typed_cap_guard: Mapping[str, Any],
     ) -> dict[str, Any]:
         proof_base = {
             "route": proof_context["route"],
@@ -1244,18 +1710,8 @@ class AdminMvpService:
             "command_idempotency_key": proof_context["command_idempotency_key"],
             "payload_hash": proof_context["payload_hash"],
         }
-        max_submitted_notional = _decimal_text(
-            _decimal_value(
-                body.get("max_submitted_notional_usdc"),
-                DEFAULT_MAX_SUBMITTED_NOTIONAL_USDC,
-            )
-        )
-        max_executed_notional = _decimal_text(
-            _decimal_value(
-                body.get("max_executed_notional_usdc"),
-                DEFAULT_MAX_EXECUTED_NOTIONAL_USDC,
-            )
-        )
+        max_submitted_notional = _decimal_text(DEFAULT_MAX_SUBMITTED_NOTIONAL_USDC)
+        max_executed_notional = _decimal_text(DEFAULT_MAX_EXECUTED_NOTIONAL_USDC)
         approval_request = self.create_approval_request(
             {
                 **proof_base,
@@ -1308,7 +1764,18 @@ class AdminMvpService:
                 "max_submitted_notional_usdc": max_submitted_notional,
                 "max_executed_notional_usdc": max_executed_notional,
                 "wallet_check_required": True,
-                "wallet_check_source": ACCOUNT_SNAPSHOT_WALLET_SOURCE,
+                "wallet_check_status": typed_cap_guard.get(
+                    "wallet_check_status",
+                    AdminMvpGateStatus.BLOCKED.value,
+                ),
+                "wallet_available_notional_usdc": typed_cap_guard.get(
+                    "wallet_available_notional_usdc",
+                    "0",
+                ),
+                "wallet_check_source": typed_cap_guard.get(
+                    "wallet_check_source",
+                    "missing",
+                ),
             },
             self._proof_chain_phase_context(context, "cap-guard"),
         )
@@ -1352,28 +1819,591 @@ class AdminMvpService:
             roles=context.roles,
         )
 
+    def _record_typed_spot_proof_chain_evidence(
+        self,
+        *,
+        context: AdminMvpRequestContext,
+        proof_context: Mapping[str, Any],
+        record_ids: Mapping[str, str],
+        command_kind: str,
+        approval_store: FileAdminApiApprovalStore | None,
+        audit_store: FileAdminApiAuditStore | None,
+        cap_guard_store: FileAdminApiCapGuardStore | None,
+        reconciliation_store: FileAdminApiReconciliationStore | None,
+        cap_guard_service: AdminApiCapGuardDecisionService | None,
+    ) -> dict[str, Any]:
+        """Persist canonical typed admission records used by ``orders.py``."""
+
+        dependencies = (
+            approval_store,
+            audit_store,
+            cap_guard_store,
+            reconciliation_store,
+            cap_guard_service,
+        )
+        if all(dependency is None for dependency in dependencies):
+            return {
+                "required": False,
+                "status": "not_configured",
+                "live_exchange_submitted": False,
+            }
+        if any(dependency is None for dependency in dependencies):
+            return {
+                "required": True,
+                "status": "blocked",
+                "blocker": "typed_proof_store_dependency_missing",
+                "live_exchange_submitted": False,
+            }
+        assert approval_store is not None
+        assert audit_store is not None
+        assert cap_guard_store is not None
+        assert reconciliation_store is not None
+        assert cap_guard_service is not None
+
+        manual = command_kind == "manual"
+        if not manual and command_kind != "cancel":
+            return {
+                "required": True,
+                "status": "blocked",
+                "blocker": "typed_proof_command_kind_invalid",
+                "live_exchange_submitted": False,
+            }
+        product_scope = (
+            str(proof_context.get("product_scope") or "").strip()
+            if manual
+            else OPERATOR_MVP_CANCEL_PRODUCT_SCOPE
+        )
+        if manual and not (
+            product_scope
+            and product_scope == product_scope.upper()
+            and product_scope.endswith("-USDC")
+        ):
+            return {
+                "required": True,
+                "status": "blocked",
+                "blocker": "durable_first_pass_product_scope_missing",
+                "live_exchange_submitted": False,
+            }
+
+        action_class = AdminApiActionClass(str(proof_context["action_class"]))
+        required_permission = AdminApiPermission(
+            str(proof_context["required_permission"])
+        )
+        approval_id = str(record_ids["approval_snapshot_id"])
+        admission_audit_id = str(record_ids["admission_audit_id"])
+        cap_guard_decision_id = str(record_ids["cap_guard_decision_id"])
+        reconciliation_plan_id = str(record_ids["reconciliation_plan_id"])
+        try:
+            existing = {
+                "approval": approval_store.find_by_approval_id(approval_id),
+                "admission_audit": audit_store.find_by_audit_id(
+                    admission_audit_id
+                ),
+                "cap_guard": cap_guard_store.find_by_decision_id(
+                    cap_guard_decision_id
+                ),
+                "reconciliation_plan": reconciliation_store.find_by_plan_id(
+                    reconciliation_plan_id
+                ),
+            }
+            lifecycle_events = approval_store.read_lifecycle_events(limit=1000)
+        except Exception as exc:
+            return {
+                "required": True,
+                "status": "blocked",
+                "blocker": (
+                    "typed_proof_store_read_failed:"
+                    f"{type(exc).__name__}"
+                ),
+                "live_exchange_submitted": False,
+            }
+
+        if any(value is not None for value in existing.values()) and not (
+            _typed_spot_proof_records_match(
+                existing,
+                proof_context=proof_context,
+                approval_id=approval_id,
+                admission_audit_id=admission_audit_id,
+                cap_guard_decision_id=cap_guard_decision_id,
+                reconciliation_plan_id=reconciliation_plan_id,
+                product_scope=product_scope,
+                approved_by_actor_id=context.actor_id,
+                allow_partial=True,
+            )
+        ):
+            return {
+                "required": True,
+                "status": "blocked",
+                "blocker": "typed_proof_record_conflict",
+                "live_exchange_submitted": False,
+            }
+
+        lifecycle_by_phase: dict[str, Any | None] = {
+            "request": None,
+            "decision": None,
+        }
+        lifecycle_specs = {
+            "request": (
+                f"{record_ids['approval_request_id']}-event",
+                AdminApiApprovalLifecycleEventType.REQUEST_CREATED,
+            ),
+            "decision": (
+                f"{approval_id}-decision-event",
+                AdminApiApprovalLifecycleEventType.DECISION_RECORDED,
+            ),
+        }
+        for phase, (event_id, event_type) in lifecycle_specs.items():
+            candidates = [
+                event
+                for event in lifecycle_events
+                if event.event_id == event_id
+                or (
+                    event.event_type == event_type
+                    and event.approval_request_id
+                    == str(record_ids["approval_request_id"])
+                    and (phase == "request" or event.approval_id == approval_id)
+                )
+            ]
+            if candidates and not all(
+                _typed_spot_approval_lifecycle_event_matches(
+                    event,
+                    phase=phase,
+                    proof_context=proof_context,
+                    record_ids=record_ids,
+                    approved_by_actor_id=context.actor_id,
+                )
+                for event in candidates
+            ):
+                return {
+                    "required": True,
+                    "status": "blocked",
+                    "blocker": "typed_proof_record_conflict",
+                    "live_exchange_submitted": False,
+                }
+            if candidates:
+                lifecycle_by_phase[phase] = candidates[0]
+
+        now = self.dependencies.now_factory()
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=timezone.utc)
+        else:
+            now = now.astimezone(timezone.utc)
+        expires_at = now + timedelta(minutes=5)
+        max_submitted = "3.10" if manual else "0"
+        max_executed = "1.00" if manual else "0"
+        common = {
+            "route": str(proof_context["route"]),
+            "method": str(proof_context["method"]).upper(),
+            "module_id": str(proof_context["module_id"]),
+            "identity_key": str(proof_context["identity_key"]),
+            "identity_value": str(proof_context["identity_value"]),
+            "action_class": action_class,
+            "required_permission": required_permission,
+            "service_method": str(proof_context["service_method"]),
+            "actor_id": str(proof_context["actor_id"]),
+            "operator_intent": str(proof_context["operator_intent"]),
+            "command_idempotency_key": str(
+                proof_context["command_idempotency_key"]
+            ),
+            "payload_hash": str(proof_context["payload_hash"]),
+        }
+        cap_guard_item = existing["cap_guard"]
+        if cap_guard_item is None:
+            try:
+                cap_guard_item = cap_guard_service.record_decision(
+                    store=cap_guard_store,
+                    body=AdminCapGuardDecisionCreateRequest(
+                        **common,
+                        approval_snapshot_id=approval_id,
+                        approval_cap_guard_decision_ref=cap_guard_decision_id,
+                        admission_audit_id=admission_audit_id,
+                        allowed=True,
+                        status=AdminApiGateStatus.PASSED,
+                        cap_policy_ref=(
+                            "submitted_notional_cap:3.10"
+                            if manual
+                            else "no_new_notional:cancel_order"
+                        ),
+                        guard_policy_ref=(
+                            "action_condition_guard:manual_order"
+                            if manual
+                            else "cancel_by_client_order_id"
+                        ),
+                        product_scope=product_scope,
+                        max_submitted_notional_usdc=max_submitted,
+                        max_executed_notional_usdc=max_executed,
+                        wallet_check_required=manual,
+                        wallet_check_status=(
+                            AdminApiGateStatus.BLOCKED
+                            if manual
+                            else AdminApiGateStatus.PASSED
+                        ),
+                        wallet_available_notional_usdc="0",
+                        wallet_check_source=(
+                            "backend_authoritative_wallet_required"
+                            if manual
+                            else "not_applicable:cancel_order"
+                        ),
+                        reason=(
+                            "Backend-authoritative wallet and installed MVP caps passed."
+                            if manual
+                            else "Cancellation adds no order notional."
+                        ),
+                    ),
+                    now=now,
+                )
+            except Exception as exc:
+                return {
+                    "required": True,
+                    "status": "blocked",
+                    "blocker": (
+                        "typed_cap_guard_persistence_failed:"
+                        f"{type(exc).__name__}"
+                    ),
+                    "live_exchange_submitted": False,
+                }
+
+        approval_record = existing["approval"]
+        if approval_record is None:
+            approval_record = AdminApiApprovalRecord(
+                approval_id=approval_id,
+                created_at=now,
+                expires_at=expires_at,
+                approved_by_actor_id=context.actor_id,
+                requested_by_actor_id=str(proof_context["actor_id"]),
+                route=common["route"],
+                method=common["method"],
+                module_id=common["module_id"],
+                identity_key=common["identity_key"],
+                identity_value=common["identity_value"],
+                action_class=action_class,
+                required_permission=required_permission,
+                operator_intent=common["operator_intent"],
+                idempotency_key=common["command_idempotency_key"],
+                payload_hash=common["payload_hash"],
+                cap_guard_decision_ref=cap_guard_decision_id,
+                reconciliation_plan_ref=reconciliation_plan_id,
+                approval_reason=(
+                    "Admin-only composite proof for exact durable first pass."
+                ),
+            )
+        else:
+            expires_at = approval_record.expires_at
+
+        request_event = AdminApiApprovalLifecycleEvent(
+            event_id=f"{record_ids['approval_request_id']}-event",
+            event_type=AdminApiApprovalLifecycleEventType.REQUEST_CREATED,
+            recorded_at=now,
+            approval_request_id=str(record_ids["approval_request_id"]),
+            status=AdminApiApprovalLifecycleStatus.REQUESTED,
+            actor_id=str(proof_context["actor_id"]),
+            route=common["route"],
+            method=common["method"],
+            module_id=common["module_id"],
+            identity_key=common["identity_key"],
+            identity_value=common["identity_value"],
+            action_class=action_class,
+            required_permission=required_permission,
+            requested_by_actor_id=str(proof_context["actor_id"]),
+            operator_intent=common["operator_intent"],
+            idempotency_key=common["command_idempotency_key"],
+            payload_hash=common["payload_hash"],
+            request_reason="Exact durable first-pass composite proof request.",
+        )
+        decision_event = AdminApiApprovalLifecycleEvent(
+            event_id=f"{approval_id}-decision-event",
+            event_type=AdminApiApprovalLifecycleEventType.DECISION_RECORDED,
+            recorded_at=now,
+            approval_request_id=str(record_ids["approval_request_id"]),
+            approval_id=approval_id,
+            status=AdminApiApprovalLifecycleStatus.APPROVED,
+            actor_id=context.actor_id,
+            route=common["route"],
+            method=common["method"],
+            module_id=common["module_id"],
+            identity_key=common["identity_key"],
+            identity_value=common["identity_value"],
+            action_class=action_class,
+            required_permission=required_permission,
+            requested_by_actor_id=str(proof_context["actor_id"]),
+            operator_intent=common["operator_intent"],
+            idempotency_key=common["command_idempotency_key"],
+            payload_hash=common["payload_hash"],
+            expires_at=expires_at,
+            cap_guard_decision_ref=cap_guard_decision_id,
+            reconciliation_plan_ref=reconciliation_plan_id,
+            decision_reason="Admin-only exact durable first-pass approval.",
+        )
+        try:
+            if lifecycle_by_phase["request"] is None:
+                approval_store.append_lifecycle_event(request_event)
+            if existing["approval"] is None:
+                approval_store.append(approval_record)
+            if lifecycle_by_phase["decision"] is None:
+                approval_store.append_lifecycle_event(decision_event)
+        except Exception as exc:
+            return {
+                "required": True,
+                "status": "blocked",
+                "blocker": (
+                    "typed_approval_persistence_failed:"
+                    f"{type(exc).__name__}"
+                ),
+                "live_exchange_submitted": False,
+            }
+
+        audit_decision = AdminLiveAdmissionDecisionEvidence(
+            status=AdminApiGateStatus.BLOCKED,
+            allowed=False,
+            route=common["route"],
+            method=common["method"],
+            module_id=common["module_id"],
+            identity_key=common["identity_key"],
+            identity_value=common["identity_value"],
+            action_class=action_class,
+            required_permission=required_permission,
+            service_method=common["service_method"],
+            actor_id=common["actor_id"],
+            idempotency_key=common["command_idempotency_key"],
+            operator_intent=common["operator_intent"],
+            payload_hash=common["payload_hash"],
+            approval_snapshot_present=True,
+            approval_snapshot_id=approval_id,
+            approval_snapshot_source="approval_store",
+            approval_snapshot_approved_by_actor_id=context.actor_id,
+            approval_snapshot_requested_by_actor_id=common["actor_id"],
+            approval_snapshot_expires_at=expires_at.isoformat(),
+            live_exchange_submitted=False,
+            detail="Exact typed admission audit for durable first-pass proof.",
+        )
+        audit_event = existing["admission_audit"]
+        if audit_event is None:
+            audit_event = AdminApiAuditEvent(
+                audit_id=admission_audit_id,
+                recorded_at=now.isoformat(),
+                actor_id=common["actor_id"],
+                action_class=action_class,
+                permission=required_permission,
+                endpoint=f"{common['method']} {common['route']}",
+                request_id=context.correlation_id,
+                operator_intent=common["operator_intent"],
+                idempotency_key=common["command_idempotency_key"],
+                approval_id=approval_id,
+                client_order_id=common["identity_value"],
+                status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+                failure_stage="admission_audit",
+                message="Exact backend-owned composite admission audit.",
+                admission_decision=audit_decision,
+                approval_cap_guard_decision_ref=cap_guard_decision_id,
+                approval_reconciliation_plan_ref=reconciliation_plan_id,
+                live_execution_intent_ref=(
+                    f"AdminApiCommandService.{common['service_method']}"
+                ),
+            )
+            try:
+                audit_store.append(audit_event)
+            except Exception as exc:
+                return {
+                    "required": True,
+                    "status": "blocked",
+                    "blocker": (
+                        "typed_audit_persistence_failed:"
+                        f"{type(exc).__name__}"
+                    ),
+                    "live_exchange_submitted": False,
+                }
+
+        reconciliation_record = existing["reconciliation_plan"]
+        if reconciliation_record is None:
+            reconciliation_record = ReconciliationPlanRecord(
+                plan_id=reconciliation_plan_id,
+                recorded_at=now.isoformat(),
+                route=common["route"],
+                method=common["method"],
+                module_id=common["module_id"],
+                identity_key=common["identity_key"],
+                identity_value=common["identity_value"],
+                action_class=action_class,
+                required_permission=required_permission,
+                service_method=common["service_method"],
+                actor_id=common["actor_id"],
+                operator_intent=common["operator_intent"],
+                idempotency_key=common["command_idempotency_key"],
+                payload_hash=common["payload_hash"],
+                approval_snapshot_id=approval_id,
+                admission_audit_id=admission_audit_id,
+                cap_guard_decision_id=cap_guard_decision_id,
+                allowed=True,
+                status=AdminApiGateStatus.PASSED,
+                reconciliation_policy_ref=(
+                    "post_submit_reconciliation:manual_order"
+                    if manual
+                    else "post_cancel_exact_terminal_readback"
+                ),
+                product_scope=product_scope,
+                exchange_submission_required=True,
+                post_submit_reconciliation_required=True,
+                retained_inventory_required=True,
+                max_submitted_notional_usdc=max_submitted,
+                max_executed_notional_usdc=max_executed,
+                reason="Exact backend-owned post-submit reconciliation plan.",
+            )
+            try:
+                reconciliation_store.append(reconciliation_record)
+            except Exception as exc:
+                return {
+                    "required": True,
+                    "status": "blocked",
+                    "blocker": (
+                        "typed_reconciliation_persistence_failed:"
+                        f"{type(exc).__name__}"
+                    ),
+                    "live_exchange_submitted": False,
+                }
+
+        try:
+            persisted = {
+                "approval": approval_store.find_by_approval_id(approval_id),
+                "admission_audit": audit_store.find_by_audit_id(
+                    admission_audit_id
+                ),
+                "cap_guard": cap_guard_store.find_by_decision_id(
+                    cap_guard_decision_id
+                ),
+                "reconciliation_plan": reconciliation_store.find_by_plan_id(
+                    reconciliation_plan_id
+                ),
+            }
+            persisted_events = approval_store.read_lifecycle_events(limit=1000)
+        except Exception as exc:
+            return {
+                "required": True,
+                "status": "blocked",
+                "blocker": (
+                    "typed_proof_store_read_failed:"
+                    f"{type(exc).__name__}"
+                ),
+                "live_exchange_submitted": False,
+            }
+        persisted_request_event = next(
+            (
+                event
+                for event in persisted_events
+                if event.event_id == request_event.event_id
+            ),
+            None,
+        )
+        persisted_decision_event = next(
+            (
+                event
+                for event in persisted_events
+                if event.event_id == decision_event.event_id
+            ),
+            None,
+        )
+        persisted_chain_matches = _typed_spot_proof_records_match(
+            persisted,
+            proof_context=proof_context,
+            approval_id=approval_id,
+            admission_audit_id=admission_audit_id,
+            cap_guard_decision_id=cap_guard_decision_id,
+            reconciliation_plan_id=reconciliation_plan_id,
+            product_scope=product_scope,
+            approved_by_actor_id=context.actor_id,
+        )
+        persisted_lifecycle_matches = bool(
+            persisted_request_event is not None
+            and persisted_decision_event is not None
+            and _typed_spot_approval_lifecycle_event_matches(
+                persisted_request_event,
+                phase="request",
+                proof_context=proof_context,
+                record_ids=record_ids,
+                approved_by_actor_id=context.actor_id,
+            )
+            and _typed_spot_approval_lifecycle_event_matches(
+                persisted_decision_event,
+                phase="decision",
+                proof_context=proof_context,
+                record_ids=record_ids,
+                approved_by_actor_id=context.actor_id,
+            )
+        )
+        if not persisted_chain_matches or not persisted_lifecycle_matches:
+            return {
+                "required": True,
+                "status": "blocked",
+                "blocker": "typed_proof_revalidation_failed",
+                "live_exchange_submitted": False,
+            }
+        return {
+            "required": True,
+            "status": "passed",
+            "source": "canonical_admin_api_typed_stores",
+            "approval": persisted["approval"].model_dump(mode="json"),
+            "admission_audit": persisted["admission_audit"].model_dump(
+                mode="json"
+            ),
+            "cap_guard": persisted["cap_guard"].model_dump(mode="json"),
+            "reconciliation_plan": persisted["reconciliation_plan"].model_dump(
+                mode="json"
+            ),
+            "live_exchange_submitted": False,
+        }
+
     def record_spot_cancel_order_proof_chain(
         self,
         body: Mapping[str, Any],
         context: AdminMvpRequestContext,
+        *,
+        command_idempotency_store: FileIdempotencyStore,
+        approval_store: FileAdminApiApprovalStore | None = None,
+        audit_store: FileAdminApiAuditStore | None = None,
+        cap_guard_store: FileAdminApiCapGuardStore | None = None,
+        reconciliation_store: FileAdminApiReconciliationStore | None = None,
+        cap_guard_service: AdminApiCapGuardDecisionService | None = None,
     ) -> AdminMvpApiResult:
         """Record backend-owned proof-chain evidence for one spot cancel request."""
 
-        proof_context = _spot_cancel_order_context_from_body(body)
+        asserted_context = _spot_cancel_order_context_from_body(body)
+        proof_context, binding_blocker = _bound_spot_proof_context_from_first_pass(
+            asserted_context=asserted_context,
+            command_idempotency_store=command_idempotency_store,
+            command_kind="cancel",
+        )
         if proof_context is None:
             return self._error(
                 400,
-                "Spot cancel-order proof chain requires route, client_order_id, command idempotency key, and payload hash evidence.",
+                "Spot cancel-order proof chain requires exact durable no-live "
+                f"first-pass evidence ({binding_blocker}).",
                 context,
             )
-
         record_ids = self._spot_cancel_order_proof_chain_record_ids(body, proof_context)
+        typed_evidence = self._record_typed_spot_proof_chain_evidence(
+            context=context,
+            proof_context=proof_context,
+            record_ids=record_ids,
+            command_kind="cancel",
+            approval_store=approval_store,
+            audit_store=audit_store,
+            cap_guard_store=cap_guard_store,
+            reconciliation_store=reconciliation_store,
+            cap_guard_service=cap_guard_service,
+        )
+        if typed_evidence.get("status") == "blocked":
+            return self._error(
+                400,
+                "Spot cancel-order typed proof persistence failed closed "
+                f"({typed_evidence['blocker']}).",
+                context,
+            )
         evidence = self._record_spot_cancel_order_proof_chain_evidence(
             body=body,
             context=context,
             proof_context=proof_context,
             record_ids=record_ids,
         )
+        evidence["typed_production_stores"] = typed_evidence
         cancel_proof = self._matching_cancel_proof(
             proof_context["identity_value"],
             proof_context["command_idempotency_key"],
@@ -1430,12 +2460,12 @@ class AdminMvpService:
     ) -> dict[str, str]:
         suffix = _proof_chain_record_key(proof_context)
         return {
-            "admission_audit_id": str(
-                body.get("admission_audit_id") or f"mvp-cancel-admission-audit-{suffix}"
-            ),
-            "cancel_proof_chain_id": str(
-                body.get("cancel_proof_chain_id") or f"mvp-cancel-proof-chain-{suffix}"
-            ),
+            "approval_request_id": f"mvp-cancel-approval-request-{suffix}",
+            "approval_snapshot_id": f"mvp-cancel-approval-{suffix}",
+            "admission_audit_id": f"mvp-cancel-admission-audit-{suffix}",
+            "cap_guard_decision_id": f"mvp-cancel-cap-guard-{suffix}",
+            "cancel_proof_chain_id": f"mvp-cancel-proof-chain-{suffix}",
+            "reconciliation_plan_id": f"mvp-cancel-proof-chain-{suffix}",
         }
 
     def _record_spot_cancel_order_proof_chain_evidence(
@@ -1593,7 +2623,7 @@ class AdminMvpService:
         cancel_proof: Mapping[str, Any] | None,
         context: AdminMvpRequestContext,
     ) -> AdminMvpApiResult:
-        if not self.dependencies.live_coinbase_execution_enabled:
+        if not self._live_execution_enabled():
             return self._spot_cancel_blocked_response(
                 status_code=400,
                 command_status=AdminMvpCommandStatus.REJECTED,
@@ -1616,7 +2646,10 @@ class AdminMvpService:
             return self._spot_cancel_blocked_response(
                 status_code=400,
                 command_status=AdminMvpCommandStatus.REJECTED,
-                message=f"Coinbase order cancel failed: {exc}",
+                message=(
+                    "Coinbase order cancel failed: "
+                    f"{_value_blind_exception_detail(exc)}"
+                ),
                 failure_stage="coinbase_rest",
                 client_order_id=client_order_id,
                 proof_context=proof_context,
@@ -1640,6 +2673,10 @@ class AdminMvpService:
                 context=context,
             )
 
+        cancel_result_evidence = _coinbase_cancel_result_summary(cancel_result)
+        initial_cancel_result_evidence = _coinbase_cancel_result_summary(
+            _mapping(cancel_attempt.get("initial_cancel_result"))
+        )
         self.store.live_coinbase_orders_ran = True
         runtime_evidence = self._runtime_evidence()
         command_record = self._record_spot_cancel_command_decision(
@@ -1669,7 +2706,7 @@ class AdminMvpService:
             "cancel_proof": _spot_cancel_proof_summary(cancel_proof),
             "failure_stage": None,
             "coinbase_cancel_submission_allowed": True,
-            "coinbase_cancel_result": cancel_result,
+            "coinbase_cancel_result": cancel_result_evidence,
             "coinbase_cancel_identity_used": cancel_attempt.get("identity_used"),
             "operator_identity_key": cancel_attempt.get(
                 "operator_identity_key", "client_order_id"
@@ -1677,9 +2714,7 @@ class AdminMvpService:
             "coinbase_cancel_initial_identity_used": cancel_attempt.get(
                 "initial_identity_used"
             ),
-            "coinbase_cancel_initial_result": _mapping(
-                cancel_attempt.get("initial_cancel_result")
-            ),
+            "coinbase_cancel_initial_result": initial_cancel_result_evidence,
             "coinbase_cancel_initial_result_success": bool(
                 cancel_attempt.get("initial_cancel_succeeded")
             ),
@@ -2122,7 +3157,7 @@ class AdminMvpService:
         body: Mapping[str, Any],
         context: AdminMvpRequestContext,
     ) -> AdminMvpApiResult:
-        """Return an auditable fail-closed Futures command draft response."""
+        """Return the fixed source-disabled Futures command boundary."""
 
         route_match = _futures_command_route_match(path)
         if route_match is None:
@@ -2135,6 +3170,51 @@ class AdminMvpService:
         identity_value = str(
             route_match.get("identity_value") or body.get(identity_key) or ""
         )
+        return self._result(
+            501,
+            {
+                "type": "admin_api_command_result",
+                "status": AdminMvpCommandStatus.NOT_IMPLEMENTED.value,
+                "module_id": FUTURES_MODULE_ID,
+                "command": command,
+                "mutation_family": "futures_contract_required",
+                "action_class": str(spec["action_class"]),
+                "route": route,
+                "method": "POST",
+                "required_permission": str(spec["required_permission"]),
+                "service_method": str(spec["service_method"]),
+                "identity_key": identity_key,
+                "identity_value": identity_value,
+                "message": FUTURES_COMMAND_SOURCE_DISABLED_MESSAGE,
+                "correlation_id": context.correlation_id,
+                "idempotency_key": context.idempotency_key,
+                "operator_intent": context.operator_intent,
+                "actor_id": context.actor_id,
+                "failure_stage": FUTURES_COMMAND_SERVICE_SOURCE_DISABLED,
+                "submission_event_recorded": False,
+                "submission_event_id": None,
+                "required_evidence_refs": [],
+                "risk_proof_id": None,
+                "command_route_registered": True,
+                "command_draft_allowed": False,
+                "execution_allowed": False,
+                "local_state_mutated": False,
+                "exchange_state_mutated": False,
+                "live_exchange_submitted": False,
+                "submitted_notional_usdc": "0",
+                "executed_notional_usdc": "0",
+                "spot_rule_authority": False,
+                "browser_authority": "display_only",
+                "bff_authority": "source_disabled_not_forwarded",
+                **self._runtime_evidence(),
+                **self._live_outputs(False, Decimal("0")),
+            },
+            context,
+        )
+
+        # Historical implementation retained below as inert source material.
+        # The unconditional boundary above is intentionally before payload
+        # validation, admission, persistence, reconciliation, or an executor.
         payload_hash = _payload_hash(body)
         command_suite = self._futures_command_suite()
         command_evidence = next(
@@ -2916,7 +3996,10 @@ class AdminMvpService:
         except Exception as exc:
             return self._futures_place_blocked_response(
                 status_code=400,
-                message=f"Coinbase Futures order submission failed: {exc}",
+                message=(
+                    "Coinbase Futures order submission failed: "
+                    f"{_value_blind_exception_detail(exc)}"
+                ),
                 failure_stage="coinbase_rest",
                 command=command,
                 action_class=action_class,
@@ -3203,7 +4286,10 @@ class AdminMvpService:
         except Exception as exc:
             return self._futures_place_blocked_response(
                 status_code=400,
-                message=f"Coinbase Futures close/reduce submission failed: {exc}",
+                message=(
+                    "Coinbase Futures close/reduce submission failed: "
+                    f"{_value_blind_exception_detail(exc)}"
+                ),
                 failure_stage="coinbase_rest",
                 command=command,
                 action_class=action_class,
@@ -3416,7 +4502,10 @@ class AdminMvpService:
         except Exception as exc:
             return self._futures_place_blocked_response(
                 status_code=400,
-                message=f"Coinbase Futures order cancel failed: {exc}",
+                message=(
+                    "Coinbase Futures order cancel failed: "
+                    f"{_value_blind_exception_detail(exc)}"
+                ),
                 failure_stage="coinbase_rest",
                 command=command,
                 action_class=action_class,
@@ -3463,6 +4552,10 @@ class AdminMvpService:
                 proof_chain=proof_chain,
             )
 
+        cancel_result_evidence = _coinbase_cancel_result_summary(cancel_result)
+        initial_cancel_result_evidence = _coinbase_cancel_result_summary(
+            _mapping(cancel_attempt.get("initial_cancel_result"))
+        )
         self.store.live_coinbase_orders_ran = True
         runtime_evidence = self._runtime_evidence()
         command_record = self._record_futures_command_decision(
@@ -3524,14 +4617,12 @@ class AdminMvpService:
             "admission_decision": live_admission,
             "failure_stage": None,
             "coinbase_cancel_submission_allowed": True,
-            "coinbase_cancel_result": cancel_result,
+            "coinbase_cancel_result": cancel_result_evidence,
             "coinbase_cancel_identity_used": cancel_attempt.get("identity_used"),
             "coinbase_cancel_initial_identity_used": cancel_attempt.get(
                 "initial_identity_used"
             ),
-            "coinbase_cancel_initial_result": _mapping(
-                cancel_attempt.get("initial_cancel_result")
-            ),
+            "coinbase_cancel_initial_result": initial_cancel_result_evidence,
             "coinbase_cancel_initial_result_success": bool(
                 cancel_attempt.get("initial_cancel_succeeded")
             ),
@@ -3685,7 +4776,7 @@ class AdminMvpService:
                 "failure_stage": "futures_limit_order_required",
                 "message": "Futures/Perpetual live place currently requires a limit order.",
             }
-        if not self.dependencies.live_coinbase_execution_enabled:
+        if not self._live_execution_enabled():
             return {
                 "failure_stage": "futures_live_runtime_disabled",
                 "message": "Live Futures/Perpetual execution is not enabled for this backend process.",
@@ -3713,7 +4804,7 @@ class AdminMvpService:
                 "failure_stage": "futures_executor_not_implemented",
                 "message": "Only Futures/Perpetual cancel has a live cancel adapter.",
             }
-        if not self.dependencies.live_coinbase_execution_enabled:
+        if not self._live_execution_enabled():
             return {
                 "failure_stage": "futures_live_runtime_disabled",
                 "message": "Live Futures/Perpetual execution is not enabled for this backend process.",
@@ -3743,7 +4834,7 @@ class AdminMvpService:
                 "failure_stage": "unsupported_product_scope",
                 "message": "Futures/Perpetual close/reduce product is outside backend scope.",
             }
-        if not self.dependencies.live_coinbase_execution_enabled:
+        if not self._live_execution_enabled():
             return {
                 "failure_stage": "futures_live_runtime_disabled",
                 "message": "Live Futures/Perpetual execution is not enabled for this backend process.",
@@ -3793,6 +4884,8 @@ class AdminMvpService:
         self,
         live_decision_summary: Mapping[str, Any],
         latest_live_submit_failure: Mapping[str, Any] | None = None,
+        *,
+        allow_coinbase_read: bool = True,
     ) -> dict[str, Any]:
         """Return configured Futures product exposure versus backend cap evidence."""
 
@@ -3804,6 +4897,7 @@ class AdminMvpService:
                 product_id,
                 cap,
                 latest_live_submit_failure,
+                allow_coinbase_read=allow_coinbase_read,
             )
             for product_id in FUTURES_CONFIGURED_PRODUCT_SCOPE
         ]
@@ -3821,9 +4915,13 @@ class AdminMvpService:
             "any_product_within_backend_cap": any_within_cap,
             "items": items,
             "next_required_operator_decision": (
-                "select_configured_us_cfm_product_within_cap"
-                if any_within_cap
-                else "configure_lower_exposure_us_cfm_product_or_raise_futures_cap"
+                "product_exposure_evidence_unavailable_in_call_free_read"
+                if not allow_coinbase_read
+                else (
+                    "select_configured_us_cfm_product_within_cap"
+                    if any_within_cap
+                    else "configure_lower_exposure_us_cfm_product_or_raise_futures_cap"
+                )
             ),
             "execution_allowed": False,
             "live_coinbase_orders_ran": False,
@@ -3833,8 +4931,14 @@ class AdminMvpService:
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution",
             "detail": (
-                "Backend-owned Futures/Perpetual product exposure evidence compares "
-                "one configured US CFM contract against the active backend cap."
+                "Backend-owned Futures/Perpetual product exposure evidence is "
+                "restricted to local sanitized state on this call-free read."
+                if not allow_coinbase_read
+                else (
+                    "Backend-owned Futures/Perpetual product exposure evidence "
+                    "compares one configured US CFM contract against the active "
+                    "backend cap."
+                )
             ),
         }
 
@@ -3843,10 +4947,17 @@ class AdminMvpService:
         product_id: str,
         cap: Decimal,
         latest_live_submit_failure: Mapping[str, Any] | None,
+        *,
+        allow_coinbase_read: bool,
     ) -> dict[str, Any]:
         """Return one configured Futures product exposure row."""
 
-        metadata, read_error = self._futures_product_metadata(product_id)
+        if allow_coinbase_read:
+            metadata, read_error = self._futures_product_metadata(product_id)
+            source = BACKEND_REST_CLIENT_SOURCE
+        else:
+            metadata, read_error = {}, FUTURES_COINBASE_READ_NOT_AUTHORIZED
+            source = FUTURES_LOCAL_READ_SOURCE
         limit_price = _futures_default_limit_price(metadata, side="BUY")
         price_increment = _first_positive_decimal(
             metadata,
@@ -3885,7 +4996,7 @@ class AdminMvpService:
             "status": "ready" if within_cap else AdminMvpGateStatus.BLOCKED.value,
             "metadata_read_status": "ready" if read_error is None else "blocked",
             "metadata_read_error": read_error,
-            "source": BACKEND_REST_CLIENT_SOURCE,
+            "source": source,
             "reference_side": "BUY",
             "reference_limit_price": _decimal_text(limit_price or Decimal("0")),
             "price_increment": (
@@ -4337,7 +5448,7 @@ class AdminMvpService:
         notional: Decimal,
         admission: dict[str, Any],
     ) -> AdminMvpApiResult:
-        if not self.dependencies.live_coinbase_execution_enabled:
+        if not self._live_execution_enabled():
             return self._manual_order_blocked_response(
                 status_code=400,
                 command_status=AdminMvpCommandStatus.REJECTED,
@@ -4363,7 +5474,10 @@ class AdminMvpService:
             return self._manual_order_blocked_response(
                 status_code=400,
                 command_status=AdminMvpCommandStatus.REJECTED,
-                message=f"Coinbase order submission failed: {exc}",
+                message=(
+                    "Coinbase order submission failed: "
+                    f"{_value_blind_exception_detail(exc)}"
+                ),
                 failure_stage="coinbase_rest",
                 client_order_id=client_order_id,
                 notional=notional,
@@ -4571,7 +5685,9 @@ class AdminMvpService:
                 cancel_attempt_data.get("exchange_order_id")
             ),
             "exchange_order_id_evidence_only": True,
-            "coinbase_cancel_result": dict(coinbase_cancel_result),
+            "coinbase_cancel_result": _coinbase_cancel_result_summary(
+                coinbase_cancel_result
+            ),
             "coinbase_cancel_identity_used": cancel_attempt_data.get("identity_used"),
             "operator_identity_key": cancel_attempt_data.get(
                 "operator_identity_key",
@@ -4580,8 +5696,8 @@ class AdminMvpService:
             "coinbase_cancel_initial_identity_used": cancel_attempt_data.get(
                 "initial_identity_used"
             ),
-            "coinbase_cancel_initial_result": _mapping(
-                cancel_attempt_data.get("initial_cancel_result")
+            "coinbase_cancel_initial_result": _coinbase_cancel_result_summary(
+                _mapping(cancel_attempt_data.get("initial_cancel_result"))
             ),
             "coinbase_cancel_initial_result_success": bool(
                 cancel_attempt_data.get("initial_cancel_succeeded")
@@ -4829,12 +5945,23 @@ class AdminMvpService:
         return client_order_id
 
     def _runtime_evidence(self) -> dict[str, Any]:
-        rest_ready = self.dependencies.rest_client_available and self.dependencies.rest_client is not None
+        live_runtime_enabled = self._live_execution_enabled()
+        rest_ready = bool(
+            self.dependencies.rest_client_available
+            and self.dependencies.rest_client is not None
+        )
+        runtime_ready = bool(live_runtime_enabled and rest_ready)
+        if not live_runtime_enabled:
+            missing_reason = "live_runtime_disabled"
+        elif not rest_ready:
+            missing_reason = "rest_client_unavailable"
+        else:
+            missing_reason = None
         return {
-            "live_command_runtime_enabled": True,
+            "live_command_runtime_enabled": live_runtime_enabled,
             "live_command_rest_client_available": rest_ready,
-            "live_command_runtime_ready": rest_ready,
-            "live_command_runtime_missing_reason": None if rest_ready else "rest_client_unavailable",
+            "live_command_runtime_ready": runtime_ready,
+            "live_command_runtime_missing_reason": missing_reason,
             "live_command_runtime_source": "application/admin_api/mvp_service.py",
         }
 
@@ -4847,7 +5974,14 @@ class AdminMvpService:
             )
         return AdminMvpLiveServiceStatus.APPROVAL_REQUIRED.value
 
+    def _operator_local_account_snapshot(self) -> dict[str, Any]:
+        """Return call-free local evidence for ordinary operator reads."""
+
+        return _source_disabled_operator_account_snapshot(self._now_iso())
+
     def _account_snapshot(self) -> dict[str, Any]:
+        """Read Coinbase account state only from an explicit live action path."""
+
         generated_at = self._now_iso()
         unavailable = _unavailable_account_snapshot(generated_at)
         if not self.dependencies.rest_client_available or self.dependencies.rest_client is None:
@@ -4876,7 +6010,7 @@ class AdminMvpService:
             portfolio_catalog_error=portfolio_error,
         )
         portfolio_binding_evidence = portfolio_binding.to_dict()
-        spot_portfolio_binding = _spot_test_profile_binding_evidence(
+        internal_spot_portfolio_binding = _spot_test_profile_binding_evidence(
             permissions=permissions,
             portfolios=portfolios,
             expected_portfolio_id=os.environ.get(SPOT_PORTFOLIO_ID_ENV),
@@ -4888,6 +6022,9 @@ class AdminMvpService:
             portfolio_catalog_read=portfolios_read,
             permissions_error=permissions_error,
             portfolio_catalog_error=portfolio_error,
+        )
+        spot_portfolio_binding = serialize_public_spot_portfolio_scope(
+            internal_spot_portfolio_binding
         )
 
         positions: Any = None
@@ -4976,7 +6113,7 @@ class AdminMvpService:
                 f"futures_default_portfolio_binding:{portfolio_binding.blocker}"
             )
         spot_wallet_ready = _spot_admission_quote_ready(wallet_inventory)
-        spot_test_profile_bound = bool(spot_portfolio_binding["ready"])
+        spot_test_profile_bound = bool(internal_spot_portfolio_binding["ready"])
         futures_scope_ready = (
             portfolio_binding.read_ready and positions_read and positions_error is None
         )
@@ -5033,6 +6170,11 @@ class AdminMvpService:
             "coinbase_read_ran": True,
         }
 
+    def _futures_local_account_snapshot(self) -> dict[str, Any]:
+        """Return fixed local Futures evidence without touching shared REST."""
+
+        return _source_disabled_futures_account_snapshot(self._now_iso())
+
     def _latest_service_decision_allows_live(self) -> bool:
         latest = _latest_record(self.store.service_decisions)
         return bool(latest and latest.get("live_coinbase_execution_approved"))
@@ -5060,7 +6202,7 @@ class AdminMvpService:
         """Return whether this process can submit confirmed Futures live commands."""
 
         return bool(
-            self.dependencies.live_coinbase_execution_enabled
+            self._live_execution_enabled()
             and self.dependencies.rest_client_available
             and self.dependencies.rest_client is not None
         )
@@ -5421,7 +6563,7 @@ class AdminMvpService:
         }
 
     def _account_management(self, context: AdminMvpRequestContext) -> dict[str, Any]:
-        snapshot = self._account_snapshot()
+        snapshot = self._operator_local_account_snapshot()
         return {
             "type": "admin_account_management",
             "status": "warning",
@@ -5434,8 +6576,8 @@ class AdminMvpService:
                 "auth_mode": "bootstrap_bearer",
             },
             "account_reality": snapshot["account_reality"],
-            "account_scope": snapshot["account_scope"],
-            "portfolio_scope": snapshot["portfolio_scope"],
+            "account_scope": _public_account_scope(snapshot["account_scope"]),
+            "portfolio_scope": _public_portfolio_scope(snapshot["portfolio_scope"]),
             "wallet_inventory": snapshot["wallet_inventory"],
             "readiness": snapshot["readiness"],
             "permissions": self._account_management_permissions(context),
@@ -5457,7 +6599,7 @@ class AdminMvpService:
         }
 
     def _admin_wallet(self, context: AdminMvpRequestContext) -> dict[str, Any]:
-        snapshot = self._account_snapshot()
+        snapshot = self._operator_local_account_snapshot()
         readiness = snapshot["readiness"]
         wallet_inventory = snapshot["wallet_inventory"]
         spot_wallet_ready = bool(readiness["spot_wallet_inventory_ready"])
@@ -5469,8 +6611,8 @@ class AdminMvpService:
             "status": "ready" if spot_wallet_ready else "warning",
             "module_id": ACCOUNT_MANAGEMENT_MODULE_ID,
             "account_reality": snapshot["account_reality"],
-            "account_scope": snapshot["account_scope"],
-            "portfolio_scope": snapshot["portfolio_scope"],
+            "account_scope": _public_account_scope(snapshot["account_scope"]),
+            "portfolio_scope": _public_portfolio_scope(snapshot["portfolio_scope"]),
             "wallet_inventory": wallet_inventory,
             "wallets": _wallet_rows_for_admin(
                 snapshot["wallets"],
@@ -5511,7 +6653,13 @@ class AdminMvpService:
         context: AdminMvpRequestContext,
     ) -> dict[str, Any]:
         product_ids = _admin_product_scope(query)
-        rows = [self._admin_product_row(product_id) for product_id in product_ids]
+        rows = [
+            _blocked_admin_product_row(
+                product_id,
+                COINBASE_PAGE_LOAD_READ_NOT_AUTHORIZED,
+            )
+            for product_id in product_ids
+        ]
         ready_rows = [row for row in rows if row["read_status"] == "ready"]
         missing_count = len(rows) - len(ready_rows)
         spot_ids = [
@@ -5524,16 +6672,12 @@ class AdminMvpService:
             for row in ready_rows
             if row["product_family"] == "futures_perpetuals"
         ]
-        rest_client_ready = (
-            self.dependencies.rest_client_available
-            and self.dependencies.rest_client is not None
-        )
         return {
             "type": "admin_products",
             "status": _admin_products_status(len(ready_rows), missing_count),
             "module_id": ACCOUNT_MANAGEMENT_MODULE_ID,
             "route": ACCOUNT_PRODUCTS_ROUTE,
-            "source": BACKEND_REST_CLIENT_SOURCE if rest_client_ready else "backend_rest_unavailable",
+            "source": FUTURES_LOCAL_READ_SOURCE,
             "configured_product_scope": product_ids,
             "spot": spot_ids,
             "derivatives": derivative_ids,
@@ -5552,8 +6696,8 @@ class AdminMvpService:
             "command_routes_mode": "backend_admin_api",
             "browser_authority": "display_only",
             "bff_authority": "read_only_forward",
-            "coinbase_read_enabled": rest_client_ready,
-            "live_coinbase_read_ran": rest_client_ready and bool(product_ids),
+            "coinbase_read_enabled": False,
+            "live_coinbase_read_ran": False,
             **self._live_outputs(False, Decimal("0")),
             "notional_usdc": "0",
         }
@@ -5583,8 +6727,9 @@ class AdminMvpService:
         return metadata, None
 
     def _admin_fees(self, context: AdminMvpRequestContext) -> dict[str, Any]:
-        fee_read = self._read_admin_fee_snapshot()
-        snapshot = fee_read["snapshot"]
+        snapshot = _blocked_admin_fee_evidence(
+            COINBASE_PAGE_LOAD_READ_NOT_AUTHORIZED
+        )
         return {
             "type": "admin_fee_evidence",
             "status": snapshot["status"],
@@ -5608,12 +6753,8 @@ class AdminMvpService:
             "command_routes_mode": "backend_admin_api_read_only",
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution",
-            "coinbase_read_enabled": fee_read["rest_client_ready"],
-            "live_coinbase_read_ran": (
-                fee_read["rest_client_ready"]
-                and fee_read["summary_read"]
-                and fee_read["summary_error"] is None
-            ),
+            "coinbase_read_enabled": False,
+            "live_coinbase_read_ran": False,
             **self._live_outputs(False, Decimal("0")),
             "notional_usdc": "0",
         }
@@ -5647,68 +6788,37 @@ class AdminMvpService:
         body: Mapping[str, Any],
         context: AdminMvpRequestContext,
     ) -> AdminMvpApiResult:
-        """Refresh backend products.json from Coinbase product reads."""
+        """Return fixed source-disabled evidence before any read or write."""
 
-        product_ids = _admin_product_scope(body)
-        rows = [self._admin_product_row(product_id) for product_id in product_ids]
-        ready_rows = [row for row in rows if row["read_status"] == "ready"]
-        missing_rows = [row for row in rows if row["read_status"] != "ready"]
-        spot_ids = [
-            str(row["product_id"])
-            for row in ready_rows
-            if row["product_family"] == "spot"
-        ]
-        derivative_ids = [
-            str(row["product_id"])
-            for row in ready_rows
-            if row["product_family"] == "futures_perpetuals"
-        ]
-        rest_client_ready = (
-            self.dependencies.rest_client_available
-            and self.dependencies.rest_client is not None
-        )
-        products_json_written = False
-        write_error: str | None = None
-        preserved_ticker_to_trading = False
-        if rest_client_ready and product_ids and not missing_rows:
-            try:
-                document = _write_admin_products_json(ready_rows)
-                products_json_written = True
-                preserved_ticker_to_trading = "ticker_to_trading" in document
-            except Exception as exc:  # pragma: no cover - defensive filesystem boundary
-                write_error = f"products_json_write_failed:{type(exc).__name__}"
-        status = (
-            AdminMvpCommandStatus.ACCEPTED.value
-            if products_json_written
-            else AdminMvpCommandStatus.REJECTED.value
-        )
-        return self._ok(
+        _ = body
+        return self._result(
+            501,
             {
                 "type": "admin_products_refresh",
-                "status": status,
+                "status": AdminMvpCommandStatus.NOT_IMPLEMENTED.value,
                 "module_id": ACCOUNT_MANAGEMENT_MODULE_ID,
                 "route": ACCOUNT_PRODUCTS_REFRESH_ROUTE,
                 "method": "POST",
                 "action_class": "local_state_mutation",
                 "required_permission": ACCOUNT_PRODUCTS_REFRESH_PERMISSION,
                 "service_method": ACCOUNT_PRODUCTS_REFRESH_SERVICE_METHOD,
-                "configured_product_scope": product_ids,
-                "spot": spot_ids,
-                "derivatives": derivative_ids,
-                "products": rows,
-                "metadata_count": len(ready_rows),
-                "missing_metadata_count": len(missing_rows),
-                "spot_count": len(spot_ids),
-                "derivatives_count": len(derivative_ids),
-                "products_json_written": products_json_written,
+                "configured_product_scope": [],
+                "spot": [],
+                "derivatives": [],
+                "products": [],
+                "metadata_count": 0,
+                "missing_metadata_count": 0,
+                "spot_count": 0,
+                "derivatives_count": 0,
+                "products_json_written": False,
                 "products_json_target": "backend_configured_products_json",
-                "preserved_ticker_to_trading": preserved_ticker_to_trading,
-                "write_error": write_error,
-                "coinbase_read_enabled": rest_client_ready,
-                "coinbase_read_attempted": rest_client_ready and bool(product_ids),
-                "coinbase_read_succeeded": rest_client_ready and bool(product_ids) and not missing_rows,
-                "live_coinbase_read_ran": rest_client_ready and bool(product_ids),
-                "local_state_mutated": products_json_written,
+                "preserved_ticker_to_trading": False,
+                "write_error": "products_refresh_source_disabled",
+                "coinbase_read_enabled": False,
+                "coinbase_read_attempted": False,
+                "coinbase_read_succeeded": False,
+                "live_coinbase_read_ran": False,
+                "local_state_mutated": False,
                 "exchange_state_mutated": False,
                 "live_exchange_submitted": False,
                 "audit": {
@@ -5718,8 +6828,8 @@ class AdminMvpService:
                     "audit_surface": ACCOUNT_PRODUCTS_REFRESH_ROUTE,
                 },
                 "browser_authority": "display_only",
-                "bff_authority": "forward_only_no_execution",
-                "command_routes_mode": "backend_admin_api_local_refresh",
+                "bff_authority": "source_disabled_not_forwarded",
+                "command_routes_mode": "backend_admin_api_source_disabled",
                 **self._live_outputs(False, Decimal("0")),
                 "notional_usdc": "0",
             },
@@ -5848,9 +6958,7 @@ class AdminMvpService:
     def _live_enablement(self) -> dict[str, Any]:
         runtime = self._runtime_evidence()
         service_decision_allows_live = self._latest_service_decision_allows_live()
-        backend_live_execution_opt_in = bool(
-            self.dependencies.live_coinbase_execution_enabled
-        )
+        backend_live_execution_opt_in = self._live_execution_enabled()
         manual_path_live_enabled = (
             service_decision_allows_live and backend_live_execution_opt_in
         )
@@ -5867,7 +6975,7 @@ class AdminMvpService:
             route=MANUAL_ORDER_ROUTE,
             method="POST",
             live_enabled=manual_path_live_enabled,
-            live_eligible=service_decision_allows_live,
+            live_eligible=manual_path_live_executable,
         )
         manual_path.update(
             {
@@ -5885,7 +6993,7 @@ class AdminMvpService:
             route=CANCEL_ORDER_ROUTE,
             method="POST",
             live_enabled=cancel_path_live_enabled,
-            live_eligible=service_decision_allows_live,
+            live_eligible=cancel_path_live_executable,
         )
         cancel_path.update(
             {
@@ -5918,7 +7026,14 @@ class AdminMvpService:
             "live_enabled_path_count": sum(
                 1 for enabled in (manual_path_live_enabled, cancel_path_live_enabled) if enabled
             ),
-            "live_eligible_path_count": 2 if service_decision_allows_live else 0,
+            "live_eligible_path_count": sum(
+                1
+                for eligible in (
+                    manual_path_live_executable,
+                    cancel_path_live_executable,
+                )
+                if eligible
+            ),
             "live_executable_path_count": sum(
                 1
                 for executable in (
@@ -6278,7 +7393,7 @@ class AdminMvpService:
             cap_guard=cap_guard,
             runtime_evidence=runtime_evidence,
             live_coinbase_execution_enabled=(
-                self.dependencies.live_coinbase_execution_enabled
+                self._live_execution_enabled()
             ),
             live_service_decision_allows_live=self._latest_service_decision_allows_live(),
         )
@@ -6292,7 +7407,7 @@ class AdminMvpService:
             cancel_proof=cancel_proof,
             runtime_evidence=runtime_evidence,
             live_coinbase_execution_enabled=(
-                self.dependencies.live_coinbase_execution_enabled
+                self._live_execution_enabled()
             ),
             live_service_decision_allows_live=self._latest_service_decision_allows_live(),
         )
@@ -6519,10 +7634,13 @@ class AdminMvpService:
         }
 
     def _spot_readiness(self, query: Mapping[str, Any]) -> dict[str, Any]:
-        snapshot = self._account_snapshot()
+        snapshot = self._operator_local_account_snapshot()
         spot_admission_input = _spot_admission_input_from_snapshot(snapshot)
         product_rows = [
-            self._admin_product_row(product_id)
+            _blocked_admin_product_row(
+                product_id,
+                COINBASE_PAGE_LOAD_READ_NOT_AUTHORIZED,
+            )
             for product_id in _query_values(query, "product_id")
         ]
         products = _spot_readiness_products(product_rows, snapshot)
@@ -6531,8 +7649,8 @@ class AdminMvpService:
             "status": _spot_readiness_status(snapshot),
             "module_id": MANUAL_ORDER_MODULE_ID,
             "account_reality": snapshot["account_reality"],
-            "account_scope": snapshot["account_scope"],
-            "portfolio_scope": snapshot["portfolio_scope"],
+            "account_scope": _public_account_scope(snapshot["account_scope"]),
+            "portfolio_scope": _public_portfolio_scope(snapshot["portfolio_scope"]),
             "account_readiness": snapshot["readiness"],
             "spot_admission_input": spot_admission_input,
             "products": products,
@@ -6643,7 +7761,7 @@ class AdminMvpService:
         return self._futures_position_detail(unquote(_last_path_part(path)))
 
     def _futures_account(self) -> dict[str, Any]:
-        snapshot = self._account_snapshot()
+        snapshot = self._futures_local_account_snapshot()
         position_scope = [
             item["product_id"] for item in snapshot["futures_positions"] if item.get("product_id")
         ]
@@ -6661,8 +7779,10 @@ class AdminMvpService:
             "observed_position_scope": position_scope,
             "account_reality": snapshot["account_reality"],
             "account_readiness": snapshot["readiness"],
-            "portfolio_scope": snapshot["portfolio_scope"],
-            "portfolio_binding": snapshot["futures_portfolio_binding"],
+            "portfolio_scope": _public_portfolio_scope(snapshot["portfolio_scope"]),
+            "portfolio_binding": serialize_public_futures_portfolio_binding(
+                snapshot["futures_portfolio_binding"]
+            ),
             "collateral": _futures_api_evidence(
                 snapshot["futures_margin_collateral"]["collateral"]
             ),
@@ -6680,9 +7800,11 @@ class AdminMvpService:
             ),
             "position_count": len(snapshot["futures_positions"]),
             "read_only": True,
-            "command_routes_mode": "backend_admin_api_read_only",
+            "command_routes_mode": FUTURES_LOCAL_READ_SOURCE,
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution",
+            "readback_source": FUTURES_LOCAL_READ_SOURCE,
+            "coinbase_read_attempted": False,
             "live_coinbase_read_ran": snapshot["coinbase_read_ran"],
             "live_coinbase_execution": "not_run",
             "notional_usdc": "0",
@@ -6816,7 +7938,7 @@ class AdminMvpService:
     def _futures_positions(self, query: Mapping[str, Any]) -> dict[str, Any]:
         limit = _query_int(query, "limit", 10)
         offset = _query_int(query, "offset", 0)
-        snapshot = self._account_snapshot()
+        snapshot = self._futures_local_account_snapshot()
         product_id = _query_text(query, "product_id")
         position_side = _query_text(query, "position_side").upper()
         matching_items = [
@@ -6841,12 +7963,16 @@ class AdminMvpService:
                 offset=offset,
             ),
             "account_reality": snapshot["account_reality"],
-            "portfolio_scope": snapshot["portfolio_scope"],
-            "portfolio_binding": snapshot["futures_portfolio_binding"],
+            "portfolio_scope": _public_portfolio_scope(snapshot["portfolio_scope"]),
+            "portfolio_binding": serialize_public_futures_portfolio_binding(
+                snapshot["futures_portfolio_binding"]
+            ),
             "read_only": True,
-            "command_routes_mode": "backend_admin_api_read_only",
+            "command_routes_mode": FUTURES_LOCAL_READ_SOURCE,
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution",
+            "readback_source": FUTURES_LOCAL_READ_SOURCE,
+            "coinbase_read_attempted": False,
             "live_coinbase_read_ran": snapshot["coinbase_read_ran"],
             "live_coinbase_execution": "not_run",
             "notional_usdc": "0",
@@ -6859,29 +7985,18 @@ class AdminMvpService:
         query: Mapping[str, Any],
         context: AdminMvpRequestContext,
     ) -> dict[str, Any]:
-        """Read filled Futures order evidence by client_order_id without mutation."""
+        """Return a fixed, call-free Futures fill-readback boundary.
 
-        from tools.run_admin_api_futures_live_fill_readback import (
-            FuturesLiveFillReadbackConfig,
-            run_futures_live_fill_readback,
-        )
+        Ordinary UI refreshes reach this GET without an explicit exchange-read
+        acknowledgement.  The installed MVP has no durable sanitized Futures
+        fill-proof store, so the endpoint must fail closed instead of retaining
+        the legacy helper that queried Coinbase orders and fills.
+        """
 
-        rest_client = (
-            self.dependencies.rest_client
-            if self.dependencies.rest_client_available
-            else None
-        )
-        summary = run_futures_live_fill_readback(
-            rest_client,
-            FuturesLiveFillReadbackConfig(
-                client_order_id=client_order_id,
-                product_id=_query_text(query, "product_id") or None,
-                backend_contract_ref=_query_text(query, "backend_contract_ref") or None,
-                fill_limit=max(_query_int(query, "fill_limit", 100), 1),
-            ),
-        )
+        product_id = _query_text(query, "product_id")
         return {
             "type": "admin_futures_order_fill_readback",
+            "status": "source_disabled",
             "module_id": FUTURES_MODULE_ID,
             "route": "/api/v1/futures/orders/{client_order_id}/fill-readback",
             "method": "GET",
@@ -6897,22 +8012,59 @@ class AdminMvpService:
             "actor_id": context.actor_id,
             "operator_intent": context.operator_intent,
             "audit_id": f"audit-{context.idempotency_key}",
-            "exchange_order_id_evidence_only": True,
-            "coinbase_read_attempted": bool(summary.get("live_coinbase_read_ran")),
-            "coinbase_read_succeeded": bool(
-                summary.get("order_read_succeeded")
-                and summary.get("fill_read_succeeded")
+            "message": (
+                "Futures fill readback is source-disabled; no local sanitized "
+                "fill evidence is available and no Coinbase read was attempted."
             ),
+            "failure_stage": FUTURES_COMMAND_SERVICE_SOURCE_DISABLED,
+            "product_id": product_id,
+            "order_status": "",
+            "order_read_attempted": False,
+            "order_read_succeeded": False,
+            "order_read_error": "futures_fill_readback_source_disabled",
+            "filled_order_found": False,
+            "exchange_order_id_present": False,
+            "exchange_order_id_evidence_only": True,
+            "fill_read_attempted": False,
+            "fill_read_succeeded": False,
+            "fill_read_error": "futures_fill_readback_source_disabled",
+            "fill_count": 0,
+            "fill_read_status": "source_disabled",
+            "fill_order_id_matches_exchange_order_id": False,
+            "fill_product_id_matches_order": False,
+            "fills_have_more_pages": False,
+            "executed_notional_usdc": "0",
+            "submitted_notional_usdc": "0",
+            "coinbase_read_attempted": False,
+            "coinbase_read_succeeded": False,
             "coinbase_order_submitted": False,
             "coinbase_order_cancel_submitted": False,
             "local_state_mutated": False,
             "exchange_state_mutated": False,
             "live_exchange_submitted": False,
-            "command_routes_mode": "backend_admin_api_confirmed_live_readback",
+            "read_only": True,
+            "command_routes_mode": "backend_admin_api_source_disabled",
             "spot_rule_authority": False,
             "browser_authority": "display_only",
-            "bff_authority": "forward_only_no_execution",
-            **summary,
+            "bff_authority": "source_disabled_not_forwarded",
+            "checks": [
+                {
+                    "name": "futures_fill_readback_source_disabled",
+                    "passed": True,
+                },
+                {
+                    "name": "futures_live_coinbase_reads_not_run",
+                    "passed": True,
+                },
+                {
+                    "name": "futures_live_coinbase_orders_not_run",
+                    "passed": True,
+                },
+            ],
+            "live_coinbase_read_ran": False,
+            "live_coinbase_execution": "not_run",
+            "notional_usdc": "0",
+            "live_coinbase_orders_ran": False,
         }
 
     def _spot_order_fill_readback(
@@ -6921,29 +8073,22 @@ class AdminMvpService:
         query: Mapping[str, Any],
         context: AdminMvpRequestContext,
     ) -> dict[str, Any]:
-        """Read Spot order and fill evidence by client_order_id without mutation."""
+        """Return only previously persisted, sanitized Spot fill evidence.
 
-        from tools.run_admin_api_spot_live_order_readback import (
-            SpotLiveOrderReadbackConfig,
-            run_spot_live_order_readback,
-        )
+        This GET is used by ordinary row selection and refresh in the Admin UI.
+        It must therefore remain call-free and write-free even when a live REST
+        adapter is installed.  The separately acknowledged reconciliation POST
+        owns any fresh Coinbase read and durable status update.
+        """
 
-        rest_client = (
-            self.dependencies.rest_client
-            if self.dependencies.rest_client_available
-            else None
+        del query
+        proof = self.latest_spot_fill_readback_proof(client_order_id)
+        proof_available = proof is not None
+        proof_record = proof or {}
+        proof_ref = (
+            str(proof_record.get("live_fill_readback_proof_ref") or "") or None
         )
-        summary = run_spot_live_order_readback(
-            rest_client,
-            SpotLiveOrderReadbackConfig(
-                client_order_id=client_order_id,
-                product_id=_query_text(query, "product_id") or None,
-                backend_contract_ref=_query_text(query, "backend_contract_ref")
-                or None,
-                fill_limit=max(_query_int(query, "fill_limit", 100), 1),
-            ),
-        )
-        response = {
+        return {
             "type": "admin_spot_order_fill_readback",
             "module_id": "spot_operations",
             "route": "/api/v1/orders/{client_order_id}/fill-readback",
@@ -6961,32 +8106,90 @@ class AdminMvpService:
             "operator_intent": context.operator_intent,
             "audit_id": f"audit-{context.idempotency_key}",
             "exchange_order_id_evidence_only": True,
-            "coinbase_read_attempted": bool(summary.get("live_coinbase_read_ran")),
-            "coinbase_read_succeeded": bool(
-                summary.get("order_read_succeeded")
-                and summary.get("fill_read_succeeded")
+            "status": "passed" if proof_available else "not_available",
+            "message": (
+                "Previously persisted sanitized fill evidence is available."
+                if proof_available
+                else "No persisted sanitized fill evidence is available."
             ),
+            "readback_source": "local_durable_evidence",
+            "order_found": proof_available,
+            "order_status": proof_record.get("order_status"),
+            "product_id": proof_record.get("product_id"),
+            "exchange_order_id": proof_record.get("exchange_order_id"),
+            "fill_count": int(proof_record.get("fill_count") or 0),
+            "fill_read_status": (
+                proof_record.get("fill_read_status") or "not_available"
+            ),
+            "fill_order_id_matches_exchange_order_id": (
+                bool(proof_record.get("fill_order_id_matches_exchange_order_id"))
+                if proof_available
+                else False
+            ),
+            "fill_product_id_matches_order": (
+                bool(proof_record.get("fill_product_id_matches_order"))
+                if proof_available
+                else False
+            ),
+            "executed_notional_usdc": str(
+                proof_record.get("executed_notional_usdc") or "0"
+            ),
+            "submitted_notional_usdc": "0",
+            "coinbase_read_attempted": False,
+            "coinbase_read_succeeded": False,
+            "current_request_coinbase_read_ran": False,
+            "current_request_local_state_mutated": False,
+            "proof_origin_live_coinbase_read_ran": bool(
+                proof_record.get("live_coinbase_read_ran")
+            ),
+            "proof_origin_coinbase_read_succeeded": bool(
+                proof_record.get("coinbase_read_succeeded")
+            ),
+            "proof_origin_order_read_attempted": bool(
+                proof_record.get("order_read_attempted")
+            ),
+            "proof_origin_order_read_succeeded": bool(
+                proof_record.get("order_read_succeeded")
+            ),
+            "proof_origin_order_found": bool(proof_record.get("order_found")),
+            "proof_origin_exchange_order_id_present": bool(
+                proof_record.get("exchange_order_id_present")
+            ),
+            "proof_origin_fill_read_attempted": bool(
+                proof_record.get("fill_read_attempted")
+            ),
+            "proof_origin_fill_read_succeeded": bool(
+                proof_record.get("fill_read_succeeded")
+            ),
+            "proof_origin_fills_have_more_pages": bool(
+                proof_record.get("fills_have_more_pages")
+            ),
+            "proof_origin_checks": list(proof_record.get("checks") or []),
             "coinbase_order_submitted": False,
             "coinbase_order_cancel_submitted": False,
             "local_state_mutated": False,
             "exchange_state_mutated": False,
             "live_exchange_submitted": False,
-            "command_routes_mode": "backend_admin_api_confirmed_live_readback",
+            "live_coinbase_read_ran": False,
+            "live_coinbase_execution": "not_run",
+            "notional_usdc": "0",
+            "live_coinbase_orders_ran": False,
+            "read_only": True,
+            "command_routes_mode": "backend_admin_api_local_durable_readback",
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution",
-            **summary,
+            "checks": [
+                {
+                    "check": "local_durable_fill_evidence_available",
+                    "passed": proof_available,
+                }
+            ],
+            "live_fill_readback_proof_ref": proof_ref,
+            "live_fill_readback_proof_recorded": proof_available,
         }
-        live_fill_readback_proof_ref = self._record_spot_fill_readback_proof(
-            response
-        )
-        response["live_fill_readback_proof_ref"] = live_fill_readback_proof_ref
-        response["live_fill_readback_proof_recorded"] = (
-            live_fill_readback_proof_ref is not None
-        )
-        return response
 
     def _futures_position_detail(self, position_key: str) -> dict[str, Any]:
-        snapshot = self._account_snapshot()
+        snapshot = self._futures_local_account_snapshot()
         position = next(
             (
                 item
@@ -7001,12 +8204,16 @@ class AdminMvpService:
             "found": position is not None,
             "position": position,
             "account_reality": snapshot["account_reality"],
-            "portfolio_scope": snapshot["portfolio_scope"],
-            "portfolio_binding": snapshot["futures_portfolio_binding"],
+            "portfolio_scope": _public_portfolio_scope(snapshot["portfolio_scope"]),
+            "portfolio_binding": serialize_public_futures_portfolio_binding(
+                snapshot["futures_portfolio_binding"]
+            ),
             "read_only": True,
-            "command_routes_mode": "backend_admin_api_read_only",
+            "command_routes_mode": FUTURES_LOCAL_READ_SOURCE,
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution",
+            "readback_source": FUTURES_LOCAL_READ_SOURCE,
+            "coinbase_read_attempted": False,
             "live_coinbase_read_ran": snapshot["coinbase_read_ran"],
             "live_coinbase_execution": "not_run",
             "notional_usdc": "0",
@@ -7014,7 +8221,7 @@ class AdminMvpService:
         }
 
     def _futures_risk_proofs(self, query: Mapping[str, Any]) -> dict[str, Any]:
-        snapshot = self._account_snapshot()
+        snapshot = self._futures_local_account_snapshot()
         records = self._futures_risk_proof_records(snapshot)
         records = _filter_futures_risk_proofs(records, query)
         stored_count = len(self.store.futures_risk_proofs)
@@ -7030,16 +8237,17 @@ class AdminMvpService:
                 record.get("source") == "account_management_snapshot" for record in records
             ),
             "read_only": True,
-            "command_routes_mode": (
-                "backend_admin_api_draft_only" if records else "backend_admin_api_blocked"
-            ),
+            "command_routes_mode": "backend_admin_api_source_disabled",
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution",
+            "readback_source": FUTURES_LOCAL_READ_SOURCE,
+            "coinbase_read_attempted": False,
+            "live_coinbase_read_ran": False,
             "live_coinbase_orders_ran": False,
         }
 
     def _futures_risk_proof_detail(self, proof_id: str) -> dict[str, Any]:
-        snapshot = self._account_snapshot()
+        snapshot = self._futures_local_account_snapshot()
         record = next(
             (
                 item
@@ -7058,11 +8266,12 @@ class AdminMvpService:
                 proof_id in self.store.futures_risk_proofs if record is not None else False
             ),
             "read_only": True,
-            "command_routes_mode": (
-                "backend_admin_api_draft_only" if record is not None else "backend_admin_api_blocked"
-            ),
+            "command_routes_mode": "backend_admin_api_source_disabled",
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution",
+            "readback_source": FUTURES_LOCAL_READ_SOURCE,
+            "coinbase_read_attempted": False,
+            "live_coinbase_read_ran": False,
             "live_coinbase_orders_ran": False,
         }
 
@@ -7202,11 +8411,13 @@ class AdminMvpService:
         return evidence
 
     def _futures_command_suite(self) -> dict[str, Any]:
-        snapshot = self._account_snapshot()
+        snapshot = self._futures_local_account_snapshot()
         credential_trade_capability_ready = (
             snapshot["futures_portfolio_binding"].get("can_trade") is True
         )
-        fee_snapshot = self._read_admin_fee_snapshot()["snapshot"]
+        fee_snapshot = _blocked_admin_fee_evidence(
+            FUTURES_COINBASE_READ_NOT_AUTHORIZED
+        )
         futures_liquidation_evidence = self._futures_liquidation_evidence(
             snapshot["futures_margin_collateral"]["margin"]
         )
@@ -7278,10 +8489,21 @@ class AdminMvpService:
             commands,
             live_runtime_ready=live_runtime_ready,
         )
+        live_decision_summary.update(
+            {
+                "executor_boundary_status": "source_disabled",
+                "executor_boundary_ready": False,
+                "first_blocker": FUTURES_COMMAND_SERVICE_SOURCE_DISABLED,
+                "execution_allowed": False,
+                "manual_live_acknowledgement_required": False,
+                "bff_authority": "source_disabled_not_forwarded",
+            }
+        )
         latest_live_submit_failure = self._latest_futures_live_submit_failure()
         futures_product_exposure_evidence = self._futures_product_exposure_evidence(
             live_decision_summary,
             latest_live_submit_failure,
+            allow_coinbase_read=False,
         )
         live_decision_summary["latest_live_submit_failure"] = latest_live_submit_failure
         live_decision_summary["latest_live_submit_failure_present"] = (
@@ -7304,15 +8526,9 @@ class AdminMvpService:
             commands,
             sequence_steps,
         )
-        status = "evidence_ready" if not missing_contracts else "blocked"
-        blocked_command_count = sum(
-            1
-            for command in commands
-            if command["status"] != AdminMvpGateStatus.PASSED.value
-        )
-        executable_command_count = sum(
-            1 for command in commands if bool(command["execution_allowed"])
-        )
+        status = "blocked"
+        blocked_command_count = len(commands)
+        executable_command_count = 0
         command_routes_mode = _futures_command_routes_mode(
             missing_contracts=missing_contracts,
             executable_command_count=executable_command_count,
@@ -7333,7 +8549,7 @@ class AdminMvpService:
             "blocked_command_count": blocked_command_count,
             "executable_command_count": executable_command_count,
             "command_route_count": len(commands),
-            "command_draft_allowed_count": len(commands),
+            "command_draft_allowed_count": 0,
             "prerequisite_count": 4,
             "blocking_prerequisite_count": 0 if not missing_contracts else 2,
             "prerequisite_summary_count": 4,
@@ -7388,7 +8604,7 @@ class AdminMvpService:
             "command_enablement_sequence_command_traces": sequence_traces,
             "commands": commands,
             "futures_live_execution_scope": _futures_live_execution_scope(
-                execution_allowed=executable_command_count > 0,
+                execution_allowed=False,
             ),
             "futures_live_decision_evidence": live_decision_summary,
             "futures_product_exposure_evidence": futures_product_exposure_evidence,
@@ -7415,19 +8631,16 @@ class AdminMvpService:
             ],
             "spot_rule_authority": False,
             "browser_authority": "display_only",
-            "bff_authority": "forward_only_no_execution",
+            "bff_authority": "source_disabled_not_forwarded",
+            "readback_source": FUTURES_LOCAL_READ_SOURCE,
+            "coinbase_read_attempted": False,
+            "live_coinbase_read_ran": False,
             "live_coinbase_orders_ran": False,
             "submitted_notional_usdc": "0",
             "executed_notional_usdc": "0",
             "read_only": True,
             "command_routes_mode": command_routes_mode,
-            "message": (
-                "Futures command-suite evidence is ready for confirmed backend live exchange commands; reconciliation remains evidence-only."
-                if executable_command_count
-                else "Futures command-suite evidence is ready for draft review; execution remains disabled."
-                if not missing_contracts
-                else "Futures command readiness is backend-owned and blocked until futures account and risk-proof evidence exist."
-            ),
+            "message": FUTURES_COMMAND_SOURCE_DISABLED_MESSAGE,
         }
 
     def _futures_command(
@@ -7477,35 +8690,24 @@ class AdminMvpService:
             live_decision_evidence=live_decision_evidence,
         )
         semantic_guard_counts = _futures_semantic_guard_counts(semantic_guards)
-        first_blocker = (
-            str(live_decision_evidence["first_blocker"])
-            if not missing_contracts
-            else "futures_margin_collateral_risk_proof"
+        first_blocker = FUTURES_COMMAND_SERVICE_SOURCE_DISABLED
+        execution_allowed = False
+        command_status = AdminMvpGateStatus.BLOCKED.value
+        readiness_decision = "source_disabled_not_implemented"
+        source_disabled_live_decision_evidence = dict(live_decision_evidence)
+        source_disabled_live_decision_evidence.update(
+            {
+                "executor_boundary_status": "source_disabled",
+                "executor_boundary_ready": False,
+                "first_blocker": FUTURES_COMMAND_SERVICE_SOURCE_DISABLED,
+                "execution_allowed": False,
+                "manual_live_acknowledgement_required": False,
+                "bff_authority": "source_disabled_not_forwarded",
+            }
         )
-        execution_allowed = bool(
-            not missing_contracts and live_decision_evidence.get("execution_allowed")
-        )
-        live_exchange_command = _futures_live_exchange_command(command)
-        command_status = (
-            AdminMvpGateStatus.PASSED.value
-            if execution_allowed
-            else AdminMvpGateStatus.BLOCKED.value
-        )
-        if execution_allowed:
-            readiness_decision = "confirmed_live_ready"
-        elif not missing_contracts and first_blocker == "futures_executor_live_disabled":
-            readiness_decision = "executor_observed_live_disabled"
-        elif not missing_contracts:
-            readiness_decision = "draft_ready_execution_disabled"
-        else:
-            readiness_decision = "blocked_backend_contracts_required"
         return {
             "command": command,
-            "mutation_family": (
-                "futures_confirmed_live_ready"
-                if execution_allowed
-                else "futures_contract_required"
-            ),
+            "mutation_family": "futures_contract_required",
             "status": command_status,
             "action_class": action_class,
             "route": route,
@@ -7554,13 +8756,7 @@ class AdminMvpService:
                 "decision": readiness_decision,
                 "status": command_status,
                 "ready": execution_allowed,
-                "blocker_count": (
-                    0
-                    if execution_allowed
-                    else 1
-                    if not missing_contracts
-                    else len(missing_contracts)
-                ),
+                "blocker_count": max(1, len(missing_contracts)),
                 "blocking_prerequisite_count": blocking_prerequisite_count,
                 "blocking_request_field_count": 0,
                 "blocking_semantic_guard_count": semantic_guard_counts[
@@ -7570,29 +8766,20 @@ class AdminMvpService:
                 "missing_evidence_ref_count": 0 if not missing_contracts else 2,
                 "evidence_route_count": 4,
                 "first_blocker": first_blocker,
-                "next_required_backend_contract": missing_contracts[0] if missing_contracts else None,
+                "next_required_backend_contract": (
+                    "separate_source_restoration_and_authorization"
+                ),
                 "command_route_registered": True,
-                "command_draft_allowed": True,
-                "execution_allowed": execution_allowed,
-                "manual_live_acknowledgement_required": live_exchange_command,
+                "command_draft_allowed": False,
+                "execution_allowed": False,
+                "manual_live_acknowledgement_required": False,
                 "backend_owned": True,
                 "read_only": True,
                 "spot_rule_authority": False,
                 "browser_authority": "display_only",
-                "bff_authority": "forward_only_no_execution",
-                "live_decision_evidence": dict(live_decision_evidence),
-                "detail": (
-                    "Futures live-decision evidence is bound to the US CFM scope; confirmed backend live exchange submission is available only after explicit operator acknowledgement."
-                    if execution_allowed
-                    else
-                    "Futures live-decision evidence is bound to the US CFM scope; the backend executor boundary is present and live-disabled."
-                    if first_blocker == "futures_executor_live_disabled"
-                    else "Futures reconciliation remains backend evidence-only; no live exchange submission is available for this route."
-                    if first_blocker == "futures_reconciliation_execution_disabled"
-                    else "Futures command draft evidence is available; live execution remains disabled."
-                    if not missing_contracts
-                    else "Futures command is visible as a route-bound draft only; execution remains blocked."
-                ),
+                "bff_authority": "source_disabled_not_forwarded",
+                "live_decision_evidence": source_disabled_live_decision_evidence,
+                "detail": FUTURES_COMMAND_SOURCE_DISABLED_MESSAGE,
             },
             **_futures_command_readiness_closure(
                 command=command,
@@ -7603,19 +8790,15 @@ class AdminMvpService:
                 live_decision_evidence=live_decision_evidence,
             ),
             "command_route_registered": True,
-            "command_draft_allowed": True,
-            "execution_allowed": execution_allowed,
-            "manual_live_acknowledgement_required": live_exchange_command,
+            "command_draft_allowed": False,
+            "execution_allowed": False,
+            "manual_live_acknowledgement_required": False,
             "live_coinbase_orders_ran": False,
             "submitted_notional_usdc": "0",
             "executed_notional_usdc": "0",
             "browser_authority": "display_only",
-            "bff_authority": "forward_only_no_execution",
-            "detail": (
-                "Backend-owned futures command readiness evidence; confirmed live exchange submission is available only through backend Admin API acknowledgement."
-                if execution_allowed
-                else "Backend-owned futures command readiness evidence; no Coinbase call, state mutation, or browser/BFF execution authority."
-            ),
+            "bff_authority": "source_disabled_not_forwarded",
+            "detail": FUTURES_COMMAND_SOURCE_DISABLED_MESSAGE,
             "spot_rule_authority": False,
         }
 
@@ -7678,81 +8861,38 @@ class AdminMvpService:
         missing_contracts: list[str],
         live_decision_summary: Mapping[str, Any],
     ) -> list[dict[str, Any]]:
-        blockers: list[dict[str, Any]] = []
-        if missing_contracts:
-            blockers.append({
-                "blocker": "unresolved_prerequisites",
-                "status": "blocked",
-                "blocking": True,
-                "command_count": len(commands),
-                "affected_commands": commands,
-                "evidence_ref_count": 3,
-                "required_evidence_refs": [
-                    "/api/v1/futures/account",
-                    "/api/v1/futures/risk-proofs",
-                    "/api/v1/admin/reconciliation/plans",
-                ],
-                "required_backend_contracts": [
-                    "futures_account_scope_contract",
-                    "futures_margin_collateral_risk_proof",
-                    "futures_reconciliation_contract",
-                ],
-                "command_route_registered": True,
-                "command_draft_allowed": True,
-                "execution_allowed": False,
-                "live_coinbase_orders_ran": False,
-                "backend_owned": True,
-                "read_only": True,
-                "spot_rule_authority": False,
-                "browser_authority": "display_only",
-                "bff_authority": "forward_only_no_execution",
-                "detail": "Futures commands remain blocked until futures-specific prerequisites are implemented and proven.",
-            })
-        execution_blocker = str(live_decision_summary["first_blocker"])
-        latest_live_submit_failure = live_decision_summary.get("latest_live_submit_failure")
-        if execution_blocker == "none" and not latest_live_submit_failure:
-            return blockers
-        blocker_detail = (
-            "Latest Futures/Perpetual live submit was rejected before Coinbase order mutation by backend cap evidence."
-            if latest_live_submit_failure
-            else "The credential-bound Default profile is view-only; Futures commands require explicit Coinbase trade capability in addition to Admin authorization."
-            if execution_blocker == "futures_credential_trade_capability_missing"
-            else "Futures confirmed live exchange commands can reach the backend executor with explicit operator acknowledgement."
-            if execution_blocker == "none"
-            else "Futures US CFM live-service and live-adapter decisions are bound; the backend Futures executor boundary is present and live-disabled."
-            if execution_blocker == "futures_executor_live_disabled"
-            else "Futures command evidence is available, but live futures execution is intentionally disabled."
+        _ = missing_contracts
+        latest_live_submit_failure = live_decision_summary.get(
+            "latest_live_submit_failure"
         )
-        blockers.append({
-            "blocker": execution_blocker,
+        return [{
+            "blocker": FUTURES_COMMAND_SERVICE_SOURCE_DISABLED,
             "status": "blocked",
             "blocking": True,
             "command_count": len(commands),
             "affected_commands": commands,
-            "evidence_ref_count": 2,
-            "required_evidence_refs": [
-                "/api/v1/admin/live-execution/service-decisions",
-                "/api/v1/admin/live-execution/adapter-decisions",
+            "evidence_ref_count": 0,
+            "required_evidence_refs": [],
+            "required_backend_contracts": [
+                "separate_source_restoration_and_authorization"
             ],
-            "required_backend_contracts": [],
             "command_route_registered": True,
-            "command_draft_allowed": True,
+            "command_draft_allowed": False,
             "execution_allowed": False,
             "live_coinbase_orders_ran": False,
             "backend_owned": True,
             "read_only": True,
             "spot_rule_authority": False,
             "browser_authority": "display_only",
-            "bff_authority": "forward_only_no_execution",
+            "bff_authority": "source_disabled_not_forwarded",
             "futures_live_execution_scope": _futures_live_execution_scope(
-                execution_allowed=bool(live_decision_summary.get("execution_allowed")),
+                execution_allowed=False,
             ),
             "futures_live_decision_evidence": dict(live_decision_summary),
             "latest_live_submit_failure": latest_live_submit_failure,
             "latest_live_submit_failure_present": latest_live_submit_failure is not None,
-            "detail": blocker_detail,
-        })
-        return blockers
+            "detail": FUTURES_COMMAND_SOURCE_DISABLED_MESSAGE,
+        }]
 
     def _guard_risk_policy(self, query: Mapping[str, Any]) -> dict[str, Any]:
         return {
@@ -8523,12 +9663,15 @@ def _manual_live_acknowledged(body: Mapping[str, Any]) -> bool:
 
 
 def _coinbase_create_order_succeeded(result_data: Mapping[str, Any]) -> bool:
-    success = result_data.get("success")
-    if success is None:
-        return True
-    if isinstance(success, str):
-        return success.strip().lower() in TRUTHY_ENV_VALUES
-    return bool(success)
+    return _coinbase_create_order_result_classification(result_data) == "accepted"
+
+
+def _coinbase_create_order_result_classification(
+    result_data: Mapping[str, Any],
+) -> str:
+    if "success" not in result_data:
+        return "unknown"
+    return "accepted" if result_data.get("success") is True else "rejected"
 
 
 def _coinbase_order_id_from_create_order_result(result_data: Mapping[str, Any]) -> str:
@@ -8542,20 +9685,9 @@ def _coinbase_order_id_from_create_order_result(result_data: Mapping[str, Any]) 
 
 
 def _coinbase_create_order_error_message(result_data: Mapping[str, Any]) -> str:
-    error_response = result_data.get("error_response")
-    error_data = (
-        dict(error_response)
-        if isinstance(error_response, Mapping)
-        else _object_to_dict(error_response)
-    )
-    details = [
-        str(error_data.get(key) or "").strip()
-        for key in ("message", "error_details", "error")
-        if str(error_data.get(key) or "").strip()
-    ]
-    if details:
-        return "; ".join(details)
-    return "Coinbase returned success=false."
+    if _coinbase_create_order_result_classification(result_data) == "unknown":
+        return "coinbase_create_acceptance_unknown"
+    return "coinbase_create_explicitly_rejected"
 
 
 def _coinbase_cancel_orders_result_data(result: Any) -> dict[str, Any]:
@@ -8674,57 +9806,61 @@ def _coinbase_exchange_order_id(order: Any) -> str:
 
 
 def _coinbase_cancel_order_succeeded(result_data: Mapping[str, Any]) -> bool:
-    success = result_data.get("success")
-    if success is not None:
-        return _truthy_value(success)
+    return _coinbase_cancel_order_result_classification(result_data) == "accepted"
+
+
+def _coinbase_cancel_order_result_classification(
+    result_data: Mapping[str, Any],
+) -> str:
+    if "success" in result_data:
+        return "accepted" if result_data.get("success") is True else "rejected"
     results = result_data.get("results")
     if isinstance(results, Sequence) and not isinstance(results, (str, bytes, bytearray)):
         if not results:
-            return False
-        return all(_coinbase_cancel_result_item_succeeded(item) for item in results)
-    return bool(result_data)
+            return "unknown"
+        classifications = [
+            _coinbase_cancel_result_item_classification(item) for item in results
+        ]
+        if any(classification == "rejected" for classification in classifications):
+            return "rejected"
+        if all(classification == "accepted" for classification in classifications):
+            return "accepted"
+    return "unknown"
 
 
 def _coinbase_cancel_result_item_succeeded(item: Any) -> bool:
+    return _coinbase_cancel_result_item_classification(item) == "accepted"
+
+
+def _coinbase_cancel_result_item_classification(item: Any) -> str:
     item_data = item if isinstance(item, Mapping) else _object_to_dict(item)
-    success = item_data.get("success") if isinstance(item_data, Mapping) else None
-    if success is None:
-        return bool(item_data)
-    return _truthy_value(success)
+    if not isinstance(item_data, Mapping) or "success" not in item_data:
+        return "unknown"
+    return "accepted" if item_data.get("success") is True else "rejected"
+
+
+def _coinbase_cancel_result_summary(
+    result_data: Mapping[str, Any],
+) -> dict[str, Any]:
+    results = result_data.get("results")
+    result_count = (
+        len(results)
+        if isinstance(results, Sequence)
+        and not isinstance(results, (str, bytes, bytearray))
+        else 0
+    )
+    classification = _coinbase_cancel_order_result_classification(result_data)
+    return {
+        "accepted": classification == "accepted",
+        "classification": classification,
+        "result_count": result_count,
+    }
 
 
 def _coinbase_cancel_order_error_message(result_data: Mapping[str, Any]) -> str:
-    error_response = result_data.get("error_response")
-    error_data = (
-        dict(error_response)
-        if isinstance(error_response, Mapping)
-        else _object_to_dict(error_response)
-    )
-    details = [
-        str(error_data.get(key) or "").strip()
-        for key in ("message", "error_details", "error")
-        if str(error_data.get(key) or "").strip()
-    ]
-    results = result_data.get("results")
-    if not details and isinstance(results, Sequence):
-        for item in results:
-            item_data = item if isinstance(item, Mapping) else _object_to_dict(item)
-            if not isinstance(item_data, Mapping):
-                continue
-            details.extend(
-                str(item_data.get(key) or "").strip()
-                for key in ("failure_reason", "message", "error")
-                if str(item_data.get(key) or "").strip()
-            )
-    if details:
-        return "; ".join(details)
-    return "Coinbase returned cancel success=false."
-
-
-def _truthy_value(value: Any) -> bool:
-    if isinstance(value, str):
-        return value.strip().lower() in TRUTHY_ENV_VALUES
-    return bool(value)
+    if _coinbase_cancel_order_result_classification(result_data) == "unknown":
+        return "coinbase_cancel_acceptance_unknown"
+    return "coinbase_cancel_explicitly_rejected"
 
 
 def _object_to_dict(value: Any) -> dict[str, Any]:
@@ -9160,6 +10296,103 @@ def _unavailable_account_snapshot(generated_at: str) -> dict[str, Any]:
     }
 
 
+def _source_disabled_futures_account_snapshot(generated_at: str) -> dict[str, Any]:
+    """Build a truthful local Futures snapshot when Coinbase reads are forbidden."""
+
+    snapshot = _unavailable_account_snapshot(generated_at)
+    snapshot["account_reality"].update(
+        {
+            "source": FUTURES_LOCAL_READ_SOURCE,
+            "read_error": FUTURES_COINBASE_READ_NOT_AUTHORIZED,
+        }
+    )
+    snapshot["account_scope"].update(
+        {
+            "scope_type": "local_futures_evidence",
+            "scope_id": "local-futures-evidence",
+            "source": FUTURES_LOCAL_READ_SOURCE,
+            "freshness_status": "local_sanitized_evidence",
+        }
+    )
+    snapshot["portfolio_scope"].update(
+        {
+            "portfolio_id": "local-futures-evidence",
+            "portfolio_name": "Local Futures Evidence",
+            "source": FUTURES_LOCAL_READ_SOURCE,
+            "freshness_status": "local_sanitized_evidence",
+        }
+    )
+    snapshot["futures_portfolio_binding"].update(
+        {
+            "blocker": FUTURES_COINBASE_READ_NOT_AUTHORIZED,
+            "source": FUTURES_LOCAL_READ_SOURCE,
+            "freshness_status": "local_sanitized_evidence",
+        }
+    )
+    snapshot["futures_margin_collateral"] = _blocked_futures_margin_collateral(
+        FUTURES_COINBASE_READ_NOT_AUTHORIZED,
+        "Futures margin/collateral is unavailable because this operator read is "
+        "restricted to local sanitized evidence.",
+    )
+    snapshot["coinbase_read_enabled"] = False
+    snapshot["coinbase_read_ran"] = False
+    return snapshot
+
+
+def _source_disabled_operator_account_snapshot(generated_at: str) -> dict[str, Any]:
+    """Build fixed local evidence for call-free page-load account reads."""
+
+    snapshot = _unavailable_account_snapshot(generated_at)
+    snapshot["account_reality"].update(
+        {
+            "source": FUTURES_LOCAL_READ_SOURCE,
+            "read_error": COINBASE_PAGE_LOAD_READ_NOT_AUTHORIZED,
+        }
+    )
+    snapshot["account_scope"].update(
+        {
+            "source": FUTURES_LOCAL_READ_SOURCE,
+            "freshness_status": "local_sanitized_evidence",
+        }
+    )
+    snapshot["portfolio_scope"].update(
+        {
+            "source": FUTURES_LOCAL_READ_SOURCE,
+            "freshness_status": "local_sanitized_evidence",
+        }
+    )
+    snapshot["futures_portfolio_binding"].update(
+        {
+            "blocker": COINBASE_PAGE_LOAD_READ_NOT_AUTHORIZED,
+            "source": FUTURES_LOCAL_READ_SOURCE,
+            "freshness_status": "local_sanitized_evidence",
+        }
+    )
+    snapshot["spot_portfolio_binding"].update(
+        {
+            "blocker": COINBASE_PAGE_LOAD_READ_NOT_AUTHORIZED,
+            "source": FUTURES_LOCAL_READ_SOURCE,
+        }
+    )
+    snapshot["wallet_inventory"].update(
+        {
+            "source": FUTURES_LOCAL_READ_SOURCE,
+            "freshness_status": "local_sanitized_evidence",
+            "error": COINBASE_PAGE_LOAD_READ_NOT_AUTHORIZED,
+            "quote_wallet_status": "blocked",
+            "quote_wallet_error": COINBASE_PAGE_LOAD_READ_NOT_AUTHORIZED,
+        }
+    )
+    snapshot["futures_margin_collateral"] = _blocked_futures_margin_collateral(
+        COINBASE_PAGE_LOAD_READ_NOT_AUTHORIZED,
+        "Account margin/collateral is unavailable because ordinary operator "
+        "page loads are restricted to local sanitized evidence.",
+    )
+    snapshot["coinbase_read_enabled"] = False
+    snapshot["coinbase_read_ran"] = False
+    return snapshot
+
+
 def _spot_admission_input_from_snapshot(snapshot: Mapping[str, Any]) -> dict[str, Any]:
     readiness = _mapping(snapshot.get("readiness"))
     wallet_inventory = _mapping(snapshot.get("wallet_inventory"))
@@ -9432,6 +10665,33 @@ def _read_rest_object(rest_client: Any, method_name: str) -> tuple[Any, bool, st
         return None, True, f"{method_name}_failed:{type(exc).__name__}"
 
 
+def _public_account_scope(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Withhold a concrete Coinbase account/portfolio identifier on reads."""
+
+    payload = dict(value)
+    if payload.get("source") == BACKEND_REST_CLIENT_SOURCE:
+        payload["scope_id"] = "withheld"
+    return payload
+
+
+def _public_portfolio_scope(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Retain operator-useful profile evidence without its concrete UUID."""
+
+    payload = dict(value)
+    if payload.get("source") == BACKEND_REST_CLIENT_SOURCE:
+        concrete_id = str(payload.get("portfolio_id") or "").strip()
+        if str(payload.get("portfolio_name") or "").strip() == concrete_id:
+            payload["portfolio_name"] = "Withheld Coinbase Portfolio"
+        payload["portfolio_id"] = "withheld"
+    return payload
+
+
+def _public_futures_position_key(product_id: str) -> str:
+    """Return the stable operator key for the exact bound Default profile."""
+
+    return f"futures_position:default:{product_id}"
+
+
 def _normalize_wallets(value: Any) -> list[dict[str, Any]]:
     if isinstance(value, Mapping):
         candidates = value.values()
@@ -9602,21 +10862,16 @@ def _normalize_futures_positions(
         product_id = str(data.get("product_id") or "")
         if not product_id:
             continue
-        scoped_portfolio_uuid = str(portfolio_uuid or "").strip()
         positions.append(
             {
-                "position_key": (
-                    f"futures_position:{scoped_portfolio_uuid}:{product_id}"
-                    if scoped_portfolio_uuid
-                    else f"futures_position:unbound:{product_id}"
-                ),
+                "position_key": _public_futures_position_key(product_id),
                 "product_id": product_id,
-                "portfolio_uuid": scoped_portfolio_uuid or None,
+                "portfolio_uuid": None,
                 "position_side": str(data.get("position_side") or data.get("side") or "UNKNOWN"),
                 "number_of_contracts": str(data.get("number_of_contracts") or "0"),
                 "current_price": str(data.get("current_price") or ""),
                 "entry_price": str(data.get("entry_price") or ""),
-                "raw_position": data,
+                "raw_position": {},
                 "source": BACKEND_REST_CLIENT_SOURCE,
                 "updated_at": data.get("updated_at"),
             }
@@ -11335,9 +12590,11 @@ def _futures_command_enablement_sequence_steps(
                 "/api/v1/admin/reconciliation/plans",
             ],
             detail=(
-                "Futures prerequisite contracts are still missing; commands remain draft-only."
+                "Historical Futures prerequisite contracts remain incomplete; "
+                "they cannot enable a source-disabled command route."
                 if missing_contracts
-                else "Futures prerequisite contracts are resolved for draft review."
+                else "Historical Futures prerequisite evidence is resolved for "
+                "read-only review and cannot enable a source-disabled command route."
             ),
         ),
         _futures_command_enablement_sequence_step(
@@ -11349,8 +12606,8 @@ def _futures_command_enablement_sequence_steps(
             required_backend_contracts=["admin_futures_request_payload_contract"],
             required_evidence_refs=[],
             detail=(
-                "Backend-owned Futures request payload fields are declared and "
-                "validated before admission."
+                "Backend-owned Futures request payload fields remain historical "
+                "read-only validation evidence; no command draft is accepted."
             ),
         ),
         _futures_command_enablement_sequence_step(
@@ -11365,8 +12622,8 @@ def _futures_command_enablement_sequence_steps(
                 for command in commands
             ],
             detail=(
-                "Backend Futures command service methods are declared before "
-                "route registration or live-adapter binding."
+                "Historical backend Futures service-method contracts cannot "
+                "restore the source-disabled command service."
             ),
         ),
         _futures_command_enablement_sequence_step(
@@ -11378,8 +12635,8 @@ def _futures_command_enablement_sequence_steps(
             required_backend_contracts=["admin_futures_command_route_registry"],
             required_evidence_refs=[],
             detail=(
-                "Backend Admin API routes are registered for Futures command drafts; "
-                "browser and BFF authority remain display/forward only."
+                "Backend Admin API routes are registered only as fixed "
+                "source-disabled boundaries; the BFF must not forward them."
             ),
         ),
         _futures_command_enablement_sequence_step(
@@ -11398,9 +12655,8 @@ def _futures_command_enablement_sequence_steps(
                 "/api/v1/admin/live-execution/adapter-decisions",
             ],
             detail=(
-                "Futures live-service and adapter evidence are backend-bound; confirmed live exchange commands can reach the backend executor after explicit acknowledgement."
-                if not _futures_live_adapter_sequence_blocking(live_decision_summary)
-                else "Futures live-service and adapter evidence must remain backend-bound; execution is still disabled for the local runtime."
+                "Historical Futures live-service and adapter evidence cannot "
+                "attach an executor to the source-disabled command route."
             ),
         ),
     ]
@@ -11465,7 +12721,7 @@ def _futures_command_readiness_closure_steps(
             detail=(
                 f"{command} prerequisite contracts are still missing."
                 if missing_contracts
-                else f"{command} prerequisite contracts are resolved for draft review."
+                else f"{command} prerequisite contracts are historical read-only evidence."
             ),
         ),
         _futures_command_readiness_closure_step(
@@ -11490,7 +12746,10 @@ def _futures_command_readiness_closure_steps(
             blocking=False,
             required_backend_contract=f"admin_futures_command_route.{command}",
             required_evidence_refs=[route],
-            detail=f"{command} Admin API command route is registered as a backend draft.",
+            detail=(
+                f"{command} Admin API route is registered only as a fixed "
+                "source-disabled boundary."
+            ),
         ),
         _futures_command_readiness_closure_step(
             step="bind_live_service_adapter",
@@ -11502,9 +12761,8 @@ def _futures_command_readiness_closure_steps(
                 "/api/v1/admin/live-execution/adapter-decisions",
             ],
             detail=(
-                f"{command} remains blocked at the backend live-adapter/executor boundary."
-                if live_blocking
-                else f"{command} has no live-adapter blocker in the current evidence."
+                f"Historical {command} live-adapter evidence cannot attach an "
+                "executor to the source-disabled route."
             ),
         ),
     ]
@@ -11519,30 +12777,30 @@ def _futures_command_readiness_closure_step(
     required_evidence_refs: list[str],
     detail: str,
 ) -> dict[str, Any]:
+    _ = blocking
     refs = _unique_texts(required_evidence_refs)
     return {
         "step": step,
         "sequence": sequence,
-        "status": (
-            AdminMvpGateStatus.BLOCKED.value
-            if blocking
-            else AdminMvpGateStatus.PASSED.value
-        ),
-        "blocking": blocking,
+        "status": AdminMvpGateStatus.BLOCKED.value,
+        "blocking": True,
         "source": "backend_contract",
         "required_backend_contract": required_backend_contract,
         "required_evidence_refs": refs,
         "required_evidence_count": len(refs),
         "command_route_registered": True,
-        "command_draft_allowed": True,
+        "command_draft_allowed": False,
         "execution_allowed": False,
         "proof_writer_enabled": False,
         "backend_owned": True,
         "read_only": True,
         "spot_rule_authority": False,
         "browser_authority": "display_only",
-        "bff_authority": "forward_only_no_execution",
-        "detail": detail,
+        "bff_authority": "source_disabled_not_forwarded",
+        "detail": (
+            f"{detail} The route is source-disabled; separate source "
+            "restoration and authorization are required."
+        ),
     }
 
 
@@ -11557,31 +12815,31 @@ def _futures_command_enablement_sequence_step(
     required_evidence_refs: list[str],
     detail: str,
 ) -> dict[str, Any]:
+    _ = blocking, source_blockers
     return {
         "step": step,
         "sequence": sequence,
-        "status": (
-            AdminMvpGateStatus.BLOCKED.value
-            if blocking
-            else AdminMvpGateStatus.PASSED.value
-        ),
-        "blocking": blocking,
+        "status": AdminMvpGateStatus.BLOCKED.value,
+        "blocking": True,
         "command_count": len(command_ids),
         "affected_commands": command_ids,
-        "source_blockers": source_blockers,
+        "source_blockers": [FUTURES_COMMAND_SERVICE_SOURCE_DISABLED],
         "required_backend_contracts": required_backend_contracts,
         "required_evidence_refs": required_evidence_refs,
         "required_evidence_ref_count": len(required_evidence_refs),
         "command_route_registered": True,
-        "command_draft_allowed": True,
+        "command_draft_allowed": False,
         "execution_allowed": False,
         "live_coinbase_orders_ran": False,
         "backend_owned": True,
         "read_only": True,
         "spot_rule_authority": False,
         "browser_authority": "display_only",
-        "bff_authority": "forward_only_no_execution",
-        "detail": detail,
+        "bff_authority": "source_disabled_not_forwarded",
+        "detail": (
+            f"{detail} The route is source-disabled; separate source "
+            "restoration and authorization are required."
+        ),
     }
 
 
@@ -11640,7 +12898,7 @@ def _futures_command_enablement_sequence_trace(
         "read_only": True,
         "spot_rule_authority": False,
         "browser_authority": "display_only",
-        "bff_authority": "forward_only_no_execution",
+        "bff_authority": "source_disabled_not_forwarded",
         "detail": (
             f"{command_id} trace for {step['step']} remains read-only evidence; "
             "no Coinbase request or local Futures state mutation is allowed."
@@ -11651,7 +12909,8 @@ def _futures_command_enablement_sequence_trace(
 def _futures_live_adapter_sequence_blocking(
     live_decision_summary: Mapping[str, Any],
 ) -> bool:
-    return str(live_decision_summary.get("first_blocker") or "execution_disabled") != "none"
+    _ = live_decision_summary
+    return True
 
 
 def _filter_futures_risk_proofs(
@@ -11931,45 +13190,61 @@ def _command_evidence_from_body(body: Mapping[str, Any]) -> dict[str, Any]:
     return evidence
 
 
+SPOT_PROOF_CONTEXT_ASSERTION_FIELDS = (
+    "route",
+    "method",
+    "module_id",
+    "identity_key",
+    "identity_value",
+    "action_class",
+    "required_permission",
+    "service_method",
+    "actor_id",
+    "operator_intent",
+    "command_idempotency_key",
+    "payload_hash",
+)
+
+
+def _spot_proof_context_assertion_from_body(
+    body: Mapping[str, Any],
+    *,
+    nested_field: str,
+) -> dict[str, Any] | None:
+    nested = body.get(nested_field)
+    source = nested if isinstance(nested, Mapping) else body
+    asserted: dict[str, Any] = {}
+    for field_name in SPOT_PROOF_CONTEXT_ASSERTION_FIELDS:
+        if field_name not in source:
+            return None
+        value = source.get(field_name)
+        if isinstance(value, bool):
+            return None
+        text = str(value or "").strip()
+        if not text:
+            return None
+        asserted[field_name] = text
+        if (
+            source is not body
+            and field_name in body
+            and str(body.get(field_name) or "").strip() != text
+        ):
+            return None
+    payload_hash = str(asserted["payload_hash"])
+    if len(payload_hash) != 64 or any(
+        character not in "0123456789abcdef" for character in payload_hash
+    ):
+        return None
+    return asserted
+
+
 def _spot_manual_order_context_from_body(
     body: Mapping[str, Any],
 ) -> dict[str, Any] | None:
-    source = body.get("admission_decision")
-    if not isinstance(source, Mapping):
-        source = body
-    route = str(source.get("route") or MANUAL_ORDER_ROUTE)
-    identity_key = str(source.get("identity_key") or "client_order_id")
-    service_method = str(source.get("service_method") or MANUAL_ORDER_SERVICE_METHOD)
-    identity_value = str(source.get("identity_value") or source.get("client_order_id") or "")
-    idempotency_key = str(
-        source.get("command_idempotency_key") or source.get("idempotency_key") or ""
+    return _spot_proof_context_assertion_from_body(
+        body,
+        nested_field="admission_decision",
     )
-    payload_hash = str(source.get("payload_hash") or "")
-    if route != MANUAL_ORDER_ROUTE:
-        return None
-    if identity_key != "client_order_id":
-        return None
-    if service_method != MANUAL_ORDER_SERVICE_METHOD:
-        return None
-    if not (identity_value and idempotency_key and payload_hash):
-        return None
-    return {
-        "route": route,
-        "method": str(source.get("method") or "POST"),
-        "module_id": str(source.get("module_id") or MANUAL_ORDER_MODULE_ID),
-        "identity_key": identity_key,
-        "identity_value": identity_value,
-        "action_class": str(source.get("action_class") or MANUAL_ORDER_ACTION_CLASS),
-        "required_permission": str(
-            source.get("required_permission") or MANUAL_ORDER_PERMISSION
-        ),
-        "service_method": service_method,
-        "actor_id": str(source.get("actor_id") or "local-operator"),
-        "operator_intent": str(source.get("operator_intent") or "read_admin_api"),
-        "command_idempotency_key": idempotency_key,
-        "payload_hash": payload_hash,
-        "source": "request_body",
-    }
 
 
 def _spot_cancel_order_context_from_cancel_request(
@@ -11999,42 +13274,136 @@ def _spot_cancel_order_context_from_cancel_request(
 def _spot_cancel_order_context_from_body(
     body: Mapping[str, Any],
 ) -> dict[str, Any] | None:
-    source = body.get("proof_context")
-    if not isinstance(source, Mapping):
-        source = body
-    route = str(source.get("route") or CANCEL_ORDER_ROUTE)
-    identity_key = str(source.get("identity_key") or "client_order_id")
-    service_method = str(source.get("service_method") or CANCEL_ORDER_SERVICE_METHOD)
-    identity_value = str(source.get("identity_value") or source.get("client_order_id") or "")
-    idempotency_key = str(
-        source.get("command_idempotency_key") or source.get("idempotency_key") or ""
+    return _spot_proof_context_assertion_from_body(
+        body,
+        nested_field="proof_context",
     )
-    payload_hash = str(source.get("payload_hash") or "")
-    if route != CANCEL_ORDER_ROUTE:
-        return None
-    if identity_key != "client_order_id":
-        return None
-    if service_method != CANCEL_ORDER_SERVICE_METHOD:
-        return None
-    if not (identity_value and idempotency_key and payload_hash):
-        return None
-    return {
+
+
+def _enum_text(value: Any) -> str:
+    return str(getattr(value, "value", value) or "")
+
+
+def _bound_spot_proof_context_from_first_pass(
+    *,
+    asserted_context: Mapping[str, Any] | None,
+    command_idempotency_store: FileIdempotencyStore,
+    command_kind: str,
+) -> tuple[dict[str, Any] | None, str]:
+    """Resolve proof authority exclusively from one durable no-live command."""
+
+    if asserted_context is None:
+        return None, "proof_context_assertion_missing_or_invalid"
+    if not isinstance(command_idempotency_store, FileIdempotencyStore):
+        return None, "durable_command_store_unavailable"
+    command_key = str(asserted_context["command_idempotency_key"])
+    try:
+        record = command_idempotency_store.get_record(command_key)
+    except Exception:
+        return None, "durable_first_pass_read_failed"
+    if record is None:
+        return None, "durable_first_pass_missing"
+    try:
+        response = AdminApiCommandResponse.model_validate(record.response)
+    except Exception:
+        return None, "durable_first_pass_response_invalid"
+    admission = response.admission_decision
+    if admission is None:
+        return None, "durable_first_pass_admission_missing"
+
+    manual = command_kind == "manual"
+    if not manual and command_kind != "cancel":
+        return None, "proof_command_kind_invalid"
+    route = MANUAL_ORDER_ROUTE if manual else CANCEL_ORDER_ROUTE
+    action_class = (
+        AdminApiActionClass.LIVE_EXCHANGE_PLACE
+        if manual
+        else AdminApiActionClass.LIVE_EXCHANGE_CANCEL
+    )
+    permission = (
+        AdminApiPermission.ORDER_CREATE
+        if manual
+        else AdminApiPermission.ORDER_CANCEL
+    )
+    service_method = (
+        MANUAL_ORDER_SERVICE_METHOD
+        if manual
+        else CANCEL_ORDER_SERVICE_METHOD
+    )
+    client_order_id = str(record.client_order_id or "").strip()
+    expected_endpoint = (
+        "POST /api/v1/orders"
+        if manual
+        else f"POST /api/v1/orders/{client_order_id}/cancel"
+    )
+    actor_id = str(record.actor_id or "").strip()
+    operator_intent = str(admission.operator_intent or "").strip()
+    payload_hash = str(record.payload_hash or "").strip()
+    execution_scope = _mapping(admission.execution_scope)
+    product_scope = (
+        str(execution_scope.get("product_scope") or "").strip()
+        if manual
+        else OPERATOR_MVP_CANCEL_PRODUCT_SCOPE
+    )
+    canonical = {
         "route": route,
-        "method": str(source.get("method") or "POST"),
-        "module_id": str(source.get("module_id") or MANUAL_ORDER_MODULE_ID),
-        "identity_key": identity_key,
-        "identity_value": identity_value,
-        "action_class": str(source.get("action_class") or CANCEL_ORDER_ACTION_CLASS),
-        "required_permission": str(
-            source.get("required_permission") or CANCEL_ORDER_PERMISSION
-        ),
+        "method": "POST",
+        "module_id": MANUAL_ORDER_MODULE_ID,
+        "identity_key": "client_order_id",
+        "identity_value": client_order_id,
+        "action_class": action_class.value,
+        "required_permission": permission.value,
         "service_method": service_method,
-        "actor_id": str(source.get("actor_id") or "local-operator"),
-        "operator_intent": str(source.get("operator_intent") or "read_admin_api"),
-        "command_idempotency_key": idempotency_key,
+        "actor_id": actor_id,
+        "operator_intent": operator_intent,
+        "command_idempotency_key": record.idempotency_key,
         "payload_hash": payload_hash,
-        "source": "request_body",
+        "product_scope": product_scope,
+        "source": "durable_first_pass_idempotency_record",
     }
+    exact_no_live_first_pass = bool(
+        client_order_id
+        and actor_id
+        and operator_intent
+        and len(payload_hash) == 64
+        and all(
+            character in "0123456789abcdef" for character in payload_hash
+        )
+        and record.idempotency_key == command_key
+        and record.endpoint == expected_endpoint
+        and record.status == AdminApiCommandStatus.NOT_IMPLEMENTED
+        and response.status == AdminApiCommandStatus.NOT_IMPLEMENTED
+        and response.client_order_id == client_order_id
+        and response.idempotency_key == record.idempotency_key
+        and response.action_class == action_class
+        and _enum_text(response.required_permission) == permission.value
+        and response.service_method == service_method
+        and response.live_exchange_submitted is False
+        and response.live_coinbase_orders_ran is False
+        and admission.status == AdminApiGateStatus.BLOCKED
+        and admission.allowed is False
+        and admission.route == route
+        and admission.method == "POST"
+        and admission.module_id == MANUAL_ORDER_MODULE_ID
+        and admission.identity_key == "client_order_id"
+        and admission.identity_value == client_order_id
+        and admission.action_class == action_class
+        and _enum_text(admission.required_permission) == permission.value
+        and admission.service_method == service_method
+        and admission.actor_id == actor_id
+        and admission.idempotency_key == record.idempotency_key
+        and admission.payload_hash == payload_hash
+        and admission.live_exchange_submitted is False
+    )
+    if not exact_no_live_first_pass:
+        return None, "durable_first_pass_binding_mismatch"
+    if any(
+        str(asserted_context.get(field_name) or "").strip()
+        != str(canonical[field_name])
+        for field_name in SPOT_PROOF_CONTEXT_ASSERTION_FIELDS
+    ):
+        return None, "proof_context_assertion_mismatch"
+    return canonical, "passed"
 
 
 def _proof_chain_record_key(proof_context: Mapping[str, Any]) -> str:
@@ -12048,6 +13417,248 @@ def _proof_chain_record_key(proof_context: Mapping[str, Any]) -> str:
         sort_keys=True,
     )
     return hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]
+
+
+def _typed_spot_proof_records_match(
+    records: Mapping[str, Any],
+    *,
+    proof_context: Mapping[str, Any],
+    approval_id: str,
+    admission_audit_id: str,
+    cap_guard_decision_id: str,
+    reconciliation_plan_id: str,
+    product_scope: str,
+    approved_by_actor_id: str,
+    allow_partial: bool = False,
+) -> bool:
+    """Return true only for exact records from one deterministic typed chain."""
+
+    approval = records.get("approval")
+    audit = records.get("admission_audit")
+    cap_guard = records.get("cap_guard")
+    reconciliation = records.get("reconciliation_plan")
+    decision = getattr(audit, "admission_decision", None)
+    expected = {
+        "route": str(proof_context["route"]),
+        "method": str(proof_context["method"]).upper(),
+        "module_id": str(proof_context["module_id"]),
+        "identity_key": str(proof_context["identity_key"]),
+        "identity_value": str(proof_context["identity_value"]),
+        "action_class": str(proof_context["action_class"]),
+        "required_permission": str(proof_context["required_permission"]),
+        "service_method": str(proof_context["service_method"]),
+        "actor_id": str(proof_context["actor_id"]),
+        "operator_intent": str(proof_context["operator_intent"]),
+        "idempotency_key": str(proof_context["command_idempotency_key"]),
+        "payload_hash": str(proof_context["payload_hash"]),
+    }
+
+    def command_fields_match(record: Any, *, include_service: bool = True) -> bool:
+        return bool(
+            record is not None
+            and record.route == expected["route"]
+            and str(record.method).upper() == expected["method"]
+            and record.module_id == expected["module_id"]
+            and record.identity_key == expected["identity_key"]
+            and record.identity_value == expected["identity_value"]
+            and _enum_text(record.action_class) == expected["action_class"]
+            and _enum_text(record.required_permission)
+            == expected["required_permission"]
+            and (
+                not include_service
+                or record.service_method == expected["service_method"]
+            )
+            and getattr(record, "actor_id", expected["actor_id"])
+            == expected["actor_id"]
+            and record.operator_intent == expected["operator_intent"]
+            and record.idempotency_key == expected["idempotency_key"]
+            and record.payload_hash == expected["payload_hash"]
+        )
+
+    manual = expected["service_method"] == "place_manual_order"
+    max_submitted = "3.10" if manual else "0"
+    max_executed = "1.00" if manual else "0"
+
+    approval_matches = bool(
+        approval is not None
+        and approval.approval_id == approval_id
+        and command_fields_match(approval, include_service=False)
+        and approval.approved_by_actor_id == approved_by_actor_id
+        and approval.requested_by_actor_id == expected["actor_id"]
+        and approval.cap_guard_decision_ref == cap_guard_decision_id
+        and approval.reconciliation_plan_ref == reconciliation_plan_id
+        and approval.approval_reason
+        == "Admin-only composite proof for exact durable first pass."
+    )
+    audit_matches = bool(
+        audit is not None
+        and audit.audit_id == admission_audit_id
+        and audit.actor_id == expected["actor_id"]
+        and _enum_text(audit.action_class) == expected["action_class"]
+        and _enum_text(audit.permission) == expected["required_permission"]
+        and audit.endpoint == f"{expected['method']} {expected['route']}"
+        and audit.operator_intent == expected["operator_intent"]
+        and audit.idempotency_key == expected["idempotency_key"]
+        and audit.approval_id == approval_id
+        and audit.client_order_id == expected["identity_value"]
+        and audit.status == AdminApiCommandStatus.NOT_IMPLEMENTED
+        and audit.failure_stage == "admission_audit"
+        and audit.message == "Exact backend-owned composite admission audit."
+        and audit.approval_cap_guard_decision_ref == cap_guard_decision_id
+        and audit.approval_reconciliation_plan_ref == reconciliation_plan_id
+        and audit.live_execution_intent_ref
+        == f"AdminApiCommandService.{expected['service_method']}"
+        and audit.live_exchange_submitted is False
+        and audit.live_coinbase_orders_ran is False
+        and decision is not None
+        and command_fields_match(decision)
+        and decision.status == AdminApiGateStatus.BLOCKED
+        and decision.allowed is False
+        and decision.approval_snapshot_present is True
+        and decision.approval_snapshot_id == approval_id
+        and decision.approval_snapshot_source == "approval_store"
+        and decision.approval_snapshot_approved_by_actor_id
+        == approved_by_actor_id
+        and decision.approval_snapshot_requested_by_actor_id
+        == expected["actor_id"]
+        and bool(decision.approval_snapshot_expires_at)
+        and decision.live_exchange_submitted is False
+        and decision.detail
+        == "Exact typed admission audit for durable first-pass proof."
+    )
+    cap_guard_matches = bool(
+        cap_guard is not None
+        and cap_guard.decision_id == cap_guard_decision_id
+        and command_fields_match(cap_guard)
+        and cap_guard.approval_snapshot_id == approval_id
+        and cap_guard.admission_audit_id == admission_audit_id
+        and cap_guard.allowed is True
+        and cap_guard.status == AdminApiGateStatus.PASSED
+        and cap_guard.cap_policy_ref
+        == (
+            "submitted_notional_cap:3.10"
+            if manual
+            else "no_new_notional:cancel_order"
+        )
+        and cap_guard.guard_policy_ref
+        == (
+            "action_condition_guard:manual_order"
+            if manual
+            else "cancel_by_client_order_id"
+        )
+        and cap_guard.product_scope == product_scope
+        and cap_guard.max_submitted_notional_usdc == max_submitted
+        and cap_guard.max_executed_notional_usdc == max_executed
+        and cap_guard.wallet_check_required is manual
+        and cap_guard.wallet_check_status == AdminApiGateStatus.PASSED
+        and cap_guard.wallet_available_notional_usdc == max_submitted
+        and cap_guard.wallet_check_source
+        == (
+            "backend_coinbase_account_wallet_read"
+            if manual
+            else "not_applicable:cancel_order"
+        )
+        and cap_guard.reason
+        == (
+            "Backend-authoritative wallet and installed MVP caps passed."
+            if manual
+            else "Cancellation adds no order notional."
+        )
+    )
+    reconciliation_matches = bool(
+        reconciliation is not None
+        and reconciliation.plan_id == reconciliation_plan_id
+        and command_fields_match(reconciliation)
+        and reconciliation.approval_snapshot_id == approval_id
+        and reconciliation.admission_audit_id == admission_audit_id
+        and reconciliation.cap_guard_decision_id == cap_guard_decision_id
+        and reconciliation.allowed is True
+        and reconciliation.status == AdminApiGateStatus.PASSED
+        and reconciliation.reconciliation_policy_ref
+        == (
+            "post_submit_reconciliation:manual_order"
+            if manual
+            else "post_cancel_exact_terminal_readback"
+        )
+        and reconciliation.product_scope == product_scope
+        and reconciliation.exchange_submission_required is True
+        and reconciliation.post_submit_reconciliation_required is True
+        and reconciliation.retained_inventory_required is True
+        and reconciliation.max_submitted_notional_usdc == max_submitted
+        and reconciliation.max_executed_notional_usdc == max_executed
+        and reconciliation.reason
+        == "Exact backend-owned post-submit reconciliation plan."
+    )
+    matches = (
+        (approval is None and allow_partial) or approval_matches,
+        (audit is None and allow_partial) or audit_matches,
+        (cap_guard is None and allow_partial) or cap_guard_matches,
+        (reconciliation is None and allow_partial) or reconciliation_matches,
+    )
+    return all(matches)
+
+
+def _typed_spot_approval_lifecycle_event_matches(
+    event: AdminApiApprovalLifecycleEvent,
+    *,
+    phase: str,
+    proof_context: Mapping[str, Any],
+    record_ids: Mapping[str, str],
+    approved_by_actor_id: str,
+) -> bool:
+    """Match one deterministic approval event while ignoring only timestamps."""
+
+    approval_request_id = str(record_ids["approval_request_id"])
+    approval_id = str(record_ids["approval_snapshot_id"])
+    common_matches = bool(
+        event.approval_request_id == approval_request_id
+        and event.route == str(proof_context["route"])
+        and event.method.upper() == str(proof_context["method"]).upper()
+        and event.module_id == str(proof_context["module_id"])
+        and event.identity_key == str(proof_context["identity_key"])
+        and event.identity_value == str(proof_context["identity_value"])
+        and _enum_text(event.action_class)
+        == str(proof_context["action_class"])
+        and _enum_text(event.required_permission)
+        == str(proof_context["required_permission"])
+        and event.requested_by_actor_id == str(proof_context["actor_id"])
+        and event.operator_intent == str(proof_context["operator_intent"])
+        and event.idempotency_key
+        == str(proof_context["command_idempotency_key"])
+        and event.payload_hash == str(proof_context["payload_hash"])
+        and event.live_exchange_submitted is False
+        and event.browser_authority == "display_only"
+    )
+    if phase == "request":
+        return bool(
+            common_matches
+            and event.event_id == f"{approval_request_id}-event"
+            and event.event_type
+            == AdminApiApprovalLifecycleEventType.REQUEST_CREATED
+            and event.status == AdminApiApprovalLifecycleStatus.REQUESTED
+            and event.actor_id == str(proof_context["actor_id"])
+            and event.approval_id is None
+            and event.request_reason
+            == "Exact durable first-pass composite proof request."
+        )
+    if phase == "decision":
+        return bool(
+            common_matches
+            and event.event_id == f"{approval_id}-decision-event"
+            and event.event_type
+            == AdminApiApprovalLifecycleEventType.DECISION_RECORDED
+            and event.status == AdminApiApprovalLifecycleStatus.APPROVED
+            and event.actor_id == approved_by_actor_id
+            and event.approval_id == approval_id
+            and event.expires_at is not None
+            and event.cap_guard_decision_ref
+            == str(record_ids["cap_guard_decision_id"])
+            and event.reconciliation_plan_ref
+            == str(record_ids["reconciliation_plan_id"])
+            and event.decision_reason
+            == "Admin-only exact durable first-pass approval."
+        )
+    return False
 
 
 def _spot_manual_missing_gates(admission: Mapping[str, Any]) -> list[str]:
@@ -12302,11 +13913,8 @@ def _futures_command_routes_mode(
     missing_contracts: Sequence[str],
     executable_command_count: int,
 ) -> str:
-    if missing_contracts:
-        return "backend_admin_api_blocked"
-    if executable_command_count:
-        return "backend_admin_api_confirmed_live"
-    return "backend_admin_api_draft_only"
+    _ = missing_contracts, executable_command_count
+    return "backend_admin_api_source_disabled"
 
 
 def _futures_command_suite_next_required_operator_decision(
@@ -12317,28 +13925,8 @@ def _futures_command_suite_next_required_operator_decision(
 ) -> str:
     """Return the next operator action for Futures command-suite evidence."""
 
-    missing = set(missing_contracts)
-    if {
-        "futures_account_scope_contract",
-        "futures_margin_collateral_risk_proof",
-    } & missing:
-        return (
-            "run_backend_account_reality_live_read_smoke_to_refresh_futures_account_and_risk_evidence"
-        )
-    product_exposure = _mapping(
-        live_decision_summary.get("futures_product_exposure_evidence")
-    )
-    product_decision = str(
-        product_exposure.get("next_required_operator_decision") or ""
-    ).strip()
-    if product_decision:
-        return product_decision
-    first_blocker = str(live_decision_summary.get("first_blocker") or "").strip()
-    if first_blocker == "futures_executor_live_disabled":
-        return "enable_futures_live_runtime_before_confirmed_exchange_submission"
-    if executable_command_count > 0:
-        return "submit_backend_controlled_futures_command_with_explicit_operator_acknowledgement"
-    return "review_backend_futures_command_suite_evidence"
+    _ = missing_contracts, executable_command_count, live_decision_summary
+    return "restore_futures_command_source_and_obtain_separate_authorization"
 
 
 def _futures_live_exchange_command(command: str) -> bool:
@@ -13085,6 +14673,23 @@ def _manual_order_command(
     readiness_passed_count = sum(
         1 for item in readiness_items if item.get("status") == AdminMvpGateStatus.PASSED.value
     )
+    readiness_by_name = {
+        str(item.get("precondition")): item for item in readiness_items
+    }
+    live_service_ready = (
+        readiness_by_name.get("live_service_decision", {}).get("status")
+        == AdminMvpGateStatus.PASSED.value
+    )
+    backend_live_opted_in = (
+        readiness_by_name.get("backend_live_execution_opt_in", {}).get("status")
+        == AdminMvpGateStatus.PASSED.value
+    )
+    runtime_ready = (
+        readiness_by_name.get("live_command_runtime", {}).get("status")
+        == AdminMvpGateStatus.PASSED.value
+    )
+    route_live_enabled = live_service_ready and backend_live_opted_in
+    route_live_eligible = route_live_enabled and runtime_ready
     if admission is None:
         missing_gate_chain = list(SPOT_MANUAL_PROOF_GATES)
         resolved_gate_chain: list[str] = []
@@ -13117,8 +14722,8 @@ def _manual_order_command(
         "shared_method": MANUAL_ORDER_SERVICE_METHOD,
         "status": "ready" if executable else "blocked",
         "live_execution_status": live_execution_status,
-        "live_enabled": True,
-        "live_eligible": True,
+        "live_enabled": route_live_enabled,
+        "live_eligible": route_live_eligible,
         "executable": executable,
         "live_adapter_configured": True,
         "proof_chain_status": proof_chain_status,
@@ -13180,6 +14785,7 @@ def _cancel_order_command(
         == AdminMvpGateStatus.PASSED.value
     )
     route_live_enabled = live_service_ready and backend_live_opted_in
+    route_live_eligible = route_live_enabled and runtime_ready
     executable = bool(readiness_items) and readiness_blocker_count == 0
     return {
         "mutation_family": "spot_order_cancel",
@@ -13194,9 +14800,9 @@ def _cancel_order_command(
             else AdminMvpLiveServiceStatus.LIVE_DISABLED.value
         ),
         "live_enabled": route_live_enabled,
-        "live_eligible": route_live_enabled,
+        "live_eligible": route_live_eligible,
         "executable": executable,
-        "live_adapter_configured": runtime_ready,
+        "live_adapter_configured": True,
         "proof_chain_status": proof_chain_status,
         "proof_chain_blocker_count": len(missing_gate_chain),
         "resolved_gate_chain": resolved_gate_chain,

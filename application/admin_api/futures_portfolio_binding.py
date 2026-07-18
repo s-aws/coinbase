@@ -52,7 +52,7 @@ class FuturesDefaultPortfolioBindingEvidence:
     source: str = "coinbase_api_key_permissions_and_portfolio_catalog"
 
     def to_dict(self) -> dict[str, Any]:
-        """Return redacted evidence suitable for an operator read model."""
+        """Return internal evidence, including the exact enforcement binding."""
 
         return {
             "status": "matched" if self.read_ready else "blocked",
@@ -94,6 +94,38 @@ class FuturesDefaultPortfolioBindingEvidence:
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution",
         }
+
+
+def serialize_public_futures_portfolio_binding(
+    evidence: Any,
+) -> dict[str, Any]:
+    """Project exact binding evidence without exposing a portfolio UUID.
+
+    Coinbase selection and command admission retain the concrete identifier in
+    the internal evidence object.  Operator read models need the binding result,
+    profile label/type, permissions, freshness, and blocker classification, but
+    never the credential-scoped identifier itself.
+    """
+
+    converter = getattr(evidence, "to_dict", None)
+    if callable(converter):
+        payload = dict(converter())
+    elif isinstance(evidence, Mapping):
+        payload = dict(evidence)
+    else:
+        payload = {}
+    identifier_present = bool(
+        _string_or_none(payload.get("observed_portfolio_id"))
+        or _string_or_none(payload.get("portfolio_id"))
+    )
+    public_identifier = "withheld" if identifier_present else None
+    payload.update(
+        {
+            "observed_portfolio_id": public_identifier,
+            "portfolio_id": public_identifier,
+        }
+    )
+    return payload
 
 
 def evaluate_futures_default_portfolio_binding(

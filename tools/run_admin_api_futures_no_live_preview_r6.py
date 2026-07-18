@@ -1,14 +1,13 @@
-"""Prepare or consume the single separately authorized Slice 2R6 Preview.
+"""Historical Slice 2R6 Coinbase Preview helpers.
 
-The preparation mode validates the exact immutable R5 chain without creating
-an R6 artifact or constructing a Coinbase client.  The confirmation mode is a
-separate future operator gate and remains a fixed one-use Preview-only path.
+The installed command-line entrypoint is source-disabled before artifact,
+credential, client, or Coinbase access. Builders remain importable for
+synthetic compatibility tests; they grant no current Preview authority.
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
 import sys
 from typing import Sequence
@@ -26,6 +25,9 @@ from application.admin_api.futures_order_preview import (  # noqa: E402
     FuturesOrderPreviewArtifactStore,
     FuturesOrderPreviewProducer,
     validate_production_futures_order_preview_r5_terminal,
+)
+from core.coinbase_execution_authority import (  # noqa: E402
+    SOURCE_DISABLED_COINBASE_EXECUTION_ERROR,
 )
 from tools import run_admin_api_futures_no_live_preview_r5 as r5_tool  # noqa: E402
 
@@ -83,12 +85,12 @@ def validate_production_predecessor() -> dict[str, object]:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Build the deliberately option-minimal R6 producer CLI."""
+    """Build the historical, source-disabled compatibility CLI."""
 
     parser = argparse.ArgumentParser(
         description=(
-            "Prepare or run exactly one fixed Default-profile AVAX Futures "
-            "Preview; no exchange mutation is possible."
+            "Historical Slice 2R6 Futures Preview compatibility parser. "
+            "The installed command is source-disabled."
         )
     )
     mode = parser.add_mutually_exclusive_group(required=True)
@@ -103,10 +105,7 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument(
         "--confirm-one-r6-preview",
         action="store_true",
-        help=(
-            "Consume the separately authorized one-use Slice 2R6 Preview "
-            "attempt."
-        ),
+        help="Historical compatibility flag; grants no Preview authority.",
     )
     return parser
 
@@ -137,125 +136,14 @@ def _summary_before_attempt(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Prepare R6 or consume its future exact authorization once."""
+    """Fail closed before artifact, credential, client, or Coinbase access."""
 
     parser = build_parser()
-    args = parser.parse_args(argv)
-    path = production_artifact_path()
-    if path.exists() or path.is_symlink():
-        print(
-            json.dumps(
-                _summary_before_attempt(
-                    status="blocked",
-                    blocker="futures_preview_attempt_already_consumed",
-                    path=path,
-                    artifact_created=False,
-                ),
-                sort_keys=True,
-            ),
-            file=sys.stderr if not args.preflight else sys.stdout,
-        )
-        return 2
-    if args.preflight:
-        try:
-            predecessor_binding = validate_production_predecessor()
-        except FuturesOrderPreviewArtifactError as exc:
-            print(
-                json.dumps(
-                    _summary_before_attempt(
-                        status="blocked",
-                        blocker=str(exc),
-                        path=path,
-                        artifact_created=False,
-                    ),
-                    sort_keys=True,
-                )
-            )
-            return 2
-        summary = _summary_before_attempt(
-            status="ready",
-            blocker=None,
-            path=path,
-            artifact_created=False,
-        )
-        summary["predecessor_binding"] = predecessor_binding
-        print(json.dumps(summary, sort_keys=True))
-        return 0
-
-    store = FuturesOrderPreviewArtifactStore(path)
-    producer = FuturesOrderPreviewProducer(
-        rest_client=DeferredR6PreviewRestClient(),
-        store=store,
-        predecessor_binding=dict(FUTURES_PREVIEW_R5_TERMINAL_BINDING),
-        predecessor_validator=validate_production_predecessor,
-        artifact_type=FUTURES_PREVIEW_R6_ARTIFACT_TYPE,
-    )
-    try:
-        with _suppress_coinbase_sdk_logging():
-            evidence = producer.run()
-    except FuturesOrderPreviewArtifactError as exc:
-        try:
-            terminal = store.read_completed()
-        except FuturesOrderPreviewArtifactError:
-            terminal = None
-        if terminal is not None:
-            summary = {
-                "status": terminal["status"],
-                "outcome": terminal["outcome"],
-                "blocker": terminal.get("blocker"),
-                "artifact_path": str(path),
-                "artifact_created": True,
-                "attempt_counters": terminal["attempt_counters"],
-                "exchange_submission_attempt_count": terminal[
-                    "exchange_submission_attempt_count"
-                ],
-                "live_execution": terminal["live_execution"],
-                "submitted_notional_usdc": terminal[
-                    "submitted_notional_usdc"
-                ],
-                "executed_notional_usdc": terminal[
-                    "executed_notional_usdc"
-                ],
-            }
-        else:
-            summary = {
-                "status": "unknown",
-                "outcome": "unknown",
-                "blocker": (
-                    "futures_preview_attempt_consumed_without_terminal_result:"
-                    f"{type(exc).__name__}"
-                ),
-                "artifact_path": str(path),
-                "artifact_created": path.exists(),
-                "attempt_counters": None,
-                "exchange_submission_attempt_count": 0,
-                "live_execution": "not_run",
-                "submitted_notional_usdc": "0",
-                "executed_notional_usdc": "0",
-            }
-        print(json.dumps(summary, sort_keys=True), file=sys.stderr)
-        return 2
-
-    print(
-        json.dumps(
-            {
-                "status": evidence["status"],
-                "artifact_path": str(path),
-                "product_id": evidence["product_id"],
-                "preview_id": evidence["preview_response"]["preview_id"],
-                "seal_ready_plan_sha256": evidence[
-                    "seal_ready_plan_sha256"
-                ],
-                "evidence_sha256": evidence["evidence_sha256"],
-                "attempt_counters": evidence["attempt_counters"],
-                "live_execution": "not_run",
-                "submitted_notional_usdc": "0",
-                "executed_notional_usdc": "0",
-            },
-            sort_keys=True,
-        )
-    )
-    return 0
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments in (["-h"], ["--help"]):
+        parser.parse_args(arguments)
+    print(SOURCE_DISABLED_COINBASE_EXECUTION_ERROR, file=sys.stderr)
+    return 2
 
 
 if __name__ == "__main__":

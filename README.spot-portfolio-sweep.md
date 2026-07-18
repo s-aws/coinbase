@@ -1,23 +1,22 @@
 # Spot Portfolio Sweep
 
-Spot portfolio sweep is a USDC-only planning, execution, automation, and
-reporting feature for buying or selling the same requested USDC notional across
-eligible crypto-USDC spot pairs.
+Spot portfolio sweep is a USDC-only planning, historical-ledger, and reporting
+feature for reviewing the same requested notional across eligible crypto-USDC
+Spot pairs. Its exchange mutation mode is source-disabled.
 
-Dry-run planning is read-only. Live execution is available only through the
-separate live CLI with an explicit `--approved-live-orders` flag.
+Dry-run planning and reporting are read-only. `--approved-live-orders` grants
+no authority and the historical live CLI exits before submission.
 
 ## When To Use
 
-Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
+Use this when you want to inspect a portfolio-wide Spot sweep:
 
 - buy up to `X` USDC notional of each eligible crypto-USDC spot pair
 - sell up to `X` USDC notional of each eligible crypto-USDC spot pair
 - preview an automation cadence such as every `X` hours, not to exceed `N`
   runs
-- run one due recurring sweep attempt from Windows Task Scheduler or another
-  supervisor
-- execute a rendered spot campaign config through the existing live sweep path
+- inspect recurring due-state and historical attempts
+- validate a rendered campaign config offline
 - report P/L from durable fill-ledger rows by product, portfolio, and since
   last purchase
 - inspect FIFO realized P/L from known local lots without treating it as tax
@@ -39,57 +38,42 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
   needed to sell the requested USDC notional.
 - Wallet reads use Coinbase account pagination through
   `external.coinbase_client.list_all_account_dicts`.
-- Live execution supports Coinbase market IOC orders and limit GTC orders. Market
-  BUY uses quote size; market SELL and all limit orders use base size derived
-  from the plan.
-- Each live item is rechecked through `ActionConditionGuard` immediately before
-  `create_order`.
-- Live sweep orders use UUID `client_order_id` values so websocket,
-  `order_parent`, fill-ledger, and reconciliation paths can share the same
-  internal identifier contract.
-- The live runner passes an `OrderEventStreamPublisher` into the sweep executor
-  so accepted placements can publish `order_submitted` / `rest_submit`
-  ownership evidence when the local event stream is available. Each order
-  report includes `submission_event_recorded` so an unavailable event stream is
-  visible as an audit gap without rewriting the Coinbase submission outcome.
-- A sweep safety policy can enforce artificial per-run, per-order, product
-  allow/deny, planned-count, and skipped-count limits before execution starts.
+- Historical executor helpers modelled market IOC and limit GTC behavior; they
+  remain regression/reference material only.
+- Safety policy, UUID `client_order_id`, event-stream, and notional evidence can
+  still be evaluated against synthetic or historical rows without enabling a
+  new submission.
 - Product allow/deny scope is applied before `max_products` selection. This
   lets campaign retry configs target a specific not-submitted product without
   planning the first alphabetic USDC product and failing later in safety.
-- Versioned JSON config files can define the same sweep fields used by the live
-  CLI. `--validate-config` loads the config, rebuilds a fresh wallet-aware plan,
-  evaluates safety, and prints per-product explain rows without live approval.
+- Versioned JSON config files define sweep review fields. `--validate-config`
+  rebuilds a wallet-aware plan, evaluates safety, and prints per-product explain
+  rows without live approval.
 - Spot campaign configs can render this sweep config schema. Campaigns own
   intake, dry-run matrices, durable campaign snapshots, release gates, and
-  dashboard campaign status; live placement still runs here.
+  dashboard campaign status; no live placement runs here.
 - Durable sweep reconciliation reads live Coinbase order/fill evidence for
   recorded runs and appends reconciliation records to the same JSONL ledger.
   When local `fill_ledger` is available, reconciliation also compares REST fill
   notional against local rows by `client_order_id`.
-- Live sweep execution backfills Coinbase REST fills into `fill_ledger` after
-  submitted orders unless `--skip-fill-backfill` is supplied. The backfill is
-  idempotent and is reported in the durable run ledger.
+- Read-only reconciliation/backfill can inspect fills for historical recorded
+  orders and update authorized local evidence; it does not submit orders.
 - Products skipped during planning remain visible as audit rows in execution
-  summaries, but they are not counted as live execution failures. A sweep with
-  submitted orders plus only planned skips is treated as completed; blocked
-  guards, placement errors, or submitted orders with post-submit audit errors
-  still produce partial or failed status.
+  summaries and remain historical audit classifications.
 - Fill-ledger schema preserves low-price spot fills with high-scale price
   precision so local notional reconciliation works for products priced below
   one USDC.
 - The dashboard exposes read-only sweep ledger status through
   `request_spot_sweep_status` and read-only sweep P/L through
-  `request_spot_sweep_pnl`; live sweep approval remains CLI-only.
+  `request_spot_sweep_pnl`; no sweep live approval surface exists.
 - The Admin API exposes `POST /api/v1/spot/sweep/automation-runs` as a
   route-bound, live-disabled command contract keyed by `sweep_config_id`. It
   records admin envelope/idempotency/audit/admission evidence and currently
   returns `501 not_implemented`; it must not run the live sweep CLI, create a
   browser scheduler, or submit Coinbase orders until scheduler, run-limit,
   recovery, reconciliation, and live execution gates pass.
-- Automation is a durable run-if-due CLI mode, not a daemon. Each invocation
-  reloads fresh Coinbase product/wallet state, checks the JSONL run ledger, runs
-  at most one due sweep, records the outcome, and exits.
+- Automation due-state remains reviewable from the durable JSONL ledger, but it
+  cannot trigger exchange submission.
 - The default automation ledger is `runtime_state/spot_portfolio_sweeps.jsonl`,
   which is gitignored.
 - P/L snapshots are computed from persisted `fill_ledger` rows plus supplied
@@ -132,15 +116,13 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
   `--record-cost-basis-snapshot` and reviewed later with
   `--cost-basis-status`. Dashboard cost-basis status reads this local snapshot
   ledger only.
-- Scheduled live/ledger-writing sweep work and cost-basis snapshot recording
-  are protected by a local operation lock so overlapping task-scheduler
-  invocations fail before Coinbase work or local JSONL writes.
+- Ledger-writing and cost-basis snapshot work uses a local operation lock.
 
 ## Outputs And Artifacts
 
 - Dry-run CLI:
   `tools/run_spot_portfolio_sweep_dry_run.py`
-- Live/automation CLI:
+- Historical sweep/read CLI (mutation source-disabled):
   `tools/run_spot_portfolio_sweep_live.py`
 - Live-disabled Admin API command contract:
   `POST /api/v1/spot/sweep/automation-runs`
@@ -199,26 +181,18 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
 ## Safety Constraints
 
 - The dry-run tool must not place, preview, cancel, or modify live orders.
-- Live execution requires `--approved-live-orders`.
-- Live execution defaults to market IOC. Limit execution must be explicitly
-  selected with `--order-type limit_gtc` or `--order-type limit_gtc_post_only`.
-- Limit BUY orders use rounded planned base size and a limit price at or above
-  the current mark plus `--limit-price-offset-bps`; limit SELL uses a price at
-  or below the mark minus the offset.
+- Exchange mutation is source-disabled; `--approved-live-orders` grants no
+  execution authority.
 - Safety-policy blocks are recorded with live Coinbase order notional of `0`.
-- `--require-known-profitable-inventory` is required for live SELL sweeps. It
-  requires planned SELL items to be covered by known profitable fill-ledger or
-  imported baseline lots before live execution starts.
-- `--disable-safety-policy` is incompatible with `--approved-live-orders`.
-  It is reserved for read-only diagnostics and validation paths where no
-  Coinbase order can be submitted.
+- Known-inventory and safety-policy options are offline diagnostics; none can
+  authorize a SELL or other exchange submission.
 - `--allow-coinbase-average-cost-basis` is an explicit SELL authority opt-in,
   not a default. Use it only with an additional profit buffer and only when
   Coinbase average cost is acceptable for the operational decision being made.
-- `--validate-config` is read-only and does not bypass live approval.
+- `--validate-config` is read-only and grants no live approval.
 - `tools/run_spot_campaign.py` is read-only with respect to Coinbase orders.
-  Rendered campaign sweep configs still require this live runner and
-  `--approved-live-orders` before any order can be submitted.
+  Rendered campaign configs remain offline evidence and cannot be submitted by
+  this runner.
 - `--cost-basis-baseline`, `--cost-basis-drift-audit`, `--reconcile`, and
   `--pnl-report --include-coinbase-average-cost` are read-only but can still
   fail if local DB or Coinbase read credentials are unavailable.

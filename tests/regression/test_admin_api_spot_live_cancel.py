@@ -2,12 +2,24 @@ from __future__ import annotations
 
 import pytest
 
+
+@pytest.fixture(autouse=True)
+def _synthetic_execution_authority(
+    monkeypatch: pytest.MonkeyPatch,
+    coinbase_execution_lease,
+    admin_mvp_evidence_paths,
+) -> None:
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
+
 from application.admin_api.mvp_service import (
     AdminMvpDependencies,
     AdminMvpEvidenceLog,
     AdminMvpService,
     AdminMvpStore,
 )
+from application.admin_api.idempotency import FileIdempotencyStore
+from application.admin_api.models import AdminApiCommandResponse
+from core.enums import AdminApiCommandStatus, AdminApiGateStatus
 from tests.regression.test_admin_mvp_api import (
     FakeAccountRestClient,
     bind_fake_account_rest_client_to_spot_test,
@@ -19,6 +31,9 @@ from tools.run_admin_api_spot_live_cancel import (
     build_spot_live_cancel_body,
     run_spot_live_cancel,
 )
+from tools.run_admin_api_manual_order_live_submit import (
+    RUNNER_COMMAND_IDEMPOTENCY_FILENAME,
+)
 
 
 def _isolated_service(rest_client, *, uuid_factory=None):
@@ -28,6 +43,7 @@ def _isolated_service(rest_client, *, uuid_factory=None):
             rest_client=rest_client,
             rest_client_available=True,
             live_coinbase_execution_enabled=True,
+            _synthetic_test_only_legacy_execution_enabled=True,
             **optional,
         ),
         store=AdminMvpStore(),
@@ -69,7 +85,7 @@ def test_spot_live_cancel_requires_explicit_confirmation_before_service_calls():
     assert service.store.spot_command_decisions == {}
 
 
-def test_spot_live_cancel_records_backend_evidence_before_rest_submission():
+def test_spot_live_cancel_records_backend_evidence_before_rest_submission(tmp_path):
     rest_client = FakeAccountRestClient()
     rest_client.cancel_orders_response = {
         "results": [
@@ -89,6 +105,7 @@ def test_spot_live_cancel_records_backend_evidence_before_rest_submission():
             idempotency_key="spot-live-cancel-test",
             correlation_id="spot-live-cancel-test-correlation",
             backend_contract_ref="backend-ref",
+            state_dir=tmp_path,
         ),
     )
 
@@ -120,6 +137,22 @@ def test_spot_live_cancel_records_backend_evidence_before_rest_submission():
         {"order_ids": ["client-spot-live-cancel-test"]}
     ]
     assert rest_client.create_order_calls == []
+    record = FileIdempotencyStore(
+        tmp_path / RUNNER_COMMAND_IDEMPOTENCY_FILENAME
+    ).get_record("spot-live-cancel-test")
+    assert record is not None
+    response = AdminApiCommandResponse.model_validate(record.response)
+    assert record.endpoint == (
+        "POST /api/v1/orders/client-spot-live-cancel-test/cancel"
+    )
+    assert record.status == AdminApiCommandStatus.NOT_IMPLEMENTED
+    assert response.status == AdminApiCommandStatus.NOT_IMPLEMENTED
+    assert response.client_order_id == "client-spot-live-cancel-test"
+    assert response.live_exchange_submitted is False
+    assert response.live_coinbase_orders_ran is False
+    assert response.admission_decision is not None
+    assert response.admission_decision.status == AdminApiGateStatus.BLOCKED
+    assert response.admission_decision.allowed is False
 
 
 def test_spot_live_cancel_can_seed_resting_gtc_order_before_cancel(

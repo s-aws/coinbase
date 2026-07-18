@@ -399,7 +399,11 @@ class OrderEngine:
                 self._register_default_fill_hook()
             except Exception as e:
                 # Log but don't fail - lot tracking is optional
-                self.log_message("warning", f"Failed to initialize fill ledger: {e}")
+                self.log_message(
+                    "warning",
+                    "Failed to initialize fill ledger "
+                    f"[exception_class:{type(e).__name__}]",
+                )
 
         # Single source of truth for all per-order WS-derived progress.
         # Replaces the previous parallel ``_partial_fill_state`` and
@@ -472,7 +476,11 @@ class OrderEngine:
             else:
                 self.log_message("warning", "[EVENT-STREAM] Integration disabled (table init failed)")
         except Exception as e:
-            self.log_message("warning", f"[EVENT-STREAM] Integration init failed: {e}")
+            self.log_message(
+                "warning",
+                "[EVENT-STREAM] Integration init failed "
+                f"[exception_class:{type(e).__name__}]",
+            )
 
     def _initialize_hotpoint_subsystem(self) -> None:
         """Construct the hotpoint detector + rate limiter (in-memory).
@@ -538,7 +546,8 @@ class OrderEngine:
         except Exception as e:
             self.log_message(
                 "warning",
-                f"[HOTPOINT] Subsystem init failed (feature disabled): {type(e).__name__}: {e}",
+                "[HOTPOINT] Subsystem init failed (feature disabled) "
+                f"[exception_class:{type(e).__name__}]",
             )
 
     # ------------------------------------------------------------------

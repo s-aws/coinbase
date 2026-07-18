@@ -1,20 +1,21 @@
 """Run the local enterprise Admin API.
 
-This helper is intentionally limited to starting the existing FastAPI app. It
-does not import trading clients, submit orders, cancel orders, or mutate
-exchange state.
+This helper starts the existing FastAPI app. Exact controlled-live startup may
+hydrate backend-only credentials before the app is imported; startup itself
+does not submit orders, cancel orders, or mutate exchange state.
 """
 
 from __future__ import annotations
 
 import argparse
-from collections.abc import Mapping, MutableMapping, Sequence
+from collections.abc import Callable, Mapping, MutableMapping, Sequence
 from dataclasses import dataclass
 import os
 import sys
 from typing import Any
 
 from core.enums import AdminApiAuthMode
+from tools.coinbase_live_credentials import ensure_live_coinbase_credentials
 
 
 APP_IMPORT_PATH = "api.v1.app:app"
@@ -27,7 +28,10 @@ CORS_ORIGINS_ENV = "COINBASE_ADMIN_API_CORS_ORIGINS"
 ENVIRONMENT_ENV = "COINBASE_ADMIN_API_ENVIRONMENT"
 DEPLOYMENT_TIER_ENV = "COINBASE_BACKEND_DEPLOYMENT_TIER"
 OS_TRUSTSTORE_ENV = "COINBASE_ADMIN_API_OS_TRUSTSTORE"
+EXECUTION_AUTHORITY_ENV = "COINBASE_EXECUTION_ENABLED"
+LIVE_RUNTIME_ENABLED_ENV = "COINBASE_ADMIN_API_LIVE_EXECUTION_ENABLED"
 DISABLED_ENV_VALUES = {"0", "false", "no", "off", "disabled"}
+ENABLED_ENV_VALUES = {"1", "true", "yes", "on"}
 OIDC_REQUIRED_ENV_VARS = (
     "COINBASE_ADMIN_API_OIDC_ISSUER",
     "COINBASE_ADMIN_API_OIDC_AUDIENCE",
@@ -143,6 +147,27 @@ def apply_local_environment(
     return applied
 
 
+def prepare_live_coinbase_credentials(
+    *,
+    environ: MutableMapping[str, str] | None = None,
+    credential_hydrator: Callable[[MutableMapping[str, str]], Any] = (
+        ensure_live_coinbase_credentials
+    ),
+) -> str:
+    """Hydrate backend credentials only for exact controlled-live startup."""
+
+    target = environ if environ is not None else os.environ
+    exact_authority = target.get(EXECUTION_AUTHORITY_ENV, "") == "1"
+    internal_runtime_enabled = (
+        target.get(LIVE_RUNTIME_ENABLED_ENV, "").strip().lower()
+        in ENABLED_ENV_VALUES
+    )
+    if not (exact_authority and internal_runtime_enabled):
+        return "disabled"
+    resolution = credential_hydrator(target)
+    return str(getattr(resolution, "source", "configured") or "configured")
+
+
 def enable_os_truststore() -> str:
     """Enable OS certificate verification for local Coinbase REST reads."""
 
@@ -248,6 +273,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     try:
+        credential_source = prepare_live_coinbase_credentials()
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    try:
         import uvicorn
     except ModuleNotFoundError:
         print(
@@ -257,9 +288,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 2
 
+    execution_posture = (
+        "disabled"
+        if credential_source == "disabled"
+        else f"enabled with backend credential source {credential_source}"
+    )
     print(
         "Starting Coinbase Admin API at "
-        f"http://{config.host}:{config.port}; live Coinbase execution is disabled."
+        f"http://{config.host}:{config.port}; controlled-live authority is "
+        f"{execution_posture}."
     )
     uvicorn.run(**build_uvicorn_kwargs(config))
     return 0

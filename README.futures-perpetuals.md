@@ -1,11 +1,10 @@
 # Futures/Perpetuals Admin Reads
 
-Current goal `futures_preview_acceptance_recovery_r12` is prepared but
-production release-disabled. It separates up to ten durably counted non-attempt
-eligibility cycles from one durable R12 claim and at most one Preview-only
-call. The source-bound release gate remains `False` pending focused validation,
-local deployment validation, independent safety audit, and blind contextless
-audit. See `docs/FUTURES_SLICE_2R12_PREPARATION.md`.
+Goal `futures_preview_acceptance_recovery_r12` is terminal
+`complete_terminal_unknown_consumed`. Its durable claim is consumed,
+`R12_RELEASE_READY` remains `False`, and no further eligibility read, Preview
+call, R13 attempt, or Slice 3/4/5 activation is authorized. See
+`docs/FUTURES_SLICE_2R12_PREPARATION.md`.
 
 The M57 phase statements in this document are a historical implementation
 snapshot. The predecessor R11 goal is complete.
@@ -25,25 +24,21 @@ This feature exposes read-only futures and perpetual account, risk, and
 position evidence through the enterprise Admin API. It is a separate module,
 not a Spot variant.
 
-## Current Slice 1 Authority
+## Current Installed Authority
 
-Authoritative account and position reads now run through
-`AdminMvpService`, not the historical offline/runtime projection. The backend:
+Historical Slice 1 used bounded authoritative account, position, and
+margin/collateral reads. The installed operator UI no longer repeats those
+reads. Its Futures account, position, risk-proof, command-suite, and
+fill-readback GETs are local sanitized/source-disabled evidence and make zero
+Coinbase calls, even when a Spot Controlled-live REST client is installed. The
+backend returns fixed unavailable/source-disabled cells, no runtime Futures
+positions or margin values, no concrete portfolio identifiers, and fixed
+fill-readback evidence without reading orders or fills.
 
-- selects the exact portfolio UUID returned by API-key permissions;
-- requires one matching portfolio catalog row named `Default`, typed
-  `DEFAULT`, and `can_view=true`;
-- exposes raw `can_trade` only as credential evidence while keeping
-  `command_authority_granted=false` and
-  `live_coinbase_execution_authorized=false`;
-- makes CFM position and margin/collateral reads only after the binding is
-  ready;
-- normalizes identity as
-  `futures_position:{portfolio_uuid}:{product_id}`;
-- resolves detail and close/reduce preflight only from a fresh exact returned
-  key; and
-- explicitly validates response bodies against their Pydantic models before a
-  header-bearing JSON response is returned.
+The historical R4, R5, and R6 Preview CLIs and the historical live
+fill-readback CLI are also source-disabled before artifact-path access,
+credential hydration, client construction, filesystem output, or Coinbase
+calls. Their imported builders remain synthetic compatibility helpers only.
 
 Spot admission is a separate exact Test/`CONSUMER` portfolio binding. A
 Default-profile key and wallet evidence cannot satisfy it. Slice 1 makes zero
@@ -52,9 +47,8 @@ live execution is not run and notional is zero.
 
 ## When To Use
 
-Use these routes when an operator or admin frontend needs to inspect futures
-or perpetual state without creating, closing, moving, or cancelling exchange
-orders.
+Use these routes to inspect local sanitized Futures evidence and the installed
+source-disabled boundary. They are not current exchange-state refresh routes.
 
 Current routes:
 
@@ -76,12 +70,11 @@ Read routes require Admin API auth/RBAC and `analytics:read`. The
 evidence through the shared Admin API command service. It persists
 append-only local proof evidence only; it does not verify the proof
 requirement, satisfy command readiness, call Coinbase, execute reconciliation,
-mutate futures/order/exchange state, or grant browser/BFF authority. Account
-and position routes return
-`read_only=true`, `command_routes_mode="not_modeled"`, and
-`live_coinbase_orders_ran=false`; the command-suite route exposes the same
-blocked/no-live posture through route-bound draft, execution, browser, BFF,
-and notional evidence fields.
+mutate futures/order/exchange state, or grant browser/BFF authority. Account,
+position, risk, command-suite, and fill-readback routes return local or fixed
+source-disabled evidence with `live_coinbase_read_ran=false` and
+`live_coinbase_orders_ran=false`; they do not inherit Spot runtime credentials
+or BFF execution authority.
 
 Historical M57 `7961-7980` evidence added futures risk-proof record validation
 remediation summary evidence while completed M57 `7941-7960` carries forward
@@ -101,10 +94,9 @@ Historical compatibility phrase: M57 `7961-7980` added futures risk-proof record
 
 ## Key Concepts
 
-- `position_key` is the exact
-  `futures_position:{portfolio_uuid}:{product_id}` read identity returned by
-  the authoritative list. It is not a product alias, `client_order_id`, or
-  Coinbase `order_id`.
+- `position_key` preserves the historical compatibility identity shape. The
+  installed local/source-disabled list returns no live position identities;
+  it is not a product alias, `client_order_id`, or Coinbase `order_id`.
 - `configured_product_scope` lists futures/perpetual products known from
   backend metadata.
 - `observed_position_scope` lists products with observed runtime position
@@ -114,10 +106,11 @@ Historical compatibility phrase: M57 `7961-7980` added futures risk-proof record
 - Close/reduce order sides are backend-derived from observed position side.
   They are not exchange-observed reduce-only or close-only order flags.
 - `GET /api/v1/futures/command-suite` reports blocked M57 command-contract
-  evidence for placement, close/reduce, cancel, and reconciliation. It now
-  registers route-bound no-live command drafts for those four families, but
-  does not call Coinbase, execute reconciliation, mutate state, or grant
-  browser/BFF authority.
+  evidence for placement, close/reduce, cancel, and reconciliation. The four
+  compatibility POST routes are registered only as fixed source-disabled `501`
+  boundaries: command draft count and executable command count are both zero,
+  the BFF must not forward them, and no idempotency, approval, cap, audit,
+  reconciliation, persistence, or Coinbase work runs after request validation.
 - Historical M57 `7961-7980` evidence added futures risk-proof record validation
   remediation summary evidence while completed M57 `7941-7960` carries
   forward futures risk-proof record validation summary evidence. The

@@ -1,8 +1,8 @@
-"""Read back filled Futures/Perpetual live-order evidence by client_order_id.
+"""Historical Futures/Perpetual fill-readback helpers.
 
-This tool is read-only. It does not submit, cancel, close, reduce, reconcile, or
-mutate Coinbase orders. The operator-facing identity remains ``client_order_id``;
-the exchange ``order_id`` is used only as backend evidence to read fills.
+The installed command-line entrypoint is source-disabled before artifact,
+credential, client, or Coinbase access. Helpers remain importable for
+synthetic compatibility tests; they grant no current Coinbase read authority.
 """
 
 from __future__ import annotations
@@ -28,6 +28,9 @@ if str(REPO_ROOT) not in sys.path:
 from application.admin_api.mvp_service import (  # noqa: E402
     futures_contract_size_for_product,
     get_admin_mvp_service,
+)
+from core.coinbase_execution_authority import (  # noqa: E402
+    SOURCE_DISABLED_COINBASE_EXECUTION_ERROR,
 )
 from tools import run_admin_api  # noqa: E402
 from tools.coinbase_live_credentials import ensure_live_coinbase_credentials  # noqa: E402
@@ -89,10 +92,13 @@ class FillReadResult:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Create the Futures fill-readback parser."""
+    """Create the historical, source-disabled compatibility parser."""
 
     parser = argparse.ArgumentParser(
-        description="Read filled Futures order evidence through backend Coinbase reads."
+        description=(
+            "Historical Futures fill-readback compatibility parser. The "
+            "installed command is source-disabled."
+        )
     )
     parser.add_argument("--summary-output", type=Path, default=DEFAULT_SUMMARY_OUTPUT)
     parser.add_argument("--submission-artifact", type=Path, default=DEFAULT_SUBMISSION_ARTIFACT)
@@ -672,21 +678,14 @@ def assert_live_read_credentials_present(environ: MutableMapping[str, str]) -> N
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run the read-only Futures fill readback and write evidence."""
+    """Fail closed before artifact, credential, client, or Coinbase access."""
 
-    config = config_from_args(build_parser().parse_args(argv))
-    assert_live_read_credentials_present(os.environ)
-    run_admin_api.apply_local_environment(run_admin_api.parse_args([]))
-    service = get_admin_mvp_service()
-    summary = run_futures_live_fill_readback(service.dependencies.rest_client, config)
-    write_json(config.summary_output, summary)
-    print(
-        "Backend Futures live fill readback: "
-        f"{summary['status']}; live {summary['live_coinbase_execution']}; "
-        f"executed {summary['executed_notional_usdc']} USDC; "
-        f"artifact {config.summary_output.resolve()}"
-    )
-    return 0 if summary["status"] == "passed" else 1
+    parser = build_parser()
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments in (["-h"], ["--help"]):
+        parser.parse_args(arguments)
+    print(SOURCE_DISABLED_COINBASE_EXECUTION_ERROR, file=sys.stderr)
+    return 2
 
 
 if __name__ == "__main__":

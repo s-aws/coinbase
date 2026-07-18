@@ -65,6 +65,11 @@ def _coerce_utc_datetime(value: Any) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
+def _value_blind_exception_detail(exc: BaseException) -> str:
+    """Return fixed exception-class evidence without exception-carried values."""
+    return f"exception_class:{type(exc).__name__}"
+
+
 def evaluate_spot_standing_price_limit(
     *,
     side: Any,
@@ -947,7 +952,9 @@ class ActionConditionGuard:
             return {
                 "condition": ActionConditionType.WALLET_AVAILABLE.value,
                 "block_category": ActionConditionType.WALLET_AVAILABLE.value,
-                "reason": f"wallet check failed: {type(exc).__name__}: {exc}",
+                "reason": (
+                    f"wallet check failed: {_value_blind_exception_detail(exc)}"
+                ),
                 "currency": required_currency,
                 "required": required_amount,
             }
@@ -986,7 +993,7 @@ class ActionConditionGuard:
                         "block_category": ActionConditionType.PLANNED_BUDGET_AVAILABLE.value,
                         "reason": (
                             "planned budget check failed: "
-                            f"{type(exc).__name__}: {exc}"
+                            f"{_value_blind_exception_detail(exc)}"
                         ),
                         "currency": required_currency,
                         "available": available,
@@ -1067,7 +1074,7 @@ class ActionConditionGuard:
                 ),
                 "reason": (
                     "known inventory authority check failed: "
-                    f"{type(exc).__name__}: {exc}"
+                    f"{_value_blind_exception_detail(exc)}"
                 ),
                 "requested_size": size,
                 "limit_price": limit_price,
@@ -1162,7 +1169,8 @@ class ActionConditionGuard:
                 "condition": ActionConditionType.WALLET_AVAILABLE.value,
                 "block_category": ActionConditionType.WALLET_AVAILABLE.value,
                 "reason": (
-                    f"replacement wallet check failed: {type(exc).__name__}: {exc}"
+                    "replacement wallet check failed: "
+                    f"{_value_blind_exception_detail(exc)}"
                 ),
                 "currency": required_currency,
                 "required": required_amount,
@@ -1213,7 +1221,7 @@ class ActionConditionGuard:
                         ),
                         "reason": (
                             "replacement planned budget check failed: "
-                            f"{type(exc).__name__}: {exc}"
+                            f"{_value_blind_exception_detail(exc)}"
                         ),
                         "currency": required_currency,
                         "available": available,

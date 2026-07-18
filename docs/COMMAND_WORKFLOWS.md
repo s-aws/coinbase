@@ -135,6 +135,18 @@ It must not call `tools/run_spot_portfolio_sweep_live.py`, invoke Coinbase,
 create a browser scheduler, or close the wider sweep automation gap until the
 durable scheduler, run-limit, recovery, and reconciliation contracts exist.
 
+Ordinary product-UI reads at `GET /api/v1/spot/readiness` and
+`GET /api/v1/spot/sweep/pnl` are deliberately local, call-free, and
+value-blind. They do not fetch Coinbase products, wallets, balances,
+average-cost records, or marks, and they do not return portfolio identifiers,
+inventory quantities, budget amounts, or P/L values. Both return fixed blocked
+evidence with `values_withheld=true` and
+`explicit_authorized_refresh_not_implemented`. The average-cost query flag is
+recorded only as requested intent and never causes a read. No broad refresh
+POST exists today; fresh account and wallet evidence is resolved only inside
+the applicable explicitly authorized, idempotent backend action. This does not
+change the explicit selected-root reconciliation POST.
+
 `POST /api/v1/spot/pnl/checkpoints` is a backend-owned local-state mutation
 for durable operator-review records sourced from
 `/api/v1/spot/sweep/pnl`. It requires `spot_pnl:record`, idempotency, and
@@ -368,16 +380,15 @@ display/forward-only authority. The verifier is not command enablement,
 Coinbase authority, manager authority, state-mutation authority, or BFF
 execution authority.
 Both contracts also include a nested `live_execution_adapter_contract` from
-the shared live-execution adapter evidence builder. Workflows may display its
-route, `AdminApiCommandService.*` reference, forbidden methods, disabled
-status, and browser/BFF authority only. It does not construct an adapter,
-invoke managers, call Coinbase, cancel/replace active placements, execute
-reconciliation, mutate state, or make the command executable. Route mapping
-and M53 pilot configuration remain separate from construction satisfaction:
-`route_mapping_satisfies_construction=false`,
-`adapter_configuration_satisfies_construction=false`, and satisfied
-construction artifacts stay empty while required construction artifacts remain
-unsatisfied.
+the shared live-execution adapter evidence builder. For manual Spot place and
+cancel, it reports the installed route mapping to the canonical
+`AdminApiCommandService.*` method as runtime-capable; that capability is not
+request authority and does not bypass runtime, approval, cap/guard, audit,
+reconciliation, idempotency, intent, or product/account gates. Parked and
+disabled routes retain non-executable construction evidence. Browser/BFF
+authority remains display/forward-only for every adapter, and a stored legacy
+adapter decision remains optional diagnostic readback rather than an admission
+input.
 Command and idempotency-replay payloads must keep this adapter evidence compact:
 `construction_contract_available` and `construction_contract_ref` may point to
 the required construction contract, but `construction_contract` remains `null`

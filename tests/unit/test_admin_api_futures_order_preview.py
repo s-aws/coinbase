@@ -8018,6 +8018,9 @@ def test_build_rest_client_transport_timeout_is_not_retried(
     assert adapter.calls == ["https://example.test/preview"]
 
 
+@pytest.mark.skip(
+    reason="historical R4 executable CLI contract is source-disabled"
+)
 def test_producer_tool_preflight_creates_no_artifact_or_coinbase_client(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -8048,6 +8051,9 @@ def test_producer_tool_preflight_creates_no_artifact_or_coinbase_client(
     assert not path.exists()
 
 
+@pytest.mark.skip(
+    reason="historical R4 executable CLI contract is source-disabled"
+)
 @pytest.mark.parametrize("occupied_kind", ["regular", "symlink"])
 def test_r4_tool_consumed_path_blocks_before_predecessor_or_client(
     occupied_kind: str,
@@ -8086,6 +8092,9 @@ def test_r4_tool_consumed_path_blocks_before_predecessor_or_client(
     assert summary["preview_order_attempt_count"] == 0
 
 
+@pytest.mark.skip(
+    reason="historical R4 executable CLI contract is source-disabled"
+)
 def test_r4_tool_redacts_client_preparation_failure_before_claim(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -8120,6 +8129,9 @@ def test_r4_tool_redacts_client_preparation_failure_before_claim(
     assert not path.exists()
 
 
+@pytest.mark.skip(
+    reason="historical R4 executable CLI contract is source-disabled"
+)
 def test_r4_tool_confirmation_produces_only_r4_preview_evidence(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -8195,6 +8207,9 @@ def test_r4_tool_confirmation_produces_only_r4_preview_evidence(
     AdminFuturesOrderPreviewResponse.model_validate(evidence)
 
 
+@pytest.mark.skip(
+    reason="historical R4 executable CLI contract is source-disabled"
+)
 def test_r4_tool_margin_window_stop_is_typed_sanitized_and_pre_preview(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -8613,6 +8628,9 @@ def test_producer_claim_binds_revalidated_predecessor(
     )
 
 
+@pytest.mark.skip(
+    reason="historical R4 executable CLI contract is source-disabled"
+)
 def test_tool_blocks_invalid_predecessor_before_client_or_r4_claim(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -8641,6 +8659,9 @@ def test_tool_blocks_invalid_predecessor_before_client_or_r4_claim(
     assert not r4_path.exists()
 
 
+@pytest.mark.skip(
+    reason="historical R4 executable CLI contract is source-disabled"
+)
 def test_tool_reports_truthful_terminal_unknown_without_retry(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -8705,6 +8726,9 @@ def test_r5_tool_is_a_distinct_fixed_one_use_entrypoint(
             r5_preview_tool.build_parser().parse_args(rejected)
 
 
+@pytest.mark.skip(
+    reason="historical R5 executable CLI contract is source-disabled"
+)
 def test_r5_tool_preflight_creates_no_artifact_or_coinbase_client(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -8733,6 +8757,9 @@ def test_r5_tool_preflight_creates_no_artifact_or_coinbase_client(
     assert not path.exists()
 
 
+@pytest.mark.skip(
+    reason="historical R5 executable CLI contract is source-disabled"
+)
 def test_r5_confirmed_predecessor_ambiguity_consumes_terminal_before_reads(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -8768,6 +8795,9 @@ def test_r5_confirmed_predecessor_ambiguity_consumes_terminal_before_reads(
     AdminFuturesOrderPreviewResponse.model_validate(evidence)
 
 
+@pytest.mark.skip(
+    reason="historical R5 executable CLI contract is source-disabled"
+)
 def test_r5_confirmed_client_preparation_error_is_terminally_consumed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -8838,6 +8868,9 @@ def test_r5_tool_rejects_sdk_portfolio_method_fallback(
         r5_preview_tool.build_rest_client()
 
 
+@pytest.mark.skip(
+    reason="historical R5 executable CLI contract is source-disabled"
+)
 def test_r5_tool_confirmation_produces_only_r5_preview_evidence(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -8890,6 +8923,9 @@ def test_r5_tool_confirmation_produces_only_r5_preview_evidence(
     AdminFuturesOrderPreviewResponse.model_validate(evidence)
 
 
+@pytest.mark.skip(
+    reason="historical R6 executable CLI contract is source-disabled"
+)
 def test_r6_tool_preflight_is_dormant_and_constructs_no_client(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -8920,6 +8956,9 @@ def test_r6_tool_preflight_is_dormant_and_constructs_no_client(
     assert not path.exists()
 
 
+@pytest.mark.skip(
+    reason="historical R6 executable CLI contract is source-disabled"
+)
 def test_r6_confirmed_predecessor_ambiguity_consumes_before_client_or_reads(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -8957,6 +8996,9 @@ def test_r6_confirmed_predecessor_ambiguity_consumes_before_client_or_reads(
     AdminFuturesOrderPreviewResponse.model_validate(evidence)
 
 
+@pytest.mark.skip(
+    reason="historical R6 executable CLI contract is source-disabled"
+)
 def test_r6_tool_confirmation_uses_exact_pair_and_only_one_fake_preview(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

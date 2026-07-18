@@ -4,7 +4,7 @@ from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from threading import Event, Lock, Thread
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Callable, Mapping
 
 import pytest
 
@@ -22,6 +22,8 @@ from application.admin_api.models import (
     CancelOrderRequest,
     ManualOrderCommand,
     ManualOrderRequest,
+    ReconcileOrderCommand,
+    ReconcileOrderRequest,
 )
 
 
@@ -29,9 +31,13 @@ TEST_PORTFOLIO_ID = "11111111-2222-4333-8444-555555555555"
 
 
 @pytest.fixture(autouse=True)
-def _disable_unrelated_action_guards(monkeypatch: pytest.MonkeyPatch) -> None:
+def _disable_unrelated_action_guards(
+    monkeypatch: pytest.MonkeyPatch,
+    coinbase_execution_lease,
+) -> None:
     import configuration
 
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
     monkeypatch.setattr(
         configuration,
         "ACTION_CONDITION_GUARDS",
@@ -144,6 +150,7 @@ class _SpotRestClient:
         self.create_calls: list[dict[str, Any]] = []
         self.get_calls: list[str] = []
         self.list_calls: list[dict[str, Any]] = []
+        self.list_fills_calls: list[dict[str, Any]] = []
         self.cancel_client_calls: list[str] = []
         self.cancel_exchange_calls: list[str] = []
         self.create_result: Any = {
@@ -152,6 +159,8 @@ class _SpotRestClient:
         }
         self.cancel_client_result: Any = True
         self.cancel_exchange_result: Any = True
+        self.fills: list[dict[str, Any]] = []
+        self.fills_have_more_pages = False
 
     def get_api_key_permissions(self) -> dict[str, Any]:
         self.api_key_permission_calls += 1
@@ -193,6 +202,13 @@ class _SpotRestClient:
         ]
         return {"order": rows[0] if len(rows) == 1 else {}}
 
+    def list_fills(self, **kwargs: Any) -> dict[str, Any]:
+        self.list_fills_calls.append(dict(kwargs))
+        return {
+            "fills": [dict(row) for row in self.fills],
+            "has_next": self.fills_have_more_pages,
+        }
+
     def create_order(self, **kwargs: Any) -> Any:
         self.create_calls.append(dict(kwargs))
         if isinstance(self.create_result, BaseException):
@@ -203,21 +219,27 @@ class _SpotRestClient:
         self,
         client_order_id: str,
         *,
+        verified_exchange_order_id: str | None = None,
         return_evidence: bool = False,
     ) -> Any:
-        self.cancel_client_calls.append(client_order_id)
-        if isinstance(self.cancel_client_result, BaseException):
-            raise self.cancel_client_result
+        if verified_exchange_order_id is not None:
+            self.cancel_exchange_calls.append(verified_exchange_order_id)
+            result = self.cancel_exchange_result
+        else:
+            self.cancel_client_calls.append(client_order_id)
+            result = self.cancel_client_result
+        if isinstance(result, BaseException):
+            raise result
         if not return_evidence:
-            return self.cancel_client_result
-        if self.cancel_client_result is True:
+            return result
+        if result is True:
             return {
                 "outcome": "succeeded",
                 "explicit_rejection": False,
                 "identity_rejection": False,
                 "identity_match": True,
             }
-        if self.cancel_client_result is False:
+        if result is False:
             return {
                 "outcome": "explicitly_rejected",
                 "explicit_rejection": True,
@@ -273,6 +295,8 @@ def _manual_command(
     time_in_force: str = "GOOD_UNTIL_CANCELLED",
     approval_snapshot_id: str | None = None,
     max_submitted_notional_usdc: str = "9.99",
+    max_executed_notional_usdc: str | None = None,
+    base_size: str = "0.02",
     order_configuration_override: dict[str, Any] | None = None,
 ) -> ManualOrderCommand:
     return ManualOrderCommand(
@@ -291,7 +315,7 @@ def _manual_command(
                 "product_id": "BTC-USDC",
                 "side": "BUY",
                 "order_type": "LIMIT",
-                "base_size": "0.02",
+                "base_size": base_size,
                 "limit_price": limit_price,
                 "post_only": post_only,
                 "time_in_force": time_in_force,
@@ -302,15 +326,23 @@ def _manual_command(
         admin_approval_snapshot_id=approval_snapshot_id,
         admin_cap_guard_decision_id="cap-spot-test-profile",
         admin_max_submitted_notional_usdc=max_submitted_notional_usdc,
+        admin_max_executed_notional_usdc=max_executed_notional_usdc,
         admission_audit_id="audit-spot-test-profile",
         allow_live_execution=True,
     )
 
 
-def _cancel_command(client_order_id: str) -> CancelOrderCommand:
+def _cancel_command(
+    client_order_id: str,
+    *,
+    idempotency_key: str | None = None,
+    manual_live_acknowledgement: bool = True,
+) -> CancelOrderCommand:
     return CancelOrderCommand(
         envelope=AdminApiCommandEnvelope(
-            idempotency_key=f"idem-cancel-{client_order_id}",
+            idempotency_key=(
+                idempotency_key or f"idem-cancel-{client_order_id}"
+            ),
             correlation_id=f"corr-cancel-{client_order_id}",
             operator_intent="cancel_bounded_test_order",
             actor=AdminApiActor(
@@ -321,10 +353,604 @@ def _cancel_command(client_order_id: str) -> CancelOrderCommand:
         client_order_id=client_order_id,
         request=CancelOrderRequest(
             reason="cancel before another order",
-            manual_live_acknowledgement=True,
+            manual_live_acknowledgement=manual_live_acknowledgement,
         ),
         allow_live_execution=True,
     )
+
+
+def _reconcile_command(client_order_id: str) -> ReconcileOrderCommand:
+    return ReconcileOrderCommand(
+        envelope=AdminApiCommandEnvelope(
+            idempotency_key=f"idem-reconcile-{client_order_id}",
+            correlation_id=f"corr-reconcile-{client_order_id}",
+            operator_intent="reconcile_selected_spot_root",
+            actor=AdminApiActor(
+                actor_id="operator-001",
+                roles=[AdminApiRole.ADMIN],
+            ),
+        ),
+        client_order_id=client_order_id,
+        request=ReconcileOrderRequest(
+            reason="refresh authoritative selected-root status",
+            manual_live_acknowledgement=True,
+        ),
+        allow_live_read=True,
+        audit_id=f"audit-reconcile-{client_order_id}",
+    )
+
+
+@pytest.mark.parametrize(
+    ("request_patch", "expected_blocker"),
+    [
+        (
+            {
+                "order_type": "MARKET",
+                "base_size": None,
+                "quote_size": "1.00",
+                "limit_price": None,
+                "time_in_force": "IMMEDIATE_OR_CANCEL",
+            },
+            "manual_spot_order_type_not_supported",
+        ),
+        (
+            {"order_type": "STOP_LIMIT"},
+            "manual_spot_order_type_not_supported",
+        ),
+        (
+            {"time_in_force": "IMMEDIATE_OR_CANCEL"},
+            "manual_spot_time_in_force_not_supported",
+        ),
+        (
+            {"time_in_force": "FILL_OR_KILL"},
+            "manual_spot_time_in_force_not_supported",
+        ),
+        (
+            {"quote_size": "1.00"},
+            "manual_spot_quote_size_not_supported",
+        ),
+    ],
+)
+def test_manual_order_rejects_semantics_instead_of_silently_rewriting_them(
+    request_patch: dict[str, Any],
+    expected_blocker: str,
+) -> None:
+    rest_client = _SpotRestClient()
+    registrar = _RootRegistrar()
+    command = _manual_command()
+    request = ManualOrderRequest.model_validate(
+        {**command.request.model_dump(mode="json"), **request_patch}
+    )
+
+    response = _service(rest_client, registrar).place_manual_order(
+        command.model_copy(update={"request": request})
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "manual_order_semantics"
+    assert response.data == {
+        "semantic_contract": "durable_spot_limit_gtc_root",
+        "blocker": expected_blocker,
+    }
+    assert rest_client.api_key_permission_calls == 0
+    assert rest_client.portfolio_calls == 0
+    assert rest_client.create_calls == []
+    assert registrar.rows == {}
+
+
+def test_manual_order_rejects_off_increment_base_size_without_rewriting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import configuration
+
+    metadata = dict(configuration.PRODUCT_METADATA["BTC-USDC"])
+    monkeypatch.setitem(
+        configuration.PRODUCT_METADATA,
+        "BTC-USDC",
+        {
+            **metadata,
+            "base_increment": "0.01",
+            "base_min_size": "0.01",
+            "quote_min_size": "0.01",
+            "price_increment": "0.01",
+        },
+    )
+    rest_client = _SpotRestClient()
+    registrar = _RootRegistrar()
+
+    response = _service(rest_client, registrar).place_manual_order(
+        _manual_command(base_size="0.025")
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "base_size_increment"
+    assert response.data == {
+        "blocker": "manual_spot_base_size_increment_misaligned"
+    }
+    assert rest_client.create_calls == []
+    assert registrar.rows == {}
+
+
+def test_manual_order_rejects_below_minimum_base_size_without_internal_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import configuration
+
+    metadata = dict(configuration.PRODUCT_METADATA["BTC-USDC"])
+    monkeypatch.setitem(
+        configuration.PRODUCT_METADATA,
+        "BTC-USDC",
+        {
+            **metadata,
+            "base_increment": "0.00001",
+            "base_min_size": "0.00002",
+            "quote_min_size": "1.00",
+            "price_increment": "0.01",
+        },
+    )
+    rest_client = _SpotRestClient()
+    registrar = _RootRegistrar()
+
+    response = _service(rest_client, registrar).place_manual_order(
+        _manual_command(base_size="0.00001", limit_price="50000.00")
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "size_validation"
+    assert response.data == {
+        "blocker": "manual_spot_base_size_validation_failed"
+    }
+    assert rest_client.create_calls == []
+    assert registrar.rows == {}
+
+
+def test_legacy_explicit_quote_size_is_rejected_instead_of_rewritten(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import configuration
+
+    metadata = dict(configuration.PRODUCT_METADATA["BTC-USDC"])
+    monkeypatch.setitem(
+        configuration.PRODUCT_METADATA,
+        "BTC-USDC",
+        {
+            **metadata,
+            "quote_increment": "0.01",
+            "quote_min_size": "0.01",
+        },
+    )
+    rest_client = _SpotRestClient()
+    registrar = _RootRegistrar()
+    command = _manual_command(
+        order_configuration_override={
+            "market_market_ioc": {"quote_size": "1.005"}
+        }
+    )
+    request = ManualOrderRequest.model_validate(
+        {
+            **command.request.model_dump(mode="json"),
+            "order_type": "MARKET",
+            "base_size": None,
+            "quote_size": "1.005",
+            "limit_price": None,
+            "time_in_force": "IMMEDIATE_OR_CANCEL",
+        }
+    )
+
+    response = _service(rest_client, registrar).place_manual_order(
+        command.model_copy(update={"request": request})
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "quote_size_increment"
+    assert response.data == {
+        "blocker": "manual_spot_quote_size_increment_misaligned"
+    }
+    assert rest_client.create_calls == []
+    assert registrar.rows == {}
+
+
+def test_manual_order_planning_guard_rejects_above_stricter_executed_cap() -> None:
+    rest_client = _SpotRestClient()
+    registrar = _RootRegistrar()
+
+    response = _service(rest_client, registrar).place_manual_order(
+        _manual_command(
+            base_size="0.021",
+            limit_price="50.00",
+            max_submitted_notional_usdc="3.10",
+            max_executed_notional_usdc="1.00",
+        )
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "action_condition_guard"
+    assert response.guard["condition"] == "max_notional"
+    assert response.guard["configured_limit"] == 1.0
+    assert registrar.rows == {}
+    assert rest_client.create_calls == []
+
+
+def test_manual_order_planning_guard_accepts_exact_stricter_executed_cap() -> None:
+    rest_client = _SpotRestClient()
+    rest_client.history = [
+        {
+            "client_order_id": "22daf1ea-4c57-4c03-98c5-e74459576228",
+            "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
+            "status": "OPEN",
+        }
+    ]
+    registrar = _RootRegistrar()
+
+    response = _service(rest_client, registrar).place_manual_order(
+        _manual_command(
+            base_size="0.02",
+            limit_price="50.00",
+            max_submitted_notional_usdc="3.10",
+            max_executed_notional_usdc="1.00",
+        )
+    )
+
+    assert response.status == AdminApiCommandStatus.ACCEPTED
+    assert response.failure_stage is None
+    assert len(rest_client.create_calls) == 1
+
+
+def test_manual_order_planning_guard_rejects_notional_above_submitted_cap() -> None:
+    rest_client = _SpotRestClient()
+    registrar = _RootRegistrar()
+
+    response = _service(rest_client, registrar).place_manual_order(
+        _manual_command(
+            base_size="0.063",
+            limit_price="50.00",
+            max_submitted_notional_usdc="3.10",
+            max_executed_notional_usdc=None,
+        )
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "action_condition_guard"
+    assert response.guard["condition"] == "max_notional"
+    assert response.guard["configured_limit"] == 3.1
+    assert registrar.rows == {}
+    assert rest_client.create_calls == []
+
+
+@pytest.mark.parametrize("terminal_status", ["FILLED", "CANCELLED", "EXPIRED", "FAILED"])
+def test_reconcile_selected_root_persists_exact_terminal_without_exchange_mutation(
+    terminal_status: str,
+) -> None:
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+    rest_client = _SpotRestClient()
+    rest_client.history = [
+        {
+            "client_order_id": client_order_id,
+            "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
+            "status": terminal_status,
+        }
+    ]
+    if terminal_status == "FILLED":
+        rest_client.fills = [
+            {
+                "entry_id": "entry-evidence-only",
+                "trade_id": "trade-evidence-only",
+                "order_id": "exchange-order-1",
+                "product_id": "BTC-USDC",
+                "size": "0.01",
+                "price": "100.00",
+            }
+        ]
+    registrar = _RootRegistrar()
+    _registered_root(registrar, client_order_id)
+    recorded_proofs: list[dict[str, Any]] = []
+
+    def record_proof(proof: Mapping[str, Any]) -> str:
+        recorded_proofs.append(dict(proof))
+        return "spot_fill_readback:proof-ref"
+
+    response = _service(
+        rest_client,
+        registrar,
+        fill_readback_proof_recorder=record_proof,
+    ).reconcile_order_by_client_order_id(
+        _reconcile_command(client_order_id)
+    )
+
+    assert response.status == AdminApiCommandStatus.ACCEPTED
+    assert response.action_class.value == "local_state_mutation"
+    assert response.required_permission.value == "order:cancel"
+    assert response.live_exchange_submitted is False
+    assert response.live_coinbase_orders_ran is False
+    assert response.live_coinbase_read_ran is True
+    assert rest_client.cancel_client_calls == []
+    assert rest_client.cancel_exchange_calls == []
+    assert rest_client.create_calls == []
+    assert registrar.status_calls[-1] == (client_order_id, terminal_status)
+    assert response.data["authoritative_status"] == terminal_status
+    assert response.data["terminal_status_proven"] is True
+    assert response.data["live_coinbase_read_ran"] is True
+    assert response.data["order_status_persisted"] is True
+    if terminal_status == "FILLED":
+        assert rest_client.list_fills_calls == [
+            {
+                "order_id": "exchange-order-1",
+                "product_id": "BTC-USDC",
+                "limit": 100,
+            }
+        ]
+        assert response.data["fill_closeout_proven"] is True
+        assert response.data["live_fill_readback_proof_ref"] == (
+            "spot_fill_readback:proof-ref"
+        )
+        assert len(recorded_proofs) == 1
+        proof = recorded_proofs[0]
+        assert proof["module_id"] == "spot_operations"
+        assert proof["order_read_attempted"] is True
+        assert proof["order_read_succeeded"] is True
+        assert proof["fill_read_attempted"] is True
+        assert proof["fill_read_succeeded"] is True
+        assert proof["fill_count"] == 1
+        assert proof["fill_order_id_matches_exchange_order_id"] is True
+        assert proof["fill_product_id_matches_order"] is True
+        assert proof["exchange_order_id_present"] is True
+        assert proof["exchange_order_id_evidence_only"] is True
+        assert "exchange_order_id" not in proof
+        assert proof["audit_id"] == f"audit-reconcile-{client_order_id}"
+        assert proof["correlation_id"] == f"corr-reconcile-{client_order_id}"
+        assert proof["idempotency_key"] == f"idem-reconcile-{client_order_id}"
+    else:
+        assert rest_client.list_fills_calls == []
+        assert recorded_proofs == []
+
+
+@pytest.mark.parametrize(
+    ("fills", "has_next"),
+    [
+        ([], False),
+        (
+            [
+                {
+                    "order_id": "different-exchange-order",
+                    "product_id": "BTC-USDC",
+                }
+            ],
+            False,
+        ),
+        (
+            [
+                {
+                    "order_id": "exchange-order-1",
+                    "product_id": "BTC-USDC",
+                }
+            ],
+            True,
+        ),
+    ],
+)
+def test_reconcile_filled_root_fails_closed_without_complete_exact_fill_proof(
+    fills: list[dict[str, Any]],
+    has_next: bool,
+) -> None:
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+    rest_client = _SpotRestClient()
+    rest_client.history = [
+        {
+            "client_order_id": client_order_id,
+            "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
+            "status": "FILLED",
+        }
+    ]
+    rest_client.fills = fills
+    rest_client.fills_have_more_pages = has_next
+    registrar = _RootRegistrar()
+    _registered_root(registrar, client_order_id)
+    recorded_proofs: list[dict[str, Any]] = []
+
+    response = _service(
+        rest_client,
+        registrar,
+        fill_readback_proof_recorder=lambda proof: (
+            recorded_proofs.append(dict(proof)) or "unexpected-proof"
+        ),
+    ).reconcile_order_by_client_order_id(_reconcile_command(client_order_id))
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "reconciliation_fill_readback"
+    assert response.live_coinbase_read_ran is True
+    assert response.data["order_status_persisted"] is True
+    assert response.data["fill_closeout_proven"] is False
+    assert response.data["recovery_disposition"] == (
+        "quarantined_incomplete_fill_evidence"
+    )
+    assert response.data["safe_to_submit_another_root"] is False
+    assert recorded_proofs == []
+
+
+def test_reconcile_filled_root_fails_closed_when_sanitized_proof_cannot_persist() -> None:
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+    rest_client = _SpotRestClient()
+    rest_client.history = [
+        {
+            "client_order_id": client_order_id,
+            "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
+            "status": "FILLED",
+        }
+    ]
+    rest_client.fills = [
+        {"order_id": "exchange-order-1", "product_id": "BTC-USDC"}
+    ]
+    registrar = _RootRegistrar()
+    _registered_root(registrar, client_order_id)
+
+    response = _service(
+        rest_client,
+        registrar,
+        fill_readback_proof_recorder=lambda _proof: None,
+    ).reconcile_order_by_client_order_id(_reconcile_command(client_order_id))
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "reconciliation_fill_proof_persistence"
+    assert response.data["order_status_persisted"] is True
+    assert response.data["fill_read_succeeded"] is True
+    assert response.data["fill_closeout_proven"] is False
+    assert response.data["recovery_disposition"] == (
+        "quarantined_fill_proof_persistence_failed"
+    )
+    assert response.data["safe_to_submit_another_root"] is False
+
+
+def test_reconcile_fill_converter_exception_is_value_blind_quarantine() -> None:
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+
+    class _RaisingFillEnvelope:
+        def to_dict(self) -> dict[str, Any]:
+            raise RuntimeError("withheld raw fill response")
+
+    class _RaisingFillClient(_SpotRestClient):
+        def list_fills(self, **kwargs: Any) -> Any:
+            self.list_fills_calls.append(dict(kwargs))
+            return _RaisingFillEnvelope()
+
+    rest_client = _RaisingFillClient()
+    rest_client.history = [
+        {
+            "client_order_id": client_order_id,
+            "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
+            "status": "FILLED",
+        }
+    ]
+    registrar = _RootRegistrar()
+    _registered_root(registrar, client_order_id)
+
+    response = _service(rest_client, registrar).reconcile_order_by_client_order_id(
+        _reconcile_command(client_order_id)
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "reconciliation_fill_readback"
+    assert response.data["fill_readback"]["blocker"] == (
+        "fill_read_normalization_failed"
+    )
+    assert response.data["fill_readback"]["detail"] == (
+        "Coinbase fill response normalization failed: exception_class:RuntimeError"
+    )
+    assert "withheld raw" not in str(response.model_dump(mode="json"))
+    assert response.data["order_status_persisted"] is True
+    assert response.data["safe_to_submit_another_root"] is False
+
+
+def test_reconcile_read_exception_is_fixed_quarantine_without_status_persistence() -> None:
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+
+    class _RaisingRestClient(_SpotRestClient):
+        def list_orders(self, **_kwargs: Any) -> dict[str, Any]:
+            raise RuntimeError("withheld private transport text")
+
+    rest_client = _RaisingRestClient()
+    registrar = _RootRegistrar()
+    _registered_root(registrar, client_order_id)
+
+    response = _service(rest_client, registrar).reconcile_order_by_client_order_id(
+        _reconcile_command(client_order_id)
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "reconciliation_readback"
+    assert response.data["readback"]["detail"] == (
+        "Coinbase order read failed: exception_class:RuntimeError"
+    )
+    assert "withheld" not in str(response.model_dump(mode="json"))
+    assert response.data["order_status_persisted"] is False
+    assert response.data["recovery_disposition"] == (
+        "quarantined_ambiguous_readback"
+    )
+    assert response.data["safe_to_submit_another_root"] is False
+
+
+def test_reconcile_status_persistence_failure_is_explicit_quarantine() -> None:
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+
+    class _FailingRegistrar(_RootRegistrar):
+        def mark_submission_status(self, **_kwargs: Any) -> None:
+            raise RuntimeError("withheld database detail")
+
+    rest_client = _SpotRestClient()
+    rest_client.history = [
+        {
+            "client_order_id": client_order_id,
+            "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
+            "status": "OPEN",
+        }
+    ]
+    registrar = _FailingRegistrar()
+    _registered_root(registrar, client_order_id)
+
+    response = _service(rest_client, registrar).reconcile_order_by_client_order_id(
+        _reconcile_command(client_order_id)
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "reconciliation_status_persistence"
+    assert response.data["order_status_persisted"] is False
+    assert response.data["recovery_disposition"] == (
+        "quarantined_status_persistence_failed"
+    )
+    assert response.data["safe_to_submit_another_root"] is False
+    assert "withheld database" not in str(response.model_dump(mode="json"))
+
+
+def test_reconcile_selected_root_fails_closed_on_authoritative_absence() -> None:
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+    rest_client = _SpotRestClient()
+    registrar = _RootRegistrar()
+    _registered_root(registrar, client_order_id)
+
+    response = _service(rest_client, registrar).reconcile_order_by_client_order_id(
+        _reconcile_command(client_order_id)
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "reconciliation_readback"
+    assert response.live_exchange_submitted is False
+    assert response.live_coinbase_orders_ran is False
+    assert response.live_coinbase_read_ran is True
+    assert registrar.status_calls == []
+    assert response.data["recovery_disposition"] == (
+        "quarantined_unresolved_absence"
+    )
+    assert response.data["safe_to_submit_another_root"] is False
+
+
+def test_reconcile_selected_root_cross_binds_stored_exchange_identity() -> None:
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+    rest_client = _SpotRestClient()
+    rest_client.history = [
+        {
+            "client_order_id": client_order_id,
+            "order_id": "different-exchange-order",
+            "product_id": "BTC-USDC",
+            "status": "FILLED",
+        }
+    ]
+    registrar = _RootRegistrar()
+    _registered_root(registrar, client_order_id)
+    registrar.rows[client_order_id]["exchange_order_id"] = "stored-exchange-order"
+
+    response = _service(rest_client, registrar).reconcile_order_by_client_order_id(
+        _reconcile_command(client_order_id)
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "reconciliation_readback"
+    assert rest_client.get_calls == ["stored-exchange-order"]
+    assert registrar.status_calls == []
 
 
 def _service(
@@ -334,6 +960,7 @@ def _service(
     publisher: _Publisher | None = None,
     coordinator: SpotProfileOrderAdmissionCoordinator | None = None,
     market_reference: dict[str, Any] | None = None,
+    fill_readback_proof_recorder: Callable[[Mapping[str, Any]], str | None] | None = None,
 ) -> AdminApiCommandService:
     publisher = publisher or _Publisher()
     resolved_market_reference = market_reference or {
@@ -359,6 +986,9 @@ def _service(
             runtime_controller_factory=lambda: _RuntimeController(),
             spot_order_admission_coordinator=(
                 coordinator or SpotProfileOrderAdmissionCoordinator()
+            ),
+            spot_fill_readback_proof_recorder=(
+                fill_readback_proof_recorder or (lambda _proof: None)
             ),
         )
     )
@@ -404,6 +1034,47 @@ def test_submit_rejects_off_tick_price_before_root_or_coinbase_boundary() -> Non
     assert registrar.rows == {}
 
 
+@pytest.mark.parametrize("outer_authority", [None, "0", "true", "yes", "01"])
+@pytest.mark.parametrize("command_kind", ["place", "cancel", "hotpoint"])
+def test_canonical_command_boundary_requires_exact_master_before_coinbase_reads(
+    monkeypatch: pytest.MonkeyPatch,
+    outer_authority: str | None,
+    command_kind: str,
+) -> None:
+    if outer_authority is None:
+        monkeypatch.delenv("COINBASE_EXECUTION_ENABLED", raising=False)
+    else:
+        monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", outer_authority)
+    rest_client = _SpotRestClient()
+    registrar = _RootRegistrar()
+    service = _service(rest_client, registrar)
+
+    if command_kind == "place":
+        response = service.place_manual_order(_manual_command())
+    elif command_kind == "cancel":
+        response = service.cancel_order_by_client_order_id(
+            _cancel_command("client-order-authority-test")
+        )
+    else:
+        response = service.place_hotpoint_test_order(_manual_command())
+
+    assert response.status == AdminApiCommandStatus.NOT_IMPLEMENTED
+    assert response.failure_stage == "execution_authority"
+    assert response.live_command_runtime_enabled is False
+    assert response.live_command_runtime_ready is False
+    assert (
+        response.live_command_runtime_missing_reason
+        == "coinbase_execution_authority_disabled"
+    )
+    assert rest_client.api_key_permission_calls == 0
+    assert rest_client.portfolio_calls == 0
+    assert rest_client.list_calls == []
+    assert rest_client.create_calls == []
+    assert rest_client.cancel_client_calls == []
+    assert rest_client.cancel_exchange_calls == []
+    assert registrar.rows == {}
+
+
 def test_submit_preserves_on_tick_price_through_root_and_coinbase_boundary() -> None:
     client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
 
@@ -428,6 +1099,7 @@ def test_submit_preserves_on_tick_price_through_root_and_coinbase_boundary() -> 
     )
 
     assert response.status == AdminApiCommandStatus.ACCEPTED
+    assert response.live_coinbase_read_ran is True
     assert registrar.rows[client_order_id]["limit_price"] == "50.00"
     assert rest_client.create_calls[0]["order_configuration"] == {
         "limit_limit_gtc": {
@@ -448,7 +1120,7 @@ def test_submit_preserves_on_tick_price_through_root_and_coinbase_boundary() -> 
     )
 
 
-def test_intentional_fill_override_accepts_only_exact_approval_bound_tuple(
+def test_canonical_manual_order_rejects_intentional_fill_fok_before_exchange(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import configuration
@@ -512,36 +1184,19 @@ def test_intentional_fill_override_accepts_only_exact_approval_bound_tuple(
         )
     )
 
-    assert response.status == AdminApiCommandStatus.ACCEPTED
-    override = response.data["standing_price_limit"][
-        "intentional_fill_override"
-    ]
-    assert override["allowed"] is True
-    assert override["approval_snapshot_id"] == "approval-intentional-fill-1"
-    assert override["profile_alias"] == "Test"
-    assert override["product_id"] == "BTC-USDC"
-    assert override["side"] == "BUY"
-    assert override["planned_notional_usdc"] == "2.002"
-    assert override["best_ask"] == "100.01"
-    assert override["marketable"] is True
-    assert override["child_exchange_reveal_authorized"] is False
-    assert override["follow_up_target_movement"]["ready"] is True
-    assert registrar.rows[
-        "22daf1ea-4c57-4c03-98c5-e74459576228"
-    ]["target_movement_override"] == "0.03"
-    assert rest_client.create_calls[0]["order_configuration"] == {
-        "limit_limit_fok": {
-            "base_size": "0.02",
-            "limit_price": "100.10",
-        }
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "manual_order_semantics"
+    assert response.data == {
+        "semantic_contract": "durable_spot_limit_gtc_root",
+        "blocker": "manual_spot_time_in_force_not_supported",
     }
-    assert registrar.exchange_status_calls[-1]["exchange_order_id"] == (
-        "exchange-intentional-fill-1"
-    )
-    assert len(rest_client.create_calls) == 1
+    assert rest_client.api_key_permission_calls == 0
+    assert rest_client.portfolio_calls == 0
+    assert registrar.rows == {}
+    assert rest_client.create_calls == []
 
 
-def test_intentional_fill_rejects_before_root_when_fee_target_is_not_ready(
+def test_fok_semantic_rejection_precedes_intentional_fill_fee_target(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import configuration
@@ -598,17 +1253,15 @@ def test_intentional_fill_rejects_before_root_when_fee_target_is_not_ready(
     )
 
     assert response.status == AdminApiCommandStatus.REJECTED
-    assert response.failure_stage == "intentional_fill_follow_up_target"
-    assert response.data["standing_price_limit"][
-        "intentional_fill_override"
-    ]["follow_up_target_movement"]["blocker"] == (
-        "intentional_fill_fee_data_stale"
+    assert response.failure_stage == "manual_order_semantics"
+    assert response.data["blocker"] == (
+        "manual_spot_time_in_force_not_supported"
     )
     assert registrar.rows == {}
     assert rest_client.create_calls == []
 
 
-def test_intentional_fill_rejects_when_child_reveal_capability_is_enabled(
+def test_fok_semantic_rejection_precedes_child_reveal_capability(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import configuration
@@ -655,15 +1308,15 @@ def test_intentional_fill_rejects_when_child_reveal_capability_is_enabled(
     )
 
     assert response.status == AdminApiCommandStatus.REJECTED
-    assert response.failure_stage == "standing_price_limit"
-    assert response.data["standing_price_limit"][
-        "intentional_fill_override"
-    ]["blocker"] == "intentional_fill_child_reveal_not_disabled"
+    assert response.failure_stage == "manual_order_semantics"
+    assert response.data["blocker"] == (
+        "manual_spot_time_in_force_not_supported"
+    )
     assert registrar.rows == {}
     assert rest_client.create_calls == []
 
 
-def test_intentional_fill_intent_cannot_fall_through_ordinary_price_authority(
+def test_fok_semantic_rejection_precedes_ordinary_price_authority(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import configuration
@@ -710,10 +1363,10 @@ def test_intentional_fill_intent_cannot_fall_through_ordinary_price_authority(
     )
 
     assert response.status == AdminApiCommandStatus.REJECTED
-    assert response.failure_stage == "standing_price_limit"
-    assert response.data["standing_price_limit"][
-        "intentional_fill_override"
-    ]["blocker"] == "intentional_fill_standing_override_not_required"
+    assert response.failure_stage == "manual_order_semantics"
+    assert response.data["blocker"] == (
+        "manual_spot_time_in_force_not_supported"
+    )
     assert registrar.rows == {}
     assert rest_client.create_calls == []
 
@@ -804,7 +1457,7 @@ def test_intentional_fill_rejects_internal_order_configuration_override(
         ),
     ],
 )
-def test_intentional_fill_override_fails_closed_on_missing_exact_authority(
+def test_fok_semantic_rejection_precedes_obsolete_authority_variants(
     approval_snapshot_id: str | None,
     max_notional: str,
     best_ask: str | None,
@@ -838,10 +1491,10 @@ def test_intentional_fill_override_fails_closed_on_missing_exact_authority(
     )
 
     assert response.status == AdminApiCommandStatus.REJECTED
-    assert response.failure_stage == "standing_price_limit"
-    assert response.data["standing_price_limit"][
-        "intentional_fill_override"
-    ]["blocker"] == blocker
+    assert response.failure_stage == "manual_order_semantics"
+    assert response.data["blocker"] == (
+        "manual_spot_time_in_force_not_supported"
+    )
     assert registrar.rows == {}
     assert rest_client.create_calls == []
 
@@ -986,9 +1639,110 @@ def test_submit_requires_exact_durable_root_registration_evidence() -> None:
     assert rest_client.create_calls == []
 
 
+def test_submit_terminalizes_exact_inserted_root_when_registration_evidence_is_malformed() -> None:
+    first_client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+    second_client_order_id = "0ba18a83-b30c-4c71-ad01-8f4e439d8f70"
+
+    class _InsertedMalformedOnceRegistrar(_RootRegistrar):
+        def __init__(self) -> None:
+            super().__init__()
+            self.registration_calls = 0
+
+        def register_manual_spot_root(self, **kwargs: Any) -> dict[str, Any]:
+            self.registration_calls += 1
+            evidence = super().register_manual_spot_root(**kwargs)
+            if self.registration_calls == 1:
+                return {"registered": False}
+            return evidence
+
+    rest_client = _SpotRestClient()
+    registrar = _InsertedMalformedOnceRegistrar()
+    service = _service(rest_client, registrar)
+
+    first = service.place_manual_order(_manual_command(first_client_order_id))
+
+    assert first.status == AdminApiCommandStatus.REJECTED
+    assert first.failure_stage == "order_root_registration"
+    assert first.data["submission_attempt"]["rest_invocation_attempted"] is False
+    assert first.data["submission_attempt"]["root_recovery"] == {
+        "attempted": True,
+        "durable_status": "FAILED",
+        "recovery_disposition": "known_not_attempted_terminalized_failed",
+        "safe_to_submit_another_root": True,
+    }
+    assert registrar.rows[first_client_order_id]["status"] == "FAILED"
+    assert rest_client.create_calls == []
+
+    rest_client.history = [
+        {
+            "client_order_id": second_client_order_id,
+            "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
+            "status": "OPEN",
+        }
+    ]
+    second = service.place_manual_order(_manual_command(second_client_order_id))
+
+    assert second.status == AdminApiCommandStatus.ACCEPTED
+    assert len(rest_client.create_calls) == 1
+
+
+def test_submit_terminalizes_exact_inserted_root_when_registrar_fails_after_insert() -> None:
+    private_marker = "private-post-insert-registrar-detail"
+
+    class _PostInsertFailureRegistrar(_RootRegistrar):
+        def register_manual_spot_root(self, **kwargs: Any) -> dict[str, Any]:
+            super().register_manual_spot_root(**kwargs)
+            raise RuntimeError(private_marker)
+
+    rest_client = _SpotRestClient()
+    registrar = _PostInsertFailureRegistrar()
+
+    response = _service(rest_client, registrar).place_manual_order(
+        _manual_command()
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "order_root_registration"
+    assert response.data["submission_attempt"]["root_recovery"][
+        "recovery_disposition"
+    ] == "known_not_attempted_terminalized_failed"
+    assert registrar.rows[response.client_order_id]["status"] == "FAILED"
+    assert private_marker not in str(response.model_dump(mode="json"))
+    assert rest_client.create_calls == []
+
+
+def test_submit_does_not_terminalize_mismatched_inserted_registration_row() -> None:
+    class _MismatchedInsertedRegistrar(_RootRegistrar):
+        def register_manual_spot_root(self, **kwargs: Any) -> dict[str, Any]:
+            super().register_manual_spot_root(**kwargs)
+            self.rows[str(kwargs["client_order_id"])]["product_id"] = "ETH-USDC"
+            return {"registered": False}
+
+    rest_client = _SpotRestClient()
+    registrar = _MismatchedInsertedRegistrar()
+
+    response = _service(rest_client, registrar).place_manual_order(
+        _manual_command()
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "order_root_registration"
+    assert response.data["submission_attempt"]["root_recovery"] == {
+        "attempted": True,
+        "durable_status": "PENDING",
+        "recovery_disposition": "owned_root_binding_unproven_quarantined",
+        "safe_to_submit_another_root": False,
+    }
+    assert registrar.rows[response.client_order_id]["status"] == "PENDING"
+    assert registrar.status_calls == []
+    assert rest_client.create_calls == []
+
+
 def test_submit_exception_is_unknown_and_durably_blocks_the_next_submit() -> None:
     rest_client = _SpotRestClient()
-    rest_client.create_result = TimeoutError("synthetic timeout after write")
+    private_marker = "private-order-id-and-response-body-must-not-leak"
+    rest_client.create_result = TimeoutError(private_marker)
     registrar = _RootRegistrar()
     coordinator = SpotProfileOrderAdmissionCoordinator()
     service = _service(rest_client, registrar, coordinator=coordinator)
@@ -1003,10 +1757,171 @@ def test_submit_exception_is_unknown_and_durably_blocks_the_next_submit() -> Non
     assert first.live_coinbase_orders_ran is True
     assert first.data["submission_attempt"]["rest_invocation_attempted"] is True
     assert first.data["submission_attempt"]["outcome"] == "unknown"
+    assert private_marker not in first.message
+    assert "TimeoutError" in first.message
     assert registrar.status_calls[-1][1] == "SUBMISSION_UNKNOWN"
     assert second.status == AdminApiCommandStatus.REJECTED
     assert second.failure_stage == "submission_uncertainty"
     assert len(rest_client.create_calls) == 1
+
+
+def test_submit_response_converter_exception_is_unknown_and_value_blind() -> None:
+    private_marker = "private-converter-payload-must-not-leak"
+
+    class _ExplodingResponse:
+        def to_dict(self) -> dict[str, Any]:
+            raise RuntimeError(private_marker)
+
+    rest_client = _SpotRestClient()
+    rest_client.create_result = _ExplodingResponse()
+    registrar = _RootRegistrar()
+    coordinator = SpotProfileOrderAdmissionCoordinator()
+    service = _service(rest_client, registrar, coordinator=coordinator)
+
+    first = service.place_manual_order(_manual_command())
+    second = service.place_manual_order(
+        _manual_command("0ba18a83-b30c-4c71-ad01-8f4e439d8f70")
+    )
+
+    assert first.status == AdminApiCommandStatus.REJECTED
+    assert first.failure_stage == "coinbase_submission_unknown"
+    assert first.live_coinbase_orders_ran is True
+    assert first.data["submission_attempt"]["rest_invocation_attempted"] is True
+    assert first.data["submission_attempt"]["outcome"] == "unknown"
+    assert first.data["submission_attempt"]["response_normalization_failed"] is True
+    assert private_marker not in str(first.model_dump(mode="json"))
+    assert registrar.status_calls[-1][1] == "SUBMISSION_UNKNOWN"
+    assert second.status == AdminApiCommandStatus.REJECTED
+    assert second.failure_stage == "submission_uncertainty"
+    assert len(rest_client.create_calls) == 1
+
+
+def test_submit_explicit_rejection_uses_value_blind_diagnostic() -> None:
+    private_marker = "private-coinbase-rejection-detail-must-not-leak"
+    rest_client = _SpotRestClient()
+    rest_client.create_result = {
+        "success": False,
+        "error_response": {"message": private_marker},
+    }
+    registrar = _RootRegistrar()
+
+    response = _service(rest_client, registrar).place_manual_order(
+        _manual_command()
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "coinbase_rest"
+    assert response.live_coinbase_read_ran is False
+    assert response.message == (
+        "Order creation failed: coinbase_order_explicitly_rejected"
+    )
+    assert response.data["submission_attempt"]["root_recovery"] == {
+        "attempted": True,
+        "durable_status": "FAILED",
+        "recovery_disposition": "explicit_rejection_terminalized_failed",
+        "safe_to_submit_another_root": True,
+    }
+    assert private_marker not in str(response.model_dump(mode="json"))
+
+
+def test_submit_explicit_rejection_recovers_from_first_local_status_write_failure() -> None:
+    first_client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+    second_client_order_id = "0ba18a83-b30c-4c71-ad01-8f4e439d8f70"
+    private_marker = "private-local-status-write-detail"
+
+    class _FailFirstStatusWriteRegistrar(_RootRegistrar):
+        def __init__(self) -> None:
+            super().__init__()
+            self.failed_once = False
+
+        def mark_submission_status(
+            self,
+            *,
+            client_order_id: str,
+            status: str,
+            exchange_order_id: str | None = None,
+        ) -> None:
+            if status == "FAILED" and not self.failed_once:
+                self.failed_once = True
+                raise RuntimeError(private_marker)
+            super().mark_submission_status(
+                client_order_id=client_order_id,
+                status=status,
+                exchange_order_id=exchange_order_id,
+            )
+
+    rest_client = _SpotRestClient()
+    rest_client.create_result = {"success": False, "error_response": {}}
+    registrar = _FailFirstStatusWriteRegistrar()
+    service = _service(rest_client, registrar)
+
+    first = service.place_manual_order(_manual_command(first_client_order_id))
+
+    assert first.status == AdminApiCommandStatus.REJECTED
+    assert first.failure_stage == "coinbase_rest"
+    assert first.data["submission_attempt"]["outcome"] == "explicitly_rejected"
+    assert first.data["submission_attempt"]["root_recovery"] == {
+        "attempted": True,
+        "durable_status": "FAILED",
+        "recovery_disposition": "explicit_rejection_terminalized_failed",
+        "safe_to_submit_another_root": True,
+    }
+    assert registrar.rows[first_client_order_id]["status"] == "FAILED"
+    assert private_marker not in str(first.model_dump(mode="json"))
+
+    rest_client.create_result = {
+        "success": True,
+        "success_response": {"order_id": "exchange-order-2"},
+    }
+    rest_client.history = [
+        {
+            "client_order_id": second_client_order_id,
+            "order_id": "exchange-order-2",
+            "product_id": "BTC-USDC",
+            "status": "OPEN",
+        }
+    ]
+    second = service.place_manual_order(_manual_command(second_client_order_id))
+
+    assert second.status == AdminApiCommandStatus.ACCEPTED
+    assert len(rest_client.create_calls) == 2
+
+
+def test_submit_explicit_rejection_status_persistence_failure_stays_known_and_quarantined() -> None:
+    private_marker = "private-persistent-local-status-write-detail"
+
+    class _AlwaysFailStatusWriteRegistrar(_RootRegistrar):
+        def mark_submission_status(
+            self,
+            *,
+            client_order_id: str,
+            status: str,
+            exchange_order_id: str | None = None,
+        ) -> None:
+            del client_order_id, status, exchange_order_id
+            raise RuntimeError(private_marker)
+
+    rest_client = _SpotRestClient()
+    rest_client.create_result = {"success": False, "error_response": {}}
+    registrar = _AlwaysFailStatusWriteRegistrar()
+
+    response = _service(rest_client, registrar).place_manual_order(
+        _manual_command()
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "coinbase_rest"
+    assert response.live_coinbase_orders_ran is True
+    assert response.live_exchange_submitted is False
+    assert response.data["submission_attempt"]["outcome"] == "explicitly_rejected"
+    assert response.data["submission_attempt"]["root_recovery"] == {
+        "attempted": True,
+        "durable_status": "PENDING",
+        "recovery_disposition": "explicit_rejection_terminalization_failed",
+        "safe_to_submit_another_root": False,
+    }
+    assert registrar.rows[response.client_order_id]["status"] == "PENDING"
+    assert private_marker not in str(response.model_dump(mode="json"))
 
 
 def test_submit_requires_explicit_success_and_exchange_order_id() -> None:
@@ -1021,6 +1936,7 @@ def test_submit_requires_explicit_success_and_exchange_order_id() -> None:
     assert response.status == AdminApiCommandStatus.REJECTED
     assert response.failure_stage == "coinbase_submission_unknown"
     assert response.live_coinbase_orders_ran is True
+    assert response.live_coinbase_read_ran is False
     assert response.data["submission_attempt"]["exchange_order_id"] is None
     assert registrar.status_calls[-1][1] == "SUBMISSION_UNKNOWN"
 
@@ -1046,6 +1962,7 @@ def test_submit_does_not_infer_success_from_nested_payload_without_true_flag() -
 
     assert response.status == AdminApiCommandStatus.REJECTED
     assert response.failure_stage == "coinbase_submission_unknown"
+    assert response.live_coinbase_read_ran is False
     assert response.data["submission_attempt"]["outcome"] == "unknown"
     assert registrar.status_calls[-1][1] == "SUBMISSION_UNKNOWN"
 
@@ -1068,6 +1985,7 @@ def test_submit_requires_authoritative_exact_identity_readback() -> None:
 
     assert response.status == AdminApiCommandStatus.REJECTED
     assert response.failure_stage == "coinbase_submission_unknown"
+    assert response.live_coinbase_read_ran is True
     assert response.data["submission_attempt"]["exchange_order_id"] == (
         "exchange-order-1"
     )
@@ -1193,23 +2111,26 @@ def test_submit_audit_failure_reports_proven_live_order_without_accepting() -> N
     ] is True
 
 
-def test_cancel_calls_client_order_id_first_and_requires_cancelled_terminal_proof() -> None:
+def test_cancel_reads_exact_active_state_before_exchange_order_id_cancel() -> None:
     client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
     events: list[str] = []
 
     class _CancelClient(_SpotRestClient):
         def cancel_order(
             self,
-            requested: str,
+            requested_client_order_id: str,
             *,
+            verified_exchange_order_id: str | None = None,
             return_evidence: bool = False,
         ) -> Any:
-            events.append("cancel_client")
-            self.cancel_client_calls.append(requested)
+            events.append("cancel_exchange")
+            assert requested_client_order_id == client_order_id
+            assert verified_exchange_order_id == "exchange-order-1"
+            self.cancel_exchange_calls.append(verified_exchange_order_id)
             self.history = [
                 {
-                    "client_order_id": requested,
-                    "order_id": "exchange-order-1",
+                    "client_order_id": client_order_id,
+                    "order_id": verified_exchange_order_id,
                     "product_id": "BTC-USDC",
                     "status": "CANCELLED",
                 }
@@ -1228,6 +2149,14 @@ def test_cancel_calls_client_order_id_first_and_requires_cancelled_terminal_proo
             return super().list_orders(**kwargs)
 
     rest_client = _CancelClient()
+    rest_client.history = [
+        {
+            "client_order_id": client_order_id,
+            "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
+            "status": "OPEN",
+        }
+    ]
     registrar = _RootRegistrar()
     _registered_root(registrar, client_order_id)
 
@@ -1236,8 +2165,10 @@ def test_cancel_calls_client_order_id_first_and_requires_cancelled_terminal_proo
     )
 
     assert response.status == AdminApiCommandStatus.ACCEPTED
-    assert events[0] == "cancel_client"
-    assert rest_client.cancel_exchange_calls == []
+    assert response.live_coinbase_read_ran is True
+    assert events[:2] == ["list_orders", "cancel_exchange"]
+    assert rest_client.cancel_client_calls == []
+    assert rest_client.cancel_exchange_calls == ["exchange-order-1"]
     proof = response.data["cancellation_readback"]
     assert proof["operator_identity_key"] == "client_order_id"
     assert proof["canonical_cancel_attempted"] is True
@@ -1246,10 +2177,94 @@ def test_cancel_calls_client_order_id_first_and_requires_cancelled_terminal_proo
     assert proof["authoritative_status"] == "CANCELLED"
 
 
-def test_cancel_falls_back_only_after_explicit_client_id_rejection_and_readback() -> None:
+def test_cancel_uses_authoritative_exchange_id_exactly_once_without_fallback() -> None:
+    """The operator client ID selects the order; only its proven exchange ID mutates."""
+
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+
+    class _ExactExchangeCancelClient(_SpotRestClient):
+        def cancel_order_by_exchange_order_id(
+            self,
+            order_id: str,
+            *,
+            return_evidence: bool = False,
+        ) -> Any:
+            raise AssertionError(f"direct exchange-id helper is forbidden: {order_id}")
+
+        def cancel_order(
+            self,
+            requested: str,
+            *,
+            verified_exchange_order_id: str | None = None,
+            return_evidence: bool = False,
+        ) -> Any:
+            assert requested == client_order_id
+            assert verified_exchange_order_id == "exchange-order-1"
+            self.cancel_exchange_calls.append(verified_exchange_order_id)
+            self.history[0]["status"] = "CANCELLED"
+            assert return_evidence is True
+            return {
+                "outcome": "succeeded",
+                "explicit_rejection": False,
+                "identity_rejection": False,
+                "identity_match": True,
+                "submitted_identity_key": "exchange_order_id",
+            }
+
+    rest_client = _ExactExchangeCancelClient()
+    rest_client.history = [
+        {
+            "client_order_id": client_order_id,
+            "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
+            "status": "OPEN",
+        }
+    ]
+    registrar = _RootRegistrar()
+    _registered_root(registrar, client_order_id)
+
+    response = _service(rest_client, registrar).cancel_order_by_client_order_id(
+        _cancel_command(client_order_id)
+    )
+
+    assert response.status == AdminApiCommandStatus.ACCEPTED
+    assert rest_client.cancel_client_calls == []
+    assert rest_client.cancel_exchange_calls == ["exchange-order-1"]
+    proof = response.data["cancellation_readback"]
+    assert proof["canonical_cancel_attempted"] is True
+    assert proof["canonical_cancel_identity"] == "exchange_order_id"
+    assert proof["fallback_attempted"] is False
+    assert proof["terminal_status_proven"] is True
+
+
+def test_cancel_rejects_missing_live_acknowledgement_before_any_coinbase_read() -> None:
     client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
     rest_client = _SpotRestClient()
-    rest_client.cancel_client_result = False
+    registrar = _RootRegistrar()
+    _registered_root(registrar, client_order_id)
+
+    response = _service(rest_client, registrar).cancel_order_by_client_order_id(
+        _cancel_command(
+            client_order_id,
+            manual_live_acknowledgement=False,
+        )
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "manual_live_acknowledgement"
+    assert response.live_exchange_submitted is False
+    assert response.live_coinbase_orders_ran is False
+    assert rest_client.api_key_permission_calls == 0
+    assert rest_client.portfolio_calls == 0
+    assert rest_client.list_calls == []
+    assert rest_client.cancel_client_calls == []
+    assert rest_client.cancel_exchange_calls == []
+    assert registrar.status_calls == []
+
+
+def test_cancel_uses_only_exact_exchange_id_after_preflight() -> None:
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+    rest_client = _SpotRestClient()
     rest_client.history = [
         {
             "client_order_id": client_order_id,
@@ -1259,8 +2274,15 @@ def test_cancel_falls_back_only_after_explicit_client_id_rejection_and_readback(
         }
     ]
 
-    def fallback(order_id: str, *, return_evidence: bool = False) -> Any:
-        rest_client.cancel_exchange_calls.append(order_id)
+    def exact_cancel(
+        requested_client_order_id: str,
+        *,
+        verified_exchange_order_id: str | None = None,
+        return_evidence: bool = False,
+    ) -> Any:
+        assert requested_client_order_id == client_order_id
+        assert verified_exchange_order_id == "exchange-order-1"
+        rest_client.cancel_exchange_calls.append(verified_exchange_order_id)
         rest_client.history[0]["status"] = "CANCELLED"
         if return_evidence:
             return {
@@ -1271,7 +2293,7 @@ def test_cancel_falls_back_only_after_explicit_client_id_rejection_and_readback(
             }
         return True
 
-    rest_client.cancel_order_by_exchange_order_id = fallback  # type: ignore[method-assign]
+    rest_client.cancel_order = exact_cancel  # type: ignore[method-assign]
     registrar = _RootRegistrar()
     _registered_root(registrar, client_order_id)
 
@@ -1280,23 +2302,32 @@ def test_cancel_falls_back_only_after_explicit_client_id_rejection_and_readback(
     )
 
     assert response.status == AdminApiCommandStatus.ACCEPTED
-    assert rest_client.cancel_client_calls == [client_order_id]
+    assert rest_client.cancel_client_calls == []
     assert rest_client.cancel_exchange_calls == ["exchange-order-1"]
     proof = response.data["cancellation_readback"]
-    assert proof["canonical_cancel_explicitly_rejected"] is True
-    assert proof["fallback_attempted"] is True
-    assert proof["fallback_exchange_order_id"] == "exchange-order-1"
+    assert proof["canonical_cancel_accepted"] is True
+    assert proof["canonical_cancel_explicitly_rejected"] is False
+    assert proof["fallback_attempted"] is False
+    assert proof["fallback_exchange_order_id"] is None
     assert proof["exchange_order_id_evidence_only"] is True
     assert proof["terminal_status_proven"] is True
 
 
 @pytest.mark.parametrize(
-    ("canonical_result", "history", "expected_stage"),
+    ("exact_cancel_result", "history", "expected_stage", "expected_live_call"),
     [
         (
             RuntimeError("transport uncertainty"),
-            [],
+            [
+                {
+                    "client_order_id": "22daf1ea-4c57-4c03-98c5-e74459576228",
+                    "order_id": "exchange-order-1",
+                    "product_id": "BTC-USDC",
+                    "status": "OPEN",
+                }
+            ],
             "cancellation_unknown",
+            True,
         ),
         (
             False,
@@ -1308,18 +2339,20 @@ def test_cancel_falls_back_only_after_explicit_client_id_rejection_and_readback(
                     "status": "OPEN",
                 }
             ],
-            "cancellation_readback",
+            "cancellation_preflight_readback",
+            False,
         ),
     ],
 )
 def test_cancel_unknown_or_missing_exchange_id_never_uses_fallback(
-    canonical_result: Any,
+    exact_cancel_result: Any,
     history: list[dict[str, Any]],
     expected_stage: str,
+    expected_live_call: bool,
 ) -> None:
     client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
     rest_client = _SpotRestClient()
-    rest_client.cancel_client_result = canonical_result
+    rest_client.cancel_exchange_result = exact_cancel_result
     rest_client.history = history
     registrar = _RootRegistrar()
     _registered_root(registrar, client_order_id)
@@ -1330,9 +2363,201 @@ def test_cancel_unknown_or_missing_exchange_id_never_uses_fallback(
 
     assert response.status == AdminApiCommandStatus.REJECTED
     assert response.failure_stage == expected_stage
-    assert response.live_coinbase_orders_ran is True
-    assert rest_client.cancel_exchange_calls == []
+    assert response.live_coinbase_orders_ran is expected_live_call
+    assert rest_client.cancel_exchange_calls == (
+        ["exchange-order-1"] if expected_live_call else []
+    )
+    assert rest_client.cancel_client_calls == []
     assert all(status != "CANCELLED" for _coid, status in registrar.status_calls)
+
+
+def test_cancel_unknown_is_durably_quarantined_across_restart_and_new_key() -> None:
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+    rest_client = _SpotRestClient()
+    rest_client.cancel_exchange_result = RuntimeError("transport uncertainty")
+    rest_client.history = [
+        {
+            "client_order_id": client_order_id,
+            "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
+            "status": "OPEN",
+        }
+    ]
+    registrar = _RootRegistrar()
+    _registered_root(registrar, client_order_id)
+
+    first = _service(rest_client, registrar).cancel_order_by_client_order_id(
+        _cancel_command(client_order_id, idempotency_key="cancel-attempt-one")
+    )
+    rest_client.cancel_exchange_result = True
+    restarted = _service(rest_client, registrar)
+    second = restarted.cancel_order_by_client_order_id(
+        _cancel_command(client_order_id, idempotency_key="cancel-attempt-two")
+    )
+
+    assert first.failure_stage == "cancellation_unknown"
+    assert registrar.rows[client_order_id]["status"] == "SUBMISSION_UNKNOWN"
+    assert registrar.status_calls[-1] == (
+        client_order_id,
+        "SUBMISSION_UNKNOWN",
+    )
+    assert second.status == AdminApiCommandStatus.REJECTED
+    assert second.failure_stage == "cancellation_uncertainty"
+    assert second.live_coinbase_read_ran is False
+    assert second.live_coinbase_orders_ran is False
+    assert rest_client.cancel_client_calls == []
+    assert rest_client.cancel_exchange_calls == ["exchange-order-1"]
+    assert len(rest_client.list_calls) == 1
+    assert rest_client.api_key_permission_calls == 1
+    assert rest_client.portfolio_calls == 1
+
+
+def test_cancel_persists_durable_unknown_claim_before_coinbase_boundary() -> None:
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+
+    class _SyntheticProcessLoss(BaseException):
+        pass
+
+    rest_client = _SpotRestClient()
+    rest_client.cancel_exchange_result = _SyntheticProcessLoss()
+    rest_client.history = [
+        {
+            "client_order_id": client_order_id,
+            "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
+            "status": "OPEN",
+        }
+    ]
+    registrar = _RootRegistrar()
+    _registered_root(registrar, client_order_id)
+
+    with pytest.raises(_SyntheticProcessLoss):
+        _service(rest_client, registrar).cancel_order_by_client_order_id(
+            _cancel_command(client_order_id, idempotency_key="cancel-process-loss")
+        )
+
+    assert registrar.rows[client_order_id]["status"] == "SUBMISSION_UNKNOWN"
+    assert registrar.status_calls[-1] == (
+        client_order_id,
+        "SUBMISSION_UNKNOWN",
+    )
+    assert rest_client.cancel_client_calls == []
+    assert rest_client.cancel_exchange_calls == ["exchange-order-1"]
+
+    rest_client.cancel_exchange_result = True
+    restarted = _service(rest_client, registrar)
+    blocked = restarted.cancel_order_by_client_order_id(
+        _cancel_command(client_order_id, idempotency_key="cancel-after-process-loss")
+    )
+
+    assert blocked.status == AdminApiCommandStatus.REJECTED
+    assert blocked.failure_stage == "cancellation_uncertainty"
+    assert blocked.live_coinbase_read_ran is False
+    assert blocked.live_coinbase_orders_ran is False
+    assert rest_client.cancel_client_calls == []
+    assert rest_client.cancel_exchange_calls == ["exchange-order-1"]
+
+
+def test_cancel_does_not_cross_coinbase_boundary_without_durable_claim() -> None:
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+
+    class _ClaimWriteFailingRegistrar(_RootRegistrar):
+        def mark_submission_status(
+            self,
+            *,
+            client_order_id: str,
+            status: str,
+            exchange_order_id: str | None = None,
+        ) -> None:
+            if status == "SUBMISSION_UNKNOWN":
+                raise RuntimeError("synthetic private persistence detail")
+            super().mark_submission_status(
+                client_order_id=client_order_id,
+                status=status,
+                exchange_order_id=exchange_order_id,
+            )
+
+    rest_client = _SpotRestClient()
+    rest_client.history = [
+        {
+            "client_order_id": client_order_id,
+            "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
+            "status": "OPEN",
+        }
+    ]
+    registrar = _ClaimWriteFailingRegistrar()
+    _registered_root(registrar, client_order_id)
+
+    response = _service(rest_client, registrar).cancel_order_by_client_order_id(
+        _cancel_command(client_order_id)
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "cancellation_claim_persistence"
+    assert response.live_exchange_submitted is False
+    assert response.live_coinbase_orders_ran is False
+    assert response.data["cancellation_readback"][
+        "durable_cancel_claim_persisted"
+    ] is False
+    assert "synthetic private persistence detail" not in repr(response)
+    assert registrar.rows[client_order_id]["status"] == "OPEN"
+    assert rest_client.cancel_client_calls == []
+    assert rest_client.cancel_exchange_calls == []
+
+
+@pytest.mark.parametrize("registrar_mode", ["getter", "missing_read", "read_error"])
+def test_cancel_ownership_read_degradation_is_typed_and_call_free(
+    registrar_mode: str,
+) -> None:
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+    rest_client = _SpotRestClient()
+
+    if registrar_mode == "getter":
+        def registrar_getter() -> Any:
+            raise RuntimeError("synthetic private registrar detail")
+    elif registrar_mode == "missing_read":
+        registrar_getter = lambda: object()
+    else:
+        class _ReadFailingRegistrar(_RootRegistrar):
+            def read_registered_order(
+                self,
+                _client_order_id: str,
+            ) -> dict[str, Any] | None:
+                raise RuntimeError("synthetic private ownership detail")
+
+        registrar_getter = lambda: _ReadFailingRegistrar()
+
+    service = AdminApiCommandService(
+        AdminApiCommandDependencies(
+            rest_client=rest_client,
+            rest_client_available=True,
+            live_runtime_enabled=True,
+            command_runtime_ready=True,
+            spot_portfolio_id=TEST_PORTFOLIO_ID,
+            spot_portfolio_label="Test",
+            order_root_registrar_getter=registrar_getter,
+            runtime_controller_factory=lambda: _RuntimeController(),
+            spot_order_admission_coordinator=SpotProfileOrderAdmissionCoordinator(),
+        )
+    )
+
+    response = service.cancel_order_by_client_order_id(
+        _cancel_command(client_order_id)
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "order_ownership"
+    assert response.live_exchange_submitted is False
+    assert response.live_coinbase_read_ran is False
+    assert response.live_coinbase_orders_ran is False
+    assert "synthetic private" not in response.message
+    assert response.data["portfolio_scope"]["status"] == "not_checked"
+    assert response.data["portfolio_scope"]["profile_alias"] == "Test"
+    assert response.data["portfolio_scope"]["portfolio_id"] is None
+    assert rest_client.api_key_permission_calls == 0
+    assert rest_client.portfolio_calls == 0
+    assert rest_client.cancel_client_calls == []
 
 
 def test_cancel_never_infers_cancelled_from_authoritative_absence() -> None:
@@ -1348,13 +2573,17 @@ def test_cancel_never_infers_cancelled_from_authoritative_absence() -> None:
     )
 
     assert response.status == AdminApiCommandStatus.REJECTED
-    assert response.failure_stage == "cancellation_readback"
+    assert response.failure_stage == "cancellation_preflight_readback"
+    assert response.live_coinbase_orders_ran is False
     assert response.data["cancellation_readback"]["confirmed_absent"] is True
     assert response.data["cancellation_readback"]["terminal_status_proven"] is False
     assert all(status != "CANCELLED" for _coid, status in registrar.status_calls)
 
 
-def test_cancel_filled_terminal_proof_does_not_fallback_or_claim_cancelled() -> None:
+@pytest.mark.parametrize("terminal_status", ["FILLED", "CANCELLED", "EXPIRED", "FAILED"])
+def test_cancel_terminal_preflight_reconciles_without_exchange_mutation(
+    terminal_status: str,
+) -> None:
     client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
     rest_client = _SpotRestClient()
     rest_client.cancel_client_result = False
@@ -1363,7 +2592,7 @@ def test_cancel_filled_terminal_proof_does_not_fallback_or_claim_cancelled() -> 
             "client_order_id": client_order_id,
             "order_id": "exchange-order-1",
             "product_id": "BTC-USDC",
-            "status": "FILLED",
+            "status": terminal_status,
         }
     ]
     registrar = _RootRegistrar()
@@ -1374,12 +2603,70 @@ def test_cancel_filled_terminal_proof_does_not_fallback_or_claim_cancelled() -> 
     )
 
     assert response.status == AdminApiCommandStatus.REJECTED
-    assert response.failure_stage == "cancellation_terminal_status"
+    assert response.failure_stage == "cancellation_preflight_terminal_status"
+    assert response.live_exchange_submitted is False
+    assert response.live_coinbase_orders_ran is False
+    assert response.live_coinbase_read_ran is True
+    assert rest_client.cancel_client_calls == []
     assert rest_client.cancel_exchange_calls == []
-    assert registrar.status_calls[-1] == (client_order_id, "FILLED")
-    assert response.data["cancellation_readback"]["authoritative_status"] == (
-        "FILLED"
+    assert registrar.status_calls[-1] == (client_order_id, terminal_status)
+    assert response.data["cancellation_readback"]["authoritative_status"] == terminal_status
+    assert response.data["cancellation_readback"]["pre_cancel_reconciled"] is True
+
+
+def test_cancel_preflight_cross_binds_stored_exchange_identity() -> None:
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+    rest_client = _SpotRestClient()
+    rest_client.history = [
+        {
+            "client_order_id": client_order_id,
+            "order_id": "different-exchange-order",
+            "product_id": "BTC-USDC",
+            "status": "OPEN",
+        }
+    ]
+    registrar = _RootRegistrar()
+    _registered_root(registrar, client_order_id)
+    registrar.rows[client_order_id]["exchange_order_id"] = "stored-exchange-order"
+
+    response = _service(rest_client, registrar).cancel_order_by_client_order_id(
+        _cancel_command(client_order_id)
     )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "cancellation_preflight_readback"
+    assert rest_client.get_calls == ["stored-exchange-order"]
+    assert rest_client.cancel_client_calls == []
+    assert rest_client.cancel_exchange_calls == []
+    assert registrar.status_calls == []
+
+
+@pytest.mark.parametrize("status", ["UNKNOWN", "", "CANCEL_QUEUED", "EDIT_QUEUED"])
+def test_cancel_requires_a_recognized_exact_active_preflight_status(status: str) -> None:
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+    rest_client = _SpotRestClient()
+    rest_client.history = [
+        {
+            "client_order_id": client_order_id,
+            "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
+            "status": status,
+        }
+    ]
+    registrar = _RootRegistrar()
+    _registered_root(registrar, client_order_id)
+
+    response = _service(rest_client, registrar).cancel_order_by_client_order_id(
+        _cancel_command(client_order_id)
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "cancellation_preflight_readback"
+    assert response.live_exchange_submitted is False
+    assert response.live_coinbase_orders_ran is False
+    assert response.live_coinbase_read_ran is True
+    assert rest_client.cancel_client_calls == []
+    assert rest_client.cancel_exchange_calls == []
 
 
 def test_cancel_fails_closed_on_incomplete_pagination_without_fallback() -> None:
@@ -1399,7 +2686,8 @@ def test_cancel_fails_closed_on_incomplete_pagination_without_fallback() -> None
     )
 
     assert response.status == AdminApiCommandStatus.REJECTED
-    assert response.failure_stage == "cancellation_readback"
+    assert response.failure_stage == "cancellation_preflight_readback"
+    assert response.live_coinbase_orders_ran is False
     assert rest_client.cancel_exchange_calls == []
     assert all(status != "CANCELLED" for _coid, status in registrar.status_calls)
 

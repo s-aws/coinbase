@@ -104,6 +104,43 @@ def project_root():
 
 
 @pytest.fixture
+def coinbase_execution_lease(tmp_path, monkeypatch):
+    """Model the installed manager's verified lease for synthetic live tests."""
+
+    from core.coinbase_execution_authority import (
+        _synthetic_test_only_coinbase_execution_scope,
+    )
+
+    token = "f" * 64
+    lease_path = tmp_path / "coinbase-execution.lease"
+    lease_path.write_text(f"{token}\n", encoding="ascii")
+    lease_path.chmod(0o600)
+    # Synthetic decision fixtures use stable historical timestamps; make the
+    # modeled manager lease older so the production freshness check still runs.
+    os.utime(lease_path, (946684800, 946684800))
+    monkeypatch.setenv("COINBASE_EXECUTION_LEASE_PATH", str(lease_path))
+    monkeypatch.setenv("COINBASE_EXECUTION_LEASE_TOKEN", token)
+    with _synthetic_test_only_coinbase_execution_scope():
+        yield lease_path
+
+
+@pytest.fixture
+def admin_mvp_evidence_paths(tmp_path, monkeypatch):
+    """Keep file-backed Admin MVP stores isolated across xdist workers."""
+
+    from application.admin_api.mvp_service import ADMIN_MVP_EVIDENCE_LOG_PATH_ENVS
+
+    paths = {}
+    for index, env_name in enumerate(
+        sorted(set(ADMIN_MVP_EVIDENCE_LOG_PATH_ENVS.values()))
+    ):
+        path = tmp_path / f"admin-mvp-evidence-{index}.jsonl"
+        monkeypatch.setenv(env_name, str(path))
+        paths[env_name] = path
+    return paths
+
+
+@pytest.fixture
 def api_reference(project_root):
     """Access to api_reference directory for Coinbase response samples."""
     return project_root / "api_reference"

@@ -1,9 +1,10 @@
 # Admin Platform Durable Milestones
 
 This is a future-capability catalog, not the current work queue. Current scope
-is goal id `selected_order_execution_closeout_slice` in
-`genai_data/AGENT_MVP_REBUILD_GOAL.md`. Milestone status or an unresolved
-milestone blocker cannot promote a parked lane into current work.
+is `operator_ready_admin_mvp_runtime_v1`; the historical rebuild goal in
+`genai_data/AGENT_MVP_REBUILD_GOAL.md` is not current authority. Milestone status
+or an unresolved milestone blocker cannot promote a parked lane into current
+work.
 
 This plan defines completion-oriented milestones for the enterprise admin
 platform across the whole Coinbase trading engine. It is not a spot roadmap.

@@ -1,7 +1,9 @@
 # Action Condition Guards
 
-Action condition guards block unsafe stealth actions before they create local
-state or exchange-visible orders.
+Action condition guards evaluate planning/local compatibility actions. They do
+not grant exchange authority. Legacy dashboard, stealth/reveal, replacement,
+sweep, and engine mutation paths are source-disabled; Controlled-live manual
+Spot place/cancel is admitted only by the authenticated Admin API chain.
 
 ## When To Use
 
@@ -9,28 +11,23 @@ Use action condition guards when an order must satisfy account-level constraints
 that are not captured by product increments, fee-floor profitability checks, or
 runtime pause/drain admission.
 
-Current invocation points:
+Current offline/local invocation points include:
 
 - stealth planning: `StealthOrderManager.create_stealth_order`
 - stealth reveal: `StealthOrderManager.reveal_order_slice`
 - stealth replacement planning/execution:
   `StealthOrderManager.build_stealth_move_plan`,
   `StealthOrderManager.execute_stealth_move`, and revealed anchor reprice
-- raw dashboard placement: `dashboard_server.py` `place_order`
+- historical dashboard guard regression fixtures
 
 ## Key Concepts
 
 - `ActionGuardPhase.PLANNING` runs after size quantization and before stealth
   memory/DB persistence, including spot follow-up stealth orders.
-- `ActionGuardPhase.REVEAL` runs after reveal-price planning and before
-  pre-submission hooks, `order_parent` pre-insert, and REST placement.
-- Direct dashboard `place_order` runs the planning-phase guard after size
-  validation and before `REST_CLIENT.create_order`. For spot products, the
-  dashboard handler also requires `manual_live_acknowledgement=true` before the
-  planning guard and REST submission. Direct spot placement also requires a
-  matching planning-phase `max_notional` limit rule. Direct spot `SELL` requires
-  `known_inventory_available` to be enabled. Direct spot placement also blocks
-  when the local durable audit publisher is unavailable.
+- `ActionGuardPhase.REVEAL` remains a planning/test phase; it cannot mint the
+  canonical Admin API SDK scope.
+- Dashboard exchange mutation messages return a fixed source-disabled response
+  before guard/runtime lookup.
 - `wallet_available` checks spot account balances when Coinbase REST
   credentials are configured. It applies only to catalog-configured spot
   products, not unknown fallback product IDs.
@@ -38,21 +35,15 @@ Current invocation points:
   spot stealth commitments from the wallet balance before admitting another
   action. The currently revealing stealth order is excluded from its own reveal
   check so it is not charged twice.
-- Spot replacement checks use the same policy but evaluate the net new wallet
-  requirement after crediting the active same-currency Coinbase hold. Example:
-  a no-fill spot `BUY` moved from `0.1 @ 100` to `0.1 @ 110` checks only the
-  extra quote requirement, not the full new order notional.
+- Spot replacement delta calculations remain synthetic/offline safety helpers.
 - `known_inventory_available` is optional and disabled by default. When enabled,
   it applies only to spot `SELL` actions and requires known profitable lots from
   the fill ledger or imported spot inventory baselines. Unknown-cost inventory
   is reported but cannot satisfy the condition.
 - `max_base_size` and `max_notional` are configured artificial limits and can
   apply to spot or futures products.
-- Direct spot notional caps should use `limits` with `product_type=SPOT`,
-  `max_notional`, and `phases=["planning"]` so the existing guard blocks before
-  raw dashboard REST placement.
-- Planning is a stale preflight. Reveal is rechecked because external Coinbase
-  or dashboard orders can consume wallet availability after planning.
+- Spot notional caps may use `limits` with `product_type=SPOT` for offline
+  planning evidence. They cannot enable raw dashboard REST placement.
 - Market BUY orders with `quote_size` can be checked against quote balance and
   configured notional caps even when no base size is supplied.
 
@@ -77,8 +68,8 @@ Spot follow-up planning is checked by default; set
 
 Planned-budget subtraction has no separate configuration key. It runs when a
 caller supplies local planned-budget state to `ActionConditionGuard`, currently
-from `StealthOrderManager` and from dashboard direct placement when the stealth
-manager is attached.
+from `StealthOrderManager` and historical dashboard regression fixtures. The
+installed dashboard mutation surface is source-disabled before guard lookup.
 
 Known-inventory authority has no wallet fallback. If
 `known_inventory_available` is enabled and the fill-ledger authority is not
@@ -93,10 +84,10 @@ available, spot `SELL` admission blocks with a structured reason.
   evaluator from new order-entry surfaces.
 - Do not count REVEALED spot stealth orders in local planned budget; Coinbase
   wallet availability should already reflect their live exchange holds.
-- Do not apply a naive wallet-available check to live cancel-and-replace moves
-  before accounting for Coinbase holds on the existing placement.
-- Do not treat a replacement as safe when exchange cancel fails; the existing
-  revealed placement remains the conservative local truth.
+- Keep synthetic replacement-budget checks hold-aware; they preserve safety
+  behavior for regression/reference use but grant no exchange authority.
+- Treat a synthetic replacement as blocked when its modeled exchange cancel
+  fails; the existing revealed placement remains the conservative local truth.
 - Do not treat wallet balance as known profitable inventory. Unknown-cost
   imported inventory must stay visible but unprofitable to authority checks.
 

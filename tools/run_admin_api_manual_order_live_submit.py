@@ -1,14 +1,15 @@
-"""Run one explicit capped Admin API manual-order live submission.
+"""Historical direct-service manual-order regression helpers.
 
-This tool is intentionally manual. It never submits to Coinbase unless
-``--confirm-live-submit`` is passed, and the order still flows through the
-backend Admin proof-chain gates before the REST client is called.
+The installed CLI mutation path is source-disabled. Operators use the
+authenticated Admin UI/API manual Spot LIMIT/GTC workflow; no CLI flag,
+credential, or service-singleton configuration can enable this entrypoint.
 """
 
 from __future__ import annotations
 
 import argparse
 from collections.abc import Mapping, MutableMapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
@@ -17,6 +18,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from tempfile import TemporaryDirectory
 import time
 from typing import Any
 
@@ -35,7 +37,23 @@ from application.admin_api.mvp_service import (  # noqa: E402
     RECONCILIATION_LOG_PATH_ENV,
     AdminMvpRequestContext,
     AdminMvpService,
-    get_admin_mvp_service,
+)
+from application.admin_api.idempotency import (  # noqa: E402
+    FileIdempotencyStore,
+    IdempotencyRecord,
+)
+from application.admin_api.models import (  # noqa: E402
+    AdminApiCommandResponse,
+    AdminLiveAdmissionDecisionEvidence,
+)
+from core.enums import (  # noqa: E402
+    AdminApiActionClass,
+    AdminApiCommandStatus,
+    AdminApiGateStatus,
+    AdminApiPermission,
+)
+from core.coinbase_execution_authority import (  # noqa: E402
+    SOURCE_DISABLED_COINBASE_EXECUTION_ERROR,
 )
 from tools import run_admin_api  # noqa: E402
 from tools.coinbase_live_credentials import ensure_live_coinbase_credentials  # noqa: E402
@@ -51,6 +69,7 @@ MAX_DEFAULT_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_DEFAULT_EXECUTED_NOTIONAL_USDC = "1.00"
 DEFAULT_QUOTE_SIZE = "1.00"
 DEFAULT_LIMIT_PRICE = "1000000.00"
+RUNNER_COMMAND_IDEMPOTENCY_FILENAME = "admin_api_runner_command_idempotency.jsonl"
 STATE_LOG_FILENAMES = {
     APPROVAL_LOG_PATH_ENV: "admin_api_approvals.jsonl",
     IDEMPOTENCY_LOG_PATH_ENV: "admin_api_idempotency.jsonl",
@@ -90,37 +109,14 @@ class ManualLiveSubmitConfig:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Create the live-submit parser."""
+    """Create the source-disabled compatibility parser."""
 
-    parser = argparse.ArgumentParser(
-        description="Submit one capped manual order through backend Admin gates."
+    return argparse.ArgumentParser(
+        description=(
+            "Historical direct-service manual submit is source-disabled. "
+            "Use the installed authenticated Admin UI/API workflow."
+        )
     )
-    parser.add_argument("--summary-output", type=Path, default=DEFAULT_SUMMARY_OUTPUT)
-    parser.add_argument(
-        "--state-dir",
-        type=Path,
-        default=default_state_dir(),
-        help="Directory for restart-safe local Admin evidence logs.",
-    )
-    parser.add_argument("--confirm-live-submit", action="store_true")
-    parser.add_argument("--product-id", default="BTC-USDC")
-    parser.add_argument("--side", choices=("BUY", "SELL"), default="BUY")
-    parser.add_argument("--quote-size", default=DEFAULT_QUOTE_SIZE)
-    parser.add_argument("--limit-price", default=DEFAULT_LIMIT_PRICE)
-    parser.add_argument("--time-in-force", default="IOC")
-    parser.add_argument("--idempotency-key", default=None)
-    parser.add_argument("--correlation-id", default=None)
-    parser.add_argument("--actor-id", default="local-operator")
-    parser.add_argument("--roles", default="admin,trader")
-    parser.add_argument(
-        "--max-submitted-notional-usdc",
-        default=MAX_DEFAULT_SUBMITTED_NOTIONAL_USDC,
-    )
-    parser.add_argument(
-        "--max-executed-notional-usdc",
-        default=MAX_DEFAULT_EXECUTED_NOTIONAL_USDC,
-    )
-    return parser
 
 
 def config_from_args(args: argparse.Namespace) -> ManualLiveSubmitConfig:
@@ -203,45 +199,51 @@ def run_manual_live_submit(
     started_at = current_utc_timestamp()
     started = time.perf_counter()
 
-    live_decision = record_manual_live_service_decision(service, config)
-    command_context = build_request_context(config, config.idempotency_key)
-    first_submit = service.submit_manual_order(body, command_context)
-    admission = object_record(first_submit.body.get("admission_decision"))
-    if not admission:
-        return build_summary(
-            config=config,
-            body=body,
-            started_at=started_at,
-            duration_seconds=time.perf_counter() - started,
-            live_decision=live_decision.body,
-            first_submit=first_submit.body,
-            proof_chain={},
-            final_submit=first_submit.body,
-            final_status_code=first_submit.status_code,
-        )
+    with runner_command_idempotency_store(config.state_dir) as command_store:
+        live_decision = record_manual_live_service_decision(service, config)
+        command_context = build_request_context(config, config.idempotency_key)
+        first_submit = service.submit_manual_order(body, command_context)
+        admission = object_record(first_submit.body.get("admission_decision"))
+        if not admission:
+            return build_summary(
+                config=config,
+                body=body,
+                started_at=started_at,
+                duration_seconds=time.perf_counter() - started,
+                live_decision=live_decision.body,
+                first_submit=first_submit.body,
+                proof_chain={},
+                final_submit=first_submit.body,
+                final_status_code=first_submit.status_code,
+            )
 
-    proof_context = {
-        "route": admission.get("route"),
-        "method": admission.get("method"),
-        "module_id": admission.get("module_id"),
-        "identity_key": admission.get("identity_key"),
-        "identity_value": admission.get("identity_value"),
-        "action_class": admission.get("action_class"),
-        "required_permission": admission.get("required_permission"),
-        "service_method": admission.get("service_method"),
-        "actor_id": admission.get("actor_id"),
-        "operator_intent": admission.get("operator_intent"),
-        "command_idempotency_key": admission.get("idempotency_key"),
-        "payload_hash": admission.get("payload_hash"),
-    }
-    proof_chain = service.record_spot_manual_order_proof_chain(
-        {
-            **proof_context,
-            "max_submitted_notional_usdc": config.max_submitted_notional_usdc,
-            "max_executed_notional_usdc": config.max_executed_notional_usdc,
-        },
-        build_request_context(config, f"{config.idempotency_key}-proof-chain"),
-    )
+        persist_runner_no_live_first_pass(
+            command_store,
+            first_submit.body,
+        )
+        proof_context = {
+            "route": admission.get("route"),
+            "method": admission.get("method"),
+            "module_id": admission.get("module_id"),
+            "identity_key": admission.get("identity_key"),
+            "identity_value": admission.get("identity_value"),
+            "action_class": admission.get("action_class"),
+            "required_permission": admission.get("required_permission"),
+            "service_method": admission.get("service_method"),
+            "actor_id": admission.get("actor_id"),
+            "operator_intent": admission.get("operator_intent"),
+            "command_idempotency_key": admission.get("idempotency_key"),
+            "payload_hash": admission.get("payload_hash"),
+        }
+        proof_chain = service.record_spot_manual_order_proof_chain(
+            {
+                **proof_context,
+                "max_submitted_notional_usdc": config.max_submitted_notional_usdc,
+                "max_executed_notional_usdc": config.max_executed_notional_usdc,
+            },
+            build_request_context(config, f"{config.idempotency_key}-proof-chain"),
+            command_idempotency_store=command_store,
+        )
     final_submit = service.submit_manual_order(body, command_context)
     return build_summary(
         config=config,
@@ -254,6 +256,121 @@ def run_manual_live_submit(
         final_submit=final_submit.body,
         final_status_code=final_submit.status_code,
     )
+
+
+@contextmanager
+def runner_command_idempotency_store(
+    state_dir: str | Path | None,
+):
+    """Yield a FileIdempotencyStore isolated from MVP evidence JSONL."""
+
+    if state_dir is not None:
+        yield FileIdempotencyStore(
+            Path(state_dir).resolve() / RUNNER_COMMAND_IDEMPOTENCY_FILENAME
+        )
+        return
+    with TemporaryDirectory(prefix="coinbase-admin-runner-command-") as temp_dir:
+        yield FileIdempotencyStore(
+            Path(temp_dir) / RUNNER_COMMAND_IDEMPOTENCY_FILENAME
+        )
+
+
+def persist_runner_no_live_first_pass(
+    command_store: FileIdempotencyStore,
+    first_pass_body: Mapping[str, Any],
+) -> AdminApiCommandResponse:
+    """Persist one exact typed no-live first pass for composite proof binding."""
+
+    response_payload = {
+        field_name: first_pass_body[field_name]
+        for field_name in AdminApiCommandResponse.model_fields
+        if field_name in first_pass_body
+    }
+    if not response_payload.get("admission_decision"):
+        proof_context = object_record(first_pass_body.get("proof_context"))
+        response_payload["admission_decision"] = (
+            AdminLiveAdmissionDecisionEvidence(
+                status=AdminApiGateStatus.BLOCKED,
+                allowed=False,
+                route=str(proof_context.get("route") or ""),
+                method=str(proof_context.get("method") or ""),
+                module_id=str(proof_context.get("module_id") or ""),
+                identity_key=str(proof_context.get("identity_key") or ""),
+                identity_value=str(proof_context.get("identity_value") or ""),
+                action_class=proof_context.get("action_class"),
+                required_permission=proof_context.get("required_permission"),
+                service_method=str(proof_context.get("service_method") or ""),
+                actor_id=str(proof_context.get("actor_id") or ""),
+                idempotency_key=str(
+                    proof_context.get("command_idempotency_key") or ""
+                ),
+                operator_intent=str(proof_context.get("operator_intent") or ""),
+                payload_hash=str(proof_context.get("payload_hash") or ""),
+                live_exchange_submitted=False,
+                detail="Backend runner no-live first-pass command context.",
+            ).model_dump(mode="json")
+        )
+    response = AdminApiCommandResponse.model_validate(response_payload)
+    admission = response.admission_decision
+    route_contracts = {
+        "/api/v1/orders": (
+            AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+            AdminApiPermission.ORDER_CREATE,
+            "place_manual_order",
+            "POST /api/v1/orders",
+        ),
+        "/api/v1/orders/{client_order_id}/cancel": (
+            AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+            AdminApiPermission.ORDER_CANCEL,
+            "cancel_order_by_client_order_id",
+            f"POST /api/v1/orders/{response.client_order_id}/cancel",
+        ),
+    }
+    route_contract = route_contracts.get(admission.route if admission else "")
+    if (
+        response.status != AdminApiCommandStatus.NOT_IMPLEMENTED
+        or response.live_exchange_submitted is not False
+        or response.live_coinbase_orders_ran is not False
+        or response.client_order_id is None
+        or response.idempotency_key is None
+        or admission is None
+        or admission.allowed is not False
+        or admission.status != AdminApiGateStatus.BLOCKED
+        or admission.live_exchange_submitted is not False
+        or route_contract is None
+        or response.action_class != route_contract[0]
+        or response.required_permission != route_contract[1]
+        or response.service_method != route_contract[2]
+        or admission.action_class != route_contract[0]
+        or admission.required_permission != route_contract[1]
+        or admission.service_method != route_contract[2]
+        or admission.identity_key != "client_order_id"
+        or admission.identity_value != response.client_order_id
+        or admission.idempotency_key != response.idempotency_key
+        or not admission.actor_id
+        or not admission.operator_intent
+        or len(admission.payload_hash) != 64
+        or any(
+            character not in "0123456789abcdef"
+            for character in admission.payload_hash
+        )
+    ):
+        raise RuntimeError("runner_no_live_first_pass_binding_invalid")
+    endpoint = route_contract[3]
+    if command_store.get_record(response.idempotency_key) is not None:
+        raise RuntimeError("runner_command_idempotency_key_already_recorded")
+    command_store.put_record(
+        IdempotencyRecord(
+            idempotency_key=response.idempotency_key,
+            payload_hash=admission.payload_hash,
+            client_order_id=response.client_order_id,
+            status=response.status,
+            response=response.model_dump(mode="json"),
+            actor_id=admission.actor_id,
+            endpoint=endpoint,
+        )
+    )
+    return response
 
 
 def validate_live_submit_config(config: ManualLiveSubmitConfig) -> None:
@@ -531,32 +648,13 @@ def write_json(path: Path, payload: Mapping[str, Any]) -> None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run the explicit manual live submit and write evidence."""
+    """Fail closed before credential, service, state, or SDK access."""
 
-    args = build_parser().parse_args(argv)
-    config = config_from_args(args)
-    if not config.confirm_live_submit:
-        raise LiveSubmitConfirmationError(
-            "Manual live submission requires --confirm-live-submit."
-        )
-    assert_live_credentials_present(os.environ)
-    if config.state_dir:
-        apply_manual_live_submit_state_environment(Path(config.state_dir))
-    os.environ[LIVE_EXECUTION_ENV] = "1"
-    apply_runner_environment()
-    try:
-        summary = run_manual_live_submit(get_admin_mvp_service(), config)
-    except LiveSubmitCapExceededError as exc:
-        print(f"Backend manual live submit blocked: {exc}")
-        return 1
-    write_json(args.summary_output, summary)
-    print(
-        "Backend manual live submit: "
-        f"{summary['status']}; live {summary['live_coinbase_execution']}; "
-        f"notional {summary['notional_usdc']} USDC; "
-        f"artifact {args.summary_output.resolve()}"
-    )
-    return 0 if summary["status"] == "passed" else 1
+    parser = build_parser()
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments in (["-h"], ["--help"]):
+        parser.parse_args(arguments)
+    parser.error(SOURCE_DISABLED_COINBASE_EXECUTION_ERROR)
 
 
 if __name__ == "__main__":

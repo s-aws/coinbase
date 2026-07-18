@@ -116,14 +116,15 @@ To require known profitable lots for spot sells:
 $env:ACTION_CONDITION_GUARDS_JSON = '{"known_inventory_available":{"enabled":true}}'
 ```
 
-## Direct Dashboard Spot Order Guarding
+## Historical Dashboard Spot Order Messages (Source-Disabled)
 
-Raw dashboard `place_order` messages also run the planning-phase action guard
-after size validation and before REST placement:
+Raw dashboard `place_order`, `cancel_order`, and hotpoint messages now return a
+fixed source-disabled response before runtime or command-service lookup. The
+JSON below is retained only as a historical protocol example.
 
 Do not use this WebSocket surface for new enterprise frontend product flows.
 The enterprise frontend must use the HTTP Admin API contract and BFF/session
-boundary; raw dashboard messages remain compatibility/manual operator tools.
+boundary; raw dashboard mutation messages are not operator execution tools.
 
 ```json
 {
@@ -141,16 +142,11 @@ boundary; raw dashboard messages remain compatibility/manual operator tools.
 }
 ```
 
-This is a live manual order surface. There is no raw `place_order` dry-run
-mode; use `tools/run_spot_portfolio_sweep_dry_run.py` or campaign dry-run
-matrices when the operator needs a dry-runable spot workflow.
+This message does not place an order. Controlled-live manual testing uses the
+installed authenticated Admin API LIMIT/GTC place/cancel workflow.
 
-Before sending a raw direct order, confirm the product, side, base or quote
-notional, active action-condition guard policy, and local audit availability.
-Spot direct placement requires the explicit `manual_live_acknowledgement=true`
-field before the server will submit to Coinbase. It also requires a matching
-planning-phase `max_notional` cap and an enabled local `order_event_stream`
-publisher before REST submission.
+Action-condition configuration below remains useful for offline/historical
+guard tests. It cannot enable the source-disabled dashboard mutation path.
 
 Configure a direct spot notional cap through the existing guard path:
 
@@ -158,50 +154,38 @@ Configure a direct spot notional cap through the existing guard path:
 $env:ACTION_CONDITION_GUARDS_JSON = '{"limits":[{"name":"direct_spot_cap","product_type":"SPOT","max_notional":100,"phases":["planning"]}]}'
 ```
 
-Direct spot `SELL` additionally requires `known_inventory_available` before
-REST. A complete direct SELL guard baseline looks like this:
+Historical SELL guard-fixture shape:
 
 ```powershell
 $env:ACTION_CONDITION_GUARDS_JSON = '{"wallet_available":{"enabled":true,"block_without_credentials":true},"known_inventory_available":{"enabled":true,"phases":["planning"]},"limits":[{"name":"direct_spot_order_cap","product_type":"SPOT","max_notional":25,"phases":["planning"]}]}'
 ```
 
-Use a regenerated strict SELL sweep/campaign allowlist instead of raw
-`place_order` when the operator needs portfolio-wide profit-authority evidence,
-per-run caps, skipped-order accounting, or repeatable execution.
+Use sweep/campaign allowlists for offline portfolio-wide authority review;
+their mutation modes are also source-disabled.
 
-Raw direct spot `SELL` should be limit-priced. A direct market SELL does not
-provide a positive operator-selected sale price to the known-inventory
-authority check, so it should be treated as fail-closed under the direct spot
-guard. Use sweep/campaign for market-style portfolio SELLs because the runner
-builds mark-aware plan and explain rows before submission.
+Historical price/known-inventory helpers remain testable with synthetic rows,
+but cannot submit a dashboard or sweep SELL.
 
-Direct dashboard orders do not produce a sweep JSONL run record. After
-placement, audit them through the `order_response`, `order_event_stream`
-submission evidence, websocket/order lifecycle records, fill-ledger rows, and
-shared reconciliation/fill-audit paths keyed by `client_order_id`. The success
-response includes an `audit_command`, and the same read-only audit can be run
-directly:
+Already-recorded historical dashboard orders can be audited by
+`client_order_id` with the read-only command:
 
 ```powershell
 python3.13 tools/run_spot_direct_order_audit.py --client-order-id 4af4f6a1-0ef6-4a58-8e02-f0db9c6106e8
 ```
 
 The audit command reads local event-stream and fill-ledger evidence only. It
-does not submit orders, cancel orders, retry orders, or call Coinbase REST. Use
-the sweep or campaign runner when a workflow needs a self-contained
-command-line run ledger, retry plan, reconciliation wrapper, scheduled
-execution, or portfolio-wide automation. In audit output,
+does not submit orders, cancel orders, retry orders, or call Coinbase REST. In
+audit output,
 `live_coinbase_orders_ran` and `audit_command_live_coinbase_orders_ran` refer
 to the audit command itself. Use
 `audited_order_live_submission_evidence`,
 `audited_order_estimated_submitted_notional_usdc`, and
-`audited_order_fill_notional_usdc` to inspect evidence for the order being
-audited. Use stealth instead when a planned local order should reveal later
-under the shared guard path.
+`audited_order_fill_notional_usdc` to inspect historical evidence.
 
-## Cancel A Dashboard Order By Client ID
+## Historical Dashboard Cancel Message (Source-Disabled)
 
-Dashboard `cancel_order` uses `client_order_id`, not exchange `order_id`:
+The historical message used `client_order_id`, but now returns the fixed
+source-disabled response:
 
 ```json
 {
@@ -210,7 +194,7 @@ Dashboard `cancel_order` uses `client_order_id`, not exchange `order_id`:
 }
 ```
 
-The nested form is also accepted:
+Historical nested form:
 
 ```json
 {
@@ -221,10 +205,8 @@ The nested form is also accepted:
 }
 ```
 
-Requests that provide only `order_id` are rejected before REST. The handler
-calls `REST_CLIENT.cancel_order(client_order_id)`; batch
-`cancel_orders(order_ids=[...])` remains exchange-id oriented and is not the
-dashboard cancellation contract.
+No dashboard cancel shape reaches REST. Use authenticated Admin API cancel for
+Controlled-live operator testing.
 
 ## Request Spot Readiness Feedback
 
@@ -242,12 +224,14 @@ inventory split by known and unknown cost basis.
 
 ## Refresh Product Metadata From The Dashboard
 
-Send the existing dashboard request:
+This is retained only as a historical request shape:
 
 ```json
 {"type": "update_products_list"}
 ```
 
-The dashboard updates `products.json` through the existing product refresh path.
-After refresh, verify any `ticker_to_trading` mapping still points only to live,
-tradable products.
+The installed dashboard/Admin API refresh boundary is source-disabled before
+any Coinbase product read or `products.json` write. It returns fixed
+unavailable evidence and cannot update metadata. Restoring refresh requires a
+separately authorized backend idempotency/audit design; the browser request is
+not authority.

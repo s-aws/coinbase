@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 
 from core.enums import (
     AdminApiActionClass,
@@ -10,7 +12,11 @@ from core.enums import (
     AdminApiPermission,
 )
 
-from .cap_guard import CapGuardDecisionRecord, FileAdminApiCapGuardStore
+from .cap_guard import (
+    CapGuardDecisionRecord,
+    FileAdminApiCapGuardStore,
+    operator_mvp_cap_guard_policy_error,
+)
 from .models import AdminCapGuardDecisionCreateRequest, AdminCapGuardDecisionItem
 from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 
@@ -21,6 +27,15 @@ class CapGuardDecisionError(ValueError):
 
 class AdminApiCapGuardDecisionService:
     """Service boundary for append-only cap/guard decision records."""
+
+    def __init__(
+        self,
+        *,
+        wallet_evidence_resolver: Callable[[str], Decimal] | None = None,
+    ) -> None:
+        self._wallet_evidence_resolver = (
+            wallet_evidence_resolver or _read_authoritative_usdc_wallet
+        )
 
     def record_decision(
         self,
@@ -34,6 +49,30 @@ class AdminApiCapGuardDecisionService:
         self._validate_decision_consistency(body)
         if store.find_by_decision_id(body.approval_cap_guard_decision_ref) is not None:
             raise CapGuardDecisionError("Cap/guard decision already exists.")
+
+        wallet_check_status = body.wallet_check_status
+        wallet_available_notional_usdc = body.wallet_available_notional_usdc
+        wallet_check_source = body.wallet_check_source
+        if _requires_authoritative_operator_wallet(body):
+            try:
+                authoritative_available = self._wallet_evidence_resolver(
+                    body.product_scope
+                )
+            except Exception as exc:
+                raise CapGuardDecisionError(
+                    "Authoritative backend wallet evidence is unavailable: "
+                    f"exception_class:{type(exc).__name__}."
+                ) from None
+            submitted = _decimal_value(body.max_submitted_notional_usdc)
+            if authoritative_available < submitted:
+                raise CapGuardDecisionError(
+                    "Authoritative backend wallet evidence must cover submitted notional."
+                )
+            # Persist only the bounded amount proved sufficient, not the
+            # operator's full private wallet balance.
+            wallet_check_status = AdminApiGateStatus.PASSED
+            wallet_available_notional_usdc = body.max_submitted_notional_usdc
+            wallet_check_source = "backend_coinbase_account_wallet_read"
 
         record = CapGuardDecisionRecord(
             decision_id=body.approval_cap_guard_decision_ref,
@@ -60,9 +99,9 @@ class AdminApiCapGuardDecisionService:
             max_submitted_notional_usdc=body.max_submitted_notional_usdc,
             max_executed_notional_usdc=body.max_executed_notional_usdc,
             wallet_check_required=body.wallet_check_required,
-            wallet_check_status=body.wallet_check_status,
-            wallet_available_notional_usdc=body.wallet_available_notional_usdc,
-            wallet_check_source=body.wallet_check_source,
+            wallet_check_status=wallet_check_status,
+            wallet_available_notional_usdc=wallet_available_notional_usdc,
+            wallet_check_source=wallet_check_source,
             reason=body.reason,
         )
         store.append(record)
@@ -137,6 +176,30 @@ class AdminApiCapGuardDecisionService:
     ) -> None:
         resolver_eligible = body.allowed and body.status == AdminApiGateStatus.PASSED
         if resolver_eligible:
+            policy_error = operator_mvp_cap_guard_policy_error(
+                body,
+                verify_wallet_fields=False,
+            )
+            if policy_error == "operator_mvp_manual_product_scope_invalid":
+                raise CapGuardDecisionError(
+                    "Operator-ready manual cap decisions require one concrete USDC Spot product."
+                )
+            if policy_error == "operator_mvp_submitted_notional_ceiling_exceeded":
+                raise CapGuardDecisionError(
+                    "Cap decision exceeds the installed MVP submitted-notional ceiling."
+                )
+            if policy_error == "operator_mvp_executed_notional_ceiling_exceeded":
+                raise CapGuardDecisionError(
+                    "Cap decision exceeds the installed MVP executed-notional ceiling."
+                )
+            if policy_error == "operator_mvp_wallet_evidence_insufficient":
+                raise CapGuardDecisionError(
+                    "Cap decision wallet evidence must cover submitted notional."
+                )
+            if policy_error is not None:
+                raise CapGuardDecisionError(
+                    f"Cap decision violates installed operator MVP policy: {policy_error}."
+                )
             return
         if body.allowed or body.status == AdminApiGateStatus.PASSED:
             raise CapGuardDecisionError(
@@ -145,7 +208,11 @@ class AdminApiCapGuardDecisionService:
 
 
 def _item_from_record(record: CapGuardDecisionRecord) -> AdminCapGuardDecisionItem:
-    resolver_eligible = record.allowed and record.status == AdminApiGateStatus.PASSED
+    resolver_eligible = bool(
+        record.allowed
+        and record.status == AdminApiGateStatus.PASSED
+        and operator_mvp_cap_guard_policy_error(record) is None
+    )
     detail = (
         "Cap/guard decision is resolver-eligible for an exact backend admission "
         "match."
@@ -203,3 +270,49 @@ def _enum_value(value: AdminApiActionClass | AdminApiPermission | str) -> str:
     if hasattr(value, "value"):
         return str(value.value)
     return value
+
+
+def _requires_authoritative_operator_wallet(
+    body: AdminCapGuardDecisionCreateRequest,
+) -> bool:
+    return bool(
+        body.allowed
+        and body.status == AdminApiGateStatus.PASSED
+        and body.route == "/api/v1/orders"
+        and body.method.upper() == "POST"
+        and body.module_id == "spot_operations"
+        and body.service_method == "place_manual_order"
+    )
+
+
+def _read_authoritative_usdc_wallet(_product_scope: str) -> Decimal:
+    """Read the backend-bound USDC wallet for a passed manual cap decision."""
+
+    from application.admin_api.command_runtime import admin_api_live_runtime_enabled
+    import configuration
+
+    if not admin_api_live_runtime_enabled():
+        raise CapGuardDecisionError("operator_live_runtime_not_enabled")
+    wallets = configuration.rest_get_account_wallets()
+    if not isinstance(wallets, Mapping):
+        raise CapGuardDecisionError("operator_wallet_payload_unavailable")
+    wallet = wallets.get("USDC")
+    if not isinstance(wallet, Mapping):
+        raise CapGuardDecisionError("operator_usdc_wallet_unavailable")
+    available = wallet.get("available_balance")
+    if isinstance(available, Mapping):
+        available = available.get("value")
+    parsed = _decimal_value(available)
+    if parsed < 0:
+        raise CapGuardDecisionError("operator_usdc_wallet_invalid")
+    return parsed
+
+
+def _decimal_value(value: object) -> Decimal:
+    try:
+        parsed = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise CapGuardDecisionError("Invalid finite decimal evidence.") from exc
+    if not parsed.is_finite():
+        raise CapGuardDecisionError("Invalid finite decimal evidence.")
+    return parsed

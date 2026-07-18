@@ -2,15 +2,14 @@
 
 Historical planning record; not current work authority.
 
-This is a frozen M57 handoff snapshot. Current work is goal id
-`selected_order_execution_closeout_slice` in
-`genai_data/AGENT_MVP_REBUILD_GOAL.md` and the frontend canonical goal. Do not
-resume the branch, phase, or next-step instructions below without explicit
-operator reprioritization.
+This is a frozen M57 handoff snapshot. At snapshot time, work used goal id
+`selected_order_execution_closeout_slice`; that goal is now completed
+historical evidence. Do not resume the branch, phase, or next-step instructions
+below without explicit operator reprioritization.
 
 Use this file only to interpret the frozen M57 payload fields. It is not a
-source of truth for active engineering work. Current scope lives in
-`genai_data/AGENT_MVP_REBUILD_GOAL.md`.
+source of truth for active engineering work. Current public direction lives in
+the repository `README.md` and `docs/PUBLIC_ROADMAP.md`.
 
 ## Metadata
 

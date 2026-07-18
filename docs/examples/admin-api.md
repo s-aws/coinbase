@@ -1,15 +1,16 @@
 # Admin API Examples
 
 The M57 phase labels below are historical contract examples, not current work
-authority. Current goal id is `selected_order_execution_closeout_slice`.
+authority. Standing work is the operator-ready review-stack closeout; Slice
+2R12 is terminal consumed and grants no retry, R13, or additional live scope.
 
 These examples describe the current enterprise Admin API contract. Mutating
 HTTP endpoints are authenticated, permission-checked, idempotent, audited, and
-route-specific. `POST /api/v1/orders` can pass a backend admission decision to
-the shared command service and can reach Coinbase only when every backend live
-gate is enabled. The HTTP cancel route, Futures command routes, and guarded
-fill-follow-up trigger remain live-disabled/no-live in their current route
-implementations. See `docs/LIVE_ORDER_SURFACES.md` for the canonical surface
+route-specific. `POST /api/v1/orders` and
+`POST /api/v1/orders/{client_order_id}/cancel` can reach Coinbase only when
+every backend Controlled-live gate passes. Futures command routes, the guarded
+fill-follow-up trigger, and every other exchange-mutation route remain No-live
+or source-disabled. See `docs/LIVE_ORDER_SURFACES.md` for the canonical surface
 matrix. Read-only Spot operator endpoints use the same fail-closed auth
 dependency.
 
@@ -1039,7 +1040,12 @@ X-Admin-Actor: viewer-001
 X-Admin-Roles: viewer
 ```
 
-Expected current live-enablement posture:
+Historical No-live response-shape snapshot (not current runtime truth):
+
+The payload below predates the operator-ready route-specific topology. Retain
+it only as schema evolution evidence. Current clients must render fresh backend
+evidence, which may admit only exact manual Spot LIMIT/GTC place and Admin-root
+cancel paths after the complete Controlled-live authority chain passes.
 
 ```json
 {
@@ -2474,15 +2480,20 @@ Current backend behavior:
 - parse the request through FastAPI/Pydantic
 - authenticate actor and authorize `order:cancel`
 - evaluate durable idempotency
-- call the shared command service with HTTP live execution disabled
+- require the exact outer execution flag, current manager lease, live decision,
+  route proof chain, Test portfolio binding, manual acknowledgement, and command
+  runtime readiness before Controlled-live admission
+- use authoritative readback to bind the selected `client_order_id` to one exact
+  active exchange `order_id`
+- call `cancel_order(client_order_id, verified_exchange_order_id=...)` once,
+  with no retry or identity fallback
 - write durable command audit evidence
-- return `501` with `status: "not_implemented"`
-- never call Coinbase
+- return fail-closed `not_implemented` or `rejected` without calling Coinbase
+  whenever Controlled-live admission is absent or incomplete
 
-Future live execution must call the project Coinbase wrapper
-`cancel_order(client_order_id)` after rate/cap policy is complete. The wrapper
-must parse Coinbase cancel payloads and accept only explicit `success: true`
-evidence as a successful exchange cancellation.
+The wrapper parses typed Coinbase cancel evidence. An accepted mutation still
+requires exact terminal readback and durable local status persistence; absence
+alone is never treated as cancellation.
 
 ## Stealth Cancel By Stealth Order ID
 

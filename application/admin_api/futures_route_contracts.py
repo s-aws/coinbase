@@ -26,7 +26,7 @@ from .live_execution import (
 
 @dataclass(frozen=True)
 class FuturesRouteContract:
-    """One route-registration contract for a futures command draft."""
+    """One fixed source-disabled Futures command route contract."""
 
     command: AdminFuturesCommandAction
     contract_name: str
@@ -34,14 +34,14 @@ class FuturesRouteContract:
     route_template: str
     method: str = "POST"
     route_registered: bool = True
-    command_draft_allowed: bool = True
+    command_draft_allowed: bool = False
     live_adapter_bound: bool = False
     execution_allowed: bool = False
     reconciliation_execution_enabled: bool = False
     state_mutation_allowed: bool = False
     live_coinbase_orders_ran: bool = False
     browser_authority: str = "display_only"
-    bff_authority: str = "forward_only_no_execution"
+    bff_authority: str = "source_disabled_not_forwarded"
 
 
 def _route_contract(

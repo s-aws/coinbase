@@ -21,40 +21,16 @@ frontend request
 -> typed response
 ```
 
-Current generic/browser HTTP command requests are authenticated, authorized,
-idempotent, audited, and live-disabled. Live-shaped requests return typed `501`
-`not_implemented` responses until live HTTP approval, guard, cap, and audit
-gates are complete. The sole backend-controlled stealth exception is the
-deterministic first `ADMIN_FILL_FOLLOW_UP` child in an explicitly approved
-Test-profile batch. It requires exact root/slot identity, backend live service,
-approval/audit/cap/reconciliation records, a fresh zero-active-order read, the
-Spot standing-price and sub-2-USDC guards, the manager's one-use authority,
-and authoritative exact readback binding `client_order_id` to
-`exchange_order_id`. Its narrow schema-24 controlled recovery exception has
-the canonical wrapper submit that verified `exchange_order_id` exactly once,
-with no client-ID exchange call, fallback, retry, or second submission.
-Operator/local ownership, lineage, claim, and audit identity remains
-`client_order_id`; older and generic cancel behavior is unchanged. The
-exception grants no browser/BFF authority and cannot submit an ordinary or
-later-generation child.
-Schema-24 transition authority is narrower still: immediately before its one
-allowed `SIGTERM`, it revalidates the exact predecessor process, 120-minute
-TTL, absence of all successor artifacts, and tracked-clean backend/frontend
-worktrees exactly synced with `origin/main`. An exclusive immutable owner-only
-pre-signal attempt claim permanently consumes an ambiguous attempt. The
-predecessor binding must consume both distinct service-disable record hashes
-(`service_disabled` and `parent_loss_service_disabled`, both approval-false
-with zero caps), and transition evidence must freeze the terminal
-`runtime_exited` sentinel hash proving zero root/child placement SDK calls and
-no in-flight placement. Transition and cleanup do not force-kill; uncertain
-shutdown remains failed closed without escalation, preserving any still-live
-runtime for reconciliation.
-The guarded fill-follow-up trigger is a no-live local-state compatibility
-exception that can return accepted parent/child readback evidence after exact
-proof refs while Coinbase submit/cancel and live exchange mutation remain
-disallowed. The generated OpenAPI schema also includes typed `200`
-accepted/replayed response contracts for live-enabled or no-live local
-compatibility outcomes.
+Authenticated Admin API manual Spot LIMIT/GTC place/cancel is the sole
+Controlled-live command surface. It requires the exact execution flag,
+manager-owned lease, current lease-bound service decision, RBAC, operator
+intent, idempotency, explicit acknowledgement, caps, exact Test
+portfolio/wallet evidence, audit, reconciliation, and a route-minted final SDK
+scope. All other browser/HTTP command routes are no-live/local-evidence or
+source-disabled. Fill-follow-up routes may create and report local parent/child
+readback evidence after exact proof refs, but they cannot mint the canonical
+place/cancel SDK scope or authorize Coinbase mutation. Legacy schema/transition
+records remain historical evidence, not current execution authority.
 `X-Operator-Intent` is required command evidence. It must be recorded in the
 durable command audit event and included in the idempotency payload hash.
 
@@ -68,15 +44,12 @@ USDC, cost-basis, average-cost, lot authority, or no-shorting rules into
 futures/perpetuals, stealth orders, repricing, or risk modules. Add or update
 `docs/ADMIN_MODULE_CAPABILITY_MATRIX.md` before broadening a module.
 
-Legacy dashboard compatibility path:
+Legacy dashboard mutation boundary:
 
 ```text
 dashboard WebSocket message
--> compatibility adapter
--> compatibility idempotency/approval/cap treatment for live commands
--> shared command service
--> existing domain/bridge/exchange path
--> dashboard response/state update
+-> fixed source-disabled response
+-> no runtime, command-service, guard, or REST lookup
 ```
 
 ## Shared Service Boundary
@@ -92,13 +65,13 @@ Implemented modules:
 - `openapi/coinbase-admin-api.yaml`
 - `docs/plans/ADMIN_API_ROUTE_INVENTORY.md`
 
-Shared command service methods currently cover manual placement,
-cancel-by-`client_order_id`, hotpoint test placement for legacy dashboard
-compatibility, generic-live-disabled stealth reveal/cancel by
-`stealth_order_id` plus the exact controlled first-child exception above, and a
-live-disabled movement reprice command keyed by `stealth_order_id`, and a
-live-disabled spot campaign execution contract, and a live-disabled spot sweep
-automation command contract keyed by `sweep_config_id`.
+Shared command service methods currently cover authenticated Admin API manual
+Spot LIMIT/GTC placement and cancel-by-`client_order_id`, synthetic hotpoint
+regression behavior, generic-live-disabled stealth reveal/cancel by
+`stealth_order_id`, local-evidence fill-follow-up behavior, a live-disabled
+movement reprice command keyed by `stealth_order_id`, a source-disabled spot
+campaign execution contract, and a source-disabled spot sweep automation
+contract keyed by `sweep_config_id`.
 
 Read-only Admin API routes currently cover backend bootstrap, health,
 session/RBAC evidence, capabilities, guard/risk policy evidence, audit

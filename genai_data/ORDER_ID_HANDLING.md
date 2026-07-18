@@ -6,16 +6,12 @@ Use `client_order_id` for internal tracking.
 Use `order_id` only when interacting with exchange APIs or exchange-origin identifiers.
 Cancellation remains operator- and local-state keyed by `client_order_id`.
 Ownership, lineage, claims, and audit remain keyed by `client_order_id` too.
-Older and generic backend cancel paths retain the project Coinbase wrapper's
-`cancel_order(client_order_id)` behavior and recorded exchange-id fallback.
-The narrow schema-24 controlled recovery exception may, only after
-authoritative exact readback binds `client_order_id` to `exchange_order_id`,
-have that canonical wrapper submit the verified `exchange_order_id` exactly
-once. It makes no client-ID
-exchange call and permits no fallback, retry, or second submission. It
+Authenticated Admin API manual cancel binds authoritative exact
+`exchange_order_id` readback evidence for one route-scoped SDK call. It permits
+no identity fallback, retry, or second submission and
 preserves `operator_identity_key=client_order_id` and
-`exchange_order_id_evidence_only=true`. Raw batch
-`cancel_orders(order_ids=[...])` remains exchange-id oriented.
+`exchange_order_id_evidence_only=true`. Legacy generic, schema-24, raw-batch,
+stealth, and direct-service cancellation paths are historical/source-disabled.
 
 If you mix them, you get phantom parents, failed lookups, missed-fill noise, and bad reconciliation.
 
@@ -69,16 +65,10 @@ Reason:
 - Exchange `order_id` for revealed placement is supplemental and may arrive later.
 - Move-revealed keeps the same stealth root but replaces placement identifiers.
 - Cancel/re-entry keeps the same stealth root, cancels the active placement, stores the cancelled placement identifiers in `cancel_reentry_state_json`, and later re-enters with a new placement identifier through the normal reveal path.
-- Stealth move/reprice/cancel-reentry paths that call raw batch
-  `cancel_orders(order_ids=[...])` use the tracked exchange identifier, usually
-  `active_exchange_order_id`. Dashboard/manual single-order cancellation is
-  still requested by `client_order_id` and first uses
-  `CoinbaseClient.cancel_order(client_order_id)` on older and generic paths.
-  The schema-24 controlled recovery exception instead authoritatively binds the
-  exact client and exchange identities, then has the same wrapper submit the
-  verified exchange id once, without a client-ID exchange call, fallback,
-  retry, or second submission. Local linkage, parent rows, claims, audit,
-  dashboard references, and follow-up ownership still use `client_order_id`.
+- Historical stealth move/reprice/cancel-reentry records may contain tracked
+  exchange identifiers such as `active_exchange_order_id`. Their mutation paths
+  are source-disabled; local linkage, parent rows, claims, audit, dashboard
+  references, and follow-up ownership still use `client_order_id`.
 
 Related code:
 - `core/stealth_order_manager.py`
@@ -87,14 +77,14 @@ Related code:
 
 ## Spot Sweep ID Rules
 
-- Live USDC sweep placements call Coinbase with UUID `client_order_id` values.
-- Sweep classification comes from the durable sweep run ledger and
-  `order_event_stream` `order_submitted` / `rest_submit` payloads, not from a
-  prefixed client id.
-- The live sweep executor can publish owned-submission evidence through
-  `OrderEventStreamPublisher`; if the local event stream is unavailable, the
-  sweep order report records `submission_event_recorded=false` while still
-  preserving the Coinbase submission result.
+- Historical/synthetic USDC sweep placement records use UUID
+  `client_order_id` values. The installed sweep mutation mode is
+  source-disabled and cannot call Coinbase.
+- Sweep classification comes from the durable sweep run ledger and historical
+  or synthetic `order_event_stream` `order_submitted` / `rest_submit` payloads,
+  not from a prefixed client id.
+- `OrderEventStreamPublisher` behavior remains regression/reference material;
+  it does not make the sweep an installed execution surface.
 
 ## Fill and Reconciliation IDs
 
@@ -135,19 +125,14 @@ That would break idempotency and reprocessing safety.
   - Use `client_order_id`.
 
 - Need to call exchange endpoint, cancel, or inspect exchange-native payload?
-  - Use `order_id` (or whichever exchange field is explicitly required). For
-    dashboard/manual and other generic single-order cancel, call the project
-    wrapper `cancel_order(client_order_id)`. Only the sealed schema-24
-    controlled recovery exception may pass its authoritatively verified
-    exchange id to that wrapper for one exchange submission; it must not make
-    a client-ID exchange call or any fallback, retry, or second submission.
+  - Keep the operator request keyed by `client_order_id`. Only authenticated
+    Admin API manual cancel may bind authoritative exact `exchange_order_id`
+    evidence for its one route-scoped SDK call. Do not use a legacy dashboard,
+    generic, schema-24, batch, or stealth mutation path.
 
 - Need to mutate a revealed stealth placement locally after an exchange cancel/move?
-  - Use `client_order_id` for local lookup and parent linkage. For raw batch
-    cancel/move code paths use the tracked exchange order id when that is the
-    API field being called; for the project single-order cancel wrapper, pass
-    `client_order_id` except for the exact schema-24 controlled recovery
-    exception above.
+  - No installed operator mutation path exists. Use `client_order_id` for
+    historical/local lookup and parent linkage; do not call raw batch helpers.
 
 - Need to partition owned vs unowned exchange fills/orders?
   - Use `order_event_stream` submission evidence to resolve `order_id -> client_order_id` first.

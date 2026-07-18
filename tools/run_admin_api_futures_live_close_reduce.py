@@ -1,9 +1,8 @@
-"""Run one explicit US CFM Futures/Perpetual live close/reduce submission.
+"""Historical Futures/Perpetual close/reduce evidence helpers.
 
-This tool is intentionally manual. It never submits to Coinbase unless
-``--confirm-live-close-reduce`` is passed, and the request still flows through
-backend Admin Futures service evidence, live-adapter decisions, runtime opt-in,
-cap evidence, and audit recording before the REST client is called.
+Exchange mutation is source-disabled. The installed CLI permits only local
+readback refresh of an existing historical artifact; no confirmation flag,
+credential, or service configuration can submit a close/reduce request.
 """
 
 from __future__ import annotations
@@ -30,6 +29,9 @@ from application.admin_api.mvp_service import (  # noqa: E402
     futures_place_notional_usdc,
     get_admin_mvp_service,
 )
+from core.coinbase_execution_authority import (  # noqa: E402
+    SOURCE_DISABLED_COINBASE_EXECUTION_ERROR,
+)
 from tools.run_admin_api_futures_executor_boundary_smoke import (  # noqa: E402
     FUTURES_ACCOUNT_FAMILY,
     FUTURES_ADAPTER_DECISIONS,
@@ -54,10 +56,8 @@ from tools.run_admin_api_futures_live_submit import (  # noqa: E402
     write_json,
 )
 from tools.run_admin_api_manual_order_live_submit import (  # noqa: E402
-    LIVE_EXECUTION_ENV,
     apply_manual_live_submit_state_environment,
     apply_runner_environment,
-    assert_live_credentials_present,
     decimal_text,
     decimal_value,
     default_state_dir,
@@ -103,10 +103,13 @@ class FuturesLiveCloseReduceConfig:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Create the Futures live close/reduce parser."""
+    """Create the historical artifact-refresh parser."""
 
     parser = argparse.ArgumentParser(
-        description="Submit one US CFM Futures close/reduce through backend Admin gates."
+        description=(
+            "Refresh historical Futures close/reduce readback evidence. "
+            "Exchange mutation is source-disabled."
+        )
     )
     parser.add_argument("--summary-output", type=Path, default=DEFAULT_SUMMARY_OUTPUT)
     parser.add_argument("--state-dir", type=Path, default=default_state_dir())
@@ -115,13 +118,17 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Backend contract ref to record. Defaults to the current git commit.",
     )
-    parser.add_argument("--confirm-live-close-reduce", action="store_true")
+    parser.add_argument(
+        "--confirm-live-close-reduce",
+        action="store_true",
+        help="Historical parser compatibility; grants no execution authority.",
+    )
     parser.add_argument(
         "--refresh-existing-artifact",
         action="store_true",
         help=(
-            "Refresh Audit Workbench proof-chain readback for an existing "
-            "live close/reduce artifact without submitting another request."
+            "Refresh local Audit Workbench proof-chain readback for an "
+            "existing historical artifact without submitting a request."
         ),
     )
     parser.add_argument(
@@ -639,29 +646,20 @@ def position_contracts_at_least_requested(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run the explicit Futures live close/reduce and write evidence."""
+    """Refresh historical readback or fail before credentials/service/SDK."""
 
-    config = config_from_args(build_parser().parse_args(argv))
-    if not config.confirm_live_close_reduce and not config.refresh_existing_artifact:
-        raise LiveCloseReduceConfirmationError(
-            "Futures live close/reduce requires --confirm-live-close-reduce."
-        )
+    parser = build_parser()
+    config = config_from_args(parser.parse_args(argv))
     if not config.refresh_existing_artifact:
-        assert_live_credentials_present(os.environ)
+        parser.error(SOURCE_DISABLED_COINBASE_EXECUTION_ERROR)
     if config.state_dir:
         apply_manual_live_submit_state_environment(config.state_dir)
-    if not config.refresh_existing_artifact:
-        os.environ[LIVE_EXECUTION_ENV] = "1"
     apply_runner_environment()
     service = get_admin_mvp_service()
-    summary = (
-        refresh_existing_futures_live_close_reduce_summary(service, config)
-        if config.refresh_existing_artifact
-        else run_futures_live_close_reduce(service, config)
-    )
+    summary = refresh_existing_futures_live_close_reduce_summary(service, config)
     write_json(config.summary_output, summary)
     print(
-        "Backend Futures live close/reduce: "
+        "Backend historical Futures close/reduce readback refresh: "
         f"{summary['status']}; live {summary['live_coinbase_execution']}; "
         f"notional {summary['notional_usdc']} USDC; "
         f"artifact {config.summary_output.resolve()}"

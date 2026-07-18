@@ -13,6 +13,7 @@ from application.admin_api.idempotency import make_payload_hash
 from application.admin_api.models import (
     AdminApiCommandResponse,
     AdminLiveAdmissionDecisionEvidence,
+    AdminOrderFillFollowUpChildCancelReadinessResponse,
 )
 from core.enums import (
     AdminApiActionClass,
@@ -445,7 +446,7 @@ def test_controlled_first_child_cancel_route_binds_proofs_and_replays_once(
     assert len(service.cancel_commands) == 1
 
 
-def test_root_scoped_child_cancel_route_binds_rbac_payload_and_idempotency(
+def test_root_scoped_child_cancel_route_is_source_disabled_before_dependencies(
     monkeypatch,
 ):
     from api.v1.routes import orders as order_routes
@@ -454,11 +455,6 @@ def test_root_scoped_child_cancel_route_binds_rbac_payload_and_idempotency(
     service = _RecordingControlledService()
     client.app.dependency_overrides[order_routes.get_command_service] = (
         lambda: service
-    )
-    monkeypatch.setattr(
-        order_routes,
-        "evaluate_command_live_admission",
-        _admit_controlled_stealth,
     )
     root_id, _child_id = _ids()
     intent = "controlled_v15_test_profile_first_child_cancel"
@@ -474,6 +470,15 @@ def test_root_scoped_child_cancel_route_binds_rbac_payload_and_idempotency(
     }
     route = f"/api/v1/orders/{root_id}/fill-follow-up/child-cancel"
 
+    unauthenticated_headers = dict(headers)
+    unauthenticated_headers.pop("Authorization")
+    unauthenticated = client.post(
+        route,
+        headers=unauthenticated_headers,
+        json=body,
+    )
+    assert unauthenticated.status_code == 401
+
     denied = client.post(
         route,
         headers=contract._headers(
@@ -486,51 +491,149 @@ def test_root_scoped_child_cancel_route_binds_rbac_payload_and_idempotency(
     assert denied.status_code == 403
     assert service.root_cancel_commands == []
 
-    accepted = client.post(route, headers=headers, json=body)
-    assert accepted.status_code == 200
-    assert accepted.json()["status"] == AdminApiCommandStatus.ACCEPTED.value
-    assert len(service.root_cancel_commands) == 1
-    command = service.root_cancel_commands[0]
-    assert command.root_client_order_id == root_id
-    assert command.admission_decision.identity_key == "client_order_id"
-    assert command.admission_decision.identity_value == root_id
-    assert command.admission_decision.route == (
-        "/api/v1/orders/{root_client_order_id}/fill-follow-up/child-cancel"
+    stores = (
+        client.admin_api_test_idempotency_store,
+        client.admin_api_test_audit_store,
+        client.admin_api_test_approval_store,
+        client.admin_api_test_cap_guard_store,
+        client.admin_api_test_reconciliation_store,
     )
-    expected_hash = make_payload_hash(
-        {
-            "endpoint": f"POST {route}",
-            "actor_id": "operator-001",
-            "roles": ["trader"],
-            "operator_intent": intent,
-            "body": body,
-            "path_params": {"root_client_order_id": root_id},
-        }
+    before = {
+        store.path: store.path.read_bytes() if store.path.exists() else None
+        for store in stores
+    }
+
+    def _unexpected_dependency():
+        raise AssertionError("source-disabled child cancel resolved a live dependency")
+
+    for dependency in (
+        order_routes.get_command_service,
+        order_routes.get_idempotency_store,
+        order_routes.get_audit_store,
+        order_routes.get_approval_store,
+        order_routes.get_cap_guard_store,
+        order_routes.get_reconciliation_store,
+        order_routes.get_live_execution_service,
+    ):
+        client.app.dependency_overrides[dependency] = _unexpected_dependency
+
+    response = client.post(route, headers=headers, json=body)
+    assert response.status_code == 501
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.NOT_IMPLEMENTED.value
+    assert payload["action_class"] == AdminApiActionClass.LIVE_EXCHANGE_CANCEL.value
+    assert payload["required_permission"] == AdminApiPermission.ORDER_CANCEL.value
+    assert payload["client_order_id"] == root_id
+    assert payload["correlation_id"] == "corr-001"
+    assert payload["idempotency_key"] == "idem-v15-root-child-cancel-route"
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_read_ran"] is False
+    assert payload["failure_stage"] == "source_disabled_not_implemented"
+    assert payload["data"] == {
+        "source_disabled": True,
+        "browser_authority": "display_only",
+        "bff_authority": "source_disabled_not_forwarded",
+        "local_state_mutated": False,
+        "exchange_mutation_attempted": False,
+    }
+    assert service.root_cancel_commands == []
+    assert {
+        path: path.read_bytes() if path.exists() else None for path in before
+    } == before
+
+
+def test_root_scoped_child_cancel_readiness_never_promotes_historical_evidence(
+    monkeypatch,
+):
+    from api.v1.routes import orders as order_routes
+
+    class _HistoricallyReadyService:
+        @staticmethod
+        def build_order_fill_follow_up_child_cancel_readiness(**kwargs):
+            return AdminOrderFillFollowUpChildCancelReadinessResponse(
+                root_client_order_id=kwargs["root_client_order_id"],
+                found=True,
+                ready=True,
+                readiness_status="ready",
+                backend_decision="allowed",
+                blockers=[],
+                browser_authority="display_and_submit_root_only",
+                detail=(
+                    "Historical service helper considered the sealed child "
+                    "ready for exchange revalidation."
+                ),
+            )
+
+    client = contract._client(monkeypatch)
+    client.app.dependency_overrides[order_routes.get_command_service] = (
+        _HistoricallyReadyService
     )
-    assert command.admission_decision.payload_hash == expected_hash
+    root_id, _child_id = _ids()
 
-    replay = client.post(route, headers=headers, json=body)
-    assert replay.status_code == 200
-    assert replay.headers["X-Idempotency-Replayed"] == "true"
-    assert len(service.root_cancel_commands) == 1
-
-    conflict = client.post(
-        route,
-        headers=headers,
-        json={**body, "reason": "changed reason"},
+    response = client.get(
+        f"/api/v1/orders/{root_id}/fill-follow-up/child-cancel/readiness",
+        headers=contract._headers(roles=AdminApiRole.AUDITOR.value),
     )
-    assert conflict.status_code == 409
-    assert len(service.root_cancel_commands) == 1
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["found"] is True
+    assert payload["ready"] is False
+    assert payload["readiness_status"] == "source_disabled"
+    assert payload["backend_decision"] == "blocked"
+    assert payload["blockers"] == ["source_disabled_not_implemented"]
+    assert payload["browser_authority"] == "display_only"
+    assert "historical local evidence" in payload["detail"].lower()
+    assert "source-disabled" in payload["detail"].lower()
 
 
-def test_root_scoped_child_cancel_same_key_retries_transient_unready(
+def test_installed_route_allowlist_cannot_be_bypassed_by_child_cancel_override(
+    monkeypatch,
+) -> None:
+    from api.v1.routes import orders as order_routes
+
+    client = contract._client(monkeypatch)
+    service = _RecordingControlledService()
+    client.app.dependency_overrides[order_routes.get_command_service] = (
+        lambda: service
+    )
+    def _unexpected_admission(**_kwargs):
+        raise AssertionError("source-disabled child cancel evaluated admission")
+
+    monkeypatch.setattr(
+        order_routes,
+        "evaluate_command_live_admission",
+        _unexpected_admission,
+    )
+    root_id, _child_id = _ids()
+    response = client.post(
+        f"/api/v1/orders/{root_id}/fill-follow-up/child-cancel",
+        headers=contract._headers(
+            idempotency_key="idem-installed-route-child-cancel-blocked",
+            operator_intent="controlled_v15_test_profile_first_child_cancel",
+            roles=AdminApiRole.TRADER.value,
+        ),
+        json={
+            "reason": "unsupported in installed operator runtime",
+            "manual_live_acknowledgement": True,
+            "controlled_plan_sha256": "a" * 64,
+        },
+    )
+
+    assert response.status_code == 501
+    assert response.json()["status"] == AdminApiCommandStatus.NOT_IMPLEMENTED.value
+    assert response.json()["failure_stage"] == "source_disabled_not_implemented"
+    assert service.root_cancel_commands == []
+
+
+def test_root_scoped_child_cancel_same_key_remains_fixed_source_disabled(
     monkeypatch,
 ):
     from api.v1.routes import orders as order_routes
 
     client = contract._client(monkeypatch)
     service = _RecordingControlledService()
-    service.root_cancel_unready_once = True
     client.app.dependency_overrides[order_routes.get_command_service] = (
         lambda: service
     )
@@ -552,19 +655,19 @@ def test_root_scoped_child_cancel_same_key_retries_transient_unready(
     }
     route = f"/api/v1/orders/{root_id}/fill-follow-up/child-cancel"
 
-    blocked = client.post(route, headers=headers, json=body)
-    accepted = client.post(route, headers=headers, json=body)
+    first = client.post(route, headers=headers, json=body)
+    second = client.post(route, headers=headers, json=body)
 
-    assert blocked.status_code == 400
-    assert blocked.json()["failure_stage"] == "root_child_cancel_readiness"
-    assert blocked.json()["live_exchange_submitted"] is False
-    assert accepted.status_code == 200
-    assert accepted.headers.get("X-Idempotency-Replayed") is None
-    assert accepted.json()["status"] == AdminApiCommandStatus.ACCEPTED.value
-    assert len(service.root_cancel_commands) == 2
+    for response in (first, second):
+        assert response.status_code == 501
+        assert response.headers.get("X-Idempotency-Replayed") is None
+        assert response.json()["status"] == AdminApiCommandStatus.NOT_IMPLEMENTED.value
+        assert response.json()["live_exchange_submitted"] is False
+        assert response.json()["failure_stage"] == "source_disabled_not_implemented"
+    assert service.root_cancel_commands == []
 
 
-def test_root_scoped_child_cancel_same_key_reenters_unknown_reconciliation(
+def test_root_scoped_child_cancel_never_enters_unknown_reconciliation(
     monkeypatch,
 ):
     from api.v1.routes import orders as order_routes
@@ -593,14 +696,17 @@ def test_root_scoped_child_cancel_same_key_reenters_unknown_reconciliation(
     }
     route = f"/api/v1/orders/{root_id}/fill-follow-up/child-cancel"
 
-    unknown = client.post(route, headers=headers, json=body)
-    reconciled = client.post(route, headers=headers, json=body)
+    first = client.post(route, headers=headers, json=body)
+    second = client.post(route, headers=headers, json=body)
 
-    assert unknown.status_code == 400
-    assert unknown.json()["live_exchange_submitted"] is True
-    assert reconciled.status_code == 200
-    assert reconciled.headers.get("X-Idempotency-Replayed") is None
-    assert len(service.root_cancel_commands) == 2
+    assert first.status_code == 501
+    assert second.status_code == 501
+    assert first.json()["live_exchange_submitted"] is False
+    assert second.json()["live_exchange_submitted"] is False
+    assert first.json()["live_coinbase_orders_ran"] is False
+    assert second.json()["live_coinbase_orders_ran"] is False
+    assert service.root_cancel_unknown_once is True
+    assert service.root_cancel_commands == []
 
 
 def test_controlled_first_child_reveal_same_key_retries_once_after_proofs_install(

@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Callable, TypeVar
+from typing import Annotated, Callable, TypeVar
 from uuid import uuid4
 
-from fastapi import APIRouter, Body, Depends, Header, HTTPException, Path, Query, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from application.admin_api.approval import FileAdminApiApprovalStore
 from application.admin_api.audit import AdminApiAuditEvent, FileAdminApiAuditStore
 from application.admin_api.auth import get_authenticated_actor, require_permission
+from application.admin_api.cap_guard import FileAdminApiCapGuardStore
+from application.admin_api.cap_guard_service import AdminApiCapGuardDecisionService
 from application.admin_api.idempotency import (
     FileIdempotencyStore,
     IdempotencyRecord,
@@ -20,15 +23,18 @@ from application.admin_api.idempotency import (
 from application.admin_api.models import (
     AdminApiActor,
     AdminApiErrorResponse,
-    AdminMvpEvidenceResponse,
     SpotPnlCheckpointCreateRequest,
     SpotPnlCheckpointItem,
     SpotPnlCheckpointListResponse,
     SpotPnlCheckpointResponse,
     SpotCampaignStatusResponse,
+    SpotCancelOrderProofChainRequest,
+    SpotCancelOrderProofChainResponse,
     SpotCommandSuiteResponse,
     SpotCostBasisStatusResponse,
     SpotDirectOrderAuditResponse,
+    SpotManualOrderProofChainRequest,
+    SpotManualOrderProofChainResponse,
     SpotReadinessResponse,
     SpotRecoveryApplyReviewResponse,
     SpotRecoveryPreviewResponse,
@@ -44,6 +50,7 @@ from application.admin_api.pnl_checkpoint_service import (
     SpotPnlCheckpointError,
 )
 from application.admin_api.read_service import AdminApiReadService
+from application.admin_api.reconciliation import FileAdminApiReconciliationStore
 from core.enums import (
     AdminApiActionClass,
     AdminApiCommandStatus,
@@ -129,6 +136,30 @@ def get_audit_store() -> FileAdminApiAuditStore:
     """Return durable audit storage for Spot local mutations."""
 
     return FileAdminApiAuditStore()
+
+
+def get_approval_store() -> FileAdminApiApprovalStore:
+    """Return canonical approval storage for composite Spot proofs."""
+
+    return FileAdminApiApprovalStore()
+
+
+def get_cap_guard_store() -> FileAdminApiCapGuardStore:
+    """Return canonical cap/guard storage for composite Spot proofs."""
+
+    return FileAdminApiCapGuardStore()
+
+
+def get_reconciliation_store() -> FileAdminApiReconciliationStore:
+    """Return canonical reconciliation storage for composite Spot proofs."""
+
+    return FileAdminApiReconciliationStore()
+
+
+def get_composite_proof_cap_guard_service() -> AdminApiCapGuardDecisionService:
+    """Return backend-authoritative wallet/cap resolution for composite proofs."""
+
+    return AdminApiCapGuardDecisionService()
 
 
 TReadModel = TypeVar("TReadModel", bound=BaseModel)
@@ -324,7 +355,7 @@ def _execute_idempotent_spot_pnl_checkpoint(
     "/spot/readiness",
     response_model=SpotReadinessResponse,
     responses=READ_ONLY_ROUTE_RESPONSES,
-    summary="Read spot trading readiness",
+    summary="Read local value-blind spot readiness evidence",
 )
 def spot_readiness(
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
@@ -481,7 +512,7 @@ def spot_sweep_status(
     "/spot/sweep/pnl",
     response_model=SpotSweepPnlResponse,
     responses=READ_ONLY_ROUTE_RESPONSES,
-    summary="Read spot sweep P/L",
+    summary="Read local value-blind spot P/L availability evidence",
 )
 def spot_sweep_pnl(
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
@@ -501,60 +532,130 @@ def spot_sweep_pnl(
 
 @router.post(
     "/spot/manual-order/proof-chain",
-    response_model=AdminMvpEvidenceResponse,
+    response_model=SpotManualOrderProofChainResponse,
     responses=READ_ONLY_ROUTE_RESPONSES,
     summary="Record backend-owned spot manual-order proof-chain evidence",
 )
 def record_spot_manual_order_proof_chain(
-    body: Annotated[dict[str, Any], Body(default_factory=dict)],
+    body: SpotManualOrderProofChainRequest,
     idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
     correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
     operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    command_idempotency_store: Annotated[
+        FileIdempotencyStore,
+        Depends(get_idempotency_store),
+    ],
+    approval_store: Annotated[
+        FileAdminApiApprovalStore,
+        Depends(get_approval_store),
+    ],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+    cap_guard_store: Annotated[
+        FileAdminApiCapGuardStore,
+        Depends(get_cap_guard_store),
+    ],
+    reconciliation_store: Annotated[
+        FileAdminApiReconciliationStore,
+        Depends(get_reconciliation_store),
+    ],
+    cap_guard_service: Annotated[
+        AdminApiCapGuardDecisionService,
+        Depends(get_composite_proof_cap_guard_service),
+    ],
 ) -> JSONResponse:
-    require_permission(actor, AdminApiPermission.ORDER_CREATE)
+    require_permission(
+        actor,
+        AdminApiPermission.SPOT_MANUAL_ORDER_PROOF_RECORD,
+    )
     result = get_admin_mvp_service().record_spot_manual_order_proof_chain(
-        body,
+        body.model_dump(mode="json"),
         _admin_mvp_context(
             actor,
             idempotency_key=idempotency_key,
             correlation_id=correlation_id,
             operator_intent=operator_intent,
         ),
+        command_idempotency_store=command_idempotency_store,
+        approval_store=approval_store,
+        audit_store=audit_store,
+        cap_guard_store=cap_guard_store,
+        reconciliation_store=reconciliation_store,
+        cap_guard_service=cap_guard_service,
+    )
+    response_body = (
+        SpotManualOrderProofChainResponse.model_validate(result.body)
+        if result.status_code == status.HTTP_200_OK
+        else result.body
     )
     return JSONResponse(
         status_code=result.status_code,
-        content=jsonable_encoder(result.body),
+        content=jsonable_encoder(response_body),
         headers=result.headers,
     )
 
 
 @router.post(
     "/spot/cancel-order/proof-chain",
-    response_model=AdminMvpEvidenceResponse,
+    response_model=SpotCancelOrderProofChainResponse,
     responses=READ_ONLY_ROUTE_RESPONSES,
     summary="Record backend-owned spot cancel-order proof-chain evidence",
 )
 def record_spot_cancel_order_proof_chain(
-    body: Annotated[dict[str, Any], Body(default_factory=dict)],
+    body: SpotCancelOrderProofChainRequest,
     idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
     correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
     operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    command_idempotency_store: Annotated[
+        FileIdempotencyStore,
+        Depends(get_idempotency_store),
+    ],
+    approval_store: Annotated[
+        FileAdminApiApprovalStore,
+        Depends(get_approval_store),
+    ],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+    cap_guard_store: Annotated[
+        FileAdminApiCapGuardStore,
+        Depends(get_cap_guard_store),
+    ],
+    reconciliation_store: Annotated[
+        FileAdminApiReconciliationStore,
+        Depends(get_reconciliation_store),
+    ],
+    cap_guard_service: Annotated[
+        AdminApiCapGuardDecisionService,
+        Depends(get_composite_proof_cap_guard_service),
+    ],
 ) -> JSONResponse:
-    require_permission(actor, AdminApiPermission.ORDER_CANCEL)
+    require_permission(
+        actor,
+        AdminApiPermission.SPOT_ORDER_CANCEL_PROOF_RECORD,
+    )
     result = get_admin_mvp_service().record_spot_cancel_order_proof_chain(
-        body,
+        body.model_dump(mode="json"),
         _admin_mvp_context(
             actor,
             idempotency_key=idempotency_key,
             correlation_id=correlation_id,
             operator_intent=operator_intent,
         ),
+        command_idempotency_store=command_idempotency_store,
+        approval_store=approval_store,
+        audit_store=audit_store,
+        cap_guard_store=cap_guard_store,
+        reconciliation_store=reconciliation_store,
+        cap_guard_service=cap_guard_service,
+    )
+    response_body = (
+        SpotCancelOrderProofChainResponse.model_validate(result.body)
+        if result.status_code == status.HTTP_200_OK
+        else result.body
     )
     return JSONResponse(
         status_code=result.status_code,
-        content=jsonable_encoder(result.body),
+        content=jsonable_encoder(response_body),
         headers=result.headers,
     )
 
