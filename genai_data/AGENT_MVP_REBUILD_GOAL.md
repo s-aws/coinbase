@@ -1,21 +1,28 @@
 # Coinbase Admin MVP Goal
 
-Goal ID: `operator_authorize_and_materialize_follow_up_intent`
+Goal ID: `operator_follow_up_operations_queue_and_single_live_proof`
 
 Last reviewed: 2026-07-19 UTC.
 
-Status: `complete`.
+Status: `in_progress`.
 
-Readiness: implementation, generated-contract integration, focused and full
-validation, deployment validation, independent safety audit, and blind-
-contextless audit are complete. No eligible filled attached intent existed, so
-the bounded live proof did not run and its allowances remain unconsumed.
+Readiness: the routed Follow-up Operations queue and its validation are in
+progress. The queue is passive local SQL and is never live eligibility. Its
+candidate count means exact local `materialization_review` candidates only.
+The active record states that all live allowances remain untouched pending
+focused/full validation, deployment validation, independent
+safety audit, and blind-contextless audit.
 
 Current machine alignment:
-`operator_materialization_single_child_controlled_live_v1`. Default action:
-`await_operator_direction_for_next_mvp`. Work mode:
-`operator_materialization_terminal_closeout_complete`.
-Await operator direction for the next MVP.
+`operator_follow_up_operations_queue_single_proof_v1`. Default action:
+`implement_validate_audit_deploy_then_count_exact_candidates`. Work mode:
+`in_progress_queue_passive_local_sql_then_single_live_proof`.
+Operator question: Complete queue gates before counting exact local candidates.
+The zero or multiple candidates policy makes no live read, Create, or Cancel.
+Even when
+exactly one candidate exists, no live read, Create, or Cancel can run until the
+backend durably creates a goal-scoped single-candidate proof claim bound to that
+identity and fresh audited live eligibility succeeds.
 
 Controlled-live operational handoff is verified: the final installed operator
 review stack reports runtime mode `controlled_live`, frontend `0.0.0.0:3000`,
@@ -39,10 +46,10 @@ The canonical cross-repository authority is
 backend copy records the behavior-owner interpretation and must remain aligned
 with it.
 
-## Completed Operator Follow-Up Materialization Goal
+## Historical Completed Operator Follow-Up Materialization Goal
 
-Goal `operator_authorize_and_materialize_follow_up_intent` is terminally
-complete. The authenticated Admin API and generated operator contract expose a
+The historical predecessor goal `operator_authorize_and_materialize_follow_up_intent`
+is terminally complete. The authenticated Admin API and generated operator contract expose a
 separately acknowledged, backend-owned, one-use materialization path and an
 exact-child safe-closeout path. Attachment acknowledgement remains local-only
 and is never reinterpreted as live authority. All source/root identity, full-
@@ -74,8 +81,9 @@ Terminal validation evidence:
 - independent safety audit: `PASS`
 - blind-contextless audit: `PASS`
 
-The implementation and validation goal is complete. Current action is
-`await_operator_direction_for_next_mvp`; no successor, second child, retry,
+The predecessor implementation and validation goal is complete. Its historical
+terminal action was `await_operator_direction_for_next_mvp`; it is not current
+authority. No second child, retry,
 fallback, redirect, scheduler, fan-out, Futures action, or other exchange
 authority is implied.
 

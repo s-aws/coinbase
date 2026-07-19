@@ -148,6 +148,28 @@ class AdminApiActionClass(str, Enum):
     AUDIT = "audit"
 
 
+class AdminOrderFollowUpOperationState(str, Enum):
+    """Backend-owned projection states for the follow-up operations queue."""
+
+    AWAITING_SOURCE_FILL = "awaiting_source_fill"
+    READY_FOR_MATERIALIZATION_AUTHORIZATION = (
+        "ready_for_materialization_authorization"
+    )
+    MATERIALIZATION_IN_PROGRESS = "materialization_in_progress"
+    MATERIALIZED_ACTIVE = "materialized_active"
+    MATERIALIZED_TERMINAL = "materialized_terminal"
+    UNKNOWN_OUTCOME = "unknown_outcome"
+    BLOCKED = "blocked"
+
+
+class AdminOrderFollowUpOperationActionability(str, Enum):
+    """Backend-classified review navigation; never live eligibility."""
+
+    MATERIALIZATION_REVIEW = "materialization_review"
+    SAFE_CLOSEOUT_REVIEW = "safe_closeout_review"
+    NONE = "none"
+
+
 class AdminApiPermission(str, Enum):
     """Backend-enforced Admin API permission names."""
 
@@ -2953,6 +2975,70 @@ class FollowUpMaterializationState(str, Enum):
     CANCEL_ACCEPTED_NONTERMINAL = "CANCEL_ACCEPTED_NONTERMINAL"
     CANCEL_ACCEPTED_TERMINAL = "CANCEL_ACCEPTED_TERMINAL"
     CANCEL_UNKNOWN_CONSUMED = "CANCEL_UNKNOWN_CONSUMED"
+
+
+class FollowUpLiveProofOperationKind(str, Enum):
+    """Goal-wide, single-use external-call boundaries for the MVP proof."""
+
+    ELIGIBILITY_READ = "ELIGIBILITY_READ"
+    RECONCILIATION_READ = "RECONCILIATION_READ"
+    CREATE = "CREATE"
+    CANCEL = "CANCEL"
+
+
+class FollowUpLiveProofEventState(str, Enum):
+    """Append-only journal states for one goal-wide operation allowance."""
+
+    INVOCATION_STARTED = "INVOCATION_STARTED"
+    TERMINAL = "TERMINAL"
+
+
+class FollowUpLiveProofTerminalOutcome(str, Enum):
+    """Fixed, value-blind terminal classifications for proof operations."""
+
+    SUCCEEDED = "SUCCEEDED"
+    REJECTED = "REJECTED"
+    UNKNOWN = "UNKNOWN"
+    BLOCKED = "BLOCKED"
+    NOT_REQUIRED = "NOT_REQUIRED"
+
+
+class FollowUpSdkMutationInvocationState(str, Enum):
+    """Observed SDK mutation-boundary activity, independent of allowance use."""
+
+    NOT_INVOKED = "NOT_INVOKED"
+    INVOKED = "INVOKED"
+    UNKNOWN = "UNKNOWN"
+
+
+class FollowUpTransportSubmissionState(str, Enum):
+    """Observed transport submission for one mutation operation."""
+
+    NOT_SUBMITTED = "NOT_SUBMITTED"
+    POSSIBLY_SUBMITTED = "POSSIBLY_SUBMITTED"
+    CONFIRMED_SUBMITTED = "CONFIRMED_SUBMITTED"
+
+
+class FollowUpExchangeMutationState(str, Enum):
+    """Observed exchange-side mutation, without inferring it from allowance use."""
+
+    NOT_MUTATED = "NOT_MUTATED"
+    UNKNOWN = "UNKNOWN"
+    CONFIRMED_MUTATED = "CONFIRMED_MUTATED"
+
+
+class FollowUpReadAccountingState(str, Enum):
+    """Whether the bounded observed read count is exact or unknowable."""
+
+    EXACT = "EXACT"
+    UNKNOWN = "UNKNOWN"
+
+
+class FollowUpAccountingEvidenceOrigin(str, Enum):
+    """Origin of the normalized live-proof accounting tuple."""
+
+    EXPLICIT = "EXPLICIT"
+    LEGACY_CONSERVATIVE = "LEGACY_CONSERVATIVE"
 
 
 class FollowUpMaterializedChildTransitionKind(str, Enum):

@@ -8,7 +8,10 @@ import threading
 import pytest
 
 from application.admin_api.audit import AdminApiAuditEvent, FileAdminApiAuditStore
-from application.admin_api.models import AdminOrderFollowUpIntentAttachRequest
+from application.admin_api.models import (
+    AdminOrderFollowUpCurrentRequestActivity,
+    AdminOrderFollowUpIntentAttachRequest,
+)
 from application.admin_api.operator_follow_up_intent import (
     ATTACH_SINGLE_FOLLOW_UP_INTENT,
     FOLLOW_UP_INTENT_AUDIT_PROJECTION_LIMIT,
@@ -527,6 +530,64 @@ def test_file_audit_store_unique_projection_is_full_file_exact_and_idempotent(
     assert store.find_by_audit_id(canonical.audit_id) == conflicting
     with pytest.raises(ValueError, match="admin_api_audit_id_conflict"):
         store.find_unique_by_audit_id(canonical.audit_id)
+
+
+def test_file_audit_store_unique_projection_preserves_source_event_field_set(
+    tmp_path,
+):
+    path = tmp_path / "admin-audit.jsonl"
+    source_event = _canonical_audit_event().model_dump(mode="json")
+    source_event.pop("current_request_activity")
+    canonical = AdminApiAuditEvent.model_validate(source_event)
+    assert "current_request_activity" not in canonical.model_fields_set
+
+    store = FileAdminApiAuditStore(path)
+    assert store.append_unique(canonical) == canonical.audit_id
+
+    projected_event = json.loads(path.read_text(encoding="utf-8"))
+    assert projected_event == source_event
+    assert hashlib.sha256(
+        json.dumps(
+            projected_event,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest() == hashlib.sha256(
+        json.dumps(
+            source_event,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def test_file_audit_store_unique_projection_keeps_complete_explicit_activity(
+    tmp_path,
+):
+    path = tmp_path / "admin-audit.jsonl"
+    activity = AdminOrderFollowUpCurrentRequestActivity(
+        sdk_mutation_invocation_state="NOT_INVOKED",
+        transport_submission_state="NOT_SUBMITTED",
+        exchange_mutation_state="NOT_MUTATED",
+        read_accounting_state="EXACT",
+        observed_read_count=0,
+    )
+    canonical = _canonical_audit_event().model_copy(
+        update={"current_request_activity": activity}
+    )
+
+    store = FileAdminApiAuditStore(path)
+    assert store.append_unique(canonical) == canonical.audit_id
+
+    projected_event = json.loads(path.read_text(encoding="utf-8"))
+    assert projected_event["current_request_activity"] == {
+        "sdk_mutation_invocation_state": "NOT_INVOKED",
+        "transport_submission_state": "NOT_SUBMITTED",
+        "exchange_mutation_state": "NOT_MUTATED",
+        "read_accounting_state": "EXACT",
+        "observed_read_count": 0,
+        "accounting_scope": "current_request",
+    }
 
 
 def test_bounded_startup_projector_repairs_pending_and_leaves_failures_pending():

@@ -29,13 +29,9 @@ R12_PREPARATION_DOC = (
 )
 FRONTEND_QUEUE_DOC = FRONTEND_ROOT / "docs" / "plans" / "AUTONOMOUS_WORK_QUEUE.md"
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-GOAL_ID = "operator_authorize_and_materialize_follow_up_intent"
-CURRENT_ALIGNMENT_TOKEN = (
-    "operator_materialization_single_child_controlled_live_v1"
-)
-CURRENT_WORK_MODE = (
-    "operator_materialization_terminal_closeout_complete"
-)
+GOAL_ID = "operator_follow_up_operations_queue_and_single_live_proof"
+CURRENT_ALIGNMENT_TOKEN = "operator_follow_up_operations_queue_single_proof_v1"
+CURRENT_WORK_MODE = "in_progress_queue_passive_local_sql_then_single_live_proof"
 HISTORICAL_R12_GOAL_ID = "futures_preview_acceptance_recovery_r12"
 HISTORICAL_R11_GOAL_ID = "futures_preview_acceptance_recovery_r11"
 HISTORICAL_POST_R10_GOAL_ID = (
@@ -61,22 +57,24 @@ CLOSED_LOOPHOLE_RULE = (
     "A candidate blocker cannot make itself in scope by generating evidence "
     "about the candidate blocker."
 )
-SLICE_STATUS = "complete"
-SLICE_BLOCKERS: tuple[str, ...] = ()
+SLICE_STATUS = "in_progress"
+SLICE_BLOCKERS: tuple[str, ...] = (
+    "queue_validation_and_audits_pending",
+    "goal_scoped_single_candidate_proof_claim_not_created",
+    "fresh_audited_live_eligibility_not_proven",
+)
 HISTORICAL_R12_SLICE_STATUS = "complete_terminal_unknown_consumed"
 HISTORICAL_R12_SLICE_BLOCKERS: tuple[str, ...] = (
     "claim_only_recovery_unknown_consumed",
 )
-DEFAULT_NEXT_ACTION = "await_operator_direction_for_next_mvp"
+DEFAULT_NEXT_ACTION = "implement_validate_audit_deploy_then_count_exact_candidates"
 HISTORICAL_R12_SUCCESSOR_ACTION = (
     "await_operator_authorization_for_operator_attach_single_follow_up_intent"
 )
-OPERATOR_QUESTION = (
-    "Await operator direction for the next MVP."
-)
+OPERATOR_QUESTION = "Complete queue gates before counting exact local candidates."
 OPERATOR_PROGRESS_WORDING = (
-    "Operator follow-up materialization MVP is complete; awaiting operator "
-    "direction for the next MVP"
+    "Follow-up Operations queue implementation and validation are in progress; "
+    "all live allowances remain untouched"
 )
 HISTORICAL_R11_STATUS = "complete_terminal_no_retry"
 HISTORICAL_R11_NEXT_ACTION = "stop_and_await_operator_direction"
@@ -98,8 +96,8 @@ R7_TERMINAL_DIAGNOSTIC = (
 MVP_SCOPE = {
     "work_mode": CURRENT_WORK_MODE,
     "product_goal": (
-        "Preserve the completed one-child follow-up materialization MVP and "
-        "await explicit operator direction."
+        "Deliver the passive local-SQL Follow-up Operations workspace and "
+        "permit one exact-candidate live proof only after every gate and audit."
     ),
     "compatibility_result": POST_R10_COMPLETION_ALIGNMENT_TOKEN,
     "goal_authority": str(FRONTEND_GOAL_DOC),
@@ -108,8 +106,8 @@ MVP_SCOPE = {
     "phase_range_policy": "parked_unless_direct_current_slice_blocker",
     "current_vertical_slice": GOAL_ID,
     "direct_blocker_rule": (
-        "materialization_stops_for_scope_call_limit_or_immutable_"
-        "boundary_expansion"
+        "stop_for_product_order_policy_caps_eligible_routes_or_exchange_"
+        "call_limit_expansion"
     ),
     "scope_posture": CURRENT_ALIGNMENT_TOKEN,
     "operator_progress_wording": OPERATOR_PROGRESS_WORDING,
@@ -134,6 +132,54 @@ MVP_SCOPE = {
             "contextless-hardening without a direct MVP blocker",
         ],
     },
+}
+FOLLOW_UP_OPERATIONS_PROOF = {
+    "status": "in_progress",
+    "queue_posture": "passive_local_sql_only",
+    "candidate_count": None,
+    "candidate_count_status": "pending_post_gate_exact_count",
+    "candidate_count_meaning": (
+        "exact_local_materialization_review_candidates_only_never_live_eligibility"
+    ),
+    "live_eligibility_status": "not_evaluated",
+    "queue_live_coinbase_read_calls": 0,
+    "queue_coinbase_create_calls": 0,
+    "queue_coinbase_cancel_calls": 0,
+    "proof_allowances": {
+        "eligibility_reads": "unconsumed",
+        "reconciliation_reads": "unconsumed",
+        "create_call": "unconsumed",
+        "cancel_call": "unconsumed",
+    },
+    "candidate_policies": {
+        "zero": "no_live_read_create_or_cancel",
+        "multiple": "no_live_read_create_or_cancel",
+        "exactly_one": (
+            "blocked_until_durable_goal_scoped_single_candidate_proof_claim_"
+            "and_fresh_audited_live_eligibility"
+        ),
+    },
+    "goal_scoped_single_candidate_proof_claim": {
+        "required_for_exactly_one": True,
+        "status": "not_created",
+        "durable": True,
+        "candidate_identity_bound": True,
+    },
+    "allowances_consumed": False,
+}
+HISTORICAL_MATERIALIZATION_CLOSEOUT = {
+    "authority_status": "historical_predecessor_not_current_authority",
+    "status": "complete",
+    "eligible_candidate_count": 0,
+    "durable_attempts_claims": 0,
+    "materialized_children": 0,
+    "coinbase_eligibility_reads": 0,
+    "coinbase_reconciliation_reads": 0,
+    "coinbase_create_calls": 0,
+    "coinbase_cancel_calls": 0,
+    "unknown_live_outcome": False,
+    "live_proof_allowances_consumed": False,
+    "synthetic_validation_is_live_proof": False,
 }
 STANDING_LIMITS = {
     "preferred_spot_notional_under_usdc": "10.00",
@@ -251,43 +297,33 @@ REQUIRED_STOP_CONDITIONS = [
         "security review finds browser-trusted authority, secret exposure, "
         "or live command bypass risk"
     ),
-    (
-        "live Coinbase reconciliation fails, live notional exceeds cap, or "
-        "exact product/notional evidence is missing"
-    ),
+    "queue implementation, deployment validation, or either audit fails",
     "worktree contains unrelated changes affecting files in scope",
     (
         "requested change would create frontend trading behavior or bypass "
         "backend Admin API contract"
     ),
+    "zero or multiple exact local candidates permit no live read, Create, or Cancel",
     (
-        "candidate blocker requires evidence generation unrelated to the "
-        "current vertical slice"
-    ),
-    "R12 is terminal; no further Coinbase call is permitted",
-    (
-        "proceeding would change the product, contract count, exact V3 policy, "
-        "caps, enumerated read endpoints, or exchange-call limit"
+        "exactly one candidate remains blocked until a durable goal-scoped "
+        "single-candidate proof claim and fresh audited live eligibility"
     ),
     (
-        "any R13 attempt or Slice 3, Slice 4, or Slice 5 activation requires "
-        "distinct operator authorization"
+        "proceeding would broaden the product, order count, policy, caps, "
+        "eligible routes, or exchange-call limits"
     ),
 ]
 REQUIRED_GATES = [
     "npm run mvp:goal:check",
-    "backend focused materialization validation: 164 passed",
+    "focused backend and frontend Follow-up Operations queue validation",
+    "generated OpenAPI and client contract synchronization",
+    "full backend and frontend durable-milestone gates",
+    "local Controlled-live deployment validation without queue Coinbase calls",
+    "independent Follow-up Operations safety audit",
+    "blind-contextless Follow-up Operations audit",
     (
-        "backend canonical full: 1102 passed, 6 skipped parallel; 457 passed, "
-        "150 skipped serial"
-    ),
-    "frontend focused materialization validation: 179 passed",
-    "independent materialization safety audit: PASS",
-    "blind-contextless materialization audit: PASS",
-    "npm run release:gate only at durable milestone closeout",
-    (
-        "python3.13 tools/run_parallel_regression.py --workers 4 only at "
-        "durable backend milestone closeout"
+        "durable goal-scoped single-candidate proof claim and fresh audited "
+        "eligibility before any live proof"
     ),
 ]
 
@@ -344,22 +380,18 @@ def _current_goal_alignment() -> QueueCheck:
         (
             GOAL_ID,
             CURRENT_ALIGNMENT_TOKEN,
-            "Status: `complete`",
+            "Status: `in_progress`",
             DEFAULT_NEXT_ACTION,
-            "operator_materialization_terminal_closeout_complete",
-            "no eligible filled attached intent",
-            "Coinbase eligibility/reconciliation reads: `0`",
-            "Coinbase Create calls: `0`",
-            "Coinbase Cancel calls: `0`",
-            "durable materialization attempts/claims: `0`",
-            "materialized children: `0`",
-            "no unknown live outcome",
-            "live-proof allowances remain unconsumed",
-            "Synthetic tests are not live proof",
-            "backend focused: `164 passed`",
-            "frontend focused: `179 passed`",
-            "independent safety audit: `PASS`",
-            "blind-contextless audit: `PASS`",
+            CURRENT_WORK_MODE,
+            "passive local SQL",
+            "never live eligibility",
+            "exact local `materialization_review` candidates only",
+            "goal-scoped single-candidate proof claim",
+            "all live allowances remain untouched",
+            "zero or multiple candidates",
+            "fresh audited live eligibility",
+            "operator_authorize_and_materialize_follow_up_intent",
+            "historical predecessor",
             HISTORICAL_R12_GOAL_ID,
             R12_ALIGNMENT_TOKEN,
             CLOSED_LOOPHOLE_RULE,
@@ -386,21 +418,18 @@ def _current_goal_alignment() -> QueueCheck:
         (
             GOAL_ID,
             CURRENT_ALIGNMENT_TOKEN,
-            "Status: `complete`",
+            "Status: `in_progress`",
             DEFAULT_NEXT_ACTION,
             OPERATOR_PROGRESS_WORDING,
-            "eligible-candidate count was `0`",
-            "Coinbase eligibility reads, reconciliation reads, Create calls",
-            "no unknown live outcome was recorded",
-            "proof allowances remain unconsumed",
-            "it is not a live proof",
-            "`164` backend tests and `179` frontend tests",
-            "independent safety audit and blind-contextless audit returned `PASS`",
-            "Existing attachment acknowledgement is never live authority",
-            (
-                "Invocation-started recovery journals unknown before "
-                "read-only reconciliation"
-            ),
+            "passive local SQL",
+            "never live eligibility",
+            "exact local `materialization_review` candidates only",
+            "goal-scoped single-candidate proof claim",
+            "all live allowances remain untouched",
+            "zero or multiple candidates",
+            "fresh audited live eligibility",
+            "operator_authorize_and_materialize_follow_up_intent",
+            "historical predecessor",
             HISTORICAL_R12_GOAL_ID,
             CLOSED_LOOPHOLE_RULE,
             SUCCESSOR_MAPPING_INVARIANT,
@@ -706,6 +735,15 @@ def _historical_slice_2r11_terminal_posture() -> QueueCheck:
 def _entry_point_alignment() -> QueueCheck:
     documents = [
         _contains_all(
+            PROJECT_ROOT / "README.admin-api.md",
+            (
+                GOAL_ID,
+                DEFAULT_NEXT_ACTION,
+                "Current Status",
+                "Historical predecessor goal",
+            ),
+        ),
+        _contains_all(
             PROJECT_ROOT / "README.md",
             (
                 HISTORICAL_R12_GOAL_ID,
@@ -716,6 +754,8 @@ def _entry_point_alignment() -> QueueCheck:
         _contains_all(
             PROJECT_ROOT / "docs" / "README.md",
             (
+                GOAL_ID,
+                DEFAULT_NEXT_ACTION,
                 HISTORICAL_R12_GOAL_ID,
                 HISTORICAL_POST_R10_GOAL_ID,
                 "Current MVP Goal",
@@ -724,9 +764,28 @@ def _entry_point_alignment() -> QueueCheck:
         _contains_all(
             PROJECT_ROOT / "docs" / "MAINTAINER_HANDOFF.md",
             (
+                GOAL_ID,
+                DEFAULT_NEXT_ACTION,
                 HISTORICAL_R12_GOAL_ID,
                 HISTORICAL_POST_R10_GOAL_ID,
                 "Current Handoff State",
+            ),
+        ),
+        _contains_all(
+            PROJECT_ROOT / "docs" / "PUBLIC_ROADMAP.md",
+            (
+                GOAL_ID,
+                DEFAULT_NEXT_ACTION,
+                "Historical predecessor goal",
+            ),
+        ),
+        _contains_all(
+            PROJECT_ROOT / "docs" / "agents" / "AGENT_ADMIN_API_CONTRACT.md",
+            (
+                GOAL_ID,
+                DEFAULT_NEXT_ACTION,
+                "four installed Controlled-live mutation routes",
+                "current post-lease service decision",
             ),
         ),
         _contains_all(
@@ -739,7 +798,7 @@ def _entry_point_alignment() -> QueueCheck:
         ),
     ]
     return QueueCheck(
-        name="historical_entry_point_record",
+        name="entry_point_alignment",
         passed=all(document.passed for document in documents),
         evidence={"documents": [document.evidence for document in documents]},
     )
@@ -811,16 +870,8 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
         "r12_eligibility_cycles_consumed": 2,
         "r12_preview_attempts_consumed": 1,
         "r12_release_gate_ready": False,
-        "materialization_candidate_count": 0,
-        "materialization_durable_attempts_claims": 0,
-        "materialized_children": 0,
-        "materialization_coinbase_eligibility_reads": 0,
-        "materialization_coinbase_reconciliation_reads": 0,
-        "materialization_coinbase_create_calls": 0,
-        "materialization_coinbase_cancel_calls": 0,
-        "materialization_unknown_live_outcome": False,
-        "materialization_live_proof_allowances_consumed": False,
-        "materialization_synthetic_validation_is_live_proof": False,
+        "follow_up_operations_proof": FOLLOW_UP_OPERATIONS_PROOF,
+        "historical_materialization_closeout": HISTORICAL_MATERIALIZATION_CLOSEOUT,
         "live_coinbase_eligibility_reads_ran": False,
         "live_coinbase_preview_ran": None,
         "live_coinbase_preview_outcome": "unknown_consumed",
@@ -884,9 +935,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         print(f"Default next action: {DEFAULT_NEXT_ACTION}")
         print(
-            "Materialization: complete; candidate 0; Coinbase eligibility/"
-            "reconciliation/Create/Cancel calls 0; proof allowances unconsumed"
+            "Follow-up Operations: passive local SQL; exact candidate count "
+            "pending; live proof claim not created; allowances unconsumed"
         )
+        print("Historical materialization predecessor: complete; live calls 0")
         print(
             "R12: terminal unknown-consumed/release disabled; eligibility "
             "cycles 2; workflow claims 1; conservative Preview-attempt "

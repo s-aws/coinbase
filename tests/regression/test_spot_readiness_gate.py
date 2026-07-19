@@ -73,7 +73,7 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
     )
     assert AUTONOMOUS_GOAL_ID == (
-        "operator_authorize_and_materialize_follow_up_intent"
+        "operator_follow_up_operations_queue_and_single_live_proof"
     )
     assert AUTONOMOUS_HISTORICAL_PHASES == tuple(range(7961, 7981))
     check_results = {check["name"]: check for check in summary["checks"]}
@@ -84,29 +84,30 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     assert failed_checks == {}
     assert summary["status"] == "passed"
     assert summary["goal_id"] == (
-        "operator_authorize_and_materialize_follow_up_intent"
+        "operator_follow_up_operations_queue_and_single_live_proof"
     )
     assert summary["historical_phase_range"] == "7961-7980"
     assert summary["historical_phase_count"] == 20
     assert summary["phase_range_status"] == "historical_not_work_authority"
-    assert summary["slice_status"] == "complete"
-    assert summary["blockers"] == []
-    assert summary["default_next_action"] == "await_operator_direction_for_next_mvp"
+    assert summary["slice_status"] == "in_progress"
+    assert summary["blockers"] == [
+        "queue_validation_and_audits_pending",
+        "goal_scoped_single_candidate_proof_claim_not_created",
+        "fresh_audited_live_eligibility_not_proven",
+    ]
+    assert summary["default_next_action"] == (
+        "implement_validate_audit_deploy_then_count_exact_candidates"
+    )
     assert summary["r12_workflow_claims_consumed"] == 1
     assert summary["r12_claim_created"] is True
     assert summary["r12_eligibility_cycles_consumed"] == 2
     assert summary["r12_preview_attempts_consumed"] == 1
     assert summary["r12_release_gate_ready"] is False
-    assert summary["materialization_candidate_count"] == 0
-    assert summary["materialization_durable_attempts_claims"] == 0
-    assert summary["materialized_children"] == 0
-    assert summary["materialization_coinbase_eligibility_reads"] == 0
-    assert summary["materialization_coinbase_reconciliation_reads"] == 0
-    assert summary["materialization_coinbase_create_calls"] == 0
-    assert summary["materialization_coinbase_cancel_calls"] == 0
-    assert summary["materialization_unknown_live_outcome"] is False
-    assert summary["materialization_live_proof_allowances_consumed"] is False
-    assert summary["materialization_synthetic_validation_is_live_proof"] is False
+    assert summary["follow_up_operations_proof"]["candidate_count"] is None
+    assert summary["follow_up_operations_proof"]["allowances_consumed"] is False
+    assert summary["historical_materialization_closeout"][
+        "authority_status"
+    ] == "historical_predecessor_not_current_authority"
     assert summary["live_coinbase_eligibility_reads_ran"] is False
     assert summary["live_coinbase_preview_ran"] is None
     assert summary["live_coinbase_preview_outcome"] == "unknown_consumed"
@@ -140,10 +141,10 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         "historical_successor_authorized": False,
     }
     assert summary["mvp_scope"] == {
-        "work_mode": "operator_materialization_terminal_closeout_complete",
+        "work_mode": "in_progress_queue_passive_local_sql_then_single_live_proof",
         "product_goal": (
-            "Preserve the completed one-child follow-up materialization MVP "
-            "and await explicit operator direction."
+            "Deliver the passive local-SQL Follow-up Operations workspace and "
+            "permit one exact-candidate live proof only after every gate and audit."
         ),
         "compatibility_result": (
             "official_wire_schema_and_project_acceptance_separated_"
@@ -156,27 +157,37 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         "live_action_path": "auditable_backend_admin_interfaces_only",
         "phase_range_policy": "parked_unless_direct_current_slice_blocker",
         "current_vertical_slice": (
-            "operator_authorize_and_materialize_follow_up_intent"
+            "operator_follow_up_operations_queue_and_single_live_proof"
         ),
         "direct_blocker_rule": (
-            "materialization_stops_for_scope_call_limit_or_immutable_"
-            "boundary_expansion"
+            "stop_for_product_order_policy_caps_eligible_routes_or_exchange_"
+            "call_limit_expansion"
         ),
-        "scope_posture": "operator_materialization_single_child_controlled_live_v1",
+        "scope_posture": "operator_follow_up_operations_queue_single_proof_v1",
         "operator_progress_wording": (
-            "Operator follow-up materialization MVP is complete; awaiting "
-            "operator direction for the next MVP"
+            "Follow-up Operations queue implementation and validation are in "
+            "progress; all live allowances remain untouched"
         ),
-        "operator_question": "Await operator direction for the next MVP.",
+        "operator_question": (
+            "Complete queue gates before counting exact local candidates."
+        ),
         "focused_blast_radius_tests_required": True,
         "full_suite_at_durable_milestone_only": True,
         "active_work_policy": {
-            "current_priority": "await_operator_direction_for_next_mvp",
+            "current_priority": (
+                "implement_validate_audit_deploy_then_count_exact_candidates"
+            ),
             "approved_phase_range_status": "historical_not_work_authority",
             "phase_range_work_allowed": False,
-            "slice_status": "complete",
-            "blockers": [],
-            "default_next_action": "await_operator_direction_for_next_mvp",
+            "slice_status": "in_progress",
+            "blockers": [
+                "queue_validation_and_audits_pending",
+                "goal_scoped_single_candidate_proof_claim_not_created",
+                "fresh_audited_live_eligibility_not_proven",
+            ],
+            "default_next_action": (
+                "implement_validate_audit_deploy_then_count_exact_candidates"
+            ),
             "ordered_successors": [],
             "allow_only_when_directly_blocks": [],
             "forbidden_default_actions": [
@@ -307,55 +318,49 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
             "security review finds browser-trusted authority, secret "
             "exposure, or live command bypass risk"
         ),
-        (
-            "live Coinbase reconciliation fails, live notional exceeds cap, "
-            "or exact product/notional evidence is missing"
-        ),
+        "queue implementation, deployment validation, or either audit fails",
         "worktree contains unrelated changes affecting files in scope",
         (
             "requested change would create frontend trading behavior or "
             "bypass backend Admin API contract"
         ),
+        "zero or multiple exact local candidates permit no live read, Create, or Cancel",
         (
-            "candidate blocker requires evidence generation unrelated to "
-            "the current vertical slice"
-        ),
-        "R12 is terminal; no further Coinbase call is permitted",
-        (
-            "proceeding would change the product, contract count, exact V3 "
-            "policy, caps, enumerated read endpoints, or exchange-call limit"
+            "exactly one candidate remains blocked until a durable goal-scoped "
+            "single-candidate proof claim and fresh audited live eligibility"
         ),
         (
-            "any R13 attempt or Slice 3, Slice 4, or Slice 5 activation "
-            "requires distinct operator authorization"
+            "proceeding would broaden the product, order count, policy, caps, "
+            "eligible routes, or exchange-call limits"
         ),
     ]
     assert summary["required_gates"] == [
         "npm run mvp:goal:check",
-        "backend focused materialization validation: 164 passed",
+        "focused backend and frontend Follow-up Operations queue validation",
+        "generated OpenAPI and client contract synchronization",
+        "full backend and frontend durable-milestone gates",
+        "local Controlled-live deployment validation without queue Coinbase calls",
+        "independent Follow-up Operations safety audit",
+        "blind-contextless Follow-up Operations audit",
         (
-            "backend canonical full: 1102 passed, 6 skipped parallel; 457 "
-            "passed, 150 skipped serial"
-        ),
-        "frontend focused materialization validation: 179 passed",
-        "independent materialization safety audit: PASS",
-        "blind-contextless materialization audit: PASS",
-        "npm run release:gate only at durable milestone closeout",
-        (
-            "python3.13 tools/run_parallel_regression.py --workers 4 only at "
-            "durable backend milestone closeout"
+            "durable goal-scoped single-candidate proof claim and fresh audited "
+            "eligibility before any live proof"
         ),
     ]
     assert summary["progress"] == {
-        "goal_id": "operator_authorize_and_materialize_follow_up_intent",
-        "slice_status": "complete",
-        "work_mode": "operator_materialization_terminal_closeout_complete",
+        "goal_id": "operator_follow_up_operations_queue_and_single_live_proof",
+        "slice_status": "in_progress",
+        "work_mode": "in_progress_queue_passive_local_sql_then_single_live_proof",
         "live_coinbase_execution": "not_run",
-        "blockers": [],
-        "next_action": "await_operator_direction_for_next_mvp",
+        "blockers": [
+            "queue_validation_and_audits_pending",
+            "goal_scoped_single_candidate_proof_claim_not_created",
+            "fresh_audited_live_eligibility_not_proven",
+        ],
+        "next_action": "implement_validate_audit_deploy_then_count_exact_candidates",
         "operator_wording": (
-            "Operator follow-up materialization MVP is complete; awaiting "
-            "operator direction for the next MVP"
+            "Follow-up Operations queue implementation and validation are in "
+            "progress; all live allowances remain untouched"
         ),
     }
     assert check_results["current_goal_alignment"]["passed"] is True
@@ -381,13 +386,85 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     ] == "local_linux_docker"
 
 
+def test_current_follow_up_operations_goal_requires_a_durable_single_candidate_claim():
+    summary = build_autonomous_work_queue_summary()
+
+    assert summary["goal_id"] == (
+        "operator_follow_up_operations_queue_and_single_live_proof"
+    )
+    assert summary["slice_status"] == "in_progress"
+    assert summary["follow_up_operations_proof"] == {
+        "status": "in_progress",
+        "queue_posture": "passive_local_sql_only",
+        "candidate_count": None,
+        "candidate_count_status": "pending_post_gate_exact_count",
+        "candidate_count_meaning": (
+            "exact_local_materialization_review_candidates_only_never_live_eligibility"
+        ),
+        "live_eligibility_status": "not_evaluated",
+        "queue_live_coinbase_read_calls": 0,
+        "queue_coinbase_create_calls": 0,
+        "queue_coinbase_cancel_calls": 0,
+        "proof_allowances": {
+            "eligibility_reads": "unconsumed",
+            "reconciliation_reads": "unconsumed",
+            "create_call": "unconsumed",
+            "cancel_call": "unconsumed",
+        },
+        "candidate_policies": {
+            "zero": "no_live_read_create_or_cancel",
+            "multiple": "no_live_read_create_or_cancel",
+            "exactly_one": (
+                "blocked_until_durable_goal_scoped_single_candidate_proof_claim_"
+                "and_fresh_audited_live_eligibility"
+            ),
+        },
+        "goal_scoped_single_candidate_proof_claim": {
+            "required_for_exactly_one": True,
+            "status": "not_created",
+            "durable": True,
+            "candidate_identity_bound": True,
+        },
+        "allowances_consumed": False,
+    }
+    assert summary["historical_materialization_closeout"]["authority_status"] == (
+        "historical_predecessor_not_current_authority"
+    )
+    assert summary["progress"] == {
+        "goal_id": "operator_follow_up_operations_queue_and_single_live_proof",
+        "slice_status": "in_progress",
+        "work_mode": (
+            "in_progress_queue_passive_local_sql_then_single_live_proof"
+        ),
+        "live_coinbase_execution": "not_run",
+        "blockers": [
+            "queue_validation_and_audits_pending",
+            "goal_scoped_single_candidate_proof_claim_not_created",
+            "fresh_audited_live_eligibility_not_proven",
+        ],
+        "next_action": (
+            "implement_validate_audit_deploy_then_count_exact_candidates"
+        ),
+        "operator_wording": (
+            "Follow-up Operations queue implementation and validation are in "
+            "progress; all live allowances remain untouched"
+        ),
+    }
+
+
 def test_autonomous_work_queue_check_reports_terminal_r12_without_inventing_preview_network_reach():
     summary = build_autonomous_work_queue_summary()
     active_slice = summary["standing_limits"]["active_futures_slice"]
 
-    assert summary["slice_status"] == "complete"
-    assert summary["blockers"] == []
-    assert summary["default_next_action"] == "await_operator_direction_for_next_mvp"
+    assert summary["slice_status"] == "in_progress"
+    assert summary["blockers"] == [
+        "queue_validation_and_audits_pending",
+        "goal_scoped_single_candidate_proof_claim_not_created",
+        "fresh_audited_live_eligibility_not_proven",
+    ]
+    assert summary["default_next_action"] == (
+        "implement_validate_audit_deploy_then_count_exact_candidates"
+    )
     assert summary["historical_r12"]["slice_status"] == (
         "complete_terminal_unknown_consumed"
     )
@@ -433,15 +510,19 @@ def test_autonomous_work_queue_check_reports_terminal_r12_without_inventing_prev
     assert active_slice["executed_notional_usdc"] == "0"
 
     assert summary["progress"] == {
-        "goal_id": "operator_authorize_and_materialize_follow_up_intent",
-        "slice_status": "complete",
-        "work_mode": "operator_materialization_terminal_closeout_complete",
+        "goal_id": "operator_follow_up_operations_queue_and_single_live_proof",
+        "slice_status": "in_progress",
+        "work_mode": "in_progress_queue_passive_local_sql_then_single_live_proof",
         "live_coinbase_execution": "not_run",
-        "blockers": [],
-        "next_action": "await_operator_direction_for_next_mvp",
+        "blockers": [
+            "queue_validation_and_audits_pending",
+            "goal_scoped_single_candidate_proof_claim_not_created",
+            "fresh_audited_live_eligibility_not_proven",
+        ],
+        "next_action": "implement_validate_audit_deploy_then_count_exact_candidates",
         "operator_wording": (
-            "Operator follow-up materialization MVP is complete; awaiting "
-            "operator direction for the next MVP"
+            "Follow-up Operations queue implementation and validation are in "
+            "progress; all live allowances remain untouched"
         ),
     }
 
@@ -490,7 +571,6 @@ def test_operator_materialization_terminal_records_are_aligned():
 
     shared_terminal_facts = (
         "operator_authorize_and_materialize_follow_up_intent",
-        "Status: `complete`",
         "await_operator_direction_for_next_mvp",
         "no eligible filled attached intent",
         "Coinbase eligibility/reconciliation reads: `0`",
@@ -512,6 +592,11 @@ def test_operator_materialization_terminal_records_are_aligned():
     for fact in shared_terminal_facts:
         assert fact in normalized["goal"]
         assert fact in normalized["handoff"]
+
+    assert "Historical Completed Operator Follow-Up Materialization Goal" in (
+        normalized["goal"]
+    )
+    assert "Status: `complete`" in normalized["handoff"]
 
     for name in ("roadmap", "admin_readme"):
         assert "operator_authorize_and_materialize_follow_up_intent" in normalized[name]
@@ -536,6 +621,32 @@ def test_operator_materialization_terminal_records_are_aligned():
         assert operational_handoff in normalized[name]
         assert zero_call_handoff in normalized[name]
         assert "does not yet claim final running-stack health" not in normalized[name]
+
+
+def test_follow_up_operations_goal_is_discoverable_from_backend_entry_points():
+    documents = {
+        "admin_readme": Path("README.admin-api.md").read_text(encoding="utf-8"),
+        "docs_index": Path("docs/README.md").read_text(encoding="utf-8"),
+        "handoff": Path("docs/MAINTAINER_HANDOFF.md").read_text(encoding="utf-8"),
+        "roadmap": Path("docs/PUBLIC_ROADMAP.md").read_text(encoding="utf-8"),
+        "contract_agent": Path(
+            "docs/agents/AGENT_ADMIN_API_CONTRACT.md"
+        ).read_text(encoding="utf-8"),
+    }
+    current_goal = "operator_follow_up_operations_queue_and_single_live_proof"
+    current_action = "implement_validate_audit_deploy_then_count_exact_candidates"
+
+    for body in documents.values():
+        normalized = " ".join(body.split())
+        assert current_goal in normalized
+        assert current_action in normalized
+
+    assert "four installed Controlled-live mutation routes" in documents[
+        "contract_agent"
+    ]
+    assert "sole Controlled-live command surface" not in documents[
+        "contract_agent"
+    ]
 
 
 def test_r11_terminal_doc_records_exact_bounded_closeout_posture():

@@ -1716,8 +1716,15 @@ def exact_coinbase_order_readback(
     product_id: str | None = None,
     product_type: str | None = ProductType.SPOT.value,
     expected_retail_portfolio_id: str | None = None,
+    maximum_list_pages: int = 100,
 ) -> dict[str, Any]:
-    """Return exact identity/status proof without treating absence as terminal."""
+    """Return exact identity/status proof without treating absence as terminal.
+
+    ``maximum_list_pages`` applies only when no exchange-native id is available
+    and the read must use ``list_orders``.  A caller with a stricter per-proof
+    budget can set it to one; the shared paginator then rejects continuation
+    evidence before issuing a second network method call.
+    """
 
     if exchange_order_id:
         get_order = getattr(rest_client, "get_order", None)
@@ -1765,6 +1772,7 @@ def exact_coinbase_order_readback(
             rest_client,
             product_ids=[product_id] if product_id else None,
             product_type=product_type,
+            maximum_pages=maximum_list_pages,
         )
     matches = [
         row

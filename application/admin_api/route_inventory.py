@@ -50,6 +50,23 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="spot_operations",
+        surface="GET /api/v1/follow-up-operations",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not applicable; local review navigation only",
+        caps="not applicable; reports durable call accounting only",
+        audit="returns durable correlation and audit identities",
+        shared_method="list_follow_up_operations",
+        parity_test=(
+            "one backend-paginated local SQL snapshot with fixed sanitized "
+            "classification; zero Coinbase client construction, reads, "
+            "Create, or Cancel and zero local or exchange mutation; rows are "
+            "review navigation only and never live eligibility"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
         surface=(
             "GET /api/v1/orders/{source_client_order_id}/follow-up-intent"
         ),

@@ -6218,6 +6218,119 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/follow-up-operations:
+    get:
+      tags:
+      - follow-up-operations
+      summary: Read the backend-classified follow-up operations queue
+      description: Return one local SQL page without live reads, clients, or mutations.
+      operationId: list_follow_up_operations_api_v1_follow_up_operations_get
+      parameters:
+      - name: product_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 255
+            pattern: ^[A-Z0-9][A-Z0-9._-]*$
+          - type: 'null'
+          title: Product Id
+      - name: state
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/AdminOrderFollowUpOperationState'
+          - type: 'null'
+          title: State
+      - name: actionability
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/AdminOrderFollowUpOperationActionability'
+          - type: 'null'
+          title: Actionability
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOrderFollowUpOperationsQueueResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks audit read permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '503':
+          description: Local follow-up operations evidence is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/movement-repricing/evidence:
     get:
       tags:
@@ -7265,7 +7378,7 @@ paths:
               schema:
                 anyOf:
                 - $ref: '#/components/schemas/AdminOrderFollowUpMaterializationCommandResponse'
-                - $ref: '#/components/schemas/AdminApiErrorResponse'
+                - $ref: '#/components/schemas/AdminOrderFollowUpMaterializationErrorResponse'
                 title: Response 400 Materialize Order Follow Up Intent Api V1 Orders  Source
                   Client Order Id  Follow Up Intent Materialization Post
         '401':
@@ -7275,17 +7388,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
         '403':
-          description: Actor lacks the required Admin API permission.
+          description: Actor lacks the required live follow-up permission.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AdminApiErrorResponse'
+                $ref: '#/components/schemas/AdminOrderFollowUpMaterializationErrorResponse'
         '404':
-          description: The backend-owned source order or attached intent was not found.
+          description: The backend-owned source or attached intent was not found.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AdminApiErrorResponse'
+                $ref: '#/components/schemas/AdminOrderFollowUpMaterializationErrorResponse'
         '409':
           description: The Create boundary returned durable evidence, or eligibility,
             idempotency, or the one-use boundary conflicts.
@@ -7294,7 +7407,7 @@ paths:
               schema:
                 anyOf:
                 - $ref: '#/components/schemas/AdminOrderFollowUpMaterializationCommandResponse'
-                - $ref: '#/components/schemas/AdminApiErrorResponse'
+                - $ref: '#/components/schemas/AdminOrderFollowUpMaterializationErrorResponse'
                 title: Response 409 Materialize Order Follow Up Intent Api V1 Orders  Source
                   Client Order Id  Follow Up Intent Materialization Post
         '422':
@@ -7304,11 +7417,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
         '503':
-          description: Authoritative local materialization evidence is unavailable.
+          description: The boundary failed with fixed current-request activity evidence.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AdminApiErrorResponse'
+                $ref: '#/components/schemas/AdminOrderFollowUpMaterializationErrorResponse'
   /api/v1/orders/{source_client_order_id}/follow-up-intent/materialization/safe-closeout:
     post:
       tags:
@@ -7402,7 +7515,7 @@ paths:
               schema:
                 anyOf:
                 - $ref: '#/components/schemas/AdminOrderFollowUpMaterializationCancelResponse'
-                - $ref: '#/components/schemas/AdminApiErrorResponse'
+                - $ref: '#/components/schemas/AdminOrderFollowUpMaterializationErrorResponse'
                 title: Response 400 Safe Closeout Materialized Follow Up Intent Api
                   V1 Orders  Source Client Order Id  Follow Up Intent Materialization
                   Safe Closeout Post
@@ -7413,17 +7526,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
         '403':
-          description: Actor lacks the required Admin API permission.
+          description: Actor lacks the required live follow-up permission.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AdminApiErrorResponse'
+                $ref: '#/components/schemas/AdminOrderFollowUpMaterializationErrorResponse'
         '404':
-          description: The backend-owned source order or attached intent was not found.
+          description: The backend-owned source or attached intent was not found.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AdminApiErrorResponse'
+                $ref: '#/components/schemas/AdminOrderFollowUpMaterializationErrorResponse'
         '409':
           description: The Cancel boundary returned durable evidence, or safe-closeout
             idempotency or the one-use boundary conflicts.
@@ -7432,7 +7545,7 @@ paths:
               schema:
                 anyOf:
                 - $ref: '#/components/schemas/AdminOrderFollowUpMaterializationCancelResponse'
-                - $ref: '#/components/schemas/AdminApiErrorResponse'
+                - $ref: '#/components/schemas/AdminOrderFollowUpMaterializationErrorResponse'
                 title: Response 409 Safe Closeout Materialized Follow Up Intent Api
                   V1 Orders  Source Client Order Id  Follow Up Intent Materialization
                   Safe Closeout Post
@@ -7443,11 +7556,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
         '503':
-          description: Authoritative local materialization evidence is unavailable.
+          description: The boundary failed with fixed current-request activity evidence.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AdminApiErrorResponse'
+                $ref: '#/components/schemas/AdminOrderFollowUpMaterializationErrorResponse'
   /api/v1/orders/{client_order_id}/reconciliation:
     post:
       tags:
@@ -15250,6 +15363,8 @@ components:
         live_coinbase_orders_ran:
           type: boolean
           title: Live Coinbase Orders Ran
+          description: Confirmed-only compatibility projection. False does not rule
+            out an unknown boundary; use current_request_activity when present.
           default: false
       additionalProperties: false
       type: object
@@ -141570,6 +141685,120 @@ components:
       type: object
       title: AdminOrderFillFollowUpTriggerRequest
       description: Prerequisite refs for a fill-follow-up trigger attempt.
+    AdminOrderFollowUpCurrentRequestActivity:
+      properties:
+        sdk_mutation_invocation_state:
+          $ref: '#/components/schemas/FollowUpSdkMutationInvocationState'
+        transport_submission_state:
+          $ref: '#/components/schemas/FollowUpTransportSubmissionState'
+        exchange_mutation_state:
+          $ref: '#/components/schemas/FollowUpExchangeMutationState'
+        read_accounting_state:
+          $ref: '#/components/schemas/FollowUpReadAccountingState'
+        observed_read_count:
+          anyOf:
+          - type: integer
+            maximum: 10.0
+            minimum: 0.0
+          - type: 'null'
+          title: Observed Read Count
+        accounting_scope:
+          type: string
+          const: current_request
+          title: Accounting Scope
+          default: current_request
+      additionalProperties: false
+      type: object
+      required:
+      - sdk_mutation_invocation_state
+      - transport_submission_state
+      - exchange_mutation_state
+      - read_accounting_state
+      - observed_read_count
+      title: AdminOrderFollowUpCurrentRequestActivity
+      description: Observed activity for this request only; never action authority.
+    AdminOrderFollowUpDurableLiveProofActivity:
+      properties:
+        eligibility_read:
+          anyOf:
+          - $ref: '#/components/schemas/AdminOrderFollowUpDurableOperationActivity'
+          - type: 'null'
+        create:
+          anyOf:
+          - $ref: '#/components/schemas/AdminOrderFollowUpDurableOperationActivity'
+          - type: 'null'
+        reconciliation_read:
+          anyOf:
+          - $ref: '#/components/schemas/AdminOrderFollowUpDurableOperationActivity'
+          - type: 'null'
+        cancel:
+          anyOf:
+          - $ref: '#/components/schemas/AdminOrderFollowUpDurableOperationActivity'
+          - type: 'null'
+      additionalProperties: false
+      type: object
+      title: AdminOrderFollowUpDurableLiveProofActivity
+      description: The four named durable activity slots for the bounded proof goal.
+    AdminOrderFollowUpDurableOperationActivity:
+      properties:
+        sdk_mutation_invocation_state:
+          $ref: '#/components/schemas/FollowUpSdkMutationInvocationState'
+        transport_submission_state:
+          $ref: '#/components/schemas/FollowUpTransportSubmissionState'
+        exchange_mutation_state:
+          $ref: '#/components/schemas/FollowUpExchangeMutationState'
+        read_accounting_state:
+          $ref: '#/components/schemas/FollowUpReadAccountingState'
+        observed_read_count:
+          anyOf:
+          - type: integer
+            maximum: 10.0
+            minimum: 0.0
+          - type: 'null'
+          title: Observed Read Count
+        accounting_scope:
+          type: string
+          const: durable_attempt
+          title: Accounting Scope
+          default: durable_attempt
+        operation_kind:
+          $ref: '#/components/schemas/FollowUpLiveProofOperationKind'
+        event_state:
+          $ref: '#/components/schemas/FollowUpLiveProofEventState'
+        terminal_outcome:
+          anyOf:
+          - $ref: '#/components/schemas/FollowUpLiveProofTerminalOutcome'
+          - type: 'null'
+        individual_retry_count:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: Individual Retry Count
+        evidence_origin:
+          type: string
+          enum:
+          - live_proof_journal
+          - conservative_legacy_projection
+          title: Evidence Origin
+        recorded_at:
+          type: string
+          minLength: 1
+          title: Recorded At
+      additionalProperties: false
+      type: object
+      required:
+      - sdk_mutation_invocation_state
+      - transport_submission_state
+      - exchange_mutation_state
+      - read_accounting_state
+      - observed_read_count
+      - operation_kind
+      - event_state
+      - individual_retry_count
+      - evidence_origin
+      - recorded_at
+      title: AdminOrderFollowUpDurableOperationActivity
+      description: Sanitized journal accounting for one durable proof allowance.
     AdminOrderFollowUpIntentAttachRequest:
       properties:
         acknowledge_future_materialization_requires_fresh_authorization:
@@ -142077,10 +142306,12 @@ components:
           type: string
           minLength: 1
           title: Correlation Id
+          description: Correlation recorded on the durable operation event.
         audit_id:
           type: string
           minLength: 1
           title: Audit Id
+          description: Stable durable operation audit binding.
         recorded_at:
           type: string
           minLength: 1
@@ -142148,6 +142379,7 @@ components:
           type: string
           minLength: 1
           title: Correlation Id
+          description: Correlation recorded on the durable operation event.
         exchange_order_id_present:
           type: boolean
           title: Exchange Order Id Present
@@ -142226,9 +142458,11 @@ components:
           maximum: 1.0
           minimum: 0.0
           title: Create Call Count
+          description: Durable Create allowance-consumption count.
         create_call_consumed:
           type: boolean
           title: Create Call Consumed
+          description: Compatibility name for durable Create allowance consumption.
         create_retry_allowed:
           type: boolean
           const: false
@@ -142244,9 +142478,11 @@ components:
           maximum: 1.0
           minimum: 0.0
           title: Cancel Call Count
+          description: Durable Cancel allowance-consumption count.
         cancel_call_consumed:
           type: boolean
           title: Cancel Call Consumed
+          description: Compatibility name for durable Cancel allowance consumption.
         cancel_retry_allowed:
           type: boolean
           const: false
@@ -142257,6 +142493,18 @@ components:
           const: false
           title: Fallback Allowed
           default: false
+        create_allowance_consumed:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Create Allowance Consumed
+          description: Canonical Create allowance-consumption readback.
+        cancel_allowance_consumed:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Cancel Allowance Consumed
+          description: Canonical Cancel allowance-consumption readback.
       additionalProperties: false
       type: object
       required:
@@ -142339,6 +142587,8 @@ components:
           type: string
           minLength: 1
           title: Correlation Id
+          description: Correlation for this HTTP request, including an idempotent
+            replay.
         idempotency_key:
           type: string
           minLength: 1
@@ -142347,6 +142597,7 @@ components:
           type: string
           minLength: 1
           title: Audit Id
+          description: Receipt audit identifier for this HTTP request.
         replayed:
           type: boolean
           title: Replayed
@@ -142355,9 +142606,15 @@ components:
           $ref: '#/components/schemas/AdminOrderFollowUpMaterializationAttempt'
         call_allowance:
           $ref: '#/components/schemas/AdminOrderFollowUpMaterializationCallAllowance'
+        current_request_activity:
+          $ref: '#/components/schemas/AdminOrderFollowUpCurrentRequestActivity'
+        durable_live_proof_activity:
+          $ref: '#/components/schemas/AdminOrderFollowUpDurableLiveProofActivity'
         live_coinbase_read_ran:
           type: boolean
           title: Live Coinbase Read Ran
+          description: Deprecated confirmed-only compatibility projection; use current_request_activity
+            for authoritative activity accounting.
         live_coinbase_create_call_count:
           type: integer
           const: 0
@@ -142368,12 +142625,17 @@ components:
           maximum: 1.0
           minimum: 0.0
           title: Live Coinbase Cancel Call Count
+          description: Deprecated confirmed-SDK-invocation projection; allowance consumption
+            is reported separately by call_allowance.
         live_exchange_cancel_submitted:
           type: boolean
           title: Live Exchange Cancel Submitted
+          description: Deprecated confirmed-transport projection; POSSIBLY_SUBMITTED
+            is represented only by current_request_activity.
         exchange_state_mutated:
           type: boolean
           title: Exchange State Mutated
+          description: Deprecated confirmed-mutation projection; use current_request_activity.
         browser_authority:
           type: string
           title: Browser Authority
@@ -142393,6 +142655,8 @@ components:
       - audit_id
       - attempt
       - call_allowance
+      - current_request_activity
+      - durable_live_proof_activity
       - live_coinbase_read_ran
       - live_coinbase_cancel_call_count
       - live_exchange_cancel_submitted
@@ -142533,6 +142797,8 @@ components:
           type: string
           minLength: 1
           title: Correlation Id
+          description: Correlation for this HTTP request, including an idempotent
+            replay.
         idempotency_key:
           type: string
           minLength: 1
@@ -142541,6 +142807,7 @@ components:
           type: string
           minLength: 1
           title: Audit Id
+          description: Receipt audit identifier for this HTTP request.
         replayed:
           type: boolean
           title: Replayed
@@ -142553,14 +142820,22 @@ components:
           $ref: '#/components/schemas/AdminOrderFollowUpMaterializationAttempt'
         call_allowance:
           $ref: '#/components/schemas/AdminOrderFollowUpMaterializationCallAllowance'
+        current_request_activity:
+          $ref: '#/components/schemas/AdminOrderFollowUpCurrentRequestActivity'
+        durable_live_proof_activity:
+          $ref: '#/components/schemas/AdminOrderFollowUpDurableLiveProofActivity'
         live_coinbase_read_ran:
           type: boolean
           title: Live Coinbase Read Ran
+          description: Deprecated confirmed-only compatibility projection; use current_request_activity
+            for authoritative activity accounting.
         live_coinbase_create_call_count:
           type: integer
           maximum: 1.0
           minimum: 0.0
           title: Live Coinbase Create Call Count
+          description: Deprecated confirmed-SDK-invocation projection; allowance consumption
+            is reported separately by call_allowance.
         live_coinbase_cancel_call_count:
           type: integer
           const: 0
@@ -142569,9 +142844,12 @@ components:
         live_exchange_submitted:
           type: boolean
           title: Live Exchange Submitted
+          description: Deprecated confirmed-transport projection; POSSIBLY_SUBMITTED
+            is represented only by current_request_activity.
         exchange_state_mutated:
           type: boolean
           title: Exchange State Mutated
+          description: Deprecated confirmed-mutation projection; use current_request_activity.
         browser_authority:
           type: string
           title: Browser Authority
@@ -142593,6 +142871,8 @@ components:
       - candidate
       - attempt
       - call_allowance
+      - current_request_activity
+      - durable_live_proof_activity
       - live_coinbase_read_ran
       - live_coinbase_create_call_count
       - live_exchange_submitted
@@ -142691,6 +142971,52 @@ components:
       - backend_decision
       title: AdminOrderFollowUpMaterializationEligibilityEvidence
       description: Backend-owned fresh materialization and exchange-readiness evidence.
+    AdminOrderFollowUpMaterializationErrorResponse:
+      properties:
+        code:
+          $ref: '#/components/schemas/AdminApiErrorCode'
+        message:
+          type: string
+          title: Message
+        severity:
+          $ref: '#/components/schemas/AdminApiErrorSeverity'
+        guard_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Guard Name
+        field_path:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Field Path
+        correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          description: Confirmed-only compatibility projection. False does not rule
+            out an unknown boundary; use current_request_activity when present.
+          default: false
+        current_request_activity:
+          $ref: '#/components/schemas/AdminOrderFollowUpCurrentRequestActivity'
+      additionalProperties: false
+      type: object
+      required:
+      - code
+      - message
+      - severity
+      - current_request_activity
+      title: AdminOrderFollowUpMaterializationErrorResponse
+      description: Typed value-blind failure evidence for a follow-up live request.
     AdminOrderFollowUpMaterializationLocalProjection:
       properties:
         local_state_event_id:
@@ -142805,6 +143131,14 @@ components:
           - type: 'null'
         call_allowance:
           $ref: '#/components/schemas/AdminOrderFollowUpMaterializationCallAllowance'
+        current_request_activity:
+          $ref: '#/components/schemas/AdminOrderFollowUpCurrentRequestActivity'
+          description: Observed activity for this passive HTTP request; it is always
+            exact zero and is not exchange authority.
+        durable_live_proof_activity:
+          $ref: '#/components/schemas/AdminOrderFollowUpDurableLiveProofActivity'
+          description: Sanitized durable activity journal, separate from this request
+            and from call-allowance consumption.
         audit_events:
           items:
             $ref: '#/components/schemas/AdminOrderFollowUpMaterializationAuditEvent'
@@ -142923,6 +143257,316 @@ components:
       - backend_decision
       title: AdminOrderFollowUpMaterializationSafeCloseoutEligibility
       description: Backend decision to permit one exact-child reconciliation request.
+    AdminOrderFollowUpOperationActionability:
+      type: string
+      enum:
+      - materialization_review
+      - safe_closeout_review
+      - none
+      title: AdminOrderFollowUpOperationActionability
+      description: Backend-classified review navigation; never live eligibility.
+    AdminOrderFollowUpOperationItem:
+      properties:
+        follow_up_intent_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Follow Up Intent Id
+        source_client_order_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Source Client Order Id
+        root_client_order_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Root Client Order Id
+        child_client_order_id:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          - type: 'null'
+          title: Child Client Order Id
+        product_id:
+          type: string
+          maxLength: 255
+          pattern: ^[A-Z0-9][A-Z0-9._-]*$
+          title: Product Id
+        source_status:
+          anyOf:
+          - $ref: '#/components/schemas/OrderStatus'
+          - type: string
+            const: UNKNOWN
+          title: Source Status
+        derived_follow_up_side:
+          type: string
+          enum:
+          - BUY
+          - SELL
+          title: Derived Follow Up Side
+        operation_state:
+          $ref: '#/components/schemas/AdminOrderFollowUpOperationState'
+        state_reason_code:
+          type: string
+          pattern: ^[a-z0-9_]+$
+          title: State Reason Code
+        blocker_codes:
+          items:
+            type: string
+          type: array
+          title: Blocker Codes
+        actionability:
+          $ref: '#/components/schemas/AdminOrderFollowUpOperationActionability'
+        actionable:
+          type: boolean
+          title: Actionable
+        review_navigation_available:
+          type: boolean
+          title: Review Navigation Available
+        materialization_review_available:
+          type: boolean
+          title: Materialization Review Available
+        safe_closeout_review_available:
+          type: boolean
+          title: Safe Closeout Review Available
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: 'null'
+        actor_authorized:
+          type: boolean
+          title: Actor Authorized
+        live_eligibility:
+          type: boolean
+          const: false
+          title: Live Eligibility
+          default: false
+        fresh_authoritative_revalidation_required:
+          type: boolean
+          title: Fresh Authoritative Revalidation Required
+        create_allowance_consumption_count:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Create Allowance Consumption Count
+          description: Canonical durable Create allowance-consumption count.
+        create_allowance_consumed:
+          type: boolean
+          title: Create Allowance Consumed
+          description: Canonical durable Create allowance-consumption state.
+        create_call_count:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Create Call Count
+          description: Deprecated durable Create allowance-consumption count; not
+            an observed SDK call.
+        create_call_consumed:
+          type: boolean
+          title: Create Call Consumed
+          description: Deprecated durable Create allowance-consumption state; not
+            observed exchange activity.
+        cancel_allowance_consumption_count:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Cancel Allowance Consumption Count
+          description: Canonical durable Cancel allowance-consumption count.
+        cancel_allowance_consumed:
+          type: boolean
+          title: Cancel Allowance Consumed
+          description: Canonical durable Cancel allowance-consumption state.
+        cancel_call_count:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Cancel Call Count
+          description: Deprecated durable Cancel allowance-consumption count; not
+            an observed SDK call.
+        cancel_call_consumed:
+          type: boolean
+          title: Cancel Call Consumed
+          description: Deprecated durable Cancel allowance-consumption state; not
+            observed exchange activity.
+        durable_live_proof_activity:
+          $ref: '#/components/schemas/AdminOrderFollowUpDurableLiveProofActivity'
+        materialization_attempt_state:
+          anyOf:
+          - $ref: '#/components/schemas/FollowUpMaterializationState'
+          - type: 'null'
+        correlation_id:
+          type: string
+          maxLength: 255
+          pattern: ^[!-~]+$
+          title: Correlation Id
+        audit_id:
+          type: string
+          maxLength: 255
+          pattern: ^[!-~]+$
+          title: Audit Id
+        recorded_at:
+          type: string
+          minLength: 1
+          title: Recorded At
+        updated_at:
+          type: string
+          minLength: 1
+          title: Updated At
+        detail_href:
+          type: string
+          minLength: 1
+          title: Detail Href
+      additionalProperties: false
+      type: object
+      required:
+      - follow_up_intent_id
+      - source_client_order_id
+      - root_client_order_id
+      - product_id
+      - source_status
+      - derived_follow_up_side
+      - operation_state
+      - state_reason_code
+      - actionability
+      - actionable
+      - review_navigation_available
+      - materialization_review_available
+      - safe_closeout_review_available
+      - actor_authorized
+      - fresh_authoritative_revalidation_required
+      - create_allowance_consumption_count
+      - create_allowance_consumed
+      - create_call_count
+      - create_call_consumed
+      - cancel_allowance_consumption_count
+      - cancel_allowance_consumed
+      - cancel_call_count
+      - cancel_call_consumed
+      - durable_live_proof_activity
+      - correlation_id
+      - audit_id
+      - recorded_at
+      - updated_at
+      - detail_href
+      title: AdminOrderFollowUpOperationItem
+      description: One sanitized, backend-classified attached follow-up intent.
+    AdminOrderFollowUpOperationState:
+      type: string
+      enum:
+      - awaiting_source_fill
+      - ready_for_materialization_authorization
+      - materialization_in_progress
+      - materialized_active
+      - materialized_terminal
+      - unknown_outcome
+      - blocked
+      title: AdminOrderFollowUpOperationState
+      description: Backend-owned projection states for the follow-up operations queue.
+    AdminOrderFollowUpOperationsFilters:
+      properties:
+        product_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Id
+        state:
+          anyOf:
+          - $ref: '#/components/schemas/AdminOrderFollowUpOperationState'
+          - type: 'null'
+        actionability:
+          anyOf:
+          - $ref: '#/components/schemas/AdminOrderFollowUpOperationActionability'
+          - type: 'null'
+        limit:
+          type: integer
+          maximum: 500.0
+          minimum: 1.0
+          title: Limit
+        offset:
+          type: integer
+          minimum: 0.0
+          title: Offset
+      additionalProperties: false
+      type: object
+      required:
+      - limit
+      - offset
+      title: AdminOrderFollowUpOperationsFilters
+      description: Exact normalized SQL filters echoed by the operations queue.
+    AdminOrderFollowUpOperationsQueueResponse:
+      properties:
+        type:
+          type: string
+          const: admin_order_follow_up_operations_queue
+          title: Type
+          default: admin_order_follow_up_operations_queue
+        filters:
+          $ref: '#/components/schemas/AdminOrderFollowUpOperationsFilters'
+        count:
+          type: integer
+          minimum: 0.0
+          title: Count
+        pagination:
+          $ref: '#/components/schemas/AdminOrderPagination'
+        items:
+          items:
+            $ref: '#/components/schemas/AdminOrderFollowUpOperationItem'
+          type: array
+          title: Items
+        current_request_activity:
+          $ref: '#/components/schemas/AdminOrderFollowUpCurrentRequestActivity'
+        read_only:
+          type: boolean
+          const: true
+          title: Read Only
+          default: true
+        local_sql_only:
+          type: boolean
+          const: true
+          title: Local Sql Only
+          default: true
+        local_classification_only:
+          type: boolean
+          const: true
+          title: Local Classification Only
+          default: true
+        local_state_mutated:
+          type: boolean
+          const: false
+          title: Local State Mutated
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          const: false
+          title: Live Coinbase Read Ran
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          const: false
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_create_call_count:
+          type: integer
+          const: 0
+          title: Live Coinbase Create Call Count
+          default: 0
+        live_coinbase_cancel_call_count:
+          type: integer
+          const: 0
+          title: Live Coinbase Cancel Call Count
+          default: 0
+        exchange_state_mutated:
+          type: boolean
+          const: false
+          title: Exchange State Mutated
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - filters
+      - count
+      - pagination
+      - current_request_activity
+      title: AdminOrderFollowUpOperationsQueueResponse
+      description: One SQL-paginated local queue with no exchange-side activity.
     AdminOrderListResponse:
       properties:
         type:
@@ -145568,6 +146212,91 @@ components:
         \  |    no      |     no        |       no        |    no     |\n\n\"Soft\
         \ pause\" -- pause stops *originating* new orders but keeps WS, fills,\nand\
         \ cancellations active so existing positions remain manageable."
+    FollowUpExchangeMutationState:
+      type: string
+      enum:
+      - NOT_MUTATED
+      - UNKNOWN
+      - CONFIRMED_MUTATED
+      title: FollowUpExchangeMutationState
+      description: Observed exchange-side mutation, without inferring it from allowance
+        use.
+    FollowUpLiveProofEventState:
+      type: string
+      enum:
+      - INVOCATION_STARTED
+      - TERMINAL
+      title: FollowUpLiveProofEventState
+      description: Append-only journal states for one goal-wide operation allowance.
+    FollowUpLiveProofOperationKind:
+      type: string
+      enum:
+      - ELIGIBILITY_READ
+      - RECONCILIATION_READ
+      - CREATE
+      - CANCEL
+      title: FollowUpLiveProofOperationKind
+      description: Goal-wide, single-use external-call boundaries for the MVP proof.
+    FollowUpLiveProofTerminalOutcome:
+      type: string
+      enum:
+      - SUCCEEDED
+      - REJECTED
+      - UNKNOWN
+      - BLOCKED
+      - NOT_REQUIRED
+      title: FollowUpLiveProofTerminalOutcome
+      description: Fixed, value-blind terminal classifications for proof operations.
+    FollowUpMaterializationState:
+      type: string
+      enum:
+      - KNOWN_NOT_INVOKED
+      - CREATE_INVOCATION_STARTED
+      - CREATE_EXPLICITLY_REJECTED
+      - CREATE_ACCEPTED_NONTERMINAL
+      - CREATE_ACCEPTED_TERMINAL
+      - CREATE_UNKNOWN_CONSUMED
+      - CANCEL_INVOCATION_STARTED
+      - CANCEL_NOT_REQUIRED_TERMINAL
+      - CANCEL_EXPLICITLY_REJECTED
+      - CANCEL_ACCEPTED_NONTERMINAL
+      - CANCEL_ACCEPTED_TERMINAL
+      - CANCEL_UNKNOWN_CONSUMED
+      title: FollowUpMaterializationState
+      description: 'Append-only boundaries for one operator materialization attempt.
+
+
+        ``KNOWN_NOT_INVOKED`` is durable proof that no exchange mutation boundary
+
+        has been crossed.  Every ``*_INVOCATION_STARTED`` state is written before
+
+        the corresponding one-use call and therefore consumes that call boundary
+
+        if its result cannot be classified.'
+    FollowUpReadAccountingState:
+      type: string
+      enum:
+      - EXACT
+      - UNKNOWN
+      title: FollowUpReadAccountingState
+      description: Whether the bounded observed read count is exact or unknowable.
+    FollowUpSdkMutationInvocationState:
+      type: string
+      enum:
+      - NOT_INVOKED
+      - INVOKED
+      - UNKNOWN
+      title: FollowUpSdkMutationInvocationState
+      description: Observed SDK mutation-boundary activity, independent of allowance
+        use.
+    FollowUpTransportSubmissionState:
+      type: string
+      enum:
+      - NOT_SUBMITTED
+      - POSSIBLY_SUBMITTED
+      - CONFIRMED_SUBMITTED
+      title: FollowUpTransportSubmissionState
+      description: Observed transport submission for one mutation operation.
     FuturesCancelOrderRequest:
       properties:
         product_id:
@@ -146431,6 +147160,36 @@ components:
       - SELL
       title: OrderSide
       description: Direction of an order - BUY or SELL.
+    OrderStatus:
+      type: string
+      enum:
+      - PENDING
+      - SUBMITTED
+      - SUBMISSION_UNKNOWN
+      - OPEN
+      - FILLED
+      - CANCELLED
+      - EXPIRED
+      - FAILED
+      - QUEUED
+      - CANCEL_QUEUED
+      - EDIT_QUEUED
+      - UPDATE
+      - SNAPSHOT
+      title: OrderStatus
+      description: 'Status of an order throughout its lifecycle.
+
+
+        From Coinbase API: PENDING, OPEN, FILLED, CANCELLED, EXPIRED, FAILED,
+
+        QUEUED, CANCEL_QUEUED, EDIT_QUEUED
+
+
+        Engine event statuses also routed through order processing:
+
+        - UPDATE: Incremental websocket update for an existing order
+
+        - SNAPSHOT: Initial websocket snapshot payload'
     OrderType:
       type: string
       enum:

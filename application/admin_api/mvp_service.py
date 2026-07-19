@@ -9172,6 +9172,7 @@ class AdminMvpService:
             "/api/v1/admin/fill-ledger-health",
             "/api/v1/admin/frontend-fixtures",
             "/api/v1/orders",
+            "/api/v1/follow-up-operations",
             "/api/v1/spot/command-suite",
             *FUTURES_READ_ROUTES,
         ]
@@ -14380,10 +14381,13 @@ def _read_capability_module_id(route: str) -> str:
         return ACCOUNT_MANAGEMENT_MODULE_ID
     if route in FUTURES_READ_ROUTES:
         return FUTURES_MODULE_ID
+    if route == "/api/v1/follow-up-operations":
+        return MANUAL_ORDER_MODULE_ID
     return "admin_system_health"
 
 
 def _read_capability(route: str, module_id: str) -> dict[str, Any]:
+    follow_up_operations = route == "/api/v1/follow-up-operations"
     return {
         "module_id": module_id,
         "route": route,
@@ -14392,9 +14396,15 @@ def _read_capability(route: str, module_id: str) -> dict[str, Any]:
         "live_enabled": False,
         "frontend_safe": True,
         "action_class": "read_only",
-        "permission": "analytics:read",
-        "required_permission": "analytics:read",
-        "shared_method": "read_mvp_contract",
+        "permission": "audit:read" if follow_up_operations else "analytics:read",
+        "required_permission": (
+            "audit:read" if follow_up_operations else "analytics:read"
+        ),
+        "shared_method": (
+            "list_follow_up_operations"
+            if follow_up_operations
+            else "read_mvp_contract"
+        ),
         "idempotency": "not_required",
         "approval": "not_required",
         "caps": "not_required",

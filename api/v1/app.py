@@ -20,6 +20,7 @@ from .routes.automation import router as automation_router
 from .routes.approvals import router as approvals_router
 from .routes.cap_guard import router as cap_guard_router
 from .routes.futures import router as futures_router
+from .routes.follow_up_operations import router as follow_up_operations_router
 from .routes.live_execution import router as live_execution_router
 from .routes.movement_repricing import router as movement_repricing_router
 from .routes.orders import router as orders_router
@@ -318,6 +319,11 @@ def create_app() -> FastAPI:
         tags=["live-execution"],
     )
     app.include_router(futures_router, prefix="/api/v1", tags=["futures"])
+    app.include_router(
+        follow_up_operations_router,
+        prefix="/api/v1",
+        tags=["follow-up-operations"],
+    )
     app.include_router(
         movement_repricing_router,
         prefix="/api/v1",

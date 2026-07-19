@@ -7,6 +7,7 @@ They never address the operator database and never import or invoke Coinbase.
 from __future__ import annotations
 
 from decimal import Decimal
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 import uuid
@@ -15,11 +16,21 @@ import psycopg2
 import pytest
 
 from core.enums import (
+    FollowUpAccountingEvidenceOrigin,
+    FollowUpExchangeMutationState,
+    FollowUpLiveProofEventState,
+    FollowUpLiveProofOperationKind,
+    FollowUpReadAccountingState,
+    FollowUpSdkMutationInvocationState,
+    FollowUpLiveProofTerminalOutcome,
     FollowUpMaterializationState,
     FollowUpMaterializedChildTransitionKind,
+    FollowUpTransportSubmissionState,
 )
 from database.order_follow_up_intent import (
+    OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
     FollowUpIntentStoreConflict,
+    FollowUpIntentStoreUnavailable,
     FollowUpMaterializationCommand,
     OperatorFollowUpIntentRepository,
     derive_operator_follow_up_materialization_child_id,
@@ -36,6 +47,32 @@ from tests.regression.test_admin_api_order_follow_up_intent_repository import (
 
 
 pytestmark = [pytest.mark.regression, pytest.mark.integration, pytest.mark.serial]
+
+
+def test_live_proof_tri_state_enums_are_exhaustive_and_value_stable():
+    assert tuple(state.value for state in FollowUpAccountingEvidenceOrigin) == (
+        "EXPLICIT",
+        "LEGACY_CONSERVATIVE",
+    )
+    assert tuple(state.value for state in FollowUpSdkMutationInvocationState) == (
+        "NOT_INVOKED",
+        "INVOKED",
+        "UNKNOWN",
+    )
+    assert tuple(state.value for state in FollowUpTransportSubmissionState) == (
+        "NOT_SUBMITTED",
+        "POSSIBLY_SUBMITTED",
+        "CONFIRMED_SUBMITTED",
+    )
+    assert tuple(state.value for state in FollowUpExchangeMutationState) == (
+        "NOT_MUTATED",
+        "UNKNOWN",
+        "CONFIRMED_MUTATED",
+    )
+    assert tuple(state.value for state in FollowUpReadAccountingState) == (
+        "EXACT",
+        "UNKNOWN",
+    )
 
 
 def _attach_then_fill(
@@ -121,14 +158,16 @@ def _operation_authority(
     operation_idempotency_key: str,
     *,
     actor_id: str = "operator-closeout-001",
+    roles: tuple[str, ...] = ("trader",),
+    environment: str = "local",
     correlation_id: str = "corr-safe-closeout-001",
     operator_intent: str = "authorize_safe_closeout",
 ) -> dict[str, object]:
     return {
         "operation_idempotency_key": operation_idempotency_key,
         "actor_id": actor_id,
-        "roles": ("trader",),
-        "environment": "local",
+        "roles": roles,
+        "environment": environment,
         "operator_intent": operator_intent,
         "correlation_id": correlation_id,
     }
@@ -731,12 +770,18 @@ def test_terminal_without_cancel_replay_binds_exact_operation_key(
     first = repository.record_child_terminal_without_cancel(
         attempt.materialization_id,
         diagnostic_code="child_terminal_reconciled",
-        **_operation_authority("terminal-exact-key"),
+        **_operation_authority(
+            "terminal-exact-key",
+            roles=("trader", "admin"),
+        ),
     )
     replay = repository.record_child_terminal_without_cancel(
         attempt.materialization_id,
         diagnostic_code="child_terminal_reconciled",
-        **_operation_authority("terminal-exact-key"),
+        **_operation_authority(
+            "terminal-exact-key",
+            roles=("admin", "trader"),
+        ),
     )
 
     assert first.replayed is False
@@ -751,16 +796,32 @@ def test_terminal_without_cancel_replay_binds_exact_operation_key(
             **_operation_authority("different-terminal-key"),
         )
     assert changed_key.value.code == "idempotency_conflict"
-    with pytest.raises(FollowUpIntentStoreConflict) as changed_caller:
+    new_http_attempt = repository.record_child_terminal_without_cancel(
+        attempt.materialization_id,
+        diagnostic_code="child_terminal_reconciled",
+        **_operation_authority(
+            "terminal-exact-key",
+            roles=("trader", "admin"),
+            correlation_id="corr-not-the-original",
+        ),
+    )
+    assert new_http_attempt.replayed is True
+    assert new_http_attempt.event == first.event
+    assert new_http_attempt.event.correlation_id == (
+        "corr-safe-closeout-001"
+    )
+    with pytest.raises(FollowUpIntentStoreConflict) as changed_actor:
         repository.record_child_terminal_without_cancel(
             attempt.materialization_id,
             diagnostic_code="child_terminal_reconciled",
             **_operation_authority(
                 "terminal-exact-key",
-                correlation_id="corr-not-the-original",
+                actor_id="different-operator",
+                roles=("admin", "trader"),
+                correlation_id="corr-third-http-attempt",
             ),
         )
-    assert changed_caller.value.code == "idempotency_conflict"
+    assert changed_actor.value.code == "idempotency_conflict"
 
 
 def test_lineage_trigger_permits_only_the_exact_preclaimed_flat_child(
@@ -1687,3 +1748,2095 @@ def test_direct_root_materialized_child_keeps_flat_lineage(
         "WHERE parent_order_id = %s",
         (root_id,),
     ) == 1
+
+
+def _claim_live_proof_eligibility(
+    repository: OperatorFollowUpIntentRepository,
+    source_id: str,
+):
+    return repository.claim_follow_up_live_proof_operation(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value,
+        source_client_order_id=source_id,
+        correlation_id=f"proof-correlation-{uuid.uuid4()}",
+        audit_id=str(uuid.uuid4()),
+        operation_idempotency_key_sha256="a" * 64,
+    )
+
+
+def _drop_live_proof_idempotency_binding(
+    harness: _RepositoryHarness,
+) -> None:
+    harness.execute(
+        f'ALTER TABLE "{harness.schema}".'
+        "operator_follow_up_live_proof_event "
+        "DROP COLUMN operation_idempotency_key_sha256"
+    )
+
+
+def test_live_proof_schema_upgrades_empty_pre_binding_journal(
+    repository_harness: _RepositoryHarness,
+):
+    _drop_live_proof_idempotency_binding(repository_harness)
+
+    upgraded_repository = repository_harness.repository()
+    column = _row_mapping(
+        repository_harness,
+        """
+        SELECT data_type, character_maximum_length, is_nullable
+          FROM information_schema.columns
+         WHERE table_schema = %s
+           AND table_name = 'operator_follow_up_live_proof_event'
+           AND column_name = 'operation_idempotency_key_sha256'
+        """,
+        (repository_harness.schema,),
+    )
+    assert column == {
+        "data_type": "character varying",
+        "character_maximum_length": 64,
+        "is_nullable": "NO",
+    }
+
+    _repository, _root_id, source_id, _intent_id = _attach_then_fill(
+        repository_harness
+    )
+    started = _claim_live_proof_eligibility(upgraded_repository, source_id)
+    assert started.operation_idempotency_key_sha256 == "a" * 64
+
+    with pytest.raises(psycopg2.Error) as invalid_binding:
+        repository_harness.execute(
+            f"""
+            INSERT INTO "{repository_harness.schema}".
+                operator_follow_up_live_proof_event (
+                    event_id, goal_id, operation_kind, event_state,
+                    outcome, diagnostic_code, source_client_order_id,
+                    root_client_order_id, follow_up_intent_id,
+                    materialization_id, child_client_order_id,
+                    correlation_id, audit_id,
+                    operation_idempotency_key_sha256,
+                    external_call_started, reported_read_count,
+                    individual_retry_count
+                )
+            SELECT %s, goal_id, operation_kind, 'TERMINAL', 'UNKNOWN',
+                   'follow_up_live_proof_eligibility_unknown',
+                   source_client_order_id, root_client_order_id,
+                   follow_up_intent_id, materialization_id,
+                   child_client_order_id, correlation_id, audit_id,
+                   %s, FALSE, 0, 0
+              FROM "{repository_harness.schema}".
+                   operator_follow_up_live_proof_event
+             WHERE event_id = %s
+            """,
+            (str(uuid.uuid4()), "A" * 64, started.event_id),
+        )
+    assert invalid_binding.value.pgcode in {"23514", "P0001"}
+
+
+def test_live_proof_schema_refuses_to_fabricate_missing_existing_bindings(
+    repository_harness: _RepositoryHarness,
+):
+    repository, _root_id, source_id, _intent_id = _attach_then_fill(
+        repository_harness
+    )
+    _claim_live_proof_eligibility(repository, source_id)
+    _drop_live_proof_idempotency_binding(repository_harness)
+    repository._schema_ready = False
+
+    with pytest.raises(FollowUpIntentStoreUnavailable) as unavailable:
+        repository.ensure_schema()
+
+    assert unavailable.value.code == "follow_up_intent_store_unavailable"
+    assert repository._schema_ready is False
+
+
+def test_live_proof_invocation_guard_is_exclusive_and_releases_on_exception(
+    repository_harness: _RepositoryHarness,
+):
+    repository, _root_id, source_id, _intent_id = _attach_then_fill(
+        repository_harness
+    )
+    contender = repository_harness.repository()
+
+    with repository.follow_up_live_proof_invocation_guard(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        source_client_order_id=source_id,
+    ):
+        started = _claim_live_proof_eligibility(repository, source_id)
+        assert started.claimed is True
+        with pytest.raises(FollowUpIntentStoreConflict) as unavailable:
+            with contender.follow_up_live_proof_invocation_guard(
+                goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+                source_client_order_id=source_id,
+            ):
+                pytest.fail("contending guard unexpectedly acquired")
+        assert unavailable.value.code == (
+            "follow_up_live_proof_invocation_guard_unavailable"
+        )
+
+    with pytest.raises(RuntimeError, match="synthetic_guard_failure"):
+        with repository.follow_up_live_proof_invocation_guard(
+            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            source_client_order_id=source_id,
+        ):
+            raise RuntimeError("synthetic_guard_failure")
+
+    with contender.follow_up_live_proof_invocation_guard(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        source_client_order_id=source_id,
+    ):
+        pass
+
+
+def test_live_proof_invocation_guard_rejects_existing_goal_source_mismatch(
+    repository_harness: _RepositoryHarness,
+):
+    repository, _root_id, source_id, _intent_id = _attach_then_fill(
+        repository_harness
+    )
+    _claim_live_proof_eligibility(repository, source_id)
+
+    with repository.follow_up_live_proof_invocation_guard(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        source_client_order_id=source_id,
+    ):
+        pass
+
+    with pytest.raises(FollowUpIntentStoreConflict) as mismatch:
+        with repository.follow_up_live_proof_invocation_guard(
+            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            source_client_order_id=str(uuid.uuid4()),
+        ):
+            pytest.fail("mismatched goal source unexpectedly acquired")
+
+    assert mismatch.value.code == "follow_up_live_proof_goal_binding_conflict"
+
+
+def test_live_proof_eligibility_claim_fails_closed_for_zero_or_multiple_candidates(
+    repository_harness: _RepositoryHarness,
+):
+    repository = repository_harness.repository()
+
+    with pytest.raises(FollowUpIntentStoreConflict) as zero:
+        _claim_live_proof_eligibility(repository, str(uuid.uuid4()))
+    assert zero.value.code == "follow_up_live_proof_candidate_cardinality_invalid"
+
+    _attach_then_fill(repository_harness)
+    _repository, _root_id, second_source_id, _intent_id = _attach_then_fill(
+        repository_harness
+    )
+    with pytest.raises(FollowUpIntentStoreConflict) as multiple:
+        _claim_live_proof_eligibility(repository, second_source_id)
+    assert multiple.value.code == (
+        "follow_up_live_proof_candidate_cardinality_invalid"
+    )
+    assert repository_harness.scalar(
+        f'SELECT COUNT(*) FROM "{repository_harness.schema}".'
+        "operator_follow_up_live_proof_goal"
+    ) == 0
+    assert repository_harness.scalar(
+        f'SELECT COUNT(*) FROM "{repository_harness.schema}".'
+        "operator_follow_up_live_proof_event"
+    ) == 0
+
+
+def test_live_proof_claim_is_durable_singleton_across_repository_restart(
+    repository_harness: _RepositoryHarness,
+):
+    repository, root_id, source_id, intent_id = _attach_then_fill(
+        repository_harness
+    )
+
+    started = _claim_live_proof_eligibility(repository, source_id)
+    terminal = repository.record_follow_up_live_proof_terminal(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value,
+        source_client_order_id=source_id,
+        outcome=FollowUpLiveProofTerminalOutcome.SUCCEEDED.value,
+        diagnostic_code="follow_up_live_proof_eligibility_succeeded",
+        reported_read_count=1,
+    )
+
+    assert started.claimed is True
+    assert started.event_state == FollowUpLiveProofEventState.INVOCATION_STARTED.value
+    assert started.source_client_order_id == source_id
+    assert started.root_client_order_id == root_id
+    assert started.follow_up_intent_id == intent_id
+    assert started.materialization_id is None
+    assert started.child_client_order_id is None
+    assert terminal.event_state == FollowUpLiveProofEventState.TERMINAL.value
+    assert terminal.outcome == FollowUpLiveProofTerminalOutcome.SUCCEEDED.value
+
+    restarted_repository = repository_harness.repository()
+    with pytest.raises(FollowUpIntentStoreConflict) as consumed:
+        _claim_live_proof_eligibility(restarted_repository, source_id)
+    assert consumed.value.code == "follow_up_live_proof_operation_consumed"
+    assert repository_harness.scalar(
+        f'SELECT COUNT(*) FROM "{repository_harness.schema}".'
+        "operator_follow_up_live_proof_event"
+    ) == 2
+
+
+def test_live_proof_concurrent_eligibility_claim_has_one_winner(
+    repository_harness: _RepositoryHarness,
+):
+    _repository, _root_id, source_id, _intent_id = _attach_then_fill(
+        repository_harness
+    )
+    repositories = (
+        repository_harness.repository(),
+        repository_harness.repository(),
+    )
+
+    def claim(repository: OperatorFollowUpIntentRepository) -> str:
+        try:
+            _claim_live_proof_eligibility(repository, source_id)
+            return "claimed"
+        except FollowUpIntentStoreConflict as exc:
+            return exc.code
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        outcomes = tuple(executor.map(claim, repositories))
+
+    assert sorted(outcomes) == [
+        "claimed",
+        "follow_up_live_proof_operation_consumed",
+    ]
+    assert repository_harness.scalar(
+        f'SELECT COUNT(*) FROM "{repository_harness.schema}".'
+        "operator_follow_up_live_proof_event "
+        "WHERE operation_kind = 'ELIGIBILITY_READ' "
+        "AND event_state = 'INVOCATION_STARTED'"
+    ) == 1
+
+
+def test_live_proof_create_and_cancel_share_exact_durable_child_binding(
+    repository_harness: _RepositoryHarness,
+):
+    repository, root_id, source_id, intent_id = _attach_then_fill(
+        repository_harness
+    )
+    _claim_live_proof_eligibility(repository, source_id)
+    repository.record_follow_up_live_proof_terminal(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value,
+        source_client_order_id=source_id,
+        outcome=FollowUpLiveProofTerminalOutcome.SUCCEEDED.value,
+        diagnostic_code="follow_up_live_proof_eligibility_succeeded",
+        reported_read_count=1,
+    )
+    prepared = repository.prepare_materialization(
+        _materialization_command(
+            source_id=source_id,
+            root_id=root_id,
+            intent_id=intent_id,
+        )
+    )
+
+    create = repository.claim_follow_up_live_proof_operation(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.CREATE.value,
+        source_client_order_id=source_id,
+        correlation_id="proof-create-correlation",
+        audit_id=str(uuid.uuid4()),
+        operation_idempotency_key_sha256="b" * 64,
+    )
+    repository.record_follow_up_live_proof_terminal(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.CREATE.value,
+        source_client_order_id=source_id,
+        outcome=FollowUpLiveProofTerminalOutcome.SUCCEEDED.value,
+        diagnostic_code="follow_up_live_proof_create_succeeded",
+        reported_read_count=1,
+        authoritative_child_state="ACTIVE",
+    )
+    reconciliation = repository.claim_follow_up_live_proof_operation(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.RECONCILIATION_READ.value,
+        source_client_order_id=source_id,
+        correlation_id="proof-reconciliation-correlation",
+        audit_id=str(uuid.uuid4()),
+        operation_idempotency_key_sha256="c" * 64,
+    )
+    repository.record_follow_up_live_proof_terminal(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.RECONCILIATION_READ.value,
+        source_client_order_id=source_id,
+        outcome=FollowUpLiveProofTerminalOutcome.SUCCEEDED.value,
+        diagnostic_code="follow_up_live_proof_reconciliation_succeeded",
+        reported_read_count=1,
+        authoritative_child_state="ACTIVE",
+    )
+    cancel = repository.claim_follow_up_live_proof_operation(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.CANCEL.value,
+        source_client_order_id=source_id,
+        correlation_id="proof-cancel-correlation",
+        audit_id=str(uuid.uuid4()),
+        operation_idempotency_key_sha256="d" * 64,
+    )
+
+    for claim in (create, reconciliation, cancel):
+        assert claim.source_client_order_id == source_id
+        assert claim.follow_up_intent_id == intent_id
+        assert claim.root_client_order_id == root_id
+        assert claim.materialization_id == prepared.attempt.materialization_id
+        assert claim.child_client_order_id == prepared.attempt.child_client_order_id
+
+    restarted_repository = repository_harness.repository()
+    with pytest.raises(FollowUpIntentStoreConflict) as second_create:
+        restarted_repository.claim_follow_up_live_proof_operation(
+            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            operation_kind=FollowUpLiveProofOperationKind.CREATE.value,
+            source_client_order_id=source_id,
+            correlation_id="second-create-correlation",
+            audit_id=str(uuid.uuid4()),
+            operation_idempotency_key_sha256="e" * 64,
+        )
+    assert second_create.value.code == "follow_up_live_proof_operation_consumed"
+
+
+def test_live_proof_rejects_wrong_goal_and_wrong_exact_candidate_source(
+    repository_harness: _RepositoryHarness,
+):
+    repository, _root_id, source_id, _intent_id = _attach_then_fill(
+        repository_harness
+    )
+    common = {
+        "operation_kind": FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value,
+        "correlation_id": "proof-correlation",
+        "audit_id": str(uuid.uuid4()),
+        "operation_idempotency_key_sha256": "f" * 64,
+    }
+    with pytest.raises(FollowUpIntentStoreConflict) as wrong_goal:
+        repository.claim_follow_up_live_proof_operation(
+            goal_id="different-goal",
+            source_client_order_id=source_id,
+            **common,
+        )
+    with pytest.raises(FollowUpIntentStoreConflict) as wrong_source:
+        repository.claim_follow_up_live_proof_operation(
+            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            source_client_order_id=str(uuid.uuid4()),
+            **common,
+        )
+    assert wrong_goal.value.code == "follow_up_live_proof_goal_id_invalid"
+    assert wrong_source.value.code == (
+        "follow_up_live_proof_candidate_source_mismatch"
+    )
+    assert repository_harness.scalar(
+        f'SELECT COUNT(*) FROM "{repository_harness.schema}".'
+        "operator_follow_up_live_proof_event"
+    ) == 0
+
+
+def test_live_proof_terminal_requires_start_fixed_diagnostic_and_is_single_use(
+    repository_harness: _RepositoryHarness,
+):
+    repository, _root_id, source_id, _intent_id = _attach_then_fill(
+        repository_harness
+    )
+    _claim_live_proof_eligibility(repository, source_id)
+    terminal_args = {
+        "goal_id": OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        "source_client_order_id": source_id,
+        "outcome": FollowUpLiveProofTerminalOutcome.SUCCEEDED.value,
+        "diagnostic_code": "follow_up_live_proof_eligibility_succeeded",
+        "reported_read_count": 1,
+    }
+    with pytest.raises(FollowUpIntentStoreConflict) as missing_start:
+        repository.record_follow_up_live_proof_terminal(
+            operation_kind=FollowUpLiveProofOperationKind.CREATE.value,
+            **{
+                **terminal_args,
+                "diagnostic_code": "follow_up_live_proof_create_succeeded",
+                "authoritative_child_state": "ACTIVE",
+            },
+        )
+    with pytest.raises(FollowUpIntentStoreConflict) as invalid_diagnostic:
+        repository.record_follow_up_live_proof_terminal(
+            operation_kind=FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value,
+            **{**terminal_args, "diagnostic_code": "caller-controlled"},
+        )
+    repository.record_follow_up_live_proof_terminal(
+        operation_kind=FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value,
+        **terminal_args,
+    )
+    with pytest.raises(FollowUpIntentStoreConflict) as duplicate:
+        repository.record_follow_up_live_proof_terminal(
+            operation_kind=FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value,
+            **terminal_args,
+        )
+    assert missing_start.value.code == "follow_up_live_proof_invocation_not_started"
+    assert invalid_diagnostic.value.code == (
+        "follow_up_live_proof_terminal_diagnostic_invalid"
+    )
+    assert duplicate.value.code == "follow_up_live_proof_terminal_already_recorded"
+
+
+@pytest.mark.parametrize(
+    ("reported_read_count", "individual_retry_count"),
+    (
+        pytest.param(0, 0, id="missing-read-count"),
+        pytest.param(1, 1, id="retry-observed"),
+    ),
+)
+def test_live_proof_clean_terminal_rejects_accounting_violation_and_unknown_never_invents_count(
+    repository_harness: _RepositoryHarness,
+    reported_read_count: int,
+    individual_retry_count: int,
+):
+    repository, _root_id, source_id, _intent_id = _attach_then_fill(
+        repository_harness
+    )
+    _claim_live_proof_eligibility(repository, source_id)
+    common = {
+        "goal_id": OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        "operation_kind": FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value,
+        "source_client_order_id": source_id,
+        "external_call_started": True,
+        "reported_read_count": reported_read_count,
+        "individual_retry_count": individual_retry_count,
+    }
+
+    with pytest.raises(FollowUpIntentStoreConflict) as clean:
+        repository.record_follow_up_live_proof_terminal(
+            outcome=FollowUpLiveProofTerminalOutcome.SUCCEEDED.value,
+            diagnostic_code="follow_up_live_proof_eligibility_succeeded",
+            **common,
+        )
+    assert clean.value.code == "follow_up_live_proof_terminal_accounting_violation"
+
+    if individual_retry_count:
+        with pytest.raises(FollowUpIntentStoreConflict) as retried_unknown:
+            repository.record_follow_up_live_proof_terminal(
+                outcome=FollowUpLiveProofTerminalOutcome.UNKNOWN.value,
+                diagnostic_code="follow_up_live_proof_eligibility_unknown",
+                **common,
+            )
+        assert retried_unknown.value.code == (
+            "follow_up_live_proof_terminal_accounting_violation"
+        )
+    else:
+        unknown = repository.record_follow_up_live_proof_terminal(
+            outcome=FollowUpLiveProofTerminalOutcome.UNKNOWN.value,
+            diagnostic_code="follow_up_live_proof_eligibility_unknown",
+            **common,
+        )
+        assert unknown.outcome == FollowUpLiveProofTerminalOutcome.UNKNOWN.value
+        assert unknown.read_accounting_state == "UNKNOWN"
+        assert unknown.observed_read_count is None
+        assert unknown.reported_read_count == 0
+        assert unknown.individual_retry_count == 0
+
+
+def test_live_proof_clean_eligibility_terminal_preserves_actual_bounded_read_count(
+    repository_harness: _RepositoryHarness,
+):
+    repository, _root_id, source_id, _intent_id = _attach_then_fill(
+        repository_harness
+    )
+    _claim_live_proof_eligibility(repository, source_id)
+
+    terminal = repository.record_follow_up_live_proof_terminal(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value,
+        source_client_order_id=source_id,
+        outcome=FollowUpLiveProofTerminalOutcome.SUCCEEDED.value,
+        diagnostic_code="follow_up_live_proof_eligibility_succeeded",
+        external_call_started=True,
+        reported_read_count=6,
+        individual_retry_count=0,
+    )
+
+    assert terminal.reported_read_count == 6
+
+
+def test_live_proof_unknown_read_uses_nullable_unknown_accounting_without_sentinel(
+    repository_harness: _RepositoryHarness,
+):
+    repository, _root_id, source_id, _intent_id = _attach_then_fill(
+        repository_harness
+    )
+    _claim_live_proof_eligibility(repository, source_id)
+
+    terminal = repository.record_follow_up_live_proof_terminal(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value,
+        source_client_order_id=source_id,
+        outcome=FollowUpLiveProofTerminalOutcome.UNKNOWN.value,
+        diagnostic_code="follow_up_live_proof_eligibility_unknown",
+        sdk_mutation_invocation_state=(
+            FollowUpSdkMutationInvocationState.NOT_INVOKED.value
+        ),
+        transport_submission_state=(
+            FollowUpTransportSubmissionState.NOT_SUBMITTED.value
+        ),
+        exchange_mutation_state=FollowUpExchangeMutationState.NOT_MUTATED.value,
+        read_accounting_state=FollowUpReadAccountingState.UNKNOWN.value,
+        observed_read_count=None,
+        individual_retry_count=0,
+    )
+
+    assert terminal.sdk_mutation_invocation_state == "NOT_INVOKED"
+    assert terminal.accounting_evidence_origin == "EXPLICIT"
+    assert terminal.transport_submission_state == "NOT_SUBMITTED"
+    assert terminal.exchange_mutation_state == "NOT_MUTATED"
+    assert terminal.read_accounting_state == "UNKNOWN"
+    assert terminal.observed_read_count is None
+    assert terminal.external_call_started is False
+    assert terminal.reported_read_count == 0
+
+
+def test_live_proof_mutation_start_and_unknown_preserve_possible_submission(
+    repository_harness: _RepositoryHarness,
+):
+    repository, root_id, source_id, intent_id = _attach_then_fill(
+        repository_harness
+    )
+    _claim_live_proof_eligibility(repository, source_id)
+    repository.record_follow_up_live_proof_terminal(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value,
+        source_client_order_id=source_id,
+        outcome=FollowUpLiveProofTerminalOutcome.SUCCEEDED.value,
+        diagnostic_code="follow_up_live_proof_eligibility_succeeded",
+        sdk_mutation_invocation_state="NOT_INVOKED",
+        transport_submission_state="NOT_SUBMITTED",
+        exchange_mutation_state="NOT_MUTATED",
+        read_accounting_state="EXACT",
+        observed_read_count=1,
+        individual_retry_count=0,
+    )
+    repository.prepare_materialization(
+        _materialization_command(
+            source_id=source_id,
+            root_id=root_id,
+            intent_id=intent_id,
+        )
+    )
+    started = repository.claim_follow_up_live_proof_operation(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.CREATE.value,
+        source_client_order_id=source_id,
+        correlation_id="tri-state-create",
+        audit_id=str(uuid.uuid4()),
+        operation_idempotency_key_sha256="b" * 64,
+    )
+
+    assert started.sdk_mutation_invocation_state == "UNKNOWN"
+    assert started.transport_submission_state == "POSSIBLY_SUBMITTED"
+    assert started.exchange_mutation_state == "UNKNOWN"
+    assert started.read_accounting_state == "UNKNOWN"
+    assert started.observed_read_count is None
+    assert started.external_call_started is False
+    assert started.reported_read_count == 0
+
+    terminal = repository.record_follow_up_live_proof_terminal(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.CREATE.value,
+        source_client_order_id=source_id,
+        outcome=FollowUpLiveProofTerminalOutcome.UNKNOWN.value,
+        diagnostic_code="follow_up_live_proof_create_unknown",
+        sdk_mutation_invocation_state="UNKNOWN",
+        transport_submission_state="POSSIBLY_SUBMITTED",
+        exchange_mutation_state="UNKNOWN",
+        read_accounting_state="UNKNOWN",
+        observed_read_count=None,
+        individual_retry_count=0,
+        authoritative_child_state="UNKNOWN",
+    )
+
+    assert terminal.sdk_mutation_invocation_state == "UNKNOWN"
+    assert terminal.transport_submission_state == "POSSIBLY_SUBMITTED"
+    assert terminal.exchange_mutation_state == "UNKNOWN"
+    assert terminal.read_accounting_state == "UNKNOWN"
+    assert terminal.observed_read_count is None
+    assert terminal.external_call_started is False
+    assert terminal.reported_read_count == 0
+
+    operation_set = repository.read_follow_up_live_proof_operation_set(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        source_client_order_id=source_id,
+    )
+    assert operation_set.eligibility_read is not None
+    assert operation_set.eligibility_read.event_state == "TERMINAL"
+    assert operation_set.create is not None
+    assert operation_set.create.event_id == terminal.event_id
+    assert operation_set.reconciliation_read is None
+    assert operation_set.cancel is None
+
+
+def test_live_proof_successful_reconciliation_preserves_three_observed_reads(
+    repository_harness: _RepositoryHarness,
+):
+    repository, root_id, source_id, intent_id = _attach_then_fill(
+        repository_harness
+    )
+    _claim_live_proof_eligibility(repository, source_id)
+    repository.record_follow_up_live_proof_terminal(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind="ELIGIBILITY_READ",
+        source_client_order_id=source_id,
+        outcome="SUCCEEDED",
+        diagnostic_code="follow_up_live_proof_eligibility_succeeded",
+        sdk_mutation_invocation_state="NOT_INVOKED",
+        transport_submission_state="NOT_SUBMITTED",
+        exchange_mutation_state="NOT_MUTATED",
+        read_accounting_state="EXACT",
+        observed_read_count=1,
+    )
+    repository.prepare_materialization(
+        _materialization_command(
+            source_id=source_id,
+            root_id=root_id,
+            intent_id=intent_id,
+        )
+    )
+    repository.claim_follow_up_live_proof_operation(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind="CREATE",
+        source_client_order_id=source_id,
+        correlation_id="tri-state-known-create",
+        audit_id=str(uuid.uuid4()),
+        operation_idempotency_key_sha256="c" * 64,
+    )
+    repository.record_follow_up_live_proof_terminal(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind="CREATE",
+        source_client_order_id=source_id,
+        outcome="SUCCEEDED",
+        diagnostic_code="follow_up_live_proof_create_succeeded",
+        sdk_mutation_invocation_state="INVOKED",
+        transport_submission_state="CONFIRMED_SUBMITTED",
+        exchange_mutation_state="CONFIRMED_MUTATED",
+        read_accounting_state="EXACT",
+        observed_read_count=1,
+        authoritative_child_state="ACTIVE",
+    )
+    repository.claim_follow_up_live_proof_operation(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind="RECONCILIATION_READ",
+        source_client_order_id=source_id,
+        correlation_id="tri-state-reconciliation",
+        audit_id=str(uuid.uuid4()),
+        operation_idempotency_key_sha256="d" * 64,
+    )
+    terminal = repository.record_follow_up_live_proof_terminal(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind="RECONCILIATION_READ",
+        source_client_order_id=source_id,
+        outcome="SUCCEEDED",
+        diagnostic_code="follow_up_live_proof_reconciliation_succeeded",
+        sdk_mutation_invocation_state="NOT_INVOKED",
+        transport_submission_state="NOT_SUBMITTED",
+        exchange_mutation_state="NOT_MUTATED",
+        read_accounting_state="EXACT",
+        observed_read_count=3,
+        authoritative_child_state="ACTIVE",
+    )
+
+    assert terminal.read_accounting_state == "EXACT"
+    assert terminal.observed_read_count == 3
+    assert terminal.reported_read_count == 3
+
+
+@pytest.mark.parametrize(
+    ("create_outcome", "external_call_started"),
+    (
+        pytest.param(
+            FollowUpLiveProofTerminalOutcome.REJECTED,
+            True,
+            id="explicitly-rejected",
+        ),
+        pytest.param(
+            FollowUpLiveProofTerminalOutcome.BLOCKED,
+            False,
+            id="blocked-before-call",
+        ),
+        pytest.param(
+            FollowUpLiveProofTerminalOutcome.NOT_REQUIRED,
+            False,
+            id="not-required",
+        ),
+    ),
+)
+def test_live_proof_reconciliation_rejects_nonviable_create_terminal(
+    repository_harness: _RepositoryHarness,
+    create_outcome: FollowUpLiveProofTerminalOutcome,
+    external_call_started: bool,
+):
+    repository, root_id, source_id, intent_id = _attach_then_fill(
+        repository_harness
+    )
+    _claim_live_proof_eligibility(repository, source_id)
+    repository.record_follow_up_live_proof_terminal(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value,
+        source_client_order_id=source_id,
+        outcome=FollowUpLiveProofTerminalOutcome.SUCCEEDED.value,
+        diagnostic_code="follow_up_live_proof_eligibility_succeeded",
+        reported_read_count=1,
+    )
+    repository.prepare_materialization(
+        _materialization_command(
+            source_id=source_id,
+            root_id=root_id,
+            intent_id=intent_id,
+        )
+    )
+    repository.claim_follow_up_live_proof_operation(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.CREATE.value,
+        source_client_order_id=source_id,
+        correlation_id="proof-create-nonviable",
+        audit_id=str(uuid.uuid4()),
+        operation_idempotency_key_sha256="b" * 64,
+    )
+    repository.record_follow_up_live_proof_terminal(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.CREATE.value,
+        source_client_order_id=source_id,
+        outcome=create_outcome.value,
+        diagnostic_code=f"follow_up_live_proof_create_{create_outcome.value.lower()}",
+        external_call_started=external_call_started,
+        authoritative_child_state="UNKNOWN",
+    )
+
+    with pytest.raises(FollowUpIntentStoreConflict) as reconciliation:
+        repository.claim_follow_up_live_proof_operation(
+            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            operation_kind=FollowUpLiveProofOperationKind.RECONCILIATION_READ.value,
+            source_client_order_id=source_id,
+            correlation_id="proof-reconciliation-after-nonviable-create",
+            audit_id=str(uuid.uuid4()),
+            operation_idempotency_key_sha256="c" * 64,
+        )
+    assert reconciliation.value.code == (
+        "follow_up_live_proof_operation_prerequisite_incomplete"
+    )
+
+
+def _prepare_claimed_live_proof_create(
+    repository_harness: _RepositoryHarness,
+) -> tuple[OperatorFollowUpIntentRepository, str]:
+    repository, root_id, source_id, intent_id = _attach_then_fill(
+        repository_harness
+    )
+    _claim_live_proof_eligibility(repository, source_id)
+    repository.record_follow_up_live_proof_terminal(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value,
+        source_client_order_id=source_id,
+        outcome=FollowUpLiveProofTerminalOutcome.SUCCEEDED.value,
+        diagnostic_code="follow_up_live_proof_eligibility_succeeded",
+        reported_read_count=1,
+    )
+    repository.prepare_materialization(
+        _materialization_command(
+            source_id=source_id,
+            root_id=root_id,
+            intent_id=intent_id,
+        )
+    )
+    repository.claim_follow_up_live_proof_operation(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.CREATE.value,
+        source_client_order_id=source_id,
+        correlation_id="proof-create-prerequisite",
+        audit_id=str(uuid.uuid4()),
+        operation_idempotency_key_sha256="b" * 64,
+    )
+    return repository, source_id
+
+
+def test_live_proof_reconciliation_rejects_create_still_started(
+    repository_harness: _RepositoryHarness,
+):
+    repository, source_id = _prepare_claimed_live_proof_create(
+        repository_harness
+    )
+
+    with pytest.raises(FollowUpIntentStoreConflict) as reconciliation:
+        repository.claim_follow_up_live_proof_operation(
+            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            operation_kind=FollowUpLiveProofOperationKind.RECONCILIATION_READ.value,
+            source_client_order_id=source_id,
+            correlation_id="proof-reconciliation-before-create-terminal",
+            audit_id=str(uuid.uuid4()),
+            operation_idempotency_key_sha256="c" * 64,
+        )
+
+    assert reconciliation.value.code == (
+        "follow_up_live_proof_operation_prerequisite_incomplete"
+    )
+
+
+def test_live_proof_reconciliation_accepts_externally_started_unknown_create(
+    repository_harness: _RepositoryHarness,
+):
+    repository, source_id = _prepare_claimed_live_proof_create(
+        repository_harness
+    )
+    repository.record_follow_up_live_proof_terminal(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.CREATE.value,
+        source_client_order_id=source_id,
+        outcome=FollowUpLiveProofTerminalOutcome.UNKNOWN.value,
+        diagnostic_code="follow_up_live_proof_create_unknown",
+        external_call_started=True,
+        authoritative_child_state="UNKNOWN",
+    )
+
+    reconciliation = repository.claim_follow_up_live_proof_operation(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.RECONCILIATION_READ.value,
+        source_client_order_id=source_id,
+        correlation_id="proof-reconciliation-after-external-unknown",
+        audit_id=str(uuid.uuid4()),
+        operation_idempotency_key_sha256="c" * 64,
+    )
+
+    assert reconciliation.claimed is True
+
+
+def test_live_proof_event_rows_are_database_append_only(
+    repository_harness: _RepositoryHarness,
+):
+    repository, _root_id, source_id, _intent_id = _attach_then_fill(
+        repository_harness
+    )
+    started = _claim_live_proof_eligibility(repository, source_id)
+
+    with pytest.raises(psycopg2.Error) as mutation:
+        repository_harness.execute(
+            f'UPDATE "{repository_harness.schema}".'
+            "operator_follow_up_live_proof_event "
+            "SET diagnostic_code = 'changed' WHERE event_id = %s",
+            (started.event_id,),
+        )
+
+    assert mutation.value.pgcode == "P0001"
+    assert repository_harness.scalar(
+        f'SELECT COUNT(*) FROM "{repository_harness.schema}".'
+        "operator_follow_up_live_proof_event "
+        "WHERE event_id = %s AND diagnostic_code = "
+        "'follow_up_live_proof_invocation_started'",
+        (started.event_id,),
+    ) == 1
+
+
+def test_live_proof_cancel_requires_authoritative_active_exact_child_reconciliation(
+    repository_harness: _RepositoryHarness,
+):
+    repository, root_id, source_id, intent_id = _attach_then_fill(
+        repository_harness
+    )
+    _claim_live_proof_eligibility(repository, source_id)
+    repository.record_follow_up_live_proof_terminal(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value,
+        source_client_order_id=source_id,
+        outcome=FollowUpLiveProofTerminalOutcome.SUCCEEDED.value,
+        diagnostic_code="follow_up_live_proof_eligibility_succeeded",
+        reported_read_count=1,
+    )
+    repository.prepare_materialization(
+        _materialization_command(
+            source_id=source_id,
+            root_id=root_id,
+            intent_id=intent_id,
+        )
+    )
+    repository.claim_follow_up_live_proof_operation(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.CREATE.value,
+        source_client_order_id=source_id,
+        correlation_id="proof-create",
+        audit_id=str(uuid.uuid4()),
+        operation_idempotency_key_sha256="b" * 64,
+    )
+    repository.record_follow_up_live_proof_terminal(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.CREATE.value,
+        source_client_order_id=source_id,
+        outcome=FollowUpLiveProofTerminalOutcome.SUCCEEDED.value,
+        diagnostic_code="follow_up_live_proof_create_succeeded",
+        reported_read_count=1,
+        authoritative_child_state="ACTIVE",
+    )
+    repository.claim_follow_up_live_proof_operation(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.RECONCILIATION_READ.value,
+        source_client_order_id=source_id,
+        correlation_id="proof-reconciliation",
+        audit_id=str(uuid.uuid4()),
+        operation_idempotency_key_sha256="c" * 64,
+    )
+    repository.record_follow_up_live_proof_terminal(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.RECONCILIATION_READ.value,
+        source_client_order_id=source_id,
+        outcome=FollowUpLiveProofTerminalOutcome.SUCCEEDED.value,
+        diagnostic_code="follow_up_live_proof_reconciliation_succeeded",
+        reported_read_count=1,
+        authoritative_child_state="TERMINAL",
+    )
+
+    with pytest.raises(FollowUpIntentStoreConflict) as terminal_child:
+        repository.claim_follow_up_live_proof_operation(
+            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            operation_kind=FollowUpLiveProofOperationKind.CANCEL.value,
+            source_client_order_id=source_id,
+            correlation_id="proof-cancel",
+            audit_id=str(uuid.uuid4()),
+            operation_idempotency_key_sha256="d" * 64,
+        )
+    assert terminal_child.value.code == (
+        "follow_up_live_proof_operation_prerequisite_incomplete"
+    )
+
+
+def _prepare_atomic_live_proof_create(
+    repository_harness: _RepositoryHarness,
+) -> tuple[
+    OperatorFollowUpIntentRepository,
+    str,
+    str,
+    str,
+    object,
+]:
+    repository, root_id, source_id, intent_id = _attach_then_fill(
+        repository_harness
+    )
+    _claim_live_proof_eligibility(repository, source_id)
+    repository.record_follow_up_live_proof_terminal(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value,
+        source_client_order_id=source_id,
+        outcome=FollowUpLiveProofTerminalOutcome.SUCCEEDED.value,
+        diagnostic_code="follow_up_live_proof_eligibility_succeeded",
+        external_call_started=True,
+        reported_read_count=1,
+        individual_retry_count=0,
+    )
+    prepared = repository.prepare_materialization(
+        _materialization_command(
+            source_id=source_id,
+            root_id=root_id,
+            intent_id=intent_id,
+        )
+    )
+    _persist_quarantined_stealth_child(
+        repository_harness,
+        materialization_id=prepared.attempt.materialization_id,
+        child_id=prepared.attempt.child_client_order_id,
+        root_id=root_id,
+    )
+    return repository, root_id, source_id, intent_id, prepared
+
+
+def test_atomic_create_start_commits_native_and_goal_claim_together(
+    repository_harness: _RepositoryHarness,
+):
+    repository, _root_id, source_id, _intent_id, prepared = (
+        _prepare_atomic_live_proof_create(repository_harness)
+    )
+    key_hash = hashlib.sha256(
+        prepared.attempt.idempotency_key.encode("utf-8")
+    ).hexdigest()
+
+    result = repository.claim_create_invocation_started_atomically(
+        materialization_id=prepared.attempt.materialization_id,
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        source_client_order_id=source_id,
+        correlation_id=prepared.attempt.correlation_id,
+        audit_id=prepared.attempt.audit_id,
+        operation_idempotency_key_sha256=key_hash,
+    )
+
+    assert result.claimed is True
+    assert result.materialization.event.state == (
+        FollowUpMaterializationState.CREATE_INVOCATION_STARTED.value
+    )
+    assert result.live_proof.event_state == (
+        FollowUpLiveProofEventState.INVOCATION_STARTED.value
+    )
+    assert result.live_proof.materialization_id == (
+        prepared.attempt.materialization_id
+    )
+    assert result.live_proof.child_client_order_id == (
+        prepared.attempt.child_client_order_id
+    )
+
+
+def test_atomic_create_start_rolls_back_native_when_goal_claim_faults(
+    repository_harness: _RepositoryHarness,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repository, _root_id, source_id, _intent_id, prepared = (
+        _prepare_atomic_live_proof_create(repository_harness)
+    )
+    key_hash = hashlib.sha256(
+        prepared.attempt.idempotency_key.encode("utf-8")
+    ).hexdigest()
+
+    def fail_goal_claim(*_args, **_kwargs):
+        raise FollowUpIntentStoreUnavailable("injected_goal_claim_fault")
+
+    monkeypatch.setattr(
+        repository,
+        "_claim_follow_up_live_proof_operation_locked",
+        fail_goal_claim,
+    )
+    with pytest.raises(FollowUpIntentStoreUnavailable):
+        repository.claim_create_invocation_started_atomically(
+            materialization_id=prepared.attempt.materialization_id,
+            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            source_client_order_id=source_id,
+            correlation_id=prepared.attempt.correlation_id,
+            audit_id=prepared.attempt.audit_id,
+            operation_idempotency_key_sha256=key_hash,
+        )
+
+    readback = repository.read_materialization(source_id)
+    assert readback.attempt is not None
+    assert readback.attempt.current_state == (
+        FollowUpMaterializationState.KNOWN_NOT_INVOKED.value
+    )
+    assert repository.read_follow_up_live_proof_claim(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.CREATE.value,
+        source_client_order_id=source_id,
+    ) is None
+
+
+def test_atomic_create_finalizer_rolls_back_native_projection_and_goal_terminal(
+    repository_harness: _RepositoryHarness,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repository, _root_id, source_id, _intent_id, prepared = (
+        _prepare_atomic_live_proof_create(repository_harness)
+    )
+    key_hash = hashlib.sha256(
+        prepared.attempt.idempotency_key.encode("utf-8")
+    ).hexdigest()
+    repository.claim_create_invocation_started_atomically(
+        materialization_id=prepared.attempt.materialization_id,
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        source_client_order_id=source_id,
+        correlation_id=prepared.attempt.correlation_id,
+        audit_id=prepared.attempt.audit_id,
+        operation_idempotency_key_sha256=key_hash,
+    )
+
+    def fail_projection(*_args, **_kwargs):
+        raise FollowUpIntentStoreUnavailable("injected_projection_fault")
+
+    monkeypatch.setattr(
+        repository,
+        "_transition_materialized_child_local_state_locked",
+        fail_projection,
+    )
+    with pytest.raises(FollowUpIntentStoreUnavailable):
+        repository.finalize_create_invocation_atomically(
+            materialization_id=prepared.attempt.materialization_id,
+            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            source_client_order_id=source_id,
+            outcome=(
+                FollowUpMaterializationState.CREATE_ACCEPTED_NONTERMINAL.value
+            ),
+            diagnostic_code="create_accepted_nonterminal",
+            authoritative_order_status="OPEN",
+            exchange_order_id="atomic-create-exchange-id",
+            live_proof_outcome=(
+                FollowUpLiveProofTerminalOutcome.SUCCEEDED.value
+            ),
+            external_call_started=True,
+            reported_read_count=1,
+            individual_retry_count=0,
+            authoritative_child_state="ACTIVE",
+        )
+
+    readback = repository.read_materialization(source_id)
+    assert readback.attempt is not None
+    assert readback.attempt.current_state == (
+        FollowUpMaterializationState.CREATE_INVOCATION_STARTED.value
+    )
+    assert repository.read_latest_materialized_child_local_state(
+        prepared.attempt.materialization_id
+    ) is None
+    assert repository.read_follow_up_live_proof_terminal(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.CREATE.value,
+        source_client_order_id=source_id,
+    ) is None
+    child = _row_mapping(
+        repository_harness,
+        f'SELECT status, exchange_order_id FROM "{repository_harness.schema}".'
+        "order_parent WHERE client_order_id = %s",
+        (prepared.attempt.child_client_order_id,),
+    )
+    assert child == {"status": "PENDING", "exchange_order_id": None}
+
+
+def _finalize_atomic_live_proof_create_active(
+    repository_harness: _RepositoryHarness,
+) -> tuple[OperatorFollowUpIntentRepository, str, object]:
+    repository, _root_id, source_id, _intent_id, prepared = (
+        _prepare_atomic_live_proof_create(repository_harness)
+    )
+    key_hash = hashlib.sha256(
+        prepared.attempt.idempotency_key.encode("utf-8")
+    ).hexdigest()
+    repository.claim_create_invocation_started_atomically(
+        materialization_id=prepared.attempt.materialization_id,
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        source_client_order_id=source_id,
+        correlation_id=prepared.attempt.correlation_id,
+        audit_id=prepared.attempt.audit_id,
+        operation_idempotency_key_sha256=key_hash,
+    )
+    finalized = repository.finalize_create_invocation_atomically(
+        materialization_id=prepared.attempt.materialization_id,
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        source_client_order_id=source_id,
+        outcome=FollowUpMaterializationState.CREATE_ACCEPTED_NONTERMINAL.value,
+        diagnostic_code="create_accepted_nonterminal",
+        authoritative_order_status="OPEN",
+        exchange_order_id="atomic-create-exchange-id",
+        live_proof_outcome=FollowUpLiveProofTerminalOutcome.SUCCEEDED.value,
+        external_call_started=True,
+        reported_read_count=1,
+        individual_retry_count=0,
+        authoritative_child_state="ACTIVE",
+        sdk_mutation_invocation_state="INVOKED",
+        transport_submission_state="CONFIRMED_SUBMITTED",
+        exchange_mutation_state="CONFIRMED_MUTATED",
+        read_accounting_state="EXACT",
+        observed_read_count=1,
+    )
+    assert finalized.replayed is False
+    assert finalized.live_proof.outcome == (
+        FollowUpLiveProofTerminalOutcome.SUCCEEDED.value
+    )
+    assert finalized.live_proof.accounting_evidence_origin == "EXPLICIT"
+    assert finalized.live_proof.sdk_mutation_invocation_state == "INVOKED"
+    assert finalized.live_proof.transport_submission_state == (
+        "CONFIRMED_SUBMITTED"
+    )
+    assert finalized.live_proof.exchange_mutation_state == "CONFIRMED_MUTATED"
+    assert finalized.live_proof.read_accounting_state == "EXACT"
+    assert finalized.live_proof.observed_read_count == 1
+    assert finalized.local_state.record.transition_kind == (
+        FollowUpMaterializedChildTransitionKind.CREATE_ACCEPTED_ACTIVE.value
+    )
+    return repository, source_id, prepared
+
+
+@pytest.mark.parametrize(
+    (
+        "materialization_outcome",
+        "diagnostic_code",
+        "authoritative_order_status",
+        "live_proof_outcome",
+        "sdk_state",
+        "transport_state",
+        "exchange_state",
+        "read_state",
+        "observed_count",
+    ),
+    (
+        pytest.param(
+            FollowUpMaterializationState.CREATE_EXPLICITLY_REJECTED.value,
+            "create_explicitly_rejected",
+            "FAILED",
+            FollowUpLiveProofTerminalOutcome.REJECTED.value,
+            "INVOKED",
+            "CONFIRMED_SUBMITTED",
+            "NOT_MUTATED",
+            "EXACT",
+            0,
+            id="explicit-rejected",
+        ),
+        pytest.param(
+            FollowUpMaterializationState.CREATE_UNKNOWN_CONSUMED.value,
+            "create_unknown_consumed",
+            "SUBMISSION_UNKNOWN",
+            FollowUpLiveProofTerminalOutcome.UNKNOWN.value,
+            "UNKNOWN",
+            "POSSIBLY_SUBMITTED",
+            "UNKNOWN",
+            "UNKNOWN",
+            None,
+            id="explicit-unknown",
+        ),
+    ),
+)
+def test_atomic_create_finalizer_persists_explicit_terminal_accounting(
+    repository_harness: _RepositoryHarness,
+    materialization_outcome: str,
+    diagnostic_code: str,
+    authoritative_order_status: str,
+    live_proof_outcome: str,
+    sdk_state: str,
+    transport_state: str,
+    exchange_state: str,
+    read_state: str,
+    observed_count: int | None,
+):
+    repository, _root_id, source_id, _intent_id, prepared = (
+        _prepare_atomic_live_proof_create(repository_harness)
+    )
+    key_hash = hashlib.sha256(
+        prepared.attempt.idempotency_key.encode("utf-8")
+    ).hexdigest()
+    repository.claim_create_invocation_started_atomically(
+        materialization_id=prepared.attempt.materialization_id,
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        source_client_order_id=source_id,
+        correlation_id=prepared.attempt.correlation_id,
+        audit_id=prepared.attempt.audit_id,
+        operation_idempotency_key_sha256=key_hash,
+    )
+
+    finalized = repository.finalize_create_invocation_atomically(
+        materialization_id=prepared.attempt.materialization_id,
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        source_client_order_id=source_id,
+        outcome=materialization_outcome,
+        diagnostic_code=diagnostic_code,
+        authoritative_order_status=authoritative_order_status,
+        exchange_order_id=None,
+        live_proof_outcome=live_proof_outcome,
+        external_call_started=sdk_state == "INVOKED",
+        reported_read_count=observed_count or 0,
+        individual_retry_count=0,
+        authoritative_child_state="UNKNOWN",
+        sdk_mutation_invocation_state=sdk_state,
+        transport_submission_state=transport_state,
+        exchange_mutation_state=exchange_state,
+        read_accounting_state=read_state,
+        observed_read_count=observed_count,
+    )
+
+    proof = finalized.live_proof
+    assert proof.accounting_evidence_origin == "EXPLICIT"
+    assert proof.sdk_mutation_invocation_state == sdk_state
+    assert proof.transport_submission_state == transport_state
+    assert proof.exchange_mutation_state == exchange_state
+    assert proof.read_accounting_state == read_state
+    assert proof.observed_read_count == observed_count
+
+
+def _claim_atomic_live_proof_cancel(
+    repository_harness: _RepositoryHarness,
+) -> tuple[OperatorFollowUpIntentRepository, str, object, dict[str, object]]:
+    repository, source_id, prepared = (
+        _finalize_atomic_live_proof_create_active(repository_harness)
+    )
+    repository.claim_follow_up_live_proof_operation(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=(
+            FollowUpLiveProofOperationKind.RECONCILIATION_READ.value
+        ),
+        source_client_order_id=source_id,
+        correlation_id="atomic-reconciliation-correlation",
+        audit_id=str(uuid.uuid4()),
+        operation_idempotency_key_sha256="c" * 64,
+    )
+    repository.record_follow_up_live_proof_terminal(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=(
+            FollowUpLiveProofOperationKind.RECONCILIATION_READ.value
+        ),
+        source_client_order_id=source_id,
+        outcome=FollowUpLiveProofTerminalOutcome.SUCCEEDED.value,
+        diagnostic_code="follow_up_live_proof_reconciliation_succeeded",
+        external_call_started=True,
+        reported_read_count=1,
+        individual_retry_count=0,
+        authoritative_child_state="ACTIVE",
+    )
+    authority = {
+        **_operation_authority("atomic-cancel-idempotency-key"),
+        "audit_id": str(uuid.uuid4()),
+    }
+    started = repository.claim_cancel_invocation_started_atomically(
+        materialization_id=prepared.attempt.materialization_id,
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        source_client_order_id=source_id,
+        **authority,
+    )
+    assert started.claimed is True
+    return repository, source_id, prepared, authority
+
+
+def _claim_terminal_reconciliation(
+    repository_harness: _RepositoryHarness,
+) -> tuple[OperatorFollowUpIntentRepository, str, object, dict[str, object]]:
+    repository, source_id, prepared = (
+        _finalize_atomic_live_proof_create_active(repository_harness)
+    )
+    authority = {
+        **_operation_authority("atomic-terminal-reconciliation-key"),
+        "audit_id": str(uuid.uuid4()),
+    }
+    repository.claim_follow_up_live_proof_operation(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=(
+            FollowUpLiveProofOperationKind.RECONCILIATION_READ.value
+        ),
+        source_client_order_id=source_id,
+        correlation_id=authority["correlation_id"],
+        audit_id=authority["audit_id"],
+        operation_idempotency_key_sha256=hashlib.sha256(
+            authority["operation_idempotency_key"].encode("utf-8")
+        ).hexdigest(),
+    )
+    return repository, source_id, prepared, authority
+
+
+def test_atomic_terminal_without_cancel_rolls_back_all_three_ledgers(
+    repository_harness: _RepositoryHarness,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repository, source_id, prepared, authority = (
+        _claim_terminal_reconciliation(repository_harness)
+    )
+
+    def fail_terminal(*_args, **_kwargs):
+        raise FollowUpIntentStoreUnavailable("injected_terminal_fault")
+
+    monkeypatch.setattr(
+        repository,
+        "_record_or_replay_atomic_live_proof_terminal",
+        fail_terminal,
+    )
+    with pytest.raises(FollowUpIntentStoreUnavailable):
+        repository.finalize_terminal_without_cancel_atomically(
+            materialization_id=prepared.attempt.materialization_id,
+            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            source_client_order_id=source_id,
+            diagnostic_code="child_already_terminal",
+            authoritative_order_status="FILLED",
+            exchange_order_id="atomic-create-exchange-id",
+            **authority,
+        )
+
+    readback = repository.read_materialization(source_id)
+    assert readback.attempt is not None
+    assert readback.attempt.current_state == (
+        FollowUpMaterializationState.CREATE_ACCEPTED_NONTERMINAL.value
+    )
+    local = repository.read_latest_materialized_child_local_state(
+        prepared.attempt.materialization_id
+    )
+    assert local is not None
+    assert local.transition_kind == (
+        FollowUpMaterializedChildTransitionKind.CREATE_ACCEPTED_ACTIVE.value
+    )
+    assert repository.read_follow_up_live_proof_terminal(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=(
+            FollowUpLiveProofOperationKind.RECONCILIATION_READ.value
+        ),
+        source_client_order_id=source_id,
+    ) is None
+
+
+def test_atomic_terminal_without_cancel_commits_and_replays_exactly(
+    repository_harness: _RepositoryHarness,
+):
+    repository, source_id, prepared, authority = (
+        _claim_terminal_reconciliation(repository_harness)
+    )
+    kwargs = {
+        "materialization_id": prepared.attempt.materialization_id,
+        "goal_id": OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        "source_client_order_id": source_id,
+        "diagnostic_code": "child_already_terminal",
+        "authoritative_order_status": "FILLED",
+        "exchange_order_id": "atomic-create-exchange-id",
+        **authority,
+    }
+
+    finalized = repository.finalize_terminal_without_cancel_atomically(**kwargs)
+    replay = repository.finalize_terminal_without_cancel_atomically(**kwargs)
+
+    assert finalized.replayed is False
+    assert replay.replayed is True
+    assert finalized.materialization.attempt.current_state == (
+        FollowUpMaterializationState.CANCEL_NOT_REQUIRED_TERMINAL.value
+    )
+    assert finalized.local_state.record.transition_kind == (
+        FollowUpMaterializedChildTransitionKind.TERMINAL_WITHOUT_CANCEL.value
+    )
+    assert finalized.live_proof.outcome == (
+        FollowUpLiveProofTerminalOutcome.SUCCEEDED.value
+    )
+
+
+def test_atomic_active_reconciliation_uses_exact_live_proof_not_create_identity(
+    repository_harness: _RepositoryHarness,
+):
+    repository, _root_id, source_id, _intent_id, prepared = (
+        _prepare_atomic_live_proof_create(repository_harness)
+    )
+    create_key_hash = hashlib.sha256(
+        prepared.attempt.idempotency_key.encode("utf-8")
+    ).hexdigest()
+    repository.claim_create_invocation_started_atomically(
+        materialization_id=prepared.attempt.materialization_id,
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        source_client_order_id=source_id,
+        correlation_id=prepared.attempt.correlation_id,
+        audit_id=prepared.attempt.audit_id,
+        operation_idempotency_key_sha256=create_key_hash,
+    )
+    repository.finalize_create_invocation_atomically(
+        materialization_id=prepared.attempt.materialization_id,
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        source_client_order_id=source_id,
+        outcome=FollowUpMaterializationState.CREATE_UNKNOWN_CONSUMED.value,
+        diagnostic_code="create_unknown_consumed",
+        authoritative_order_status="SUBMISSION_UNKNOWN",
+        exchange_order_id=None,
+        live_proof_outcome=FollowUpLiveProofTerminalOutcome.UNKNOWN.value,
+        external_call_started=True,
+        reported_read_count=1,
+        individual_retry_count=0,
+        authoritative_child_state="UNKNOWN",
+    )
+    reconciliation_audit = str(uuid.uuid4())
+    reconciliation_key_hash = "e" * 64
+    reconciliation_claim = repository.claim_follow_up_live_proof_operation(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=(
+            FollowUpLiveProofOperationKind.RECONCILIATION_READ.value
+        ),
+        source_client_order_id=source_id,
+        correlation_id="atomic-active-reconciliation",
+        audit_id=reconciliation_audit,
+        operation_idempotency_key_sha256=reconciliation_key_hash,
+    )
+
+    with pytest.raises(FollowUpIntentStoreConflict) as public_bypass:
+        repository.transition_materialized_child_local_state(
+            materialization_id=prepared.attempt.materialization_id,
+            transition_kind=(
+                FollowUpMaterializedChildTransitionKind.RECONCILED_ACTIVE.value
+            ),
+            authoritative_order_status="OPEN",
+            exchange_order_id="reconciled-active-exchange-id",
+            operation_audit_id=reconciliation_audit,
+            operation_idempotency_key_sha256=reconciliation_key_hash,
+            _reconciliation_live_proof_evidence=reconciliation_claim,
+        )
+    assert public_bypass.value.code == (
+        "materialized_child_operation_evidence_mismatch"
+    )
+
+    with pytest.raises(FollowUpIntentStoreConflict) as broadened_transition:
+        repository.finalize_reconciliation_projection_atomically(
+            materialization_id=prepared.attempt.materialization_id,
+            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            source_client_order_id=source_id,
+            transition_kind=(
+                FollowUpMaterializedChildTransitionKind.CREATE_ACCEPTED_ACTIVE.value
+            ),
+            authoritative_order_status="OPEN",
+            exchange_order_id="reconciled-active-exchange-id",
+            operation_audit_id=reconciliation_audit,
+            operation_idempotency_key_sha256=reconciliation_key_hash,
+            live_proof_outcome=(
+                FollowUpLiveProofTerminalOutcome.SUCCEEDED.value
+            ),
+            external_call_started=True,
+            reported_read_count=1,
+            individual_retry_count=0,
+            authoritative_child_state="ACTIVE",
+        )
+    assert broadened_transition.value.code == (
+        "materialized_child_transition_invalid"
+    )
+
+    finalized = repository.finalize_reconciliation_projection_atomically(
+        materialization_id=prepared.attempt.materialization_id,
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        source_client_order_id=source_id,
+        transition_kind=(
+            FollowUpMaterializedChildTransitionKind.RECONCILED_ACTIVE.value
+        ),
+        authoritative_order_status="OPEN",
+        exchange_order_id="reconciled-active-exchange-id",
+        operation_audit_id=reconciliation_audit,
+        operation_idempotency_key_sha256=reconciliation_key_hash,
+        live_proof_outcome=FollowUpLiveProofTerminalOutcome.SUCCEEDED.value,
+        external_call_started=True,
+        reported_read_count=1,
+        individual_retry_count=0,
+        authoritative_child_state="ACTIVE",
+    )
+
+    assert finalized.local_state.record.transition_kind == (
+        FollowUpMaterializedChildTransitionKind.RECONCILED_ACTIVE.value
+    )
+    assert finalized.local_state.record.operation_audit_id == (
+        reconciliation_audit
+    )
+    assert finalized.live_proof.audit_id == reconciliation_audit
+    assert finalized.live_proof.outcome == (
+        FollowUpLiveProofTerminalOutcome.SUCCEEDED.value
+    )
+
+
+def test_atomic_cancel_start_replay_ignores_new_http_correlation(
+    repository_harness: _RepositoryHarness,
+):
+    repository, source_id, prepared, authority = (
+        _claim_atomic_live_proof_cancel(repository_harness)
+    )
+
+    replay = repository.claim_cancel_invocation_started_atomically(
+        materialization_id=prepared.attempt.materialization_id,
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        source_client_order_id=source_id,
+        **{
+            **authority,
+            "correlation_id": "new-http-attempt-correlation",
+        },
+    )
+
+    assert replay.claimed is False
+    assert replay.materialization.replayed is True
+    assert replay.materialization.event.correlation_id == (
+        authority["correlation_id"]
+    )
+    assert replay.live_proof.correlation_id == authority["correlation_id"]
+
+
+def test_atomic_cancel_finalizer_rolls_back_all_ledgers_after_projection(
+    repository_harness: _RepositoryHarness,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repository, source_id, prepared, _authority = (
+        _claim_atomic_live_proof_cancel(repository_harness)
+    )
+
+    def fail_terminal(*_args, **_kwargs):
+        raise FollowUpIntentStoreUnavailable("injected_terminal_fault")
+
+    monkeypatch.setattr(
+        repository,
+        "_record_or_replay_atomic_live_proof_terminal",
+        fail_terminal,
+    )
+    with pytest.raises(FollowUpIntentStoreUnavailable):
+        repository.finalize_cancel_invocation_atomically(
+            materialization_id=prepared.attempt.materialization_id,
+            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            source_client_order_id=source_id,
+            outcome=FollowUpMaterializationState.CANCEL_ACCEPTED_TERMINAL.value,
+            diagnostic_code="cancel_accepted_terminal",
+            authoritative_order_status="CANCELLED",
+            exchange_order_id="atomic-create-exchange-id",
+            live_proof_outcome=(
+                FollowUpLiveProofTerminalOutcome.SUCCEEDED.value
+            ),
+            external_call_started=True,
+            reported_read_count=1,
+            individual_retry_count=0,
+            authoritative_child_state="TERMINAL",
+        )
+
+    readback = repository.read_materialization(source_id)
+    assert readback.attempt is not None
+    assert readback.attempt.current_state == (
+        FollowUpMaterializationState.CANCEL_INVOCATION_STARTED.value
+    )
+    local = repository.read_latest_materialized_child_local_state(
+        prepared.attempt.materialization_id
+    )
+    assert local is not None
+    assert local.transition_kind == (
+        FollowUpMaterializedChildTransitionKind.CREATE_ACCEPTED_ACTIVE.value
+    )
+    assert repository.read_follow_up_live_proof_terminal(
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.CANCEL.value,
+        source_client_order_id=source_id,
+    ) is None
+    child = _row_mapping(
+        repository_harness,
+        f'SELECT status, exchange_order_id FROM "{repository_harness.schema}".'
+        "order_parent WHERE client_order_id = %s",
+        (prepared.attempt.child_client_order_id,),
+    )
+    assert child == {
+        "status": "OPEN",
+        "exchange_order_id": "atomic-create-exchange-id",
+    }
+
+
+def test_atomic_cancel_finalizer_commits_terminal_projection_and_goal_terminal(
+    repository_harness: _RepositoryHarness,
+):
+    repository, source_id, prepared, _authority = (
+        _claim_atomic_live_proof_cancel(repository_harness)
+    )
+
+    finalized = repository.finalize_cancel_invocation_atomically(
+        materialization_id=prepared.attempt.materialization_id,
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        source_client_order_id=source_id,
+        outcome=FollowUpMaterializationState.CANCEL_ACCEPTED_TERMINAL.value,
+        diagnostic_code="cancel_accepted_terminal",
+        authoritative_order_status="CANCELLED",
+        exchange_order_id="atomic-create-exchange-id",
+        live_proof_outcome=FollowUpLiveProofTerminalOutcome.SUCCEEDED.value,
+        external_call_started=True,
+        reported_read_count=1,
+        individual_retry_count=0,
+        authoritative_child_state="TERMINAL",
+        sdk_mutation_invocation_state="INVOKED",
+        transport_submission_state="CONFIRMED_SUBMITTED",
+        exchange_mutation_state="CONFIRMED_MUTATED",
+        read_accounting_state="EXACT",
+        observed_read_count=1,
+    )
+
+    assert finalized.replayed is False
+    assert finalized.materialization.attempt.current_state == (
+        FollowUpMaterializationState.CANCEL_ACCEPTED_TERMINAL.value
+    )
+    assert finalized.local_state.record.transition_kind == (
+        FollowUpMaterializedChildTransitionKind.CANCEL_ACCEPTED_TERMINAL.value
+    )
+    assert finalized.live_proof.outcome == (
+        FollowUpLiveProofTerminalOutcome.SUCCEEDED.value
+    )
+    assert finalized.live_proof.accounting_evidence_origin == "EXPLICIT"
+    assert finalized.live_proof.sdk_mutation_invocation_state == "INVOKED"
+    assert finalized.live_proof.transport_submission_state == (
+        "CONFIRMED_SUBMITTED"
+    )
+    assert finalized.live_proof.exchange_mutation_state == "CONFIRMED_MUTATED"
+    assert finalized.live_proof.read_accounting_state == "EXACT"
+    assert finalized.live_proof.observed_read_count == 1
+    child = _row_mapping(
+        repository_harness,
+        f'SELECT status, exchange_order_id FROM "{repository_harness.schema}".'
+        "order_parent WHERE client_order_id = %s",
+        (prepared.attempt.child_client_order_id,),
+    )
+    assert child == {
+        "status": "CANCELLED",
+        "exchange_order_id": "atomic-create-exchange-id",
+    }
+
+
+@pytest.mark.parametrize(
+    (
+        "materialization_outcome",
+        "diagnostic_code",
+        "live_proof_outcome",
+        "authoritative_child_state",
+        "sdk_state",
+        "transport_state",
+        "exchange_state",
+        "read_state",
+        "observed_count",
+    ),
+    (
+        pytest.param(
+            FollowUpMaterializationState.CANCEL_EXPLICITLY_REJECTED.value,
+            "cancel_explicitly_rejected",
+            FollowUpLiveProofTerminalOutcome.REJECTED.value,
+            "ACTIVE",
+            "INVOKED",
+            "CONFIRMED_SUBMITTED",
+            "NOT_MUTATED",
+            "EXACT",
+            0,
+            id="explicit-rejected",
+        ),
+        pytest.param(
+            FollowUpMaterializationState.CANCEL_UNKNOWN_CONSUMED.value,
+            "cancel_unknown_consumed",
+            FollowUpLiveProofTerminalOutcome.UNKNOWN.value,
+            "UNKNOWN",
+            "UNKNOWN",
+            "POSSIBLY_SUBMITTED",
+            "UNKNOWN",
+            "UNKNOWN",
+            None,
+            id="explicit-unknown",
+        ),
+    ),
+)
+def test_atomic_cancel_finalizer_persists_explicit_terminal_accounting(
+    repository_harness: _RepositoryHarness,
+    materialization_outcome: str,
+    diagnostic_code: str,
+    live_proof_outcome: str,
+    authoritative_child_state: str,
+    sdk_state: str,
+    transport_state: str,
+    exchange_state: str,
+    read_state: str,
+    observed_count: int | None,
+):
+    repository, source_id, prepared, _authority = (
+        _claim_atomic_live_proof_cancel(repository_harness)
+    )
+
+    finalized = repository.finalize_cancel_invocation_atomically(
+        materialization_id=prepared.attempt.materialization_id,
+        goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        source_client_order_id=source_id,
+        outcome=materialization_outcome,
+        diagnostic_code=diagnostic_code,
+        authoritative_order_status="OPEN",
+        exchange_order_id="atomic-create-exchange-id",
+        live_proof_outcome=live_proof_outcome,
+        external_call_started=sdk_state == "INVOKED",
+        reported_read_count=observed_count or 0,
+        individual_retry_count=0,
+        authoritative_child_state=authoritative_child_state,
+        sdk_mutation_invocation_state=sdk_state,
+        transport_submission_state=transport_state,
+        exchange_mutation_state=exchange_state,
+        read_accounting_state=read_state,
+        observed_read_count=observed_count,
+    )
+
+    proof = finalized.live_proof
+    assert proof.accounting_evidence_origin == "EXPLICIT"
+    assert proof.sdk_mutation_invocation_state == sdk_state
+    assert proof.transport_submission_state == transport_state
+    assert proof.exchange_mutation_state == exchange_state
+    assert proof.read_accounting_state == read_state
+    assert proof.observed_read_count == observed_count
+
+
+@pytest.mark.parametrize(
+    (
+        "operation_kind",
+        "outcome",
+        "reported_read_count",
+        "authoritative_child_state",
+    ),
+    (
+        pytest.param("RECONCILIATION_READ", "SUCCEEDED", 0, "ACTIVE"),
+        pytest.param("CREATE", "SUCCEEDED", 1, "UNKNOWN"),
+        pytest.param("CREATE", "REJECTED", 0, "ACTIVE"),
+        pytest.param("CANCEL", "SUCCEEDED", 1, "ACTIVE"),
+        pytest.param("CANCEL", "REJECTED", 0, "UNKNOWN"),
+    ),
+)
+def test_live_proof_database_guard_rejects_clean_terminal_matrix_drift(
+    repository_harness: _RepositoryHarness,
+    operation_kind: str,
+    outcome: str,
+    reported_read_count: int,
+    authoritative_child_state: str,
+):
+    repository, root_id, source_id, intent_id = _attach_then_fill(
+        repository_harness
+    )
+    prepared = repository.prepare_materialization(
+        _materialization_command(
+            source_id=source_id,
+            root_id=root_id,
+            intent_id=intent_id,
+        )
+    )
+    correlation_id = f"matrix-{operation_kind.lower()}"
+    audit_id = str(uuid.uuid4())
+    key_hash = "8" * 64
+    repository_harness.execute(
+        f"""
+        INSERT INTO "{repository_harness.schema}".
+            operator_follow_up_live_proof_goal (
+                goal_id, source_client_order_id, root_client_order_id,
+                follow_up_intent_id, materialization_id,
+                child_client_order_id
+            ) VALUES (%s, %s, %s, %s, %s, %s)
+        """,
+        (
+            OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            source_id,
+            root_id,
+            intent_id,
+            prepared.attempt.materialization_id,
+            prepared.attempt.child_client_order_id,
+        ),
+    )
+    repository_harness.execute(
+        f"""
+        INSERT INTO "{repository_harness.schema}".
+            operator_follow_up_live_proof_event (
+                event_id, goal_id, operation_kind, event_state, outcome,
+                diagnostic_code, source_client_order_id,
+                root_client_order_id, follow_up_intent_id,
+                materialization_id, child_client_order_id, correlation_id,
+                audit_id, operation_idempotency_key_sha256,
+                sdk_mutation_invocation_state,
+                transport_submission_state, exchange_mutation_state,
+                read_accounting_state, observed_read_count,
+                external_call_started, reported_read_count,
+                individual_retry_count
+            ) VALUES (
+                %s, %s, %s, 'INVOCATION_STARTED', NULL,
+                'follow_up_live_proof_invocation_started', %s, %s, %s,
+                %s, %s, %s, %s, %s, %s, %s, %s, 'UNKNOWN', NULL,
+                FALSE, 0, 0
+            )
+        """,
+        (
+            str(uuid.uuid4()),
+            OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            operation_kind,
+            source_id,
+            root_id,
+            intent_id,
+            prepared.attempt.materialization_id,
+            prepared.attempt.child_client_order_id,
+            correlation_id,
+            audit_id,
+            key_hash,
+            (
+                "UNKNOWN"
+                if operation_kind in {"CREATE", "CANCEL"}
+                else "NOT_INVOKED"
+            ),
+            (
+                "POSSIBLY_SUBMITTED"
+                if operation_kind in {"CREATE", "CANCEL"}
+                else "NOT_SUBMITTED"
+            ),
+            (
+                "UNKNOWN"
+                if operation_kind in {"CREATE", "CANCEL"}
+                else "NOT_MUTATED"
+            ),
+        ),
+    )
+    diagnostic_token = {
+        "RECONCILIATION_READ": "reconciliation",
+        "CREATE": "create",
+        "CANCEL": "cancel",
+    }[operation_kind]
+
+    with pytest.raises(psycopg2.Error) as matrix_drift:
+        repository_harness.execute(
+            f"""
+            INSERT INTO "{repository_harness.schema}".
+                operator_follow_up_live_proof_event (
+                    event_id, goal_id, operation_kind, event_state, outcome,
+                    diagnostic_code, source_client_order_id,
+                    root_client_order_id, follow_up_intent_id,
+                    materialization_id, child_client_order_id,
+                    correlation_id, audit_id,
+                    operation_idempotency_key_sha256,
+                    external_call_started, reported_read_count,
+                    individual_retry_count, authoritative_child_state
+                ) VALUES (
+                    %s, %s, %s, 'TERMINAL', %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, TRUE, %s, 0, %s
+                )
+            """,
+            (
+                str(uuid.uuid4()),
+                OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+                operation_kind,
+                outcome,
+                f"follow_up_live_proof_{diagnostic_token}_{outcome.lower()}",
+                source_id,
+                root_id,
+                intent_id,
+                prepared.attempt.materialization_id,
+                prepared.attempt.child_client_order_id,
+                correlation_id,
+                audit_id,
+                key_hash,
+                reported_read_count,
+                authoritative_child_state,
+            ),
+        )
+    assert matrix_drift.value.pgcode == "P0001"
+    assert "event_accounting_invalid" in str(matrix_drift.value)
+
+
+def test_live_proof_database_guard_rejects_identity_start_and_diagnostic_drift(
+    repository_harness: _RepositoryHarness,
+):
+    repository, root_id, source_id, intent_id = _attach_then_fill(
+        repository_harness
+    )
+
+    with pytest.raises(psycopg2.Error) as goal_identity:
+        repository_harness.execute(
+            f'INSERT INTO "{repository_harness.schema}".'
+            "operator_follow_up_live_proof_goal "
+            "(goal_id, source_client_order_id, root_client_order_id, "
+            "follow_up_intent_id) VALUES (%s, %s, %s, %s)",
+            (
+                OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+                source_id,
+                str(uuid.uuid4()),
+                intent_id,
+            ),
+        )
+    assert goal_identity.value.pgcode == "P0001"
+
+    correlation_id = "direct-sql-proof-correlation"
+    audit_id = str(uuid.uuid4())
+    key_hash = "9" * 64
+    repository_harness.execute(
+        f'INSERT INTO "{repository_harness.schema}".'
+        "operator_follow_up_live_proof_goal "
+        "(goal_id, source_client_order_id, root_client_order_id, "
+        "follow_up_intent_id) VALUES (%s, %s, %s, %s)",
+        (
+            OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            source_id,
+            root_id,
+            intent_id,
+        ),
+    )
+    event_table = (
+        f'"{repository_harness.schema}".'
+        "operator_follow_up_live_proof_event"
+    )
+    common_values = (
+        OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        source_id,
+        root_id,
+        intent_id,
+        correlation_id,
+        audit_id,
+        key_hash,
+    )
+    insert_sql = f"""
+        INSERT INTO {event_table} (
+            event_id, goal_id, operation_kind, event_state, outcome,
+            diagnostic_code, source_client_order_id, root_client_order_id,
+            follow_up_intent_id, correlation_id, audit_id,
+            operation_idempotency_key_sha256,
+            sdk_mutation_invocation_state, transport_submission_state,
+            exchange_mutation_state, read_accounting_state,
+            observed_read_count, external_call_started, reported_read_count,
+            individual_retry_count
+        ) VALUES (
+            %s, %s, %s, 'TERMINAL', %s, %s, %s, %s, %s, %s, %s, %s,
+            %s, %s, %s, %s, %s, %s, %s, %s
+        )
+    """
+    with pytest.raises(psycopg2.Error) as terminal_without_start:
+        repository_harness.execute(
+            insert_sql,
+            (
+                str(uuid.uuid4()),
+                OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+                FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value,
+                FollowUpLiveProofTerminalOutcome.UNKNOWN.value,
+                "follow_up_live_proof_eligibility_unknown",
+                source_id,
+                root_id,
+                intent_id,
+                correlation_id,
+                audit_id,
+                key_hash,
+                FollowUpSdkMutationInvocationState.NOT_INVOKED.value,
+                FollowUpTransportSubmissionState.NOT_SUBMITTED.value,
+                FollowUpExchangeMutationState.NOT_MUTATED.value,
+                FollowUpReadAccountingState.UNKNOWN.value,
+                None,
+                False,
+                0,
+                0,
+            ),
+        )
+    assert terminal_without_start.value.pgcode == "P0001"
+    assert "event_start_missing" in str(terminal_without_start.value)
+
+    repository_harness.execute(
+        f"""
+        INSERT INTO {event_table} (
+            event_id, goal_id, operation_kind, event_state, outcome,
+            diagnostic_code, source_client_order_id, root_client_order_id,
+            follow_up_intent_id, correlation_id, audit_id,
+            operation_idempotency_key_sha256,
+            sdk_mutation_invocation_state, transport_submission_state,
+            exchange_mutation_state, read_accounting_state,
+            observed_read_count, external_call_started, reported_read_count,
+            individual_retry_count
+        ) VALUES (
+            %s, %s, 'ELIGIBILITY_READ', 'INVOCATION_STARTED', NULL,
+            'follow_up_live_proof_invocation_started', %s, %s, %s, %s, %s,
+            %s, 'NOT_INVOKED', 'NOT_SUBMITTED', 'NOT_MUTATED', 'UNKNOWN', NULL,
+            FALSE, 0, 0
+        )
+        """,
+        (
+            str(uuid.uuid4()),
+            OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            source_id,
+            root_id,
+            intent_id,
+            correlation_id,
+            audit_id,
+            key_hash,
+        ),
+    )
+
+    with pytest.raises(psycopg2.Error) as event_identity:
+        repository_harness.execute(
+            insert_sql,
+            (
+                str(uuid.uuid4()),
+                OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+                FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value,
+                FollowUpLiveProofTerminalOutcome.SUCCEEDED.value,
+                "follow_up_live_proof_eligibility_succeeded",
+                source_id,
+                str(uuid.uuid4()),
+                intent_id,
+                correlation_id,
+                audit_id,
+                key_hash,
+                FollowUpSdkMutationInvocationState.NOT_INVOKED.value,
+                FollowUpTransportSubmissionState.NOT_SUBMITTED.value,
+                FollowUpExchangeMutationState.NOT_MUTATED.value,
+                FollowUpReadAccountingState.EXACT.value,
+                1,
+                False,
+                1,
+                0,
+            ),
+        )
+    assert event_identity.value.pgcode == "P0001"
+    assert "event_identity_mismatch" in str(event_identity.value)
+
+    with pytest.raises(psycopg2.Error) as diagnostic_drift:
+        repository_harness.execute(
+            insert_sql,
+            (
+                str(uuid.uuid4()),
+                *common_values[:1],
+                FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value,
+                FollowUpLiveProofTerminalOutcome.SUCCEEDED.value,
+                "caller_controlled_terminal_text",
+                *common_values[1:],
+                FollowUpSdkMutationInvocationState.NOT_INVOKED.value,
+                FollowUpTransportSubmissionState.NOT_SUBMITTED.value,
+                FollowUpExchangeMutationState.NOT_MUTATED.value,
+                FollowUpReadAccountingState.EXACT.value,
+                1,
+                False,
+                1,
+                0,
+            ),
+        )
+    assert diagnostic_drift.value.pgcode == "P0001"

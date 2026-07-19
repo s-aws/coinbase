@@ -4,6 +4,25 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 
 ## Project Entry
 
+Goal `operator_follow_up_operations_queue_and_single_live_proof` is in
+progress. Current action is
+`implement_validate_audit_deploy_then_count_exact_candidates`. The current
+slice has implemented the passive backend-owned local-SQL Follow-up Operations
+queue and must next complete the remaining validation, deployment checks, and
+both independent audits. Candidate counting and any separately bounded live
+proof remain closed until those gates pass.
+
+The implemented queue obtains its page and four latest durable operation slots
+in one PostgreSQL statement without per-item reads. Its top-level current
+request activity is exact zero; durable eligibility-read, Create,
+reconciliation-read, and Cancel activity remains separate from one-use
+allowance consumption. Replays preserve that durable activity while reporting
+zero new current-request activity. Only entirely null legacy accounting may be
+projected conservatively; partial explicit accounting fails closed. Typed
+follow-up errors remain sanitized and value-blind. No deployment, candidate
+count, Coinbase call, or live proof has been performed for the current goal at
+this implementation checkpoint.
+
 Goal `futures_preview_acceptance_recovery_r12` is terminal
 `complete_terminal_unknown_consumed`. Its single durable claim is consumed,
 the source-bound release gate remains `False`, and no further eligibility read,
@@ -23,8 +42,9 @@ is a completed compatibility/direction record, not current work authority.
 - [Futures Slice 2R12 Preparation](FUTURES_SLICE_2R12_PREPARATION.md) - separate
   eligibility/attempt phases, ten-cycle ledger, exact nine-GET allowlist,
   single-use claim recovery, and source-disabled release gate
-- [Current MVP Goal](../genai_data/AGENT_MVP_REBUILD_GOAL.md) - historical R11
-  terminal authority and immutable R1-R11 history
+- [Current MVP Goal](../genai_data/AGENT_MVP_REBUILD_GOAL.md) - Follow-up
+  Operations queue and bounded single-proof authority, plus immutable
+  predecessor history
 - [Futures Slice 2R11 Terminal Diagnosis](FUTURES_SLICE_2R11_TERMINAL_DIAGNOSIS.md) -
   exact pre-Preview V3 operator-policy boundary, immutable terminal hashes,
   six-read/zero-Preview accounting, and permanent no-retry tombstone

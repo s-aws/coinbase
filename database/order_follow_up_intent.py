@@ -7,6 +7,7 @@ evidence plus the canonical intent, claim, and audit-outbox tables owned here.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -18,13 +19,23 @@ from typing import Any, Callable, Mapping
 import uuid
 
 from core.enums import (
+    AdminOrderFollowUpOperationActionability,
+    AdminOrderFollowUpOperationState,
     AdminApiActionClass,
     AdminApiCommandStatus,
     AdminApiPermission,
+    FollowUpAccountingEvidenceOrigin,
+    FollowUpExchangeMutationState,
+    FollowUpLiveProofEventState,
+    FollowUpLiveProofOperationKind,
+    FollowUpLiveProofTerminalOutcome,
     FollowUpMaterializationState,
     FollowUpMaterializedChildTransitionKind,
+    FollowUpReadAccountingState,
+    FollowUpSdkMutationInvocationState,
     FollowUpSemanticClaimKind,
     FollowUpSemanticClaimState,
+    FollowUpTransportSubmissionState,
     OrderOwnershipProvenance,
     OrderStatus,
 )
@@ -42,6 +53,9 @@ FOLLOW_UP_INTENT_AUDIT_ENDPOINT = (
     "/api/v1/orders/{source_client_order_id}/follow-up-intent"
 )
 FOLLOW_UP_INTENT_AUDIT_MESSAGE = "follow_up_intent_attached"
+OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID = (
+    "operator_follow_up_operations_queue_and_single_live_proof"
+)
 
 _SCHEMA_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _AUTOMATIC_CLAIM_KINDS = {
@@ -77,6 +91,289 @@ _CANCEL_RESULT_STATES = {
     FollowUpMaterializationState.CANCEL_ACCEPTED_TERMINAL.value,
     FollowUpMaterializationState.CANCEL_UNKNOWN_CONSUMED.value,
 }
+_LIVE_PROOF_OPERATION_KINDS = tuple(
+    operation.value for operation in FollowUpLiveProofOperationKind
+)
+_LIVE_PROOF_EVENT_STATES = tuple(
+    state.value for state in FollowUpLiveProofEventState
+)
+_LIVE_PROOF_TERMINAL_OUTCOMES = tuple(
+    outcome.value for outcome in FollowUpLiveProofTerminalOutcome
+)
+_LIVE_PROOF_SDK_INVOCATION_STATES = tuple(
+    state.value for state in FollowUpSdkMutationInvocationState
+)
+_LIVE_PROOF_TRANSPORT_SUBMISSION_STATES = tuple(
+    state.value for state in FollowUpTransportSubmissionState
+)
+_LIVE_PROOF_EXCHANGE_MUTATION_STATES = tuple(
+    state.value for state in FollowUpExchangeMutationState
+)
+_LIVE_PROOF_READ_ACCOUNTING_STATES = tuple(
+    state.value for state in FollowUpReadAccountingState
+)
+_LIVE_PROOF_OPERATION_SQL = ", ".join(
+    "'" + value.replace("'", "''") + "'"
+    for value in _LIVE_PROOF_OPERATION_KINDS
+)
+_LIVE_PROOF_EVENT_STATE_SQL = ", ".join(
+    "'" + value.replace("'", "''") + "'"
+    for value in _LIVE_PROOF_EVENT_STATES
+)
+_LIVE_PROOF_TERMINAL_OUTCOME_SQL = ", ".join(
+    "'" + value.replace("'", "''") + "'"
+    for value in _LIVE_PROOF_TERMINAL_OUTCOMES
+)
+_LIVE_PROOF_SDK_INVOCATION_STATE_SQL = ", ".join(
+    "'" + value.replace("'", "''") + "'"
+    for value in _LIVE_PROOF_SDK_INVOCATION_STATES
+)
+_LIVE_PROOF_TRANSPORT_SUBMISSION_STATE_SQL = ", ".join(
+    "'" + value.replace("'", "''") + "'"
+    for value in _LIVE_PROOF_TRANSPORT_SUBMISSION_STATES
+)
+_LIVE_PROOF_EXCHANGE_MUTATION_STATE_SQL = ", ".join(
+    "'" + value.replace("'", "''") + "'"
+    for value in _LIVE_PROOF_EXCHANGE_MUTATION_STATES
+)
+_LIVE_PROOF_READ_ACCOUNTING_STATE_SQL = ", ".join(
+    "'" + value.replace("'", "''") + "'"
+    for value in _LIVE_PROOF_READ_ACCOUNTING_STATES
+)
+
+
+@dataclass(frozen=True)
+class _FollowUpLiveProofAccounting:
+    sdk_mutation_invocation_state: str
+    transport_submission_state: str
+    exchange_mutation_state: str
+    read_accounting_state: str
+    observed_read_count: int | None
+
+    @property
+    def compatibility_external_call_started(self) -> bool:
+        return (
+            self.sdk_mutation_invocation_state
+            == FollowUpSdkMutationInvocationState.INVOKED.value
+        )
+
+    @property
+    def compatibility_reported_read_count(self) -> int:
+        return self.observed_read_count or 0
+
+
+def _legacy_live_proof_accounting(
+    *,
+    operation: str,
+    outcome: str,
+    external_call_started: bool,
+    reported_read_count: int,
+) -> _FollowUpLiveProofAccounting:
+    """Conservatively translate a pre-tri-state caller without sentinels."""
+
+    mutation = operation in {
+        FollowUpLiveProofOperationKind.CREATE.value,
+        FollowUpLiveProofOperationKind.CANCEL.value,
+    }
+    if mutation and outcome == FollowUpLiveProofTerminalOutcome.UNKNOWN.value:
+        sdk_state = FollowUpSdkMutationInvocationState.UNKNOWN.value
+        transport_state = FollowUpTransportSubmissionState.POSSIBLY_SUBMITTED.value
+        exchange_state = FollowUpExchangeMutationState.UNKNOWN.value
+        read_state = FollowUpReadAccountingState.UNKNOWN.value
+        observed_count = None
+    elif mutation and outcome in {
+        FollowUpLiveProofTerminalOutcome.SUCCEEDED.value,
+        FollowUpLiveProofTerminalOutcome.REJECTED.value,
+    }:
+        sdk_state = FollowUpSdkMutationInvocationState.INVOKED.value
+        transport_state = FollowUpTransportSubmissionState.CONFIRMED_SUBMITTED.value
+        exchange_state = (
+            FollowUpExchangeMutationState.CONFIRMED_MUTATED.value
+            if outcome == FollowUpLiveProofTerminalOutcome.SUCCEEDED.value
+            else FollowUpExchangeMutationState.NOT_MUTATED.value
+        )
+        read_state = FollowUpReadAccountingState.EXACT.value
+        observed_count = reported_read_count
+    else:
+        sdk_state = FollowUpSdkMutationInvocationState.NOT_INVOKED.value
+        transport_state = FollowUpTransportSubmissionState.NOT_SUBMITTED.value
+        exchange_state = FollowUpExchangeMutationState.NOT_MUTATED.value
+        if outcome == FollowUpLiveProofTerminalOutcome.UNKNOWN.value:
+            read_state = FollowUpReadAccountingState.UNKNOWN.value
+            observed_count = None
+        else:
+            read_state = FollowUpReadAccountingState.EXACT.value
+            observed_count = reported_read_count
+    del external_call_started
+    return _FollowUpLiveProofAccounting(
+        sdk_mutation_invocation_state=sdk_state,
+        transport_submission_state=transport_state,
+        exchange_mutation_state=exchange_state,
+        read_accounting_state=read_state,
+        observed_read_count=observed_count,
+    )
+
+
+def _configured_spot_product_ids() -> tuple[str, ...]:
+    """Read the local configured Spot catalog without any exchange access."""
+
+    try:
+        from configuration import SPOT_PRODUCT_IDS
+    except Exception:
+        return ()
+    return tuple(
+        sorted(
+            {
+                str(product_id).strip()
+                for product_id in SPOT_PRODUCT_IDS
+                if str(product_id).strip()
+            }
+        )
+    )
+
+
+@dataclass(frozen=True)
+class FollowUpOperationAttemptClassification:
+    """One exhaustive queue projection; counts consume allowances only."""
+
+    operation_state: str
+    actionability: str
+    state_reason_code: str
+    create_call_count: int
+    cancel_call_count: int
+
+    @property
+    def create_allowance_consumption_count(self) -> int:
+        return self.create_call_count
+
+    @property
+    def cancel_allowance_consumption_count(self) -> int:
+        return self.cancel_call_count
+
+
+FOLLOW_UP_OPERATION_ATTEMPT_CLASSIFICATION = {
+    FollowUpMaterializationState.KNOWN_NOT_INVOKED: (
+        FollowUpOperationAttemptClassification(
+            operation_state=(
+                AdminOrderFollowUpOperationState.MATERIALIZATION_IN_PROGRESS.value
+            ),
+            actionability=AdminOrderFollowUpOperationActionability.NONE.value,
+            state_reason_code="materialization_claim_prepared_no_new_post",
+            create_call_count=0,
+            cancel_call_count=0,
+        )
+    ),
+    FollowUpMaterializationState.CREATE_INVOCATION_STARTED: (
+        FollowUpOperationAttemptClassification(
+            operation_state=AdminOrderFollowUpOperationState.UNKNOWN_OUTCOME.value,
+            actionability=(
+                AdminOrderFollowUpOperationActionability.SAFE_CLOSEOUT_REVIEW.value
+            ),
+            state_reason_code="create_invocation_outcome_unknown",
+            create_call_count=1,
+            cancel_call_count=0,
+        )
+    ),
+    FollowUpMaterializationState.CREATE_EXPLICITLY_REJECTED: (
+        FollowUpOperationAttemptClassification(
+            operation_state=AdminOrderFollowUpOperationState.BLOCKED.value,
+            actionability=AdminOrderFollowUpOperationActionability.NONE.value,
+            state_reason_code="create_explicitly_rejected",
+            create_call_count=1,
+            cancel_call_count=0,
+        )
+    ),
+    FollowUpMaterializationState.CREATE_ACCEPTED_NONTERMINAL: (
+        FollowUpOperationAttemptClassification(
+            operation_state=AdminOrderFollowUpOperationState.MATERIALIZED_ACTIVE.value,
+            actionability=(
+                AdminOrderFollowUpOperationActionability.SAFE_CLOSEOUT_REVIEW.value
+            ),
+            state_reason_code="materialized_child_active_cancel_available",
+            create_call_count=1,
+            cancel_call_count=0,
+        )
+    ),
+    FollowUpMaterializationState.CREATE_ACCEPTED_TERMINAL: (
+        FollowUpOperationAttemptClassification(
+            operation_state=AdminOrderFollowUpOperationState.MATERIALIZED_TERMINAL.value,
+            actionability=AdminOrderFollowUpOperationActionability.NONE.value,
+            state_reason_code="materialized_child_terminal",
+            create_call_count=1,
+            cancel_call_count=0,
+        )
+    ),
+    FollowUpMaterializationState.CREATE_UNKNOWN_CONSUMED: (
+        FollowUpOperationAttemptClassification(
+            operation_state=AdminOrderFollowUpOperationState.UNKNOWN_OUTCOME.value,
+            actionability=(
+                AdminOrderFollowUpOperationActionability.SAFE_CLOSEOUT_REVIEW.value
+            ),
+            state_reason_code="create_outcome_unknown_consumed",
+            create_call_count=1,
+            cancel_call_count=0,
+        )
+    ),
+    FollowUpMaterializationState.CANCEL_INVOCATION_STARTED: (
+        FollowUpOperationAttemptClassification(
+            operation_state=AdminOrderFollowUpOperationState.UNKNOWN_OUTCOME.value,
+            actionability=AdminOrderFollowUpOperationActionability.NONE.value,
+            state_reason_code="cancel_invocation_outcome_unknown",
+            create_call_count=1,
+            cancel_call_count=1,
+        )
+    ),
+    FollowUpMaterializationState.CANCEL_NOT_REQUIRED_TERMINAL: (
+        FollowUpOperationAttemptClassification(
+            operation_state=AdminOrderFollowUpOperationState.MATERIALIZED_TERMINAL.value,
+            actionability=AdminOrderFollowUpOperationActionability.NONE.value,
+            state_reason_code="materialized_child_terminal_no_cancel",
+            create_call_count=1,
+            cancel_call_count=0,
+        )
+    ),
+    FollowUpMaterializationState.CANCEL_EXPLICITLY_REJECTED: (
+        FollowUpOperationAttemptClassification(
+            operation_state=AdminOrderFollowUpOperationState.MATERIALIZED_ACTIVE.value,
+            actionability=AdminOrderFollowUpOperationActionability.NONE.value,
+            state_reason_code="cancel_explicitly_rejected_allowance_consumed",
+            create_call_count=1,
+            cancel_call_count=1,
+        )
+    ),
+    FollowUpMaterializationState.CANCEL_ACCEPTED_NONTERMINAL: (
+        FollowUpOperationAttemptClassification(
+            operation_state=AdminOrderFollowUpOperationState.MATERIALIZED_ACTIVE.value,
+            actionability=AdminOrderFollowUpOperationActionability.NONE.value,
+            state_reason_code="cancel_accepted_nonterminal_allowance_consumed",
+            create_call_count=1,
+            cancel_call_count=1,
+        )
+    ),
+    FollowUpMaterializationState.CANCEL_ACCEPTED_TERMINAL: (
+        FollowUpOperationAttemptClassification(
+            operation_state=AdminOrderFollowUpOperationState.MATERIALIZED_TERMINAL.value,
+            actionability=AdminOrderFollowUpOperationActionability.NONE.value,
+            state_reason_code="safe_closeout_terminal",
+            create_call_count=1,
+            cancel_call_count=1,
+        )
+    ),
+    FollowUpMaterializationState.CANCEL_UNKNOWN_CONSUMED: (
+        FollowUpOperationAttemptClassification(
+            operation_state=AdminOrderFollowUpOperationState.UNKNOWN_OUTCOME.value,
+            actionability=AdminOrderFollowUpOperationActionability.NONE.value,
+            state_reason_code="cancel_outcome_unknown_consumed",
+            create_call_count=1,
+            cancel_call_count=1,
+        )
+    ),
+}
+
+if set(FOLLOW_UP_OPERATION_ATTEMPT_CLASSIFICATION) != set(
+    FollowUpMaterializationState
+):
+    raise RuntimeError("follow_up_operation_attempt_classification_incomplete")
 _MATERIALIZED_CHILD_ACTIVE_STATUSES = frozenset(
     {
         OrderStatus.PENDING.value,
@@ -325,6 +622,79 @@ class FollowUpMaterializationReadback:
 
 
 @dataclass(frozen=True)
+class FollowUpOperationPageItem:
+    """Sanitized SQL projection for one attached intent."""
+
+    follow_up_intent_id: str
+    source_client_order_id: str
+    root_client_order_id: str
+    child_client_order_id: str | None
+    product_id: str
+    source_status: str
+    derived_follow_up_side: str
+    state: str
+    state_reason_code: str
+    actionability: str
+    materialization_attempt_state: str | None
+    correlation_id: str
+    audit_id: str
+    recorded_at: str
+    updated_at: str
+    materialization_id: str | None = None
+    live_proof_operations: FollowUpLiveProofOperationSet | None = None
+
+
+@dataclass(frozen=True)
+class FollowUpOperationsPage:
+    """One filtered SQL page plus its exact pre-pagination count."""
+
+    items: tuple[FollowUpOperationPageItem, ...]
+    total_matching_count: int
+
+
+@dataclass(frozen=True)
+class FollowUpLiveProofOperationRecord:
+    """Sanitized durable accounting for one goal-wide operation boundary."""
+
+    event_id: str
+    goal_id: str
+    operation_kind: str
+    event_state: str
+    outcome: str | None
+    diagnostic_code: str
+    source_client_order_id: str
+    root_client_order_id: str
+    follow_up_intent_id: str
+    materialization_id: str | None
+    child_client_order_id: str | None
+    correlation_id: str
+    audit_id: str
+    operation_idempotency_key_sha256: str
+    sdk_mutation_invocation_state: str
+    transport_submission_state: str
+    exchange_mutation_state: str
+    read_accounting_state: str
+    observed_read_count: int | None
+    accounting_evidence_origin: str
+    external_call_started: bool
+    reported_read_count: int
+    individual_retry_count: int
+    authoritative_child_state: str | None
+    recorded_at: str
+    claimed: bool = True
+
+
+@dataclass(frozen=True)
+class FollowUpLiveProofOperationSet:
+    """Latest local journal record for each bounded proof operation."""
+
+    eligibility_read: FollowUpLiveProofOperationRecord | None
+    create: FollowUpLiveProofOperationRecord | None
+    reconciliation_read: FollowUpLiveProofOperationRecord | None
+    cancel: FollowUpLiveProofOperationRecord | None
+
+
+@dataclass(frozen=True)
 class FollowUpMaterializationPrepareResult:
     readiness: FollowUpMaterializationReadiness
     attempt: FollowUpMaterializationAttemptRecord
@@ -354,6 +724,34 @@ class FollowUpMaterializedChildLocalStateRecord:
 @dataclass(frozen=True)
 class FollowUpMaterializedChildLocalStateTransitionResult:
     record: FollowUpMaterializedChildLocalStateRecord
+    replayed: bool
+
+
+@dataclass(frozen=True)
+class FollowUpLiveProofInvocationStartResult:
+    """One transactionally paired native and goal-wide invocation claim."""
+
+    materialization: FollowUpMaterializationTransitionResult
+    live_proof: FollowUpLiveProofOperationRecord
+    claimed: bool
+
+
+@dataclass(frozen=True)
+class FollowUpLiveProofMutationFinalizeResult:
+    """One transactionally paired mutation result, projection, and terminal."""
+
+    materialization: FollowUpMaterializationTransitionResult
+    local_state: FollowUpMaterializedChildLocalStateTransitionResult
+    live_proof: FollowUpLiveProofOperationRecord
+    replayed: bool
+
+
+@dataclass(frozen=True)
+class FollowUpLiveProofReconciliationFinalizeResult:
+    """One transactionally paired reconciliation projection and terminal."""
+
+    local_state: FollowUpMaterializedChildLocalStateTransitionResult
+    live_proof: FollowUpLiveProofOperationRecord
     replayed: bool
 
 
@@ -420,6 +818,34 @@ class FollowUpIntentAuditOutboxRecord:
     event_sha256: str
     recorded_at: str
     projected_at: str | None
+
+
+def _sql_literal(value: str) -> str:
+    """Quote one fixed in-module enum value for generated SQL CASE clauses."""
+
+    return "'" + value.replace("'", "''") + "'"
+
+
+def _follow_up_operation_attempt_case(field_name: str) -> str:
+    """Render an exhaustive CASE directly from the reviewed state table."""
+
+    if field_name not in {
+        "operation_state",
+        "actionability",
+        "state_reason_code",
+    }:
+        raise ValueError("follow_up_operation_classification_field_invalid")
+    clauses = [
+        (
+            "WHEN materialization_attempt_state = "
+            f"{_sql_literal(attempt_state.value)} "
+            f"THEN {_sql_literal(getattr(classification, field_name))}"
+        )
+        for attempt_state, classification in (
+            FOLLOW_UP_OPERATION_ATTEMPT_CLASSIFICATION.items()
+        )
+    ]
+    return "CASE\n" + "\n".join(clauses) + "\nELSE NULL\nEND"
 
 
 def _canonical_sha256(payload: Mapping[str, Any]) -> str:
@@ -578,6 +1004,7 @@ class OperatorFollowUpIntentRepository:
         db: Any,
         *,
         configured_spot_portfolio_id: str,
+        configured_spot_product_ids: tuple[str, ...] | None = None,
         schema: str = "public",
         product_context_resolver: Callable[[str], Mapping[str, Any]] = (
             resolve_product_context
@@ -591,6 +1018,19 @@ class OperatorFollowUpIntentRepository:
         self.configured_spot_portfolio_id = str(
             configured_spot_portfolio_id or ""
         ).strip()
+        self.configured_spot_product_ids = (
+            tuple(
+                sorted(
+                    {
+                        str(product_id).strip()
+                        for product_id in configured_spot_product_ids
+                        if str(product_id).strip()
+                    }
+                )
+            )
+            if configured_spot_product_ids is not None
+            else _configured_spot_product_ids()
+        )
         self.product_context_resolver = product_context_resolver
         self.spot_policy_evaluator = spot_policy_evaluator
         self._schema_ready = False
@@ -598,6 +1038,16 @@ class OperatorFollowUpIntentRepository:
 
     def _table(self, name: str) -> str:
         return f'"{self.schema}"."{name}"'
+
+    @contextmanager
+    def _transaction_cursor(self, cursor: Any | None = None):
+        """Reuse an owning cursor without introducing a nested commit."""
+
+        if cursor is not None:
+            yield cursor
+            return
+        with self.db.get_cursor() as owned_cursor:
+            yield owned_cursor
 
     def ensure_schema(self) -> None:
         if self._schema_ready:
@@ -798,6 +1248,104 @@ class OperatorFollowUpIntentRepository:
                     )
                     cursor.execute(
                         f"""
+                        CREATE TABLE IF NOT EXISTS {self._table('operator_follow_up_live_proof_goal')} (
+                            goal_id VARCHAR(128) PRIMARY KEY,
+                            source_client_order_id VARCHAR(128) NOT NULL,
+                            root_client_order_id VARCHAR(128) NOT NULL,
+                            follow_up_intent_id UUID NOT NULL UNIQUE,
+                            materialization_id UUID UNIQUE,
+                            child_client_order_id UUID UNIQUE,
+                            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            CHECK (
+                                (materialization_id IS NULL AND child_client_order_id IS NULL)
+                                OR
+                                (materialization_id IS NOT NULL AND child_client_order_id IS NOT NULL)
+                            ),
+                            FOREIGN KEY (follow_up_intent_id)
+                                REFERENCES {self._table('operator_follow_up_intent')}(follow_up_intent_id),
+                            FOREIGN KEY (materialization_id)
+                                REFERENCES {self._table('operator_follow_up_materialization_attempt')}(materialization_id)
+                        )
+                        """
+                    )
+                    cursor.execute(
+                        f"""
+                        CREATE TABLE IF NOT EXISTS {self._table('operator_follow_up_live_proof_event')} (
+                            event_sequence BIGSERIAL PRIMARY KEY,
+                            event_id UUID NOT NULL UNIQUE,
+                            goal_id VARCHAR(128) NOT NULL,
+                            operation_kind VARCHAR(32) NOT NULL
+                                CHECK (operation_kind IN ({_LIVE_PROOF_OPERATION_SQL})),
+                            event_state VARCHAR(32) NOT NULL
+                                CHECK (event_state IN ({_LIVE_PROOF_EVENT_STATE_SQL})),
+                            outcome VARCHAR(32)
+                                CHECK (outcome IN ({_LIVE_PROOF_TERMINAL_OUTCOME_SQL})),
+                            diagnostic_code VARCHAR(96) NOT NULL,
+                            source_client_order_id VARCHAR(128) NOT NULL,
+                            root_client_order_id VARCHAR(128) NOT NULL,
+                            follow_up_intent_id UUID NOT NULL,
+                            materialization_id UUID,
+                            child_client_order_id UUID,
+                            correlation_id VARCHAR(255) NOT NULL,
+                            audit_id UUID NOT NULL,
+                            operation_idempotency_key_sha256 VARCHAR(64) NOT NULL,
+                            sdk_mutation_invocation_state VARCHAR(16)
+                                CHECK (sdk_mutation_invocation_state IN ({_LIVE_PROOF_SDK_INVOCATION_STATE_SQL})),
+                            transport_submission_state VARCHAR(24)
+                                CHECK (transport_submission_state IN ({_LIVE_PROOF_TRANSPORT_SUBMISSION_STATE_SQL})),
+                            exchange_mutation_state VARCHAR(24)
+                                CHECK (exchange_mutation_state IN ({_LIVE_PROOF_EXCHANGE_MUTATION_STATE_SQL})),
+                            read_accounting_state VARCHAR(16)
+                                CHECK (read_accounting_state IN ({_LIVE_PROOF_READ_ACCOUNTING_STATE_SQL})),
+                            observed_read_count INTEGER
+                                CHECK (observed_read_count BETWEEN 0 AND 10),
+                            external_call_started BOOLEAN NOT NULL,
+                            reported_read_count INTEGER NOT NULL
+                                CHECK (reported_read_count BETWEEN 0 AND 10),
+                            individual_retry_count INTEGER NOT NULL
+                                CHECK (individual_retry_count BETWEEN 0 AND 10),
+                            authoritative_child_state VARCHAR(16)
+                                CHECK (authoritative_child_state IN ('ACTIVE', 'TERMINAL', 'UNKNOWN')),
+                            recorded_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            UNIQUE (goal_id, operation_kind, event_state),
+                            CHECK (
+                                (event_state = 'INVOCATION_STARTED' AND outcome IS NULL)
+                                OR
+                                (event_state = 'TERMINAL' AND outcome IS NOT NULL)
+                            ),
+                            CHECK (
+                                (materialization_id IS NULL AND child_client_order_id IS NULL)
+                                OR
+                                (materialization_id IS NOT NULL AND child_client_order_id IS NOT NULL)
+                            ),
+                            FOREIGN KEY (goal_id)
+                                REFERENCES {self._table('operator_follow_up_live_proof_goal')}(goal_id)
+                        )
+                        """
+                    )
+                    self._upgrade_live_proof_idempotency_binding(cursor)
+                    self._upgrade_live_proof_accounting_columns(cursor)
+                    cursor.execute(
+                        f"ALTER TABLE {self._table('operator_follow_up_live_proof_event')} "
+                        "DROP CONSTRAINT IF EXISTS "
+                        "operator_follow_up_live_proof_event_reported_read_count_check"
+                    )
+                    cursor.execute(
+                        f"ALTER TABLE {self._table('operator_follow_up_live_proof_event')} "
+                        "ADD CONSTRAINT "
+                        "operator_follow_up_live_proof_event_reported_read_count_check "
+                        "CHECK (reported_read_count BETWEEN 0 AND 10)"
+                    )
+                    cursor.execute(
+                        f"""
+                        CREATE INDEX IF NOT EXISTS operator_follow_up_live_proof_event_latest_idx
+                        ON {self._table('operator_follow_up_live_proof_event')}
+                        (goal_id, event_sequence DESC)
+                        """
+                    )
+                    cursor.execute(
+                        f"""
                         CREATE TABLE IF NOT EXISTS {self._table('operator_follow_up_materialized_child_state_event')} (
                             local_state_sequence BIGSERIAL NOT NULL UNIQUE,
                             local_state_event_id UUID PRIMARY KEY,
@@ -923,10 +1471,324 @@ class OperatorFollowUpIntentRepository:
                         $$
                         """
                     )
+                    cursor.execute(
+                        f"""
+                        CREATE OR REPLACE FUNCTION {self._table('guard_operator_follow_up_live_proof_goal')}()
+                        RETURNS trigger
+                        LANGUAGE plpgsql
+                        AS $$
+                        BEGIN
+                            IF TG_OP = 'DELETE' THEN
+                                RAISE EXCEPTION USING
+                                    ERRCODE = 'P0001',
+                                    MESSAGE = 'operator_follow_up_live_proof_goal_immutable';
+                            END IF;
+                            IF TG_OP = 'UPDATE' AND (
+                               NEW.goal_id IS DISTINCT FROM OLD.goal_id
+                               OR NEW.source_client_order_id IS DISTINCT FROM OLD.source_client_order_id
+                               OR NEW.root_client_order_id IS DISTINCT FROM OLD.root_client_order_id
+                               OR NEW.follow_up_intent_id IS DISTINCT FROM OLD.follow_up_intent_id
+                               OR NEW.created_at IS DISTINCT FROM OLD.created_at
+                               OR OLD.materialization_id IS NOT NULL
+                               OR OLD.child_client_order_id IS NOT NULL
+                               OR NEW.materialization_id IS NULL
+                               OR NEW.child_client_order_id IS NULL
+                               OR NEW.updated_at <= OLD.updated_at
+                            ) THEN
+                                RAISE EXCEPTION USING
+                                    ERRCODE = 'P0001',
+                                    MESSAGE = 'operator_follow_up_live_proof_goal_immutable';
+                            END IF;
+                            IF NOT EXISTS (
+                                SELECT 1
+                                  FROM {self._table('operator_follow_up_intent')} AS intent
+                                 WHERE intent.follow_up_intent_id = NEW.follow_up_intent_id
+                                   AND intent.source_client_order_id = NEW.source_client_order_id
+                                   AND intent.root_client_order_id = NEW.root_client_order_id
+                            ) THEN
+                                RAISE EXCEPTION USING
+                                    ERRCODE = 'P0001',
+                                    MESSAGE = 'operator_follow_up_live_proof_goal_identity_mismatch';
+                            END IF;
+                            IF NEW.materialization_id IS NOT NULL AND NOT EXISTS (
+                                SELECT 1
+                                  FROM {self._table('operator_follow_up_materialization_attempt')} AS attempt
+                                 WHERE attempt.materialization_id = NEW.materialization_id
+                                   AND attempt.follow_up_intent_id = NEW.follow_up_intent_id
+                                   AND attempt.source_client_order_id = NEW.source_client_order_id
+                                   AND attempt.root_client_order_id = NEW.root_client_order_id
+                                   AND attempt.child_client_order_id = NEW.child_client_order_id
+                            ) THEN
+                                RAISE EXCEPTION USING
+                                    ERRCODE = 'P0001',
+                                    MESSAGE = 'operator_follow_up_live_proof_goal_identity_mismatch';
+                            END IF;
+                            RETURN NEW;
+                        END;
+                        $$
+                        """
+                    )
+                    cursor.execute(
+                        "DROP TRIGGER IF EXISTS "
+                        "operator_follow_up_live_proof_goal_guard "
+                        f"ON {self._table('operator_follow_up_live_proof_goal')}"
+                    )
+                    cursor.execute(
+                        f"""
+                        CREATE TRIGGER operator_follow_up_live_proof_goal_guard
+                        BEFORE INSERT OR UPDATE OR DELETE
+                        ON {self._table('operator_follow_up_live_proof_goal')}
+                        FOR EACH ROW
+                        EXECUTE FUNCTION {self._table('guard_operator_follow_up_live_proof_goal')}()
+                        """
+                    )
+                    cursor.execute(
+                        f"""
+                        CREATE OR REPLACE FUNCTION {self._table('guard_operator_follow_up_live_proof_event')}()
+                        RETURNS trigger
+                        LANGUAGE plpgsql
+                        AS $$
+                        DECLARE
+                            expected_diagnostic TEXT;
+                        BEGIN
+                            IF NOT EXISTS (
+                                SELECT 1
+                                  FROM {self._table('operator_follow_up_live_proof_goal')} AS goal
+                                 WHERE goal.goal_id = NEW.goal_id
+                                   AND goal.source_client_order_id = NEW.source_client_order_id
+                                   AND goal.root_client_order_id = NEW.root_client_order_id
+                                   AND goal.follow_up_intent_id = NEW.follow_up_intent_id
+                                   AND goal.materialization_id IS NOT DISTINCT FROM NEW.materialization_id
+                                   AND goal.child_client_order_id IS NOT DISTINCT FROM NEW.child_client_order_id
+                            ) THEN
+                                RAISE EXCEPTION USING
+                                    ERRCODE = 'P0001',
+                                    MESSAGE = 'operator_follow_up_live_proof_event_identity_mismatch';
+                            END IF;
+                            IF NEW.operation_kind = 'ELIGIBILITY_READ' AND (
+                                NEW.materialization_id IS NOT NULL
+                                OR NEW.child_client_order_id IS NOT NULL
+                            ) THEN
+                                RAISE EXCEPTION USING
+                                    ERRCODE = 'P0001',
+                                    MESSAGE = 'operator_follow_up_live_proof_event_identity_mismatch';
+                            END IF;
+                            IF NEW.operation_kind <> 'ELIGIBILITY_READ' AND (
+                                NEW.materialization_id IS NULL
+                                OR NEW.child_client_order_id IS NULL
+                            ) THEN
+                                RAISE EXCEPTION USING
+                                    ERRCODE = 'P0001',
+                                    MESSAGE = 'operator_follow_up_live_proof_event_identity_mismatch';
+                            END IF;
+                            IF NEW.sdk_mutation_invocation_state IS NULL
+                               OR NEW.transport_submission_state IS NULL
+                               OR NEW.exchange_mutation_state IS NULL
+                               OR NEW.read_accounting_state IS NULL
+                               OR NEW.external_call_started <>
+                                    (NEW.sdk_mutation_invocation_state = 'INVOKED')
+                               OR NEW.reported_read_count <>
+                                    COALESCE(NEW.observed_read_count, 0)
+                               OR NOT (
+                                    (NEW.read_accounting_state = 'EXACT'
+                                     AND NEW.observed_read_count BETWEEN 0 AND 10)
+                                    OR
+                                    (NEW.read_accounting_state = 'UNKNOWN'
+                                     AND NEW.observed_read_count IS NULL)
+                               )
+                            THEN
+                                RAISE EXCEPTION USING
+                                    ERRCODE = 'P0001',
+                                    MESSAGE = 'operator_follow_up_live_proof_event_accounting_invalid';
+                            END IF;
+                            IF NEW.event_state = 'INVOCATION_STARTED' THEN
+                                IF NEW.outcome IS NOT NULL
+                                   OR NEW.diagnostic_code <> 'follow_up_live_proof_invocation_started'
+                                   OR NEW.external_call_started
+                                   OR NEW.reported_read_count <> 0
+                                   OR NEW.individual_retry_count <> 0
+                                   OR NEW.authoritative_child_state IS NOT NULL
+                                   OR NEW.read_accounting_state <> 'UNKNOWN'
+                                   OR NEW.observed_read_count IS NOT NULL
+                                   OR (
+                                        NEW.operation_kind IN ('CREATE', 'CANCEL')
+                                        AND NOT (
+                                            NEW.sdk_mutation_invocation_state = 'UNKNOWN'
+                                            AND NEW.transport_submission_state = 'POSSIBLY_SUBMITTED'
+                                            AND NEW.exchange_mutation_state = 'UNKNOWN'
+                                        )
+                                   )
+                                   OR (
+                                        NEW.operation_kind IN (
+                                            'ELIGIBILITY_READ',
+                                            'RECONCILIATION_READ'
+                                        )
+                                        AND NOT (
+                                            NEW.sdk_mutation_invocation_state = 'NOT_INVOKED'
+                                            AND NEW.transport_submission_state = 'NOT_SUBMITTED'
+                                            AND NEW.exchange_mutation_state = 'NOT_MUTATED'
+                                        )
+                                   )
+                                THEN
+                                    RAISE EXCEPTION USING
+                                        ERRCODE = 'P0001',
+                                        MESSAGE = 'operator_follow_up_live_proof_event_start_invalid';
+                                END IF;
+                                RETURN NEW;
+                            END IF;
+
+                            expected_diagnostic := 'follow_up_live_proof_' ||
+                                CASE NEW.operation_kind
+                                    WHEN 'ELIGIBILITY_READ' THEN 'eligibility'
+                                    WHEN 'RECONCILIATION_READ' THEN 'reconciliation'
+                                    WHEN 'CREATE' THEN 'create'
+                                    WHEN 'CANCEL' THEN 'cancel'
+                                END || '_' || LOWER(NEW.outcome);
+                            IF NEW.diagnostic_code <> expected_diagnostic THEN
+                                RAISE EXCEPTION USING
+                                    ERRCODE = 'P0001',
+                                    MESSAGE = 'operator_follow_up_live_proof_event_diagnostic_invalid';
+                            END IF;
+                            IF NOT EXISTS (
+                                SELECT 1
+                                  FROM {self._table('operator_follow_up_live_proof_event')} AS started
+                                 WHERE started.goal_id = NEW.goal_id
+                                   AND started.operation_kind = NEW.operation_kind
+                                   AND started.event_state = 'INVOCATION_STARTED'
+                                   AND started.source_client_order_id = NEW.source_client_order_id
+                                   AND started.root_client_order_id = NEW.root_client_order_id
+                                   AND started.follow_up_intent_id = NEW.follow_up_intent_id
+                                   AND started.materialization_id IS NOT DISTINCT FROM NEW.materialization_id
+                                   AND started.child_client_order_id IS NOT DISTINCT FROM NEW.child_client_order_id
+                                   AND started.correlation_id = NEW.correlation_id
+                                   AND started.audit_id = NEW.audit_id
+                                   AND started.operation_idempotency_key_sha256 = NEW.operation_idempotency_key_sha256
+                            ) THEN
+                                RAISE EXCEPTION USING
+                                    ERRCODE = 'P0001',
+                                    MESSAGE = 'operator_follow_up_live_proof_event_start_missing';
+                            END IF;
+
+                            IF NEW.individual_retry_count <> 0 OR NOT (
+                                (
+                                    NEW.operation_kind IN (
+                                        'ELIGIBILITY_READ',
+                                        'RECONCILIATION_READ'
+                                    )
+                                    AND NEW.sdk_mutation_invocation_state = 'NOT_INVOKED'
+                                    AND NEW.transport_submission_state = 'NOT_SUBMITTED'
+                                    AND NEW.exchange_mutation_state = 'NOT_MUTATED'
+                                    AND (
+                                        (NEW.outcome = 'SUCCEEDED'
+                                         AND NEW.read_accounting_state = 'EXACT'
+                                         AND NEW.observed_read_count BETWEEN 1 AND 10)
+                                        OR
+                                        (NEW.outcome = 'UNKNOWN'
+                                         AND NEW.read_accounting_state = 'UNKNOWN')
+                                        OR
+                                        (NEW.outcome = 'BLOCKED')
+                                        OR
+                                        (NEW.outcome = 'NOT_REQUIRED'
+                                         AND NEW.read_accounting_state = 'EXACT'
+                                         AND NEW.observed_read_count = 0)
+                                    )
+                                    AND (
+                                        (NEW.operation_kind = 'ELIGIBILITY_READ'
+                                         AND NEW.authoritative_child_state IS NULL)
+                                        OR
+                                        (NEW.operation_kind = 'RECONCILIATION_READ'
+                                         AND (
+                                            (NEW.outcome = 'SUCCEEDED'
+                                             AND NEW.authoritative_child_state IN ('ACTIVE', 'TERMINAL'))
+                                            OR
+                                            (NEW.outcome <> 'SUCCEEDED'
+                                             AND NEW.authoritative_child_state IN ('UNKNOWN'))
+                                         ))
+                                    )
+                                )
+                                OR
+                                (
+                                    NEW.operation_kind IN ('CREATE', 'CANCEL')
+                                    AND (
+                                        (NEW.outcome = 'SUCCEEDED'
+                                         AND NEW.sdk_mutation_invocation_state = 'INVOKED'
+                                         AND NEW.transport_submission_state = 'CONFIRMED_SUBMITTED'
+                                         AND NEW.exchange_mutation_state = 'CONFIRMED_MUTATED'
+                                         AND NEW.read_accounting_state = 'EXACT'
+                                         AND NEW.observed_read_count = 1)
+                                        OR
+                                        (NEW.outcome = 'REJECTED'
+                                         AND NEW.sdk_mutation_invocation_state = 'INVOKED'
+                                         AND NEW.transport_submission_state = 'CONFIRMED_SUBMITTED'
+                                         AND NEW.exchange_mutation_state = 'NOT_MUTATED'
+                                         AND NEW.read_accounting_state = 'EXACT'
+                                         AND NEW.observed_read_count = 0)
+                                        OR
+                                        (NEW.outcome = 'UNKNOWN'
+                                         AND NEW.sdk_mutation_invocation_state IN ('INVOKED', 'UNKNOWN')
+                                         AND NEW.transport_submission_state = 'POSSIBLY_SUBMITTED'
+                                         AND NEW.exchange_mutation_state = 'UNKNOWN'
+                                         AND NEW.read_accounting_state = 'UNKNOWN')
+                                        OR
+                                        (NEW.outcome IN ('BLOCKED', 'NOT_REQUIRED')
+                                         AND NEW.sdk_mutation_invocation_state = 'NOT_INVOKED'
+                                         AND NEW.transport_submission_state = 'NOT_SUBMITTED'
+                                         AND NEW.exchange_mutation_state = 'NOT_MUTATED'
+                                         AND NEW.read_accounting_state = 'EXACT'
+                                         AND NEW.observed_read_count = 0)
+                                    )
+                                    AND (
+                                        (NEW.operation_kind = 'CREATE'
+                                         AND (
+                                            (NEW.outcome = 'SUCCEEDED'
+                                             AND NEW.authoritative_child_state IN ('ACTIVE', 'TERMINAL'))
+                                            OR
+                                            (NEW.outcome <> 'SUCCEEDED'
+                                             AND NEW.authoritative_child_state = 'UNKNOWN')
+                                         ))
+                                        OR
+                                        (NEW.operation_kind = 'CANCEL'
+                                         AND (
+                                            (NEW.outcome = 'SUCCEEDED'
+                                             AND NEW.authoritative_child_state = 'TERMINAL')
+                                            OR
+                                            (NEW.outcome = 'REJECTED'
+                                             AND NEW.authoritative_child_state = 'ACTIVE')
+                                            OR
+                                            (NEW.outcome IN ('UNKNOWN', 'BLOCKED', 'NOT_REQUIRED')
+                                             AND NEW.authoritative_child_state = 'UNKNOWN')
+                                         ))
+                                    )
+                                )
+                            ) THEN
+                                RAISE EXCEPTION USING
+                                    ERRCODE = 'P0001',
+                                    MESSAGE = 'operator_follow_up_live_proof_event_accounting_invalid';
+                            END IF;
+                            RETURN NEW;
+                        END;
+                        $$
+                        """
+                    )
+                    cursor.execute(
+                        "DROP TRIGGER IF EXISTS "
+                        "operator_follow_up_live_proof_event_guard "
+                        f"ON {self._table('operator_follow_up_live_proof_event')}"
+                    )
+                    cursor.execute(
+                        f"""
+                        CREATE TRIGGER operator_follow_up_live_proof_event_guard
+                        BEFORE INSERT
+                        ON {self._table('operator_follow_up_live_proof_event')}
+                        FOR EACH ROW
+                        EXECUTE FUNCTION {self._table('guard_operator_follow_up_live_proof_event')}()
+                        """
+                    )
                     for table_name in (
                         "operator_follow_up_materialization_attempt",
                         "operator_follow_up_materialization_event",
                         "operator_follow_up_materialized_child_state_event",
+                        "operator_follow_up_live_proof_event",
                     ):
                         trigger_name = f"{table_name}_append_only"
                         cursor.execute(
@@ -949,6 +1811,134 @@ class OperatorFollowUpIntentRepository:
                     "follow_up_intent_store_unavailable"
                 ) from None
             self._schema_ready = True
+
+    def _upgrade_live_proof_idempotency_binding(self, cursor: Any) -> None:
+        """Install the exact operation-key hash binding without inventing history."""
+
+        table_name = "operator_follow_up_live_proof_event"
+        column_name = "operation_idempotency_key_sha256"
+        cursor.execute(
+            f"ALTER TABLE {self._table(table_name)} "
+            f"ADD COLUMN IF NOT EXISTS {column_name} VARCHAR(64)"
+        )
+        cursor.execute(
+            """
+            SELECT constraint_record.conname
+              FROM pg_constraint AS constraint_record
+              JOIN pg_class AS relation
+                ON relation.oid = constraint_record.conrelid
+              JOIN pg_namespace AS namespace
+                ON namespace.oid = relation.relnamespace
+             WHERE namespace.nspname = %s
+               AND relation.relname = %s
+               AND constraint_record.contype = 'c'
+               AND CARDINALITY(constraint_record.conkey) = 1
+               AND EXISTS (
+                    SELECT 1
+                      FROM unnest(constraint_record.conkey) AS key(attnum)
+                      JOIN pg_attribute AS attribute
+                        ON attribute.attrelid = relation.oid
+                       AND attribute.attnum = key.attnum
+                     WHERE attribute.attname = %s
+               )
+             ORDER BY constraint_record.conname
+            """,
+            (self.schema, table_name, column_name),
+        )
+        for row in _rows(cursor):
+            constraint_name = str(row["conname"]).replace('"', '""')
+            cursor.execute(
+                f"ALTER TABLE {self._table(table_name)} "
+                f'DROP CONSTRAINT "{constraint_name}"'
+            )
+        cursor.execute(
+            f"ALTER TABLE {self._table(table_name)} "
+            f"ALTER COLUMN {column_name} TYPE VARCHAR(64) "
+            f"USING BTRIM({column_name}::text)"
+        )
+        cursor.execute(
+            f"""
+            SELECT COUNT(*) AS invalid_count
+              FROM {self._table(table_name)}
+             WHERE {column_name} IS NULL
+                OR CHAR_LENGTH({column_name}) <> 64
+                OR {column_name} !~ '^[0-9a-f]+$'
+            """
+        )
+        invalid_rows = _rows(cursor)
+        invalid_count = int(invalid_rows[0]["invalid_count"] or 0)
+        if invalid_count:
+            raise ValueError(
+                "follow_up_live_proof_idempotency_binding_upgrade_unavailable"
+            )
+        cursor.execute(
+            f"ALTER TABLE {self._table(table_name)} "
+            f"ALTER COLUMN {column_name} SET NOT NULL"
+        )
+        cursor.execute(
+            f"ALTER TABLE {self._table(table_name)} "
+            "ADD CONSTRAINT "
+            "operator_follow_up_live_proof_event_idempotency_hash_check "
+            f"CHECK (CHAR_LENGTH({column_name}) = 64 "
+            f"AND {column_name} ~ '^[0-9a-f]+$')"
+        )
+
+    def _upgrade_live_proof_accounting_columns(self, cursor: Any) -> None:
+        """Add observation accounting without rewriting legacy journal rows.
+
+        The nullable-all branch is intentionally migration-only.  The INSERT
+        guard below requires every newly appended event to carry the explicit
+        accounting tuple, while rows that predate these columns remain byte-
+        for-byte append-only and are interpreted conservatively on read.
+        """
+
+        table = self._table("operator_follow_up_live_proof_event")
+        for definition in (
+            "sdk_mutation_invocation_state VARCHAR(16)",
+            "transport_submission_state VARCHAR(24)",
+            "exchange_mutation_state VARCHAR(24)",
+            "read_accounting_state VARCHAR(16)",
+            "observed_read_count INTEGER",
+        ):
+            cursor.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {definition}")
+        cursor.execute(
+            f"ALTER TABLE {table} DROP CONSTRAINT IF EXISTS "
+            "operator_follow_up_live_proof_event_observation_accounting_check"
+        )
+        cursor.execute(
+            f"""
+            ALTER TABLE {table}
+            ADD CONSTRAINT
+                operator_follow_up_live_proof_event_observation_accounting_check
+            CHECK (
+                (
+                    sdk_mutation_invocation_state IS NULL
+                    AND transport_submission_state IS NULL
+                    AND exchange_mutation_state IS NULL
+                    AND read_accounting_state IS NULL
+                    AND observed_read_count IS NULL
+                )
+                OR
+                (
+                    sdk_mutation_invocation_state IN ({_LIVE_PROOF_SDK_INVOCATION_STATE_SQL})
+                    AND transport_submission_state IN ({_LIVE_PROOF_TRANSPORT_SUBMISSION_STATE_SQL})
+                    AND exchange_mutation_state IN ({_LIVE_PROOF_EXCHANGE_MUTATION_STATE_SQL})
+                    AND read_accounting_state IN ({_LIVE_PROOF_READ_ACCOUNTING_STATE_SQL})
+                    AND (
+                        (read_accounting_state = 'EXACT'
+                         AND observed_read_count BETWEEN 0 AND 10)
+                        OR
+                        (read_accounting_state = 'UNKNOWN'
+                         AND observed_read_count IS NULL)
+                    )
+                    AND external_call_started =
+                        (sdk_mutation_invocation_state = 'INVOKED')
+                    AND reported_read_count =
+                        COALESCE(observed_read_count, 0)
+                )
+            )
+            """
+        )
 
     def _backfill_materialization_operation_bindings(self, cursor: Any) -> None:
         """Upgrade pre-binding journals without changing their state history."""
@@ -2369,6 +3359,2910 @@ class OperatorFollowUpIntentRepository:
                 "follow_up_materialization_evidence_unavailable"
             ) from None
 
+    def _follow_up_operations_projection_cte(self) -> str:
+        """Return the local-only set projection shared by count and page SQL."""
+
+        attempt_state_case = _follow_up_operation_attempt_case(
+            "operation_state"
+        )
+        attempt_action_case = _follow_up_operation_attempt_case(
+            "actionability"
+        )
+        attempt_reason_case = _follow_up_operation_attempt_case(
+            "state_reason_code"
+        )
+        terminal_status_sql = ", ".join(
+            _sql_literal(value)
+            for value in (
+                OrderStatus.FILLED.value,
+                OrderStatus.CANCELLED.value,
+                OrderStatus.EXPIRED.value,
+                OrderStatus.FAILED.value,
+            )
+        )
+        system_owned_sql = ", ".join(
+            _sql_literal(value)
+            for value in (
+                OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value,
+                OrderOwnershipProvenance.ADMIN_FILL_FOLLOW_UP.value,
+            )
+        )
+        allowed_root_claim_sql = ", ".join(
+            _sql_literal(value)
+            for value in (
+                *_AUTOMATIC_CLAIM_KINDS,
+                FollowUpSemanticClaimKind.POSITIVE_FILL_ACTIVITY.value,
+            )
+        )
+        known_status_sql = ", ".join(
+            _sql_literal(value.value) for value in OrderStatus
+        )
+        create_unknown_safe_closeout_sql = """
+        (
+            create_proof_identity_consistent
+            AND create_proof_event_state = 'TERMINAL'
+            AND create_proof_outcome = 'UNKNOWN'
+            AND create_proof_individual_retry_count = 0
+            AND (
+                (
+                    create_proof_sdk_state IN ('INVOKED', 'UNKNOWN')
+                    AND create_proof_transport_state = 'POSSIBLY_SUBMITTED'
+                    AND create_proof_exchange_state = 'UNKNOWN'
+                    AND create_proof_read_state = 'UNKNOWN'
+                    AND create_proof_observed_read_count IS NULL
+                )
+                OR (
+                    create_proof_sdk_state IS NULL
+                    AND create_proof_transport_state IS NULL
+                    AND create_proof_exchange_state IS NULL
+                    AND create_proof_read_state IS NULL
+                    AND create_proof_observed_read_count IS NULL
+                )
+            )
+        )
+        """
+        create_blocked_before_sdk_sql = """
+        (
+            create_proof_identity_consistent
+            AND create_proof_event_state = 'TERMINAL'
+            AND create_proof_outcome = 'BLOCKED'
+            AND create_proof_individual_retry_count = 0
+            AND (
+                (
+                    create_proof_sdk_state = 'NOT_INVOKED'
+                    AND create_proof_transport_state = 'NOT_SUBMITTED'
+                    AND create_proof_exchange_state = 'NOT_MUTATED'
+                    AND create_proof_read_state = 'EXACT'
+                    AND create_proof_observed_read_count = 0
+                )
+                OR (
+                    create_proof_sdk_state IS NULL
+                    AND create_proof_transport_state IS NULL
+                    AND create_proof_exchange_state IS NULL
+                    AND create_proof_read_state IS NULL
+                    AND create_proof_observed_read_count IS NULL
+                    AND NOT create_proof_external_call_started
+                    AND create_proof_reported_read_count = 0
+                )
+            )
+        )
+        """
+        return f"""
+        WITH intent_sources AS (
+            SELECT source_client_order_id
+              FROM {self._table('operator_follow_up_intent')}
+        ),
+        latest_live_proof AS (
+            SELECT DISTINCT ON (
+                       event.source_client_order_id,
+                       event.operation_kind
+                   ) event.*
+              FROM {self._table('operator_follow_up_live_proof_event')} AS event
+             WHERE event.goal_id = %s
+               AND event.operation_kind IN ({_LIVE_PROOF_OPERATION_SQL})
+             ORDER BY event.source_client_order_id,
+                      event.operation_kind,
+                      event.event_sequence DESC
+        ),
+        latest AS (
+            SELECT DISTINCT ON (event.materialization_id)
+                   event.materialization_id,
+                   event.state,
+                   event.operation_audit_id,
+                   event.operation_correlation_id,
+                   event.recorded_at
+              FROM {self._table('operator_follow_up_materialization_event')} AS event
+             ORDER BY event.materialization_id, event.event_sequence DESC
+        ),
+        ledger AS (
+            SELECT evidence.client_order_id,
+                   COALESCE(SUM(evidence.quantity), 0) AS filled_size,
+                   COUNT(*) FILTER (WHERE evidence.quantity > 0) AS positive_rows,
+                   COUNT(*) FILTER (WHERE evidence.quantity < 0) AS negative_rows
+              FROM {self._table('fill_ledger')} AS evidence
+              JOIN intent_sources
+                ON intent_sources.source_client_order_id = evidence.client_order_id
+             GROUP BY evidence.client_order_id
+        ),
+        match_evidence AS (
+            SELECT evidence.client_order_id,
+                   MAX(evidence.cumulative_quantity) AS cumulative_quantity,
+                   MAX(evidence.number_of_fills) AS number_of_fills
+              FROM {self._table('order_match_audit')} AS evidence
+              JOIN intent_sources
+                ON intent_sources.source_client_order_id = evidence.client_order_id
+             GROUP BY evidence.client_order_id
+        ),
+        stream_evidence AS (
+            SELECT evidence.client_order_id,
+                   MAX(evidence.cumulative_filled_size) AS cumulative_filled_size
+              FROM {self._table('order_event_stream')} AS evidence
+              JOIN intent_sources
+                ON intent_sources.source_client_order_id = evidence.client_order_id
+             GROUP BY evidence.client_order_id
+        ),
+        progress_evidence AS (
+            SELECT evidence.client_order_id,
+                   MAX(evidence.last_cumulative_qty_processed) AS cumulative_quantity,
+                   MAX(evidence.carry_remainder_qty) AS carry_remainder_qty,
+                   MAX(evidence.last_number_of_fills_seen) AS number_of_fills,
+                   MAX(evidence.last_completion_pct_seen) AS completion_pct,
+                   MAX(evidence.partial_follow_ups_created) AS partial_follow_ups_created
+              FROM {self._table('partial_fill_progress')} AS evidence
+              JOIN intent_sources
+                ON intent_sources.source_client_order_id = evidence.client_order_id
+             GROUP BY evidence.client_order_id
+        ),
+        joined AS (
+            SELECT intent.follow_up_intent_id::text AS follow_up_intent_id,
+                   intent.claim_id::text AS claim_id,
+                   intent.source_client_order_id,
+                   intent.root_client_order_id,
+                   attempt.child_client_order_id::text AS child_client_order_id,
+                   intent.product_id,
+                   CASE
+                       WHEN UPPER(source.status) IN ({known_status_sql})
+                       THEN UPPER(source.status)
+                       ELSE 'UNKNOWN'
+                   END AS source_status,
+                   intent.derived_follow_up_side,
+                   attempt.materialization_id::text AS materialization_id,
+                   latest.state AS materialization_attempt_state,
+                   (
+                       create_proof.event_sequence IS NOT NULL
+                       AND create_proof.goal_id = '{OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID}'
+                       AND create_proof.operation_kind = 'CREATE'
+                       AND create_proof.source_client_order_id = intent.source_client_order_id
+                       AND create_proof.root_client_order_id = intent.root_client_order_id
+                       AND create_proof.follow_up_intent_id = intent.follow_up_intent_id
+                       AND create_proof.materialization_id = attempt.materialization_id
+                       AND create_proof.child_client_order_id = attempt.child_client_order_id
+                   ) AS create_proof_identity_consistent,
+                   create_proof.event_state AS create_proof_event_state,
+                   create_proof.outcome AS create_proof_outcome,
+                   create_proof.sdk_mutation_invocation_state AS create_proof_sdk_state,
+                   create_proof.transport_submission_state AS create_proof_transport_state,
+                   create_proof.exchange_mutation_state AS create_proof_exchange_state,
+                   create_proof.read_accounting_state AS create_proof_read_state,
+                   create_proof.observed_read_count AS create_proof_observed_read_count,
+                   create_proof.external_call_started AS create_proof_external_call_started,
+                   create_proof.reported_read_count AS create_proof_reported_read_count,
+                   create_proof.individual_retry_count AS create_proof_individual_retry_count,
+                   intent.correlation_id AS intent_correlation_id,
+                   intent.audit_id::text AS intent_audit_id,
+                   COALESCE(
+                       latest.operation_correlation_id,
+                       attempt.correlation_id,
+                       intent.correlation_id
+                   ) AS correlation_id,
+                   COALESCE(
+                       latest.operation_audit_id::text,
+                       attempt.audit_id::text,
+                       intent.audit_id::text
+                   ) AS audit_id,
+                   intent.recorded_at,
+                   COALESCE(
+                       latest.recorded_at,
+                       attempt.prepared_at,
+                       intent.recorded_at
+                   ) AS updated_at,
+                   (
+                       intent.product_id = source.product_id
+                       AND intent.product_id = ANY(%s::text[])
+                   ) AS local_spot_product_consistent,
+                   (
+                       source.client_order_id IS NOT NULL
+                       AND intent.terminal_result = 'ATTACHED'
+                       AND intent.root_client_order_id = COALESCE(
+                           NULLIF(source.parent_order_id, ''),
+                           source.client_order_id
+                       )
+                       AND intent.product_id = source.product_id
+                       AND intent.source_side = UPPER(source.side)
+                       AND intent.derived_follow_up_side IN ('BUY', 'SELL')
+                       AND intent.derived_follow_up_side <> UPPER(source.side)
+                       AND (
+                           attempt.materialization_id IS NULL
+                           OR (
+                               attempt.follow_up_intent_id = intent.follow_up_intent_id
+                               AND attempt.source_client_order_id = intent.source_client_order_id
+                               AND attempt.root_client_order_id = intent.root_client_order_id
+                               AND attempt.product_id = intent.product_id
+                               AND attempt.child_side = intent.derived_follow_up_side
+                               AND latest.state IS NOT NULL
+                           )
+                       )
+                   ) AS evidence_consistent,
+                   (
+                       UPPER(source.status) = 'FILLED'
+                       AND COALESCE(ledger.positive_rows, 0) > 0
+                       AND COALESCE(ledger.negative_rows, 0) = 0
+                       AND COALESCE(ledger.filled_size, 0) = source.size
+                       AND (
+                           COALESCE(match_evidence.cumulative_quantity, 0) <= 0
+                           OR (
+                               match_evidence.cumulative_quantity = source.size
+                               AND COALESCE(match_evidence.number_of_fills, 0) > 0
+                           )
+                       )
+                       AND (
+                           COALESCE(stream_evidence.cumulative_filled_size, 0) <= 0
+                           OR stream_evidence.cumulative_filled_size = source.size
+                       )
+                       AND (
+                           COALESCE(progress_evidence.cumulative_quantity, 0) <= 0
+                           OR (
+                               progress_evidence.cumulative_quantity = source.size
+                               AND COALESCE(progress_evidence.carry_remainder_qty, 0) = 0
+                               AND COALESCE(progress_evidence.number_of_fills, 0) > 0
+                               AND COALESCE(progress_evidence.completion_pct, 0) = 100
+                               AND COALESCE(progress_evidence.partial_follow_ups_created, 0) = 0
+                           )
+                       )
+                   ) AS full_fill_consistent,
+                   (
+                       source.ownership_provenance IN ({system_owned_sql})
+                       AND %s <> ''
+                       AND source.retail_portfolio_id::text = %s
+                       AND root.client_order_id IS NOT NULL
+                       AND root.parent_order_id IS NULL
+                       AND root.ownership_provenance = (
+                           '{OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value}'
+                       )
+                       AND root.product_id = source.product_id
+                       AND root.retail_portfolio_id::text = %s
+                       AND (
+                           source.parent_order_id IS NULL
+                           OR UPPER(root.status) IN ('FILLED', 'CANCELLED')
+                       )
+                       AND NOT EXISTS (
+                           SELECT 1
+                             FROM {self._table('order_parent')} AS related_child
+                            WHERE related_child.parent_order_id = intent.root_client_order_id
+                              AND related_child.client_order_id <> CASE
+                                  WHEN source.parent_order_id IS NOT NULL
+                                  THEN source.client_order_id
+                                  ELSE ''
+                              END
+                       )
+                       AND NOT EXISTS (
+                           SELECT 1
+                             FROM {self._table('order_parent')} AS nested_child
+                            WHERE nested_child.parent_order_id = source.client_order_id
+                       )
+                       AND NOT EXISTS (
+                           SELECT 1
+                             FROM {self._table('order_follow_up_semantic_claim')} AS source_claim
+                            WHERE source_claim.source_client_order_id = source.client_order_id
+                              AND source_claim.state <> '{FollowUpSemanticClaimState.RELEASED.value}'
+                              AND NOT (
+                                  source_claim.claim_id = intent.claim_id
+                                  AND source_claim.claim_kind = '{FollowUpSemanticClaimKind.OPERATOR_INTENT.value}'
+                                  AND source_claim.state = '{FollowUpSemanticClaimState.COMPLETED.value}'
+                              )
+                       )
+                       AND (
+                           source.parent_order_id IS NULL
+                           OR NOT EXISTS (
+                               SELECT 1
+                                 FROM {self._table('order_follow_up_semantic_claim')} AS root_claim
+                                WHERE root_claim.source_client_order_id = intent.root_client_order_id
+                                  AND root_claim.state <> '{FollowUpSemanticClaimState.RELEASED.value}'
+                                  AND NOT (
+                                      root_claim.state = '{FollowUpSemanticClaimState.COMPLETED.value}'
+                                      AND root_claim.claim_kind IN ({allowed_root_claim_sql})
+                                  )
+                           )
+                       )
+                   ) AS local_lineage_consistent
+              FROM {self._table('operator_follow_up_intent')} AS intent
+              LEFT JOIN {self._table('order_parent')} AS source
+                ON source.client_order_id = intent.source_client_order_id
+              LEFT JOIN {self._table('order_parent')} AS root
+                ON root.client_order_id = COALESCE(
+                    NULLIF(source.parent_order_id, ''),
+                    source.client_order_id
+                )
+              LEFT JOIN {self._table('operator_follow_up_materialization_attempt')} AS attempt
+                ON attempt.follow_up_intent_id = intent.follow_up_intent_id
+              LEFT JOIN latest
+                ON latest.materialization_id = attempt.materialization_id
+              LEFT JOIN latest_live_proof AS create_proof
+                ON create_proof.source_client_order_id = intent.source_client_order_id
+               AND create_proof.operation_kind = 'CREATE'
+              LEFT JOIN ledger
+                ON ledger.client_order_id = source.client_order_id
+              LEFT JOIN match_evidence
+                ON match_evidence.client_order_id = source.client_order_id
+              LEFT JOIN stream_evidence
+                ON stream_evidence.client_order_id = source.client_order_id
+              LEFT JOIN progress_evidence
+                ON progress_evidence.client_order_id = source.client_order_id
+        ),
+        classified AS (
+            SELECT joined.*,
+                   CASE
+                       WHEN NOT evidence_consistent THEN 'blocked'
+                       WHEN materialization_id IS NULL
+                            AND local_spot_product_consistent IS NOT TRUE
+                       THEN 'blocked'
+                       WHEN materialization_id IS NULL THEN CASE
+                           WHEN source_status = 'FILLED'
+                                AND full_fill_consistent
+                                AND local_lineage_consistent
+                           THEN 'ready_for_materialization_authorization'
+                           WHEN source_status IN ({terminal_status_sql})
+                                OR source_status = 'UNKNOWN'
+                           THEN 'blocked'
+                           ELSE 'awaiting_source_fill'
+                       END
+                       WHEN materialization_attempt_state = 'CREATE_UNKNOWN_CONSUMED'
+                            AND ({create_unknown_safe_closeout_sql}) IS NOT TRUE
+                       THEN 'blocked'
+                       ELSE COALESCE(
+                           ({attempt_state_case}),
+                           'blocked'
+                       )
+                   END AS operation_state,
+                   CASE
+                       WHEN NOT evidence_consistent
+                       THEN 'follow_up_operation_evidence_inconsistent'
+                       WHEN materialization_id IS NULL
+                            AND local_spot_product_consistent IS NOT TRUE
+                       THEN 'source_product_scope_unproven'
+                       WHEN materialization_id IS NULL THEN CASE
+                           WHEN source_status = 'FILLED'
+                                AND full_fill_consistent
+                                AND local_lineage_consistent
+                           THEN 'source_full_fill_locally_consistent'
+                           WHEN source_status = 'FILLED'
+                                AND full_fill_consistent
+                           THEN 'source_lineage_or_scope_inconsistent'
+                           WHEN source_status = 'FILLED'
+                           THEN 'source_full_fill_inconsistent'
+                           WHEN source_status IN ('CANCELLED', 'EXPIRED', 'FAILED')
+                           THEN 'source_terminal_without_full_fill'
+                           WHEN source_status = 'UNKNOWN'
+                           THEN 'source_status_unknown'
+                           ELSE 'source_full_fill_not_observed'
+                       END
+                       WHEN materialization_attempt_state = 'CREATE_UNKNOWN_CONSUMED'
+                            AND ({create_blocked_before_sdk_sql}) IS TRUE
+                       THEN 'create_blocked_before_sdk_invocation'
+                       WHEN materialization_attempt_state = 'CREATE_UNKNOWN_CONSUMED'
+                            AND ({create_unknown_safe_closeout_sql}) IS NOT TRUE
+                       THEN 'create_safe_closeout_evidence_unproven'
+                       ELSE COALESCE(
+                           ({attempt_reason_case}),
+                           'follow_up_operation_evidence_inconsistent'
+                       )
+                   END AS state_reason_code,
+                   CASE
+                       WHEN NOT evidence_consistent THEN 'none'
+                       WHEN materialization_id IS NULL
+                            AND local_spot_product_consistent IS NOT TRUE
+                       THEN 'none'
+                       WHEN materialization_id IS NULL THEN CASE
+                           WHEN source_status = 'FILLED'
+                                AND full_fill_consistent
+                                AND local_lineage_consistent
+                           THEN 'materialization_review'
+                           ELSE 'none'
+                       END
+                       WHEN materialization_attempt_state = 'CREATE_UNKNOWN_CONSUMED'
+                            AND ({create_unknown_safe_closeout_sql}) IS NOT TRUE
+                       THEN 'none'
+                       ELSE COALESCE(
+                           ({attempt_action_case}),
+                           'none'
+                       )
+                   END AS actionability
+              FROM joined
+        )
+        """
+
+    def list_operations(
+        self,
+        *,
+        product_id: str | None = None,
+        state: str | None = None,
+        actionability: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> FollowUpOperationsPage:
+        """Return one SQL-filtered page without DDL, locks, or live clients."""
+
+        if product_id is not None and (
+            not isinstance(product_id, str) or not product_id.strip()
+        ):
+            raise ValueError("follow_up_operation_product_filter_invalid")
+        if state is not None and (
+            not isinstance(state, str) or not state.strip()
+        ):
+            raise ValueError("follow_up_operation_state_filter_invalid")
+        if actionability is not None and (
+            not isinstance(actionability, str) or not actionability.strip()
+        ):
+            raise ValueError("follow_up_operation_actionability_filter_invalid")
+        normalized_product_id = product_id.strip() if product_id else None
+        normalized_state = state.strip() if state else None
+        normalized_actionability = (
+            actionability.strip() if actionability else None
+        )
+        if normalized_state not in {
+            None,
+            *(value.value for value in AdminOrderFollowUpOperationState),
+        }:
+            raise ValueError("follow_up_operation_state_filter_invalid")
+        if normalized_actionability not in {
+            None,
+            *(
+                value.value
+                for value in AdminOrderFollowUpOperationActionability
+            ),
+        }:
+            raise ValueError("follow_up_operation_actionability_filter_invalid")
+        if type(limit) is not int or not 1 <= limit <= 500:
+            raise ValueError("follow_up_operation_limit_invalid")
+        if type(offset) is not int or offset < 0:
+            raise ValueError("follow_up_operation_offset_invalid")
+        normalized_limit = limit
+        normalized_offset = offset
+
+        clauses: list[str] = []
+        filter_params: list[Any] = []
+        if normalized_product_id is not None:
+            clauses.append("product_id = %s")
+            filter_params.append(normalized_product_id)
+        if normalized_state is not None:
+            clauses.append("operation_state = %s")
+            filter_params.append(normalized_state)
+        if normalized_actionability is not None:
+            clauses.append("actionability = %s")
+            filter_params.append(normalized_actionability)
+        where_sql = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+        projection_params = [
+            OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            list(self.configured_spot_product_ids),
+            self.configured_spot_portfolio_id,
+            self.configured_spot_portfolio_id,
+            self.configured_spot_portfolio_id,
+        ]
+        projection_cte = self._follow_up_operations_projection_cte()
+
+        try:
+            with self.db.get_cursor() as cursor:
+                cursor.execute(
+                    projection_cte
+                    + ", filtered AS (SELECT * FROM classified"
+                    + where_sql
+                    + "), page AS ("
+                    + f"""
+                    SELECT follow_up_intent_id, source_client_order_id,
+                           root_client_order_id, child_client_order_id,
+                           materialization_id,
+                           product_id, source_status, derived_follow_up_side,
+                           operation_state, state_reason_code, actionability,
+                           materialization_attempt_state, correlation_id,
+                           audit_id, recorded_at, updated_at
+                      FROM filtered
+                     ORDER BY updated_at DESC,
+                              source_client_order_id DESC,
+                              follow_up_intent_id DESC
+                     LIMIT %s OFFSET %s
+                    )
+                    SELECT totals.total_matching_count, page.*
+                           , live_proof.eligibility_read_live_proof
+                           , live_proof.create_live_proof
+                           , live_proof.reconciliation_read_live_proof
+                           , live_proof.cancel_live_proof
+                      FROM (
+                          SELECT COUNT(*) AS total_matching_count
+                            FROM filtered
+                      ) AS totals
+                      LEFT JOIN page ON TRUE
+                      LEFT JOIN LATERAL (
+                          SELECT (
+                                     jsonb_agg(
+                                         to_jsonb(event)
+                                         ORDER BY event.event_sequence DESC
+                                     ) FILTER (
+                                         WHERE event.operation_kind = 'ELIGIBILITY_READ'
+                                     )
+                                 )->0 AS eligibility_read_live_proof,
+                                 (
+                                     jsonb_agg(
+                                         to_jsonb(event)
+                                         ORDER BY event.event_sequence DESC
+                                     ) FILTER (
+                                         WHERE event.operation_kind = 'CREATE'
+                                     )
+                                 )->0 AS create_live_proof,
+                                 (
+                                     jsonb_agg(
+                                         to_jsonb(event)
+                                         ORDER BY event.event_sequence DESC
+                                     ) FILTER (
+                                         WHERE event.operation_kind = 'RECONCILIATION_READ'
+                                     )
+                                 )->0 AS reconciliation_read_live_proof,
+                                 (
+                                     jsonb_agg(
+                                         to_jsonb(event)
+                                         ORDER BY event.event_sequence DESC
+                                     ) FILTER (
+                                         WHERE event.operation_kind = 'CANCEL'
+                                     )
+                                 )->0 AS cancel_live_proof
+                            FROM latest_live_proof AS event
+                           WHERE page.follow_up_intent_id IS NOT NULL
+                             AND event.source_client_order_id = page.source_client_order_id
+                             AND event.operation_kind IN ({_LIVE_PROOF_OPERATION_SQL})
+                      ) AS live_proof ON TRUE
+                    """,
+                    tuple(
+                        [
+                            *projection_params,
+                            *filter_params,
+                            normalized_limit,
+                            normalized_offset,
+                        ]
+                    ),
+                )
+                rows = _rows(cursor)
+                count_row = rows[0] if rows else {}
+                total_matching_count = int(
+                    count_row.get("total_matching_count") or 0
+                )
+                rows = [
+                    row for row in rows if row.get("follow_up_intent_id")
+                ]
+        except FollowUpIntentStoreError:
+            raise
+        except Exception:
+            raise FollowUpIntentStoreUnavailable(
+                "follow_up_operations_evidence_unavailable"
+            ) from None
+
+        try:
+            items = tuple(
+                FollowUpOperationPageItem(
+                    follow_up_intent_id=str(row["follow_up_intent_id"]),
+                    source_client_order_id=str(row["source_client_order_id"]),
+                    root_client_order_id=str(row["root_client_order_id"]),
+                    child_client_order_id=(
+                        str(row["child_client_order_id"])
+                        if row.get("child_client_order_id")
+                        else None
+                    ),
+                    product_id=str(row.get("product_id") or "UNKNOWN"),
+                    source_status=str(row.get("source_status") or "UNKNOWN"),
+                    derived_follow_up_side=str(
+                        row.get("derived_follow_up_side") or "UNKNOWN"
+                    ),
+                    state=str(row.get("operation_state") or "blocked"),
+                    state_reason_code=str(
+                        row.get("state_reason_code")
+                        or "follow_up_operation_evidence_inconsistent"
+                    ),
+                    actionability=str(row.get("actionability") or "none"),
+                    materialization_attempt_state=(
+                        str(row["materialization_attempt_state"])
+                        if row.get("materialization_attempt_state")
+                        else None
+                    ),
+                    correlation_id=str(
+                        row.get("correlation_id") or "unavailable"
+                    ),
+                    audit_id=str(row.get("audit_id") or "unavailable"),
+                    recorded_at=_utc_iso(row.get("recorded_at")),
+                    updated_at=_utc_iso(row.get("updated_at")),
+                    materialization_id=(
+                        str(row["materialization_id"])
+                        if row.get("materialization_id")
+                        else None
+                    ),
+                    live_proof_operations=(
+                        self._follow_up_operations_live_proof_set(row)
+                    ),
+                )
+                for row in rows
+            )
+        except Exception:
+            raise FollowUpIntentStoreUnavailable(
+                "follow_up_operations_evidence_unavailable"
+            ) from None
+        return FollowUpOperationsPage(
+            items=items,
+            total_matching_count=total_matching_count,
+        )
+
+    def _follow_up_operations_live_proof_set(
+        self,
+        row: Mapping[str, Any],
+    ) -> FollowUpLiveProofOperationSet:
+        """Validate four bulk-projected journal slots for one queue row."""
+
+        expected = {
+            "eligibility_read_live_proof": (
+                FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value
+            ),
+            "create_live_proof": FollowUpLiveProofOperationKind.CREATE.value,
+            "reconciliation_read_live_proof": (
+                FollowUpLiveProofOperationKind.RECONCILIATION_READ.value
+            ),
+            "cancel_live_proof": FollowUpLiveProofOperationKind.CANCEL.value,
+        }
+        records: dict[str, FollowUpLiveProofOperationRecord] = {}
+        source_id = str(row.get("source_client_order_id") or "")
+        root_id = str(row.get("root_client_order_id") or "")
+        intent_id = str(row.get("follow_up_intent_id") or "")
+        materialization_id = str(row.get("materialization_id") or "") or None
+        child_id = str(row.get("child_client_order_id") or "") or None
+        for column_name, operation_kind in expected.items():
+            raw_record = row.get(column_name)
+            if raw_record is None:
+                continue
+            if isinstance(raw_record, str):
+                try:
+                    raw_record = json.loads(raw_record)
+                except Exception:
+                    raise FollowUpIntentStoreConflict(
+                        "follow_up_operations_live_proof_invalid"
+                    ) from None
+            if not isinstance(raw_record, Mapping):
+                raise FollowUpIntentStoreConflict(
+                    "follow_up_operations_live_proof_invalid"
+                )
+            record = self._live_proof_record(raw_record)
+            identity_matches = bool(
+                record.goal_id == OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID
+                and record.operation_kind == operation_kind
+                and record.source_client_order_id == source_id
+                and record.root_client_order_id == root_id
+                and record.follow_up_intent_id == intent_id
+            )
+            if operation_kind == FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value:
+                operation_identity_matches = bool(
+                    (
+                        record.materialization_id is None
+                        and record.child_client_order_id is None
+                    )
+                    or (
+                        materialization_id is not None
+                        and child_id is not None
+                        and record.materialization_id == materialization_id
+                        and record.child_client_order_id == child_id
+                    )
+                )
+            else:
+                operation_identity_matches = bool(
+                    materialization_id is not None
+                    and child_id is not None
+                    and record.materialization_id == materialization_id
+                    and record.child_client_order_id == child_id
+                )
+            if not identity_matches or not operation_identity_matches:
+                raise FollowUpIntentStoreConflict(
+                    "follow_up_operations_live_proof_invalid"
+                )
+            records[operation_kind] = record
+        return FollowUpLiveProofOperationSet(
+            eligibility_read=records.get(
+                FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value
+            ),
+            create=records.get(FollowUpLiveProofOperationKind.CREATE.value),
+            reconciliation_read=records.get(
+                FollowUpLiveProofOperationKind.RECONCILIATION_READ.value
+            ),
+            cancel=records.get(FollowUpLiveProofOperationKind.CANCEL.value),
+        )
+
+    @staticmethod
+    def _live_proof_record(row: Mapping[str, Any]) -> FollowUpLiveProofOperationRecord:
+        operation = str(row["operation_kind"])
+        event_state = str(row["event_state"])
+        outcome = str(row["outcome"]) if row.get("outcome") else None
+        sdk_state = row.get("sdk_mutation_invocation_state")
+        transport_state = row.get("transport_submission_state")
+        exchange_state = row.get("exchange_mutation_state")
+        read_state = row.get("read_accounting_state")
+        observed_count = row.get("observed_read_count")
+        evidence_origin = FollowUpAccountingEvidenceOrigin.EXPLICIT.value
+        explicit_values = (
+            sdk_state,
+            transport_state,
+            exchange_state,
+            read_state,
+            observed_count,
+        )
+        if all(value is None for value in explicit_values):
+            evidence_origin = (
+                FollowUpAccountingEvidenceOrigin.LEGACY_CONSERVATIVE.value
+            )
+            mutation = operation in {
+                FollowUpLiveProofOperationKind.CREATE.value,
+                FollowUpLiveProofOperationKind.CANCEL.value,
+            }
+            if mutation and (
+                event_state == FollowUpLiveProofEventState.INVOCATION_STARTED.value
+                or outcome == FollowUpLiveProofTerminalOutcome.UNKNOWN.value
+            ):
+                sdk_state = FollowUpSdkMutationInvocationState.UNKNOWN.value
+                transport_state = (
+                    FollowUpTransportSubmissionState.POSSIBLY_SUBMITTED.value
+                )
+                exchange_state = FollowUpExchangeMutationState.UNKNOWN.value
+            elif mutation and outcome in {
+                FollowUpLiveProofTerminalOutcome.SUCCEEDED.value,
+                FollowUpLiveProofTerminalOutcome.REJECTED.value,
+            }:
+                sdk_state = FollowUpSdkMutationInvocationState.INVOKED.value
+                transport_state = (
+                    FollowUpTransportSubmissionState.CONFIRMED_SUBMITTED.value
+                )
+                exchange_state = (
+                    FollowUpExchangeMutationState.CONFIRMED_MUTATED.value
+                    if outcome == FollowUpLiveProofTerminalOutcome.SUCCEEDED.value
+                    else FollowUpExchangeMutationState.NOT_MUTATED.value
+                )
+            else:
+                sdk_state = FollowUpSdkMutationInvocationState.NOT_INVOKED.value
+                transport_state = FollowUpTransportSubmissionState.NOT_SUBMITTED.value
+                exchange_state = FollowUpExchangeMutationState.NOT_MUTATED.value
+            if (
+                event_state == FollowUpLiveProofEventState.INVOCATION_STARTED.value
+                or outcome == FollowUpLiveProofTerminalOutcome.UNKNOWN.value
+            ):
+                read_state = FollowUpReadAccountingState.UNKNOWN.value
+                observed_count = None
+            else:
+                read_state = FollowUpReadAccountingState.EXACT.value
+                observed_count = int(row.get("reported_read_count") or 0)
+        else:
+            if any(
+                value is None
+                for value in (
+                    sdk_state,
+                    transport_state,
+                    exchange_state,
+                    read_state,
+                )
+            ):
+                raise FollowUpIntentStoreConflict(
+                    "follow_up_live_proof_accounting_incomplete"
+                )
+            sdk_state = str(sdk_state).strip().upper()
+            transport_state = str(transport_state).strip().upper()
+            exchange_state = str(exchange_state).strip().upper()
+            read_state = str(read_state).strip().upper()
+            if (
+                sdk_state not in _LIVE_PROOF_SDK_INVOCATION_STATES
+                or transport_state not in _LIVE_PROOF_TRANSPORT_SUBMISSION_STATES
+                or exchange_state not in _LIVE_PROOF_EXCHANGE_MUTATION_STATES
+                or read_state not in _LIVE_PROOF_READ_ACCOUNTING_STATES
+                or (
+                    read_state == FollowUpReadAccountingState.EXACT.value
+                    and (
+                        type(observed_count) is not int
+                        or not 0 <= observed_count <= 10
+                    )
+                )
+                or (
+                    read_state == FollowUpReadAccountingState.UNKNOWN.value
+                    and observed_count is not None
+                )
+            ):
+                raise FollowUpIntentStoreConflict(
+                    "follow_up_live_proof_accounting_invalid"
+                )
+        normalized_observed_count = (
+            int(observed_count) if observed_count is not None else None
+        )
+        compatibility_external_started = (
+            str(sdk_state) == FollowUpSdkMutationInvocationState.INVOKED.value
+        )
+        compatibility_read_count = normalized_observed_count or 0
+        return FollowUpLiveProofOperationRecord(
+            event_id=str(row["event_id"]),
+            goal_id=str(row["goal_id"]),
+            operation_kind=operation,
+            event_state=event_state,
+            outcome=outcome,
+            diagnostic_code=str(row["diagnostic_code"]),
+            source_client_order_id=str(row["source_client_order_id"]),
+            root_client_order_id=str(row["root_client_order_id"]),
+            follow_up_intent_id=str(row["follow_up_intent_id"]),
+            materialization_id=(
+                str(row["materialization_id"])
+                if row.get("materialization_id")
+                else None
+            ),
+            child_client_order_id=(
+                str(row["child_client_order_id"])
+                if row.get("child_client_order_id")
+                else None
+            ),
+            correlation_id=str(row["correlation_id"]),
+            audit_id=str(row["audit_id"]),
+            operation_idempotency_key_sha256=str(
+                row["operation_idempotency_key_sha256"]
+            ).lower(),
+            sdk_mutation_invocation_state=str(sdk_state),
+            transport_submission_state=str(transport_state),
+            exchange_mutation_state=str(exchange_state),
+            read_accounting_state=str(read_state),
+            observed_read_count=normalized_observed_count,
+            accounting_evidence_origin=evidence_origin,
+            external_call_started=compatibility_external_started,
+            reported_read_count=compatibility_read_count,
+            individual_retry_count=int(row["individual_retry_count"]),
+            authoritative_child_state=(
+                str(row["authoritative_child_state"])
+                if row.get("authoritative_child_state")
+                else None
+            ),
+            recorded_at=_utc_iso(row["recorded_at"]),
+        )
+
+    @staticmethod
+    def _validate_live_proof_identity(
+        *,
+        goal_id: str,
+        operation_kind: str,
+        source_client_order_id: str,
+    ) -> tuple[str, str, str]:
+        normalized_goal_id = str(goal_id or "").strip()
+        normalized_operation = str(operation_kind or "").strip().upper()
+        normalized_source = str(source_client_order_id or "").strip()
+        if normalized_goal_id != OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID:
+            raise FollowUpIntentStoreConflict(
+                "follow_up_live_proof_goal_id_invalid"
+            )
+        if normalized_operation not in _LIVE_PROOF_OPERATION_KINDS:
+            raise FollowUpIntentStoreConflict(
+                "follow_up_live_proof_operation_invalid"
+            )
+        if not normalized_source or len(normalized_source) > 128:
+            raise FollowUpIntentStoreConflict(
+                "follow_up_live_proof_source_invalid"
+            )
+        return normalized_goal_id, normalized_operation, normalized_source
+
+    @staticmethod
+    def _live_proof_terminal_diagnostic(
+        operation_kind: str,
+        outcome: str,
+    ) -> str:
+        operation_token = {
+            FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value: "eligibility",
+            FollowUpLiveProofOperationKind.RECONCILIATION_READ.value: (
+                "reconciliation"
+            ),
+            FollowUpLiveProofOperationKind.CREATE.value: "create",
+            FollowUpLiveProofOperationKind.CANCEL.value: "cancel",
+        }[operation_kind]
+        return (
+            "follow_up_live_proof_"
+            f"{operation_token}_{outcome.lower()}"
+        )
+
+    @contextmanager
+    def follow_up_live_proof_invocation_guard(
+        self,
+        *,
+        goal_id: str,
+        source_client_order_id: str,
+    ):
+        """Serialize one goal-wide external workflow on the database session."""
+
+        normalized_goal, _operation, source_id = (
+            self._validate_live_proof_identity(
+                goal_id=goal_id,
+                operation_kind=(
+                    FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value
+                ),
+                source_client_order_id=source_client_order_id,
+            )
+        )
+        self.ensure_schema()
+        with self.db.get_cursor() as cursor:
+            cursor.execute(
+                "SELECT pg_try_advisory_lock(31872, hashtext(%s))",
+                (normalized_goal,),
+            )
+            lock_row = cursor.fetchone()
+            lock_acquired = bool(
+                next(iter(lock_row.values()), False)
+                if isinstance(lock_row, Mapping)
+                else (lock_row and lock_row[0])
+            )
+            if not lock_acquired:
+                raise FollowUpIntentStoreConflict(
+                    "follow_up_live_proof_invocation_guard_unavailable"
+                )
+            try:
+                cursor.execute(
+                    f"""
+                    SELECT source_client_order_id
+                      FROM {self._table('operator_follow_up_live_proof_goal')}
+                     WHERE goal_id = %s
+                     LIMIT 2
+                    """,
+                    (normalized_goal,),
+                )
+                goal_rows = _rows(cursor)
+                if len(goal_rows) > 1 or (
+                    goal_rows
+                    and str(goal_rows[0]["source_client_order_id"]) != source_id
+                ):
+                    raise FollowUpIntentStoreConflict(
+                        "follow_up_live_proof_goal_binding_conflict"
+                    )
+                yield
+            finally:
+                cursor.execute(
+                    "SELECT pg_advisory_unlock(31872, hashtext(%s))",
+                    (normalized_goal,),
+                )
+                unlock_row = cursor.fetchone()
+                lock_released = bool(
+                    next(iter(unlock_row.values()), False)
+                    if isinstance(unlock_row, Mapping)
+                    else (unlock_row and unlock_row[0])
+                )
+                if not lock_released:
+                    raise FollowUpIntentStoreUnavailable(
+                        "follow_up_live_proof_invocation_guard_release_unavailable"
+                    )
+
+    def claim_follow_up_live_proof_operation(
+        self,
+        *,
+        goal_id: str,
+        operation_kind: str,
+        source_client_order_id: str,
+        correlation_id: str,
+        audit_id: str,
+        operation_idempotency_key_sha256: str,
+        _cursor: Any | None = None,
+    ) -> FollowUpLiveProofOperationRecord:
+        """Consume one goal-wide allowance before invoking its external port."""
+
+        normalized_goal, operation, source_id = self._validate_live_proof_identity(
+            goal_id=goal_id,
+            operation_kind=operation_kind,
+            source_client_order_id=source_client_order_id,
+        )
+        correlation = str(correlation_id or "").strip()
+        if not correlation or len(correlation) > 255:
+            raise FollowUpIntentStoreConflict(
+                "follow_up_live_proof_correlation_invalid"
+            )
+        try:
+            normalized_audit_id = str(uuid.UUID(str(audit_id)))
+        except (TypeError, ValueError, AttributeError):
+            raise FollowUpIntentStoreConflict(
+                "follow_up_live_proof_audit_id_invalid"
+            ) from None
+        normalized_key_hash = str(operation_idempotency_key_sha256 or "").lower()
+        if not re.fullmatch(r"[0-9a-f]{64}", normalized_key_hash):
+            raise FollowUpIntentStoreConflict(
+                "follow_up_live_proof_idempotency_binding_invalid"
+            )
+
+        try:
+            with self._transaction_cursor(_cursor) as cursor:
+                cursor.execute(
+                    "SELECT pg_advisory_xact_lock(31871, hashtext(%s))",
+                    (normalized_goal,),
+                )
+                cursor.execute(
+                    f"""
+                    SELECT goal_id, source_client_order_id,
+                           root_client_order_id, follow_up_intent_id,
+                           materialization_id, child_client_order_id
+                      FROM {self._table('operator_follow_up_live_proof_goal')}
+                     WHERE goal_id = %s
+                     FOR UPDATE
+                    """,
+                    (normalized_goal,),
+                )
+                goal_rows = _rows(cursor)
+                goal = goal_rows[0] if goal_rows else None
+
+                if operation == FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value:
+                    if goal is not None:
+                        if str(goal["source_client_order_id"]) != source_id:
+                            raise FollowUpIntentStoreConflict(
+                                "follow_up_live_proof_goal_binding_conflict"
+                            )
+                        raise FollowUpIntentStoreConflict(
+                            "follow_up_live_proof_operation_consumed"
+                        )
+                    projection_cte = self._follow_up_operations_projection_cte()
+                    cursor.execute(
+                        projection_cte
+                        + """
+                        , candidates AS (
+                            SELECT source_client_order_id,
+                                   root_client_order_id,
+                                   follow_up_intent_id
+                              FROM classified
+                             WHERE actionability = 'materialization_review'
+                        ), candidate_stats AS (
+                            SELECT COUNT(*) AS candidate_count,
+                                   MIN(source_client_order_id) AS sole_source,
+                                   MIN(root_client_order_id) AS sole_root,
+                                   MIN(follow_up_intent_id) AS sole_intent
+                              FROM candidates
+                        ), inserted AS (
+                            INSERT INTO """
+                        + self._table('operator_follow_up_live_proof_goal')
+                        + """ (
+                                goal_id, source_client_order_id,
+                                root_client_order_id, follow_up_intent_id
+                            )
+                            SELECT %s, sole_source, sole_root, sole_intent::uuid
+                              FROM candidate_stats
+                             WHERE candidate_count = 1
+                               AND sole_source = %s
+                            RETURNING goal_id, source_client_order_id,
+                                      root_client_order_id,
+                                      follow_up_intent_id,
+                                      materialization_id,
+                                      child_client_order_id
+                        )
+                        SELECT candidate_stats.*, inserted.*
+                          FROM candidate_stats
+                          LEFT JOIN inserted ON TRUE
+                        """,
+                        (
+                            OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+                            list(self.configured_spot_product_ids),
+                            self.configured_spot_portfolio_id,
+                            self.configured_spot_portfolio_id,
+                            self.configured_spot_portfolio_id,
+                            normalized_goal,
+                            source_id,
+                        ),
+                    )
+                    candidate_rows = _rows(cursor)
+                    candidate = candidate_rows[0] if candidate_rows else {}
+                    candidate_count = int(candidate.get("candidate_count") or 0)
+                    if candidate_count != 1:
+                        raise FollowUpIntentStoreConflict(
+                            "follow_up_live_proof_candidate_cardinality_invalid"
+                        )
+                    if str(candidate.get("sole_source") or "") != source_id:
+                        raise FollowUpIntentStoreConflict(
+                            "follow_up_live_proof_candidate_source_mismatch"
+                        )
+                    if not candidate.get("goal_id"):
+                        raise FollowUpIntentStoreConflict(
+                            "follow_up_live_proof_goal_claim_unavailable"
+                        )
+                    goal = candidate
+                else:
+                    if goal is None:
+                        raise FollowUpIntentStoreConflict(
+                            "follow_up_live_proof_goal_not_claimed"
+                        )
+                    if str(goal["source_client_order_id"]) != source_id:
+                        raise FollowUpIntentStoreConflict(
+                            "follow_up_live_proof_goal_binding_conflict"
+                        )
+                    cursor.execute(
+                        f"""
+                        SELECT materialization_id, source_client_order_id,
+                               root_client_order_id, follow_up_intent_id,
+                               child_client_order_id
+                          FROM {self._table('operator_follow_up_materialization_attempt')}
+                         WHERE source_client_order_id = %s
+                         FOR UPDATE
+                        """,
+                        (source_id,),
+                    )
+                    attempt_rows = _rows(cursor)
+                    if len(attempt_rows) != 1:
+                        raise FollowUpIntentStoreConflict(
+                            "follow_up_live_proof_materialization_binding_unavailable"
+                        )
+                    attempt = attempt_rows[0]
+                    if (
+                        str(attempt["source_client_order_id"])
+                        != str(goal["source_client_order_id"])
+                        or str(attempt["root_client_order_id"])
+                        != str(goal["root_client_order_id"])
+                        or str(attempt["follow_up_intent_id"])
+                        != str(goal["follow_up_intent_id"])
+                    ):
+                        raise FollowUpIntentStoreConflict(
+                            "follow_up_live_proof_materialization_binding_mismatch"
+                        )
+                    if goal.get("materialization_id") is None:
+                        if operation != FollowUpLiveProofOperationKind.CREATE.value:
+                            raise FollowUpIntentStoreConflict(
+                                "follow_up_live_proof_child_not_bound"
+                            )
+                        cursor.execute(
+                            f"""
+                            UPDATE {self._table('operator_follow_up_live_proof_goal')}
+                               SET materialization_id = %s,
+                                   child_client_order_id = %s,
+                                   updated_at = CURRENT_TIMESTAMP
+                             WHERE goal_id = %s
+                         RETURNING goal_id, source_client_order_id,
+                                   root_client_order_id, follow_up_intent_id,
+                                   materialization_id, child_client_order_id
+                            """,
+                            (
+                                attempt["materialization_id"],
+                                attempt["child_client_order_id"],
+                                normalized_goal,
+                            ),
+                        )
+                        updated_rows = _rows(cursor)
+                        goal = updated_rows[0] if updated_rows else None
+                        if goal is None:
+                            raise FollowUpIntentStoreConflict(
+                                "follow_up_live_proof_child_binding_unavailable"
+                            )
+                    elif (
+                        str(goal["materialization_id"])
+                        != str(attempt["materialization_id"])
+                        or str(goal["child_client_order_id"])
+                        != str(attempt["child_client_order_id"])
+                    ):
+                        raise FollowUpIntentStoreConflict(
+                            "follow_up_live_proof_child_binding_mismatch"
+                        )
+
+                    prerequisite = {
+                        FollowUpLiveProofOperationKind.CREATE.value: (
+                            FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value
+                        ),
+                        FollowUpLiveProofOperationKind.RECONCILIATION_READ.value: (
+                            FollowUpLiveProofOperationKind.CREATE.value
+                        ),
+                        FollowUpLiveProofOperationKind.CANCEL.value: (
+                            FollowUpLiveProofOperationKind.RECONCILIATION_READ.value
+                        ),
+                    }[operation]
+                    cursor.execute(
+                        f"""
+                        SELECT event_state, outcome, external_call_started,
+                               transport_submission_state,
+                               authoritative_child_state
+                          FROM {self._table('operator_follow_up_live_proof_event')}
+                         WHERE goal_id = %s AND operation_kind = %s
+                         ORDER BY event_sequence DESC
+                         LIMIT 1
+                        """,
+                        (normalized_goal, prerequisite),
+                    )
+                    prerequisite_rows = _rows(cursor)
+                    prerequisite_event = (
+                        prerequisite_rows[0] if prerequisite_rows else None
+                    )
+                    if (
+                        operation
+                        == FollowUpLiveProofOperationKind.RECONCILIATION_READ.value
+                    ):
+                        prerequisite_satisfied = bool(
+                            prerequisite_event is not None
+                            and prerequisite_event.get("event_state")
+                            == FollowUpLiveProofEventState.TERMINAL.value
+                            and (
+                                prerequisite_event.get("outcome")
+                                == FollowUpLiveProofTerminalOutcome.SUCCEEDED.value
+                                or (
+                                    prerequisite_event.get("outcome")
+                                    == FollowUpLiveProofTerminalOutcome.UNKNOWN.value
+                                    and (
+                                        prerequisite_event.get(
+                                            "transport_submission_state"
+                                        )
+                                        == FollowUpTransportSubmissionState.POSSIBLY_SUBMITTED.value
+                                        or (
+                                            prerequisite_event.get(
+                                                "transport_submission_state"
+                                            )
+                                            is None
+                                            and prerequisite_event.get(
+                                                "external_call_started"
+                                            )
+                                            is True
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                    else:
+                        prerequisite_satisfied = bool(
+                            prerequisite_event is not None
+                            and prerequisite_event.get("event_state")
+                            == FollowUpLiveProofEventState.TERMINAL.value
+                            and prerequisite_event.get("outcome")
+                            == FollowUpLiveProofTerminalOutcome.SUCCEEDED.value
+                            and (
+                                operation
+                                != FollowUpLiveProofOperationKind.CANCEL.value
+                                or prerequisite_event.get(
+                                    "authoritative_child_state"
+                                ) == "ACTIVE"
+                            )
+                        )
+                    if not prerequisite_satisfied:
+                        raise FollowUpIntentStoreConflict(
+                            "follow_up_live_proof_operation_prerequisite_incomplete"
+                        )
+
+                cursor.execute(
+                    f"""
+                    SELECT 1
+                      FROM {self._table('operator_follow_up_live_proof_event')}
+                     WHERE goal_id = %s AND operation_kind = %s
+                     LIMIT 1
+                    """,
+                    (normalized_goal, operation),
+                )
+                if cursor.fetchone() is not None:
+                    raise FollowUpIntentStoreConflict(
+                        "follow_up_live_proof_operation_consumed"
+                    )
+                mutation_operation = operation in {
+                    FollowUpLiveProofOperationKind.CREATE.value,
+                    FollowUpLiveProofOperationKind.CANCEL.value,
+                }
+                start_sdk_state = (
+                    FollowUpSdkMutationInvocationState.UNKNOWN.value
+                    if mutation_operation
+                    else FollowUpSdkMutationInvocationState.NOT_INVOKED.value
+                )
+                start_transport_state = (
+                    FollowUpTransportSubmissionState.POSSIBLY_SUBMITTED.value
+                    if mutation_operation
+                    else FollowUpTransportSubmissionState.NOT_SUBMITTED.value
+                )
+                start_exchange_state = (
+                    FollowUpExchangeMutationState.UNKNOWN.value
+                    if mutation_operation
+                    else FollowUpExchangeMutationState.NOT_MUTATED.value
+                )
+                cursor.execute(
+                    f"""
+                    INSERT INTO {self._table('operator_follow_up_live_proof_event')} (
+                        event_id, goal_id, operation_kind, event_state,
+                        outcome, diagnostic_code, source_client_order_id,
+                        root_client_order_id, follow_up_intent_id,
+                        materialization_id, child_client_order_id,
+                        correlation_id, audit_id,
+                        operation_idempotency_key_sha256,
+                        sdk_mutation_invocation_state,
+                        transport_submission_state,
+                        exchange_mutation_state, read_accounting_state,
+                        observed_read_count,
+                        external_call_started,
+                        reported_read_count, individual_retry_count
+                    ) VALUES (
+                        %s, %s, %s, 'INVOCATION_STARTED', NULL,
+                        'follow_up_live_proof_invocation_started',
+                        %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, 'UNKNOWN', NULL, FALSE, 0, 0
+                    )
+                    RETURNING *
+                    """,
+                    (
+                        str(uuid.uuid4()),
+                        normalized_goal,
+                        operation,
+                        goal["source_client_order_id"],
+                        goal["root_client_order_id"],
+                        goal["follow_up_intent_id"],
+                        goal.get("materialization_id"),
+                        goal.get("child_client_order_id"),
+                        correlation,
+                        normalized_audit_id,
+                        normalized_key_hash,
+                        start_sdk_state,
+                        start_transport_state,
+                        start_exchange_state,
+                    ),
+                )
+                event_rows = _rows(cursor)
+                if len(event_rows) != 1:
+                    raise FollowUpIntentStoreUnavailable(
+                        "follow_up_live_proof_claim_unavailable"
+                    )
+                return self._live_proof_record(event_rows[0])
+        except FollowUpIntentStoreError:
+            raise
+        except Exception:
+            raise FollowUpIntentStoreUnavailable(
+                "follow_up_live_proof_claim_unavailable"
+            ) from None
+
+    def _claim_follow_up_live_proof_operation_locked(
+        self,
+        cursor: Any,
+        **kwargs: Any,
+    ) -> FollowUpLiveProofOperationRecord:
+        """Claim one goal operation on the caller-owned transaction."""
+
+        return self.claim_follow_up_live_proof_operation(
+            **kwargs,
+            _cursor=cursor,
+        )
+
+    def _read_follow_up_live_proof_event_locked(
+        self,
+        cursor: Any,
+        *,
+        goal_id: str,
+        operation_kind: str,
+        event_state: str,
+    ) -> FollowUpLiveProofOperationRecord | None:
+        cursor.execute(
+            f"""
+            SELECT *
+              FROM {self._table('operator_follow_up_live_proof_event')}
+             WHERE goal_id = %s
+               AND operation_kind = %s
+               AND event_state = %s
+             LIMIT 2
+            """,
+            (goal_id, operation_kind, event_state),
+        )
+        rows = _rows(cursor)
+        if len(rows) > 1:
+            raise FollowUpIntentStoreConflict(
+                "follow_up_live_proof_event_cardinality_invalid"
+            )
+        return self._live_proof_record(rows[0]) if rows else None
+
+    @staticmethod
+    def _validate_atomic_live_proof_pair(
+        *,
+        materialization: FollowUpMaterializationTransitionResult,
+        live_proof: FollowUpLiveProofOperationRecord,
+        source_client_order_id: str,
+        audit_id: str,
+        operation_idempotency_key_sha256: str,
+    ) -> None:
+        if (
+            materialization.attempt.source_client_order_id
+            != source_client_order_id
+            or live_proof.source_client_order_id != source_client_order_id
+            or live_proof.root_client_order_id
+            != materialization.attempt.root_client_order_id
+            or live_proof.follow_up_intent_id
+            != materialization.attempt.follow_up_intent_id
+            or live_proof.materialization_id
+            != materialization.attempt.materialization_id
+            or live_proof.child_client_order_id
+            != materialization.attempt.child_client_order_id
+            or materialization.event.operation_audit_id != audit_id
+            or live_proof.audit_id != audit_id
+            or materialization.event.operation_idempotency_key_sha256
+            != operation_idempotency_key_sha256
+            or live_proof.operation_idempotency_key_sha256
+            != operation_idempotency_key_sha256
+        ):
+            raise FollowUpIntentStoreConflict(
+                "follow_up_live_proof_atomic_binding_mismatch"
+            )
+
+    def claim_create_invocation_started_atomically(
+        self,
+        *,
+        materialization_id: str,
+        goal_id: str,
+        source_client_order_id: str,
+        correlation_id: str,
+        audit_id: str,
+        operation_idempotency_key_sha256: str,
+    ) -> FollowUpLiveProofInvocationStartResult:
+        """Commit native Create START and its one-use goal claim together."""
+
+        normalized_materialization_id = _require_uuid(
+            materialization_id,
+            code="materialization_id_invalid",
+        )
+        key_hash = self._validate_materialization_sha256(
+            operation_idempotency_key_sha256,
+            code="follow_up_live_proof_idempotency_binding_invalid",
+        )
+        normalized_audit_id = _require_uuid(
+            audit_id,
+            code="follow_up_live_proof_audit_id_invalid",
+        )
+        self.ensure_schema()
+        try:
+            with self.db.get_cursor() as cursor:
+                materialization = self._transition_materialization(
+                    materialization_id=normalized_materialization_id,
+                    target_state=(
+                        FollowUpMaterializationState.CREATE_INVOCATION_STARTED.value
+                    ),
+                    expected_state=(
+                        FollowUpMaterializationState.KNOWN_NOT_INVOKED.value
+                    ),
+                    diagnostic_code="create_invocation_started",
+                    use_prepare_operation_binding=True,
+                    consumed_code="create_boundary_consumed",
+                    replay_after_progress=True,
+                    _cursor=cursor,
+                )
+                live_created = True
+                try:
+                    live_proof = (
+                        self._claim_follow_up_live_proof_operation_locked(
+                            cursor,
+                            goal_id=goal_id,
+                            operation_kind=(
+                                FollowUpLiveProofOperationKind.CREATE.value
+                            ),
+                            source_client_order_id=source_client_order_id,
+                            correlation_id=correlation_id,
+                            audit_id=normalized_audit_id,
+                            operation_idempotency_key_sha256=key_hash,
+                        )
+                    )
+                except FollowUpIntentStoreConflict as exc:
+                    if exc.code != "follow_up_live_proof_operation_consumed":
+                        raise
+                    live_created = False
+                    live_proof = self._read_follow_up_live_proof_event_locked(
+                        cursor,
+                        goal_id=goal_id,
+                        operation_kind=(
+                            FollowUpLiveProofOperationKind.CREATE.value
+                        ),
+                        event_state=(
+                            FollowUpLiveProofEventState.INVOCATION_STARTED.value
+                        ),
+                    )
+                    if live_proof is None:
+                        raise FollowUpIntentStoreConflict(
+                            "follow_up_live_proof_atomic_binding_mismatch"
+                        )
+                self._validate_atomic_live_proof_pair(
+                    materialization=materialization,
+                    live_proof=live_proof,
+                    source_client_order_id=source_client_order_id,
+                    audit_id=normalized_audit_id,
+                    operation_idempotency_key_sha256=key_hash,
+                )
+                if not materialization.replayed and not live_created:
+                    raise FollowUpIntentStoreConflict(
+                        "follow_up_live_proof_atomic_binding_mismatch"
+                    )
+                return FollowUpLiveProofInvocationStartResult(
+                    materialization=materialization,
+                    live_proof=live_proof,
+                    claimed=bool(
+                        not materialization.replayed and live_created
+                    ),
+                )
+        except FollowUpIntentStoreError:
+            raise
+        except Exception:
+            raise FollowUpIntentStoreUnavailable(
+                "follow_up_live_proof_atomic_start_unavailable"
+            ) from None
+
+    def claim_cancel_invocation_started_atomically(
+        self,
+        *,
+        materialization_id: str,
+        goal_id: str,
+        source_client_order_id: str,
+        operation_idempotency_key: str,
+        actor_id: str,
+        roles: tuple[str, ...],
+        environment: str,
+        operator_intent: str,
+        correlation_id: str,
+        audit_id: str,
+    ) -> FollowUpLiveProofInvocationStartResult:
+        """Commit native Cancel START and its one-use goal claim together."""
+
+        normalized_materialization_id = _require_uuid(
+            materialization_id,
+            code="materialization_id_invalid",
+        )
+        binding = self._requested_operation_binding(
+            operation_idempotency_key=operation_idempotency_key,
+            actor_id=actor_id,
+            roles=roles,
+            environment=environment,
+            operator_intent=operator_intent,
+            correlation_id=correlation_id,
+            operation_audit_id=audit_id,
+        )
+        if binding.operation_audit_id is None:
+            raise FollowUpIntentStoreConflict(
+                "materialization_operation_audit_id_invalid"
+            )
+        self.ensure_schema()
+        try:
+            with self.db.get_cursor() as cursor:
+                materialization = self._transition_materialization(
+                    materialization_id=normalized_materialization_id,
+                    target_state=(
+                        FollowUpMaterializationState.CANCEL_INVOCATION_STARTED.value
+                    ),
+                    expected_state=(
+                        FollowUpMaterializationState.CREATE_ACCEPTED_NONTERMINAL.value,
+                        FollowUpMaterializationState.CREATE_UNKNOWN_CONSUMED.value,
+                    ),
+                    diagnostic_code="cancel_invocation_started",
+                    operation_binding=binding,
+                    consumed_code="cancel_not_eligible",
+                    replay_after_progress=False,
+                    _cursor=cursor,
+                )
+                live_created = True
+                try:
+                    live_proof = (
+                        self._claim_follow_up_live_proof_operation_locked(
+                            cursor,
+                            goal_id=goal_id,
+                            operation_kind=(
+                                FollowUpLiveProofOperationKind.CANCEL.value
+                            ),
+                            source_client_order_id=source_client_order_id,
+                            correlation_id=correlation_id,
+                            audit_id=binding.operation_audit_id,
+                            operation_idempotency_key_sha256=(
+                                binding.idempotency_key_sha256
+                            ),
+                        )
+                    )
+                except FollowUpIntentStoreConflict as exc:
+                    if exc.code != "follow_up_live_proof_operation_consumed":
+                        raise
+                    live_created = False
+                    live_proof = self._read_follow_up_live_proof_event_locked(
+                        cursor,
+                        goal_id=goal_id,
+                        operation_kind=(
+                            FollowUpLiveProofOperationKind.CANCEL.value
+                        ),
+                        event_state=(
+                            FollowUpLiveProofEventState.INVOCATION_STARTED.value
+                        ),
+                    )
+                    if live_proof is None:
+                        raise FollowUpIntentStoreConflict(
+                            "follow_up_live_proof_atomic_binding_mismatch"
+                        )
+                self._validate_atomic_live_proof_pair(
+                    materialization=materialization,
+                    live_proof=live_proof,
+                    source_client_order_id=source_client_order_id,
+                    audit_id=binding.operation_audit_id,
+                    operation_idempotency_key_sha256=(
+                        binding.idempotency_key_sha256
+                    ),
+                )
+                if not materialization.replayed and not live_created:
+                    raise FollowUpIntentStoreConflict(
+                        "follow_up_live_proof_atomic_binding_mismatch"
+                    )
+                return FollowUpLiveProofInvocationStartResult(
+                    materialization=materialization,
+                    live_proof=live_proof,
+                    claimed=bool(
+                        not materialization.replayed and live_created
+                    ),
+                )
+        except FollowUpIntentStoreError:
+            raise
+        except Exception:
+            raise FollowUpIntentStoreUnavailable(
+                "follow_up_live_proof_atomic_start_unavailable"
+            ) from None
+
+    def read_follow_up_live_proof_terminal(
+        self,
+        *,
+        goal_id: str,
+        operation_kind: str,
+        source_client_order_id: str,
+    ) -> FollowUpLiveProofOperationRecord | None:
+        """Read one immutable terminal without creating or consuming a claim."""
+
+        normalized_goal, operation, source_id = self._validate_live_proof_identity(
+            goal_id=goal_id,
+            operation_kind=operation_kind,
+            source_client_order_id=source_client_order_id,
+        )
+        try:
+            with self.db.get_cursor() as cursor:
+                cursor.execute(
+                    f"""
+                    SELECT *
+                      FROM {self._table('operator_follow_up_live_proof_event')}
+                     WHERE goal_id = %s
+                       AND operation_kind = %s
+                       AND event_state = 'TERMINAL'
+                       AND source_client_order_id = %s
+                     ORDER BY event_sequence DESC
+                     LIMIT 2
+                    """,
+                    (normalized_goal, operation, source_id),
+                )
+                rows = _rows(cursor)
+                if len(rows) > 1:
+                    raise FollowUpIntentStoreConflict(
+                        "follow_up_live_proof_terminal_cardinality_invalid"
+                    )
+                return self._live_proof_record(rows[0]) if rows else None
+        except FollowUpIntentStoreError:
+            raise
+        except Exception:
+            raise FollowUpIntentStoreUnavailable(
+                "follow_up_live_proof_terminal_read_unavailable"
+            ) from None
+
+    def read_follow_up_live_proof_claim(
+        self,
+        *,
+        goal_id: str,
+        operation_kind: str,
+        source_client_order_id: str,
+    ) -> FollowUpLiveProofOperationRecord | None:
+        """Read the sole invocation-start boundary without consuming state."""
+
+        normalized_goal, operation, source_id = self._validate_live_proof_identity(
+            goal_id=goal_id,
+            operation_kind=operation_kind,
+            source_client_order_id=source_client_order_id,
+        )
+        try:
+            with self.db.get_cursor() as cursor:
+                cursor.execute(
+                    f"""
+                    SELECT *
+                      FROM {self._table('operator_follow_up_live_proof_event')}
+                     WHERE goal_id = %s
+                       AND operation_kind = %s
+                       AND event_state = 'INVOCATION_STARTED'
+                       AND source_client_order_id = %s
+                     ORDER BY event_sequence DESC
+                     LIMIT 2
+                    """,
+                    (normalized_goal, operation, source_id),
+                )
+                rows = _rows(cursor)
+                if len(rows) > 1:
+                    raise FollowUpIntentStoreConflict(
+                        "follow_up_live_proof_claim_cardinality_invalid"
+                    )
+                return self._live_proof_record(rows[0]) if rows else None
+        except FollowUpIntentStoreError:
+            raise
+        except Exception:
+            raise FollowUpIntentStoreUnavailable(
+                "follow_up_live_proof_claim_read_unavailable"
+            ) from None
+
+    def read_follow_up_live_proof_operation_set(
+        self,
+        *,
+        goal_id: str,
+        source_client_order_id: str,
+    ) -> FollowUpLiveProofOperationSet:
+        """Read the four latest local operation records in one bounded query."""
+
+        normalized_goal = str(goal_id or "").strip()
+        source_id = str(source_client_order_id or "").strip()
+        if normalized_goal != OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID:
+            raise FollowUpIntentStoreConflict(
+                "follow_up_live_proof_goal_id_invalid"
+            )
+        if not source_id or len(source_id) > 128:
+            raise FollowUpIntentStoreConflict("follow_up_live_proof_source_invalid")
+        try:
+            with self.db.get_cursor() as cursor:
+                cursor.execute(
+                    f"""
+                    SELECT DISTINCT ON (operation_kind) *
+                      FROM {self._table('operator_follow_up_live_proof_event')}
+                     WHERE goal_id = %s
+                       AND source_client_order_id = %s
+                       AND operation_kind IN ({_LIVE_PROOF_OPERATION_SQL})
+                     ORDER BY operation_kind, event_sequence DESC
+                    """,
+                    (normalized_goal, source_id),
+                )
+                rows = _rows(cursor)
+        except FollowUpIntentStoreError:
+            raise
+        except Exception:
+            raise FollowUpIntentStoreUnavailable(
+                "follow_up_live_proof_operation_set_read_unavailable"
+            ) from None
+        records: dict[str, FollowUpLiveProofOperationRecord] = {}
+        for row in rows:
+            record = self._live_proof_record(row)
+            if (
+                record.goal_id != normalized_goal
+                or record.source_client_order_id != source_id
+                or record.operation_kind not in _LIVE_PROOF_OPERATION_KINDS
+                or record.operation_kind in records
+            ):
+                raise FollowUpIntentStoreConflict(
+                    "follow_up_live_proof_operation_set_invalid"
+                )
+            records[record.operation_kind] = record
+        return FollowUpLiveProofOperationSet(
+            eligibility_read=records.get(
+                FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value
+            ),
+            create=records.get(FollowUpLiveProofOperationKind.CREATE.value),
+            reconciliation_read=records.get(
+                FollowUpLiveProofOperationKind.RECONCILIATION_READ.value
+            ),
+            cancel=records.get(FollowUpLiveProofOperationKind.CANCEL.value),
+        )
+
+    def record_follow_up_live_proof_terminal(
+        self,
+        *,
+        goal_id: str,
+        operation_kind: str,
+        source_client_order_id: str,
+        outcome: str,
+        diagnostic_code: str,
+        sdk_mutation_invocation_state: str | None = None,
+        transport_submission_state: str | None = None,
+        exchange_mutation_state: str | None = None,
+        read_accounting_state: str | None = None,
+        observed_read_count: int | None = None,
+        external_call_started: bool = True,
+        reported_read_count: int = 0,
+        individual_retry_count: int = 0,
+        authoritative_child_state: str | None = None,
+        _cursor: Any | None = None,
+    ) -> FollowUpLiveProofOperationRecord:
+        """Append a fixed terminal classification for a consumed operation."""
+
+        normalized_goal, operation, source_id = self._validate_live_proof_identity(
+            goal_id=goal_id,
+            operation_kind=operation_kind,
+            source_client_order_id=source_client_order_id,
+        )
+        normalized_outcome = str(outcome or "").strip().upper()
+        if normalized_outcome not in _LIVE_PROOF_TERMINAL_OUTCOMES:
+            raise FollowUpIntentStoreConflict(
+                "follow_up_live_proof_terminal_outcome_invalid"
+            )
+        expected_diagnostic = self._live_proof_terminal_diagnostic(
+            operation,
+            normalized_outcome,
+        )
+        if str(diagnostic_code or "").strip() != expected_diagnostic:
+            raise FollowUpIntentStoreConflict(
+                "follow_up_live_proof_terminal_diagnostic_invalid"
+            )
+        if not isinstance(external_call_started, bool):
+            raise FollowUpIntentStoreConflict(
+                "follow_up_live_proof_external_call_accounting_invalid"
+            )
+        if (
+            type(reported_read_count) is not int
+            or not 0 <= reported_read_count <= 10
+        ):
+            raise FollowUpIntentStoreConflict(
+                "follow_up_live_proof_read_count_invalid"
+            )
+        if (
+            type(individual_retry_count) is not int
+            or not 0 <= individual_retry_count <= 10
+        ):
+            raise FollowUpIntentStoreConflict(
+                "follow_up_live_proof_retry_count_invalid"
+            )
+        explicit_accounting = any(
+            value is not None
+            for value in (
+                sdk_mutation_invocation_state,
+                transport_submission_state,
+                exchange_mutation_state,
+                read_accounting_state,
+                observed_read_count,
+            )
+        )
+        if explicit_accounting:
+            accounting = _FollowUpLiveProofAccounting(
+                sdk_mutation_invocation_state=str(
+                    sdk_mutation_invocation_state or ""
+                ).strip().upper(),
+                transport_submission_state=str(
+                    transport_submission_state or ""
+                ).strip().upper(),
+                exchange_mutation_state=str(
+                    exchange_mutation_state or ""
+                ).strip().upper(),
+                read_accounting_state=str(
+                    read_accounting_state or ""
+                ).strip().upper(),
+                observed_read_count=observed_read_count,
+            )
+        else:
+            accounting = _legacy_live_proof_accounting(
+                operation=operation,
+                outcome=normalized_outcome,
+                external_call_started=external_call_started,
+                reported_read_count=reported_read_count,
+            )
+        if (
+            accounting.sdk_mutation_invocation_state
+            not in _LIVE_PROOF_SDK_INVOCATION_STATES
+            or accounting.transport_submission_state
+            not in _LIVE_PROOF_TRANSPORT_SUBMISSION_STATES
+            or accounting.exchange_mutation_state
+            not in _LIVE_PROOF_EXCHANGE_MUTATION_STATES
+            or accounting.read_accounting_state
+            not in _LIVE_PROOF_READ_ACCOUNTING_STATES
+            or (
+                accounting.read_accounting_state
+                == FollowUpReadAccountingState.EXACT.value
+                and (
+                    type(accounting.observed_read_count) is not int
+                    or not 0 <= accounting.observed_read_count <= 10
+                )
+            )
+            or (
+                accounting.read_accounting_state
+                == FollowUpReadAccountingState.UNKNOWN.value
+                and accounting.observed_read_count is not None
+            )
+        ):
+            raise FollowUpIntentStoreConflict(
+                "follow_up_live_proof_observation_accounting_invalid"
+            )
+        normalized_child_state = (
+            str(authoritative_child_state or "").strip().upper() or None
+        )
+        if normalized_child_state not in {None, "ACTIVE", "TERMINAL", "UNKNOWN"}:
+            raise FollowUpIntentStoreConflict(
+                "follow_up_live_proof_child_state_invalid"
+            )
+        sdk_state = accounting.sdk_mutation_invocation_state
+        transport_state = accounting.transport_submission_state
+        exchange_state = accounting.exchange_mutation_state
+        read_state = accounting.read_accounting_state
+        observed_count = accounting.observed_read_count
+        mutation_operation = operation in {
+            FollowUpLiveProofOperationKind.CREATE.value,
+            FollowUpLiveProofOperationKind.CANCEL.value,
+        }
+        if mutation_operation:
+            accounting_valid = bool(
+                (
+                    normalized_outcome
+                    == FollowUpLiveProofTerminalOutcome.SUCCEEDED.value
+                    and sdk_state == FollowUpSdkMutationInvocationState.INVOKED.value
+                    and transport_state
+                    == FollowUpTransportSubmissionState.CONFIRMED_SUBMITTED.value
+                    and exchange_state
+                    == FollowUpExchangeMutationState.CONFIRMED_MUTATED.value
+                    and read_state == FollowUpReadAccountingState.EXACT.value
+                    and observed_count == 1
+                )
+                or (
+                    normalized_outcome
+                    == FollowUpLiveProofTerminalOutcome.REJECTED.value
+                    and sdk_state == FollowUpSdkMutationInvocationState.INVOKED.value
+                    and transport_state
+                    == FollowUpTransportSubmissionState.CONFIRMED_SUBMITTED.value
+                    and exchange_state
+                    == FollowUpExchangeMutationState.NOT_MUTATED.value
+                    and read_state == FollowUpReadAccountingState.EXACT.value
+                    and observed_count == 0
+                )
+                or (
+                    normalized_outcome
+                    == FollowUpLiveProofTerminalOutcome.UNKNOWN.value
+                    and sdk_state
+                    in {
+                        FollowUpSdkMutationInvocationState.INVOKED.value,
+                        FollowUpSdkMutationInvocationState.UNKNOWN.value,
+                    }
+                    and transport_state
+                    == FollowUpTransportSubmissionState.POSSIBLY_SUBMITTED.value
+                    and exchange_state
+                    == FollowUpExchangeMutationState.UNKNOWN.value
+                    and read_state == FollowUpReadAccountingState.UNKNOWN.value
+                    and observed_count is None
+                )
+                or (
+                    normalized_outcome
+                    in {
+                        FollowUpLiveProofTerminalOutcome.BLOCKED.value,
+                        FollowUpLiveProofTerminalOutcome.NOT_REQUIRED.value,
+                    }
+                    and sdk_state
+                    == FollowUpSdkMutationInvocationState.NOT_INVOKED.value
+                    and transport_state
+                    == FollowUpTransportSubmissionState.NOT_SUBMITTED.value
+                    and exchange_state
+                    == FollowUpExchangeMutationState.NOT_MUTATED.value
+                    and read_state == FollowUpReadAccountingState.EXACT.value
+                    and observed_count == 0
+                )
+            )
+        else:
+            accounting_valid = bool(
+                sdk_state == FollowUpSdkMutationInvocationState.NOT_INVOKED.value
+                and transport_state
+                == FollowUpTransportSubmissionState.NOT_SUBMITTED.value
+                and exchange_state
+                == FollowUpExchangeMutationState.NOT_MUTATED.value
+                and (
+                    (
+                        normalized_outcome
+                        == FollowUpLiveProofTerminalOutcome.SUCCEEDED.value
+                        and read_state == FollowUpReadAccountingState.EXACT.value
+                        and type(observed_count) is int
+                        and 1 <= observed_count <= 10
+                    )
+                    or (
+                        normalized_outcome
+                        == FollowUpLiveProofTerminalOutcome.UNKNOWN.value
+                        and read_state == FollowUpReadAccountingState.UNKNOWN.value
+                        and observed_count is None
+                    )
+                    or (
+                        normalized_outcome
+                        == FollowUpLiveProofTerminalOutcome.BLOCKED.value
+                        and (
+                            (
+                                read_state == FollowUpReadAccountingState.EXACT.value
+                                and type(observed_count) is int
+                                and 0 <= observed_count <= 10
+                            )
+                            or (
+                                read_state
+                                == FollowUpReadAccountingState.UNKNOWN.value
+                                and observed_count is None
+                            )
+                        )
+                    )
+                    or (
+                        normalized_outcome
+                        == FollowUpLiveProofTerminalOutcome.NOT_REQUIRED.value
+                        and read_state == FollowUpReadAccountingState.EXACT.value
+                        and observed_count == 0
+                    )
+                )
+            )
+        child_state_valid = bool(
+            (
+                operation == FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value
+                and normalized_child_state is None
+            )
+            or (
+                operation == FollowUpLiveProofOperationKind.RECONCILIATION_READ.value
+                and (
+                    (
+                        normalized_outcome
+                        == FollowUpLiveProofTerminalOutcome.SUCCEEDED.value
+                        and normalized_child_state in {"ACTIVE", "TERMINAL"}
+                    )
+                    or (
+                        normalized_outcome
+                        != FollowUpLiveProofTerminalOutcome.SUCCEEDED.value
+                        and normalized_child_state in {None, "UNKNOWN"}
+                    )
+                )
+            )
+            or (
+                operation == FollowUpLiveProofOperationKind.CREATE.value
+                and (
+                    (
+                        normalized_outcome
+                        == FollowUpLiveProofTerminalOutcome.SUCCEEDED.value
+                        and normalized_child_state in {"ACTIVE", "TERMINAL"}
+                    )
+                    or (
+                        normalized_outcome
+                        != FollowUpLiveProofTerminalOutcome.SUCCEEDED.value
+                        and normalized_child_state == "UNKNOWN"
+                    )
+                )
+            )
+            or (
+                operation == FollowUpLiveProofOperationKind.CANCEL.value
+                and (
+                    (
+                        normalized_outcome
+                        == FollowUpLiveProofTerminalOutcome.SUCCEEDED.value
+                        and normalized_child_state == "TERMINAL"
+                    )
+                    or (
+                        normalized_outcome
+                        == FollowUpLiveProofTerminalOutcome.REJECTED.value
+                        and normalized_child_state == "ACTIVE"
+                    )
+                    or (
+                        normalized_outcome
+                        in {
+                            FollowUpLiveProofTerminalOutcome.UNKNOWN.value,
+                            FollowUpLiveProofTerminalOutcome.BLOCKED.value,
+                            FollowUpLiveProofTerminalOutcome.NOT_REQUIRED.value,
+                        }
+                        and normalized_child_state in {None, "UNKNOWN"}
+                    )
+                )
+            )
+        )
+        retry_accounting_valid = individual_retry_count == 0
+        if (
+            not accounting_valid
+            or not child_state_valid
+            or not retry_accounting_valid
+        ):
+            raise FollowUpIntentStoreConflict(
+                "follow_up_live_proof_terminal_accounting_violation"
+            )
+
+        try:
+            with self._transaction_cursor(_cursor) as cursor:
+                cursor.execute(
+                    "SELECT pg_advisory_xact_lock(31871, hashtext(%s))",
+                    (normalized_goal,),
+                )
+                cursor.execute(
+                    f"""
+                    SELECT goal_id, source_client_order_id,
+                           root_client_order_id, follow_up_intent_id,
+                           materialization_id, child_client_order_id
+                      FROM {self._table('operator_follow_up_live_proof_goal')}
+                     WHERE goal_id = %s
+                     FOR UPDATE
+                    """,
+                    (normalized_goal,),
+                )
+                goal_rows = _rows(cursor)
+                if len(goal_rows) != 1:
+                    raise FollowUpIntentStoreConflict(
+                        "follow_up_live_proof_goal_not_claimed"
+                    )
+                goal = goal_rows[0]
+                if str(goal["source_client_order_id"]) != source_id:
+                    raise FollowUpIntentStoreConflict(
+                        "follow_up_live_proof_goal_binding_conflict"
+                    )
+                cursor.execute(
+                    f"""
+                    SELECT *
+                      FROM {self._table('operator_follow_up_live_proof_event')}
+                     WHERE goal_id = %s AND operation_kind = %s
+                     ORDER BY event_sequence ASC
+                    """,
+                    (normalized_goal, operation),
+                )
+                events = _rows(cursor)
+                started = [
+                    event
+                    for event in events
+                    if event["event_state"]
+                    == FollowUpLiveProofEventState.INVOCATION_STARTED.value
+                ]
+                terminal = [
+                    event
+                    for event in events
+                    if event["event_state"]
+                    == FollowUpLiveProofEventState.TERMINAL.value
+                ]
+                if len(started) != 1:
+                    raise FollowUpIntentStoreConflict(
+                        "follow_up_live_proof_invocation_not_started"
+                    )
+                if terminal:
+                    raise FollowUpIntentStoreConflict(
+                        "follow_up_live_proof_terminal_already_recorded"
+                    )
+                start = started[0]
+                for field_name in (
+                    "source_client_order_id",
+                    "root_client_order_id",
+                    "follow_up_intent_id",
+                    "materialization_id",
+                    "child_client_order_id",
+                ):
+                    if str(start.get(field_name) or "") != str(
+                        goal.get(field_name) or ""
+                    ):
+                        raise FollowUpIntentStoreConflict(
+                            "follow_up_live_proof_event_binding_mismatch"
+                        )
+                cursor.execute(
+                    f"""
+                    INSERT INTO {self._table('operator_follow_up_live_proof_event')} (
+                        event_id, goal_id, operation_kind, event_state,
+                        outcome, diagnostic_code, source_client_order_id,
+                        root_client_order_id, follow_up_intent_id,
+                        materialization_id, child_client_order_id,
+                        correlation_id, audit_id,
+                        operation_idempotency_key_sha256,
+                        sdk_mutation_invocation_state,
+                        transport_submission_state,
+                        exchange_mutation_state, read_accounting_state,
+                        observed_read_count,
+                        external_call_started,
+                        reported_read_count, individual_retry_count,
+                        authoritative_child_state
+                    ) VALUES (
+                        %s, %s, %s, 'TERMINAL', %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s
+                    )
+                    RETURNING *
+                    """,
+                    (
+                        str(uuid.uuid4()),
+                        normalized_goal,
+                        operation,
+                        normalized_outcome,
+                        expected_diagnostic,
+                        goal["source_client_order_id"],
+                        goal["root_client_order_id"],
+                        goal["follow_up_intent_id"],
+                        goal.get("materialization_id"),
+                        goal.get("child_client_order_id"),
+                        start["correlation_id"],
+                        start["audit_id"],
+                        start["operation_idempotency_key_sha256"],
+                        accounting.sdk_mutation_invocation_state,
+                        accounting.transport_submission_state,
+                        accounting.exchange_mutation_state,
+                        accounting.read_accounting_state,
+                        accounting.observed_read_count,
+                        accounting.compatibility_external_call_started,
+                        accounting.compatibility_reported_read_count,
+                        individual_retry_count,
+                        normalized_child_state,
+                    ),
+                )
+                terminal_rows = _rows(cursor)
+                if len(terminal_rows) != 1:
+                    raise FollowUpIntentStoreUnavailable(
+                        "follow_up_live_proof_terminal_unavailable"
+                    )
+                return self._live_proof_record(terminal_rows[0])
+        except FollowUpIntentStoreError:
+            raise
+        except Exception:
+            raise FollowUpIntentStoreUnavailable(
+                "follow_up_live_proof_terminal_unavailable"
+            ) from None
+
+    def _record_follow_up_live_proof_terminal_locked(
+        self,
+        cursor: Any,
+        **kwargs: Any,
+    ) -> FollowUpLiveProofOperationRecord:
+        """Append a goal terminal on the caller-owned transaction."""
+
+        return self.record_follow_up_live_proof_terminal(
+            **kwargs,
+            _cursor=cursor,
+        )
+
+    @staticmethod
+    def _atomic_terminal_matches(
+        record: FollowUpLiveProofOperationRecord,
+        *,
+        outcome: str,
+        accounting: _FollowUpLiveProofAccounting,
+        individual_retry_count: int,
+        authoritative_child_state: str | None,
+    ) -> bool:
+        return bool(
+            record.outcome == outcome
+            and record.sdk_mutation_invocation_state
+            == accounting.sdk_mutation_invocation_state
+            and record.transport_submission_state
+            == accounting.transport_submission_state
+            and record.exchange_mutation_state
+            == accounting.exchange_mutation_state
+            and record.read_accounting_state == accounting.read_accounting_state
+            and record.observed_read_count == accounting.observed_read_count
+            and record.individual_retry_count == individual_retry_count
+            and record.authoritative_child_state
+            == authoritative_child_state
+        )
+
+    def _record_or_replay_atomic_live_proof_terminal(
+        self,
+        cursor: Any,
+        *,
+        goal_id: str,
+        operation_kind: str,
+        source_client_order_id: str,
+        outcome: str,
+        external_call_started: bool,
+        reported_read_count: int,
+        individual_retry_count: int,
+        authoritative_child_state: str | None,
+        sdk_mutation_invocation_state: str | None = None,
+        transport_submission_state: str | None = None,
+        exchange_mutation_state: str | None = None,
+        read_accounting_state: str | None = None,
+        observed_read_count: int | None = None,
+    ) -> tuple[FollowUpLiveProofOperationRecord, bool]:
+        diagnostic_code = self._live_proof_terminal_diagnostic(
+            operation_kind,
+            outcome,
+        )
+        try:
+            terminal = self._record_follow_up_live_proof_terminal_locked(
+                cursor,
+                goal_id=goal_id,
+                operation_kind=operation_kind,
+                source_client_order_id=source_client_order_id,
+                outcome=outcome,
+                diagnostic_code=diagnostic_code,
+                sdk_mutation_invocation_state=sdk_mutation_invocation_state,
+                transport_submission_state=transport_submission_state,
+                exchange_mutation_state=exchange_mutation_state,
+                read_accounting_state=read_accounting_state,
+                observed_read_count=observed_read_count,
+                external_call_started=external_call_started,
+                reported_read_count=reported_read_count,
+                individual_retry_count=individual_retry_count,
+                authoritative_child_state=authoritative_child_state,
+            )
+            return terminal, False
+        except FollowUpIntentStoreConflict as exc:
+            if exc.code != "follow_up_live_proof_terminal_already_recorded":
+                raise
+        terminal = self._read_follow_up_live_proof_event_locked(
+            cursor,
+            goal_id=goal_id,
+            operation_kind=operation_kind,
+            event_state=FollowUpLiveProofEventState.TERMINAL.value,
+        )
+        accounting = (
+            _FollowUpLiveProofAccounting(
+                sdk_mutation_invocation_state=str(
+                    sdk_mutation_invocation_state or ""
+                ).strip().upper(),
+                transport_submission_state=str(
+                    transport_submission_state or ""
+                ).strip().upper(),
+                exchange_mutation_state=str(
+                    exchange_mutation_state or ""
+                ).strip().upper(),
+                read_accounting_state=str(
+                    read_accounting_state or ""
+                ).strip().upper(),
+                observed_read_count=observed_read_count,
+            )
+            if any(
+                value is not None
+                for value in (
+                    sdk_mutation_invocation_state,
+                    transport_submission_state,
+                    exchange_mutation_state,
+                    read_accounting_state,
+                    observed_read_count,
+                )
+            )
+            else _legacy_live_proof_accounting(
+                operation=operation_kind,
+                outcome=outcome,
+                external_call_started=external_call_started,
+                reported_read_count=reported_read_count,
+            )
+        )
+        if terminal is None or not self._atomic_terminal_matches(
+            terminal,
+            outcome=outcome,
+            accounting=accounting,
+            individual_retry_count=individual_retry_count,
+            authoritative_child_state=authoritative_child_state,
+        ):
+            raise FollowUpIntentStoreConflict(
+                "follow_up_live_proof_atomic_terminal_mismatch"
+            )
+        return terminal, True
+
+    def finalize_create_invocation_atomically(
+        self,
+        *,
+        materialization_id: str,
+        goal_id: str,
+        source_client_order_id: str,
+        outcome: str,
+        diagnostic_code: str,
+        authoritative_order_status: str,
+        exchange_order_id: str | None,
+        live_proof_outcome: str,
+        external_call_started: bool,
+        reported_read_count: int,
+        individual_retry_count: int,
+        authoritative_child_state: str,
+        sdk_mutation_invocation_state: str | None = None,
+        transport_submission_state: str | None = None,
+        exchange_mutation_state: str | None = None,
+        read_accounting_state: str | None = None,
+        observed_read_count: int | None = None,
+    ) -> FollowUpLiveProofMutationFinalizeResult:
+        """Commit Create result, exact local projection, and goal terminal."""
+
+        normalized_outcome = str(outcome or "").strip().upper()
+        spec = {
+            FollowUpMaterializationState.CREATE_ACCEPTED_NONTERMINAL.value: (
+                FollowUpMaterializedChildTransitionKind.CREATE_ACCEPTED_ACTIVE.value,
+                FollowUpLiveProofTerminalOutcome.SUCCEEDED.value,
+                "ACTIVE",
+                True,
+            ),
+            FollowUpMaterializationState.CREATE_ACCEPTED_TERMINAL.value: (
+                FollowUpMaterializedChildTransitionKind.CREATE_ACCEPTED_TERMINAL.value,
+                FollowUpLiveProofTerminalOutcome.SUCCEEDED.value,
+                "TERMINAL",
+                True,
+            ),
+            FollowUpMaterializationState.CREATE_EXPLICITLY_REJECTED.value: (
+                FollowUpMaterializedChildTransitionKind.CREATE_EXPLICITLY_REJECTED.value,
+                FollowUpLiveProofTerminalOutcome.REJECTED.value,
+                "UNKNOWN",
+                False,
+            ),
+            FollowUpMaterializationState.CREATE_UNKNOWN_CONSUMED.value: (
+                FollowUpMaterializedChildTransitionKind.CREATE_UNKNOWN_QUARANTINED.value,
+                FollowUpLiveProofTerminalOutcome.UNKNOWN.value,
+                "UNKNOWN",
+                False,
+            ),
+        }.get(normalized_outcome)
+        if spec is None:
+            raise FollowUpIntentStoreConflict("create_result_invalid")
+        transition_kind, expected_proof_outcome, expected_child_state, needs_id = spec
+        normalized_proof_outcome = str(live_proof_outcome or "").strip().upper()
+        normalized_child_state = str(authoritative_child_state or "").strip().upper()
+        raw_exchange_id = str(exchange_order_id or "").strip() or None
+        proof_outcome_matches = bool(
+            normalized_proof_outcome == expected_proof_outcome
+            or (
+                normalized_outcome
+                == FollowUpMaterializationState.CREATE_UNKNOWN_CONSUMED.value
+                and normalized_proof_outcome
+                == FollowUpLiveProofTerminalOutcome.BLOCKED.value
+            )
+        )
+        if (
+            not proof_outcome_matches
+            or normalized_child_state != expected_child_state
+            or needs_id is not (raw_exchange_id is not None)
+        ):
+            raise FollowUpIntentStoreConflict(
+                "follow_up_live_proof_atomic_result_mismatch"
+            )
+        exchange_hash = (
+            hashlib.sha256(raw_exchange_id.encode("utf-8")).hexdigest()
+            if raw_exchange_id is not None
+            else None
+        )
+        normalized_materialization_id = _require_uuid(
+            materialization_id,
+            code="materialization_id_invalid",
+        )
+        self.ensure_schema()
+        try:
+            with self.db.get_cursor() as cursor:
+                materialization = self._transition_materialization(
+                    materialization_id=normalized_materialization_id,
+                    target_state=normalized_outcome,
+                    expected_state=(
+                        FollowUpMaterializationState.CREATE_INVOCATION_STARTED.value
+                    ),
+                    diagnostic_code=diagnostic_code,
+                    exchange_order_id_sha256=exchange_hash,
+                    use_prepare_operation_binding=True,
+                    consumed_code="create_boundary_consumed",
+                    replay_after_progress=True,
+                    _cursor=cursor,
+                )
+                local_state = (
+                    self._transition_materialized_child_local_state_locked(
+                        cursor,
+                        materialization_id=normalized_materialization_id,
+                        transition_kind=transition_kind,
+                        authoritative_order_status=authoritative_order_status,
+                        exchange_order_id=raw_exchange_id,
+                        operation_audit_id=(
+                            materialization.event.operation_audit_id
+                        ),
+                        operation_idempotency_key_sha256=(
+                            materialization.event.operation_idempotency_key_sha256
+                        ),
+                    )
+                )
+                terminal, terminal_replayed = (
+                    self._record_or_replay_atomic_live_proof_terminal(
+                        cursor,
+                        goal_id=goal_id,
+                        operation_kind=(
+                            FollowUpLiveProofOperationKind.CREATE.value
+                        ),
+                        source_client_order_id=source_client_order_id,
+                        outcome=normalized_proof_outcome,
+                        external_call_started=external_call_started,
+                        reported_read_count=reported_read_count,
+                        individual_retry_count=individual_retry_count,
+                        authoritative_child_state=normalized_child_state,
+                        sdk_mutation_invocation_state=(
+                            sdk_mutation_invocation_state
+                        ),
+                        transport_submission_state=transport_submission_state,
+                        exchange_mutation_state=exchange_mutation_state,
+                        read_accounting_state=read_accounting_state,
+                        observed_read_count=observed_read_count,
+                    )
+                )
+                self._validate_atomic_live_proof_pair(
+                    materialization=materialization,
+                    live_proof=terminal,
+                    source_client_order_id=source_client_order_id,
+                    audit_id=materialization.event.operation_audit_id,
+                    operation_idempotency_key_sha256=(
+                        materialization.event.operation_idempotency_key_sha256
+                    ),
+                )
+                if not materialization.replayed and terminal_replayed:
+                    raise FollowUpIntentStoreConflict(
+                        "follow_up_live_proof_atomic_terminal_mismatch"
+                    )
+                return FollowUpLiveProofMutationFinalizeResult(
+                    materialization=materialization,
+                    local_state=local_state,
+                    live_proof=terminal,
+                    replayed=bool(
+                        materialization.replayed
+                        or local_state.replayed
+                        or terminal_replayed
+                    ),
+                )
+        except FollowUpIntentStoreError:
+            raise
+        except Exception:
+            raise FollowUpIntentStoreUnavailable(
+                "follow_up_live_proof_atomic_finalization_unavailable"
+            ) from None
+
+    def finalize_cancel_invocation_atomically(
+        self,
+        *,
+        materialization_id: str,
+        goal_id: str,
+        source_client_order_id: str,
+        outcome: str,
+        diagnostic_code: str,
+        authoritative_order_status: str,
+        exchange_order_id: str,
+        live_proof_outcome: str,
+        external_call_started: bool,
+        reported_read_count: int,
+        individual_retry_count: int,
+        authoritative_child_state: str,
+        sdk_mutation_invocation_state: str | None = None,
+        transport_submission_state: str | None = None,
+        exchange_mutation_state: str | None = None,
+        read_accounting_state: str | None = None,
+        observed_read_count: int | None = None,
+    ) -> FollowUpLiveProofMutationFinalizeResult:
+        """Commit Cancel result, exact local projection, and goal terminal."""
+
+        normalized_outcome = str(outcome or "").strip().upper()
+        spec = {
+            FollowUpMaterializationState.CANCEL_ACCEPTED_TERMINAL.value: (
+                FollowUpMaterializedChildTransitionKind.CANCEL_ACCEPTED_TERMINAL.value,
+                FollowUpLiveProofTerminalOutcome.SUCCEEDED.value,
+                "TERMINAL",
+            ),
+            FollowUpMaterializationState.CANCEL_EXPLICITLY_REJECTED.value: (
+                FollowUpMaterializedChildTransitionKind.CANCEL_EXPLICITLY_REJECTED_ACTIVE.value,
+                FollowUpLiveProofTerminalOutcome.REJECTED.value,
+                "ACTIVE",
+            ),
+            FollowUpMaterializationState.CANCEL_UNKNOWN_CONSUMED.value: (
+                FollowUpMaterializedChildTransitionKind.CANCEL_UNKNOWN_QUARANTINED.value,
+                FollowUpLiveProofTerminalOutcome.UNKNOWN.value,
+                "UNKNOWN",
+            ),
+        }.get(normalized_outcome)
+        if spec is None:
+            raise FollowUpIntentStoreConflict("cancel_result_invalid")
+        transition_kind, expected_proof_outcome, expected_child_state = spec
+        normalized_proof_outcome = str(live_proof_outcome or "").strip().upper()
+        normalized_child_state = str(authoritative_child_state or "").strip().upper()
+        raw_exchange_id = str(exchange_order_id or "").strip()
+        proof_outcome_matches = bool(
+            normalized_proof_outcome == expected_proof_outcome
+            or (
+                normalized_outcome
+                == FollowUpMaterializationState.CANCEL_UNKNOWN_CONSUMED.value
+                and normalized_proof_outcome
+                == FollowUpLiveProofTerminalOutcome.BLOCKED.value
+            )
+        )
+        if (
+            not proof_outcome_matches
+            or normalized_child_state != expected_child_state
+            or not raw_exchange_id
+        ):
+            raise FollowUpIntentStoreConflict(
+                "follow_up_live_proof_atomic_result_mismatch"
+            )
+        exchange_hash = hashlib.sha256(
+            raw_exchange_id.encode("utf-8")
+        ).hexdigest()
+        normalized_materialization_id = _require_uuid(
+            materialization_id,
+            code="materialization_id_invalid",
+        )
+        self.ensure_schema()
+        try:
+            with self.db.get_cursor() as cursor:
+                binding = self._cancel_operation_binding(
+                    normalized_materialization_id,
+                    _cursor=cursor,
+                )
+                materialization = self._transition_materialization(
+                    materialization_id=normalized_materialization_id,
+                    target_state=normalized_outcome,
+                    expected_state=(
+                        FollowUpMaterializationState.CANCEL_INVOCATION_STARTED.value
+                    ),
+                    diagnostic_code=diagnostic_code,
+                    exchange_order_id_sha256=exchange_hash,
+                    operation_binding=binding,
+                    consumed_code="cancel_boundary_consumed",
+                    replay_after_progress=True,
+                    _cursor=cursor,
+                )
+                local_state = (
+                    self._transition_materialized_child_local_state_locked(
+                        cursor,
+                        materialization_id=normalized_materialization_id,
+                        transition_kind=transition_kind,
+                        authoritative_order_status=authoritative_order_status,
+                        exchange_order_id=raw_exchange_id,
+                        operation_audit_id=(
+                            materialization.event.operation_audit_id
+                        ),
+                        operation_idempotency_key_sha256=(
+                            materialization.event.operation_idempotency_key_sha256
+                        ),
+                    )
+                )
+                terminal, terminal_replayed = (
+                    self._record_or_replay_atomic_live_proof_terminal(
+                        cursor,
+                        goal_id=goal_id,
+                        operation_kind=(
+                            FollowUpLiveProofOperationKind.CANCEL.value
+                        ),
+                        source_client_order_id=source_client_order_id,
+                        outcome=normalized_proof_outcome,
+                        external_call_started=external_call_started,
+                        reported_read_count=reported_read_count,
+                        individual_retry_count=individual_retry_count,
+                        authoritative_child_state=normalized_child_state,
+                        sdk_mutation_invocation_state=(
+                            sdk_mutation_invocation_state
+                        ),
+                        transport_submission_state=transport_submission_state,
+                        exchange_mutation_state=exchange_mutation_state,
+                        read_accounting_state=read_accounting_state,
+                        observed_read_count=observed_read_count,
+                    )
+                )
+                self._validate_atomic_live_proof_pair(
+                    materialization=materialization,
+                    live_proof=terminal,
+                    source_client_order_id=source_client_order_id,
+                    audit_id=materialization.event.operation_audit_id,
+                    operation_idempotency_key_sha256=(
+                        materialization.event.operation_idempotency_key_sha256
+                    ),
+                )
+                if not materialization.replayed and terminal_replayed:
+                    raise FollowUpIntentStoreConflict(
+                        "follow_up_live_proof_atomic_terminal_mismatch"
+                    )
+                return FollowUpLiveProofMutationFinalizeResult(
+                    materialization=materialization,
+                    local_state=local_state,
+                    live_proof=terminal,
+                    replayed=bool(
+                        materialization.replayed
+                        or local_state.replayed
+                        or terminal_replayed
+                    ),
+                )
+        except FollowUpIntentStoreError:
+            raise
+        except Exception:
+            raise FollowUpIntentStoreUnavailable(
+                "follow_up_live_proof_atomic_finalization_unavailable"
+            ) from None
+
+    def finalize_terminal_without_cancel_atomically(
+        self,
+        *,
+        materialization_id: str,
+        goal_id: str,
+        source_client_order_id: str,
+        diagnostic_code: str,
+        authoritative_order_status: str,
+        exchange_order_id: str,
+        operation_idempotency_key: str,
+        actor_id: str,
+        roles: tuple[str, ...],
+        environment: str,
+        operator_intent: str,
+        correlation_id: str,
+        audit_id: str,
+        reported_read_count: int = 1,
+    ) -> FollowUpLiveProofMutationFinalizeResult:
+        """Commit terminal native state, local projection, and read terminal."""
+
+        normalized_materialization_id = _require_uuid(
+            materialization_id,
+            code="materialization_id_invalid",
+        )
+        binding = self._requested_operation_binding(
+            operation_idempotency_key=operation_idempotency_key,
+            actor_id=actor_id,
+            roles=roles,
+            environment=environment,
+            operator_intent=operator_intent,
+            correlation_id=correlation_id,
+            operation_audit_id=audit_id,
+        )
+        if binding.operation_audit_id is None:
+            raise FollowUpIntentStoreConflict(
+                "materialization_operation_audit_id_invalid"
+            )
+        raw_exchange_id = str(exchange_order_id or "").strip()
+        if not raw_exchange_id:
+            raise FollowUpIntentStoreConflict(
+                "follow_up_live_proof_atomic_result_mismatch"
+            )
+        exchange_hash = hashlib.sha256(
+            raw_exchange_id.encode("utf-8")
+        ).hexdigest()
+        self.ensure_schema()
+        try:
+            with self.db.get_cursor() as cursor:
+                start = self._read_follow_up_live_proof_event_locked(
+                    cursor,
+                    goal_id=goal_id,
+                    operation_kind=(
+                        FollowUpLiveProofOperationKind.RECONCILIATION_READ.value
+                    ),
+                    event_state=(
+                        FollowUpLiveProofEventState.INVOCATION_STARTED.value
+                    ),
+                )
+                if (
+                    start is None
+                    or start.source_client_order_id != source_client_order_id
+                    or start.materialization_id != normalized_materialization_id
+                    or start.audit_id != binding.operation_audit_id
+                    or start.operation_idempotency_key_sha256
+                    != binding.idempotency_key_sha256
+                ):
+                    raise FollowUpIntentStoreConflict(
+                        "follow_up_live_proof_atomic_binding_mismatch"
+                    )
+                materialization = self._transition_materialization(
+                    materialization_id=normalized_materialization_id,
+                    target_state=(
+                        FollowUpMaterializationState.CANCEL_NOT_REQUIRED_TERMINAL.value
+                    ),
+                    expected_state=(
+                        FollowUpMaterializationState.CREATE_ACCEPTED_NONTERMINAL.value,
+                        FollowUpMaterializationState.CREATE_UNKNOWN_CONSUMED.value,
+                    ),
+                    diagnostic_code=diagnostic_code,
+                    exchange_order_id_sha256=exchange_hash,
+                    operation_binding=binding,
+                    consumed_code="cancel_not_eligible",
+                    replay_after_progress=True,
+                    _cursor=cursor,
+                )
+                local_state = (
+                    self._transition_materialized_child_local_state_locked(
+                        cursor,
+                        materialization_id=normalized_materialization_id,
+                        transition_kind=(
+                            FollowUpMaterializedChildTransitionKind.TERMINAL_WITHOUT_CANCEL.value
+                        ),
+                        authoritative_order_status=authoritative_order_status,
+                        exchange_order_id=raw_exchange_id,
+                        operation_audit_id=binding.operation_audit_id,
+                        operation_idempotency_key_sha256=(
+                            binding.idempotency_key_sha256
+                        ),
+                    )
+                )
+                terminal, terminal_replayed = (
+                    self._record_or_replay_atomic_live_proof_terminal(
+                        cursor,
+                        goal_id=goal_id,
+                        operation_kind=(
+                            FollowUpLiveProofOperationKind.RECONCILIATION_READ.value
+                        ),
+                        source_client_order_id=source_client_order_id,
+                        outcome=(
+                            FollowUpLiveProofTerminalOutcome.SUCCEEDED.value
+                        ),
+                        external_call_started=True,
+                        reported_read_count=reported_read_count,
+                        individual_retry_count=0,
+                        authoritative_child_state="TERMINAL",
+                    )
+                )
+                self._validate_atomic_live_proof_pair(
+                    materialization=materialization,
+                    live_proof=terminal,
+                    source_client_order_id=source_client_order_id,
+                    audit_id=binding.operation_audit_id,
+                    operation_idempotency_key_sha256=(
+                        binding.idempotency_key_sha256
+                    ),
+                )
+                if not materialization.replayed and terminal_replayed:
+                    raise FollowUpIntentStoreConflict(
+                        "follow_up_live_proof_atomic_terminal_mismatch"
+                    )
+                return FollowUpLiveProofMutationFinalizeResult(
+                    materialization=materialization,
+                    local_state=local_state,
+                    live_proof=terminal,
+                    replayed=bool(
+                        materialization.replayed
+                        or local_state.replayed
+                        or terminal_replayed
+                    ),
+                )
+        except FollowUpIntentStoreError:
+            raise
+        except Exception:
+            raise FollowUpIntentStoreUnavailable(
+                "follow_up_live_proof_atomic_finalization_unavailable"
+            ) from None
+
+    def finalize_reconciliation_projection_atomically(
+        self,
+        *,
+        materialization_id: str,
+        goal_id: str,
+        source_client_order_id: str,
+        transition_kind: str,
+        authoritative_order_status: str,
+        exchange_order_id: str | None,
+        operation_audit_id: str,
+        operation_idempotency_key_sha256: str,
+        live_proof_outcome: str,
+        external_call_started: bool,
+        reported_read_count: int,
+        individual_retry_count: int,
+        authoritative_child_state: str,
+    ) -> FollowUpLiveProofReconciliationFinalizeResult:
+        """Commit an exact reconciliation projection with its goal terminal."""
+
+        normalized_transition = str(transition_kind or "").strip().upper()
+        if normalized_transition not in {
+            FollowUpMaterializedChildTransitionKind.RECONCILED_ACTIVE.value,
+            FollowUpMaterializedChildTransitionKind.RECONCILED_TERMINAL.value,
+        }:
+            raise FollowUpIntentStoreConflict(
+                "materialized_child_transition_invalid"
+            )
+        normalized_audit_id = _require_uuid(
+            operation_audit_id,
+            code="materialization_operation_audit_id_invalid",
+        )
+        key_hash = self._validate_materialization_sha256(
+            operation_idempotency_key_sha256,
+            code="materialization_operation_idempotency_sha256_invalid",
+        )
+        normalized_outcome = str(live_proof_outcome or "").strip().upper()
+        normalized_child_state = str(authoritative_child_state or "").strip().upper()
+        self.ensure_schema()
+        try:
+            with self.db.get_cursor() as cursor:
+                start = self._read_follow_up_live_proof_event_locked(
+                    cursor,
+                    goal_id=goal_id,
+                    operation_kind=(
+                        FollowUpLiveProofOperationKind.RECONCILIATION_READ.value
+                    ),
+                    event_state=(
+                        FollowUpLiveProofEventState.INVOCATION_STARTED.value
+                    ),
+                )
+                if (
+                    start is None
+                    or start.source_client_order_id != source_client_order_id
+                    or start.materialization_id != materialization_id
+                    or start.audit_id != normalized_audit_id
+                    or start.operation_idempotency_key_sha256 != key_hash
+                ):
+                    raise FollowUpIntentStoreConflict(
+                        "follow_up_live_proof_atomic_binding_mismatch"
+                    )
+                local_state = (
+                    self._transition_materialized_child_local_state_locked(
+                        cursor,
+                        materialization_id=materialization_id,
+                        transition_kind=normalized_transition,
+                        authoritative_order_status=authoritative_order_status,
+                        exchange_order_id=exchange_order_id,
+                        operation_audit_id=normalized_audit_id,
+                        operation_idempotency_key_sha256=key_hash,
+                        _reconciliation_live_proof_evidence=start,
+                    )
+                )
+                terminal, terminal_replayed = (
+                    self._record_or_replay_atomic_live_proof_terminal(
+                        cursor,
+                        goal_id=goal_id,
+                        operation_kind=(
+                            FollowUpLiveProofOperationKind.RECONCILIATION_READ.value
+                        ),
+                        source_client_order_id=source_client_order_id,
+                        outcome=normalized_outcome,
+                        external_call_started=external_call_started,
+                        reported_read_count=reported_read_count,
+                        individual_retry_count=individual_retry_count,
+                        authoritative_child_state=normalized_child_state,
+                    )
+                )
+                return FollowUpLiveProofReconciliationFinalizeResult(
+                    local_state=local_state,
+                    live_proof=terminal,
+                    replayed=bool(local_state.replayed or terminal_replayed),
+                )
+        except FollowUpIntentStoreError:
+            raise
+        except Exception:
+            raise FollowUpIntentStoreUnavailable(
+                "follow_up_live_proof_atomic_finalization_unavailable"
+            ) from None
+
     def list_materialization_events(
         self,
         materialization_id: str,
@@ -2778,7 +6672,10 @@ class OperatorFollowUpIntentRepository:
     ) -> _FollowUpMaterializationOperationBinding:
         operation_key = str(operation_idempotency_key or "").strip()
         normalized_actor = str(actor_id or "").strip()
-        normalized_roles = tuple(str(role or "").strip() for role in roles)
+        role_values = tuple(
+            str(role or "").strip().lower() for role in roles
+        )
+        normalized_roles = tuple(sorted(role_values))
         normalized_environment = str(environment or "").strip()
         normalized_intent = str(operator_intent or "").strip()
         normalized_correlation = str(correlation_id or "").strip()
@@ -2789,7 +6686,7 @@ class OperatorFollowUpIntentRepository:
         if (
             not normalized_roles
             or any(not role for role in normalized_roles)
-            or len(set(normalized_roles)) != len(normalized_roles)
+            or len(set(role_values)) != len(role_values)
         ):
             raise FollowUpIntentStoreConflict("operation_roles_invalid")
         if not normalized_environment or len(normalized_environment) > 64:
@@ -2831,7 +6728,6 @@ class OperatorFollowUpIntentRepository:
                 requested.roles == event.roles,
                 requested.environment == event.environment,
                 requested.operator_intent == event.operator_intent,
-                requested.correlation_id == event.correlation_id,
                 requested.operation_audit_id in {
                     None,
                     event.operation_audit_id,
@@ -2851,6 +6747,7 @@ class OperatorFollowUpIntentRepository:
         use_prepare_operation_binding: bool = False,
         consumed_code: str,
         replay_after_progress: bool,
+        _cursor: Any | None = None,
     ) -> FollowUpMaterializationTransitionResult:
         materialization_id = _require_uuid(
             materialization_id,
@@ -2867,9 +6764,10 @@ class OperatorFollowUpIntentRepository:
                 exchange_order_id_sha256,
                 code="exchange_order_id_sha256_invalid",
             )
-        self.ensure_schema()
+        if _cursor is None:
+            self.ensure_schema()
         try:
-            with self.db.get_cursor() as cursor:
+            with self._transaction_cursor(_cursor) as cursor:
                 attempt = self._load_and_lock_materialization(
                     cursor,
                     materialization_id,
@@ -3117,9 +7015,11 @@ class OperatorFollowUpIntentRepository:
     def _cancel_operation_binding(
         self,
         materialization_id: str,
+        *,
+        _cursor: Any | None = None,
     ) -> _FollowUpMaterializationOperationBinding:
         try:
-            with self.db.get_cursor() as cursor:
+            with self._transaction_cursor(_cursor) as cursor:
                 event = self._read_materialization_event_locked(
                     cursor,
                     materialization_id=materialization_id,
@@ -3272,6 +7172,10 @@ class OperatorFollowUpIntentRepository:
         exchange_order_id: str | None,
         operation_audit_id: str,
         operation_idempotency_key_sha256: str,
+        _cursor: Any | None = None,
+        _reconciliation_live_proof_evidence: (
+            FollowUpLiveProofOperationRecord | None
+        ) = None,
     ) -> FollowUpMaterializedChildLocalStateTransitionResult:
         """Atomically project one durable exchange result into local child state.
 
@@ -3281,6 +7185,10 @@ class OperatorFollowUpIntentRepository:
         its SHA-256 digest.
         """
 
+        if _reconciliation_live_proof_evidence is not None and _cursor is None:
+            raise FollowUpIntentStoreConflict(
+                "materialized_child_operation_evidence_mismatch"
+            )
         materialization_id = _require_uuid(
             materialization_id,
             code="materialization_id_invalid",
@@ -3357,9 +7265,10 @@ class OperatorFollowUpIntentRepository:
                 "materialized_child_local_state_invalid"
             )
 
-        self.ensure_schema()
+        if _cursor is None:
+            self.ensure_schema()
         try:
-            with self.db.get_cursor() as cursor:
+            with self._transaction_cursor(_cursor) as cursor:
                 attempt = self._load_and_lock_materialization(
                     cursor,
                     materialization_id,
@@ -3419,15 +7328,46 @@ class OperatorFollowUpIntentRepository:
                     ),
                 )
                 materialization_event_row = _row(cursor)
-                if materialization_event_row is None:
-                    raise FollowUpIntentStoreConflict(
-                        "materialized_child_operation_evidence_mismatch"
-                    )
-                materialization_event = self._materialization_event_record(
-                    materialization_event_row
+                materialization_event = (
+                    self._materialization_event_record(materialization_event_row)
+                    if materialization_event_row is not None
+                    else None
                 )
+                if materialization_event is None:
+                    proof = _reconciliation_live_proof_evidence
+                    if (
+                        normalized_transition
+                        not in {
+                            FollowUpMaterializedChildTransitionKind.RECONCILED_ACTIVE.value,
+                            FollowUpMaterializedChildTransitionKind.RECONCILED_TERMINAL.value,
+                        }
+                        or proof is None
+                        or proof.goal_id
+                        != OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID
+                        or proof.operation_kind
+                        != FollowUpLiveProofOperationKind.RECONCILIATION_READ.value
+                        or proof.event_state
+                        != FollowUpLiveProofEventState.INVOCATION_STARTED.value
+                        or proof.source_client_order_id
+                        != attempt.source_client_order_id
+                        or proof.root_client_order_id
+                        != attempt.root_client_order_id
+                        or proof.follow_up_intent_id
+                        != attempt.follow_up_intent_id
+                        or proof.materialization_id != materialization_id
+                        or proof.child_client_order_id
+                        != attempt.child_client_order_id
+                        or proof.audit_id != operation_audit_id
+                        or proof.operation_idempotency_key_sha256
+                        != operation_key_hash
+                    ):
+                        raise FollowUpIntentStoreConflict(
+                            "materialized_child_operation_evidence_mismatch"
+                        )
                 event_exchange_hash = (
                     materialization_event.exchange_order_id_sha256
+                    if materialization_event is not None
+                    else None
                 )
                 strict_event_hash_transitions = {
                     FollowUpMaterializedChildTransitionKind.CREATE_ACCEPTED_ACTIVE.value,
@@ -3435,12 +7375,15 @@ class OperatorFollowUpIntentRepository:
                     FollowUpMaterializedChildTransitionKind.CANCEL_ACCEPTED_TERMINAL.value,
                     FollowUpMaterializedChildTransitionKind.TERMINAL_WITHOUT_CANCEL.value,
                 }
-                if (
-                    event_exchange_hash is not None
-                    and event_exchange_hash != exchange_hash
-                ) or (
-                    normalized_transition in strict_event_hash_transitions
-                    and event_exchange_hash != exchange_hash
+                if materialization_event is not None and (
+                    (
+                        event_exchange_hash is not None
+                        and event_exchange_hash != exchange_hash
+                    )
+                    or (
+                        normalized_transition in strict_event_hash_transitions
+                        and event_exchange_hash != exchange_hash
+                    )
                 ):
                     cursor.execute(
                         f"""
@@ -3977,6 +7920,18 @@ class OperatorFollowUpIntentRepository:
             raise FollowUpIntentStoreUnavailable(
                 "materialized_child_local_state_unknown"
             ) from None
+
+    def _transition_materialized_child_local_state_locked(
+        self,
+        cursor: Any,
+        **kwargs: Any,
+    ) -> FollowUpMaterializedChildLocalStateTransitionResult:
+        """Project local child state on the caller-owned transaction."""
+
+        return self.transition_materialized_child_local_state(
+            **kwargs,
+            _cursor=cursor,
+        )
 
     def read_latest_materialized_child_local_state(
         self,

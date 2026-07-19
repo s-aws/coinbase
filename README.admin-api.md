@@ -24,7 +24,41 @@ automatic follow-up mutation paths are source-disabled.
 
 ## Current Status
 
-Goal `operator_authorize_and_materialize_follow_up_intent` has Status:
+Goal `operator_follow_up_operations_queue_and_single_live_proof` has Status:
+`in_progress`. Current action is
+`implement_validate_audit_deploy_then_count_exact_candidates`. The routed
+Follow-up Operations workspace is a passive backend-owned local-SQL queue with
+pagination, filtering, classification, actionable readback, and navigation to
+the existing attach, materialize, and exact-child safe-closeout controls. It
+does not make Coinbase calls or determine live eligibility. Candidate counting
+and the separately bounded single live proof remain closed until focused/full
+validation, deployment checks, and independent safety plus blind-contextless
+audits pass. All live allowances remain unconsumed.
+
+The queue now returns its page, exact matching count, and the latest four-slot
+live-proof journal projection in one PostgreSQL statement; it performs no
+per-row journal lookup and has no N+1 read path. Top-level
+`current_request_activity` is exact zero for this passive GET. Each item keeps
+Create/Cancel allowance consumption separate from
+`durable_live_proof_activity`, whose named `eligibility_read`, `create`,
+`reconciliation_read`, and `cancel` slots report sanitized SDK-invocation,
+transport-submission, exchange-mutation, and read-count state. Only a record
+with all explicit accounting columns null may use conservative legacy
+projection; partial or incoherent explicit accounting and mismatched
+source/root/intent/materialization/child bindings fail closed.
+
+The materialization read, Create, safe-closeout, replay, and typed error
+contracts use the same separation. A replay reports exact-zero activity for
+the current request while preserving the durable journal; allowance
+consumption is not reinterpreted as a new SDK call. Specialized follow-up
+errors expose only fixed, value-blind current-request activity and never raw
+exception or exchange-response content. This implementation checkpoint made
+no current-goal deployment, candidate-count, Coinbase-read, Create, Cancel, or
+other live action; the remaining validation, audits, deployment, candidate
+count, and possible single proof are still pending.
+
+Historical predecessor goal
+`operator_authorize_and_materialize_follow_up_intent` has Status:
 `complete`. The authenticated backend-owned materialization and exact-child
 safe-closeout contracts, generated operator integration, focused/full gates,
 and independent audits passed. The live proof found no eligible filled
@@ -32,7 +66,7 @@ attached intent: candidate count, durable materialization attempt/claim count,
 materialized-child count, Coinbase eligibility/reconciliation reads, Create
 calls, Cancel calls, and submitted/executed notional are all zero; there was no
 unknown live outcome. The live-proof allowances remain unconsumed. Synthetic
-tests are not live proof. Current action is
+tests are not live proof. Its terminal action was
 `await_operator_direction_for_next_mvp`.
 
 Validation evidence is backend focused `164 passed`; backend canonical full

@@ -6,14 +6,23 @@ from datetime import datetime, timezone
 import os
 from pathlib import Path
 from threading import RLock
-from typing import Literal
+from typing import Literal, Self
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from core.enums import AdminApiActionClass, AdminApiCommandStatus, AdminApiPermission
+from core.enums import (
+    AdminApiActionClass,
+    AdminApiCommandStatus,
+    AdminApiPermission,
+    FollowUpSdkMutationInvocationState,
+    FollowUpTransportSubmissionState,
+)
 
-from .models import AdminLiveAdmissionDecisionEvidence
+from .models import (
+    AdminLiveAdmissionDecisionEvidence,
+    AdminOrderFollowUpCurrentRequestActivity,
+)
 
 
 _AUDIT_FILE_LOCK = RLock()
@@ -37,9 +46,22 @@ class AdminApiAuditEvent(BaseModel):
     client_order_id: str | None = None
     stealth_order_id: str | None = None
     coinbase_order_id: str | None = None
-    live_exchange_submitted: bool = False
-    live_coinbase_orders_ran: bool = False
+    live_exchange_submitted: bool = Field(
+        default=False,
+        description=(
+            "Confirmed-only compatibility projection; possible submission is "
+            "represented by current_request_activity."
+        ),
+    )
+    live_coinbase_orders_ran: bool = Field(
+        default=False,
+        description=(
+            "Confirmed-only compatibility projection; unknown SDK activity is "
+            "represented by current_request_activity."
+        ),
+    )
     live_coinbase_read_ran: bool = False
+    current_request_activity: AdminOrderFollowUpCurrentRequestActivity | None = None
     live_command_runtime_enabled: bool | None = None
     live_command_rest_client_available: bool | None = None
     live_command_runtime_ready: bool | None = None
@@ -52,6 +74,28 @@ class AdminApiAuditEvent(BaseModel):
     approval_cap_guard_decision_ref: str | None = None
     approval_reconciliation_plan_ref: str | None = None
     live_execution_intent_ref: str | None = None
+
+    @model_validator(mode="after")
+    def validate_follow_up_confirmed_only_projections(self) -> Self:
+        activity = self.current_request_activity
+        if activity is not None and (
+            (
+                self.live_coinbase_orders_ran
+                and activity.sdk_mutation_invocation_state
+                is not FollowUpSdkMutationInvocationState.INVOKED
+            )
+            or (
+                self.live_exchange_submitted
+                and activity.transport_submission_state
+                is not FollowUpTransportSubmissionState.CONFIRMED_SUBMITTED
+            )
+            or (
+                self.live_exchange_submitted
+                and not self.live_coinbase_orders_ran
+            )
+        ):
+            raise ValueError("follow_up_audit_activity_projection_invalid")
+        return self
 
 
 class AdmissionAuditTrailRequest(BaseModel):
@@ -137,7 +181,14 @@ class FileAdminApiAuditStore:
                 return event.audit_id
             self.path.parent.mkdir(parents=True, exist_ok=True)
             with self.path.open("a", encoding="utf-8") as handle:
-                handle.write(event.model_dump_json() + "\n")
+                excluded_fields = (
+                    {"current_request_activity"}
+                    if "current_request_activity" not in event.model_fields_set
+                    else None
+                )
+                handle.write(
+                    event.model_dump_json(exclude=excluded_fields) + "\n"
+                )
             return event.audit_id
 
     def read_recent(self, *, limit: int = 100) -> list[AdminApiAuditEvent]:

@@ -75774,7 +75774,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "materialization/safe-closeout"
         in spot_module["command_routes"]
     )
-    assert spot_module["action_posture"]["read_route_count"] == 23
+    assert spot_module["action_posture"]["read_route_count"] == 24
     assert spot_module["action_posture"]["command_route_count"] == 19
     assert spot_module["action_posture"]["live_route_count"] == 7
     assert spot_module["action_posture"]["command_gap_count"] == 2

@@ -131,7 +131,29 @@ audit ids. Expected fill status does not create a separate approval class.
 
 ## Current Handoff State
 
-- Current terminal: Goal
+- Current goal: `operator_follow_up_operations_queue_and_single_live_proof`
+  has Status: `in_progress`. Current work mode is
+  `in_progress_queue_passive_local_sql_then_single_live_proof`; current action
+  is `implement_validate_audit_deploy_then_count_exact_candidates`. The passive
+  backend-owned Follow-up Operations queue and tri-state activity contract are
+  implemented: one paged PostgreSQL statement bulk-projects all four latest
+  durable operation slots with no N+1 reads, while the GET reports exact-zero
+  current-request activity. Allowance consumption is separate from observed
+  SDK/transport/exchange/read evidence; replay activity is zero-current and
+  durable-preserving; all-null legacy rows project conservatively and partial
+  explicit rows fail closed. Materialization read/Create/Cancel contracts use
+  the same split, and specialized errors expose fixed sanitized activity
+  rather than raw responses or exception text. The remediated queue
+  classification does not treat `CREATE_UNKNOWN_CONSUMED` as action authority:
+  safe-closeout review requires an identity-bound terminal Create proof of a
+  genuine `UNKNOWN` / `POSSIBLY_SUBMITTED` boundary. Exact pre-SDK `BLOCKED` /
+  `NOT_INVOKED` / `NOT_SUBMITTED` / `NOT_MUTATED` proof is blocked with no
+  action, and absent or inconsistent proof fails closed. Continue the remaining
+  full validation, deployment checks, independent safety audit, and
+  blind-contextless audit before counting exact local candidates. No
+  current-goal deployment, candidate count, Coinbase call, or live proof has
+  occurred at this checkpoint, and all live allowances remain unconsumed.
+- Historical completed predecessor: Goal
   `operator_authorize_and_materialize_follow_up_intent` has Status: `complete`.
   The backend-owned, separately acknowledged materialization and exact-child
   safe-closeout paths are implemented and integrated through generated
@@ -147,7 +169,7 @@ audit ids. Expected fill status does not create a separate approval class.
   full: `1102 passed, 6 skipped` parallel and `457 passed, 150 skipped`
   serial, runner status `passed`, live execution `false`, notional `0`;
   frontend focused: `179 passed`; independent safety audit: `PASS`; and
-  blind-contextless audit: `PASS`. Current work mode is
+  blind-contextless audit: `PASS`. Its terminal work mode was
   `operator_materialization_terminal_closeout_complete`; current action is
   `await_operator_direction_for_next_mvp`.
 - Controlled-live operational handoff is verified: the final installed
@@ -278,12 +300,14 @@ audit ids. Expected fill status does not create a separate approval class.
   remediated models emit correlated `allOf`/`oneOf` pairs, generated TypeScript
   preserves those pairs, hybrid identities are test-rejected, and both
   reviewers re-reviewed the remediation with no remaining findings.
-- Current goal id: `operator_authorize_and_materialize_follow_up_intent`
-  (Status: `complete`).
+- Current goal id: `operator_follow_up_operations_queue_and_single_live_proof`
+  (Status: `in_progress`).
 - Current work mode:
-  `operator_materialization_terminal_closeout_complete`.
-- Current next action: `await_operator_direction_for_next_mvp`; keep
-  historical `R12_RELEASE_READY=False` and make no further R12 Coinbase call.
+  `in_progress_queue_passive_local_sql_then_single_live_proof`.
+- Current next action:
+  `implement_validate_audit_deploy_then_count_exact_candidates`; complete the
+  remaining gates before deployment or candidate counting, keep historical
+  `R12_RELEASE_READY=False`, and make no further R12 Coinbase call.
 - Historical predecessor slice: Default-profile Futures readback -> exact AVAX US CFM Coinbase
   Preview Order -> immutable operator-visible no-live preview readback. The
   one-shot R1 artifact terminated before

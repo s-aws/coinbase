@@ -18,21 +18,41 @@ import pytest
 from application.admin_api.operator_follow_up_materialization import (
     BackendMaterializationCandidate,
     ChildExchangeState,
+    ChildStateEvidence,
     ExchangeInvocationOutcome,
     FollowUpMaterializationRecord,
     MaterializationOperationResult,
     MaterializationReadResult,
     MaterializationRecordState,
     FreshMaterializationEligibility,
+    LiveProofOperationClaim,
+    MutationInvocationAccounting,
+    OperatorFollowUpMaterializationError,
+    PersistedInvocationResult,
 )
 from application.admin_api.operator_follow_up_materialization_runtime import (
     CanonicalFollowUpMaterializationExchange,
     NativeFollowUpMaterializationRepositoryAdapter,
     OperatorFollowUpMaterializationFacade,
     ProductionFollowUpMaterializationRuntime,
+    _PendingRawExchangeEvidence,
     _configured_admin_environment,
+    _pending_evidence_key,
+    _single_page_materialization_order_readback,
 )
-from core.enums import AdminApiCommandStatus
+from application.admin_api.spot_portfolio_binding import (
+    evaluate_spot_test_portfolio_binding,
+)
+from core.coinbase_execution_authority import CoinbaseExecutionAuthorityError
+from core.enums import (
+    AdminApiCommandStatus,
+    FollowUpExchangeMutationState,
+    FollowUpLiveProofOperationKind,
+    FollowUpLiveProofTerminalOutcome,
+    FollowUpReadAccountingState,
+    FollowUpSdkMutationInvocationState,
+    FollowUpTransportSubmissionState,
+)
 
 
 SOURCE_ID = "d24c9fc3-29c2-4e76-87d7-3d27cb94530f"
@@ -46,6 +66,52 @@ IDEMPOTENCY_KEY = "98296253-d0b8-44ca-8701-8c17ca99d397"
 PORTFOLIO_ID = "10732555-2b9d-4a62-993d-c738fe719d3b"
 EXCHANGE_ID = "86af4462-36dc-4e74-b8fc-f9be1e8f1000"
 SHA = hashlib.sha256(IDEMPOTENCY_KEY.encode()).hexdigest()
+
+
+def _mutation_accounting(
+    outcome: ExchangeInvocationOutcome,
+) -> MutationInvocationAccounting:
+    if outcome is ExchangeInvocationOutcome.ACCEPTED:
+        return MutationInvocationAccounting(
+            sdk_mutation_invocation_state=FollowUpSdkMutationInvocationState.INVOKED,
+            transport_submission_state=(
+                FollowUpTransportSubmissionState.CONFIRMED_SUBMITTED
+            ),
+            exchange_mutation_state=(
+                FollowUpExchangeMutationState.CONFIRMED_MUTATED
+            ),
+            read_accounting_state=FollowUpReadAccountingState.EXACT,
+            observed_read_count=1,
+            individual_retry_count=0,
+            policy_clean=True,
+        )
+    return MutationInvocationAccounting(
+        sdk_mutation_invocation_state=FollowUpSdkMutationInvocationState.INVOKED,
+        transport_submission_state=(
+            FollowUpTransportSubmissionState.POSSIBLY_SUBMITTED
+        ),
+        exchange_mutation_state=FollowUpExchangeMutationState.UNKNOWN,
+        read_accounting_state=FollowUpReadAccountingState.UNKNOWN,
+        observed_read_count=None,
+        individual_retry_count=0,
+        policy_clean=True,
+    )
+
+
+def _assert_invocation_activity(
+    result: object,
+    *,
+    sdk: FollowUpSdkMutationInvocationState,
+    transport: FollowUpTransportSubmissionState,
+    exchange: FollowUpExchangeMutationState,
+    read: FollowUpReadAccountingState,
+    count: int | None,
+) -> None:
+    assert result.sdk_mutation_invocation_state is sdk
+    assert result.transport_submission_state is transport
+    assert result.exchange_mutation_state is exchange
+    assert result.read_accounting_state is read
+    assert result.observed_read_count == count
 
 
 def test_environment_fallback_matches_backend_authenticated_route(
@@ -137,6 +203,7 @@ class _NativeRepository:
         self.calls: list[tuple[str, object]] = []
         self.audit_events: list[SimpleNamespace] = []
         self.local_projection: SimpleNamespace | None = None
+        self.live_proof_records: dict[str, SimpleNamespace] = {}
         if attempt is not None:
             operation_audit_id = (
                 getattr(attempt, "current_operation_audit_id", None)
@@ -175,6 +242,37 @@ class _NativeRepository:
                     operation_audit_id=operation_audit_id,
                     recorded_at=attempt.state_recorded_at,
                 )
+            self.live_proof_records["ELIGIBILITY_READ"] = self._live_proof(
+                "ELIGIBILITY_READ",
+                event_state="TERMINAL",
+                outcome="SUCCEEDED",
+                observed_read_count=1,
+            )
+            state = str(attempt.current_state)
+            if state.startswith("CREATE_"):
+                create_outcome = (
+                    "SUCCEEDED"
+                    if state.startswith("CREATE_ACCEPTED")
+                    else "REJECTED"
+                    if state == "CREATE_EXPLICITLY_REJECTED"
+                    else "UNKNOWN"
+                )
+                self.live_proof_records["CREATE"] = self._live_proof(
+                    "CREATE",
+                    event_state=(
+                        "INVOCATION_STARTED"
+                        if state == "CREATE_INVOCATION_STARTED"
+                        else "TERMINAL"
+                    ),
+                    outcome=(
+                        None
+                        if state == "CREATE_INVOCATION_STARTED"
+                        else create_outcome
+                    ),
+                    observed_read_count=(
+                        1 if create_outcome == "SUCCEEDED" else 0
+                    ),
+                )
 
     def read_materialization(self, source_client_order_id: str):
         self.calls.append(("read", source_client_order_id))
@@ -197,6 +295,23 @@ class _NativeRepository:
     ):
         self.calls.append(("projection", materialization_id))
         return self.local_projection
+
+    def read_follow_up_live_proof_operation_set(
+        self,
+        *,
+        goal_id: str,
+        source_client_order_id: str,
+    ):
+        self.calls.append(("activity", source_client_order_id))
+        assert goal_id == "operator_follow_up_operations_queue_and_single_live_proof"
+        return SimpleNamespace(
+            eligibility_read=self.live_proof_records.get("ELIGIBILITY_READ"),
+            create=self.live_proof_records.get("CREATE"),
+            reconciliation_read=self.live_proof_records.get(
+                "RECONCILIATION_READ"
+            ),
+            cancel=self.live_proof_records.get("CANCEL"),
+        )
 
     def prepare_materialization(self, command):
         self.calls.append(("prepare", command))
@@ -277,6 +392,352 @@ class _NativeRepository:
         )
         return SimpleNamespace(
             attempt=self.attempt, event=SimpleNamespace(), replayed=False
+        )
+
+    def _live_proof(
+        self,
+        operation_kind: str,
+        *,
+        event_state: str,
+        outcome: str | None = None,
+        audit_id: str = AUDIT_ID,
+        operation_hash: str = SHA,
+        child_state: str | None = None,
+        observed_read_count: int | None = None,
+        sdk_state: str | None = None,
+        transport_state: str | None = None,
+        exchange_state: str | None = None,
+        read_state: str | None = None,
+    ) -> SimpleNamespace:
+        mutation = operation_kind in {"CREATE", "CANCEL"}
+        if all(
+            value is not None
+            for value in (sdk_state, transport_state, exchange_state, read_state)
+        ):
+            pass
+        elif mutation and event_state == "INVOCATION_STARTED":
+            sdk_state = FollowUpSdkMutationInvocationState.UNKNOWN.value
+            transport_state = (
+                FollowUpTransportSubmissionState.POSSIBLY_SUBMITTED.value
+            )
+            exchange_state = FollowUpExchangeMutationState.UNKNOWN.value
+            read_state = FollowUpReadAccountingState.UNKNOWN.value
+            observed_read_count = None
+        elif mutation and outcome == "SUCCEEDED":
+            sdk_state = FollowUpSdkMutationInvocationState.INVOKED.value
+            transport_state = (
+                FollowUpTransportSubmissionState.CONFIRMED_SUBMITTED.value
+            )
+            exchange_state = (
+                FollowUpExchangeMutationState.CONFIRMED_MUTATED.value
+            )
+            read_state = FollowUpReadAccountingState.EXACT.value
+            observed_read_count = 1
+        elif mutation and outcome == "REJECTED":
+            sdk_state = FollowUpSdkMutationInvocationState.INVOKED.value
+            transport_state = (
+                FollowUpTransportSubmissionState.CONFIRMED_SUBMITTED.value
+            )
+            exchange_state = FollowUpExchangeMutationState.NOT_MUTATED.value
+            read_state = FollowUpReadAccountingState.EXACT.value
+            observed_read_count = 0
+        elif mutation:
+            sdk_state = FollowUpSdkMutationInvocationState.UNKNOWN.value
+            transport_state = (
+                FollowUpTransportSubmissionState.POSSIBLY_SUBMITTED.value
+            )
+            exchange_state = FollowUpExchangeMutationState.UNKNOWN.value
+            read_state = FollowUpReadAccountingState.UNKNOWN.value
+            observed_read_count = None
+        else:
+            sdk_state = FollowUpSdkMutationInvocationState.NOT_INVOKED.value
+            transport_state = FollowUpTransportSubmissionState.NOT_SUBMITTED.value
+            exchange_state = FollowUpExchangeMutationState.NOT_MUTATED.value
+            read_state = (
+                FollowUpReadAccountingState.UNKNOWN.value
+                if event_state == "INVOCATION_STARTED" or outcome == "UNKNOWN"
+                else FollowUpReadAccountingState.EXACT.value
+            )
+            if read_state == FollowUpReadAccountingState.UNKNOWN.value:
+                observed_read_count = None
+        return SimpleNamespace(
+            event_id="c3ce1411-0b46-4ffc-b889-15fbfae4e88a",
+            goal_id="operator_follow_up_operations_queue_and_single_live_proof",
+            operation_kind=operation_kind,
+            event_state=event_state,
+            outcome=outcome,
+            diagnostic_code="fixed_diagnostic",
+            source_client_order_id=SOURCE_ID,
+            root_client_order_id=ROOT_ID,
+            follow_up_intent_id=INTENT_ID,
+            materialization_id=(
+                None if operation_kind == "ELIGIBILITY_READ" else MATERIALIZATION_ID
+            ),
+            child_client_order_id=(
+                None if operation_kind == "ELIGIBILITY_READ" else CHILD_ID
+            ),
+            correlation_id=CORRELATION_ID,
+            audit_id=audit_id,
+            operation_idempotency_key_sha256=operation_hash,
+            sdk_mutation_invocation_state=sdk_state,
+            transport_submission_state=transport_state,
+            exchange_mutation_state=exchange_state,
+            read_accounting_state=read_state,
+            observed_read_count=observed_read_count,
+            accounting_evidence_origin="EXPLICIT",
+            external_call_started=(
+                sdk_state == FollowUpSdkMutationInvocationState.INVOKED.value
+            ),
+            reported_read_count=observed_read_count or 0,
+            individual_retry_count=0,
+            authoritative_child_state=child_state,
+            recorded_at="2026-07-18T12:00:02+00:00",
+            claimed=True,
+        )
+
+    def claim_create_invocation_started_atomically(self, **kwargs):
+        self.calls.append(("atomic_create_start", kwargs))
+        self.attempt = _native_attempt(
+            state="CREATE_INVOCATION_STARTED",
+            diagnostic="create_invocation_started",
+            operation_hash=kwargs["operation_idempotency_key_sha256"],
+            operation_audit_id=kwargs["audit_id"],
+        )
+        return SimpleNamespace(
+            materialization=SimpleNamespace(
+                attempt=self.attempt,
+                event=SimpleNamespace(
+                    operation_audit_id=kwargs["audit_id"],
+                    operation_idempotency_key_sha256=(
+                        kwargs["operation_idempotency_key_sha256"]
+                    ),
+                ),
+                replayed=False,
+            ),
+            live_proof=self._live_proof(
+                "CREATE",
+                event_state="INVOCATION_STARTED",
+                audit_id=kwargs["audit_id"],
+                operation_hash=kwargs["operation_idempotency_key_sha256"],
+            ),
+            claimed=True,
+        )
+
+    def finalize_create_invocation_atomically(self, **kwargs):
+        self.calls.append(("atomic_create_finalize", kwargs))
+        self.attempt = _native_attempt(
+            state=kwargs["outcome"],
+            diagnostic=kwargs["diagnostic_code"],
+            exchange_hash=(
+                hashlib.sha256(kwargs["exchange_order_id"].encode()).hexdigest()
+                if kwargs.get("exchange_order_id")
+                else None
+            ),
+            operation_hash=SHA,
+            operation_audit_id=AUDIT_ID,
+        )
+        self.local_projection = SimpleNamespace(
+            materialization_id=MATERIALIZATION_ID,
+            child_client_order_id=CHILD_ID,
+            transition_kind=(
+                "CREATE_ACCEPTED_ACTIVE"
+                if kwargs["outcome"] == "CREATE_ACCEPTED_NONTERMINAL"
+                else "CREATE_UNKNOWN_QUARANTINED"
+            ),
+            authoritative_order_status=kwargs["authoritative_order_status"],
+            exchange_order_id_sha256=(
+                hashlib.sha256(kwargs["exchange_order_id"].encode()).hexdigest()
+                if kwargs.get("exchange_order_id")
+                else None
+            ),
+            operation_audit_id=AUDIT_ID,
+            operation_idempotency_key_sha256=SHA,
+        )
+        return SimpleNamespace(
+            materialization=SimpleNamespace(
+                attempt=self.attempt,
+                event=SimpleNamespace(),
+                replayed=False,
+            ),
+            local_state=SimpleNamespace(
+                record=self.local_projection,
+                replayed=False,
+            ),
+            live_proof=self._live_proof(
+                "CREATE",
+                event_state="TERMINAL",
+                outcome=kwargs["live_proof_outcome"],
+                child_state=kwargs["authoritative_child_state"],
+                sdk_state=kwargs["sdk_mutation_invocation_state"],
+                transport_state=kwargs["transport_submission_state"],
+                exchange_state=kwargs["exchange_mutation_state"],
+                read_state=kwargs["read_accounting_state"],
+                observed_read_count=kwargs["observed_read_count"],
+            ),
+            replayed=False,
+        )
+
+    def claim_cancel_invocation_started_atomically(self, **kwargs):
+        self.calls.append(("atomic_cancel_start", kwargs))
+        operation_hash = hashlib.sha256(
+            kwargs["operation_idempotency_key"].encode()
+        ).hexdigest()
+        self.attempt = _native_attempt(
+            state="CANCEL_INVOCATION_STARTED",
+            diagnostic="cancel_invocation_started",
+            exchange_hash=hashlib.sha256(EXCHANGE_ID.encode()).hexdigest(),
+            operation_hash=operation_hash,
+            operation_audit_id=kwargs["audit_id"],
+            operation_actor_id=kwargs["actor_id"],
+            operation_roles=kwargs["roles"],
+            operation_environment=kwargs["environment"],
+            operation_intent=kwargs["operator_intent"],
+            operation_correlation_id=kwargs["correlation_id"],
+        )
+        return SimpleNamespace(
+            materialization=SimpleNamespace(
+                attempt=self.attempt,
+                event=SimpleNamespace(),
+                replayed=False,
+            ),
+            live_proof=self._live_proof(
+                "CANCEL",
+                event_state="INVOCATION_STARTED",
+                audit_id=kwargs["audit_id"],
+                operation_hash=operation_hash,
+            ),
+            claimed=True,
+        )
+
+    def finalize_cancel_invocation_atomically(self, **kwargs):
+        self.calls.append(("atomic_cancel_finalize", kwargs))
+        operation_hash = self.attempt.operation_idempotency_key_sha256
+        self.attempt = _native_attempt(
+            state=kwargs["outcome"],
+            diagnostic=kwargs["diagnostic_code"],
+            exchange_hash=hashlib.sha256(
+                kwargs["exchange_order_id"].encode()
+            ).hexdigest(),
+            operation_hash=operation_hash,
+            operation_audit_id=AUDIT_ID,
+        )
+        self.local_projection = SimpleNamespace(
+            materialization_id=MATERIALIZATION_ID,
+            child_client_order_id=CHILD_ID,
+            transition_kind="CANCEL_ACCEPTED_TERMINAL",
+            authoritative_order_status=kwargs["authoritative_order_status"],
+            exchange_order_id_sha256=hashlib.sha256(
+                kwargs["exchange_order_id"].encode()
+            ).hexdigest(),
+            operation_audit_id=AUDIT_ID,
+            operation_idempotency_key_sha256=operation_hash,
+        )
+        return SimpleNamespace(
+            materialization=SimpleNamespace(
+                attempt=self.attempt,
+                event=SimpleNamespace(),
+                replayed=False,
+            ),
+            local_state=SimpleNamespace(
+                record=self.local_projection,
+                replayed=False,
+            ),
+            live_proof=self._live_proof(
+                "CANCEL",
+                event_state="TERMINAL",
+                outcome=kwargs["live_proof_outcome"],
+                audit_id=AUDIT_ID,
+                operation_hash=operation_hash,
+                child_state=kwargs["authoritative_child_state"],
+                sdk_state=kwargs["sdk_mutation_invocation_state"],
+                transport_state=kwargs["transport_submission_state"],
+                exchange_state=kwargs["exchange_mutation_state"],
+                read_state=kwargs["read_accounting_state"],
+                observed_read_count=kwargs["observed_read_count"],
+            ),
+            replayed=False,
+        )
+
+    def finalize_reconciliation_projection_atomically(self, **kwargs):
+        self.calls.append(("atomic_reconciliation_finalize", kwargs))
+        self.local_projection = SimpleNamespace(
+            materialization_id=MATERIALIZATION_ID,
+            child_client_order_id=CHILD_ID,
+            transition_kind=kwargs["transition_kind"],
+            authoritative_order_status=kwargs["authoritative_order_status"],
+            exchange_order_id_sha256=hashlib.sha256(
+                kwargs["exchange_order_id"].encode()
+            ).hexdigest(),
+            operation_audit_id=kwargs["operation_audit_id"],
+            operation_idempotency_key_sha256=(
+                kwargs["operation_idempotency_key_sha256"]
+            ),
+        )
+        return SimpleNamespace(
+            local_state=SimpleNamespace(
+                record=self.local_projection,
+                replayed=False,
+            ),
+            live_proof=self._live_proof(
+                "RECONCILIATION_READ",
+                event_state="TERMINAL",
+                outcome=kwargs["live_proof_outcome"],
+                audit_id=kwargs["operation_audit_id"],
+                operation_hash=kwargs["operation_idempotency_key_sha256"],
+                child_state=kwargs["authoritative_child_state"],
+            ),
+            replayed=False,
+        )
+
+    def finalize_terminal_without_cancel_atomically(self, **kwargs):
+        self.calls.append(("atomic_terminal_without_cancel", kwargs))
+        operation_hash = hashlib.sha256(
+            kwargs["operation_idempotency_key"].encode()
+        ).hexdigest()
+        self.attempt = _native_attempt(
+            state="CANCEL_NOT_REQUIRED_TERMINAL",
+            diagnostic=kwargs["diagnostic_code"],
+            exchange_hash=hashlib.sha256(
+                kwargs["exchange_order_id"].encode()
+            ).hexdigest(),
+            operation_hash=operation_hash,
+            operation_audit_id=kwargs["audit_id"],
+            operation_actor_id=kwargs["actor_id"],
+            operation_roles=kwargs["roles"],
+            operation_environment=kwargs["environment"],
+            operation_intent=kwargs["operator_intent"],
+            operation_correlation_id=kwargs["correlation_id"],
+        )
+        self.local_projection = SimpleNamespace(
+            materialization_id=MATERIALIZATION_ID,
+            child_client_order_id=CHILD_ID,
+            transition_kind="TERMINAL_WITHOUT_CANCEL",
+            authoritative_order_status=kwargs["authoritative_order_status"],
+            exchange_order_id_sha256=hashlib.sha256(
+                kwargs["exchange_order_id"].encode()
+            ).hexdigest(),
+            operation_audit_id=kwargs["audit_id"],
+            operation_idempotency_key_sha256=operation_hash,
+        )
+        return SimpleNamespace(
+            materialization=SimpleNamespace(
+                attempt=self.attempt,
+                event=SimpleNamespace(),
+                replayed=False,
+            ),
+            local_state=SimpleNamespace(
+                record=self.local_projection,
+                replayed=False,
+            ),
+            live_proof=self._live_proof(
+                "RECONCILIATION_READ",
+                event_state="TERMINAL",
+                outcome="SUCCEEDED",
+                audit_id=kwargs["audit_id"],
+                operation_hash=operation_hash,
+                child_state="TERMINAL",
+            ),
+            replayed=False,
         )
 
 
@@ -437,6 +898,517 @@ def test_native_repository_adapter_rejects_changed_create_idempotency_key() -> N
         )
 
 
+def test_native_repository_adapter_uses_atomic_create_boundary_and_raw_projection() -> None:
+    native = _NativeRepository(_native_attempt(operation_hash=SHA))
+    pending: dict[tuple[str, str, str, str], _PendingRawExchangeEvidence] = {}
+    adapter = NativeFollowUpMaterializationRepositoryAdapter(
+        native,
+        pending_raw_exchange_evidence=pending,
+    )
+
+    boundary = adapter.claim_create_invocation_started_atomically(
+        source_client_order_id=SOURCE_ID,
+        materialization_id=MATERIALIZATION_ID,
+        correlation_id=CORRELATION_ID,
+        audit_id=AUDIT_ID,
+        operation_idempotency_key_sha256=SHA,
+    )
+    assert boundary.claimed is True
+    assert boundary.record.state is (
+        MaterializationRecordState.CREATE_INVOCATION_STARTED
+    )
+
+    pending_key = _pending_evidence_key(
+        materialization_id=MATERIALIZATION_ID,
+        child_client_order_id=CHILD_ID,
+        operation_audit_id=AUDIT_ID,
+        operation_idempotency_key_sha256=SHA,
+    )
+    pending[pending_key] = _PendingRawExchangeEvidence(
+        materialization_id=MATERIALIZATION_ID,
+        child_client_order_id=CHILD_ID,
+        operation_audit_id=AUDIT_ID,
+        operation_idempotency_key_sha256=SHA,
+        authoritative_order_status="OPEN",
+        exchange_order_id=EXCHANGE_ID,
+    )
+    result = PersistedInvocationResult(
+        outcome=ExchangeInvocationOutcome.ACCEPTED,
+        child_state=ChildExchangeState.ACTIVE,
+        diagnostic_code="follow_up_materialization_create_accepted",
+        operation_idempotency_key_sha256=SHA,
+        correlation_id=CORRELATION_ID,
+        exchange_order_id_sha256=hashlib.sha256(
+            EXCHANGE_ID.encode()
+        ).hexdigest(),
+    )
+
+    finalized = adapter.finalize_create_invocation_atomically(
+        source_client_order_id=SOURCE_ID,
+        materialization_id=MATERIALIZATION_ID,
+        result=result,
+        accounting=_mutation_accounting(ExchangeInvocationOutcome.ACCEPTED),
+        external_call_started=True,
+        reported_read_count=1,
+        individual_retry_count=0,
+    )
+
+    assert finalized.state is MaterializationRecordState.CREATE_ACCEPTED
+    assert pending_key not in pending
+    assert native.calls[-1][0] == "atomic_create_finalize"
+    assert native.calls[-1][1]["exchange_order_id"] == EXCHANGE_ID
+    assert native.calls[-1][1]["authoritative_order_status"] == "OPEN"
+
+
+def test_native_repository_adapter_rejects_missing_or_mismatched_atomic_create_evidence() -> None:
+    native = _NativeRepository(
+        _native_attempt(
+            state="CREATE_INVOCATION_STARTED",
+            diagnostic="create_invocation_started",
+            operation_hash=SHA,
+            operation_audit_id=AUDIT_ID,
+        )
+    )
+    pending: dict[tuple[str, str, str, str], _PendingRawExchangeEvidence] = {}
+    adapter = NativeFollowUpMaterializationRepositoryAdapter(
+        native,
+        pending_raw_exchange_evidence=pending,
+    )
+    result = PersistedInvocationResult(
+        outcome=ExchangeInvocationOutcome.ACCEPTED,
+        child_state=ChildExchangeState.ACTIVE,
+        diagnostic_code="follow_up_materialization_create_accepted",
+        operation_idempotency_key_sha256=SHA,
+        correlation_id=CORRELATION_ID,
+        exchange_order_id_sha256=hashlib.sha256(
+            EXCHANGE_ID.encode()
+        ).hexdigest(),
+    )
+    def finalize() -> FollowUpMaterializationRecord:
+        return adapter.finalize_create_invocation_atomically(
+            source_client_order_id=SOURCE_ID,
+            materialization_id=MATERIALIZATION_ID,
+            result=result,
+            accounting=_mutation_accounting(ExchangeInvocationOutcome.ACCEPTED),
+            external_call_started=True,
+            reported_read_count=1,
+            individual_retry_count=0,
+        )
+
+    with pytest.raises(RuntimeError, match="atomic_evidence_missing"):
+        finalize()
+
+    pending_key = _pending_evidence_key(
+        materialization_id=MATERIALIZATION_ID,
+        child_client_order_id=CHILD_ID,
+        operation_audit_id=AUDIT_ID,
+        operation_idempotency_key_sha256=SHA,
+    )
+    pending[pending_key] = _PendingRawExchangeEvidence(
+        materialization_id=MATERIALIZATION_ID,
+        child_client_order_id=CHILD_ID,
+        operation_audit_id=AUDIT_ID,
+        operation_idempotency_key_sha256=SHA,
+        authoritative_order_status="OPEN",
+        exchange_order_id="different-exchange-id",
+    )
+    with pytest.raises(RuntimeError, match="atomic_evidence_mismatch"):
+        finalize()
+    assert pending_key in pending
+
+
+def test_native_repository_adapter_retains_pending_evidence_on_atomic_rollback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    native = _NativeRepository(
+        _native_attempt(
+            state="CREATE_INVOCATION_STARTED",
+            diagnostic="create_invocation_started",
+            operation_hash=SHA,
+            operation_audit_id=AUDIT_ID,
+        )
+    )
+    pending_key = _pending_evidence_key(
+        materialization_id=MATERIALIZATION_ID,
+        child_client_order_id=CHILD_ID,
+        operation_audit_id=AUDIT_ID,
+        operation_idempotency_key_sha256=SHA,
+    )
+    pending = {
+        pending_key: _PendingRawExchangeEvidence(
+            materialization_id=MATERIALIZATION_ID,
+            child_client_order_id=CHILD_ID,
+            operation_audit_id=AUDIT_ID,
+            operation_idempotency_key_sha256=SHA,
+            authoritative_order_status="OPEN",
+            exchange_order_id=EXCHANGE_ID,
+        )
+    }
+    adapter = NativeFollowUpMaterializationRepositoryAdapter(
+        native,
+        pending_raw_exchange_evidence=pending,
+    )
+
+    def fail_atomic_finalize(**_kwargs):
+        raise RuntimeError("synthetic_transaction_rollback")
+
+    monkeypatch.setattr(
+        native,
+        "finalize_create_invocation_atomically",
+        fail_atomic_finalize,
+    )
+    with pytest.raises(RuntimeError, match="synthetic_transaction_rollback"):
+        adapter.finalize_create_invocation_atomically(
+            source_client_order_id=SOURCE_ID,
+            materialization_id=MATERIALIZATION_ID,
+            result=PersistedInvocationResult(
+                outcome=ExchangeInvocationOutcome.ACCEPTED,
+                child_state=ChildExchangeState.ACTIVE,
+                diagnostic_code="follow_up_materialization_create_accepted",
+                operation_idempotency_key_sha256=SHA,
+                correlation_id=CORRELATION_ID,
+                exchange_order_id_sha256=hashlib.sha256(
+                    EXCHANGE_ID.encode()
+                ).hexdigest(),
+            ),
+            accounting=_mutation_accounting(ExchangeInvocationOutcome.ACCEPTED),
+            external_call_started=True,
+            reported_read_count=1,
+            individual_retry_count=0,
+        )
+
+    assert pending_key in pending
+
+
+def test_atomic_create_unknown_ignores_and_consumes_exact_cached_raw_evidence() -> None:
+    native = _NativeRepository(
+        _native_attempt(
+            state="CREATE_INVOCATION_STARTED",
+            diagnostic="create_invocation_started",
+            operation_hash=SHA,
+            operation_audit_id=AUDIT_ID,
+        )
+    )
+    pending_key = _pending_evidence_key(
+        materialization_id=MATERIALIZATION_ID,
+        child_client_order_id=CHILD_ID,
+        operation_audit_id=AUDIT_ID,
+        operation_idempotency_key_sha256=SHA,
+    )
+    pending = {
+        pending_key: _PendingRawExchangeEvidence(
+            materialization_id=MATERIALIZATION_ID,
+            child_client_order_id=CHILD_ID,
+            operation_audit_id=AUDIT_ID,
+            operation_idempotency_key_sha256=SHA,
+            authoritative_order_status="OPEN",
+            exchange_order_id=EXCHANGE_ID,
+        )
+    }
+    adapter = NativeFollowUpMaterializationRepositoryAdapter(
+        native,
+        pending_raw_exchange_evidence=pending,
+    )
+
+    finalized = adapter.finalize_create_invocation_atomically(
+        source_client_order_id=SOURCE_ID,
+        materialization_id=MATERIALIZATION_ID,
+        result=PersistedInvocationResult(
+            outcome=ExchangeInvocationOutcome.UNKNOWN,
+            child_state=ChildExchangeState.UNKNOWN,
+            diagnostic_code="follow_up_materialization_create_outcome_unknown",
+            operation_idempotency_key_sha256=SHA,
+            correlation_id=CORRELATION_ID,
+        ),
+        accounting=_mutation_accounting(ExchangeInvocationOutcome.UNKNOWN),
+        external_call_started=True,
+        reported_read_count=0,
+        individual_retry_count=0,
+    )
+
+    assert finalized.state is MaterializationRecordState.CREATE_UNKNOWN
+    assert pending_key not in pending
+    assert native.calls[-1][1]["exchange_order_id"] is None
+    assert native.calls[-1][1]["authoritative_order_status"] == (
+        "SUBMISSION_UNKNOWN"
+    )
+
+
+def test_atomic_cancel_unknown_uses_pre_call_local_status_not_terminal_cache() -> None:
+    operation_hash = hashlib.sha256(IDEMPOTENCY_KEY.encode()).hexdigest()
+    native = _NativeRepository(
+        _native_attempt(
+            state="CANCEL_INVOCATION_STARTED",
+            diagnostic="cancel_invocation_started",
+            exchange_hash=hashlib.sha256(EXCHANGE_ID.encode()).hexdigest(),
+            operation_hash=operation_hash,
+            operation_audit_id=AUDIT_ID,
+        )
+    )
+    pending_key = _pending_evidence_key(
+        materialization_id=MATERIALIZATION_ID,
+        child_client_order_id=CHILD_ID,
+        operation_audit_id=AUDIT_ID,
+        operation_idempotency_key_sha256=operation_hash,
+    )
+    pending = {
+        pending_key: _PendingRawExchangeEvidence(
+            materialization_id=MATERIALIZATION_ID,
+            child_client_order_id=CHILD_ID,
+            operation_audit_id=AUDIT_ID,
+            operation_idempotency_key_sha256=operation_hash,
+            authoritative_order_status="CANCELLED",
+            exchange_order_id=EXCHANGE_ID,
+        )
+    }
+    adapter = NativeFollowUpMaterializationRepositoryAdapter(
+        native,
+        pending_raw_exchange_evidence=pending,
+        local_order_reader=lambda child_id: {
+            "client_order_id": child_id,
+            "exchange_order_id": EXCHANGE_ID,
+            "status": "CANCEL_QUEUED",
+        },
+    )
+
+    finalized = adapter.finalize_cancel_invocation_atomically(
+        source_client_order_id=SOURCE_ID,
+        materialization_id=MATERIALIZATION_ID,
+        result=PersistedInvocationResult(
+            outcome=ExchangeInvocationOutcome.UNKNOWN,
+            child_state=ChildExchangeState.UNKNOWN,
+            diagnostic_code="follow_up_materialization_cancel_outcome_unknown",
+            operation_idempotency_key_sha256=operation_hash,
+            correlation_id=CORRELATION_ID,
+        ),
+        accounting=_mutation_accounting(ExchangeInvocationOutcome.UNKNOWN),
+        external_call_started=True,
+        reported_read_count=0,
+        individual_retry_count=0,
+    )
+
+    assert finalized.state is MaterializationRecordState.CANCEL_UNKNOWN
+    assert pending_key not in pending
+    assert native.calls[-1][1]["authoritative_order_status"] == (
+        "CANCEL_QUEUED"
+    )
+
+
+def test_native_repository_adapter_uses_atomic_cancel_boundary_and_local_restart_evidence() -> None:
+    operation_hash = hashlib.sha256(IDEMPOTENCY_KEY.encode()).hexdigest()
+    native = _NativeRepository(
+        _native_attempt(
+            state="CREATE_ACCEPTED_NONTERMINAL",
+            diagnostic="create_accepted_nonterminal",
+            exchange_hash=hashlib.sha256(EXCHANGE_ID.encode()).hexdigest(),
+            operation_hash=SHA,
+            operation_audit_id=AUDIT_ID,
+        )
+    )
+    local_child = {
+        "client_order_id": CHILD_ID,
+        "exchange_order_id": EXCHANGE_ID,
+        "status": "OPEN",
+    }
+    adapter = NativeFollowUpMaterializationRepositoryAdapter(
+        native,
+        pending_raw_exchange_evidence={},
+        local_order_reader=lambda child_id: (
+            local_child if child_id == CHILD_ID else None
+        ),
+    )
+
+    boundary = adapter.claim_cancel_invocation_started_atomically(
+        source_client_order_id=SOURCE_ID,
+        materialization_id=MATERIALIZATION_ID,
+        idempotency_key=IDEMPOTENCY_KEY,
+        actor_id="operator-2",
+        roles=("trader", "operator"),
+        environment="controlled_live",
+        operator_intent="safely_close_out_materialized_follow_up",
+        correlation_id=CORRELATION_ID,
+        audit_id=AUDIT_ID,
+    )
+    assert boundary.record.cancel_idempotency_key_sha256 == operation_hash
+
+    result = PersistedInvocationResult(
+        outcome=ExchangeInvocationOutcome.UNKNOWN,
+        child_state=ChildExchangeState.UNKNOWN,
+        diagnostic_code="follow_up_materialization_cancel_outcome_unknown",
+        operation_idempotency_key_sha256=operation_hash,
+        correlation_id=CORRELATION_ID,
+    )
+    finalized = adapter.finalize_cancel_invocation_atomically(
+        source_client_order_id=SOURCE_ID,
+        materialization_id=MATERIALIZATION_ID,
+        result=result,
+        accounting=_mutation_accounting(ExchangeInvocationOutcome.UNKNOWN),
+        external_call_started=True,
+        reported_read_count=0,
+        individual_retry_count=0,
+    )
+
+    assert finalized.state is MaterializationRecordState.CANCEL_UNKNOWN
+    assert finalized.child_state is ChildExchangeState.UNKNOWN
+    assert native.calls[-1][0] == "atomic_cancel_finalize"
+    assert native.calls[-1][1]["exchange_order_id"] == EXCHANGE_ID
+    assert native.calls[-1][1]["authoritative_order_status"] == "OPEN"
+
+
+def _reconciliation_claim() -> LiveProofOperationClaim:
+    return LiveProofOperationClaim(
+        operation_kind=FollowUpLiveProofOperationKind.RECONCILIATION_READ,
+        source_client_order_id=SOURCE_ID,
+        root_client_order_id=ROOT_ID,
+        attached_intent_id=INTENT_ID,
+        materialization_id=MATERIALIZATION_ID,
+        child_client_order_id=CHILD_ID,
+        correlation_id=CORRELATION_ID,
+        audit_id=AUDIT_ID,
+        operation_idempotency_key_sha256=SHA,
+        claimed=True,
+    )
+
+
+def test_native_repository_adapter_atomically_finalizes_active_reconciliation() -> None:
+    native = _NativeRepository(
+        _native_attempt(
+            state="CREATE_UNKNOWN_CONSUMED",
+            diagnostic="create_unknown_consumed",
+            operation_hash=SHA,
+            operation_audit_id=AUDIT_ID,
+        )
+    )
+    pending_key = _pending_evidence_key(
+        materialization_id=MATERIALIZATION_ID,
+        child_client_order_id=CHILD_ID,
+        operation_audit_id=AUDIT_ID,
+        operation_idempotency_key_sha256=SHA,
+    )
+    pending = {
+        pending_key: _PendingRawExchangeEvidence(
+            materialization_id=MATERIALIZATION_ID,
+            child_client_order_id=CHILD_ID,
+            operation_audit_id=AUDIT_ID,
+            operation_idempotency_key_sha256=SHA,
+            authoritative_order_status="OPEN",
+            exchange_order_id=EXCHANGE_ID,
+        )
+    }
+    adapter = NativeFollowUpMaterializationRepositoryAdapter(
+        native,
+        pending_raw_exchange_evidence=pending,
+    )
+    record = replace(
+        _kernel_record(state=MaterializationRecordState.CREATE_UNKNOWN),
+        child_state=ChildExchangeState.UNKNOWN,
+        diagnostic_code="follow_up_materialization_create_outcome_unknown",
+    )
+
+    finalized = adapter.finalize_active_reconciliation_atomically(
+        source_client_order_id=SOURCE_ID,
+        record=record,
+        claim=_reconciliation_claim(),
+        evidence=ChildStateEvidence(
+            child_client_order_id=CHILD_ID,
+            state=ChildExchangeState.ACTIVE,
+            fresh=True,
+            authoritative=True,
+            read_count=1,
+            individual_retry_count=0,
+            ambiguous=False,
+            coinbase_read_started=True,
+            exchange_order_id_sha256=hashlib.sha256(
+                EXCHANGE_ID.encode()
+            ).hexdigest(),
+        ),
+    )
+
+    assert finalized.state is MaterializationRecordState.CREATE_UNKNOWN
+    assert pending_key not in pending
+    assert native.calls[-2][0] == "atomic_reconciliation_finalize"
+    assert native.calls[-2][1]["transition_kind"] == "RECONCILED_ACTIVE"
+
+
+def test_native_repository_adapter_atomically_finalizes_terminal_without_cancel() -> None:
+    native = _NativeRepository(
+        _native_attempt(
+            state="CREATE_ACCEPTED_NONTERMINAL",
+            diagnostic="create_accepted_nonterminal",
+            exchange_hash=hashlib.sha256(EXCHANGE_ID.encode()).hexdigest(),
+            operation_hash=SHA,
+            operation_audit_id=AUDIT_ID,
+        )
+    )
+    pending_key = _pending_evidence_key(
+        materialization_id=MATERIALIZATION_ID,
+        child_client_order_id=CHILD_ID,
+        operation_audit_id=AUDIT_ID,
+        operation_idempotency_key_sha256=SHA,
+    )
+    pending = {
+        pending_key: _PendingRawExchangeEvidence(
+            materialization_id=MATERIALIZATION_ID,
+            child_client_order_id=CHILD_ID,
+            operation_audit_id=AUDIT_ID,
+            operation_idempotency_key_sha256=SHA,
+            authoritative_order_status="FILLED",
+            exchange_order_id=EXCHANGE_ID,
+        )
+    }
+    adapter = NativeFollowUpMaterializationRepositoryAdapter(
+        native,
+        pending_raw_exchange_evidence=pending,
+    )
+    evidence = ChildStateEvidence(
+        child_client_order_id=CHILD_ID,
+        state=ChildExchangeState.TERMINAL,
+        fresh=True,
+        authoritative=True,
+        read_count=1,
+        individual_retry_count=0,
+        ambiguous=False,
+        coinbase_read_started=True,
+        exchange_order_id_sha256=hashlib.sha256(
+            EXCHANGE_ID.encode()
+        ).hexdigest(),
+    )
+
+    finalized = adapter.finalize_terminal_without_cancel_atomically(
+        source_client_order_id=SOURCE_ID,
+        record=_kernel_record(),
+        claim=_reconciliation_claim(),
+        evidence=evidence,
+        result=PersistedInvocationResult(
+            outcome=ExchangeInvocationOutcome.NOT_REQUIRED_TERMINAL,
+            child_state=ChildExchangeState.TERMINAL,
+            diagnostic_code=(
+                "follow_up_materialization_child_already_terminal"
+            ),
+            operation_idempotency_key_sha256=SHA,
+            correlation_id=CORRELATION_ID,
+            exchange_order_id_sha256=evidence.exchange_order_id_sha256,
+        ),
+        idempotency_key=IDEMPOTENCY_KEY,
+        actor_id="operator-2",
+        roles=("trader",),
+        environment="controlled_live",
+        operator_intent="safely_close_out_materialized_follow_up",
+        correlation_id=CORRELATION_ID,
+        audit_id=AUDIT_ID,
+    )
+
+    assert finalized.state is MaterializationRecordState.CHILD_ALREADY_TERMINAL
+    assert finalized.cancel_call_consumed is False
+    assert pending_key not in pending
+    assert native.calls[-1][0] == "atomic_terminal_without_cancel"
+
+
+class _SyntheticEligibilityClient:
+    def record_read(self) -> None:
+        return None
+
+
 class _CountingEligibilityDependencies:
     def __init__(self) -> None:
         self.counts: dict[str, int] = {}
@@ -480,7 +1452,7 @@ class _CountingEligibilityDependencies:
             "target_movement_type": "P",
         }
 
-    def product(self, product_id: str):
+    def product(self, _rest_client, product_id: str):
         self._count("product")
         return {
             "product_id": product_id,
@@ -527,7 +1499,7 @@ class _CountingEligibilityDependencies:
             "pagination_complete": True,
         }
 
-    def market(self, product_id: str):
+    def market(self, _rest_client, product_id: str):
         self._count("market")
         return {
             "product_id": product_id,
@@ -541,7 +1513,7 @@ class _CountingEligibilityDependencies:
         self._count("standing")
         return {"allowed": True, "blocker": None}
 
-    def wallets(self):
+    def wallets(self, _rest_client):
         self._count("wallets")
         return {
             "BTC": {"available_balance": {"value": "0.001"}},
@@ -581,19 +1553,37 @@ def _runtime(
 ) -> ProductionFollowUpMaterializationRuntime:
     return ProductionFollowUpMaterializationRuntime(
         native_repository=native or _NativeRepository(),
-        rest_client=object(),
+        rest_client=_SyntheticEligibilityClient(),
         configured_portfolio_id=PORTFOLIO_ID,
         environment="controlled_live",
         runtime_authority_check=deps.authority,
         local_order_reader=deps.order,
         template_resolver=deps.template,
-        product_reader=deps.product,
-        portfolio_binding_evaluator=deps.binding,
-        source_order_readback=deps.source_order_readback,
-        source_fill_readback=deps.source_fill_readback,
-        market_reference_reader=deps.market,
+        product_reader=lambda client, product_id: (
+            client.record_read(),
+            deps.product(client, product_id),
+        )[1],
+        portfolio_binding_evaluator=lambda client, expected_id: (
+            client.record_read(),
+            deps.binding(client, expected_id),
+        )[1],
+        source_order_readback=lambda client, **kwargs: (
+            client.record_read(),
+            deps.source_order_readback(client, **kwargs),
+        )[1],
+        source_fill_readback=lambda client, **kwargs: (
+            client.record_read(),
+            deps.source_fill_readback(client, **kwargs),
+        )[1],
+        market_reference_reader=lambda client, product_id: (
+            client.record_read(),
+            deps.market(client, product_id),
+        )[1],
         standing_price_evaluator=deps.standing,
-        wallet_reader=deps.wallets,
+        wallet_reader=lambda client: (
+            client.record_read(),
+            deps.wallets(client),
+        )[1],
         action_guard_evaluator=deps.guard,
         child_persister=deps.persist_child,
         local_stealth_reader=lambda child_id: deps.stealth_rows.get(child_id),
@@ -615,6 +1605,7 @@ def test_production_runtime_performs_one_fresh_pass_and_derives_candidate() -> N
     assert evidence.reconciliation_pass_count == 1
     assert evidence.individual_retry_count == 0
     assert evidence.coinbase_read_started is True
+    assert evidence.coinbase_read_count == 6
     assert evidence.candidate == _candidate()
     for operation in (
         "authority",
@@ -670,7 +1661,7 @@ def test_production_runtime_persists_exact_preclaimed_child_without_exchange() -
 
 def test_production_runtime_fails_closed_with_fixed_blocker_on_wallet_shortfall() -> None:
     deps = _CountingEligibilityDependencies()
-    deps.wallets = lambda: {
+    deps.wallets = lambda _client: {
         "BTC": {"available_balance": {"value": "0"}},
         "USDC": {"available_balance": {"value": "0"}},
     }
@@ -892,6 +1883,14 @@ def test_canonical_exchange_uses_one_scoped_create_and_hashes_identity() -> None
         operation_idempotency_key_sha256=SHA,
     )
     assert result.outcome is ExchangeInvocationOutcome.ACCEPTED
+    _assert_invocation_activity(
+        result,
+        sdk=FollowUpSdkMutationInvocationState.INVOKED,
+        transport=FollowUpTransportSubmissionState.CONFIRMED_SUBMITTED,
+        exchange=FollowUpExchangeMutationState.CONFIRMED_MUTATED,
+        read=FollowUpReadAccountingState.EXACT,
+        count=1,
+    )
     assert result.exchange_call_started is True
     assert result.child_state is ChildExchangeState.ACTIVE
     assert result.exchange_order_id_sha256 == hashlib.sha256(
@@ -949,6 +1948,14 @@ def test_canonical_exchange_rejects_mismatched_create_echo_without_adopting_iden
 
     assert result.outcome is ExchangeInvocationOutcome.UNKNOWN
     assert result.exchange_call_started is True
+    _assert_invocation_activity(
+        result,
+        sdk=FollowUpSdkMutationInvocationState.INVOKED,
+        transport=FollowUpTransportSubmissionState.POSSIBLY_SUBMITTED,
+        exchange=FollowUpExchangeMutationState.UNKNOWN,
+        read=FollowUpReadAccountingState.UNKNOWN,
+        count=None,
+    )
     assert len(client.create_calls) == 1
     assert readbacks == []
     assert pending == {}
@@ -984,6 +1991,14 @@ def test_canonical_exchange_requires_full_exact_post_create_tuple() -> None:
 
     assert result.outcome is ExchangeInvocationOutcome.UNKNOWN
     assert result.exchange_call_started is True
+    _assert_invocation_activity(
+        result,
+        sdk=FollowUpSdkMutationInvocationState.INVOKED,
+        transport=FollowUpTransportSubmissionState.POSSIBLY_SUBMITTED,
+        exchange=FollowUpExchangeMutationState.UNKNOWN,
+        read=FollowUpReadAccountingState.UNKNOWN,
+        count=None,
+    )
     assert len(client.create_calls) == 1
     assert pending == {}
 
@@ -1094,6 +2109,7 @@ def test_projection_replay_repairs_with_one_exact_read_and_no_exchange_call() ->
     child_reads: list[dict[str, object]] = []
 
     def exact_child_read(_client, **kwargs):
+        _client.record_read()
         child_reads.append(kwargs)
         return {
             "authoritative": True,
@@ -1150,7 +2166,7 @@ def test_projection_replay_repairs_with_one_exact_read_and_no_exchange_call() ->
     pending: dict[tuple[str, str, str, str], object] = {}
     runtime = ProductionFollowUpMaterializationRuntime(
         native_repository=native,
-        rest_client=object(),
+        rest_client=_SyntheticEligibilityClient(),
         configured_portfolio_id=PORTFOLIO_ID,
         environment="controlled_live",
         runtime_authority_check=deps.authority,
@@ -1184,6 +2200,83 @@ def test_projection_replay_repairs_with_one_exact_read_and_no_exchange_call() ->
     assert pending == {}
 
 
+def test_cancel_accepted_restart_projects_durable_terminal_without_live_read() -> None:
+    deps = _CountingEligibilityDependencies()
+    deps.child_rows[CHILD_ID] = {
+        "client_order_id": CHILD_ID,
+        "product_id": "BTC-USDC",
+        "side": "SELL",
+        "size": "0.00001",
+        "price": "100000.00",
+        "parent_order_id": ROOT_ID,
+        "retail_portfolio_id": PORTFOLIO_ID,
+        "status": "OPEN",
+        "exchange_order_id": EXCHANGE_ID,
+    }
+    cancel_key_hash = hashlib.sha256(b"cancel-once").hexdigest()
+    cancel_audit_id = "f33b263d-967b-4d49-ac6f-e7c2a82cd078"
+    native = _NativeRepository(
+        _native_attempt(
+            state="CANCEL_ACCEPTED_TERMINAL",
+            diagnostic="follow_up_materialization_cancel_accepted",
+            exchange_hash=hashlib.sha256(EXCHANGE_ID.encode()).hexdigest(),
+            operation_hash=cancel_key_hash,
+            operation_audit_id=cancel_audit_id,
+        )
+    )
+    transition_calls: list[dict[str, object]] = []
+
+    def transitioner(**kwargs):
+        transition_calls.append(kwargs)
+        return SimpleNamespace(
+            record=SimpleNamespace(
+                materialization_id=MATERIALIZATION_ID,
+                child_client_order_id=CHILD_ID,
+                transition_kind=kwargs["transition_kind"],
+                authoritative_order_status=kwargs["authoritative_order_status"],
+                exchange_order_id_sha256=hashlib.sha256(
+                    kwargs["exchange_order_id"].encode()
+                ).hexdigest(),
+                operation_audit_id=cancel_audit_id,
+                operation_idempotency_key_sha256=cancel_key_hash,
+            ),
+            replayed=False,
+        )
+
+    runtime = _runtime(
+        deps,
+        native,
+        local_state_transitioner=transitioner,
+        pending_raw_exchange_evidence={},
+    )
+    record = replace(
+        _kernel_record(state=MaterializationRecordState.CANCEL_ACCEPTED),
+        cancel_idempotency_key_sha256=cancel_key_hash,
+        cancel_call_consumed=True,
+        child_state=ChildExchangeState.TERMINAL,
+        diagnostic_code="follow_up_materialization_cancel_accepted",
+        audit_id=cancel_audit_id,
+    )
+
+    projection = runtime.project_persisted_child_state(
+        record=record,
+        operation="CANCEL",
+        allow_reconciliation_read=False,
+    )
+
+    assert projection.live_read_count == 0
+    assert transition_calls == [
+        {
+            "materialization_id": MATERIALIZATION_ID,
+            "transition_kind": "CANCEL_ACCEPTED_TERMINAL",
+            "authoritative_order_status": "CANCELLED",
+            "exchange_order_id": EXCHANGE_ID,
+            "operation_audit_id": cancel_audit_id,
+            "operation_idempotency_key_sha256": cancel_key_hash,
+        }
+    ]
+
+
 def test_canonical_exchange_does_not_retry_unknown_create() -> None:
     client = _ExchangeClient()
     client.raise_create = True
@@ -1210,6 +2303,14 @@ def test_canonical_exchange_does_not_retry_unknown_create() -> None:
     )
     assert result.outcome is ExchangeInvocationOutcome.UNKNOWN
     assert result.exchange_call_started is True
+    _assert_invocation_activity(
+        result,
+        sdk=FollowUpSdkMutationInvocationState.INVOKED,
+        transport=FollowUpTransportSubmissionState.POSSIBLY_SUBMITTED,
+        exchange=FollowUpExchangeMutationState.UNKNOWN,
+        read=FollowUpReadAccountingState.UNKNOWN,
+        count=None,
+    )
     assert len(client.create_calls) == 1
     assert updates == []
 
@@ -1238,6 +2339,103 @@ def test_canonical_exchange_precondition_failure_is_known_zero_calls() -> None:
 
     assert result.outcome is ExchangeInvocationOutcome.UNKNOWN
     assert result.exchange_call_started is False
+    _assert_invocation_activity(
+        result,
+        sdk=FollowUpSdkMutationInvocationState.NOT_INVOKED,
+        transport=FollowUpTransportSubmissionState.NOT_SUBMITTED,
+        exchange=FollowUpExchangeMutationState.NOT_MUTATED,
+        read=FollowUpReadAccountingState.EXACT,
+        count=0,
+    )
+    assert client.create_calls == []
+
+
+def test_canonical_create_rechecks_exact_route_admission_at_final_boundary() -> None:
+    client = _ExchangeClient()
+    final_admission_checks: list[str] = []
+
+    @contextmanager
+    def scope(_name: str):
+        yield
+
+    def deny_final_admission() -> bool:
+        final_admission_checks.append("create")
+        return False
+
+    exchange = CanonicalFollowUpMaterializationExchange(
+        rest_client=client,
+        runtime_authority_check=lambda: True,
+        create_route_admission_check=deny_final_admission,
+        local_order_reader=lambda _order_id: None,
+        execution_scope_factory=scope,
+        exact_order_readback=lambda _client, **_kwargs: _exact_child_readback(),
+        configured_portfolio_id=PORTFOLIO_ID,
+    )
+
+    result = exchange.create_follow_up_child(
+        candidate=_candidate(),
+        correlation_id=CORRELATION_ID,
+        materialization_id=MATERIALIZATION_ID,
+        operation_audit_id=AUDIT_ID,
+        operation_idempotency_key_sha256=SHA,
+    )
+
+    assert result.outcome is ExchangeInvocationOutcome.UNKNOWN
+    assert result.exchange_call_started is False
+    _assert_invocation_activity(
+        result,
+        sdk=FollowUpSdkMutationInvocationState.NOT_INVOKED,
+        transport=FollowUpTransportSubmissionState.NOT_SUBMITTED,
+        exchange=FollowUpExchangeMutationState.NOT_MUTATED,
+        read=FollowUpReadAccountingState.EXACT,
+        count=0,
+    )
+    assert final_admission_checks == ["create"]
+    assert client.create_calls == []
+
+
+def test_canonical_create_classifies_final_authority_denial_as_zero_calls() -> None:
+    client = _ExchangeClient()
+    authority_checks: list[str] = []
+
+    @contextmanager
+    def scope(_name: str):
+        yield
+
+    def deny_authority(expected_scope: str) -> None:
+        authority_checks.append(expected_scope)
+        raise CoinbaseExecutionAuthorityError("coinbase_execution_authority_missing")
+
+    exchange = CanonicalFollowUpMaterializationExchange(
+        rest_client=client,
+        runtime_authority_check=lambda: True,
+        create_route_admission_check=lambda: True,
+        final_execution_authority_check=deny_authority,
+        local_order_reader=lambda _order_id: None,
+        execution_scope_factory=scope,
+        exact_order_readback=lambda _client, **_kwargs: _exact_child_readback(),
+        configured_portfolio_id=PORTFOLIO_ID,
+    )
+
+    result = exchange.create_follow_up_child(
+        candidate=_candidate(),
+        correlation_id=CORRELATION_ID,
+        materialization_id=MATERIALIZATION_ID,
+        operation_audit_id=AUDIT_ID,
+        operation_idempotency_key_sha256=SHA,
+    )
+
+    assert result.outcome is ExchangeInvocationOutcome.UNKNOWN
+    assert result.exchange_call_started is False
+    _assert_invocation_activity(
+        result,
+        sdk=FollowUpSdkMutationInvocationState.NOT_INVOKED,
+        transport=FollowUpTransportSubmissionState.NOT_SUBMITTED,
+        exchange=FollowUpExchangeMutationState.NOT_MUTATED,
+        read=FollowUpReadAccountingState.EXACT,
+        count=0,
+    )
+    assert authority_checks == ["canonical_admin_api_spot_place"]
     assert client.create_calls == []
 
 
@@ -1270,6 +2468,14 @@ def test_canonical_exchange_rolls_back_preclaim_after_explicit_rejection() -> No
     )
     assert result.outcome is ExchangeInvocationOutcome.REJECTED
     assert result.exchange_call_started is True
+    _assert_invocation_activity(
+        result,
+        sdk=FollowUpSdkMutationInvocationState.INVOKED,
+        transport=FollowUpTransportSubmissionState.CONFIRMED_SUBMITTED,
+        exchange=FollowUpExchangeMutationState.NOT_MUTATED,
+        read=FollowUpReadAccountingState.EXACT,
+        count=0,
+    )
     assert len(client.create_calls) == 1
     assert updates == []
 
@@ -1310,6 +2516,14 @@ def test_canonical_exchange_cancels_one_exact_stored_exchange_identity() -> None
     )
     assert result.outcome is ExchangeInvocationOutcome.ACCEPTED
     assert result.exchange_call_started is True
+    _assert_invocation_activity(
+        result,
+        sdk=FollowUpSdkMutationInvocationState.INVOKED,
+        transport=FollowUpTransportSubmissionState.CONFIRMED_SUBMITTED,
+        exchange=FollowUpExchangeMutationState.CONFIRMED_MUTATED,
+        read=FollowUpReadAccountingState.EXACT,
+        count=1,
+    )
     assert result.child_state is ChildExchangeState.TERMINAL
     assert client.cancel_calls == [
         (
@@ -1321,6 +2535,69 @@ def test_canonical_exchange_cancels_one_exact_stored_exchange_identity() -> None
         )
     ]
     assert updates == []
+
+
+def test_canonical_cancel_rechecks_route_and_authority_before_wrapper_call() -> None:
+    child = {
+        "client_order_id": CHILD_ID,
+        "product_id": "BTC-USDC",
+        "side": "SELL",
+        "size": "0.00001",
+        "price": "100000.00",
+        "retail_portfolio_id": PORTFOLIO_ID,
+        "exchange_order_id": EXCHANGE_ID,
+    }
+
+    @contextmanager
+    def scope(_name: str):
+        yield
+
+    route_denied_client = _ExchangeClient()
+    route_denied = CanonicalFollowUpMaterializationExchange(
+        rest_client=route_denied_client,
+        runtime_authority_check=lambda: True,
+        cancel_route_admission_check=lambda: False,
+        local_order_reader=lambda _order_id: child,
+        execution_scope_factory=scope,
+        exact_order_readback=lambda _client, **_kwargs: _exact_child_readback(
+            status="CANCELLED"
+        ),
+        configured_portfolio_id=PORTFOLIO_ID,
+    ).cancel_follow_up_child(
+        child_client_order_id=CHILD_ID,
+        correlation_id=CORRELATION_ID,
+        materialization_id=MATERIALIZATION_ID,
+        operation_audit_id=AUDIT_ID,
+        operation_idempotency_key_sha256=SHA,
+    )
+    assert route_denied.exchange_call_started is False
+    assert route_denied_client.cancel_calls == []
+
+    authority_denied_client = _ExchangeClient()
+
+    def deny_authority(_expected_scope: str) -> None:
+        raise CoinbaseExecutionAuthorityError("coinbase_execution_authority_missing")
+
+    authority_denied = CanonicalFollowUpMaterializationExchange(
+        rest_client=authority_denied_client,
+        runtime_authority_check=lambda: True,
+        cancel_route_admission_check=lambda: True,
+        final_execution_authority_check=deny_authority,
+        local_order_reader=lambda _order_id: child,
+        execution_scope_factory=scope,
+        exact_order_readback=lambda _client, **_kwargs: _exact_child_readback(
+            status="CANCELLED"
+        ),
+        configured_portfolio_id=PORTFOLIO_ID,
+    ).cancel_follow_up_child(
+        child_client_order_id=CHILD_ID,
+        correlation_id=CORRELATION_ID,
+        materialization_id=MATERIALIZATION_ID,
+        operation_audit_id=AUDIT_ID,
+        operation_idempotency_key_sha256=SHA,
+    )
+    assert authority_denied.exchange_call_started is False
+    assert authority_denied_client.cancel_calls == []
 
 
 def test_canonical_exchange_does_not_call_cancel_for_incomplete_local_child_tuple() -> None:
@@ -1357,6 +2634,60 @@ def test_canonical_exchange_does_not_call_cancel_for_incomplete_local_child_tupl
 
     assert result.outcome is ExchangeInvocationOutcome.UNKNOWN
     assert result.exchange_call_started is False
+    _assert_invocation_activity(
+        result,
+        sdk=FollowUpSdkMutationInvocationState.NOT_INVOKED,
+        transport=FollowUpTransportSubmissionState.NOT_SUBMITTED,
+        exchange=FollowUpExchangeMutationState.NOT_MUTATED,
+        read=FollowUpReadAccountingState.EXACT,
+        count=0,
+    )
+    assert client.cancel_calls == []
+
+
+def test_canonical_cancel_local_read_failure_is_known_pre_sdk_zero_calls() -> None:
+    client = _ExchangeClient()
+
+    @contextmanager
+    def scope(_name: str):
+        raise AssertionError("scope must remain closed")
+        yield
+
+    def unavailable_local_child(_order_id: str):
+        raise RuntimeError("withheld local read failure")
+
+    exchange = CanonicalFollowUpMaterializationExchange(
+        rest_client=client,
+        runtime_authority_check=lambda: True,
+        cancel_route_admission_check=lambda: True,
+        local_order_reader=unavailable_local_child,
+        execution_scope_factory=scope,
+        exact_order_readback=lambda *_args, **_kwargs: _exact_child_readback(
+            status="CANCELLED"
+        ),
+        configured_portfolio_id=PORTFOLIO_ID,
+    )
+
+    result = exchange.cancel_follow_up_child(
+        child_client_order_id=CHILD_ID,
+        correlation_id=CORRELATION_ID,
+        materialization_id=MATERIALIZATION_ID,
+        operation_audit_id=AUDIT_ID,
+        operation_idempotency_key_sha256=SHA,
+    )
+
+    assert result.outcome is ExchangeInvocationOutcome.UNKNOWN
+    assert result.exchange_call_started is False
+    _assert_invocation_activity(
+        result,
+        sdk=FollowUpSdkMutationInvocationState.NOT_INVOKED,
+        transport=FollowUpTransportSubmissionState.NOT_SUBMITTED,
+        exchange=FollowUpExchangeMutationState.NOT_MUTATED,
+        read=FollowUpReadAccountingState.EXACT,
+        count=0,
+    )
+    assert result.post_mutation_read_started is False
+    assert result.post_mutation_read_count == 0
     assert client.cancel_calls == []
 
 
@@ -1400,6 +2731,14 @@ def test_canonical_exchange_keeps_accepted_but_still_active_cancel_unknown() -> 
     assert result.outcome is ExchangeInvocationOutcome.UNKNOWN
     assert result.child_state is ChildExchangeState.UNKNOWN
     assert result.exchange_call_started is True
+    _assert_invocation_activity(
+        result,
+        sdk=FollowUpSdkMutationInvocationState.INVOKED,
+        transport=FollowUpTransportSubmissionState.POSSIBLY_SUBMITTED,
+        exchange=FollowUpExchangeMutationState.UNKNOWN,
+        read=FollowUpReadAccountingState.UNKNOWN,
+        count=None,
+    )
     assert len(client.cancel_calls) == 1
     assert len(pending) == 1
 
@@ -1616,6 +2955,7 @@ def test_consumed_unclassified_create_reconciles_terminal_without_second_mutatio
     live_reads: list[dict[str, object]] = []
 
     def terminal_child_read(_client, **kwargs):
+        _client.record_read()
         live_reads.append(kwargs)
         return {
             "authoritative": True,
@@ -1668,7 +3008,7 @@ def test_consumed_unclassified_create_reconciles_terminal_without_second_mutatio
     pending: dict[tuple[str, str, str, str], object] = {}
     runtime = ProductionFollowUpMaterializationRuntime(
         native_repository=native,
-        rest_client=object(),
+        rest_client=_SyntheticEligibilityClient(),
         configured_portfolio_id=PORTFOLIO_ID,
         environment="controlled_live",
         runtime_authority_check=deps.authority,
@@ -1757,6 +3097,108 @@ def test_consumed_unclassified_create_reconciles_terminal_without_second_mutatio
     ]
     assert all(call["exchange_order_id"] is None for call in transition_calls[:1])
     assert transition_calls[-1]["exchange_order_id"] == EXCHANGE_ID
+
+
+def test_authoritative_child_reconciliation_reports_every_sdk_read() -> None:
+    calls: list[str] = []
+
+    class _CountingReadClient:
+        def get_api_key_permissions(self):
+            calls.append("get_api_key_permissions")
+            return {
+                "portfolio_uuid": PORTFOLIO_ID,
+                "portfolio_type": "CONSUMER",
+                "can_view": True,
+                "can_trade": True,
+            }
+
+        def list_portfolios(self):
+            calls.append("list_portfolios")
+            return [
+                {
+                    "uuid": PORTFOLIO_ID,
+                    "name": "Test",
+                    "type": "CONSUMER",
+                }
+            ]
+
+        def get_order(self, exchange_order_id: str):
+            calls.append("get_order")
+            assert exchange_order_id == EXCHANGE_ID
+            return {
+                "order": {
+                    "client_order_id": CHILD_ID,
+                    "order_id": EXCHANGE_ID,
+                    "status": "OPEN",
+                    "product_id": "BTC-USDC",
+                    "product_type": "SPOT",
+                    "side": "SELL",
+                    "order_type": "LIMIT",
+                    "time_in_force": "GTC",
+                    "base_size": "0.00001",
+                    "limit_price": "100000.00",
+                    "retail_portfolio_id": PORTFOLIO_ID,
+                    "order_configuration": {
+                        "limit_limit_gtc": {
+                            "base_size": "0.00001",
+                            "limit_price": "100000.00",
+                            "post_only": False,
+                        }
+                    },
+                }
+            }
+
+    deps = _CountingEligibilityDependencies()
+    deps.child_rows[CHILD_ID] = {
+        "client_order_id": CHILD_ID,
+        "product_id": "BTC-USDC",
+        "side": "SELL",
+        "size": "0.00001",
+        "price": "100000.00",
+        "parent_order_id": ROOT_ID,
+        "retail_portfolio_id": PORTFOLIO_ID,
+        "status": "OPEN",
+        "exchange_order_id": EXCHANGE_ID,
+    }
+    runtime = ProductionFollowUpMaterializationRuntime(
+        native_repository=_NativeRepository(),
+        rest_client=_CountingReadClient(),
+        configured_portfolio_id=PORTFOLIO_ID,
+        environment="controlled_live",
+        runtime_authority_check=lambda: True,
+        local_order_reader=deps.order,
+        template_resolver=deps.template,
+        product_reader=deps.product,
+        portfolio_binding_evaluator=lambda client, expected_id: (
+            evaluate_spot_test_portfolio_binding(
+                rest_client=client,
+                expected_portfolio_id=expected_id,
+                expected_portfolio_label="Test",
+            )
+        ),
+        source_order_readback=_single_page_materialization_order_readback,
+        source_fill_readback=deps.source_fill_readback,
+        market_reference_reader=deps.market,
+        standing_price_evaluator=deps.standing,
+        wallet_reader=deps.wallets,
+        action_guard_evaluator=deps.guard,
+        child_persister=deps.persist_child,
+        local_stealth_reader=lambda child_id: deps.stealth_rows.get(child_id),
+    )
+
+    state = runtime.read_authoritative_child_state(
+        child_client_order_id=CHILD_ID,
+        materialization_id=MATERIALIZATION_ID,
+        operation_audit_id=AUDIT_ID,
+        operation_idempotency_key_sha256=SHA,
+    )
+
+    assert state.authoritative is True
+    assert state.state is ChildExchangeState.ACTIVE
+    assert state.coinbase_read_started is True
+    assert state.read_count == 3
+    assert state.individual_retry_count == 0
+    assert calls == ["get_api_key_permissions", "list_portfolios", "get_order"]
 
 
 def test_child_read_fails_closed_when_authoritative_payload_identity_conflicts() -> None:
@@ -1858,6 +3300,12 @@ def test_facade_passive_read_is_local_only_and_withholds_private_ids() -> None:
 
     response = facade.read(source_client_order_id=SOURCE_ID)
     payload = response.model_dump(mode="json")
+    assert response.current_request_activity.sdk_mutation_invocation_state == "NOT_INVOKED"
+    assert response.current_request_activity.transport_submission_state == "NOT_SUBMITTED"
+    assert response.current_request_activity.exchange_mutation_state == "NOT_MUTATED"
+    assert response.current_request_activity.read_accounting_state == "EXACT"
+    assert response.current_request_activity.observed_read_count == 0
+    assert response.durable_live_proof_activity.create is not None
     assert response.read_only is True
     assert response.live_coinbase_read_ran is False
     assert response.attempt.exchange_order_id_present is True
@@ -1901,6 +3349,7 @@ def test_facade_passive_read_is_local_only_and_withholds_private_ids() -> None:
         ("read", SOURCE_ID),
         ("events", MATERIALIZATION_ID),
         ("projection", MATERIALIZATION_ID),
+        ("activity", SOURCE_ID),
     ]
 
 
@@ -1942,7 +3391,27 @@ def test_facade_passive_read_without_attempt_has_no_audit_projection() -> None:
         response.authorization_request_forwardability.browser_authority
         == "display_and_forward_fresh_acknowledgement_only"
     )
-    assert native.calls == [("read", SOURCE_ID)]
+    assert native.calls == [("read", SOURCE_ID), ("activity", SOURCE_ID)]
+
+
+def test_facade_passive_read_retains_eligibility_activity_without_attempt() -> None:
+    native = _NativeRepository()
+    native.live_proof_records["ELIGIBILITY_READ"] = native._live_proof(
+        "ELIGIBILITY_READ",
+        event_state="TERMINAL",
+        outcome="BLOCKED",
+        observed_read_count=1,
+    )
+    facade = OperatorFollowUpMaterializationFacade(
+        service=_KernelService(), native_repository=native
+    )
+
+    response = facade.read(source_client_order_id=SOURCE_ID)
+
+    assert response.attempt is None
+    assert response.durable_live_proof_activity.eligibility_read is not None
+    assert response.durable_live_proof_activity.create is None
+    assert native.calls == [("read", SOURCE_ID), ("activity", SOURCE_ID)]
 
 
 def test_facade_marks_unclassified_consumed_create_closeout_eligible() -> None:
@@ -1961,6 +3430,14 @@ def test_facade_marks_unclassified_consumed_create_closeout_eligible() -> None:
     response = facade.read(source_client_order_id=SOURCE_ID)
 
     assert response.attempt.state == "CREATE_INVOCATION_STARTED"
+    assert (
+        response.durable_live_proof_activity.create.sdk_mutation_invocation_state
+        == "UNKNOWN"
+    )
+    assert (
+        response.durable_live_proof_activity.create.transport_submission_state
+        == "POSSIBLY_SUBMITTED"
+    )
     assert response.safe_closeout_eligibility.request_eligible is True
     assert (
         response.safe_closeout_eligibility.backend_decision
@@ -1968,6 +3445,64 @@ def test_facade_marks_unclassified_consumed_create_closeout_eligible() -> None:
     )
     assert response.safe_closeout_eligibility.blockers == []
     assert response.live_coinbase_read_ran is False
+
+
+def test_facade_blocks_safe_closeout_when_create_was_blocked_before_sdk() -> None:
+    native = _NativeRepository(
+        _native_attempt(
+            state="CREATE_UNKNOWN_CONSUMED",
+            diagnostic="follow_up_materialization_runtime_authority_lost",
+            operation_hash=SHA,
+            operation_audit_id=AUDIT_ID,
+        )
+    )
+    native.live_proof_records["CREATE"] = native._live_proof(
+        "CREATE",
+        event_state="TERMINAL",
+        outcome="BLOCKED",
+        sdk_state="NOT_INVOKED",
+        transport_state="NOT_SUBMITTED",
+        exchange_state="NOT_MUTATED",
+        read_state="EXACT",
+        observed_read_count=0,
+    )
+    facade = OperatorFollowUpMaterializationFacade(
+        service=_KernelService(), native_repository=native
+    )
+
+    response = facade.read(source_client_order_id=SOURCE_ID)
+
+    assert response.durable_live_proof_activity.create is not None
+    assert response.durable_live_proof_activity.create.terminal_outcome == "BLOCKED"
+    assert response.safe_closeout_eligibility.request_eligible is False
+    assert response.safe_closeout_eligibility.backend_decision == "blocked"
+    assert response.safe_closeout_eligibility.blockers == [
+        "create_blocked_before_sdk_invocation"
+    ]
+
+
+def test_facade_blocks_safe_closeout_without_durable_create_evidence() -> None:
+    native = _NativeRepository(
+        _native_attempt(
+            state="CREATE_UNKNOWN_CONSUMED",
+            diagnostic="follow_up_materialization_create_outcome_unknown",
+            operation_hash=SHA,
+            operation_audit_id=AUDIT_ID,
+        )
+    )
+    native.live_proof_records.pop("CREATE")
+    facade = OperatorFollowUpMaterializationFacade(
+        service=_KernelService(), native_repository=native
+    )
+
+    response = facade.read(source_client_order_id=SOURCE_ID)
+
+    assert response.durable_live_proof_activity.create is None
+    assert response.safe_closeout_eligibility.request_eligible is False
+    assert response.safe_closeout_eligibility.backend_decision == "blocked"
+    assert response.safe_closeout_eligibility.blockers == [
+        "create_safe_closeout_evidence_unproven"
+    ]
 
 
 def test_facade_blocks_safe_closeout_after_explicit_create_rejection() -> None:
@@ -1988,6 +3523,30 @@ def test_facade_blocks_safe_closeout_after_explicit_create_rejection() -> None:
     assert response.safe_closeout_eligibility.request_eligible is False
     assert response.safe_closeout_eligibility.backend_decision == "blocked"
     assert response.safe_closeout_eligibility.blockers == ["create_rejected"]
+    assert response.durable_live_proof_activity.create.terminal_outcome == "REJECTED"
+
+
+def test_facade_fails_closed_on_durable_operation_attempt_identity_mismatch() -> None:
+    native = _NativeRepository(
+        _native_attempt(
+            state="CREATE_EXPLICITLY_REJECTED",
+            diagnostic="follow_up_materialization_create_rejected",
+            operation_hash=SHA,
+            operation_audit_id=AUDIT_ID,
+        )
+    )
+    native.live_proof_records["CREATE"].materialization_id = (
+        "2bf82c2d-319c-47d4-b2ce-f22c02dc0e01"
+    )
+    facade = OperatorFollowUpMaterializationFacade(
+        service=_KernelService(), native_repository=native
+    )
+
+    with pytest.raises(
+        OperatorFollowUpMaterializationError,
+        match="follow_up_materialization_backend_unavailable",
+    ):
+        facade.read(source_client_order_id=SOURCE_ID)
 
 
 def test_facade_maps_kernel_create_result_to_typed_sanitized_response() -> None:
@@ -2005,6 +3564,8 @@ def test_facade_maps_kernel_create_result_to_typed_sanitized_response() -> None:
         individual_retry_count=0,
         ambiguous=False,
         blockers=(),
+        coinbase_read_started=True,
+        coinbase_read_count=1,
     )
     kernel = _KernelService(
         MaterializationOperationResult(
@@ -2026,13 +3587,121 @@ def test_facade_maps_kernel_create_result_to_typed_sanitized_response() -> None:
         request=SimpleNamespace(),
         context=SimpleNamespace(
             correlation_id=CORRELATION_ID,
+            audit_id=AUDIT_ID,
             idempotency_key=IDEMPOTENCY_KEY,
         ),
     )
     assert response.status is AdminApiCommandStatus.ACCEPTED
+    assert response.current_request_activity.sdk_mutation_invocation_state == "INVOKED"
+    assert (
+        response.current_request_activity.transport_submission_state
+        == "CONFIRMED_SUBMITTED"
+    )
+    assert response.current_request_activity.exchange_mutation_state == "CONFIRMED_MUTATED"
+    assert response.current_request_activity.read_accounting_state == "EXACT"
+    assert response.current_request_activity.observed_read_count == 2
+    assert response.durable_live_proof_activity.eligibility_read is not None
+    assert response.durable_live_proof_activity.create is not None
     assert response.live_coinbase_create_call_count == 1
     assert response.live_exchange_submitted is True
     assert response.candidate.child_client_order_id == CHILD_ID
     assert response.attempt.exchange_order_id_present is True
     assert PORTFOLIO_ID not in str(response.model_dump(mode="json"))
     assert EXCHANGE_ID not in str(response.model_dump(mode="json"))
+
+
+def test_facade_replay_reports_zero_current_activity_and_preserves_durable_create() -> None:
+    native = _NativeRepository(
+        _native_attempt(
+            state="CREATE_ACCEPTED_NONTERMINAL",
+            diagnostic="follow_up_materialization_create_accepted",
+            exchange_hash="b" * 64,
+        )
+    )
+    kernel = _KernelService(
+        MaterializationOperationResult(
+            record=_kernel_record(),
+            diagnostic_code="follow_up_materialization_create_accepted",
+            replayed=True,
+            live_read_ran=False,
+            create_call_ran=False,
+            cancel_call_ran=False,
+            candidate=_candidate(),
+        )
+    )
+    facade = OperatorFollowUpMaterializationFacade(
+        service=kernel, native_repository=native
+    )
+
+    response = facade.materialize(
+        source_client_order_id=SOURCE_ID,
+        request=SimpleNamespace(),
+        context=SimpleNamespace(
+            correlation_id="fresh-http-correlation",
+            audit_id=AUDIT_ID,
+            idempotency_key=IDEMPOTENCY_KEY,
+        ),
+    )
+
+    assert response.replayed is True
+    assert response.current_request_activity == response.current_request_activity.model_validate(
+        {
+            "sdk_mutation_invocation_state": "NOT_INVOKED",
+            "transport_submission_state": "NOT_SUBMITTED",
+            "exchange_mutation_state": "NOT_MUTATED",
+            "read_accounting_state": "EXACT",
+            "observed_read_count": 0,
+        }
+    )
+    assert response.live_coinbase_read_ran is False
+    assert response.live_coinbase_create_call_count == 0
+    assert response.live_exchange_submitted is False
+    assert response.exchange_state_mutated is False
+    assert (
+        response.durable_live_proof_activity.create.exchange_mutation_state
+        == "CONFIRMED_MUTATED"
+    )
+
+
+def test_facade_nonreplay_unknown_preserves_possible_submission_and_unknown_reads() -> None:
+    native = _NativeRepository(
+        _native_attempt(
+            state="CREATE_UNKNOWN_CONSUMED",
+            diagnostic="follow_up_materialization_create_outcome_unknown",
+            operation_hash=SHA,
+            operation_audit_id=AUDIT_ID,
+        )
+    )
+    kernel = _KernelService(
+        MaterializationOperationResult(
+            record=_kernel_record(state=MaterializationRecordState.CREATE_UNKNOWN),
+            diagnostic_code="follow_up_materialization_create_outcome_unknown",
+            replayed=False,
+            live_read_ran=True,
+            create_call_ran=False,
+            cancel_call_ran=False,
+            candidate=_candidate(),
+        )
+    )
+    facade = OperatorFollowUpMaterializationFacade(
+        service=kernel, native_repository=native
+    )
+
+    response = facade.materialize(
+        source_client_order_id=SOURCE_ID,
+        request=SimpleNamespace(),
+        context=SimpleNamespace(
+            correlation_id=CORRELATION_ID,
+            audit_id=AUDIT_ID,
+            idempotency_key=IDEMPOTENCY_KEY,
+        ),
+    )
+
+    assert response.current_request_activity.sdk_mutation_invocation_state == "UNKNOWN"
+    assert response.current_request_activity.transport_submission_state == "POSSIBLY_SUBMITTED"
+    assert response.current_request_activity.exchange_mutation_state == "UNKNOWN"
+    assert response.current_request_activity.read_accounting_state == "UNKNOWN"
+    assert response.current_request_activity.observed_read_count is None
+    assert response.live_coinbase_create_call_count == 0
+    assert response.live_exchange_submitted is False
+    assert response.exchange_state_mutated is False

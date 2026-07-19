@@ -5,7 +5,24 @@ private model routing, private release planning, or internal research notes.
 
 ## Current Direction
 
-- Goal `operator_authorize_and_materialize_follow_up_intent` has Status:
+- Goal `operator_follow_up_operations_queue_and_single_live_proof` has Status:
+  `in_progress`. Current action is
+  `implement_validate_audit_deploy_then_count_exact_candidates`. The routed,
+  passive local-SQL Follow-up Operations queue now has backend-owned
+  pagination, filtering, classification, actionable readback, navigation, and
+  a one-statement/no-N+1 projection of four durable proof-operation slots.
+  Exact-zero current-request activity is separate from durable activity and
+  Create/Cancel allowance consumption. Replay preserves durable evidence while
+  reporting zero new activity; only all-null legacy accounting may project
+  conservatively, and partial explicit accounting fails closed. Specialized
+  follow-up errors expose sanitized typed activity without raw responses,
+  private identifiers, or exception text. Complete the remaining validation,
+  deployment checks, and independent safety plus
+  blind-contextless audits before counting exact local candidates. This
+  checkpoint performed no deployment, candidate count, Coinbase call, or live
+  proof, and all live allowances remain unconsumed.
+- Historical predecessor goal
+  `operator_authorize_and_materialize_follow_up_intent` has Status:
   `complete`. Its backend-owned materialization and exact-child safe-closeout
   contracts, operator readback, generated integration, focused/full validation,
   and independent safety plus blind-contextless audits passed. The live proof
@@ -16,7 +33,8 @@ private model routing, private release planning, or internal research notes.
   Evidence is backend focused `164 passed`, canonical full `1102 passed, 6
   skipped` parallel plus `457 passed, 150 skipped` serial, frontend focused
   `179 passed`, and independent safety plus blind-contextless audit `PASS`.
-  Current action is `await_operator_direction_for_next_mvp`. Controlled-live
+  Its terminal action was `await_operator_direction_for_next_mvp`.
+  Controlled-live
   operational handoff is verified: the final installed operator review stack
   reports runtime mode `controlled_live`, frontend `0.0.0.0:3000`, backend
   `127.0.0.1:8787`, and approved Test portfolio configuration without exposing

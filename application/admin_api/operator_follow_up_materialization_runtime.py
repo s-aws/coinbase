@@ -26,6 +26,9 @@ import os
 from typing import Any, Literal
 
 from application.admin_api.models import (
+    AdminOrderFollowUpCurrentRequestActivity,
+    AdminOrderFollowUpDurableLiveProofActivity,
+    AdminOrderFollowUpDurableOperationActivity,
     AdminOrderFollowUpMaterializationAttempt,
     AdminOrderFollowUpMaterializationAuditEvent,
     AdminOrderFollowUpMaterializationAuthorizationRequestForwardability,
@@ -61,21 +64,35 @@ from application.admin_api.operator_follow_up_materialization import (
     FollowUpMaterializationRecord,
     FreshMaterializationEligibility,
     InvocationBoundaryClaim,
+    LiveProofOperationClaim,
+    LiveProofTerminalEvidence,
     LocalChildPersistenceEvidence,
     LocalChildProjectionEvidence,
     MaterializationOperationResult,
     MaterializationPrepareCommand,
     MaterializationRecordState,
+    MutationInvocationAccounting,
     OperatorFollowUpMaterializationError,
     OperatorFollowUpMaterializationService,
     PersistedInvocationResult,
 )
 from core.enums import (
     AdminApiCommandStatus,
+    FollowUpAccountingEvidenceOrigin,
+    FollowUpExchangeMutationState,
+    FollowUpLiveProofEventState,
+    FollowUpLiveProofOperationKind,
+    FollowUpLiveProofTerminalOutcome,
+    FollowUpReadAccountingState,
+    FollowUpSdkMutationInvocationState,
+    FollowUpTransportSubmissionState,
     FollowUpMaterializedChildTransitionKind,
+    ProductType,
 )
+from core.coinbase_execution_authority import CoinbaseExecutionAuthorityError
 from database.order_follow_up_intent import (
     FollowUpMaterializationCommand as NativeMaterializationCommand,
+    OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
 )
 
 
@@ -257,6 +274,93 @@ def _wallet_available(wallet: Any) -> Decimal:
     return normalized if normalized is not None else Decimal("0")
 
 
+def _read_single_page_materialization_wallets(rest_client: Any) -> dict[str, Any]:
+    """Read exactly one account page for the one-use materialization proof.
+
+    The general Coinbase wallet helper intentionally walks every cursor.  That
+    behavior is unsuitable for a proof whose call accounting permits one
+    bounded account read.  A continuation page is therefore unresolved
+    evidence: fail closed before following its cursor and expose no response
+    values through the exception classification.
+    """
+
+    from external.coinbase_client import ACCOUNT_PAGE_LIMIT
+
+    get_accounts = getattr(rest_client, "get_accounts", None)
+    if not callable(get_accounts):
+        raise RuntimeError("follow_up_materialization_wallet_read_unavailable")
+    page = _mapping(get_accounts(limit=ACCOUNT_PAGE_LIMIT))
+    raw_accounts = page.get("accounts")
+    has_next = page.get("has_next")
+    if not isinstance(raw_accounts, list) or not isinstance(has_next, bool):
+        raise RuntimeError("follow_up_materialization_wallet_read_malformed")
+    if has_next:
+        raise RuntimeError("follow_up_materialization_wallet_read_incomplete")
+
+    wallets: dict[str, Any] = {}
+    for raw_account in raw_accounts:
+        account = _mapping(raw_account)
+        currency = _upper(account.get("currency"))
+        if not account or not currency:
+            raise RuntimeError("follow_up_materialization_wallet_read_malformed")
+        if account.get("deleted_at") is not None:
+            continue
+        if currency in wallets:
+            raise RuntimeError("follow_up_materialization_wallet_read_ambiguous")
+        wallets[currency] = account
+    return wallets
+
+
+def _single_page_materialization_order_readback(
+    rest_client: Any,
+    *,
+    client_order_id: str,
+    exchange_order_id: str | None = None,
+    product_id: str | None = None,
+    product_type: str | None = ProductType.SPOT.value,
+    expected_retail_portfolio_id: str | None = None,
+) -> dict[str, Any]:
+    """Run the canonical exact readback with a one-page fallback budget."""
+
+    from application.admin_api.command_service import exact_coinbase_order_readback
+
+    return exact_coinbase_order_readback(
+        rest_client,
+        client_order_id=client_order_id,
+        exchange_order_id=exchange_order_id,
+        product_id=product_id,
+        product_type=product_type,
+        expected_retail_portfolio_id=expected_retail_portfolio_id,
+        maximum_list_pages=1,
+    )
+
+
+class _BoundedMaterializationReadClient:
+    """Count and cap every SDK method invoked during one eligibility pass."""
+
+    def __init__(self, target: Any, *, maximum_calls: int = 10) -> None:
+        if type(maximum_calls) is not int or maximum_calls < 1:
+            raise ValueError("follow_up_materialization_read_budget_invalid")
+        self._target = target
+        self._maximum_calls = maximum_calls
+        self.call_count = 0
+
+    def __getattr__(self, name: str) -> Any:
+        attribute = getattr(self._target, name)
+        if not callable(attribute):
+            return attribute
+
+        def bounded_call(*args: Any, **kwargs: Any) -> Any:
+            if self.call_count >= self._maximum_calls:
+                raise RuntimeError(
+                    "follow_up_materialization_read_budget_exhausted"
+                )
+            self.call_count += 1
+            return attribute(*args, **kwargs)
+
+        return bounded_call
+
+
 def _native_state(value: Any) -> str:
     return _upper(value)
 
@@ -337,8 +441,22 @@ def _native_to_kernel_state(state: str) -> tuple[
 class NativeFollowUpMaterializationRepositoryAdapter:
     """Translate the native append-only repository into the kernel protocol."""
 
-    def __init__(self, native_repository: Any) -> None:
+    def __init__(
+        self,
+        native_repository: Any,
+        *,
+        pending_raw_exchange_evidence: (
+            dict[tuple[str, str, str, str], _PendingRawExchangeEvidence] | None
+        ) = None,
+        local_order_reader: Callable[[str], Any] | None = None,
+    ) -> None:
         self.native_repository = native_repository
+        self.pending_raw_exchange_evidence = (
+            pending_raw_exchange_evidence
+            if pending_raw_exchange_evidence is not None
+            else {}
+        )
+        self.local_order_reader = local_order_reader
 
     def _record(self, attempt: Any) -> FollowUpMaterializationRecord:
         state = _native_state(getattr(attempt, "current_state", ""))
@@ -379,6 +497,229 @@ class NativeFollowUpMaterializationRepositoryAdapter:
 
     def _read_native(self, source_client_order_id: str) -> Any:
         return self.native_repository.read_materialization(source_client_order_id)
+
+    def live_proof_invocation_guard(
+        self,
+        *,
+        source_client_order_id: str,
+    ) -> AbstractContextManager[None]:
+        return self.native_repository.follow_up_live_proof_invocation_guard(
+            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            source_client_order_id=source_client_order_id,
+        )
+
+    def claim_live_proof_operation(
+        self,
+        *,
+        operation_kind: FollowUpLiveProofOperationKind,
+        source_client_order_id: str,
+        correlation_id: str,
+        audit_id: str,
+        operation_idempotency_key_sha256: str,
+    ) -> LiveProofOperationClaim:
+        native = self.native_repository.claim_follow_up_live_proof_operation(
+            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            operation_kind=operation_kind.value,
+            source_client_order_id=source_client_order_id,
+            correlation_id=correlation_id,
+            audit_id=audit_id,
+            operation_idempotency_key_sha256=(
+                operation_idempotency_key_sha256
+            ),
+        )
+        if (
+            _upper(getattr(native, "operation_kind", ""))
+            != operation_kind.value
+            or _text(getattr(native, "source_client_order_id", ""))
+            != source_client_order_id
+            or _text(getattr(native, "correlation_id", "")) != correlation_id
+            or _text(getattr(native, "audit_id", "")) != audit_id
+            or _text(
+                getattr(native, "operation_idempotency_key_sha256", "")
+            ).lower()
+            != operation_idempotency_key_sha256
+        ):
+            raise RuntimeError("follow_up_live_proof_claim_invalid")
+        return LiveProofOperationClaim(
+            operation_kind=operation_kind,
+            source_client_order_id=_text(native.source_client_order_id),
+            root_client_order_id=_text(native.root_client_order_id),
+            attached_intent_id=_text(native.follow_up_intent_id),
+            materialization_id=(
+                _text(getattr(native, "materialization_id", "")) or None
+            ),
+            child_client_order_id=(
+                _text(getattr(native, "child_client_order_id", "")) or None
+            ),
+            correlation_id=_text(native.correlation_id),
+            audit_id=_text(native.audit_id),
+            operation_idempotency_key_sha256=_text(
+                native.operation_idempotency_key_sha256
+            ).lower(),
+            claimed=bool(getattr(native, "claimed", False)),
+        )
+
+    def record_live_proof_terminal(
+        self,
+        *,
+        operation_kind: FollowUpLiveProofOperationKind,
+        source_client_order_id: str,
+        outcome: FollowUpLiveProofTerminalOutcome,
+        sdk_mutation_invocation_state: FollowUpSdkMutationInvocationState,
+        transport_submission_state: FollowUpTransportSubmissionState,
+        exchange_mutation_state: FollowUpExchangeMutationState,
+        read_accounting_state: FollowUpReadAccountingState,
+        observed_read_count: int | None,
+        external_call_started: bool,
+        reported_read_count: int,
+        individual_retry_count: int,
+        authoritative_child_state: ChildExchangeState | None,
+    ) -> None:
+        operation_token = {
+            FollowUpLiveProofOperationKind.ELIGIBILITY_READ: "eligibility",
+            FollowUpLiveProofOperationKind.RECONCILIATION_READ: "reconciliation",
+            FollowUpLiveProofOperationKind.CREATE: "create",
+            FollowUpLiveProofOperationKind.CANCEL: "cancel",
+        }[operation_kind]
+        terminal = self.native_repository.record_follow_up_live_proof_terminal(
+            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            operation_kind=operation_kind.value,
+            source_client_order_id=source_client_order_id,
+            outcome=outcome.value,
+            diagnostic_code=(
+                f"follow_up_live_proof_{operation_token}_{outcome.value.lower()}"
+            ),
+            sdk_mutation_invocation_state=(
+                sdk_mutation_invocation_state.value
+            ),
+            transport_submission_state=transport_submission_state.value,
+            exchange_mutation_state=exchange_mutation_state.value,
+            read_accounting_state=read_accounting_state.value,
+            observed_read_count=observed_read_count,
+            external_call_started=external_call_started,
+            reported_read_count=reported_read_count,
+            individual_retry_count=individual_retry_count,
+            authoritative_child_state=(
+                authoritative_child_state.value
+                if authoritative_child_state is not None
+                else None
+            ),
+        )
+        if (
+            _upper(getattr(terminal, "operation_kind", ""))
+            != operation_kind.value
+            or _upper(getattr(terminal, "event_state", "")) != "TERMINAL"
+            or _upper(getattr(terminal, "outcome", "")) != outcome.value
+        ):
+            raise RuntimeError("follow_up_live_proof_terminal_invalid")
+
+    def read_live_proof_terminal(
+        self,
+        *,
+        operation_kind: FollowUpLiveProofOperationKind,
+        source_client_order_id: str,
+    ) -> LiveProofTerminalEvidence | None:
+        native = self.native_repository.read_follow_up_live_proof_terminal(
+            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            operation_kind=operation_kind.value,
+            source_client_order_id=source_client_order_id,
+        )
+        if native is None:
+            return None
+        try:
+            outcome = FollowUpLiveProofTerminalOutcome(
+                _upper(getattr(native, "outcome", ""))
+            )
+            sdk_state = FollowUpSdkMutationInvocationState(
+                _upper(getattr(native, "sdk_mutation_invocation_state", ""))
+            )
+            transport_state = FollowUpTransportSubmissionState(
+                _upper(getattr(native, "transport_submission_state", ""))
+            )
+            exchange_state = FollowUpExchangeMutationState(
+                _upper(getattr(native, "exchange_mutation_state", ""))
+            )
+            read_state = FollowUpReadAccountingState(
+                _upper(getattr(native, "read_accounting_state", ""))
+            )
+            child_state_text = _upper(
+                getattr(native, "authoritative_child_state", "")
+            )
+            child_state = (
+                ChildExchangeState(child_state_text)
+                if child_state_text
+                else None
+            )
+        except ValueError:
+            raise RuntimeError("follow_up_live_proof_terminal_invalid") from None
+        evidence = LiveProofTerminalEvidence(
+            operation_kind=operation_kind,
+            source_client_order_id=_text(native.source_client_order_id),
+            outcome=outcome,
+            correlation_id=_text(native.correlation_id),
+            audit_id=_text(native.audit_id),
+            operation_idempotency_key_sha256=_text(
+                native.operation_idempotency_key_sha256
+            ).lower(),
+            sdk_mutation_invocation_state=sdk_state,
+            transport_submission_state=transport_state,
+            exchange_mutation_state=exchange_state,
+            read_accounting_state=read_state,
+            observed_read_count=getattr(native, "observed_read_count", None),
+            external_call_started=(native.external_call_started is True),
+            reported_read_count=native.reported_read_count,
+            individual_retry_count=native.individual_retry_count,
+            authoritative_child_state=child_state,
+        )
+        if (
+            _upper(getattr(native, "operation_kind", ""))
+            != operation_kind.value
+            or _upper(getattr(native, "event_state", "")) != "TERMINAL"
+            or evidence.source_client_order_id != source_client_order_id
+        ):
+            raise RuntimeError("follow_up_live_proof_terminal_invalid")
+        return evidence
+
+    def read_live_proof_claim(
+        self,
+        *,
+        operation_kind: FollowUpLiveProofOperationKind,
+        source_client_order_id: str,
+    ) -> LiveProofOperationClaim | None:
+        native = self.native_repository.read_follow_up_live_proof_claim(
+            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            operation_kind=operation_kind.value,
+            source_client_order_id=source_client_order_id,
+        )
+        if native is None:
+            return None
+        claim = LiveProofOperationClaim(
+            operation_kind=operation_kind,
+            source_client_order_id=_text(native.source_client_order_id),
+            root_client_order_id=_text(native.root_client_order_id),
+            attached_intent_id=_text(native.follow_up_intent_id),
+            materialization_id=(
+                _text(getattr(native, "materialization_id", "")) or None
+            ),
+            child_client_order_id=(
+                _text(getattr(native, "child_client_order_id", "")) or None
+            ),
+            correlation_id=_text(native.correlation_id),
+            audit_id=_text(native.audit_id),
+            operation_idempotency_key_sha256=_text(
+                native.operation_idempotency_key_sha256
+            ).lower(),
+            claimed=bool(getattr(native, "claimed", False)),
+        )
+        if (
+            _upper(getattr(native, "operation_kind", ""))
+            != operation_kind.value
+            or _upper(getattr(native, "event_state", ""))
+            != "INVOCATION_STARTED"
+            or claim.source_client_order_id != source_client_order_id
+        ):
+            raise RuntimeError("follow_up_live_proof_claim_invalid")
+        return claim
 
     def read_materialization(
         self,
@@ -435,6 +776,738 @@ class NativeFollowUpMaterializationRepositoryAdapter:
         )
         result = self.native_repository.prepare_materialization(native_command)
         return self._record(result.attempt)
+
+    @staticmethod
+    def _validate_atomic_live_proof_binding(
+        *,
+        native: Any,
+        attempt: Any,
+        operation_kind: FollowUpLiveProofOperationKind,
+        source_client_order_id: str,
+        audit_id: str,
+        operation_idempotency_key_sha256: str,
+        event_state: str,
+    ) -> None:
+        if (
+            _upper(getattr(native, "operation_kind", ""))
+            != operation_kind.value
+            or _upper(getattr(native, "event_state", "")) != event_state
+            or _text(getattr(native, "source_client_order_id", ""))
+            != source_client_order_id
+            or _text(getattr(native, "root_client_order_id", ""))
+            != _text(getattr(attempt, "root_client_order_id", ""))
+            or _text(getattr(native, "follow_up_intent_id", ""))
+            != _text(getattr(attempt, "follow_up_intent_id", ""))
+            or _text(getattr(native, "materialization_id", ""))
+            != _text(getattr(attempt, "materialization_id", ""))
+            or _text(getattr(native, "child_client_order_id", ""))
+            != _text(getattr(attempt, "child_client_order_id", ""))
+            or _text(getattr(native, "audit_id", "")) != audit_id
+            or _text(
+                getattr(native, "operation_idempotency_key_sha256", "")
+            ).lower()
+            != operation_idempotency_key_sha256
+        ):
+            raise RuntimeError("follow_up_live_proof_atomic_binding_mismatch")
+
+    def _atomic_operation_evidence(
+        self,
+        *,
+        attempt: Any,
+        result: PersistedInvocationResult,
+        operation: Literal["CREATE", "CANCEL"],
+    ) -> tuple[
+        _PendingRawExchangeEvidence | None,
+        tuple[str, str, str, str],
+    ]:
+        materialization_id = _text(getattr(attempt, "materialization_id", ""))
+        child_client_order_id = _text(
+            getattr(attempt, "child_client_order_id", "")
+        )
+        audit_id = (
+            _text(getattr(attempt, "current_operation_audit_id", ""))
+            or _text(getattr(attempt, "audit_id", ""))
+        )
+        operation_hash = _text(
+            getattr(attempt, "operation_idempotency_key_sha256", "")
+        ).lower()
+        if operation == "CREATE" and not operation_hash:
+            operation_hash = _sha256(
+                _text(getattr(attempt, "idempotency_key", ""))
+            )
+        if not (
+            materialization_id
+            and child_client_order_id
+            and audit_id
+            and _is_sha256(operation_hash)
+            and result.operation_idempotency_key_sha256 == operation_hash
+        ):
+            raise RuntimeError("follow_up_live_proof_atomic_binding_mismatch")
+        key = _pending_evidence_key(
+            materialization_id=materialization_id,
+            child_client_order_id=child_client_order_id,
+            operation_audit_id=audit_id,
+            operation_idempotency_key_sha256=operation_hash,
+        )
+        evidence = self.pending_raw_exchange_evidence.get(key)
+        if evidence is None and operation == "CANCEL" and callable(
+            self.local_order_reader
+        ):
+            child = _mapping(self.local_order_reader(child_client_order_id))
+            raw_exchange_id = _text(child.get("exchange_order_id"))
+            authoritative_status = _upper(child.get("status"))
+            if (
+                _text(child.get("client_order_id")) == child_client_order_id
+                and raw_exchange_id
+                and authoritative_status
+            ):
+                evidence = _PendingRawExchangeEvidence(
+                    materialization_id=materialization_id,
+                    child_client_order_id=child_client_order_id,
+                    operation_audit_id=audit_id,
+                    operation_idempotency_key_sha256=operation_hash,
+                    authoritative_order_status=authoritative_status,
+                    exchange_order_id=raw_exchange_id,
+                )
+        if evidence is not None:
+            durable_hash = _text(
+                getattr(attempt, "exchange_order_id_sha256", "")
+            ).lower()
+            result_hash = _text(result.exchange_order_id_sha256).lower()
+            raw_hash = _sha256(evidence.exchange_order_id)
+            if (
+                evidence.materialization_id != materialization_id
+                or evidence.child_client_order_id != child_client_order_id
+                or evidence.operation_audit_id != audit_id
+                or evidence.operation_idempotency_key_sha256 != operation_hash
+                or not _text(evidence.authoritative_order_status)
+                or not _text(evidence.exchange_order_id)
+                or (durable_hash and raw_hash != durable_hash)
+                or (result_hash and raw_hash != result_hash)
+            ):
+                raise RuntimeError(
+                    "follow_up_materialization_atomic_evidence_mismatch"
+                )
+        return evidence, key
+
+    def claim_create_invocation_started_atomically(
+        self,
+        *,
+        source_client_order_id: str,
+        materialization_id: str,
+        correlation_id: str,
+        audit_id: str,
+        operation_idempotency_key_sha256: str,
+    ) -> InvocationBoundaryClaim:
+        native = self.native_repository.claim_create_invocation_started_atomically(
+            materialization_id=materialization_id,
+            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            source_client_order_id=source_client_order_id,
+            correlation_id=correlation_id,
+            audit_id=audit_id,
+            operation_idempotency_key_sha256=(
+                operation_idempotency_key_sha256
+            ),
+        )
+        transition = getattr(native, "materialization", None)
+        attempt = getattr(transition, "attempt", None)
+        live_proof = getattr(native, "live_proof", None)
+        if attempt is None or live_proof is None:
+            raise RuntimeError("follow_up_live_proof_atomic_binding_mismatch")
+        self._validate_atomic_live_proof_binding(
+            native=live_proof,
+            attempt=attempt,
+            operation_kind=FollowUpLiveProofOperationKind.CREATE,
+            source_client_order_id=source_client_order_id,
+            audit_id=audit_id,
+            operation_idempotency_key_sha256=(
+                operation_idempotency_key_sha256
+            ),
+            event_state="INVOCATION_STARTED",
+        )
+        record = self._record(attempt)
+        if record.state is not MaterializationRecordState.CREATE_INVOCATION_STARTED:
+            raise RuntimeError("follow_up_live_proof_atomic_binding_mismatch")
+        return InvocationBoundaryClaim(
+            record=record,
+            claimed=bool(getattr(native, "claimed", False)),
+        )
+
+    def finalize_create_invocation_atomically(
+        self,
+        *,
+        source_client_order_id: str,
+        materialization_id: str,
+        result: PersistedInvocationResult,
+        accounting: MutationInvocationAccounting,
+        external_call_started: bool,
+        reported_read_count: int,
+        individual_retry_count: int,
+    ) -> FollowUpMaterializationRecord:
+        readback = self._read_native(source_client_order_id)
+        attempt = getattr(readback, "attempt", None)
+        if attempt is None or _text(attempt.materialization_id) != materialization_id:
+            raise RuntimeError("follow_up_live_proof_atomic_binding_mismatch")
+        evidence, pending_key = self._atomic_operation_evidence(
+            attempt=attempt,
+            result=result,
+            operation="CREATE",
+        )
+        spec = {
+            (ExchangeInvocationOutcome.ACCEPTED, ChildExchangeState.ACTIVE): (
+                "CREATE_ACCEPTED_NONTERMINAL",
+                FollowUpLiveProofTerminalOutcome.SUCCEEDED.value,
+                "ACTIVE",
+            ),
+            (ExchangeInvocationOutcome.ACCEPTED, ChildExchangeState.TERMINAL): (
+                "CREATE_ACCEPTED_TERMINAL",
+                FollowUpLiveProofTerminalOutcome.SUCCEEDED.value,
+                "TERMINAL",
+            ),
+            (ExchangeInvocationOutcome.REJECTED, ChildExchangeState.UNKNOWN): (
+                "CREATE_EXPLICITLY_REJECTED",
+                FollowUpLiveProofTerminalOutcome.REJECTED.value,
+                "UNKNOWN",
+            ),
+            (ExchangeInvocationOutcome.UNKNOWN, ChildExchangeState.UNKNOWN): (
+                "CREATE_UNKNOWN_CONSUMED",
+                FollowUpLiveProofTerminalOutcome.UNKNOWN.value,
+                "UNKNOWN",
+            ),
+        }.get((result.outcome, result.child_state))
+        if spec is None:
+            raise RuntimeError("create_result_invalid")
+        outcome, proof_outcome, child_state = spec
+        if (
+            not isinstance(accounting, MutationInvocationAccounting)
+            or accounting.policy_clean is not True
+            or accounting.individual_retry_count != 0
+            or external_call_started is not accounting.sdk_invoked
+            or reported_read_count != (accounting.observed_read_count or 0)
+            or individual_retry_count != accounting.individual_retry_count
+        ):
+            raise RuntimeError("follow_up_live_proof_accounting_invalid")
+        if (
+            result.outcome is ExchangeInvocationOutcome.UNKNOWN
+            and accounting.sdk_mutation_invocation_state
+            is FollowUpSdkMutationInvocationState.NOT_INVOKED
+        ):
+            proof_outcome = FollowUpLiveProofTerminalOutcome.BLOCKED.value
+        if result.outcome is ExchangeInvocationOutcome.ACCEPTED:
+            if evidence is None:
+                raise RuntimeError(
+                    "follow_up_materialization_atomic_evidence_missing"
+                )
+            status = _upper(evidence.authoritative_order_status)
+            if (
+                result.child_state is ChildExchangeState.ACTIVE
+                and status not in _ACTIVE_EXCHANGE_STATUSES
+            ) or (
+                result.child_state is ChildExchangeState.TERMINAL
+                and status not in _TERMINAL_EXCHANGE_STATUSES
+            ):
+                raise RuntimeError(
+                    "follow_up_materialization_atomic_evidence_mismatch"
+                )
+            exchange_order_id = evidence.exchange_order_id
+            authoritative_status = status
+        else:
+            if (
+                result.outcome is ExchangeInvocationOutcome.REJECTED
+                and evidence is not None
+            ) or result.exchange_order_id_sha256 is not None:
+                raise RuntimeError(
+                    "follow_up_materialization_atomic_evidence_mismatch"
+                )
+            exchange_order_id = None
+            authoritative_status = (
+                "FAILED"
+                if result.outcome is ExchangeInvocationOutcome.REJECTED
+                else "SUBMISSION_UNKNOWN"
+            )
+        native = self.native_repository.finalize_create_invocation_atomically(
+            materialization_id=materialization_id,
+            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            source_client_order_id=source_client_order_id,
+            outcome=outcome,
+            diagnostic_code=result.diagnostic_code,
+            authoritative_order_status=authoritative_status,
+            exchange_order_id=exchange_order_id,
+            live_proof_outcome=proof_outcome,
+            sdk_mutation_invocation_state=(
+                accounting.sdk_mutation_invocation_state.value
+            ),
+            transport_submission_state=(
+                accounting.transport_submission_state.value
+            ),
+            exchange_mutation_state=accounting.exchange_mutation_state.value,
+            read_accounting_state=accounting.read_accounting_state.value,
+            observed_read_count=accounting.observed_read_count,
+            external_call_started=accounting.sdk_invoked,
+            reported_read_count=accounting.observed_read_count or 0,
+            individual_retry_count=accounting.individual_retry_count,
+            authoritative_child_state=child_state,
+        )
+        finalized_attempt = getattr(
+            getattr(native, "materialization", None), "attempt", None
+        )
+        live_proof = getattr(native, "live_proof", None)
+        if finalized_attempt is None or live_proof is None:
+            raise RuntimeError("follow_up_live_proof_atomic_binding_mismatch")
+        self._validate_atomic_live_proof_binding(
+            native=live_proof,
+            attempt=finalized_attempt,
+            operation_kind=FollowUpLiveProofOperationKind.CREATE,
+            source_client_order_id=source_client_order_id,
+            audit_id=(
+                _text(getattr(finalized_attempt, "current_operation_audit_id", ""))
+                or _text(getattr(finalized_attempt, "audit_id", ""))
+            ),
+            operation_idempotency_key_sha256=(
+                result.operation_idempotency_key_sha256
+            ),
+            event_state="TERMINAL",
+        )
+        if (
+            _upper(getattr(live_proof, "outcome", "")) != proof_outcome
+            or _upper(
+                getattr(live_proof, "authoritative_child_state", "")
+            )
+            != child_state
+            or _upper(
+                getattr(live_proof, "sdk_mutation_invocation_state", "")
+            )
+            != accounting.sdk_mutation_invocation_state.value
+            or _upper(
+                getattr(live_proof, "transport_submission_state", "")
+            )
+            != accounting.transport_submission_state.value
+            or _upper(getattr(live_proof, "exchange_mutation_state", ""))
+            != accounting.exchange_mutation_state.value
+            or _upper(getattr(live_proof, "read_accounting_state", ""))
+            != accounting.read_accounting_state.value
+            or getattr(live_proof, "observed_read_count", None)
+            != accounting.observed_read_count
+        ):
+            raise RuntimeError("follow_up_live_proof_atomic_terminal_mismatch")
+        record = self._record(finalized_attempt)
+        self.pending_raw_exchange_evidence.pop(pending_key, None)
+        return record
+
+    def claim_cancel_invocation_started_atomically(
+        self,
+        *,
+        source_client_order_id: str,
+        materialization_id: str,
+        idempotency_key: str,
+        actor_id: str,
+        roles: tuple[str, ...],
+        environment: str,
+        operator_intent: str,
+        correlation_id: str,
+        audit_id: str,
+    ) -> InvocationBoundaryClaim:
+        native = self.native_repository.claim_cancel_invocation_started_atomically(
+            materialization_id=materialization_id,
+            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            source_client_order_id=source_client_order_id,
+            operation_idempotency_key=idempotency_key,
+            actor_id=actor_id,
+            roles=roles,
+            environment=environment,
+            operator_intent=operator_intent,
+            correlation_id=correlation_id,
+            audit_id=audit_id,
+        )
+        transition = getattr(native, "materialization", None)
+        attempt = getattr(transition, "attempt", None)
+        live_proof = getattr(native, "live_proof", None)
+        operation_hash = _sha256(idempotency_key)
+        if attempt is None or live_proof is None:
+            raise RuntimeError("follow_up_live_proof_atomic_binding_mismatch")
+        self._validate_atomic_live_proof_binding(
+            native=live_proof,
+            attempt=attempt,
+            operation_kind=FollowUpLiveProofOperationKind.CANCEL,
+            source_client_order_id=source_client_order_id,
+            audit_id=audit_id,
+            operation_idempotency_key_sha256=operation_hash,
+            event_state="INVOCATION_STARTED",
+        )
+        record = self._record(attempt)
+        if record.state is not MaterializationRecordState.CANCEL_INVOCATION_STARTED:
+            raise RuntimeError("follow_up_live_proof_atomic_binding_mismatch")
+        return InvocationBoundaryClaim(
+            record=record,
+            claimed=bool(getattr(native, "claimed", False)),
+        )
+
+    def finalize_cancel_invocation_atomically(
+        self,
+        *,
+        source_client_order_id: str,
+        materialization_id: str,
+        result: PersistedInvocationResult,
+        accounting: MutationInvocationAccounting,
+        external_call_started: bool,
+        reported_read_count: int,
+        individual_retry_count: int,
+    ) -> FollowUpMaterializationRecord:
+        readback = self._read_native(source_client_order_id)
+        attempt = getattr(readback, "attempt", None)
+        if attempt is None or _text(attempt.materialization_id) != materialization_id:
+            raise RuntimeError("follow_up_live_proof_atomic_binding_mismatch")
+        evidence, pending_key = self._atomic_operation_evidence(
+            attempt=attempt,
+            result=result,
+            operation="CANCEL",
+        )
+        spec = {
+            (ExchangeInvocationOutcome.ACCEPTED, ChildExchangeState.TERMINAL): (
+                "CANCEL_ACCEPTED_TERMINAL",
+                FollowUpLiveProofTerminalOutcome.SUCCEEDED.value,
+                "TERMINAL",
+                _TERMINAL_EXCHANGE_STATUSES,
+            ),
+            (ExchangeInvocationOutcome.REJECTED, ChildExchangeState.ACTIVE): (
+                "CANCEL_EXPLICITLY_REJECTED",
+                FollowUpLiveProofTerminalOutcome.REJECTED.value,
+                "ACTIVE",
+                _ACTIVE_EXCHANGE_STATUSES,
+            ),
+            (ExchangeInvocationOutcome.UNKNOWN, ChildExchangeState.UNKNOWN): (
+                "CANCEL_UNKNOWN_CONSUMED",
+                FollowUpLiveProofTerminalOutcome.UNKNOWN.value,
+                "UNKNOWN",
+                _ACTIVE_EXCHANGE_STATUSES,
+            ),
+        }.get((result.outcome, result.child_state))
+        if spec is None:
+            raise RuntimeError("cancel_result_invalid")
+        outcome, proof_outcome, child_state, allowed_statuses = spec
+        if (
+            not isinstance(accounting, MutationInvocationAccounting)
+            or accounting.policy_clean is not True
+            or accounting.individual_retry_count != 0
+            or external_call_started is not accounting.sdk_invoked
+            or reported_read_count != (accounting.observed_read_count or 0)
+            or individual_retry_count != accounting.individual_retry_count
+        ):
+            raise RuntimeError("follow_up_live_proof_accounting_invalid")
+        if (
+            result.outcome is ExchangeInvocationOutcome.UNKNOWN
+            and accounting.sdk_mutation_invocation_state
+            is FollowUpSdkMutationInvocationState.NOT_INVOKED
+        ):
+            proof_outcome = FollowUpLiveProofTerminalOutcome.BLOCKED.value
+        if evidence is None:
+            raise RuntimeError("follow_up_materialization_atomic_evidence_missing")
+        if (
+            result.outcome is ExchangeInvocationOutcome.UNKNOWN
+            and _upper(evidence.authoritative_order_status)
+            in _TERMINAL_EXCHANGE_STATUSES
+            and callable(self.local_order_reader)
+        ):
+            child = _mapping(
+                self.local_order_reader(
+                    _text(getattr(attempt, "child_client_order_id", ""))
+                )
+            )
+            local_exchange_id = _text(child.get("exchange_order_id"))
+            local_status = _upper(child.get("status"))
+            if (
+                _text(child.get("client_order_id"))
+                != _text(getattr(attempt, "child_client_order_id", ""))
+                or local_exchange_id != evidence.exchange_order_id
+                or local_status
+                not in (_ACTIVE_EXCHANGE_STATUSES | {"CANCEL_QUEUED"})
+            ):
+                raise RuntimeError(
+                    "follow_up_materialization_atomic_evidence_mismatch"
+                )
+            evidence = _PendingRawExchangeEvidence(
+                materialization_id=evidence.materialization_id,
+                child_client_order_id=evidence.child_client_order_id,
+                operation_audit_id=evidence.operation_audit_id,
+                operation_idempotency_key_sha256=(
+                    evidence.operation_idempotency_key_sha256
+                ),
+                authoritative_order_status=local_status,
+                exchange_order_id=local_exchange_id,
+            )
+            allowed_statuses = allowed_statuses | {"CANCEL_QUEUED"}
+        authoritative_status = _upper(evidence.authoritative_order_status)
+        if result.outcome is ExchangeInvocationOutcome.UNKNOWN:
+            allowed_statuses = allowed_statuses | {"CANCEL_QUEUED"}
+        if authoritative_status not in allowed_statuses:
+            raise RuntimeError("follow_up_materialization_atomic_evidence_mismatch")
+        native = self.native_repository.finalize_cancel_invocation_atomically(
+            materialization_id=materialization_id,
+            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            source_client_order_id=source_client_order_id,
+            outcome=outcome,
+            diagnostic_code=result.diagnostic_code,
+            authoritative_order_status=authoritative_status,
+            exchange_order_id=evidence.exchange_order_id,
+            live_proof_outcome=proof_outcome,
+            sdk_mutation_invocation_state=(
+                accounting.sdk_mutation_invocation_state.value
+            ),
+            transport_submission_state=(
+                accounting.transport_submission_state.value
+            ),
+            exchange_mutation_state=accounting.exchange_mutation_state.value,
+            read_accounting_state=accounting.read_accounting_state.value,
+            observed_read_count=accounting.observed_read_count,
+            external_call_started=accounting.sdk_invoked,
+            reported_read_count=accounting.observed_read_count or 0,
+            individual_retry_count=accounting.individual_retry_count,
+            authoritative_child_state=child_state,
+        )
+        finalized_attempt = getattr(
+            getattr(native, "materialization", None), "attempt", None
+        )
+        live_proof = getattr(native, "live_proof", None)
+        if finalized_attempt is None or live_proof is None:
+            raise RuntimeError("follow_up_live_proof_atomic_binding_mismatch")
+        self._validate_atomic_live_proof_binding(
+            native=live_proof,
+            attempt=finalized_attempt,
+            operation_kind=FollowUpLiveProofOperationKind.CANCEL,
+            source_client_order_id=source_client_order_id,
+            audit_id=(
+                _text(getattr(finalized_attempt, "current_operation_audit_id", ""))
+                or _text(getattr(finalized_attempt, "audit_id", ""))
+            ),
+            operation_idempotency_key_sha256=(
+                result.operation_idempotency_key_sha256
+            ),
+            event_state="TERMINAL",
+        )
+        if (
+            _upper(getattr(live_proof, "outcome", "")) != proof_outcome
+            or _upper(
+                getattr(live_proof, "authoritative_child_state", "")
+            )
+            != child_state
+            or _upper(
+                getattr(live_proof, "sdk_mutation_invocation_state", "")
+            )
+            != accounting.sdk_mutation_invocation_state.value
+            or _upper(
+                getattr(live_proof, "transport_submission_state", "")
+            )
+            != accounting.transport_submission_state.value
+            or _upper(getattr(live_proof, "exchange_mutation_state", ""))
+            != accounting.exchange_mutation_state.value
+            or _upper(getattr(live_proof, "read_accounting_state", ""))
+            != accounting.read_accounting_state.value
+            or getattr(live_proof, "observed_read_count", None)
+            != accounting.observed_read_count
+        ):
+            raise RuntimeError("follow_up_live_proof_atomic_terminal_mismatch")
+        record = self._record(finalized_attempt)
+        self.pending_raw_exchange_evidence.pop(pending_key, None)
+        return record
+
+    def _exact_reconciliation_evidence(
+        self,
+        *,
+        record: FollowUpMaterializationRecord,
+        claim: LiveProofOperationClaim,
+        evidence: ChildStateEvidence,
+    ) -> tuple[_PendingRawExchangeEvidence, tuple[str, str, str, str]]:
+        key = _pending_evidence_key(
+            materialization_id=record.materialization_id,
+            child_client_order_id=record.child_client_order_id,
+            operation_audit_id=claim.audit_id,
+            operation_idempotency_key_sha256=(
+                claim.operation_idempotency_key_sha256
+            ),
+        )
+        pending = self.pending_raw_exchange_evidence.get(key)
+        if pending is None:
+            raise RuntimeError(
+                "follow_up_materialization_atomic_evidence_missing"
+            )
+        raw_hash = _sha256(pending.exchange_order_id)
+        if (
+            claim.operation_kind
+            is not FollowUpLiveProofOperationKind.RECONCILIATION_READ
+            or claim.source_client_order_id != record.source_client_order_id
+            or claim.root_client_order_id != record.root_client_order_id
+            or claim.attached_intent_id != record.attached_intent_id
+            or claim.materialization_id != record.materialization_id
+            or claim.child_client_order_id != record.child_client_order_id
+            or pending.materialization_id != record.materialization_id
+            or pending.child_client_order_id != record.child_client_order_id
+            or pending.operation_audit_id != claim.audit_id
+            or pending.operation_idempotency_key_sha256
+            != claim.operation_idempotency_key_sha256
+            or evidence.child_client_order_id != record.child_client_order_id
+            or evidence.authoritative is not True
+            or evidence.ambiguous is True
+            or evidence.fresh is not True
+            or type(evidence.read_count) is not int
+            or not 1 <= evidence.read_count <= 10
+            or evidence.individual_retry_count != 0
+            or evidence.exchange_order_id_sha256 != raw_hash
+        ):
+            raise RuntimeError(
+                "follow_up_materialization_atomic_evidence_mismatch"
+            )
+        return pending, key
+
+    def finalize_active_reconciliation_atomically(
+        self,
+        *,
+        source_client_order_id: str,
+        record: FollowUpMaterializationRecord,
+        claim: LiveProofOperationClaim,
+        evidence: ChildStateEvidence,
+    ) -> FollowUpMaterializationRecord:
+        if (
+            record.state is not MaterializationRecordState.CREATE_UNKNOWN
+            or evidence.state is not ChildExchangeState.ACTIVE
+        ):
+            raise RuntimeError("follow_up_materialization_reconciliation_invalid")
+        pending, pending_key = self._exact_reconciliation_evidence(
+            record=record,
+            claim=claim,
+            evidence=evidence,
+        )
+        status = _upper(pending.authoritative_order_status)
+        if status not in _ACTIVE_EXCHANGE_STATUSES:
+            raise RuntimeError(
+                "follow_up_materialization_atomic_evidence_mismatch"
+            )
+        native = self.native_repository.finalize_reconciliation_projection_atomically(
+            materialization_id=record.materialization_id,
+            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            source_client_order_id=source_client_order_id,
+            transition_kind=(
+                FollowUpMaterializedChildTransitionKind.RECONCILED_ACTIVE.value
+            ),
+            authoritative_order_status=status,
+            exchange_order_id=pending.exchange_order_id,
+            operation_audit_id=claim.audit_id,
+            operation_idempotency_key_sha256=(
+                claim.operation_idempotency_key_sha256
+            ),
+            live_proof_outcome=(
+                FollowUpLiveProofTerminalOutcome.SUCCEEDED.value
+            ),
+            external_call_started=True,
+            reported_read_count=evidence.read_count,
+            individual_retry_count=0,
+            authoritative_child_state=ChildExchangeState.ACTIVE.value,
+        )
+        live_proof = getattr(native, "live_proof", None)
+        if live_proof is None:
+            raise RuntimeError("follow_up_live_proof_atomic_binding_mismatch")
+        attempt_readback = self._read_native(source_client_order_id)
+        attempt = getattr(attempt_readback, "attempt", None)
+        if attempt is None:
+            raise RuntimeError("follow_up_live_proof_atomic_binding_mismatch")
+        self._validate_atomic_live_proof_binding(
+            native=live_proof,
+            attempt=attempt,
+            operation_kind=FollowUpLiveProofOperationKind.RECONCILIATION_READ,
+            source_client_order_id=source_client_order_id,
+            audit_id=claim.audit_id,
+            operation_idempotency_key_sha256=(
+                claim.operation_idempotency_key_sha256
+            ),
+            event_state="TERMINAL",
+        )
+        if (
+            _upper(getattr(live_proof, "outcome", "")) != "SUCCEEDED"
+            or _upper(
+                getattr(live_proof, "authoritative_child_state", "")
+            )
+            != "ACTIVE"
+        ):
+            raise RuntimeError("follow_up_live_proof_atomic_terminal_mismatch")
+        self.pending_raw_exchange_evidence.pop(pending_key, None)
+        return self._record(attempt)
+
+    def finalize_terminal_without_cancel_atomically(
+        self,
+        *,
+        source_client_order_id: str,
+        record: FollowUpMaterializationRecord,
+        claim: LiveProofOperationClaim,
+        evidence: ChildStateEvidence,
+        result: PersistedInvocationResult,
+        idempotency_key: str,
+        actor_id: str,
+        roles: tuple[str, ...],
+        environment: str,
+        operator_intent: str,
+        correlation_id: str,
+        audit_id: str,
+    ) -> FollowUpMaterializationRecord:
+        if (
+            evidence.state is not ChildExchangeState.TERMINAL
+            or result.outcome
+            is not ExchangeInvocationOutcome.NOT_REQUIRED_TERMINAL
+            or result.child_state is not ChildExchangeState.TERMINAL
+            or claim.audit_id != audit_id
+            or claim.operation_idempotency_key_sha256 != _sha256(idempotency_key)
+        ):
+            raise RuntimeError("follow_up_materialization_reconciliation_invalid")
+        pending, pending_key = self._exact_reconciliation_evidence(
+            record=record,
+            claim=claim,
+            evidence=evidence,
+        )
+        status = _upper(pending.authoritative_order_status)
+        if status not in _TERMINAL_EXCHANGE_STATUSES:
+            raise RuntimeError(
+                "follow_up_materialization_atomic_evidence_mismatch"
+            )
+        native = self.native_repository.finalize_terminal_without_cancel_atomically(
+            materialization_id=record.materialization_id,
+            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            source_client_order_id=source_client_order_id,
+            diagnostic_code=result.diagnostic_code,
+            authoritative_order_status=status,
+            exchange_order_id=pending.exchange_order_id,
+            operation_idempotency_key=idempotency_key,
+            actor_id=actor_id,
+            roles=roles,
+            environment=environment,
+            operator_intent=operator_intent,
+            correlation_id=correlation_id,
+            audit_id=audit_id,
+            reported_read_count=evidence.read_count,
+        )
+        finalized_attempt = getattr(
+            getattr(native, "materialization", None), "attempt", None
+        )
+        live_proof = getattr(native, "live_proof", None)
+        if finalized_attempt is None or live_proof is None:
+            raise RuntimeError("follow_up_live_proof_atomic_binding_mismatch")
+        self._validate_atomic_live_proof_binding(
+            native=live_proof,
+            attempt=finalized_attempt,
+            operation_kind=FollowUpLiveProofOperationKind.RECONCILIATION_READ,
+            source_client_order_id=source_client_order_id,
+            audit_id=claim.audit_id,
+            operation_idempotency_key_sha256=(
+                claim.operation_idempotency_key_sha256
+            ),
+            event_state="TERMINAL",
+        )
+        finalized = self._record(finalized_attempt)
+        if (
+            finalized.state
+            is not MaterializationRecordState.CHILD_ALREADY_TERMINAL
+            or finalized.cancel_call_consumed is not False
+        ):
+            raise RuntimeError("follow_up_live_proof_atomic_terminal_mismatch")
+        self.pending_raw_exchange_evidence.pop(pending_key, None)
+        return finalized
 
     def mark_create_invocation_started(
         self,
@@ -616,13 +1689,13 @@ class ProductionFollowUpMaterializationRuntime:
         runtime_authority_check: Callable[[], bool],
         local_order_reader: Callable[[str], Any],
         template_resolver: Callable[[str, str], Any],
-        product_reader: Callable[[str], Any],
+        product_reader: Callable[[Any, str], Any],
         portfolio_binding_evaluator: Callable[[Any, str], Any],
         source_order_readback: Callable[..., Mapping[str, Any]],
         source_fill_readback: Callable[..., Mapping[str, Any]],
-        market_reference_reader: Callable[[str], Any],
+        market_reference_reader: Callable[[Any, str], Any],
         standing_price_evaluator: Callable[..., Mapping[str, Any]],
-        wallet_reader: Callable[[], Any],
+        wallet_reader: Callable[[Any], Any],
         action_guard_evaluator: Callable[..., Any],
         child_persister: Callable[[Mapping[str, Any]], Any],
         local_stealth_reader: Callable[[str], Any],
@@ -664,6 +1737,7 @@ class ProductionFollowUpMaterializationRuntime:
         ambiguous: bool = False,
         fresh: bool = True,
         coinbase_read_started: bool = False,
+        coinbase_read_count: int = 0,
     ) -> FreshMaterializationEligibility:
         return FreshMaterializationEligibility(
             candidate=candidate,
@@ -674,6 +1748,7 @@ class ProductionFollowUpMaterializationRuntime:
             ambiguous=ambiguous,
             blockers=blockers,
             coinbase_read_started=coinbase_read_started,
+            coinbase_read_count=coinbase_read_count,
         )
 
     def resolve_fresh_materialization_eligibility(
@@ -682,12 +1757,18 @@ class ProductionFollowUpMaterializationRuntime:
         source_client_order_id: str,
     ) -> FreshMaterializationEligibility:
         source_id = _text(source_client_order_id)
-        coinbase_read_started = False
+        read_client = (
+            _BoundedMaterializationReadClient(self.rest_client, maximum_calls=10)
+            if self.rest_client is not None
+            else None
+        )
 
         def evidence(**kwargs: Any) -> FreshMaterializationEligibility:
+            read_count = read_client.call_count if read_client is not None else 0
             return self._evidence(
                 **kwargs,
-                coinbase_read_started=coinbase_read_started,
+                coinbase_read_started=read_count > 0,
+                coinbase_read_count=read_count,
             )
 
         try:
@@ -785,9 +1866,9 @@ class ProductionFollowUpMaterializationRuntime:
                     blockers=("follow_up_materialization_source_state_mismatch",),
                 )
 
-            coinbase_read_started = True
+            assert read_client is not None
             binding = self.portfolio_binding_evaluator(
-                self.rest_client,
+                read_client,
                 self.configured_portfolio_id,
             )
             if (
@@ -800,7 +1881,7 @@ class ProductionFollowUpMaterializationRuntime:
                     blockers=("follow_up_materialization_test_portfolio_required",),
                 )
 
-            product = _mapping(self.product_reader(product_id))
+            product = _mapping(self.product_reader(read_client, product_id))
             observed_product_id = _text(
                 product.get("product_id") or product.get("id")
             )
@@ -831,7 +1912,7 @@ class ProductionFollowUpMaterializationRuntime:
 
             order_readback = dict(
                 self.source_order_readback(
-                    self.rest_client,
+                    read_client,
                     client_order_id=source_id,
                     exchange_order_id=exchange_order_id,
                     product_id=product_id,
@@ -864,7 +1945,7 @@ class ProductionFollowUpMaterializationRuntime:
 
             fill_readback = dict(
                 self.source_fill_readback(
-                    self.rest_client,
+                    read_client,
                     exchange_order_id=exchange_order_id,
                     product_id=product_id,
                 )
@@ -915,7 +1996,9 @@ class ProductionFollowUpMaterializationRuntime:
                     blockers=("follow_up_materialization_current_caps_exceeded",),
                 )
 
-            market = _mapping(self.market_reference_reader(product_id))
+            market = _mapping(
+                self.market_reference_reader(read_client, product_id)
+            )
             standing = dict(
                 self.standing_price_evaluator(
                     side=child_side,
@@ -931,7 +2014,7 @@ class ProductionFollowUpMaterializationRuntime:
                     blockers=("follow_up_materialization_standing_price_blocked",),
                 )
 
-            wallets = self.wallet_reader()
+            wallets = self.wallet_reader(read_client)
             wallets_mapping = _mapping(wallets)
             currencies = product_id.split("-")
             if len(currencies) != 2:
@@ -1132,7 +2215,15 @@ class ProductionFollowUpMaterializationRuntime:
         operation_idempotency_key_sha256: str,
     ) -> ChildStateEvidence:
         child_id = _text(child_client_order_id)
-        coinbase_read_started = False
+        read_client = (
+            _BoundedMaterializationReadClient(self.rest_client, maximum_calls=10)
+            if self.rest_client is not None
+            else None
+        )
+
+        def read_count() -> int:
+            return read_client.call_count if read_client is not None else 0
+
         try:
             if not (
                 _text(materialization_id)
@@ -1140,11 +2231,10 @@ class ProductionFollowUpMaterializationRuntime:
                 and _is_sha256(operation_idempotency_key_sha256)
             ):
                 raise RuntimeError("operation_binding_invalid")
-            if self.runtime_authority_check() is not True or self.rest_client is None:
+            if self.runtime_authority_check() is not True or read_client is None:
                 raise RuntimeError("runtime_unavailable")
-            coinbase_read_started = True
             binding = self.portfolio_binding_evaluator(
-                self.rest_client,
+                read_client,
                 self.configured_portfolio_id,
             )
             if getattr(binding, "ready", False) is not True:
@@ -1169,7 +2259,7 @@ class ProductionFollowUpMaterializationRuntime:
                 raise RuntimeError("child_identity_unavailable")
             readback = dict(
                 self.source_order_readback(
-                    self.rest_client,
+                    read_client,
                     client_order_id=child_id,
                     exchange_order_id=stored_exchange_order_id or None,
                     product_id=product_id,
@@ -1232,10 +2322,10 @@ class ProductionFollowUpMaterializationRuntime:
                 state=state,
                 fresh=True,
                 authoritative=authoritative,
-                read_count=1,
+                read_count=read_count(),
                 individual_retry_count=0,
                 ambiguous=not authoritative,
-                coinbase_read_started=coinbase_read_started,
+                coinbase_read_started=read_count() > 0,
                 exchange_order_id_sha256=(
                     _sha256(verified_exchange_order_id)
                     if authoritative
@@ -1248,10 +2338,10 @@ class ProductionFollowUpMaterializationRuntime:
                 state=ChildExchangeState.UNKNOWN,
                 fresh=False,
                 authoritative=False,
-                read_count=1,
+                read_count=read_count(),
                 individual_retry_count=0,
                 ambiguous=True,
-                coinbase_read_started=coinbase_read_started,
+                coinbase_read_started=read_count() > 0,
             )
 
     def project_persisted_child_state(
@@ -1265,6 +2355,8 @@ class ProductionFollowUpMaterializationRuntime:
             "REPLAY_REPAIR",
         ],
         allow_reconciliation_read: bool,
+        evidence_audit_id: str | None = None,
+        evidence_idempotency_key_sha256: str | None = None,
     ) -> LocalChildProjectionEvidence:
         """Project one already-journaled result into both local child rows."""
 
@@ -1296,6 +2388,13 @@ class ProductionFollowUpMaterializationRuntime:
         operation_key_hash = _text(
             getattr(attempt, "operation_idempotency_key_sha256", "")
         ).lower()
+        evidence_operation_audit_id = (
+            _text(evidence_audit_id) or operation_audit_id
+        )
+        evidence_operation_key_hash = (
+            _text(evidence_idempotency_key_sha256).lower()
+            or operation_key_hash
+        )
         durable_exchange_hash = _text(
             getattr(attempt, "exchange_order_id_sha256", "")
         ).lower()
@@ -1311,14 +2410,16 @@ class ProductionFollowUpMaterializationRuntime:
             and projected_state is record.state
             and operation_audit_id == record.audit_id
             and _is_sha256(operation_key_hash)
+            and _text(evidence_operation_audit_id)
+            and _is_sha256(evidence_operation_key_hash)
         ):
             raise RuntimeError("follow_up_materialization_projection_invalid")
 
         exact_key = _pending_evidence_key(
             materialization_id=record.materialization_id,
             child_client_order_id=record.child_client_order_id,
-            operation_audit_id=operation_audit_id,
-            operation_idempotency_key_sha256=operation_key_hash,
+            operation_audit_id=evidence_operation_audit_id,
+            operation_idempotency_key_sha256=evidence_operation_key_hash,
         )
         pending_key = exact_key
         pending = self.pending_raw_exchange_evidence.get(exact_key)
@@ -1358,8 +2459,8 @@ class ProductionFollowUpMaterializationRuntime:
             local_pending = _PendingRawExchangeEvidence(
                 materialization_id=record.materialization_id,
                 child_client_order_id=record.child_client_order_id,
-                operation_audit_id=operation_audit_id,
-                operation_idempotency_key_sha256=operation_key_hash,
+                operation_audit_id=evidence_operation_audit_id,
+                operation_idempotency_key_sha256=evidence_operation_key_hash,
                 authoritative_order_status=local_status,
                 exchange_order_id=local_exchange_id,
             )
@@ -1402,7 +2503,8 @@ class ProductionFollowUpMaterializationRuntime:
             if (
                 child_evidence.authoritative is not True
                 or child_evidence.ambiguous is True
-                or child_evidence.read_count != 1
+                or type(child_evidence.read_count) is not int
+                or not 1 <= child_evidence.read_count <= 10
                 or child_evidence.individual_retry_count != 0
                 or child_evidence.exchange_order_id_sha256 is None
                 or (
@@ -1463,6 +2565,18 @@ class ProductionFollowUpMaterializationRuntime:
             )
         elif record.state is MaterializationRecordState.CANCEL_ACCEPTED:
             if (
+                native_state == "CANCEL_ACCEPTED_TERMINAL"
+                and record.child_state is ChildExchangeState.TERMINAL
+                and exchange_order_id
+            ):
+                # The durable native state is written only after an accepted
+                # exact-child Cancel and its single terminal post-read.  On a
+                # process restart the raw identity survives in the local child,
+                # while the process-local observation does not; project the
+                # repository's sole accepted-Cancel terminal status without a
+                # second Coinbase read.
+                authoritative_status = "CANCELLED"
+            if (
                 record.child_state is not ChildExchangeState.TERMINAL
                 or _upper(authoritative_status) not in _TERMINAL_EXCHANGE_STATUSES
             ):
@@ -1490,8 +2604,8 @@ class ProductionFollowUpMaterializationRuntime:
             status: str,
             raw_exchange_order_id: str | None,
             *,
-            evidence_audit_id: str = operation_audit_id,
-            evidence_key_hash: str = operation_key_hash,
+            evidence_audit_id: str = evidence_operation_audit_id,
+            evidence_key_hash: str = evidence_operation_key_hash,
         ) -> None:
             if not _text(status):
                 raise RuntimeError(
@@ -1681,6 +2795,73 @@ class ProductionFollowUpMaterializationRuntime:
             individual_retry_count=0,
         )
 
+    def validate_persisted_active_child_identity(
+        self,
+        *,
+        record: FollowUpMaterializationRecord,
+    ) -> LocalChildProjectionEvidence:
+        """Validate durable local active identity without a Coinbase read."""
+
+        if record.state not in {
+            MaterializationRecordState.CREATE_ACCEPTED,
+            MaterializationRecordState.CREATE_UNKNOWN,
+        }:
+            raise RuntimeError("follow_up_materialization_projection_invalid")
+        readback = self.native_repository.read_materialization(
+            record.source_client_order_id
+        )
+        attempt = getattr(readback, "attempt", None)
+        projection = self.native_repository.read_latest_materialized_child_local_state(
+            record.materialization_id
+        )
+        child = _mapping(self.local_order_reader(record.child_client_order_id))
+        raw_exchange_id = _text(child.get("exchange_order_id"))
+        status = _upper(child.get("status"))
+        projection_kind = _upper(
+            getattr(projection, "transition_kind", "")
+        )
+        projection_hash = _text(
+            getattr(projection, "exchange_order_id_sha256", "")
+        ).lower()
+        allowed_kinds = {
+            FollowUpMaterializedChildTransitionKind.CREATE_ACCEPTED_ACTIVE.value,
+            FollowUpMaterializedChildTransitionKind.RECONCILED_ACTIVE.value,
+        }
+        if (
+            attempt is None
+            or projection is None
+            or _text(getattr(attempt, "materialization_id", ""))
+            != record.materialization_id
+            or _text(getattr(attempt, "child_client_order_id", ""))
+            != record.child_client_order_id
+            or _text(getattr(projection, "materialization_id", ""))
+            != record.materialization_id
+            or _text(getattr(projection, "child_client_order_id", ""))
+            != record.child_client_order_id
+            or projection_kind not in allowed_kinds
+            or status not in _ACTIVE_EXCHANGE_STATUSES
+            or _upper(
+                getattr(projection, "authoritative_order_status", "")
+            )
+            != status
+            or _text(child.get("client_order_id"))
+            != record.child_client_order_id
+            or not raw_exchange_id
+            or not _is_sha256(projection_hash)
+            or _sha256(raw_exchange_id) != projection_hash
+        ):
+            raise RuntimeError("follow_up_materialization_projection_invalid")
+        return LocalChildProjectionEvidence(
+            materialization_id=record.materialization_id,
+            child_client_order_id=record.child_client_order_id,
+            record_state=record.state,
+            projected=True,
+            exact_replay_safe=True,
+            exchange_call_ran=False,
+            live_read_count=0,
+            individual_retry_count=0,
+        )
+
 
 class CanonicalFollowUpMaterializationExchange:
     """Make at most one canonical Create or exact-exchange-ID Cancel call."""
@@ -1690,6 +2871,9 @@ class CanonicalFollowUpMaterializationExchange:
         *,
         rest_client: Any | None,
         runtime_authority_check: Callable[[], bool],
+        create_route_admission_check: Callable[[], bool] | None = None,
+        cancel_route_admission_check: Callable[[], bool] | None = None,
+        final_execution_authority_check: Callable[[str], None] | None = None,
         local_order_reader: Callable[[str], Any],
         execution_scope_factory: Callable[[str], AbstractContextManager[Any]],
         exact_order_readback: Callable[..., Mapping[str, Any]] | None = None,
@@ -1703,6 +2887,13 @@ class CanonicalFollowUpMaterializationExchange:
     ) -> None:
         self.rest_client = rest_client
         self.runtime_authority_check = runtime_authority_check
+        self.create_route_admission_check = (
+            create_route_admission_check or (lambda: True)
+        )
+        self.cancel_route_admission_check = (
+            cancel_route_admission_check or (lambda: True)
+        )
+        self.final_execution_authority_check = final_execution_authority_check
         self.local_order_reader = local_order_reader
         self.execution_scope_factory = execution_scope_factory
         self.exact_order_readback = exact_order_readback
@@ -1721,7 +2912,14 @@ class CanonicalFollowUpMaterializationExchange:
         exchange_order_id: str | None = None,
         *,
         exchange_call_started: bool = False,
+        post_mutation_read_started: bool = False,
     ) -> ExchangeInvocationResult:
+        del post_mutation_read_started
+        sdk_state = (
+            FollowUpSdkMutationInvocationState.INVOKED
+            if exchange_call_started
+            else FollowUpSdkMutationInvocationState.NOT_INVOKED
+        )
         return ExchangeInvocationResult(
             outcome=ExchangeInvocationOutcome.UNKNOWN,
             child_state=ChildExchangeState.UNKNOWN,
@@ -1729,6 +2927,26 @@ class CanonicalFollowUpMaterializationExchange:
             exchange_order_id_sha256=(
                 _sha256(exchange_order_id) if exchange_order_id else None
             ),
+            post_mutation_read_started=False,
+            post_mutation_read_count=0,
+            individual_retry_count=0,
+            sdk_mutation_invocation_state=sdk_state,
+            transport_submission_state=(
+                FollowUpTransportSubmissionState.POSSIBLY_SUBMITTED
+                if exchange_call_started
+                else FollowUpTransportSubmissionState.NOT_SUBMITTED
+            ),
+            exchange_mutation_state=(
+                FollowUpExchangeMutationState.UNKNOWN
+                if exchange_call_started
+                else FollowUpExchangeMutationState.NOT_MUTATED
+            ),
+            read_accounting_state=(
+                FollowUpReadAccountingState.UNKNOWN
+                if exchange_call_started
+                else FollowUpReadAccountingState.EXACT
+            ),
+            observed_read_count=None if exchange_call_started else 0,
         )
 
     def create_follow_up_child(
@@ -1741,27 +2959,33 @@ class CanonicalFollowUpMaterializationExchange:
         operation_idempotency_key_sha256: str,
     ) -> ExchangeInvocationResult:
         del correlation_id
-        if (
-            self.rest_client is None
-            or self.runtime_authority_check() is not True
-            or not _text(materialization_id)
-            or not _text(operation_audit_id)
-            or not _is_sha256(operation_idempotency_key_sha256)
-            or not self.configured_portfolio_id
-            or not callable(self.exact_order_readback)
-            or (
-                candidate.portfolio_id != self.configured_portfolio_id
+        try:
+            pre_sdk_ready = bool(
+                self.rest_client is not None
+                and self.runtime_authority_check() is True
+                and _text(materialization_id)
+                and _text(operation_audit_id)
+                and _is_sha256(operation_idempotency_key_sha256)
+                and self.configured_portfolio_id
+                and callable(self.exact_order_readback)
+                and candidate.portfolio_id == self.configured_portfolio_id
             )
-        ):
+        except Exception:
+            pre_sdk_ready = False
+        if not pre_sdk_ready:
             return self._unknown()
-        order_configuration = {
-            "limit_limit_gtc": {
-                "base_size": _decimal_text(candidate.base_size),
-                "limit_price": _decimal_text(candidate.limit_price),
-                "post_only": False,
+        try:
+            order_configuration = {
+                "limit_limit_gtc": {
+                    "base_size": _decimal_text(candidate.base_size),
+                    "limit_price": _decimal_text(candidate.limit_price),
+                    "post_only": False,
+                }
             }
-        }
+        except Exception:
+            return self._unknown()
         call_started = False
+        post_read_started = False
         try:
             from application.admin_api.command_service import (
                 coinbase_order_response_order_id,
@@ -1774,6 +2998,15 @@ class CanonicalFollowUpMaterializationExchange:
 
             with self.execution_scope_factory(COINBASE_EXECUTION_SCOPE_SPOT_PLACE):
                 with self.inflight_scope_factory("PLACE"):
+                    if (
+                        self.runtime_authority_check() is not True
+                        or self.create_route_admission_check() is not True
+                    ):
+                        return self._unknown()
+                    if self.final_execution_authority_check is not None:
+                        self.final_execution_authority_check(
+                            COINBASE_EXECUTION_SCOPE_SPOT_PLACE
+                        )
                     call_started = True
                     response = self.rest_client.create_order(
                         product_id=candidate.product_id,
@@ -1788,6 +3021,17 @@ class CanonicalFollowUpMaterializationExchange:
                     outcome=ExchangeInvocationOutcome.REJECTED,
                     child_state=ChildExchangeState.UNKNOWN,
                     exchange_call_started=True,
+                    sdk_mutation_invocation_state=(
+                        FollowUpSdkMutationInvocationState.INVOKED
+                    ),
+                    transport_submission_state=(
+                        FollowUpTransportSubmissionState.CONFIRMED_SUBMITTED
+                    ),
+                    exchange_mutation_state=(
+                        FollowUpExchangeMutationState.NOT_MUTATED
+                    ),
+                    read_accounting_state=FollowUpReadAccountingState.EXACT,
+                    observed_read_count=0,
                 )
             exchange_order_id = coinbase_order_response_order_id(response, data)
             if success is not True or not _text(exchange_order_id):
@@ -1802,6 +3046,7 @@ class CanonicalFollowUpMaterializationExchange:
                     exchange_order_id,
                     exchange_call_started=True,
                 )
+            post_read_started = True
             readback = dict(
                 self.exact_order_readback(
                     self.rest_client,
@@ -1825,6 +3070,7 @@ class CanonicalFollowUpMaterializationExchange:
                 return self._unknown(
                     exchange_order_id,
                     exchange_call_started=True,
+                    post_mutation_read_started=True,
                 )
             pending_key = _pending_evidence_key(
                 materialization_id=materialization_id,
@@ -1855,9 +3101,28 @@ class CanonicalFollowUpMaterializationExchange:
                 ),
                 exchange_call_started=True,
                 exchange_order_id_sha256=_sha256(exchange_order_id),
+                post_mutation_read_started=True,
+                post_mutation_read_count=1,
+                individual_retry_count=0,
+                sdk_mutation_invocation_state=(
+                    FollowUpSdkMutationInvocationState.INVOKED
+                ),
+                transport_submission_state=(
+                    FollowUpTransportSubmissionState.CONFIRMED_SUBMITTED
+                ),
+                exchange_mutation_state=(
+                    FollowUpExchangeMutationState.CONFIRMED_MUTATED
+                ),
+                read_accounting_state=FollowUpReadAccountingState.EXACT,
+                observed_read_count=1,
             )
+        except CoinbaseExecutionAuthorityError:
+            return self._unknown()
         except Exception:
-            return self._unknown(exchange_call_started=call_started)
+            return self._unknown(
+                exchange_call_started=call_started,
+                post_mutation_read_started=post_read_started,
+            )
 
     def cancel_follow_up_child(
         self,
@@ -1877,13 +3142,16 @@ class CanonicalFollowUpMaterializationExchange:
         ):
             return self._unknown()
         child_id = _text(child_client_order_id)
-        child = _mapping(self.local_order_reader(child_id))
-        stored_exchange_order_id = _text(child.get("exchange_order_id"))
-        exchange_order_id = stored_exchange_order_id
-        product_id = _text(child.get("product_id"))
-        side = _upper(child.get("side"))
-        base_size = _decimal(child.get("size"))
-        limit_price = _decimal(child.get("price"))
+        try:
+            child = _mapping(self.local_order_reader(child_id))
+            stored_exchange_order_id = _text(child.get("exchange_order_id"))
+            exchange_order_id = stored_exchange_order_id
+            product_id = _text(child.get("product_id"))
+            side = _upper(child.get("side"))
+            base_size = _decimal(child.get("size"))
+            limit_price = _decimal(child.get("price"))
+        except Exception:
+            return self._unknown()
         if not (
             _text(child.get("client_order_id")) == child_id
             and exchange_order_id
@@ -1899,29 +3167,14 @@ class CanonicalFollowUpMaterializationExchange:
             and callable(self.exact_order_readback)
         ):
             return self._unknown()
-        pending_key = _pending_evidence_key(
-            materialization_id=materialization_id,
-            child_client_order_id=child_id,
-            operation_audit_id=operation_audit_id,
-            operation_idempotency_key_sha256=operation_idempotency_key_sha256,
-        )
-        self.pending_raw_exchange_evidence[pending_key] = (
-            _PendingRawExchangeEvidence(
-                materialization_id=_text(materialization_id),
-                child_client_order_id=child_id,
-                operation_audit_id=_text(operation_audit_id),
-                operation_idempotency_key_sha256=_text(
-                    operation_idempotency_key_sha256
-                ).lower(),
-                authoritative_order_status=(
-                    _upper(child.get("status")) or "OPEN"
-                ),
-                exchange_order_id=exchange_order_id,
-            )
-        )
-        if self.runtime_authority_check() is not True:
+        try:
+            runtime_authorized = self.runtime_authority_check() is True
+        except Exception:
+            runtime_authorized = False
+        if not runtime_authorized:
             return self._unknown(exchange_order_id)
         call_started = False
+        post_read_started = False
         try:
             from core.coinbase_execution_authority import (
                 COINBASE_EXECUTION_SCOPE_SPOT_CANCEL,
@@ -1929,6 +3182,37 @@ class CanonicalFollowUpMaterializationExchange:
 
             with self.execution_scope_factory(COINBASE_EXECUTION_SCOPE_SPOT_CANCEL):
                 with self.inflight_scope_factory("CANCEL"):
+                    if (
+                        self.runtime_authority_check() is not True
+                        or self.cancel_route_admission_check() is not True
+                    ):
+                        return self._unknown(exchange_order_id)
+                    if self.final_execution_authority_check is not None:
+                        self.final_execution_authority_check(
+                            COINBASE_EXECUTION_SCOPE_SPOT_CANCEL
+                        )
+                    pending_key = _pending_evidence_key(
+                        materialization_id=materialization_id,
+                        child_client_order_id=child_id,
+                        operation_audit_id=operation_audit_id,
+                        operation_idempotency_key_sha256=(
+                            operation_idempotency_key_sha256
+                        ),
+                    )
+                    self.pending_raw_exchange_evidence[pending_key] = (
+                        _PendingRawExchangeEvidence(
+                            materialization_id=_text(materialization_id),
+                            child_client_order_id=child_id,
+                            operation_audit_id=_text(operation_audit_id),
+                            operation_idempotency_key_sha256=_text(
+                                operation_idempotency_key_sha256
+                            ).lower(),
+                            authoritative_order_status=(
+                                _upper(child.get("status")) or "OPEN"
+                            ),
+                            exchange_order_id=exchange_order_id,
+                        )
+                    )
                     call_started = True
                     evidence = self.rest_client.cancel_order(
                         child_id,
@@ -1939,6 +3223,7 @@ class CanonicalFollowUpMaterializationExchange:
             outcome = _text(evidence.get("outcome")).lower()
             identity_match = evidence.get("identity_match") is True
             if outcome == "succeeded" and identity_match:
+                post_read_started = True
                 readback = dict(
                     self.exact_order_readback(
                         self.rest_client,
@@ -1977,10 +3262,27 @@ class CanonicalFollowUpMaterializationExchange:
                             child_state=ChildExchangeState.TERMINAL,
                             exchange_call_started=True,
                             exchange_order_id_sha256=_sha256(exchange_order_id),
+                            post_mutation_read_started=True,
+                            post_mutation_read_count=1,
+                            individual_retry_count=0,
+                            sdk_mutation_invocation_state=(
+                                FollowUpSdkMutationInvocationState.INVOKED
+                            ),
+                            transport_submission_state=(
+                                FollowUpTransportSubmissionState.CONFIRMED_SUBMITTED
+                            ),
+                            exchange_mutation_state=(
+                                FollowUpExchangeMutationState.CONFIRMED_MUTATED
+                            ),
+                            read_accounting_state=(
+                                FollowUpReadAccountingState.EXACT
+                            ),
+                            observed_read_count=1,
                         )
                 return self._unknown(
                     exchange_order_id,
                     exchange_call_started=True,
+                    post_mutation_read_started=post_read_started,
                 )
             if (
                 outcome == "explicitly_rejected"
@@ -1992,15 +3294,29 @@ class CanonicalFollowUpMaterializationExchange:
                     child_state=ChildExchangeState.ACTIVE,
                     exchange_call_started=True,
                     exchange_order_id_sha256=_sha256(exchange_order_id),
+                    sdk_mutation_invocation_state=(
+                        FollowUpSdkMutationInvocationState.INVOKED
+                    ),
+                    transport_submission_state=(
+                        FollowUpTransportSubmissionState.CONFIRMED_SUBMITTED
+                    ),
+                    exchange_mutation_state=(
+                        FollowUpExchangeMutationState.NOT_MUTATED
+                    ),
+                    read_accounting_state=FollowUpReadAccountingState.EXACT,
+                    observed_read_count=0,
                 )
             return self._unknown(
                 exchange_order_id,
                 exchange_call_started=True,
             )
+        except CoinbaseExecutionAuthorityError:
+            return self._unknown(exchange_order_id)
         except Exception:
             return self._unknown(
                 exchange_order_id,
                 exchange_call_started=call_started,
+                post_mutation_read_started=post_read_started,
             )
 
 
@@ -2132,8 +3448,241 @@ def _call_allowance(attempt: Any | None) -> AdminOrderFollowUpMaterializationCal
     )
 
 
+def _zero_current_request_activity() -> AdminOrderFollowUpCurrentRequestActivity:
+    return AdminOrderFollowUpCurrentRequestActivity(
+        sdk_mutation_invocation_state=(
+            FollowUpSdkMutationInvocationState.NOT_INVOKED
+        ),
+        transport_submission_state=(
+            FollowUpTransportSubmissionState.NOT_SUBMITTED
+        ),
+        exchange_mutation_state=FollowUpExchangeMutationState.NOT_MUTATED,
+        read_accounting_state=FollowUpReadAccountingState.EXACT,
+        observed_read_count=0,
+    )
+
+
+def _public_durable_operation_activity(
+    native: Any,
+    *,
+    expected_kind: FollowUpLiveProofOperationKind,
+    readiness: Any,
+    attempt: Any | None,
+) -> AdminOrderFollowUpDurableOperationActivity:
+    """Validate and sanitize one native live-proof journal record."""
+
+    try:
+        operation_kind = FollowUpLiveProofOperationKind(
+            _upper(getattr(native, "operation_kind", ""))
+        )
+        event_state = FollowUpLiveProofEventState(
+            _upper(getattr(native, "event_state", ""))
+        )
+        raw_outcome = _upper(getattr(native, "outcome", ""))
+        terminal_outcome = (
+            FollowUpLiveProofTerminalOutcome(raw_outcome)
+            if raw_outcome
+            else None
+        )
+        sdk_state = FollowUpSdkMutationInvocationState(
+            _upper(getattr(native, "sdk_mutation_invocation_state", ""))
+        )
+        transport_state = FollowUpTransportSubmissionState(
+            _upper(getattr(native, "transport_submission_state", ""))
+        )
+        exchange_state = FollowUpExchangeMutationState(
+            _upper(getattr(native, "exchange_mutation_state", ""))
+        )
+        read_state = FollowUpReadAccountingState(
+            _upper(getattr(native, "read_accounting_state", ""))
+        )
+        evidence_origin = FollowUpAccountingEvidenceOrigin(
+            _upper(getattr(native, "accounting_evidence_origin", ""))
+        )
+    except (TypeError, ValueError):
+        raise OperatorFollowUpMaterializationError(
+            "follow_up_materialization_backend_unavailable", 503
+        ) from None
+
+    source_id = _text(getattr(readiness, "source_client_order_id", ""))
+    root_id = _text(getattr(readiness, "root_client_order_id", ""))
+    intent_id = _text(getattr(readiness, "follow_up_intent_id", ""))
+    attempt_id = _text(getattr(attempt, "materialization_id", ""))
+    child_id = _text(getattr(attempt, "child_client_order_id", ""))
+    requires_attempt_identity = expected_kind is not FollowUpLiveProofOperationKind.ELIGIBILITY_READ
+    if (
+        operation_kind is not expected_kind
+        or _text(getattr(native, "goal_id", ""))
+        != OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID
+        or _text(getattr(native, "source_client_order_id", "")) != source_id
+        or _text(getattr(native, "root_client_order_id", "")) != root_id
+        or _text(getattr(native, "follow_up_intent_id", "")) != intent_id
+        or not _text(getattr(native, "event_id", ""))
+        or not _text(getattr(native, "correlation_id", ""))
+        or not _text(getattr(native, "audit_id", ""))
+        or not _is_sha256(
+            getattr(native, "operation_idempotency_key_sha256", None)
+        )
+        or type(getattr(native, "individual_retry_count", None)) is not int
+        or getattr(native, "individual_retry_count") != 0
+        or not _text(getattr(native, "recorded_at", ""))
+        or (requires_attempt_identity and attempt is None)
+        or (
+            requires_attempt_identity
+            and (
+                _text(getattr(native, "materialization_id", "")) != attempt_id
+                or _text(getattr(native, "child_client_order_id", ""))
+                != child_id
+            )
+        )
+        or (
+            not requires_attempt_identity
+            and (
+                _text(getattr(native, "materialization_id", ""))
+                or _text(getattr(native, "child_client_order_id", ""))
+            )
+        )
+    ):
+        raise OperatorFollowUpMaterializationError(
+            "follow_up_materialization_backend_unavailable", 503
+        )
+
+    try:
+        return AdminOrderFollowUpDurableOperationActivity(
+            operation_kind=operation_kind,
+            event_state=event_state,
+            terminal_outcome=terminal_outcome,
+            individual_retry_count=getattr(native, "individual_retry_count"),
+            evidence_origin=(
+                "live_proof_journal"
+                if evidence_origin is FollowUpAccountingEvidenceOrigin.EXPLICIT
+                else "conservative_legacy_projection"
+            ),
+            sdk_mutation_invocation_state=sdk_state,
+            transport_submission_state=transport_state,
+            exchange_mutation_state=exchange_state,
+            read_accounting_state=read_state,
+            observed_read_count=getattr(native, "observed_read_count", None),
+            recorded_at=_text(getattr(native, "recorded_at", "")),
+        )
+    except (TypeError, ValueError):
+        raise OperatorFollowUpMaterializationError(
+            "follow_up_materialization_backend_unavailable", 503
+        ) from None
+
+
+def _public_durable_live_proof_activity(
+    native_set: Any,
+    *,
+    readiness: Any,
+    attempt: Any | None,
+) -> AdminOrderFollowUpDurableLiveProofActivity:
+    slots = {
+        "eligibility_read": FollowUpLiveProofOperationKind.ELIGIBILITY_READ,
+        "create": FollowUpLiveProofOperationKind.CREATE,
+        "reconciliation_read": (
+            FollowUpLiveProofOperationKind.RECONCILIATION_READ
+        ),
+        "cancel": FollowUpLiveProofOperationKind.CANCEL,
+    }
+    mapped: dict[str, AdminOrderFollowUpDurableOperationActivity | None] = {}
+    for slot, expected_kind in slots.items():
+        native = getattr(native_set, slot, None)
+        mapped[slot] = (
+            _public_durable_operation_activity(
+                native,
+                expected_kind=expected_kind,
+                readiness=readiness,
+                attempt=attempt,
+            )
+            if native is not None
+            else None
+        )
+    return AdminOrderFollowUpDurableLiveProofActivity(**mapped)
+
+
+def _record_belongs_to_request(native: Any, context: Any) -> bool:
+    return bool(
+        native is not None
+        and _text(getattr(native, "correlation_id", ""))
+        == _text(getattr(context, "correlation_id", ""))
+        and _text(getattr(native, "audit_id", ""))
+        == _text(getattr(context, "audit_id", ""))
+    )
+
+
+def _current_request_activity(
+    *,
+    native_set: Any,
+    durable: AdminOrderFollowUpDurableLiveProofActivity,
+    context: Any,
+    replayed: bool,
+    mutation_slot: Literal["create", "cancel"],
+    prerequisite_read_slot: Literal["eligibility_read", "reconciliation_read"],
+    mutation_required: bool,
+) -> AdminOrderFollowUpCurrentRequestActivity:
+    """Aggregate only operation records proven to belong to this request."""
+
+    if replayed:
+        return _zero_current_request_activity()
+    if not _text(getattr(context, "correlation_id", "")) or not _text(
+        getattr(context, "audit_id", "")
+    ):
+        raise OperatorFollowUpMaterializationError(
+            "follow_up_materialization_backend_unavailable", 503
+        )
+
+    native_read = getattr(native_set, prerequisite_read_slot, None)
+    native_mutation = getattr(native_set, mutation_slot, None)
+    read_activity = getattr(durable, prerequisite_read_slot)
+    mutation_activity = getattr(durable, mutation_slot)
+    if not _record_belongs_to_request(native_read, context):
+        read_activity = None
+    if not _record_belongs_to_request(native_mutation, context):
+        mutation_activity = None
+    if read_activity is None or (mutation_required and mutation_activity is None):
+        raise OperatorFollowUpMaterializationError(
+            "follow_up_materialization_backend_unavailable", 503
+        )
+
+    if mutation_activity is None:
+        sdk_state = FollowUpSdkMutationInvocationState.NOT_INVOKED
+        transport_state = FollowUpTransportSubmissionState.NOT_SUBMITTED
+        exchange_state = FollowUpExchangeMutationState.NOT_MUTATED
+    else:
+        sdk_state = mutation_activity.sdk_mutation_invocation_state
+        transport_state = mutation_activity.transport_submission_state
+        exchange_state = mutation_activity.exchange_mutation_state
+
+    participating = [read_activity]
+    if mutation_activity is not None:
+        participating.append(mutation_activity)
+    if any(
+        activity.read_accounting_state is FollowUpReadAccountingState.UNKNOWN
+        for activity in participating
+    ):
+        read_state = FollowUpReadAccountingState.UNKNOWN
+        read_count = None
+    else:
+        read_state = FollowUpReadAccountingState.EXACT
+        read_count = sum(activity.observed_read_count or 0 for activity in participating)
+    try:
+        return AdminOrderFollowUpCurrentRequestActivity(
+            sdk_mutation_invocation_state=sdk_state,
+            transport_submission_state=transport_state,
+            exchange_mutation_state=exchange_state,
+            read_accounting_state=read_state,
+            observed_read_count=read_count,
+        )
+    except (TypeError, ValueError):
+        raise OperatorFollowUpMaterializationError(
+            "follow_up_materialization_backend_unavailable", 503
+        ) from None
+
+
 def _safe_closeout_eligibility(
     attempt: Any | None,
+    create_activity: AdminOrderFollowUpDurableOperationActivity | None,
 ) -> AdminOrderFollowUpMaterializationSafeCloseoutEligibility:
     if attempt is None:
         return AdminOrderFollowUpMaterializationSafeCloseoutEligibility(
@@ -2142,9 +3691,61 @@ def _safe_closeout_eligibility(
             blockers=["materialization_not_started"],
         )
     state = _native_state(attempt.current_state)
+    if state == "CREATE_UNKNOWN_CONSUMED":
+        genuine_unknown = bool(
+            create_activity is not None
+            and create_activity.event_state is FollowUpLiveProofEventState.TERMINAL
+            and create_activity.terminal_outcome
+            is FollowUpLiveProofTerminalOutcome.UNKNOWN
+            and create_activity.individual_retry_count == 0
+            and create_activity.sdk_mutation_invocation_state
+            in {
+                FollowUpSdkMutationInvocationState.INVOKED,
+                FollowUpSdkMutationInvocationState.UNKNOWN,
+            }
+            and create_activity.transport_submission_state
+            is FollowUpTransportSubmissionState.POSSIBLY_SUBMITTED
+            and create_activity.exchange_mutation_state
+            is FollowUpExchangeMutationState.UNKNOWN
+            and create_activity.read_accounting_state
+            is FollowUpReadAccountingState.UNKNOWN
+            and create_activity.observed_read_count is None
+        )
+        if genuine_unknown:
+            return AdminOrderFollowUpMaterializationSafeCloseoutEligibility(
+                request_eligible=True,
+                backend_decision="eligible_for_authoritative_read",
+                blockers=[],
+            )
+        blocked_before_sdk = bool(
+            create_activity is not None
+            and create_activity.event_state is FollowUpLiveProofEventState.TERMINAL
+            and create_activity.terminal_outcome
+            is FollowUpLiveProofTerminalOutcome.BLOCKED
+            and create_activity.individual_retry_count == 0
+            and create_activity.sdk_mutation_invocation_state
+            is FollowUpSdkMutationInvocationState.NOT_INVOKED
+            and create_activity.transport_submission_state
+            is FollowUpTransportSubmissionState.NOT_SUBMITTED
+            and create_activity.exchange_mutation_state
+            is FollowUpExchangeMutationState.NOT_MUTATED
+            and create_activity.read_accounting_state
+            is FollowUpReadAccountingState.EXACT
+            and create_activity.observed_read_count == 0
+        )
+        return AdminOrderFollowUpMaterializationSafeCloseoutEligibility(
+            request_eligible=False,
+            backend_decision="blocked",
+            blockers=[
+                (
+                    "create_blocked_before_sdk_invocation"
+                    if blocked_before_sdk
+                    else "create_safe_closeout_evidence_unproven"
+                )
+            ],
+        )
     if state in {
         "CREATE_INVOCATION_STARTED",
-        "CREATE_UNKNOWN_CONSUMED",
         "CREATE_ACCEPTED_NONTERMINAL",
     }:
         return AdminOrderFollowUpMaterializationSafeCloseoutEligibility(
@@ -2314,6 +3915,17 @@ class OperatorFollowUpMaterializationFacade:
                 "follow_up_materialization_backend_unavailable", 503
             ) from None
 
+    def _native_activity_set(self, source_client_order_id: str) -> Any:
+        try:
+            return self.native_repository.read_follow_up_live_proof_operation_set(
+                goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+                source_client_order_id=source_client_order_id,
+            )
+        except Exception:
+            raise OperatorFollowUpMaterializationError(
+                "follow_up_materialization_backend_unavailable", 503
+            ) from None
+
     def read(
         self,
         *,
@@ -2362,6 +3974,12 @@ class OperatorFollowUpMaterializationFacade:
                         "follow_up_materialization_backend_unavailable", 503
                     )
                 local_projection = _public_local_projection(native_projection)
+        native_activity_set = self._native_activity_set(source_client_order_id)
+        durable_activity = _public_durable_live_proof_activity(
+            native_activity_set,
+            readiness=readiness,
+            attempt=attempt,
+        )
         eligibility = _public_eligibility(
             readiness=readiness,
             attempt=attempt,
@@ -2386,9 +4004,14 @@ class OperatorFollowUpMaterializationFacade:
             ),
             attempt=_public_attempt(attempt) if attempt is not None else None,
             call_allowance=_call_allowance(attempt),
+            current_request_activity=_zero_current_request_activity(),
+            durable_live_proof_activity=durable_activity,
             audit_events=audit_events,
             local_projection=local_projection,
-            safe_closeout_eligibility=_safe_closeout_eligibility(attempt),
+            safe_closeout_eligibility=_safe_closeout_eligibility(
+                attempt,
+                durable_activity.create,
+            ),
         )
 
     def materialize(
@@ -2417,6 +4040,21 @@ class OperatorFollowUpMaterializationFacade:
         )
         native_state = _native_state(attempt.current_state)
         status = _command_status(native_state=native_state, replayed=result.replayed)
+        native_activity_set = self._native_activity_set(source_client_order_id)
+        durable_activity = _public_durable_live_proof_activity(
+            native_activity_set,
+            readiness=readback.readiness,
+            attempt=attempt,
+        )
+        current_activity = _current_request_activity(
+            native_set=native_activity_set,
+            durable=durable_activity,
+            context=context,
+            replayed=result.replayed,
+            mutation_slot="create",
+            prerequisite_read_slot="eligibility_read",
+            mutation_required=True,
+        )
         return AdminOrderFollowUpMaterializationCommandResponse(
             status=status,
             message=result.diagnostic_code,
@@ -2442,13 +4080,24 @@ class OperatorFollowUpMaterializationFacade:
             candidate=public_candidate,
             attempt=_public_attempt(attempt),
             call_allowance=_call_allowance(attempt),
-            live_coinbase_read_ran=result.live_read_ran,
-            live_coinbase_create_call_count=1 if result.create_call_ran else 0,
-            live_exchange_submitted=result.create_call_ran,
-            exchange_state_mutated=bool(
-                result.create_call_ran
-                and native_state
-                in {"CREATE_ACCEPTED_NONTERMINAL", "CREATE_ACCEPTED_TERMINAL"}
+            current_request_activity=current_activity,
+            durable_live_proof_activity=durable_activity,
+            live_coinbase_read_ran=(
+                False if result.replayed else result.live_read_ran
+            ),
+            live_coinbase_create_call_count=(
+                1
+                if current_activity.sdk_mutation_invocation_state
+                is FollowUpSdkMutationInvocationState.INVOKED
+                else 0
+            ),
+            live_exchange_submitted=(
+                current_activity.transport_submission_state
+                is FollowUpTransportSubmissionState.CONFIRMED_SUBMITTED
+            ),
+            exchange_state_mutated=(
+                current_activity.exchange_mutation_state
+                is FollowUpExchangeMutationState.CONFIRMED_MUTATED
             ),
         )
 
@@ -2471,6 +4120,23 @@ class OperatorFollowUpMaterializationFacade:
                 "follow_up_materialization_result_persistence_unavailable", 503
             )
         native_state = _native_state(attempt.current_state)
+        native_activity_set = self._native_activity_set(source_client_order_id)
+        durable_activity = _public_durable_live_proof_activity(
+            native_activity_set,
+            readiness=readback.readiness,
+            attempt=attempt,
+        )
+        current_activity = _current_request_activity(
+            native_set=native_activity_set,
+            durable=durable_activity,
+            context=context,
+            replayed=result.replayed,
+            mutation_slot="cancel",
+            prerequisite_read_slot="reconciliation_read",
+            mutation_required=(
+                native_state != "CANCEL_NOT_REQUIRED_TERMINAL"
+            ),
+        )
         return AdminOrderFollowUpMaterializationCancelResponse(
             status=_command_status(
                 native_state=native_state,
@@ -2492,13 +4158,24 @@ class OperatorFollowUpMaterializationFacade:
             replayed=result.replayed,
             attempt=_public_attempt(attempt),
             call_allowance=_call_allowance(attempt),
-            live_coinbase_read_ran=result.live_read_ran,
-            live_coinbase_cancel_call_count=1 if result.cancel_call_ran else 0,
-            live_exchange_cancel_submitted=result.cancel_call_ran,
-            exchange_state_mutated=bool(
-                result.cancel_call_ran
-                and native_state
-                in {"CANCEL_ACCEPTED_NONTERMINAL", "CANCEL_ACCEPTED_TERMINAL"}
+            current_request_activity=current_activity,
+            durable_live_proof_activity=durable_activity,
+            live_coinbase_read_ran=(
+                False if result.replayed else result.live_read_ran
+            ),
+            live_coinbase_cancel_call_count=(
+                1
+                if current_activity.sdk_mutation_invocation_state
+                is FollowUpSdkMutationInvocationState.INVOKED
+                else 0
+            ),
+            live_exchange_cancel_submitted=(
+                current_activity.transport_submission_state
+                is FollowUpTransportSubmissionState.CONFIRMED_SUBMITTED
+            ),
+            exchange_state_mutated=(
+                current_activity.exchange_mutation_state
+                is FollowUpExchangeMutationState.CONFIRMED_MUTATED
             ),
         )
 
@@ -2544,7 +4221,14 @@ def build_default_operator_follow_up_materialization_service(
     )
     from application.admin_api.command_service import (
         exact_coinbase_fill_readback,
-        exact_coinbase_order_readback,
+    )
+    from application.admin_api.live_execution import (
+        get_decision_backed_live_execution_service,
+        operator_mvp_live_service_state_allows_route_admission,
+    )
+    from application.admin_api.operator_mvp_policy import (
+        OPERATOR_MVP_FOLLOW_UP_MATERIALIZATION_ROUTE,
+        OPERATOR_MVP_FOLLOW_UP_SAFE_CLOSEOUT_ROUTE,
     )
     from application.admin_api.spot_portfolio_binding import (
         DEFAULT_SPOT_PORTFOLIO_LABEL,
@@ -2554,6 +4238,7 @@ def build_default_operator_follow_up_materialization_service(
     from core.action_condition_guard import evaluate_spot_standing_price_limit
     from core.coinbase_execution_authority import (
         canonical_coinbase_execution_scope,
+        require_coinbase_execution_authority,
     )
     from core.runtime_controller import (
         INFLIGHT_REST_CANCEL,
@@ -2572,12 +4257,28 @@ def build_default_operator_follow_up_materialization_service(
         or DEFAULT_SPOT_PORTFOLIO_LABEL
     )
 
-    def product_reader(product_id: str) -> Any:
-        if rest_client is None:
+    def current_route_admission(route: str) -> bool:
+        if not admin_api_live_runtime_enabled():
+            return False
+        try:
+            state = get_decision_backed_live_execution_service().admission_state()
+        except Exception:
+            return False
+        return operator_mvp_live_service_state_allows_route_admission(
+            state,
+            method="POST",
+            route=route,
+        )
+
+    def require_final_execution_authority(scope: str) -> None:
+        require_coinbase_execution_authority(expected_scope=scope)
+
+    def product_reader(client: Any, product_id: str) -> Any:
+        if client is None:
             return None
-        method = getattr(rest_client, "get_product_dict", None)
+        method = getattr(client, "get_product_dict", None)
         if not callable(method):
-            method = getattr(rest_client, "get_product", None)
+            method = getattr(client, "get_product", None)
         if not callable(method):
             return None
         return method(product_id)
@@ -2589,19 +4290,16 @@ def build_default_operator_follow_up_materialization_service(
             expected_portfolio_label=portfolio_label,
         )
 
-    def market_reader(product_id: str) -> Any:
+    def market_reader(client: Any, product_id: str) -> Any:
         return get_admin_api_spot_market_reference(
             product_id,
-            rest_client=rest_client,
+            rest_client=client,
         )
 
-    def wallet_reader() -> Any:
-        if rest_client is None:
+    def wallet_reader(client: Any) -> Any:
+        if client is None:
             raise RuntimeError("follow_up_materialization_wallet_unavailable")
-        method = getattr(rest_client, "get_account_wallets", None)
-        if not callable(method):
-            raise RuntimeError("follow_up_materialization_wallet_unavailable")
-        return method()
+        return _read_single_page_materialization_wallets(client)
 
     pending_raw_exchange_evidence: dict[
         tuple[str, str, str, str], _PendingRawExchangeEvidence
@@ -2611,12 +4309,14 @@ def build_default_operator_follow_up_materialization_service(
         rest_client=rest_client,
         configured_portfolio_id=portfolio_id,
         environment=_configured_admin_environment(),
-        runtime_authority_check=admin_api_live_runtime_enabled,
+        runtime_authority_check=lambda: current_route_admission(
+            OPERATOR_MVP_FOLLOW_UP_MATERIALIZATION_ROUTE
+        ),
         local_order_reader=order_db.get_parent_order,
         template_resolver=_default_template_resolver,
         product_reader=product_reader,
         portfolio_binding_evaluator=portfolio_binding,
-        source_order_readback=exact_coinbase_order_readback,
+        source_order_readback=_single_page_materialization_order_readback,
         source_fill_readback=exact_coinbase_fill_readback,
         market_reference_reader=market_reader,
         standing_price_evaluator=evaluate_spot_standing_price_limit,
@@ -2632,9 +4332,16 @@ def build_default_operator_follow_up_materialization_service(
     exchange = CanonicalFollowUpMaterializationExchange(
         rest_client=rest_client,
         runtime_authority_check=admin_api_live_runtime_enabled,
+        create_route_admission_check=lambda: current_route_admission(
+            OPERATOR_MVP_FOLLOW_UP_MATERIALIZATION_ROUTE
+        ),
+        cancel_route_admission_check=lambda: current_route_admission(
+            OPERATOR_MVP_FOLLOW_UP_SAFE_CLOSEOUT_ROUTE
+        ),
+        final_execution_authority_check=require_final_execution_authority,
         local_order_reader=order_db.get_parent_order,
         execution_scope_factory=canonical_coinbase_execution_scope,
-        exact_order_readback=exact_coinbase_order_readback,
+        exact_order_readback=_single_page_materialization_order_readback,
         configured_portfolio_id=portfolio_id,
         pending_raw_exchange_evidence=pending_raw_exchange_evidence,
         inflight_scope_factory=lambda operation: get_runtime_controller().track_inflight(
@@ -2642,7 +4349,9 @@ def build_default_operator_follow_up_materialization_service(
         ),
     )
     kernel_repository = NativeFollowUpMaterializationRepositoryAdapter(
-        native_repository
+        native_repository,
+        pending_raw_exchange_evidence=pending_raw_exchange_evidence,
+        local_order_reader=order_db.get_parent_order,
     )
     service = OperatorFollowUpMaterializationService(
         repository=kernel_repository,

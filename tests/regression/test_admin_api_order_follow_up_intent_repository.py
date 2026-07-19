@@ -29,6 +29,7 @@ from database.database import PostgresDB
 from database.order_follow_up_intent import (
     FollowUpIntentCommand,
     FollowUpIntentStoreConflict,
+    OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
     OperatorFollowUpIntentRepository,
 )
 
@@ -282,6 +283,522 @@ def _command(
         correlation_id=correlation_id or f"corr-{uuid.uuid4()}",
         operator_intent="attach_single_follow_up_intent",
         payload_sha256=hashlib.sha256(payload_seed.encode("ascii")).hexdigest(),
+    )
+
+
+def _attach_root_intent(
+    harness: _RepositoryHarness,
+    repository: OperatorFollowUpIntentRepository,
+    *,
+    status_after_attach: str,
+    with_full_fill: bool = False,
+) -> str:
+    source_id = str(uuid.uuid4())
+    _insert_order(
+        harness,
+        client_order_id=source_id,
+        product_id=KNOWN_PRODUCT_ID,
+        side="BUY",
+        status="OPEN",
+        parent_order_id=None,
+        ownership_provenance="ADMIN_MANUAL_ROOT",
+    )
+    repository.attach(_command(source_id))
+    harness.execute(
+        f'UPDATE "{harness.schema}".order_parent SET status = %s '
+        "WHERE client_order_id = %s",
+        (status_after_attach, source_id),
+    )
+    if with_full_fill:
+        harness.execute(
+            f"""
+            INSERT INTO "{harness.schema}".fill_ledger (
+                derived_trade_key, quantity, price, client_order_id
+            ) VALUES (%s, 1, 1, %s)
+            """,
+            (str(uuid.uuid4()), source_id),
+        )
+    return source_id
+
+
+def test_follow_up_operations_page_classifies_and_filters_before_sql_pagination(
+    repository_harness: _RepositoryHarness,
+):
+    repository = repository_harness.repository()
+    ready_source = _attach_root_intent(
+        repository_harness,
+        repository,
+        status_after_attach="FILLED",
+        with_full_fill=True,
+    )
+    waiting_source = _attach_root_intent(
+        repository_harness,
+        repository,
+        status_after_attach="OPEN",
+    )
+    blocked_source = _attach_root_intent(
+        repository_harness,
+        repository,
+        status_after_attach="CANCELLED",
+    )
+
+    page = repository.list_operations(limit=2, offset=0)
+
+    assert page.total_matching_count == 3
+    assert len(page.items) == 2
+    assert [item.updated_at for item in page.items] == sorted(
+        [item.updated_at for item in page.items], reverse=True
+    )
+
+    ready = repository.list_operations(
+        state="ready_for_materialization_authorization",
+        actionability="materialization_review",
+        limit=25,
+        offset=0,
+    )
+    assert ready.total_matching_count == 1
+    assert ready.items[0].source_client_order_id == ready_source
+    assert ready.items[0].state == "ready_for_materialization_authorization"
+    assert ready.items[0].actionability == "materialization_review"
+    assert ready.items[0].state_reason_code == (
+        "source_full_fill_locally_consistent"
+    )
+
+    waiting = repository.list_operations(
+        state="awaiting_source_fill",
+        limit=25,
+        offset=0,
+    )
+    assert waiting.total_matching_count == 1
+    assert waiting.items[0].source_client_order_id == waiting_source
+    assert waiting.items[0].actionability == "none"
+
+    blocked = repository.list_operations(
+        state="blocked",
+        limit=25,
+        offset=0,
+    )
+    assert blocked.total_matching_count == 1
+    assert blocked.items[0].source_client_order_id == blocked_source
+    assert blocked.items[0].state_reason_code == "source_terminal_without_full_fill"
+
+
+def test_follow_up_operations_queue_blocks_scope_drift_and_unknown_status(
+    repository_harness: _RepositoryHarness,
+):
+    repository = repository_harness.repository()
+    scope_drift_source = _attach_root_intent(
+        repository_harness,
+        repository,
+        status_after_attach="FILLED",
+        with_full_fill=True,
+    )
+    repository_harness.execute(
+        f'UPDATE "{repository_harness.schema}".order_parent '
+        "SET retail_portfolio_id = NULL WHERE client_order_id = %s",
+        (scope_drift_source,),
+    )
+    unknown_status_source = _attach_root_intent(
+        repository_harness,
+        repository,
+        status_after_attach="FUTURE_STATUS",
+    )
+
+    blocked = repository.list_operations(
+        state="blocked",
+        limit=25,
+        offset=0,
+    )
+    by_source = {item.source_client_order_id: item for item in blocked.items}
+
+    assert by_source[scope_drift_source].state_reason_code == (
+        "source_lineage_or_scope_inconsistent"
+    )
+    assert by_source[unknown_status_source].source_status == "UNKNOWN"
+    assert by_source[unknown_status_source].state_reason_code == (
+        "source_status_unknown"
+    )
+
+
+def test_follow_up_operations_queue_blocks_corrupt_non_spot_product_scope(
+    repository_harness: _RepositoryHarness,
+):
+    repository = repository_harness.repository()
+    source_id = _attach_root_intent(
+        repository_harness,
+        repository,
+        status_after_attach="FILLED",
+        with_full_fill=True,
+    )
+    repository_harness.execute(
+        f'UPDATE "{repository_harness.schema}".order_parent '
+        "SET product_id = %s WHERE client_order_id = %s",
+        ("AVP-20DEC30-CDE", source_id),
+    )
+    repository_harness.execute(
+        f'UPDATE "{repository_harness.schema}".operator_follow_up_intent '
+        "SET product_id = %s WHERE source_client_order_id = %s",
+        ("AVP-20DEC30-CDE", source_id),
+    )
+
+    page = repository.list_operations(limit=25, offset=0)
+
+    assert page.total_matching_count == 1
+    assert page.items[0].source_client_order_id == source_id
+    assert page.items[0].state == "blocked"
+    assert page.items[0].actionability == "none"
+    assert page.items[0].state_reason_code == "source_product_scope_unproven"
+
+
+def _insert_materialization_attempt_state(
+    repository_harness: _RepositoryHarness,
+    *,
+    source_id: str,
+    attempt_state: str,
+) -> tuple[str, str]:
+    materialization_id = str(uuid.uuid4())
+    child_id = str(uuid.uuid4())
+    repository_harness.execute(
+        f"""
+        INSERT INTO "{repository_harness.schema}".operator_follow_up_materialization_attempt (
+            materialization_id, audit_id, follow_up_intent_id,
+            source_client_order_id, root_client_order_id, child_client_order_id,
+            product_id, child_side, base_size, limit_price, portfolio_id,
+            portfolio_scope_sha256, idempotency_key, payload_sha256, actor_id,
+            roles_json, environment, correlation_id, operator_intent
+        )
+        SELECT %s, %s, follow_up_intent_id,
+               source_client_order_id, root_client_order_id, %s,
+               product_id, derived_follow_up_side, 1, 1, %s,
+               portfolio_scope_sha256, %s, %s, 'operator-test',
+               '["trader"]'::jsonb, 'test', %s, 'authorized_test'
+          FROM "{repository_harness.schema}".operator_follow_up_intent
+         WHERE source_client_order_id = %s
+        """,
+        (
+            materialization_id,
+            str(uuid.uuid4()),
+            child_id,
+            PORTFOLIO_ID,
+            f"materialization-{uuid.uuid4()}",
+            "a" * 64,
+            str(uuid.uuid4()),
+            source_id,
+        ),
+    )
+    repository_harness.execute(
+        f"""
+        INSERT INTO "{repository_harness.schema}".operator_follow_up_materialization_event (
+            event_id, materialization_id, state, diagnostic_code,
+            operation_idempotency_key_sha256, operation_audit_id,
+            operation_actor_id, operation_roles_json, operation_environment,
+            operation_operator_intent, operation_correlation_id
+        ) VALUES (%s, %s, %s, 'fixed_synthetic_diagnostic', %s, %s,
+                  'operator-test', '["trader"]'::jsonb, 'test',
+                  'authorized_test', %s)
+        """,
+        (
+            str(uuid.uuid4()),
+            materialization_id,
+            attempt_state,
+            "b" * 64,
+            str(uuid.uuid4()),
+            str(uuid.uuid4()),
+        ),
+    )
+    return materialization_id, child_id
+
+
+def _insert_create_live_proof(
+    repository_harness: _RepositoryHarness,
+    *,
+    source_id: str,
+    materialization_id: str,
+    child_id: str,
+    terminal_outcome: str | None,
+) -> None:
+    operation_audit_id = str(uuid.uuid4())
+    operation_correlation_id = str(uuid.uuid4())
+    operation_hash = "c" * 64
+    repository_harness.execute(
+        f"""
+        INSERT INTO "{repository_harness.schema}".operator_follow_up_live_proof_goal (
+            goal_id, source_client_order_id, root_client_order_id,
+            follow_up_intent_id, materialization_id, child_client_order_id
+        )
+        SELECT %s, source_client_order_id, root_client_order_id,
+               follow_up_intent_id, %s, %s
+          FROM "{repository_harness.schema}".operator_follow_up_intent
+         WHERE source_client_order_id = %s
+        """,
+        (
+            OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            materialization_id,
+            child_id,
+            source_id,
+        ),
+    )
+    repository_harness.execute(
+        f"""
+        INSERT INTO "{repository_harness.schema}".operator_follow_up_live_proof_event (
+            event_id, goal_id, operation_kind, event_state, outcome,
+            diagnostic_code, source_client_order_id, root_client_order_id,
+            follow_up_intent_id, materialization_id, child_client_order_id,
+            correlation_id, audit_id, operation_idempotency_key_sha256,
+            sdk_mutation_invocation_state, transport_submission_state,
+            exchange_mutation_state, read_accounting_state, observed_read_count,
+            external_call_started, reported_read_count, individual_retry_count,
+            authoritative_child_state
+        )
+        SELECT %s, goal_id, 'CREATE', 'INVOCATION_STARTED', NULL,
+               'follow_up_live_proof_invocation_started', source_client_order_id,
+               root_client_order_id, follow_up_intent_id, materialization_id,
+               child_client_order_id, %s, %s, %s, 'UNKNOWN',
+               'POSSIBLY_SUBMITTED', 'UNKNOWN', 'UNKNOWN', NULL,
+               FALSE, 0, 0, NULL
+          FROM "{repository_harness.schema}".operator_follow_up_live_proof_goal
+         WHERE goal_id = %s
+        """,
+        (
+            str(uuid.uuid4()),
+            operation_correlation_id,
+            operation_audit_id,
+            operation_hash,
+            OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        ),
+    )
+    if terminal_outcome is None:
+        return
+
+    accounting = {
+        "BLOCKED": (
+            "NOT_INVOKED",
+            "NOT_SUBMITTED",
+            "NOT_MUTATED",
+            "EXACT",
+            0,
+            False,
+            0,
+            "UNKNOWN",
+        ),
+        "UNKNOWN": (
+            "UNKNOWN",
+            "POSSIBLY_SUBMITTED",
+            "UNKNOWN",
+            "UNKNOWN",
+            None,
+            False,
+            0,
+            "UNKNOWN",
+        ),
+        "SUCCEEDED": (
+            "INVOKED",
+            "CONFIRMED_SUBMITTED",
+            "CONFIRMED_MUTATED",
+            "EXACT",
+            1,
+            True,
+            1,
+            "ACTIVE",
+        ),
+    }[terminal_outcome]
+    repository_harness.execute(
+        f"""
+        INSERT INTO "{repository_harness.schema}".operator_follow_up_live_proof_event (
+            event_id, goal_id, operation_kind, event_state, outcome,
+            diagnostic_code, source_client_order_id, root_client_order_id,
+            follow_up_intent_id, materialization_id, child_client_order_id,
+            correlation_id, audit_id, operation_idempotency_key_sha256,
+            sdk_mutation_invocation_state, transport_submission_state,
+            exchange_mutation_state, read_accounting_state, observed_read_count,
+            external_call_started, reported_read_count, individual_retry_count,
+            authoritative_child_state
+        )
+        SELECT %s, goal_id, 'CREATE', 'TERMINAL', %s,
+               %s, source_client_order_id, root_client_order_id,
+               follow_up_intent_id, materialization_id, child_client_order_id,
+               %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0, %s
+          FROM "{repository_harness.schema}".operator_follow_up_live_proof_goal
+         WHERE goal_id = %s
+        """,
+        (
+            str(uuid.uuid4()),
+            terminal_outcome,
+            f"follow_up_live_proof_create_{terminal_outcome.lower()}",
+            operation_correlation_id,
+            operation_audit_id,
+            operation_hash,
+            *accounting,
+            OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    ("attempt_state", "expected_state"),
+    [
+        ("CREATE_INVOCATION_STARTED", "unknown_outcome"),
+        ("CREATE_UNKNOWN_CONSUMED", "unknown_outcome"),
+        ("CREATE_ACCEPTED_NONTERMINAL", "materialized_active"),
+    ],
+)
+def test_follow_up_operations_queue_preserves_existing_attempt_after_catalog_drift(
+    repository_harness: _RepositoryHarness,
+    attempt_state: str,
+    expected_state: str,
+):
+    repository = repository_harness.repository()
+    source_id = _attach_root_intent(
+        repository_harness,
+        repository,
+        status_after_attach="FILLED",
+        with_full_fill=True,
+    )
+    materialization_id, child_id = _insert_materialization_attempt_state(
+        repository_harness,
+        source_id=source_id,
+        attempt_state=attempt_state,
+    )
+    _insert_create_live_proof(
+        repository_harness,
+        source_id=source_id,
+        materialization_id=materialization_id,
+        child_id=child_id,
+        terminal_outcome={
+            "CREATE_INVOCATION_STARTED": None,
+            "CREATE_UNKNOWN_CONSUMED": "UNKNOWN",
+            "CREATE_ACCEPTED_NONTERMINAL": "SUCCEEDED",
+        }[attempt_state],
+    )
+    drifted_repository = OperatorFollowUpIntentRepository(
+        repository_harness.database,
+        configured_spot_portfolio_id=PORTFOLIO_ID,
+        configured_spot_product_ids=(),
+        schema=repository_harness.schema,
+    )
+
+    page = drifted_repository.list_operations(limit=25, offset=0)
+
+    assert page.total_matching_count == 1
+    assert page.items[0].state == expected_state
+    assert page.items[0].actionability == "safe_closeout_review"
+    assert page.items[0].materialization_attempt_state == attempt_state
+
+
+def test_follow_up_operations_queue_blocks_safe_closeout_when_create_never_reached_sdk(
+    repository_harness: _RepositoryHarness,
+):
+    repository = repository_harness.repository()
+    source_id = _attach_root_intent(
+        repository_harness,
+        repository,
+        status_after_attach="FILLED",
+        with_full_fill=True,
+    )
+    materialization_id, child_id = _insert_materialization_attempt_state(
+        repository_harness,
+        source_id=source_id,
+        attempt_state="CREATE_UNKNOWN_CONSUMED",
+    )
+    _insert_create_live_proof(
+        repository_harness,
+        source_id=source_id,
+        materialization_id=materialization_id,
+        child_id=child_id,
+        terminal_outcome="BLOCKED",
+    )
+
+    safe_closeout_page = repository.list_operations(
+        actionability="safe_closeout_review",
+        limit=25,
+        offset=0,
+    )
+    blocked_page = repository.list_operations(
+        state="blocked",
+        actionability="none",
+        limit=25,
+        offset=0,
+    )
+
+    assert safe_closeout_page.total_matching_count == 0
+    assert safe_closeout_page.items == ()
+    assert blocked_page.total_matching_count == 1
+    assert blocked_page.items[0].source_client_order_id == source_id
+    assert blocked_page.items[0].state_reason_code == (
+        "create_blocked_before_sdk_invocation"
+    )
+    assert blocked_page.items[0].live_proof_operations is not None
+    assert blocked_page.items[0].live_proof_operations.create is not None
+    assert blocked_page.items[0].live_proof_operations.create.outcome == "BLOCKED"
+
+
+def test_follow_up_operations_queue_keeps_genuine_unknown_create_paginated_for_reconciliation(
+    repository_harness: _RepositoryHarness,
+):
+    repository = repository_harness.repository()
+    source_id = _attach_root_intent(
+        repository_harness,
+        repository,
+        status_after_attach="FILLED",
+        with_full_fill=True,
+    )
+    materialization_id, child_id = _insert_materialization_attempt_state(
+        repository_harness,
+        source_id=source_id,
+        attempt_state="CREATE_UNKNOWN_CONSUMED",
+    )
+    _insert_create_live_proof(
+        repository_harness,
+        source_id=source_id,
+        materialization_id=materialization_id,
+        child_id=child_id,
+        terminal_outcome="UNKNOWN",
+    )
+
+    first_page = repository.list_operations(
+        state="unknown_outcome",
+        actionability="safe_closeout_review",
+        limit=1,
+        offset=0,
+    )
+    page_after_end = repository.list_operations(
+        state="unknown_outcome",
+        actionability="safe_closeout_review",
+        limit=1,
+        offset=1,
+    )
+
+    assert first_page.total_matching_count == 1
+    assert len(first_page.items) == 1
+    assert first_page.items[0].source_client_order_id == source_id
+    assert first_page.items[0].state_reason_code == "create_outcome_unknown_consumed"
+    assert page_after_end.total_matching_count == 1
+    assert page_after_end.items == ()
+
+
+def test_follow_up_operations_queue_fails_closed_without_durable_create_evidence(
+    repository_harness: _RepositoryHarness,
+):
+    repository = repository_harness.repository()
+    source_id = _attach_root_intent(
+        repository_harness,
+        repository,
+        status_after_attach="FILLED",
+        with_full_fill=True,
+    )
+    _insert_materialization_attempt_state(
+        repository_harness,
+        source_id=source_id,
+        attempt_state="CREATE_UNKNOWN_CONSUMED",
+    )
+
+    page = repository.list_operations(limit=25, offset=0)
+
+    assert page.total_matching_count == 1
+    assert page.items[0].state == "blocked"
+    assert page.items[0].actionability == "none"
+    assert page.items[0].state_reason_code == (
+        "create_safe_closeout_evidence_unproven"
     )
 
 

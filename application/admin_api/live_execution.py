@@ -1998,6 +1998,44 @@ def get_decision_backed_live_execution_service(
     )
 
 
+def operator_mvp_live_service_state_allows_route_admission(
+    state: AdminApiLiveExecutionServiceState,
+    *,
+    method: str,
+    route: str,
+) -> bool:
+    """Require the current installed service decision for one exact MVP route.
+
+    The decision-backed resolver has already verified lease freshness and the
+    installed deployment/runtime binding before it emits the configured source.
+    This final state check deliberately requires the exact installed cap
+    binding and an explicit route entry; a generic service posture or a smaller
+    unrelated decision cannot silently authorize the follow-up runtime.
+    """
+
+    try:
+        submitted_cap = Decimal(str(state.max_submitted_notional_usdc or ""))
+        executed_cap = Decimal(str(state.max_executed_notional_usdc or ""))
+    except (InvalidOperation, ValueError):
+        return False
+    return bool(
+        state.required
+        and state.present
+        and state.status
+        in {
+            AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
+            AdminApiLiveExecutionStatus.RECONCILIATION_REQUIRED,
+            AdminApiLiveExecutionStatus.COMPLETED,
+        }
+        and state.source == CONFIGURED_LIVE_EXECUTION_SERVICE_SOURCE
+        and state.missing_reason is None
+        and submitted_cap == OPERATOR_MVP_MAX_SUBMITTED_NOTIONAL_USDC
+        and executed_cap == OPERATOR_MVP_MAX_EXECUTED_NOTIONAL_USDC
+        and state.supported_routes is not None
+        and (method.upper(), route) in state.supported_routes
+    )
+
+
 def live_service_decision_allows_backend_admission(
     decision: LiveServiceDecisionRecord | None,
 ) -> bool:

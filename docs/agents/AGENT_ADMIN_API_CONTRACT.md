@@ -21,16 +21,32 @@ frontend request
 -> typed response
 ```
 
-Authenticated Admin API manual Spot LIMIT/GTC place/cancel is the sole
-Controlled-live command surface. It requires the exact execution flag,
-manager-owned lease, current lease-bound service decision, RBAC, operator
-intent, idempotency, explicit acknowledgement, caps, exact Test
-portfolio/wallet evidence, audit, reconciliation, and a route-minted final SDK
-scope. All other browser/HTTP command routes are no-live/local-evidence or
-source-disabled. Fill-follow-up routes may create and report local parent/child
-readback evidence after exact proof refs, but they cannot mint the canonical
-place/cancel SDK scope or authorize Coinbase mutation. Legacy schema/transition
-records remain historical evidence, not current execution authority.
+Goal `operator_follow_up_operations_queue_and_single_live_proof` is in
+progress. Current action is
+`implement_validate_audit_deploy_then_count_exact_candidates`: finish the
+remaining gates for the implemented passive local-SQL Follow-up Operations
+queue before counting exact local candidates or considering the separately
+bounded single live proof. The queue retrieves its page, exact count, and four
+latest durable operation slots in one PostgreSQL statement with no N+1 reader.
+Its current-request activity is exact zero. Durable eligibility-read, Create,
+reconciliation-read, and Cancel activity is distinct from one-use allowance
+consumption; replay preserves durable evidence but reports zero new activity.
+Only all-null legacy accounting may project conservatively, while partial or
+incoherent explicit tuples and mismatched identities fail closed. Specialized
+follow-up error responses expose fixed sanitized activity rather than raw
+responses, private identifiers, or exception text. No current-goal deployment,
+candidate count, Coinbase call, or live proof has occurred yet.
+
+The four installed Controlled-live mutation routes are manual Spot LIMIT/GTC
+place/cancel and explicit attached-intent materialization/exact-child
+safe-closeout. Each requires the exact execution flag, manager-owned lease,
+current post-lease service decision, route membership, RBAC, distinct operator
+intent and acknowledgement, idempotency, caps, exact Test portfolio/wallet
+evidence, audit, reconciliation, and a route-bound final exchange scope. Intent
+attachment and the Follow-up Operations queue remain local-only. All other
+browser/HTTP command routes are no-live/local-evidence or source-disabled.
+Legacy schema/transition records remain historical evidence, not current
+execution authority.
 `X-Operator-Intent` is required command evidence. It must be recorded in the
 durable command audit event and included in the idempotency payload hash.
 

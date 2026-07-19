@@ -24,6 +24,8 @@ from pydantic import (
 from pydantic.json_schema import JsonSchemaValue
 
 from core.enums import (
+    AdminOrderFollowUpOperationActionability,
+    AdminOrderFollowUpOperationState,
     AdminApiActionClass,
     AdminApiApprovalLifecycleStatus,
     AdminApiCommandStatus,
@@ -168,8 +170,17 @@ from core.enums import (
     ActionConditionType,
     ActionGuardPhase,
     EngineState,
+    FollowUpExchangeMutationState,
+    FollowUpLiveProofEventState,
+    FollowUpLiveProofOperationKind,
+    FollowUpLiveProofTerminalOutcome,
+    FollowUpMaterializationState,
+    FollowUpReadAccountingState,
+    FollowUpSdkMutationInvocationState,
+    FollowUpTransportSubmissionState,
     OrderOwnershipProvenance,
     OrderSide,
+    OrderStatus,
     OrderType,
     ProductCapability,
     ProductType,
@@ -200,6 +211,98 @@ from core.enums import (
     TargetMovementType,
     TimeInForce,
 )
+
+
+_CANONICAL_LOWERCASE_UUID_PATTERN = (
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+)
+
+_FOLLOW_UP_OPERATION_ATTEMPT_PUBLIC_PROJECTION = {
+    FollowUpMaterializationState.KNOWN_NOT_INVOKED: (
+        AdminOrderFollowUpOperationState.MATERIALIZATION_IN_PROGRESS,
+        AdminOrderFollowUpOperationActionability.NONE,
+        "materialization_claim_prepared_no_new_post",
+        0,
+        0,
+    ),
+    FollowUpMaterializationState.CREATE_INVOCATION_STARTED: (
+        AdminOrderFollowUpOperationState.UNKNOWN_OUTCOME,
+        AdminOrderFollowUpOperationActionability.SAFE_CLOSEOUT_REVIEW,
+        "create_invocation_outcome_unknown",
+        1,
+        0,
+    ),
+    FollowUpMaterializationState.CREATE_EXPLICITLY_REJECTED: (
+        AdminOrderFollowUpOperationState.BLOCKED,
+        AdminOrderFollowUpOperationActionability.NONE,
+        "create_explicitly_rejected",
+        1,
+        0,
+    ),
+    FollowUpMaterializationState.CREATE_ACCEPTED_NONTERMINAL: (
+        AdminOrderFollowUpOperationState.MATERIALIZED_ACTIVE,
+        AdminOrderFollowUpOperationActionability.SAFE_CLOSEOUT_REVIEW,
+        "materialized_child_active_cancel_available",
+        1,
+        0,
+    ),
+    FollowUpMaterializationState.CREATE_ACCEPTED_TERMINAL: (
+        AdminOrderFollowUpOperationState.MATERIALIZED_TERMINAL,
+        AdminOrderFollowUpOperationActionability.NONE,
+        "materialized_child_terminal",
+        1,
+        0,
+    ),
+    FollowUpMaterializationState.CREATE_UNKNOWN_CONSUMED: (
+        AdminOrderFollowUpOperationState.UNKNOWN_OUTCOME,
+        AdminOrderFollowUpOperationActionability.SAFE_CLOSEOUT_REVIEW,
+        "create_outcome_unknown_consumed",
+        1,
+        0,
+    ),
+    FollowUpMaterializationState.CANCEL_INVOCATION_STARTED: (
+        AdminOrderFollowUpOperationState.UNKNOWN_OUTCOME,
+        AdminOrderFollowUpOperationActionability.NONE,
+        "cancel_invocation_outcome_unknown",
+        1,
+        1,
+    ),
+    FollowUpMaterializationState.CANCEL_NOT_REQUIRED_TERMINAL: (
+        AdminOrderFollowUpOperationState.MATERIALIZED_TERMINAL,
+        AdminOrderFollowUpOperationActionability.NONE,
+        "materialized_child_terminal_no_cancel",
+        1,
+        0,
+    ),
+    FollowUpMaterializationState.CANCEL_EXPLICITLY_REJECTED: (
+        AdminOrderFollowUpOperationState.MATERIALIZED_ACTIVE,
+        AdminOrderFollowUpOperationActionability.NONE,
+        "cancel_explicitly_rejected_allowance_consumed",
+        1,
+        1,
+    ),
+    FollowUpMaterializationState.CANCEL_ACCEPTED_NONTERMINAL: (
+        AdminOrderFollowUpOperationState.MATERIALIZED_ACTIVE,
+        AdminOrderFollowUpOperationActionability.NONE,
+        "cancel_accepted_nonterminal_allowance_consumed",
+        1,
+        1,
+    ),
+    FollowUpMaterializationState.CANCEL_ACCEPTED_TERMINAL: (
+        AdminOrderFollowUpOperationState.MATERIALIZED_TERMINAL,
+        AdminOrderFollowUpOperationActionability.NONE,
+        "safe_closeout_terminal",
+        1,
+        1,
+    ),
+    FollowUpMaterializationState.CANCEL_UNKNOWN_CONSUMED: (
+        AdminOrderFollowUpOperationState.UNKNOWN_OUTCOME,
+        AdminOrderFollowUpOperationActionability.NONE,
+        "cancel_outcome_unknown_consumed",
+        1,
+        1,
+    ),
+}
 
 SPOT_PNL_CHECKPOINT_LEGACY_AUDIT_DETAIL = (
     "Checkpoint does not include a verified Admin API audit link; treat it as "
@@ -4088,7 +4191,13 @@ class AdminApiErrorResponse(BaseModel):
     field_path: str | None = None
     correlation_id: str | None = None
     audit_id: str | None = None
-    live_coinbase_orders_ran: bool = False
+    live_coinbase_orders_ran: bool = Field(
+        default=False,
+        description=(
+            "Confirmed-only compatibility projection. False does not rule "
+            "out an unknown boundary; use current_request_activity when present."
+        ),
+    )
 
 
 class AdminApiRouteDiagnostic(BaseModel):
@@ -5025,6 +5134,425 @@ class AdminOrderListResponse(BaseModel):
     live_coinbase_orders_ran: bool = False
 
 
+class AdminOrderFollowUpOperationsFilters(BaseModel):
+    """Exact normalized SQL filters echoed by the operations queue."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    product_id: str | None = None
+    state: AdminOrderFollowUpOperationState | None = None
+    actionability: AdminOrderFollowUpOperationActionability | None = None
+    limit: int = Field(ge=1, le=500)
+    offset: int = Field(ge=0)
+
+
+class AdminOrderFollowUpOperationItem(BaseModel):
+    """One sanitized, backend-classified attached follow-up intent."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    follow_up_intent_id: str = Field(
+        pattern=_CANONICAL_LOWERCASE_UUID_PATTERN
+    )
+    source_client_order_id: str = Field(
+        pattern=_CANONICAL_LOWERCASE_UUID_PATTERN
+    )
+    root_client_order_id: str = Field(
+        pattern=_CANONICAL_LOWERCASE_UUID_PATTERN
+    )
+    child_client_order_id: str | None = Field(
+        default=None,
+        pattern=_CANONICAL_LOWERCASE_UUID_PATTERN,
+    )
+    product_id: str = Field(pattern=r"^[A-Z0-9][A-Z0-9._-]*$", max_length=255)
+    source_status: OrderStatus | Literal["UNKNOWN"]
+    derived_follow_up_side: Literal["BUY", "SELL"]
+    operation_state: AdminOrderFollowUpOperationState
+    state_reason_code: str = Field(pattern=r"^[a-z0-9_]+$")
+    blocker_codes: list[str] = Field(default_factory=list)
+    actionability: AdminOrderFollowUpOperationActionability
+    actionable: bool
+    review_navigation_available: bool
+    materialization_review_available: bool
+    safe_closeout_review_available: bool
+    required_permission: AdminApiPermission | None = None
+    actor_authorized: bool
+    live_eligibility: Literal[False] = False
+    fresh_authoritative_revalidation_required: bool
+    create_allowance_consumption_count: Annotated[
+        int,
+        Field(
+            strict=True,
+            ge=0,
+            le=1,
+            description="Canonical durable Create allowance-consumption count.",
+        ),
+    ]
+    create_allowance_consumed: bool = Field(
+        description="Canonical durable Create allowance-consumption state."
+    )
+    create_call_count: Annotated[
+        int,
+        Field(
+            strict=True,
+            ge=0,
+            le=1,
+            description=(
+                "Deprecated durable Create allowance-consumption count; "
+                "not an observed SDK call."
+            ),
+        ),
+    ]
+    create_call_consumed: bool = Field(
+        description=(
+            "Deprecated durable Create allowance-consumption state; "
+            "not observed exchange activity."
+        )
+    )
+    cancel_allowance_consumption_count: Annotated[
+        int,
+        Field(
+            strict=True,
+            ge=0,
+            le=1,
+            description="Canonical durable Cancel allowance-consumption count.",
+        ),
+    ]
+    cancel_allowance_consumed: bool = Field(
+        description="Canonical durable Cancel allowance-consumption state."
+    )
+    cancel_call_count: Annotated[
+        int,
+        Field(
+            strict=True,
+            ge=0,
+            le=1,
+            description=(
+                "Deprecated durable Cancel allowance-consumption count; "
+                "not an observed SDK call."
+            ),
+        ),
+    ]
+    cancel_call_consumed: bool = Field(
+        description=(
+            "Deprecated durable Cancel allowance-consumption state; "
+            "not observed exchange activity."
+        )
+    )
+    durable_live_proof_activity: AdminOrderFollowUpDurableLiveProofActivity
+    materialization_attempt_state: FollowUpMaterializationState | None = None
+    correlation_id: str = Field(pattern=r"^[!-~]+$", max_length=255)
+    audit_id: str = Field(pattern=r"^[!-~]+$", max_length=255)
+    recorded_at: str = Field(min_length=1)
+    updated_at: str = Field(min_length=1)
+    detail_href: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_backend_action_projection(self) -> Self:
+        materialization_available = (
+            self.actionability
+            == AdminOrderFollowUpOperationActionability.MATERIALIZATION_REVIEW
+        )
+        safe_closeout_available = (
+            self.actionability
+            == AdminOrderFollowUpOperationActionability.SAFE_CLOSEOUT_REVIEW
+        )
+        review_available = (
+            self.actionability
+            != AdminOrderFollowUpOperationActionability.NONE
+        )
+        if self.review_navigation_available != review_available:
+            raise ValueError("follow_up_operation_review_navigation_mismatch")
+        if self.actionable != (review_available and self.actor_authorized):
+            raise ValueError("follow_up_operation_actionability_mismatch")
+        if self.materialization_review_available != materialization_available:
+            raise ValueError("follow_up_operation_materialization_availability_mismatch")
+        if self.safe_closeout_review_available != safe_closeout_available:
+            raise ValueError("follow_up_operation_safe_closeout_availability_mismatch")
+        if self.fresh_authoritative_revalidation_required != review_available:
+            raise ValueError("follow_up_operation_revalidation_requirement_mismatch")
+        expected_permission = (
+            AdminApiPermission.ORDER_CREATE
+            if materialization_available
+            else (
+                AdminApiPermission.ORDER_CANCEL
+                if safe_closeout_available
+                else None
+            )
+        )
+        if self.required_permission is not expected_permission:
+            raise ValueError("follow_up_operation_required_permission_mismatch")
+        if self.create_call_consumed != (self.create_call_count == 1):
+            raise ValueError("follow_up_operation_create_accounting_mismatch")
+        if self.cancel_call_consumed != (self.cancel_call_count == 1):
+            raise ValueError("follow_up_operation_cancel_accounting_mismatch")
+        if (
+            self.create_allowance_consumption_count != self.create_call_count
+            or self.create_allowance_consumed != self.create_call_consumed
+            or self.create_allowance_consumed
+            != (self.create_allowance_consumption_count == 1)
+            or self.cancel_allowance_consumption_count != self.cancel_call_count
+            or self.cancel_allowance_consumed != self.cancel_call_consumed
+            or self.cancel_allowance_consumed
+            != (self.cancel_allowance_consumption_count == 1)
+        ):
+            raise ValueError(
+                "follow_up_operation_allowance_compatibility_mismatch"
+            )
+        if materialization_available and safe_closeout_available:
+            raise ValueError("follow_up_operation_multiple_actions_invalid")
+        if self.materialization_attempt_state and not self.child_client_order_id:
+            raise ValueError("follow_up_operation_attempt_child_missing")
+        if self.detail_href != f"/orders/{self.source_client_order_id}":
+            raise ValueError("follow_up_operation_detail_href_mismatch")
+        if len(self.blocker_codes) != len(set(self.blocker_codes)) or any(
+            re.fullmatch(r"[a-z0-9_]+", code) is None
+            for code in self.blocker_codes
+        ):
+            raise ValueError("follow_up_operation_blocker_codes_invalid")
+        if self.materialization_attempt_state is None:
+            if self.child_client_order_id is not None:
+                raise ValueError("follow_up_operation_unclaimed_child_invalid")
+            expected_actionability = {
+                AdminOrderFollowUpOperationState.READY_FOR_MATERIALIZATION_AUTHORIZATION: (
+                    AdminOrderFollowUpOperationActionability.MATERIALIZATION_REVIEW
+                ),
+                AdminOrderFollowUpOperationState.AWAITING_SOURCE_FILL: (
+                    AdminOrderFollowUpOperationActionability.NONE
+                ),
+                AdminOrderFollowUpOperationState.BLOCKED: (
+                    AdminOrderFollowUpOperationActionability.NONE
+                ),
+            }.get(self.operation_state)
+            if expected_actionability is None or self.actionability is not expected_actionability:
+                raise ValueError("follow_up_operation_unclaimed_projection_invalid")
+            allowed_reason_codes = {
+                AdminOrderFollowUpOperationState.READY_FOR_MATERIALIZATION_AUTHORIZATION: {
+                    "source_full_fill_locally_consistent"
+                },
+                AdminOrderFollowUpOperationState.AWAITING_SOURCE_FILL: {
+                    "source_full_fill_not_observed"
+                },
+                AdminOrderFollowUpOperationState.BLOCKED: {
+                    "source_terminal_without_full_fill",
+                    "source_full_fill_inconsistent",
+                    "source_lineage_or_scope_inconsistent",
+                    "source_product_scope_unproven",
+                    "source_status_unknown",
+                    "follow_up_operation_evidence_inconsistent",
+                },
+            }[self.operation_state]
+            if self.state_reason_code not in allowed_reason_codes:
+                raise ValueError("follow_up_operation_unclaimed_reason_invalid")
+            source_status = (
+                self.source_status.value
+                if isinstance(self.source_status, OrderStatus)
+                else self.source_status
+            )
+            if (
+                self.operation_state
+                is AdminOrderFollowUpOperationState.READY_FOR_MATERIALIZATION_AUTHORIZATION
+                and source_status != OrderStatus.FILLED.value
+            ):
+                raise ValueError("follow_up_operation_ready_source_status_invalid")
+            if (
+                self.operation_state
+                is AdminOrderFollowUpOperationState.AWAITING_SOURCE_FILL
+                and source_status
+                in {
+                    OrderStatus.FILLED.value,
+                    OrderStatus.CANCELLED.value,
+                    OrderStatus.EXPIRED.value,
+                    OrderStatus.FAILED.value,
+                    "UNKNOWN",
+                }
+            ):
+                raise ValueError("follow_up_operation_awaiting_source_status_invalid")
+            reason_statuses = {
+                "source_terminal_without_full_fill": {
+                    OrderStatus.CANCELLED.value,
+                    OrderStatus.EXPIRED.value,
+                    OrderStatus.FAILED.value,
+                },
+                "source_full_fill_inconsistent": {OrderStatus.FILLED.value},
+                "source_lineage_or_scope_inconsistent": {
+                    OrderStatus.FILLED.value
+                },
+                "source_status_unknown": {"UNKNOWN"},
+            }
+            expected_statuses = reason_statuses.get(self.state_reason_code)
+            if (
+                expected_statuses is not None
+                and source_status not in expected_statuses
+            ):
+                raise ValueError("follow_up_operation_blocked_source_status_invalid")
+            if self.create_call_count or self.cancel_call_count:
+                raise ValueError("follow_up_operation_unclaimed_accounting_invalid")
+        else:
+            if (
+                self.materialization_attempt_state
+                is FollowUpMaterializationState.CREATE_UNKNOWN_CONSUMED
+            ):
+                create_activity = self.durable_live_proof_activity.create
+                genuine_unknown = bool(
+                    create_activity is not None
+                    and create_activity.event_state
+                    is FollowUpLiveProofEventState.TERMINAL
+                    and create_activity.terminal_outcome
+                    is FollowUpLiveProofTerminalOutcome.UNKNOWN
+                    and create_activity.individual_retry_count == 0
+                    and create_activity.sdk_mutation_invocation_state
+                    in {
+                        FollowUpSdkMutationInvocationState.INVOKED,
+                        FollowUpSdkMutationInvocationState.UNKNOWN,
+                    }
+                    and create_activity.transport_submission_state
+                    is FollowUpTransportSubmissionState.POSSIBLY_SUBMITTED
+                    and create_activity.exchange_mutation_state
+                    is FollowUpExchangeMutationState.UNKNOWN
+                    and create_activity.read_accounting_state
+                    is FollowUpReadAccountingState.UNKNOWN
+                    and create_activity.observed_read_count is None
+                )
+                blocked_before_sdk = bool(
+                    create_activity is not None
+                    and create_activity.event_state
+                    is FollowUpLiveProofEventState.TERMINAL
+                    and create_activity.terminal_outcome
+                    is FollowUpLiveProofTerminalOutcome.BLOCKED
+                    and create_activity.individual_retry_count == 0
+                    and create_activity.sdk_mutation_invocation_state
+                    is FollowUpSdkMutationInvocationState.NOT_INVOKED
+                    and create_activity.transport_submission_state
+                    is FollowUpTransportSubmissionState.NOT_SUBMITTED
+                    and create_activity.exchange_mutation_state
+                    is FollowUpExchangeMutationState.NOT_MUTATED
+                    and create_activity.read_accounting_state
+                    is FollowUpReadAccountingState.EXACT
+                    and create_activity.observed_read_count == 0
+                )
+                if genuine_unknown:
+                    expected = _FOLLOW_UP_OPERATION_ATTEMPT_PUBLIC_PROJECTION[
+                        FollowUpMaterializationState.CREATE_UNKNOWN_CONSUMED
+                    ]
+                else:
+                    expected = (
+                        AdminOrderFollowUpOperationState.BLOCKED,
+                        AdminOrderFollowUpOperationActionability.NONE,
+                        (
+                            "create_blocked_before_sdk_invocation"
+                            if blocked_before_sdk
+                            else "create_safe_closeout_evidence_unproven"
+                        ),
+                        1,
+                        0,
+                    )
+            else:
+                expected = _FOLLOW_UP_OPERATION_ATTEMPT_PUBLIC_PROJECTION.get(
+                    self.materialization_attempt_state
+                )
+            if expected is None or (
+                self.operation_state,
+                self.actionability,
+                self.state_reason_code,
+                self.create_call_count,
+                self.cancel_call_count,
+            ) != expected:
+                raise ValueError("follow_up_operation_attempt_projection_invalid")
+        return self
+
+
+class AdminOrderFollowUpOperationsQueueResponse(BaseModel):
+    """One SQL-paginated local queue with no exchange-side activity."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["admin_order_follow_up_operations_queue"] = (
+        "admin_order_follow_up_operations_queue"
+    )
+    filters: AdminOrderFollowUpOperationsFilters
+    count: int = Field(ge=0)
+    pagination: AdminOrderPagination
+    items: list[AdminOrderFollowUpOperationItem] = Field(default_factory=list)
+    current_request_activity: AdminOrderFollowUpCurrentRequestActivity
+    read_only: Literal[True] = True
+    local_sql_only: Literal[True] = True
+    local_classification_only: Literal[True] = True
+    local_state_mutated: Literal[False] = False
+    live_coinbase_read_ran: Literal[False] = False
+    live_coinbase_orders_ran: Literal[False] = False
+    live_coinbase_create_call_count: Literal[0] = 0
+    live_coinbase_cancel_call_count: Literal[0] = 0
+    exchange_state_mutated: Literal[False] = False
+
+    @model_validator(mode="after")
+    def validate_page_evidence(self) -> Self:
+        current = self.current_request_activity
+        if (
+            current.sdk_mutation_invocation_state
+            is not FollowUpSdkMutationInvocationState.NOT_INVOKED
+            or current.transport_submission_state
+            is not FollowUpTransportSubmissionState.NOT_SUBMITTED
+            or current.exchange_mutation_state
+            is not FollowUpExchangeMutationState.NOT_MUTATED
+            or current.read_accounting_state
+            is not FollowUpReadAccountingState.EXACT
+            or current.observed_read_count != 0
+        ):
+            raise ValueError(
+                "follow_up_operations_current_request_activity_invalid"
+            )
+        if self.count != len(self.items):
+            raise ValueError("follow_up_operations_count_mismatch")
+        if self.count > self.pagination.limit:
+            raise ValueError("follow_up_operations_page_limit_exceeded")
+        for field_name in (
+            "follow_up_intent_id",
+            "source_client_order_id",
+        ):
+            values = [getattr(item, field_name) for item in self.items]
+            if len(values) != len(set(values)):
+                raise ValueError("follow_up_operations_page_identity_duplicate")
+        child_ids = [
+            item.child_client_order_id
+            for item in self.items
+            if item.child_client_order_id is not None
+        ]
+        if len(child_ids) != len(set(child_ids)):
+            raise ValueError("follow_up_operations_page_child_duplicate")
+        if self.pagination.returned_count != self.count:
+            raise ValueError("follow_up_operations_pagination_count_mismatch")
+        if (
+            self.filters.limit != self.pagination.limit
+            or self.filters.offset != self.pagination.offset
+        ):
+            raise ValueError("follow_up_operations_pagination_filter_mismatch")
+        page_end = self.pagination.offset + self.count
+        if self.count and self.pagination.total_matching_count < page_end:
+            raise ValueError("follow_up_operations_total_before_page_end")
+        if self.count == 0 and (
+            self.pagination.has_more
+            or self.pagination.next_offset is not None
+        ):
+            raise ValueError("follow_up_operations_empty_page_loop_risk")
+        if self.pagination.has_more:
+            if (
+                self.count != self.pagination.limit
+                or self.pagination.next_offset != page_end
+                or self.pagination.next_offset <= self.pagination.offset
+                or self.pagination.total_matching_count <= page_end
+            ):
+                raise ValueError("follow_up_operations_has_more_invalid")
+        elif self.pagination.next_offset is not None:
+            raise ValueError("follow_up_operations_terminal_next_offset_invalid")
+        elif (
+            self.count
+            and self.pagination.total_matching_count > page_end
+        ):
+            raise ValueError("follow_up_operations_partial_page_invalid")
+        return self
+
+
 class AdminOrderFillFollowUpDecisionAuditEvidence(BaseModel):
     """Read-only fill-triggered follow-up decision evidence for order detail."""
 
@@ -5306,14 +5834,317 @@ class AdminOrderFollowUpMaterializationCallAllowance(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     create_call_limit: Literal[1] = 1
-    create_call_count: int = Field(ge=0, le=1)
-    create_call_consumed: bool
+    create_call_count: Annotated[
+        int,
+        Field(
+            strict=True,
+            ge=0,
+            le=1,
+            description="Durable Create allowance-consumption count.",
+        ),
+    ]
+    create_call_consumed: bool = Field(
+        description="Compatibility name for durable Create allowance consumption."
+    )
     create_retry_allowed: Literal[False] = False
     cancel_call_limit: Literal[1] = 1
-    cancel_call_count: int = Field(ge=0, le=1)
-    cancel_call_consumed: bool
+    cancel_call_count: Annotated[
+        int,
+        Field(
+            strict=True,
+            ge=0,
+            le=1,
+            description="Durable Cancel allowance-consumption count.",
+        ),
+    ]
+    cancel_call_consumed: bool = Field(
+        description="Compatibility name for durable Cancel allowance consumption."
+    )
     cancel_retry_allowed: Literal[False] = False
     fallback_allowed: Literal[False] = False
+    create_allowance_consumed: bool | None = Field(
+        default=None,
+        description="Canonical Create allowance-consumption readback.",
+    )
+    cancel_allowance_consumed: bool | None = Field(
+        default=None,
+        description="Canonical Cancel allowance-consumption readback.",
+    )
+
+    @model_validator(mode="after")
+    def validate_allowance_consumption(self) -> Self:
+        if (
+            self.create_call_consumed != (self.create_call_count == 1)
+            or self.cancel_call_consumed != (self.cancel_call_count == 1)
+            or self.create_allowance_consumed
+            not in {None, self.create_call_consumed}
+            or self.cancel_allowance_consumed
+            not in {None, self.cancel_call_consumed}
+        ):
+            raise ValueError("follow_up_call_allowance_accounting_invalid")
+        self.create_allowance_consumed = self.create_call_consumed
+        self.cancel_allowance_consumed = self.cancel_call_consumed
+        return self
+
+
+_FollowUpStrictBoundedActivityCount = Annotated[
+    int,
+    Field(strict=True, ge=0, le=10),
+]
+
+_FOLLOW_UP_NON_MUTATING_ACTIVITY = (
+    FollowUpSdkMutationInvocationState.NOT_INVOKED,
+    FollowUpTransportSubmissionState.NOT_SUBMITTED,
+    FollowUpExchangeMutationState.NOT_MUTATED,
+)
+_FOLLOW_UP_REJECTED_MUTATION_ACTIVITY = (
+    FollowUpSdkMutationInvocationState.INVOKED,
+    FollowUpTransportSubmissionState.CONFIRMED_SUBMITTED,
+    FollowUpExchangeMutationState.NOT_MUTATED,
+)
+_FOLLOW_UP_CONFIRMED_MUTATION_ACTIVITY = (
+    FollowUpSdkMutationInvocationState.INVOKED,
+    FollowUpTransportSubmissionState.CONFIRMED_SUBMITTED,
+    FollowUpExchangeMutationState.CONFIRMED_MUTATED,
+)
+_FOLLOW_UP_INVOKED_UNKNOWN_MUTATION_ACTIVITY = (
+    FollowUpSdkMutationInvocationState.INVOKED,
+    FollowUpTransportSubmissionState.POSSIBLY_SUBMITTED,
+    FollowUpExchangeMutationState.UNKNOWN,
+)
+_FOLLOW_UP_LOST_OWNER_MUTATION_ACTIVITY = (
+    FollowUpSdkMutationInvocationState.UNKNOWN,
+    FollowUpTransportSubmissionState.POSSIBLY_SUBMITTED,
+    FollowUpExchangeMutationState.UNKNOWN,
+)
+_FOLLOW_UP_ALLOWED_MUTATION_OBSERVATIONS = {
+    _FOLLOW_UP_NON_MUTATING_ACTIVITY,
+    _FOLLOW_UP_REJECTED_MUTATION_ACTIVITY,
+    _FOLLOW_UP_CONFIRMED_MUTATION_ACTIVITY,
+    _FOLLOW_UP_INVOKED_UNKNOWN_MUTATION_ACTIVITY,
+    _FOLLOW_UP_LOST_OWNER_MUTATION_ACTIVITY,
+}
+
+
+class _AdminOrderFollowUpObservedActivity(BaseModel):
+    """Shared observation vocabulary without any action-enabling projection."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    sdk_mutation_invocation_state: FollowUpSdkMutationInvocationState
+    transport_submission_state: FollowUpTransportSubmissionState
+    exchange_mutation_state: FollowUpExchangeMutationState
+    read_accounting_state: FollowUpReadAccountingState
+    observed_read_count: _FollowUpStrictBoundedActivityCount | None
+
+    @model_validator(mode="after")
+    def validate_observed_activity(self) -> Self:
+        count_is_exact = type(self.observed_read_count) is int
+        if (
+            self.read_accounting_state is FollowUpReadAccountingState.EXACT
+        ) != count_is_exact:
+            raise ValueError("follow_up_activity_read_accounting_invalid")
+
+        mutation_observation = (
+            self.sdk_mutation_invocation_state,
+            self.transport_submission_state,
+            self.exchange_mutation_state,
+        )
+        if mutation_observation not in _FOLLOW_UP_ALLOWED_MUTATION_OBSERVATIONS:
+            raise ValueError("follow_up_activity_mutation_observation_invalid")
+        return self
+
+
+class AdminOrderFollowUpCurrentRequestActivity(
+    _AdminOrderFollowUpObservedActivity
+):
+    """Observed activity for this request only; never action authority."""
+
+    accounting_scope: Literal["current_request"] = "current_request"
+
+
+def _zero_follow_up_current_request_activity(
+) -> AdminOrderFollowUpCurrentRequestActivity:
+    """Return the exact no-port activity for a passive read or replay."""
+
+    return AdminOrderFollowUpCurrentRequestActivity(
+        sdk_mutation_invocation_state=(
+            FollowUpSdkMutationInvocationState.NOT_INVOKED
+        ),
+        transport_submission_state=(
+            FollowUpTransportSubmissionState.NOT_SUBMITTED
+        ),
+        exchange_mutation_state=FollowUpExchangeMutationState.NOT_MUTATED,
+        read_accounting_state=FollowUpReadAccountingState.EXACT,
+        observed_read_count=0,
+    )
+
+
+class AdminOrderFollowUpDurableOperationActivity(
+    _AdminOrderFollowUpObservedActivity
+):
+    """Sanitized journal accounting for one durable proof allowance."""
+
+    accounting_scope: Literal["durable_attempt"] = "durable_attempt"
+    operation_kind: FollowUpLiveProofOperationKind
+    event_state: FollowUpLiveProofEventState
+    terminal_outcome: FollowUpLiveProofTerminalOutcome | None = None
+    individual_retry_count: _FollowUpStrictBoundedActivityCount
+    evidence_origin: Literal[
+        "live_proof_journal",
+        "conservative_legacy_projection",
+    ]
+    recorded_at: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_durable_operation_activity(self) -> Self:
+        if self.event_state is FollowUpLiveProofEventState.INVOCATION_STARTED:
+            if self.terminal_outcome is not None:
+                raise ValueError("follow_up_activity_event_outcome_invalid")
+        elif self.terminal_outcome is None:
+            raise ValueError("follow_up_activity_event_outcome_invalid")
+
+        mutation_observation = (
+            self.sdk_mutation_invocation_state,
+            self.transport_submission_state,
+            self.exchange_mutation_state,
+        )
+        read_activity = self.operation_kind in {
+            FollowUpLiveProofOperationKind.ELIGIBILITY_READ,
+            FollowUpLiveProofOperationKind.RECONCILIATION_READ,
+        }
+        if read_activity:
+            if mutation_observation != _FOLLOW_UP_NON_MUTATING_ACTIVITY:
+                raise ValueError("follow_up_activity_read_operation_mutation_invalid")
+            if self.event_state is FollowUpLiveProofEventState.INVOCATION_STARTED:
+                valid = (
+                    self.read_accounting_state
+                    is FollowUpReadAccountingState.UNKNOWN
+                    and self.observed_read_count is None
+                )
+            else:
+                valid = self._terminal_read_accounting_is_valid()
+        elif self.event_state is FollowUpLiveProofEventState.INVOCATION_STARTED:
+            valid = (
+                mutation_observation == _FOLLOW_UP_LOST_OWNER_MUTATION_ACTIVITY
+                and self.read_accounting_state
+                is FollowUpReadAccountingState.UNKNOWN
+                and self.observed_read_count is None
+            )
+        else:
+            valid = self._terminal_mutation_accounting_is_valid(
+                mutation_observation
+            )
+        if not valid:
+            raise ValueError("follow_up_activity_operation_accounting_invalid")
+        return self
+
+    def _terminal_read_accounting_is_valid(self) -> bool:
+        outcome = self.terminal_outcome
+        if outcome is FollowUpLiveProofTerminalOutcome.SUCCEEDED:
+            return (
+                self.read_accounting_state is FollowUpReadAccountingState.EXACT
+                and type(self.observed_read_count) is int
+                and 1 <= self.observed_read_count <= 10
+            )
+        if outcome is FollowUpLiveProofTerminalOutcome.UNKNOWN:
+            return (
+                self.read_accounting_state
+                is FollowUpReadAccountingState.UNKNOWN
+                and self.observed_read_count is None
+            )
+        if outcome is FollowUpLiveProofTerminalOutcome.BLOCKED:
+            return (
+                self.read_accounting_state
+                is FollowUpReadAccountingState.UNKNOWN
+                and self.observed_read_count is None
+            ) or (
+                self.read_accounting_state is FollowUpReadAccountingState.EXACT
+                and type(self.observed_read_count) is int
+            )
+        return bool(
+            outcome is FollowUpLiveProofTerminalOutcome.NOT_REQUIRED
+            and self.read_accounting_state is FollowUpReadAccountingState.EXACT
+            and self.observed_read_count == 0
+        )
+
+    def _terminal_mutation_accounting_is_valid(
+        self,
+        mutation_observation: tuple[
+            FollowUpSdkMutationInvocationState,
+            FollowUpTransportSubmissionState,
+            FollowUpExchangeMutationState,
+        ],
+    ) -> bool:
+        outcome = self.terminal_outcome
+        if outcome is FollowUpLiveProofTerminalOutcome.SUCCEEDED:
+            return bool(
+                mutation_observation == _FOLLOW_UP_CONFIRMED_MUTATION_ACTIVITY
+                and self.read_accounting_state
+                is FollowUpReadAccountingState.EXACT
+                and self.observed_read_count == 1
+            )
+        if outcome is FollowUpLiveProofTerminalOutcome.REJECTED:
+            return bool(
+                mutation_observation == _FOLLOW_UP_REJECTED_MUTATION_ACTIVITY
+                and self.read_accounting_state
+                is FollowUpReadAccountingState.EXACT
+                and self.observed_read_count == 0
+            )
+        if outcome is FollowUpLiveProofTerminalOutcome.UNKNOWN:
+            return bool(
+                mutation_observation
+                in {
+                    _FOLLOW_UP_INVOKED_UNKNOWN_MUTATION_ACTIVITY,
+                    _FOLLOW_UP_LOST_OWNER_MUTATION_ACTIVITY,
+                }
+                and self.read_accounting_state
+                is FollowUpReadAccountingState.UNKNOWN
+                and self.observed_read_count is None
+            )
+        if outcome is FollowUpLiveProofTerminalOutcome.BLOCKED:
+            return bool(
+                mutation_observation == _FOLLOW_UP_NON_MUTATING_ACTIVITY
+                and self.read_accounting_state
+                is FollowUpReadAccountingState.EXACT
+                and self.observed_read_count == 0
+            )
+        return bool(
+            outcome is FollowUpLiveProofTerminalOutcome.NOT_REQUIRED
+            and mutation_observation == _FOLLOW_UP_NON_MUTATING_ACTIVITY
+            and self.read_accounting_state is FollowUpReadAccountingState.EXACT
+            and self.observed_read_count == 0
+        )
+
+
+class AdminOrderFollowUpDurableLiveProofActivity(BaseModel):
+    """The four named durable activity slots for the bounded proof goal."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    eligibility_read: AdminOrderFollowUpDurableOperationActivity | None = None
+    create: AdminOrderFollowUpDurableOperationActivity | None = None
+    reconciliation_read: AdminOrderFollowUpDurableOperationActivity | None = None
+    cancel: AdminOrderFollowUpDurableOperationActivity | None = None
+
+    @model_validator(mode="after")
+    def validate_slot_operation_kinds(self) -> Self:
+        expected_kinds = {
+            "eligibility_read": FollowUpLiveProofOperationKind.ELIGIBILITY_READ,
+            "create": FollowUpLiveProofOperationKind.CREATE,
+            "reconciliation_read": (
+                FollowUpLiveProofOperationKind.RECONCILIATION_READ
+            ),
+            "cancel": FollowUpLiveProofOperationKind.CANCEL,
+        }
+        if any(
+            activity is not None
+            and activity.operation_kind is not expected_kind
+            for slot_name, expected_kind in expected_kinds.items()
+            if (activity := getattr(self, slot_name)) is not None
+        ):
+            raise ValueError("follow_up_live_proof_activity_slot_kind_mismatch")
+        return self
 
 
 class AdminOrderFollowUpMaterializationAttempt(BaseModel):
@@ -5346,8 +6177,14 @@ class AdminOrderFollowUpMaterializationAttempt(BaseModel):
     exchange_order_id_authority: Literal["withheld_backend_evidence"] = (
         "withheld_backend_evidence"
     )
-    correlation_id: str = Field(min_length=1)
-    audit_id: str = Field(min_length=1)
+    correlation_id: str = Field(
+        min_length=1,
+        description="Correlation recorded on the durable operation event.",
+    )
+    audit_id: str = Field(
+        min_length=1,
+        description="Stable durable operation audit binding.",
+    )
     recorded_at: str = Field(min_length=1)
     updated_at: str = Field(min_length=1)
 
@@ -5376,7 +6213,10 @@ class AdminOrderFollowUpMaterializationAuditEvent(BaseModel):
     operation_audit_id: str = Field(min_length=1)
     environment: str = Field(min_length=1)
     operator_intent: str = Field(min_length=1)
-    correlation_id: str = Field(min_length=1)
+    correlation_id: str = Field(
+        min_length=1,
+        description="Correlation recorded on the durable operation event.",
+    )
     exchange_order_id_present: bool = False
     recorded_at: str = Field(min_length=1)
 
@@ -5447,6 +6287,12 @@ class AdminOrderFollowUpMaterializationAuthorizationRequestForwardability(
     ] = "display_and_forward_fresh_acknowledgement_only"
 
 
+class AdminOrderFollowUpMaterializationErrorResponse(AdminApiErrorResponse):
+    """Typed value-blind failure evidence for a follow-up live request."""
+
+    current_request_activity: AdminOrderFollowUpCurrentRequestActivity
+
+
 class AdminOrderFollowUpMaterializationReadResponse(BaseModel):
     """Passive, strictly local materialization readback."""
 
@@ -5473,6 +6319,22 @@ class AdminOrderFollowUpMaterializationReadResponse(BaseModel):
     candidate: AdminOrderFollowUpMaterializationCandidate | None = None
     attempt: AdminOrderFollowUpMaterializationAttempt | None = None
     call_allowance: AdminOrderFollowUpMaterializationCallAllowance
+    current_request_activity: AdminOrderFollowUpCurrentRequestActivity = Field(
+        default_factory=_zero_follow_up_current_request_activity,
+        description=(
+            "Observed activity for this passive HTTP request; it is always "
+            "exact zero and is not exchange authority."
+        ),
+    )
+    durable_live_proof_activity: AdminOrderFollowUpDurableLiveProofActivity = (
+        Field(
+            default_factory=AdminOrderFollowUpDurableLiveProofActivity,
+            description=(
+                "Sanitized durable activity journal, separate from this "
+                "request and from call-allowance consumption."
+            ),
+        )
+    )
     audit_events: list[AdminOrderFollowUpMaterializationAuditEvent] = Field(
         default_factory=list
     )
@@ -5518,20 +6380,83 @@ class AdminOrderFollowUpMaterializationCommandResponse(BaseModel):
     operator_intent: Literal[
         "authorize_and_materialize_follow_up_intent"
     ]
-    correlation_id: str = Field(min_length=1)
+    correlation_id: str = Field(
+        min_length=1,
+        description="Correlation for this HTTP request, including an idempotent replay.",
+    )
     idempotency_key: str = Field(min_length=1)
-    audit_id: str = Field(min_length=1)
+    audit_id: str = Field(
+        min_length=1,
+        description="Receipt audit identifier for this HTTP request.",
+    )
     replayed: bool = False
     eligibility: AdminOrderFollowUpMaterializationEligibilityEvidence
     candidate: AdminOrderFollowUpMaterializationCandidate
     attempt: AdminOrderFollowUpMaterializationAttempt
     call_allowance: AdminOrderFollowUpMaterializationCallAllowance
-    live_coinbase_read_ran: bool
-    live_coinbase_create_call_count: int = Field(ge=0, le=1)
+    current_request_activity: AdminOrderFollowUpCurrentRequestActivity
+    durable_live_proof_activity: AdminOrderFollowUpDurableLiveProofActivity
+    live_coinbase_read_ran: bool = Field(
+        description=(
+            "Deprecated confirmed-only compatibility projection; use "
+            "current_request_activity for authoritative activity accounting."
+        )
+    )
+    live_coinbase_create_call_count: int = Field(
+        ge=0,
+        le=1,
+        description=(
+            "Deprecated confirmed-SDK-invocation projection; allowance "
+            "consumption is reported separately by call_allowance."
+        ),
+    )
     live_coinbase_cancel_call_count: Literal[0] = 0
-    live_exchange_submitted: bool
-    exchange_state_mutated: bool
+    live_exchange_submitted: bool = Field(
+        description=(
+            "Deprecated confirmed-transport projection; POSSIBLY_SUBMITTED "
+            "is represented only by current_request_activity."
+        )
+    )
+    exchange_state_mutated: bool = Field(
+        description=(
+            "Deprecated confirmed-mutation projection; use "
+            "current_request_activity."
+        )
+    )
     browser_authority: str = "display_and_forward_only"
+
+    @model_validator(mode="after")
+    def validate_confirmed_only_activity_projections(self) -> Self:
+        activity = self.current_request_activity
+        expected_sdk_count = int(
+            activity.sdk_mutation_invocation_state
+            is FollowUpSdkMutationInvocationState.INVOKED
+        )
+        if (
+            self.live_coinbase_create_call_count != expected_sdk_count
+            or self.live_exchange_submitted
+            is not (
+                activity.transport_submission_state
+                is FollowUpTransportSubmissionState.CONFIRMED_SUBMITTED
+            )
+            or self.exchange_state_mutated
+            is not (
+                activity.exchange_mutation_state
+                is FollowUpExchangeMutationState.CONFIRMED_MUTATED
+            )
+            or (
+                activity.read_accounting_state
+                is FollowUpReadAccountingState.EXACT
+                and self.live_coinbase_read_ran
+                is not bool(activity.observed_read_count)
+            )
+            or (
+                self.replayed
+                and activity != _zero_follow_up_current_request_activity()
+            )
+        ):
+            raise ValueError("follow_up_current_activity_projection_invalid")
+        return self
 
 
 class AdminOrderFollowUpMaterializationCancelResponse(BaseModel):
@@ -5561,18 +6486,81 @@ class AdminOrderFollowUpMaterializationCancelResponse(BaseModel):
     operator_intent: Literal[
         "safe_closeout_materialized_follow_up_intent"
     ]
-    correlation_id: str = Field(min_length=1)
+    correlation_id: str = Field(
+        min_length=1,
+        description="Correlation for this HTTP request, including an idempotent replay.",
+    )
     idempotency_key: str = Field(min_length=1)
-    audit_id: str = Field(min_length=1)
+    audit_id: str = Field(
+        min_length=1,
+        description="Receipt audit identifier for this HTTP request.",
+    )
     replayed: bool = False
     attempt: AdminOrderFollowUpMaterializationAttempt
     call_allowance: AdminOrderFollowUpMaterializationCallAllowance
-    live_coinbase_read_ran: bool
+    current_request_activity: AdminOrderFollowUpCurrentRequestActivity
+    durable_live_proof_activity: AdminOrderFollowUpDurableLiveProofActivity
+    live_coinbase_read_ran: bool = Field(
+        description=(
+            "Deprecated confirmed-only compatibility projection; use "
+            "current_request_activity for authoritative activity accounting."
+        )
+    )
     live_coinbase_create_call_count: Literal[0] = 0
-    live_coinbase_cancel_call_count: int = Field(ge=0, le=1)
-    live_exchange_cancel_submitted: bool
-    exchange_state_mutated: bool
+    live_coinbase_cancel_call_count: int = Field(
+        ge=0,
+        le=1,
+        description=(
+            "Deprecated confirmed-SDK-invocation projection; allowance "
+            "consumption is reported separately by call_allowance."
+        ),
+    )
+    live_exchange_cancel_submitted: bool = Field(
+        description=(
+            "Deprecated confirmed-transport projection; POSSIBLY_SUBMITTED "
+            "is represented only by current_request_activity."
+        )
+    )
+    exchange_state_mutated: bool = Field(
+        description=(
+            "Deprecated confirmed-mutation projection; use "
+            "current_request_activity."
+        )
+    )
     browser_authority: str = "display_and_forward_only"
+
+    @model_validator(mode="after")
+    def validate_confirmed_only_activity_projections(self) -> Self:
+        activity = self.current_request_activity
+        expected_sdk_count = int(
+            activity.sdk_mutation_invocation_state
+            is FollowUpSdkMutationInvocationState.INVOKED
+        )
+        if (
+            self.live_coinbase_cancel_call_count != expected_sdk_count
+            or self.live_exchange_cancel_submitted
+            is not (
+                activity.transport_submission_state
+                is FollowUpTransportSubmissionState.CONFIRMED_SUBMITTED
+            )
+            or self.exchange_state_mutated
+            is not (
+                activity.exchange_mutation_state
+                is FollowUpExchangeMutationState.CONFIRMED_MUTATED
+            )
+            or (
+                activity.read_accounting_state
+                is FollowUpReadAccountingState.EXACT
+                and self.live_coinbase_read_ran
+                is not bool(activity.observed_read_count)
+            )
+            or (
+                self.replayed
+                and activity != _zero_follow_up_current_request_activity()
+            )
+        ):
+            raise ValueError("follow_up_current_activity_projection_invalid")
+        return self
 
 
 class AdminOrderFillFollowUpReplayResponse(BaseModel):

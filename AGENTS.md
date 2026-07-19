@@ -72,8 +72,13 @@ replace the local sibling paths below.
   long-running helper processes that are no longer needed, and confirm required
   commits are pushed. The installed backend/frontend operator review stack is
   the sole lifecycle exception: after validation and local deployment apply,
-  the frontend repository runs `npm run slice:handoff` and leaves that stack
-  running. Stop it with frontend `npm run review:stop` before replacing the
+  an unqualified handoff defaults to Controlled-live. From the frontend
+  repository, use `npm run review:autostart` when the approved host
+  configuration is installed, or use `npm run review:start` with its exact
+  required inputs, then verify the result with `npm run review:status` and leave
+  that stack running. Reserve frontend `npm run slice:handoff` and
+  `npm run review:refresh` solely for an explicitly requested No-live handoff.
+  Stop the stack with frontend `npm run review:stop` before replacing the
   deployment or running validation that owns ports 3000 or 8787. The local
   Linux Docker environment may remain running; host or container shutdown is
   not a routine session-closeout requirement.
@@ -114,7 +119,10 @@ replace the local sibling paths below.
   runtime authority/readback, generated OpenAPI/client consistency, durable
   audit and idempotency behavior, value-blind diagnostics, graceful admission
   drain/reconciliation, required tests and release gates, and a persistent
-  frontend `npm run slice:handoff` review deployment.
+  Controlled-live frontend review deployment started with
+  `npm run review:autostart` or exact `npm run review:start` inputs and verified
+  with `npm run review:status`. `npm run slice:handoff` is only an explicit
+  No-live handoff and does not satisfy an unqualified Controlled-live closeout.
 - A capability that remains no-live, draft-only, route-disabled, or dependent
   on synthetic evidence must be labeled that way and retained as roadmap work;
   it must not be represented as a completed operator mutation path.
