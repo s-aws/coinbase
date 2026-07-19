@@ -89,21 +89,21 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     assert summary["historical_phase_range"] == "7961-7980"
     assert summary["historical_phase_count"] == 20
     assert summary["phase_range_status"] == "historical_not_work_authority"
-    assert summary["slice_status"] == "in_progress"
-    assert summary["blockers"] == [
-        "queue_validation_and_audits_pending",
-        "goal_scoped_single_candidate_proof_claim_not_created",
-        "fresh_audited_live_eligibility_not_proven",
-    ]
-    assert summary["default_next_action"] == (
-        "implement_validate_audit_deploy_then_count_exact_candidates"
+    assert summary["slice_status"] == "complete_zero_candidates"
+    assert summary["blockers"] == []
+    assert summary["current_action"] == (
+        "complete_zero_candidates_all_live_allowances_unconsumed"
     )
+    assert summary["default_next_action"] == (
+        "complete_zero_candidates_all_live_allowances_unconsumed"
+    )
+    assert summary["next_action"] == "await_operator_direction_for_next_mvp"
     assert summary["r12_workflow_claims_consumed"] == 1
     assert summary["r12_claim_created"] is True
     assert summary["r12_eligibility_cycles_consumed"] == 2
     assert summary["r12_preview_attempts_consumed"] == 1
     assert summary["r12_release_gate_ready"] is False
-    assert summary["follow_up_operations_proof"]["candidate_count"] is None
+    assert summary["follow_up_operations_proof"]["candidate_count"] == 0
     assert summary["follow_up_operations_proof"]["allowances_consumed"] is False
     assert summary["historical_materialization_closeout"][
         "authority_status"
@@ -141,10 +141,10 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         "historical_successor_authorized": False,
     }
     assert summary["mvp_scope"] == {
-        "work_mode": "in_progress_queue_passive_local_sql_then_single_live_proof",
+        "work_mode": "complete_zero_candidates_all_live_allowances_unconsumed",
         "product_goal": (
-            "Deliver the passive local-SQL Follow-up Operations workspace and "
-            "permit one exact-candidate live proof only after every gate and audit."
+            "Record the deployed passive local-SQL Follow-up Operations workspace "
+            "and its terminal zero-candidate closeout without consuming live allowances."
         ),
         "compatibility_result": (
             "official_wire_schema_and_project_acceptance_separated_"
@@ -165,29 +165,25 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         ),
         "scope_posture": "operator_follow_up_operations_queue_single_proof_v1",
         "operator_progress_wording": (
-            "Follow-up Operations queue implementation and validation are in "
-            "progress; all live allowances remain untouched"
+            "Follow-up Operations workspace deployed; exact post-gate candidate "
+            "count 0; all live allowances remain unconsumed"
         ),
-        "operator_question": (
-            "Complete queue gates before counting exact local candidates."
-        ),
+        "operator_question": "Await operator direction for the next MVP.",
         "focused_blast_radius_tests_required": True,
         "full_suite_at_durable_milestone_only": True,
         "active_work_policy": {
-            "current_priority": (
-                "implement_validate_audit_deploy_then_count_exact_candidates"
+            "current_priority": "await_operator_direction_for_next_mvp",
+            "current_action": (
+                "complete_zero_candidates_all_live_allowances_unconsumed"
             ),
             "approved_phase_range_status": "historical_not_work_authority",
             "phase_range_work_allowed": False,
-            "slice_status": "in_progress",
-            "blockers": [
-                "queue_validation_and_audits_pending",
-                "goal_scoped_single_candidate_proof_claim_not_created",
-                "fresh_audited_live_eligibility_not_proven",
-            ],
+            "slice_status": "complete_zero_candidates",
+            "blockers": [],
             "default_next_action": (
-                "implement_validate_audit_deploy_then_count_exact_candidates"
+                "complete_zero_candidates_all_live_allowances_unconsumed"
             ),
+            "next_action": "await_operator_direction_for_next_mvp",
             "ordered_successors": [],
             "allow_only_when_directly_blocks": [],
             "forbidden_default_actions": [
@@ -326,8 +322,8 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         ),
         "zero or multiple exact local candidates permit no live read, Create, or Cancel",
         (
-            "exactly one candidate remains blocked until a durable goal-scoped "
-            "single-candidate proof claim and fresh audited live eligibility"
+            "closed current-goal authority permits no continuing eligibility, "
+            "reconciliation, Create, or Cancel call"
         ),
         (
             "proceeding would broaden the product, order count, policy, caps, "
@@ -342,25 +338,22 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         "local Controlled-live deployment validation without queue Coinbase calls",
         "independent Follow-up Operations safety audit",
         "blind-contextless Follow-up Operations audit",
-        (
-            "durable goal-scoped single-candidate proof claim and fresh audited "
-            "eligibility before any live proof"
-        ),
+        "post-gate exact local materialization_review candidate count",
+        "terminal zero-candidate closeout with no proof claim or live phase activity",
     ]
     assert summary["progress"] == {
         "goal_id": "operator_follow_up_operations_queue_and_single_live_proof",
-        "slice_status": "in_progress",
-        "work_mode": "in_progress_queue_passive_local_sql_then_single_live_proof",
+        "slice_status": "complete_zero_candidates",
+        "work_mode": "complete_zero_candidates_all_live_allowances_unconsumed",
         "live_coinbase_execution": "not_run",
-        "blockers": [
-            "queue_validation_and_audits_pending",
-            "goal_scoped_single_candidate_proof_claim_not_created",
-            "fresh_audited_live_eligibility_not_proven",
-        ],
-        "next_action": "implement_validate_audit_deploy_then_count_exact_candidates",
+        "blockers": [],
+        "current_action": (
+            "complete_zero_candidates_all_live_allowances_unconsumed"
+        ),
+        "next_action": "await_operator_direction_for_next_mvp",
         "operator_wording": (
-            "Follow-up Operations queue implementation and validation are in "
-            "progress; all live allowances remain untouched"
+            "Follow-up Operations workspace deployed; exact post-gate candidate "
+            "count 0; all live allowances remain unconsumed"
         ),
     }
     assert check_results["current_goal_alignment"]["passed"] is True
@@ -386,22 +379,66 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     ] == "local_linux_docker"
 
 
-def test_current_follow_up_operations_goal_requires_a_durable_single_candidate_claim():
+def test_current_follow_up_operations_goal_records_zero_candidate_terminal_closeout():
     summary = build_autonomous_work_queue_summary()
 
     assert summary["goal_id"] == (
         "operator_follow_up_operations_queue_and_single_live_proof"
     )
-    assert summary["slice_status"] == "in_progress"
+    assert summary["slice_status"] == "complete_zero_candidates"
+    assert summary["follow_up_operations_proof"]["candidate_count"] == 0
+    assert summary["follow_up_operations_proof"][
+        "goal_scoped_single_candidate_proof_claim"
+    ] == {
+        "required_for_observed_candidate_count": False,
+        "status": "not_created",
+        "reason": "zero_candidates",
+    }
+    assert summary["follow_up_operations_proof"]["goal_authority"] == "closed"
+    assert summary["follow_up_operations_proof"][
+        "continuing_live_proof_authority"
+    ] is False
+    assert summary["historical_materialization_closeout"]["authority_status"] == (
+        "historical_predecessor_not_current_authority"
+    )
+    assert summary["progress"] == {
+        "goal_id": "operator_follow_up_operations_queue_and_single_live_proof",
+        "slice_status": "complete_zero_candidates",
+        "work_mode": "complete_zero_candidates_all_live_allowances_unconsumed",
+        "live_coinbase_execution": "not_run",
+        "blockers": [],
+        "current_action": (
+            "complete_zero_candidates_all_live_allowances_unconsumed"
+        ),
+        "next_action": "await_operator_direction_for_next_mvp",
+        "operator_wording": (
+            "Follow-up Operations workspace deployed; exact post-gate candidate "
+            "count 0; all live allowances remain unconsumed"
+        ),
+    }
+
+
+def test_follow_up_operations_zero_candidate_closeout_is_terminal_and_preserves_allowances():
+    summary = build_autonomous_work_queue_summary()
+
+    assert summary["slice_status"] == "complete_zero_candidates"
+    assert summary["blockers"] == []
+    assert summary["current_action"] == (
+        "complete_zero_candidates_all_live_allowances_unconsumed"
+    )
+    assert summary["default_next_action"] == (
+        "complete_zero_candidates_all_live_allowances_unconsumed"
+    )
+    assert summary["next_action"] == "await_operator_direction_for_next_mvp"
     assert summary["follow_up_operations_proof"] == {
-        "status": "in_progress",
+        "status": "complete_zero_candidates",
         "queue_posture": "passive_local_sql_only",
-        "candidate_count": None,
-        "candidate_count_status": "pending_post_gate_exact_count",
+        "candidate_count": 0,
+        "candidate_count_status": "exact_post_gate_local_count_complete",
         "candidate_count_meaning": (
             "exact_local_materialization_review_candidates_only_never_live_eligibility"
         ),
-        "live_eligibility_status": "not_evaluated",
+        "live_eligibility_status": "not_run_zero_candidates",
         "queue_live_coinbase_read_calls": 0,
         "queue_coinbase_create_calls": 0,
         "queue_coinbase_cancel_calls": 0,
@@ -411,43 +448,35 @@ def test_current_follow_up_operations_goal_requires_a_durable_single_candidate_c
             "create_call": "unconsumed",
             "cancel_call": "unconsumed",
         },
-        "candidate_policies": {
-            "zero": "no_live_read_create_or_cancel",
-            "multiple": "no_live_read_create_or_cancel",
-            "exactly_one": (
-                "blocked_until_durable_goal_scoped_single_candidate_proof_claim_"
-                "and_fresh_audited_live_eligibility"
-            ),
-        },
         "goal_scoped_single_candidate_proof_claim": {
-            "required_for_exactly_one": True,
+            "required_for_observed_candidate_count": False,
             "status": "not_created",
-            "durable": True,
-            "candidate_identity_bound": True,
+            "reason": "zero_candidates",
+        },
+        "phase_activity": {
+            "eligibility_reads": "not_run",
+            "reconciliation_reads": "not_run",
+            "create_call": "not_run",
+            "cancel_call": "not_run",
         },
         "allowances_consumed": False,
+        "goal_authority": "closed",
+        "continuing_live_proof_authority": False,
+        "controlled_live_stack_posture": "remain_available",
     }
-    assert summary["historical_materialization_closeout"]["authority_status"] == (
-        "historical_predecessor_not_current_authority"
-    )
     assert summary["progress"] == {
         "goal_id": "operator_follow_up_operations_queue_and_single_live_proof",
-        "slice_status": "in_progress",
-        "work_mode": (
-            "in_progress_queue_passive_local_sql_then_single_live_proof"
-        ),
+        "slice_status": "complete_zero_candidates",
+        "work_mode": "complete_zero_candidates_all_live_allowances_unconsumed",
         "live_coinbase_execution": "not_run",
-        "blockers": [
-            "queue_validation_and_audits_pending",
-            "goal_scoped_single_candidate_proof_claim_not_created",
-            "fresh_audited_live_eligibility_not_proven",
-        ],
-        "next_action": (
-            "implement_validate_audit_deploy_then_count_exact_candidates"
+        "blockers": [],
+        "current_action": (
+            "complete_zero_candidates_all_live_allowances_unconsumed"
         ),
+        "next_action": "await_operator_direction_for_next_mvp",
         "operator_wording": (
-            "Follow-up Operations queue implementation and validation are in "
-            "progress; all live allowances remain untouched"
+            "Follow-up Operations workspace deployed; exact post-gate candidate "
+            "count 0; all live allowances remain unconsumed"
         ),
     }
 
@@ -456,15 +485,12 @@ def test_autonomous_work_queue_check_reports_terminal_r12_without_inventing_prev
     summary = build_autonomous_work_queue_summary()
     active_slice = summary["standing_limits"]["active_futures_slice"]
 
-    assert summary["slice_status"] == "in_progress"
-    assert summary["blockers"] == [
-        "queue_validation_and_audits_pending",
-        "goal_scoped_single_candidate_proof_claim_not_created",
-        "fresh_audited_live_eligibility_not_proven",
-    ]
+    assert summary["slice_status"] == "complete_zero_candidates"
+    assert summary["blockers"] == []
     assert summary["default_next_action"] == (
-        "implement_validate_audit_deploy_then_count_exact_candidates"
+        "complete_zero_candidates_all_live_allowances_unconsumed"
     )
+    assert summary["next_action"] == "await_operator_direction_for_next_mvp"
     assert summary["historical_r12"]["slice_status"] == (
         "complete_terminal_unknown_consumed"
     )
@@ -511,18 +537,17 @@ def test_autonomous_work_queue_check_reports_terminal_r12_without_inventing_prev
 
     assert summary["progress"] == {
         "goal_id": "operator_follow_up_operations_queue_and_single_live_proof",
-        "slice_status": "in_progress",
-        "work_mode": "in_progress_queue_passive_local_sql_then_single_live_proof",
+        "slice_status": "complete_zero_candidates",
+        "work_mode": "complete_zero_candidates_all_live_allowances_unconsumed",
         "live_coinbase_execution": "not_run",
-        "blockers": [
-            "queue_validation_and_audits_pending",
-            "goal_scoped_single_candidate_proof_claim_not_created",
-            "fresh_audited_live_eligibility_not_proven",
-        ],
-        "next_action": "implement_validate_audit_deploy_then_count_exact_candidates",
+        "blockers": [],
+        "current_action": (
+            "complete_zero_candidates_all_live_allowances_unconsumed"
+        ),
+        "next_action": "await_operator_direction_for_next_mvp",
         "operator_wording": (
-            "Follow-up Operations queue implementation and validation are in "
-            "progress; all live allowances remain untouched"
+            "Follow-up Operations workspace deployed; exact post-gate candidate "
+            "count 0; all live allowances remain unconsumed"
         ),
     }
 
@@ -608,10 +633,14 @@ def test_operator_materialization_terminal_records_are_aligned():
     assert "Historical Slice 2R12 Terminal" in normalized["goal"]
     assert "Historical R12 terminal" in normalized["handoff"]
     operational_handoff = (
-        "Controlled-live operational handoff is verified: the final installed "
-        "operator review stack reports runtime mode `controlled_live`, frontend "
+        "Bounded Controlled-live observation for candidate counting: the audited "
+        "installed operator review stack reported runtime mode `controlled_live`, frontend "
         "`0.0.0.0:3000`, backend `127.0.0.1:8787`, and approved Test portfolio "
         "configuration without exposing its identifier."
+    )
+    deployment_boundary = (
+        "This observation made zero Coinbase calls and does not claim final "
+        "post-closeout deployment health."
     )
     zero_call_handoff = (
         "Release, startup, and status made zero Coinbase calls and consumed no "
@@ -619,8 +648,8 @@ def test_operator_materialization_terminal_records_are_aligned():
     )
     for name in ("goal", "handoff", "roadmap", "admin_readme"):
         assert operational_handoff in normalized[name]
+        assert deployment_boundary in normalized[name]
         assert zero_call_handoff in normalized[name]
-        assert "does not yet claim final running-stack health" not in normalized[name]
 
 
 def test_follow_up_operations_goal_is_discoverable_from_backend_entry_points():
@@ -634,12 +663,15 @@ def test_follow_up_operations_goal_is_discoverable_from_backend_entry_points():
         ).read_text(encoding="utf-8"),
     }
     current_goal = "operator_follow_up_operations_queue_and_single_live_proof"
-    current_action = "implement_validate_audit_deploy_then_count_exact_candidates"
+    current_action = "complete_zero_candidates_all_live_allowances_unconsumed"
+    next_action = "await_operator_direction_for_next_mvp"
 
     for body in documents.values():
         normalized = " ".join(body.split())
         assert current_goal in normalized
         assert current_action in normalized
+        assert next_action in normalized
+        assert "complete_zero_candidates" in normalized
 
     assert "four installed Controlled-live mutation routes" in documents[
         "contract_agent"

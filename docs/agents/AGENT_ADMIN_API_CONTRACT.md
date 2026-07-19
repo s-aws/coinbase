@@ -21,12 +21,11 @@ frontend request
 -> typed response
 ```
 
-Goal `operator_follow_up_operations_queue_and_single_live_proof` is in
-progress. Current action is
-`implement_validate_audit_deploy_then_count_exact_candidates`: finish the
-remaining gates for the implemented passive local-SQL Follow-up Operations
-queue before counting exact local candidates or considering the separately
-bounded single live proof. The queue retrieves its page, exact count, and four
+Goal `operator_follow_up_operations_queue_and_single_live_proof` has Status:
+`complete_zero_candidates`. Current/default action is
+`complete_zero_candidates_all_live_allowances_unconsumed`; next action is
+`await_operator_direction_for_next_mvp`. The deployed passive local-SQL
+Follow-up Operations queue retrieves its page, exact count, and four
 latest durable operation slots in one PostgreSQL statement with no N+1 reader.
 Its current-request activity is exact zero. Durable eligibility-read, Create,
 reconciliation-read, and Cancel activity is distinct from one-use allowance
@@ -34,8 +33,13 @@ consumption; replay preserves durable evidence but reports zero new activity.
 Only all-null legacy accounting may project conservatively, while partial or
 incoherent explicit tuples and mismatched identities fail closed. Specialized
 follow-up error responses expose fixed sanitized activity rather than raw
-responses, private identifiers, or exception text. No current-goal deployment,
-candidate count, Coinbase call, or live proof has occurred yet.
+responses, private identifiers, or exception text. Focused/full gates,
+deployment validation, and independent audits passed. The exact post-gate local
+`materialization_review` candidate count is `0`; the goal-scoped proof claim was
+not created or required, eligibility/reconciliation/Create/Cancel did not run,
+and all one-use proof allowances remain unconsumed. The goal authority is
+closed and grants no continuing proof call. Keep the Controlled-live stack
+available under its separate runtime controls.
 
 The four installed Controlled-live mutation routes are manual Spot LIMIT/GTC
 place/cancel and explicit attached-intent materialization/exact-child

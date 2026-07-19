@@ -4,13 +4,19 @@
 
 `genai_data/` contains expanded engineering references and historical analyses.
 Current work authority is `AGENT_MVP_REBUILD_GOAL.md`, goal id
-`futures_preview_acceptance_recovery_r12`,
+`operator_follow_up_operations_queue_and_single_live_proof`,
 paired with the frontend canonical goal
 at `/home/developer/coinbase/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. An
 individual analysis or implementation note does not become current work merely
 because it lives in this directory.
 
-Goal `futures_preview_acceptance_recovery_r12` is
+The current goal has Status: `complete_zero_candidates`. Its current/default
+action is `complete_zero_candidates_all_live_allowances_unconsumed`; next action
+is `await_operator_direction_for_next_mvp`. The exact post-gate local
+`materialization_review` candidate count is `0`, all live allowances remain
+unconsumed, and the closed goal grants no continuing proof call.
+
+Historical goal `futures_preview_acceptance_recovery_r12` is
 `complete_terminal_unknown_consumed` with alignment
 `r12_separate_eligibility_and_single_use_attempt_v1`. Its source-bound
 `R12_RELEASE_READY` gate is `False`. Eligibility cycle 2 completed

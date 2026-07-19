@@ -13,7 +13,19 @@ plans.
 
 ## Current MVP Goal
 
-Goal `futures_preview_acceptance_recovery_r12` is
+Goal `operator_follow_up_operations_queue_and_single_live_proof` has Status:
+`complete_zero_candidates`. Current/default action is
+`complete_zero_candidates_all_live_allowances_unconsumed`; next action is
+`await_operator_direction_for_next_mvp`. The deployed passive local-SQL
+Follow-up Operations workspace passed its focused/full, deployment, safety, and
+blind-contextless gates. The exact post-gate local `materialization_review`
+candidate count is `0`. The queue made no Coinbase read, Create, or Cancel call;
+the goal-scoped proof claim was not created or required; and eligibility,
+reconciliation, Create, and Cancel did not run. All live allowances remain
+unconsumed, but this completed goal grants no continuing proof call. Keep the
+Controlled-live review stack available under its separate runtime controls.
+
+Historical goal `futures_preview_acceptance_recovery_r12` is
 `complete_terminal_unknown_consumed`. Eligibility cycle 2 completed
 `exact_v3_eligible`, created the one durable R12 claim, and left claim-only
 evidence. Offline claim recovery appended terminal blocker
@@ -23,10 +35,8 @@ consumed, and no further Coinbase call is permitted. The generic
 Preview-attempt counter is conservative: it records the consumed post-claim
 attempt boundary as `1` but does not prove network reach. Preview network reach
 is therefore unknown; retries, fallbacks, redirects, submissions, exchange
-mutations, orders, and submitted/executed notional are all zero. The next
-action is
-`await_operator_authorization_for_operator_attach_single_follow_up_intent`.
-See [R12 terminal closeout](docs/FUTURES_SLICE_2R12_PREPARATION.md).
+mutations, orders, and submitted/executed notional are all zero. See
+[R12 terminal closeout](docs/FUTURES_SLICE_2R12_PREPARATION.md).
 
 The predecessor goal `futures_preview_acceptance_recovery_r11` is complete.
 R11 is consumed, terminal `blocked`, immutable, and cannot be retried. It stopped at

@@ -25,15 +25,19 @@ automatic follow-up mutation paths are source-disabled.
 ## Current Status
 
 Goal `operator_follow_up_operations_queue_and_single_live_proof` has Status:
-`in_progress`. Current action is
-`implement_validate_audit_deploy_then_count_exact_candidates`. The routed
+`complete_zero_candidates`. Current/default action is
+`complete_zero_candidates_all_live_allowances_unconsumed`; next action is
+`await_operator_direction_for_next_mvp`. The routed
 Follow-up Operations workspace is a passive backend-owned local-SQL queue with
 pagination, filtering, classification, actionable readback, and navigation to
 the existing attach, materialize, and exact-child safe-closeout controls. It
-does not make Coinbase calls or determine live eligibility. Candidate counting
-and the separately bounded single live proof remain closed until focused/full
-validation, deployment checks, and independent safety plus blind-contextless
-audits pass. All live allowances remain unconsumed.
+does not make Coinbase calls or determine live eligibility. Focused/full gates,
+deployment validation, and independent safety plus blind-contextless audits
+passed. The exact post-gate local `materialization_review` candidate count is
+`0`. The passive queue made `0` Coinbase reads, `0` Create calls, and `0` Cancel
+calls. The goal-scoped single-candidate proof claim was not created and was not
+required. Eligibility, reconciliation, Create, and Cancel did not run. All
+one-use proof allowances and all live allowances remain unconsumed.
 
 The queue now returns its page, exact matching count, and the latest four-slot
 live-proof journal projection in one PostgreSQL statement; it performs no
@@ -52,10 +56,11 @@ contracts use the same separation. A replay reports exact-zero activity for
 the current request while preserving the durable journal; allowance
 consumption is not reinterpreted as a new SDK call. Specialized follow-up
 errors expose only fixed, value-blind current-request activity and never raw
-exception or exchange-response content. This implementation checkpoint made
-no current-goal deployment, candidate-count, Coinbase-read, Create, Cancel, or
-other live action; the remaining validation, audits, deployment, candidate
-count, and possible single proof are still pending.
+exception or exchange-response content. The current goal authority is closed
+and grants no continuing proof call. Operator wording: Follow-up Operations
+workspace deployed; exact post-gate candidate count 0; all live allowances
+remain unconsumed. Keep the Controlled-live operator stack available; its
+posture supplies no authority from this completed goal.
 
 Historical predecessor goal
 `operator_authorize_and_materialize_follow_up_intent` has Status:
@@ -75,11 +80,13 @@ status `passed`, live execution `false`, and notional `0`; frontend focused
 `179 passed`; independent safety audit `PASS`; and blind-contextless audit
 `PASS`.
 
-Controlled-live operational handoff is verified: the final installed operator
-review stack reports runtime mode `controlled_live`, frontend `0.0.0.0:3000`,
-backend `127.0.0.1:8787`, and approved Test portfolio configuration without
-exposing its identifier. Release, startup, and status made zero Coinbase calls
-and consumed no live-proof allowance.
+Bounded Controlled-live observation for candidate counting: the audited
+installed operator review stack reported runtime mode `controlled_live`, frontend
+`0.0.0.0:3000`, backend `127.0.0.1:8787`, and approved Test portfolio
+configuration without exposing its identifier. This observation made zero
+Coinbase calls and does not claim final post-closeout deployment health.
+Release, startup, and status made zero Coinbase calls and consumed no
+live-proof allowance.
 
 Historical goal `futures_preview_acceptance_recovery_r12` is
 `complete_terminal_unknown_consumed`. Eligibility cycle 2 created the one

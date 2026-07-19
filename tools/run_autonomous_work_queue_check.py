@@ -31,7 +31,9 @@ FRONTEND_QUEUE_DOC = FRONTEND_ROOT / "docs" / "plans" / "AUTONOMOUS_WORK_QUEUE.m
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
 GOAL_ID = "operator_follow_up_operations_queue_and_single_live_proof"
 CURRENT_ALIGNMENT_TOKEN = "operator_follow_up_operations_queue_single_proof_v1"
-CURRENT_WORK_MODE = "in_progress_queue_passive_local_sql_then_single_live_proof"
+CURRENT_ACTION = "complete_zero_candidates_all_live_allowances_unconsumed"
+CURRENT_WORK_MODE = CURRENT_ACTION
+NEXT_ACTION = "await_operator_direction_for_next_mvp"
 HISTORICAL_R12_GOAL_ID = "futures_preview_acceptance_recovery_r12"
 HISTORICAL_R11_GOAL_ID = "futures_preview_acceptance_recovery_r11"
 HISTORICAL_POST_R10_GOAL_ID = (
@@ -57,24 +59,20 @@ CLOSED_LOOPHOLE_RULE = (
     "A candidate blocker cannot make itself in scope by generating evidence "
     "about the candidate blocker."
 )
-SLICE_STATUS = "in_progress"
-SLICE_BLOCKERS: tuple[str, ...] = (
-    "queue_validation_and_audits_pending",
-    "goal_scoped_single_candidate_proof_claim_not_created",
-    "fresh_audited_live_eligibility_not_proven",
-)
+SLICE_STATUS = "complete_zero_candidates"
+SLICE_BLOCKERS: tuple[str, ...] = ()
 HISTORICAL_R12_SLICE_STATUS = "complete_terminal_unknown_consumed"
 HISTORICAL_R12_SLICE_BLOCKERS: tuple[str, ...] = (
     "claim_only_recovery_unknown_consumed",
 )
-DEFAULT_NEXT_ACTION = "implement_validate_audit_deploy_then_count_exact_candidates"
+DEFAULT_NEXT_ACTION = CURRENT_ACTION
 HISTORICAL_R12_SUCCESSOR_ACTION = (
     "await_operator_authorization_for_operator_attach_single_follow_up_intent"
 )
-OPERATOR_QUESTION = "Complete queue gates before counting exact local candidates."
+OPERATOR_QUESTION = "Await operator direction for the next MVP."
 OPERATOR_PROGRESS_WORDING = (
-    "Follow-up Operations queue implementation and validation are in progress; "
-    "all live allowances remain untouched"
+    "Follow-up Operations workspace deployed; exact post-gate candidate count 0; "
+    "all live allowances remain unconsumed"
 )
 HISTORICAL_R11_STATUS = "complete_terminal_no_retry"
 HISTORICAL_R11_NEXT_ACTION = "stop_and_await_operator_direction"
@@ -96,8 +94,8 @@ R7_TERMINAL_DIAGNOSTIC = (
 MVP_SCOPE = {
     "work_mode": CURRENT_WORK_MODE,
     "product_goal": (
-        "Deliver the passive local-SQL Follow-up Operations workspace and "
-        "permit one exact-candidate live proof only after every gate and audit."
+        "Record the deployed passive local-SQL Follow-up Operations workspace "
+        "and its terminal zero-candidate closeout without consuming live allowances."
     ),
     "compatibility_result": POST_R10_COMPLETION_ALIGNMENT_TOKEN,
     "goal_authority": str(FRONTEND_GOAL_DOC),
@@ -115,12 +113,14 @@ MVP_SCOPE = {
     "focused_blast_radius_tests_required": True,
     "full_suite_at_durable_milestone_only": True,
     "active_work_policy": {
-        "current_priority": DEFAULT_NEXT_ACTION,
+        "current_priority": NEXT_ACTION,
+        "current_action": CURRENT_ACTION,
         "approved_phase_range_status": PHASE_RANGE_STATUS,
         "phase_range_work_allowed": False,
         "slice_status": SLICE_STATUS,
         "blockers": list(SLICE_BLOCKERS),
         "default_next_action": DEFAULT_NEXT_ACTION,
+        "next_action": NEXT_ACTION,
         "ordered_successors": [],
         "allow_only_when_directly_blocks": [],
         "forbidden_default_actions": [
@@ -134,14 +134,14 @@ MVP_SCOPE = {
     },
 }
 FOLLOW_UP_OPERATIONS_PROOF = {
-    "status": "in_progress",
+    "status": "complete_zero_candidates",
     "queue_posture": "passive_local_sql_only",
-    "candidate_count": None,
-    "candidate_count_status": "pending_post_gate_exact_count",
+    "candidate_count": 0,
+    "candidate_count_status": "exact_post_gate_local_count_complete",
     "candidate_count_meaning": (
         "exact_local_materialization_review_candidates_only_never_live_eligibility"
     ),
-    "live_eligibility_status": "not_evaluated",
+    "live_eligibility_status": "not_run_zero_candidates",
     "queue_live_coinbase_read_calls": 0,
     "queue_coinbase_create_calls": 0,
     "queue_coinbase_cancel_calls": 0,
@@ -151,21 +151,21 @@ FOLLOW_UP_OPERATIONS_PROOF = {
         "create_call": "unconsumed",
         "cancel_call": "unconsumed",
     },
-    "candidate_policies": {
-        "zero": "no_live_read_create_or_cancel",
-        "multiple": "no_live_read_create_or_cancel",
-        "exactly_one": (
-            "blocked_until_durable_goal_scoped_single_candidate_proof_claim_"
-            "and_fresh_audited_live_eligibility"
-        ),
-    },
     "goal_scoped_single_candidate_proof_claim": {
-        "required_for_exactly_one": True,
+        "required_for_observed_candidate_count": False,
         "status": "not_created",
-        "durable": True,
-        "candidate_identity_bound": True,
+        "reason": "zero_candidates",
+    },
+    "phase_activity": {
+        "eligibility_reads": "not_run",
+        "reconciliation_reads": "not_run",
+        "create_call": "not_run",
+        "cancel_call": "not_run",
     },
     "allowances_consumed": False,
+    "goal_authority": "closed",
+    "continuing_live_proof_authority": False,
+    "controlled_live_stack_posture": "remain_available",
 }
 HISTORICAL_MATERIALIZATION_CLOSEOUT = {
     "authority_status": "historical_predecessor_not_current_authority",
@@ -305,8 +305,8 @@ REQUIRED_STOP_CONDITIONS = [
     ),
     "zero or multiple exact local candidates permit no live read, Create, or Cancel",
     (
-        "exactly one candidate remains blocked until a durable goal-scoped "
-        "single-candidate proof claim and fresh audited live eligibility"
+        "closed current-goal authority permits no continuing eligibility, "
+        "reconciliation, Create, or Cancel call"
     ),
     (
         "proceeding would broaden the product, order count, policy, caps, "
@@ -321,10 +321,8 @@ REQUIRED_GATES = [
     "local Controlled-live deployment validation without queue Coinbase calls",
     "independent Follow-up Operations safety audit",
     "blind-contextless Follow-up Operations audit",
-    (
-        "durable goal-scoped single-candidate proof claim and fresh audited "
-        "eligibility before any live proof"
-    ),
+    "post-gate exact local materialization_review candidate count",
+    "terminal zero-candidate closeout with no proof claim or live phase activity",
 ]
 
 
@@ -380,16 +378,21 @@ def _current_goal_alignment() -> QueueCheck:
         (
             GOAL_ID,
             CURRENT_ALIGNMENT_TOKEN,
-            "Status: `in_progress`",
+            "Status: `complete_zero_candidates`",
             DEFAULT_NEXT_ACTION,
+            NEXT_ACTION,
             CURRENT_WORK_MODE,
+            OPERATOR_PROGRESS_WORDING,
             "passive local SQL",
             "never live eligibility",
-            "exact local `materialization_review` candidates only",
+            "exact post-gate local `materialization_review` candidate count",
             "goal-scoped single-candidate proof claim",
-            "all live allowances remain untouched",
-            "zero or multiple candidates",
-            "fresh audited live eligibility",
+            "not created and was not required",
+            "all live allowances remain unconsumed",
+            "goal authority is closed",
+            "Eligibility, reconciliation, Create, and Cancel did not run",
+            "Controlled-live",
+            "remain available",
             "operator_authorize_and_materialize_follow_up_intent",
             "historical predecessor",
             HISTORICAL_R12_GOAL_ID,
@@ -418,16 +421,15 @@ def _current_goal_alignment() -> QueueCheck:
         (
             GOAL_ID,
             CURRENT_ALIGNMENT_TOKEN,
-            "Status: `in_progress`",
+            "Status: `complete_zero_candidates`",
             DEFAULT_NEXT_ACTION,
+            NEXT_ACTION,
             OPERATOR_PROGRESS_WORDING,
             "passive local SQL",
             "never live eligibility",
             "exact local `materialization_review` candidates only",
             "goal-scoped single-candidate proof claim",
-            "all live allowances remain untouched",
-            "zero or multiple candidates",
-            "fresh audited live eligibility",
+            "all live allowances remain unconsumed",
             "operator_authorize_and_materialize_follow_up_intent",
             "historical predecessor",
             HISTORICAL_R12_GOAL_ID,
@@ -739,6 +741,8 @@ def _entry_point_alignment() -> QueueCheck:
             (
                 GOAL_ID,
                 DEFAULT_NEXT_ACTION,
+                NEXT_ACTION,
+                "complete_zero_candidates",
                 "Current Status",
                 "Historical predecessor goal",
             ),
@@ -748,6 +752,10 @@ def _entry_point_alignment() -> QueueCheck:
             (
                 HISTORICAL_R12_GOAL_ID,
                 HISTORICAL_POST_R10_GOAL_ID,
+                GOAL_ID,
+                DEFAULT_NEXT_ACTION,
+                NEXT_ACTION,
+                "complete_zero_candidates",
                 "Current MVP Goal",
             ),
         ),
@@ -756,6 +764,8 @@ def _entry_point_alignment() -> QueueCheck:
             (
                 GOAL_ID,
                 DEFAULT_NEXT_ACTION,
+                NEXT_ACTION,
+                "complete_zero_candidates",
                 HISTORICAL_R12_GOAL_ID,
                 HISTORICAL_POST_R10_GOAL_ID,
                 "Current MVP Goal",
@@ -766,6 +776,8 @@ def _entry_point_alignment() -> QueueCheck:
             (
                 GOAL_ID,
                 DEFAULT_NEXT_ACTION,
+                NEXT_ACTION,
+                "complete_zero_candidates",
                 HISTORICAL_R12_GOAL_ID,
                 HISTORICAL_POST_R10_GOAL_ID,
                 "Current Handoff State",
@@ -776,6 +788,8 @@ def _entry_point_alignment() -> QueueCheck:
             (
                 GOAL_ID,
                 DEFAULT_NEXT_ACTION,
+                NEXT_ACTION,
+                "complete_zero_candidates",
                 "Historical predecessor goal",
             ),
         ),
@@ -784,6 +798,8 @@ def _entry_point_alignment() -> QueueCheck:
             (
                 GOAL_ID,
                 DEFAULT_NEXT_ACTION,
+                NEXT_ACTION,
+                "complete_zero_candidates",
                 "four installed Controlled-live mutation routes",
                 "current post-lease service decision",
             ),
@@ -862,7 +878,9 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
         "phase_range_status": PHASE_RANGE_STATUS,
         "slice_status": SLICE_STATUS,
         "blockers": list(SLICE_BLOCKERS),
+        "current_action": CURRENT_ACTION,
         "default_next_action": DEFAULT_NEXT_ACTION,
+        "next_action": NEXT_ACTION,
         "mvp_scope": MVP_SCOPE,
         "standing_limits": STANDING_LIMITS,
         "r12_workflow_claims_consumed": 1,
@@ -912,7 +930,8 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
             "work_mode": MVP_SCOPE["work_mode"],
             "live_coinbase_execution": "not_run",
             "blockers": list(SLICE_BLOCKERS),
-            "next_action": DEFAULT_NEXT_ACTION,
+            "current_action": CURRENT_ACTION,
+            "next_action": NEXT_ACTION,
             "operator_wording": OPERATOR_PROGRESS_WORDING,
         },
         "checks": [check.to_dict() for check in checks],
@@ -933,10 +952,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"Slice status: {SLICE_STATUS}; blockers: "
             f"{list(SLICE_BLOCKERS)}"
         )
-        print(f"Default next action: {DEFAULT_NEXT_ACTION}")
+        print(f"Current/default action: {DEFAULT_NEXT_ACTION}")
+        print(f"Next action: {NEXT_ACTION}")
         print(
-            "Follow-up Operations: passive local SQL; exact candidate count "
-            "pending; live proof claim not created; allowances unconsumed"
+            "Follow-up Operations: passive local SQL; exact post-gate candidate "
+            "count 0; proof claim not created or required; goal authority closed; "
+            "allowances unconsumed"
         )
         print("Historical materialization predecessor: complete; live calls 0")
         print(

@@ -4,13 +4,13 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 
 ## Project Entry
 
-Goal `operator_follow_up_operations_queue_and_single_live_proof` is in
-progress. Current action is
-`implement_validate_audit_deploy_then_count_exact_candidates`. The current
-slice has implemented the passive backend-owned local-SQL Follow-up Operations
-queue and must next complete the remaining validation, deployment checks, and
-both independent audits. Candidate counting and any separately bounded live
-proof remain closed until those gates pass.
+Goal `operator_follow_up_operations_queue_and_single_live_proof` has Status:
+`complete_zero_candidates`. Current/default action is
+`complete_zero_candidates_all_live_allowances_unconsumed`; next action is
+`await_operator_direction_for_next_mvp`. The passive backend-owned local-SQL
+Follow-up Operations workspace is deployed, and focused/full validation,
+deployment validation, and both independent audits passed. Its exact post-gate
+local `materialization_review` candidate count is `0`.
 
 The implemented queue obtains its page and four latest durable operation slots
 in one PostgreSQL statement without per-item reads. Its top-level current
@@ -19,9 +19,13 @@ reconciliation-read, and Cancel activity remains separate from one-use
 allowance consumption. Replays preserve that durable activity while reporting
 zero new current-request activity. Only entirely null legacy accounting may be
 projected conservatively; partial explicit accounting fails closed. Typed
-follow-up errors remain sanitized and value-blind. No deployment, candidate
-count, Coinbase call, or live proof has been performed for the current goal at
-this implementation checkpoint.
+follow-up errors remain sanitized and value-blind. The passive queue made `0`
+Coinbase reads, `0` Create calls, and `0` Cancel calls. The goal-scoped
+single-candidate proof claim was not created and was not required. Eligibility,
+reconciliation, Create, and Cancel did not run; all one-use proof allowances
+remain unconsumed. The goal authority is closed and grants no continuing proof
+call. Keep the Controlled-live stack available for operator review under its
+separate durable controls.
 
 Goal `futures_preview_acceptance_recovery_r12` is terminal
 `complete_terminal_unknown_consumed`. Its single durable claim is consumed,

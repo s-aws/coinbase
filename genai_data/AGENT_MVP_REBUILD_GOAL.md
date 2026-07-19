@@ -4,31 +4,35 @@ Goal ID: `operator_follow_up_operations_queue_and_single_live_proof`
 
 Last reviewed: 2026-07-19 UTC.
 
-Status: `in_progress`.
+Status: `complete_zero_candidates`.
 
-Readiness: the routed Follow-up Operations queue and its validation are in
-progress. The queue is passive local SQL and is never live eligibility. Its
-candidate count means exact local `materialization_review` candidates only.
-The active record states that all live allowances remain untouched pending
-focused/full validation, deployment validation, independent
-safety audit, and blind-contextless audit.
+The routed Follow-up Operations workspace is deployed and its focused/full
+validation, deployment validation, independent safety audit, and
+blind-contextless audit passed. The queue is passive local SQL and is never
+live eligibility. Its exact post-gate local `materialization_review` candidate
+count is `0`. The passive queue made `0` Coinbase reads, `0` Create calls, and
+`0` Cancel calls. With zero candidates, the goal-scoped single-candidate proof
+claim was not created and was not required. Eligibility, reconciliation,
+Create, and Cancel did not run. All one-use proof allowances and all live
+allowances remain unconsumed. The goal authority is closed and grants no
+continuing proof call. The Controlled-live operator stack is to remain
+available, but its availability is not authority from this completed goal.
 
 Current machine alignment:
-`operator_follow_up_operations_queue_single_proof_v1`. Default action:
-`implement_validate_audit_deploy_then_count_exact_candidates`. Work mode:
-`in_progress_queue_passive_local_sql_then_single_live_proof`.
-Operator question: Complete queue gates before counting exact local candidates.
-The zero or multiple candidates policy makes no live read, Create, or Cancel.
-Even when
-exactly one candidate exists, no live read, Create, or Cancel can run until the
-backend durably creates a goal-scoped single-candidate proof claim bound to that
-identity and fresh audited live eligibility succeeds.
+`operator_follow_up_operations_queue_single_proof_v1`. Current/default action:
+`complete_zero_candidates_all_live_allowances_unconsumed`. Work mode:
+`complete_zero_candidates_all_live_allowances_unconsumed`. Next action:
+`await_operator_direction_for_next_mvp`. Operator wording: Follow-up Operations
+workspace deployed; exact post-gate candidate count 0; all live allowances
+remain unconsumed. Any future live proof requires distinct operator authority.
 
-Controlled-live operational handoff is verified: the final installed operator
-review stack reports runtime mode `controlled_live`, frontend `0.0.0.0:3000`,
-backend `127.0.0.1:8787`, and approved Test portfolio configuration without
-exposing its identifier. Release, startup, and status made zero Coinbase calls
-and consumed no live-proof allowance.
+Bounded Controlled-live observation for candidate counting: the audited
+installed operator review stack reported runtime mode `controlled_live`, frontend
+`0.0.0.0:3000`, backend `127.0.0.1:8787`, and approved Test portfolio
+configuration without exposing its identifier. This observation made zero
+Coinbase calls and does not claim final post-closeout deployment health.
+Release, startup, and status made zero Coinbase calls and consumed no
+live-proof allowance.
 
 Historical Futures Goal ID: `futures_preview_acceptance_recovery_r12`.
 Historical readiness: terminal closeout complete. Eligibility cycle 2 completed
@@ -845,8 +849,10 @@ R12 terminal closeout is complete under the hard source-disabled release gate.
 It grants no new eligibility evidence, claim, idempotency key, Preview attempt,
 or Coinbase call. `operator_attach_single_follow_up_intent` is complete. The
 successor goal `operator_authorize_and_materialize_follow_up_intent` is also
-complete. Current action is `await_operator_direction_for_next_mvp`. There are
-no automatically selected successors beyond the completed authorization.
+complete. The Follow-up Operations goal is `complete_zero_candidates`; its
+current action is `complete_zero_candidates_all_live_allowances_unconsumed`
+and its next action is `await_operator_direction_for_next_mvp`. There are no
+automatically selected successors beyond the completed authorization.
 
 A candidate blocker cannot make itself in scope by generating evidence about the candidate blocker.
 

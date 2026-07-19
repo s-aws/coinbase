@@ -6,8 +6,9 @@ private model routing, private release planning, or internal research notes.
 ## Current Direction
 
 - Goal `operator_follow_up_operations_queue_and_single_live_proof` has Status:
-  `in_progress`. Current action is
-  `implement_validate_audit_deploy_then_count_exact_candidates`. The routed,
+  `complete_zero_candidates`. Current/default action is
+  `complete_zero_candidates_all_live_allowances_unconsumed`; next action is
+  `await_operator_direction_for_next_mvp`. The routed,
   passive local-SQL Follow-up Operations queue now has backend-owned
   pagination, filtering, classification, actionable readback, navigation, and
   a one-statement/no-N+1 projection of four durable proof-operation slots.
@@ -16,11 +17,15 @@ private model routing, private release planning, or internal research notes.
   reporting zero new activity; only all-null legacy accounting may project
   conservatively, and partial explicit accounting fails closed. Specialized
   follow-up errors expose sanitized typed activity without raw responses,
-  private identifiers, or exception text. Complete the remaining validation,
-  deployment checks, and independent safety plus
-  blind-contextless audits before counting exact local candidates. This
-  checkpoint performed no deployment, candidate count, Coinbase call, or live
-  proof, and all live allowances remain unconsumed.
+  private identifiers, or exception text. Focused/full validation, deployment
+  validation, and independent safety plus blind-contextless audits passed. The
+  exact post-gate local `materialization_review` candidate count is `0`; the
+  passive queue made zero Coinbase reads/Create/Cancel calls. The goal-scoped
+  proof claim was not created and was not required, and eligibility,
+  reconciliation, Create, and Cancel did not run. All live allowances remain
+  unconsumed, but the goal authority is closed and grants no continuing proof
+  call. Keep the Controlled-live operator stack available under its separate
+  durable controls.
 - Historical predecessor goal
   `operator_authorize_and_materialize_follow_up_intent` has Status:
   `complete`. Its backend-owned materialization and exact-child safe-closeout
@@ -34,12 +39,13 @@ private model routing, private release planning, or internal research notes.
   skipped` parallel plus `457 passed, 150 skipped` serial, frontend focused
   `179 passed`, and independent safety plus blind-contextless audit `PASS`.
   Its terminal action was `await_operator_direction_for_next_mvp`.
-  Controlled-live
-  operational handoff is verified: the final installed operator review stack
-  reports runtime mode `controlled_live`, frontend `0.0.0.0:3000`, backend
+  Bounded Controlled-live observation for candidate counting: the audited
+  installed operator review stack reported runtime mode `controlled_live`, frontend
+  `0.0.0.0:3000`, backend
   `127.0.0.1:8787`, and approved Test portfolio configuration without exposing
-  its identifier. Release, startup, and status made zero Coinbase calls and
-  consumed no live-proof allowance.
+  its identifier. This observation made zero Coinbase calls and does not claim
+  final post-closeout deployment health. Release, startup, and status made zero
+  Coinbase calls and consumed no live-proof allowance.
 - Preserve goal id `futures_preview_acceptance_recovery_r12` as completed
   terminal history with status `complete_terminal_unknown_consumed`. Its
   source release gate is false, its single-use claim is consumed, and no
