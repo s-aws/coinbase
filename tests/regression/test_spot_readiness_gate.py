@@ -399,7 +399,9 @@ def test_current_follow_up_operations_goal_records_zero_candidate_terminal_close
         "continuing_live_proof_authority"
     ] is False
     assert summary["follow_up_operations_proof"]["terminal_goal_seal"] == {
-        "status": "durably_sealed",
+        "status": "source_policy_declared_durably_sealed",
+        "evidence_scope": "tracked_source_policy_only",
+        "installed_database_verification": "not_performed",
         "late_candidate_actionability": "blocked",
         "late_claim_behavior": "blocked_before_live_read",
         "diagnostic_code": "follow_up_live_proof_goal_terminal",
@@ -469,7 +471,9 @@ def test_follow_up_operations_zero_candidate_closeout_is_terminal_and_preserves_
         "goal_authority": "closed",
         "continuing_live_proof_authority": False,
         "terminal_goal_seal": {
-            "status": "durably_sealed",
+            "status": "source_policy_declared_durably_sealed",
+            "evidence_scope": "tracked_source_policy_only",
+            "installed_database_verification": "not_performed",
             "late_candidate_actionability": "blocked",
             "late_claim_behavior": "blocked_before_live_read",
             "diagnostic_code": "follow_up_live_proof_goal_terminal",

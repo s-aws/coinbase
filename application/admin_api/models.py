@@ -5334,6 +5334,7 @@ class AdminOrderFollowUpOperationItem(BaseModel):
                     "source_full_fill_not_observed"
                 },
                 AdminOrderFollowUpOperationState.BLOCKED: {
+                    "follow_up_live_proof_goal_terminal",
                     "source_terminal_without_full_fill",
                     "source_full_fill_inconsistent",
                     "source_lineage_or_scope_inconsistent",
@@ -5376,6 +5377,9 @@ class AdminOrderFollowUpOperationItem(BaseModel):
                 },
                 "source_full_fill_inconsistent": {OrderStatus.FILLED.value},
                 "source_lineage_or_scope_inconsistent": {
+                    OrderStatus.FILLED.value
+                },
+                "follow_up_live_proof_goal_terminal": {
                     OrderStatus.FILLED.value
                 },
                 "source_status_unknown": {"UNKNOWN"},

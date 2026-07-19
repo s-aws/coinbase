@@ -47,6 +47,7 @@ from core.enums import (
     FollowUpReadAccountingState,
     FollowUpSdkMutationInvocationState,
     FollowUpTransportSubmissionState,
+    OrderStatus,
 )
 from database.order_follow_up_intent import (
     FOLLOW_UP_OPERATION_ATTEMPT_CLASSIFICATION,
@@ -417,6 +418,80 @@ def test_real_queue_factory_and_handler_never_construct_live_dependencies(
     assert repository.calls == 1
 
 
+def test_queue_route_renders_terminal_late_candidate_without_live_dependencies(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repository = _OneItemRepository(_terminal_late_candidate_page_item())
+    service = OperatorFollowUpOperationsService(repository)
+
+    def construction_bomb(*_args: object, **_kwargs: object):
+        raise AssertionError("terminal queue read constructed a live dependency")
+
+    monkeypatch.setattr(
+        command_runtime,
+        "load_admin_api_rest_client",
+        construction_bomb,
+    )
+    monkeypatch.setattr(
+        command_runtime,
+        "get_admin_api_spot_market_reference",
+        construction_bomb,
+    )
+    monkeypatch.setattr(
+        operator_follow_up_materialization,
+        "get_default_operator_follow_up_materialization_service",
+        construction_bomb,
+    )
+    monkeypatch.setattr(
+        operator_follow_up_materialization_runtime,
+        "build_default_operator_follow_up_materialization_service",
+        construction_bomb,
+    )
+    app = create_app()
+    app.dependency_overrides[
+        follow_up_operation_routes.get_follow_up_operations_service
+    ] = lambda: service
+
+    response = TestClient(app).get(
+        "/api/v1/follow-up-operations",
+        headers=_headers(roles="trader"),
+    )
+
+    assert response.status_code == 200
+    assert repository.calls == 1
+    payload = response.json()
+    assert payload["current_request_activity"] == {
+        "accounting_scope": "current_request",
+        "sdk_mutation_invocation_state": "NOT_INVOKED",
+        "transport_submission_state": "NOT_SUBMITTED",
+        "exchange_mutation_state": "NOT_MUTATED",
+        "read_accounting_state": "EXACT",
+        "observed_read_count": 0,
+    }
+    assert len(payload["items"]) == 1
+    item = payload["items"][0]
+    assert item["operation_state"] == "blocked"
+    assert item["state_reason_code"] == "follow_up_live_proof_goal_terminal"
+    assert item["blocker_codes"] == ["follow_up_live_proof_goal_terminal"]
+    assert item["actionability"] == "none"
+    assert item["actionable"] is False
+    assert item["review_navigation_available"] is False
+    assert item["materialization_review_available"] is False
+    assert item["safe_closeout_review_available"] is False
+    assert item["detail_href"] == f"/orders/{SOURCE_ID}"
+    assert item["durable_live_proof_activity"] == {
+        "eligibility_read": None,
+        "create": None,
+        "reconciliation_read": None,
+        "cancel": None,
+    }
+    assert payload["local_state_mutated"] is False
+    assert payload["live_coinbase_read_ran"] is False
+    assert payload["live_coinbase_create_call_count"] == 0
+    assert payload["live_coinbase_cancel_call_count"] == 0
+    assert payload["exchange_state_mutated"] is False
+
+
 def test_attempt_classification_is_exhaustive_and_preserves_allowance_accounting():
     expected = {
         "KNOWN_NOT_INVOKED": ("materialization_in_progress", "none", 0, 0),
@@ -496,8 +571,10 @@ class _EmptyRepository:
 @dataclass
 class _OneItemRepository:
     item: FollowUpOperationPageItem
+    calls: int = 0
 
     def list_operations(self, **_kwargs: object) -> FollowUpOperationsPage:
+        self.calls += 1
         return FollowUpOperationsPage(
             items=(self.item,),
             total_matching_count=1,
@@ -527,6 +604,15 @@ def _ready_page_item() -> FollowUpOperationPageItem:
             reconciliation_read=None,
             cancel=None,
         ),
+    )
+
+
+def _terminal_late_candidate_page_item() -> FollowUpOperationPageItem:
+    return replace(
+        _ready_page_item(),
+        state="blocked",
+        state_reason_code="follow_up_live_proof_goal_terminal",
+        actionability="none",
     )
 
 
@@ -654,6 +740,43 @@ def test_service_projects_partial_explicit_and_conservative_legacy_activity():
     assert response.current_request_activity.observed_read_count == 0
 
 
+def test_service_projects_terminal_late_candidate_without_claim_or_live_activity():
+    repository = _OneItemRepository(_terminal_late_candidate_page_item())
+
+    response = OperatorFollowUpOperationsService(repository).list_queue(
+        actor=AdminApiActor(
+            actor_id="operator-test",
+            roles=[AdminApiRole.TRADER],
+        )
+    )
+
+    assert repository.calls == 1
+    assert response.current_request_activity.model_dump(mode="json") == {
+        "accounting_scope": "current_request",
+        "sdk_mutation_invocation_state": "NOT_INVOKED",
+        "transport_submission_state": "NOT_SUBMITTED",
+        "exchange_mutation_state": "NOT_MUTATED",
+        "read_accounting_state": "EXACT",
+        "observed_read_count": 0,
+    }
+    item = response.items[0]
+    assert item.source_status is OrderStatus.FILLED
+    assert item.operation_state is AdminOrderFollowUpOperationState.BLOCKED
+    assert item.state_reason_code == "follow_up_live_proof_goal_terminal"
+    assert item.blocker_codes == ["follow_up_live_proof_goal_terminal"]
+    assert item.actionability is AdminOrderFollowUpOperationActionability.NONE
+    assert item.actionable is False
+    assert item.review_navigation_available is False
+    assert item.materialization_review_available is False
+    assert item.safe_closeout_review_available is False
+    assert item.required_permission is None
+    assert item.actor_authorized is False
+    assert item.detail_href == f"/orders/{SOURCE_ID}"
+    assert item.create_allowance_consumption_count == 0
+    assert item.cancel_allowance_consumption_count == 0
+    assert item.durable_live_proof_activity == _empty_durable_activity()
+
+
 def test_service_projects_pre_sdk_blocked_create_without_safe_closeout_action():
     blocked_create = _live_proof_record(
         operation_kind=FollowUpLiveProofOperationKind.CREATE,
@@ -772,6 +895,7 @@ def test_service_projects_missing_unknown_create_proof_as_blocked_unproven():
         "outcome",
         "exchange_state",
         "observed_read_count",
+        "expected_actionability",
     ),
     (
         pytest.param(
@@ -779,6 +903,7 @@ def test_service_projects_missing_unknown_create_proof_as_blocked_unproven():
             FollowUpLiveProofTerminalOutcome.SUCCEEDED,
             FollowUpExchangeMutationState.CONFIRMED_MUTATED,
             1,
+            AdminOrderFollowUpOperationActionability.SAFE_CLOSEOUT_REVIEW,
             id="accepted",
         ),
         pytest.param(
@@ -786,6 +911,7 @@ def test_service_projects_missing_unknown_create_proof_as_blocked_unproven():
             FollowUpLiveProofTerminalOutcome.REJECTED,
             FollowUpExchangeMutationState.NOT_MUTATED,
             0,
+            AdminOrderFollowUpOperationActionability.NONE,
             id="rejected",
         ),
     ),
@@ -795,6 +921,7 @@ def test_service_preserves_exact_terminal_create_activity(
     outcome: FollowUpLiveProofTerminalOutcome,
     exchange_state: FollowUpExchangeMutationState,
     observed_read_count: int,
+    expected_actionability: AdminOrderFollowUpOperationActionability,
 ):
     create = _live_proof_record(
         operation_kind=FollowUpLiveProofOperationKind.CREATE,
@@ -823,11 +950,18 @@ def test_service_preserves_exact_terminal_create_activity(
         actor=AdminApiActor(actor_id="operator-test", roles=[AdminApiRole.TRADER])
     )
 
-    projected = response.items[0].durable_live_proof_activity.create
+    item = response.items[0]
+    projected = item.durable_live_proof_activity.create
     assert projected is not None
     assert projected.terminal_outcome is outcome
     assert projected.exchange_mutation_state is exchange_state
     assert projected.observed_read_count == observed_read_count
+    assert item.actionability is expected_actionability
+    assert item.child_client_order_id == "49a850b1-5a2e-4dbb-9125-b1cad4e2dc7d"
+    assert item.safe_closeout_review_available is (
+        expected_actionability
+        is AdminOrderFollowUpOperationActionability.SAFE_CLOSEOUT_REVIEW
+    )
 
 
 def test_service_fails_closed_on_malformed_live_proof_identity():
@@ -1285,6 +1419,73 @@ def test_item_model_rejects_unsafe_navigation_identity():
 def test_item_model_rejects_corrupt_state_action_projection():
     payload = _response().items[0].model_dump(mode="json")
     payload["operation_state"] = "blocked"
+
+    with pytest.raises(ValueError):
+        AdminOrderFollowUpOperationItem.model_validate(payload)
+
+
+def _terminal_late_candidate_model_payload() -> dict[str, object]:
+    payload = _response().items[0].model_dump(mode="json")
+    payload.update(
+        {
+            "operation_state": "blocked",
+            "state_reason_code": "follow_up_live_proof_goal_terminal",
+            "blocker_codes": ["follow_up_live_proof_goal_terminal"],
+            "actionability": "none",
+            "actionable": False,
+            "review_navigation_available": False,
+            "materialization_review_available": False,
+            "safe_closeout_review_available": False,
+            "required_permission": None,
+            "actor_authorized": False,
+            "fresh_authoritative_revalidation_required": False,
+        }
+    )
+    return payload
+
+
+def test_item_model_accepts_terminal_reason_as_blocked_unclaimed_filled_only():
+    projected = AdminOrderFollowUpOperationItem.model_validate(
+        _terminal_late_candidate_model_payload()
+    )
+
+    assert projected.source_status is OrderStatus.FILLED
+    assert projected.operation_state is AdminOrderFollowUpOperationState.BLOCKED
+    assert projected.actionability is AdminOrderFollowUpOperationActionability.NONE
+    assert projected.materialization_attempt_state is None
+
+
+@pytest.mark.parametrize(
+    ("changes"),
+    [
+        pytest.param({"source_status": "OPEN"}, id="not-filled"),
+        pytest.param(
+            {
+                "source_status": "OPEN",
+                "operation_state": "awaiting_source_fill",
+            },
+            id="not-blocked",
+        ),
+        pytest.param(
+            {
+                "operation_state": "ready_for_materialization_authorization",
+                "actionability": "materialization_review",
+                "actionable": True,
+                "review_navigation_available": True,
+                "materialization_review_available": True,
+                "required_permission": "order:create",
+                "actor_authorized": True,
+                "fresh_authoritative_revalidation_required": True,
+            },
+            id="ready-reason-not-allowlisted",
+        ),
+    ],
+)
+def test_item_model_rejects_terminal_reason_outside_blocked_unclaimed_filled(
+    changes: dict[str, object],
+):
+    payload = _terminal_late_candidate_model_payload()
+    payload.update(changes)
 
     with pytest.raises(ValueError):
         AdminOrderFollowUpOperationItem.model_validate(payload)

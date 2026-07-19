@@ -166,7 +166,9 @@ FOLLOW_UP_OPERATIONS_PROOF = {
     "goal_authority": "closed",
     "continuing_live_proof_authority": False,
     "terminal_goal_seal": {
-        "status": "durably_sealed",
+        "status": "source_policy_declared_durably_sealed",
+        "evidence_scope": "tracked_source_policy_only",
+        "installed_database_verification": "not_performed",
         "late_candidate_actionability": "blocked",
         "late_claim_behavior": "blocked_before_live_read",
         "diagnostic_code": "follow_up_live_proof_goal_terminal",

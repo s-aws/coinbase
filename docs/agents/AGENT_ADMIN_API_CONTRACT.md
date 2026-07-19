@@ -50,6 +50,10 @@ makes initialization fail closed rather than sealing over in-progress
 evidence. The generic materialization implementation remains installed, but a
 future proof requires a distinct goal identity and explicit operator
 authorization; the completed identity cannot be reopened.
+The autonomous work-queue summary reports that terminal seal as tracked-source
+policy evidence only. It does not query or claim to verify the installed
+database seal; installed database verification requires separate deployment
+evidence.
 
 The four installed Controlled-live mutation routes are manual Spot LIMIT/GTC
 place/cancel and explicit attached-intent materialization/exact-child
