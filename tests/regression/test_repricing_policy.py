@@ -254,6 +254,7 @@ def _allowed(path: Path) -> bool:
     return any(posix.endswith(s) for s in _ALLOWED_SUFFIXES)
 
 
+@pytest.mark.serial
 def test_no_inline_policy_field_access_outside_canonical_module():
     """Catch new ``policy.get(\"<field>\")`` / ``policy[\"<field>\"]`` regressions.
 

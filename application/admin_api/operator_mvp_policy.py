@@ -16,12 +16,21 @@ OPERATOR_MVP_MAX_EXECUTED_NOTIONAL_TEXT = "1.00"
 
 OPERATOR_MVP_MANUAL_ORDER_ROUTE = "/api/v1/orders"
 OPERATOR_MVP_CANCEL_ORDER_ROUTE = "/api/v1/orders/{client_order_id}/cancel"
+OPERATOR_MVP_FOLLOW_UP_MATERIALIZATION_ROUTE = (
+    "/api/v1/orders/{source_client_order_id}/follow-up-intent/materialization"
+)
+OPERATOR_MVP_FOLLOW_UP_SAFE_CLOSEOUT_ROUTE = (
+    "/api/v1/orders/{source_client_order_id}/follow-up-intent/"
+    "materialization/safe-closeout"
+)
 OPERATOR_MVP_SPOT_MODULE_ID = "spot_operations"
 OPERATOR_MVP_CANCEL_PRODUCT_SCOPE = "Test profile Spot root order"
 OPERATOR_MVP_SUPPORTED_LIVE_ROUTES = frozenset(
     {
         ("POST", OPERATOR_MVP_MANUAL_ORDER_ROUTE),
         ("POST", OPERATOR_MVP_CANCEL_ORDER_ROUTE),
+        ("POST", OPERATOR_MVP_FOLLOW_UP_MATERIALIZATION_ROUTE),
+        ("POST", OPERATOR_MVP_FOLLOW_UP_SAFE_CLOSEOUT_ROUTE),
     }
 )
 

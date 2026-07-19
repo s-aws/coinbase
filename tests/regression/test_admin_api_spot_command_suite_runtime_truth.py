@@ -11,6 +11,7 @@ from core.enums import (
     AdminApiModuleSupportStatus,
     AdminApiMutationFamilyType,
 )
+from core.operator_follow_up_intent import OPERATOR_FOLLOW_UP_INTENT_ENABLED_ENV
 
 
 pytestmark = [
@@ -21,12 +22,25 @@ pytestmark = [
 _CONTROLLED_LIVE_ROUTES = {
     "/api/v1/orders",
     "/api/v1/orders/{client_order_id}/cancel",
+    (
+        "/api/v1/orders/{source_client_order_id}/follow-up-intent/"
+        "materialization"
+    ),
+    (
+        "/api/v1/orders/{source_client_order_id}/follow-up-intent/"
+        "materialization/safe-closeout"
+    ),
 }
+_MATERIALIZATION_ROUTE = (
+    "/api/v1/orders/{source_client_order_id}/follow-up-intent/materialization"
+)
+_SAFE_CLOSEOUT_ROUTE = f"{_MATERIALIZATION_ROUTE}/safe-closeout"
 
 
 def _service_with_runtime_state(monkeypatch, *, runtime_ready: bool):
     from application.admin_api.read_service import AdminApiReadService
 
+    monkeypatch.setenv(OPERATOR_FOLLOW_UP_INTENT_ENABLED_ENV, "1")
     service = AdminApiReadService()
     baseline = service.build_live_enablement()
     paths = []
@@ -69,13 +83,15 @@ def _suite_with_runtime_state(monkeypatch, *, runtime_ready: bool):
 
 def test_spot_command_suite_separates_enabled_route_from_unready_runtime(monkeypatch):
     payload = _suite_with_runtime_state(monkeypatch, runtime_ready=False)
-    commands = {item["mutation_family"]: item for item in payload["commands"]}
+    commands = {item["route"]: item for item in payload["commands"]}
 
-    for family in (
-        AdminApiMutationFamilyType.SPOT_MANUAL_ORDER.value,
-        AdminApiMutationFamilyType.SPOT_ORDER_CANCEL.value,
+    for route in (
+        "/api/v1/orders",
+        "/api/v1/orders/{client_order_id}/cancel",
+        _MATERIALIZATION_ROUTE,
+        _SAFE_CLOSEOUT_ROUTE,
     ):
-        command = commands[family]
+        command = commands[route]
         assert command["live_enabled"] is True
         assert command["live_eligible"] is False
         assert command["executable"] is False
@@ -85,11 +101,12 @@ def test_spot_command_suite_separates_enabled_route_from_unready_runtime(monkeyp
         assert command["bff_authority"] == "forward_only_no_execution"
 
 
-def test_enterprise_readiness_classifies_only_manual_and_cancel_as_controlled_live(
+def test_enterprise_readiness_classifies_all_operator_order_routes_as_controlled_live(
     monkeypatch,
 ):
     from application.admin_api.read_service import AdminApiReadService
 
+    monkeypatch.setenv(OPERATOR_FOLLOW_UP_INTENT_ENABLED_ENV, "1")
     service = AdminApiReadService()
 
     def fail_if_dynamic_live_readback_is_built():
@@ -120,6 +137,8 @@ def test_enterprise_readiness_classifies_only_manual_and_cancel_as_controlled_li
     assert order_workflow["command_routes"] == [
         "POST /api/v1/orders",
         "POST /api/v1/orders/{client_order_id}/cancel",
+        f"POST {_MATERIALIZATION_ROUTE}",
+        f"POST {_SAFE_CLOSEOUT_ROUTE}",
     ]
     assert order_workflow["live_enabled"] is False
     assert "approval_snapshot_missing" in order_workflow["blockers"]
@@ -141,7 +160,12 @@ def test_enterprise_readiness_classifies_only_manual_and_cancel_as_controlled_li
     taxonomy = {
         item["mutation_id"]: item for item in payload["mutation_taxonomy"]
     }
-    for mutation_id in ("spot.manual_order", "spot.order_cancel"):
+    for mutation_id in (
+        "spot.manual_order",
+        "spot.order_cancel",
+        "spot.follow_up_intent_materialization",
+        "spot.follow_up_intent_safe_closeout",
+    ):
         item = taxonomy[mutation_id]
         assert item["exposure_status"] == (
             AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED.value
@@ -150,10 +174,15 @@ def test_enterprise_readiness_classifies_only_manual_and_cancel_as_controlled_li
             AdminApiModuleSupportStatus.PLATFORM_READY.value
         )
         assert "live_execution_disabled" not in item["blockers"]
-        assert "approval_snapshot_missing" in item["blockers"]
-        assert "reconciliation_plan_missing" in item["blockers"]
-        assert "current_live_runtime_readback_required" in item["blockers"]
-        assert "per-request" in item["summary"]
+        if mutation_id in {"spot.manual_order", "spot.order_cancel"}:
+            assert "approval_snapshot_missing" in item["blockers"]
+            assert "reconciliation_plan_missing" in item["blockers"]
+            assert "current_live_runtime_readback_required" in item["blockers"]
+            assert "per-request" in item["summary"]
+        else:
+            assert item["blockers"] == []
+            assert item["live_adapter_required"] is True
+            assert item["route_local_boundary"]
 
     for mutation_id in (
         "spot.campaign_execution",
@@ -174,16 +203,18 @@ def test_enterprise_readiness_classifies_only_manual_and_cancel_as_controlled_li
 
 def test_spot_command_suite_runtime_capability_is_not_request_authorization(monkeypatch):
     payload = _suite_with_runtime_state(monkeypatch, runtime_ready=True)
-    commands = {item["mutation_family"]: item for item in payload["commands"]}
+    commands = {item["route"]: item for item in payload["commands"]}
 
-    assert payload["live_enabled_command_count"] == 2
-    assert payload["executable_command_count"] == 2
+    assert payload["live_enabled_command_count"] == 4
+    assert payload["executable_command_count"] == 4
     assert "does not authorize a request" in payload["message"]
-    for family in (
-        AdminApiMutationFamilyType.SPOT_MANUAL_ORDER.value,
-        AdminApiMutationFamilyType.SPOT_ORDER_CANCEL.value,
+    for route in (
+        "/api/v1/orders",
+        "/api/v1/orders/{client_order_id}/cancel",
+        _MATERIALIZATION_ROUTE,
+        _SAFE_CLOSEOUT_ROUTE,
     ):
-        command = commands[family]
+        command = commands[route]
         assert command["live_enabled"] is True
         assert command["live_eligible"] is True
         assert command["executable"] is True
@@ -250,7 +281,7 @@ def test_manual_spot_adapter_reports_installed_canonical_runtime_capability(
     assert "does not authorize a request" in adapter["detail"]
 
 
-def test_only_manual_spot_routes_use_current_runtime_adapter_evidence():
+def test_unrelated_spot_and_stealth_routes_do_not_gain_current_runtime_adapter_evidence():
     from application.admin_api.live_execution import (
         build_live_execution_adapter_contract,
     )
@@ -306,6 +337,7 @@ def test_live_enablement_requires_command_runtime_readiness_for_eligibility(
     )
     from application.admin_api.read_service import AdminApiReadService
 
+    monkeypatch.setenv(OPERATOR_FOLLOW_UP_INTENT_ENABLED_ENV, "1")
     portfolio_scope = (
         read_service.build_admin_api_command_runtime_readiness().spot_portfolio_scope
     )
@@ -341,7 +373,7 @@ def test_live_enablement_requires_command_runtime_readiness_for_eligibility(
         if item["route"] in _CONTROLLED_LIVE_ROUTES
     }
 
-    assert payload["live_enabled_path_count"] == 2
+    assert payload["live_enabled_path_count"] == 4
     assert payload["live_eligible_path_count"] == 0
     for path in controlled.values():
         assert path["live_enabled"] is True
@@ -359,6 +391,7 @@ def test_bootstrap_and_health_report_armed_routes_without_granting_requests(
 
     monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
     monkeypatch.setenv("COINBASE_ADMIN_API_LIVE_EXECUTION_ENABLED", "true")
+    monkeypatch.setenv(OPERATOR_FOLLOW_UP_INTENT_ENABLED_ENV, "1")
     service = AdminApiReadService()
 
     bootstrap = service.build_admin_bootstrap().model_dump(mode="json")

@@ -62680,6 +62680,16 @@ def test_admin_api_decision_backed_live_execution_service_requires_runtime_opt_i
         {
             ("POST", "/api/v1/orders"),
             ("POST", "/api/v1/orders/{client_order_id}/cancel"),
+            (
+                "POST",
+                "/api/v1/orders/{source_client_order_id}/"
+                "follow-up-intent/materialization",
+            ),
+            (
+                "POST",
+                "/api/v1/orders/{source_client_order_id}/"
+                "follow-up-intent/materialization/safe-closeout",
+            ),
         }
     )
     unsupported = evaluate_command_live_admission(
@@ -62752,7 +62762,7 @@ def test_admin_api_order_live_execution_service_dependency_reads_decision_log(
 
 
 @pytest.mark.regression
-def test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision(
+def test_read_surfaces_expose_all_controlled_live_order_routes_from_backend_decision(
     monkeypatch,
     tmp_path,
 ):
@@ -62786,6 +62796,10 @@ def test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision
     )
     monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
     monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_OPERATOR_FOLLOW_UP_INTENT_ENABLED",
+        "1",
+    )
     monkeypatch.setenv(
         "COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID",
         "11111111-2222-4333-8444-555555555555",
@@ -62844,6 +62858,20 @@ def test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision
     cancel_capability = command_capabilities[
         ("POST", "/api/v1/orders/{client_order_id}/cancel")
     ]
+    materialize_capability = command_capabilities[
+        (
+            "POST",
+            "/api/v1/orders/{source_client_order_id}/"
+            "follow-up-intent/materialization",
+        )
+    ]
+    safe_closeout_capability = command_capabilities[
+        (
+            "POST",
+            "/api/v1/orders/{source_client_order_id}/"
+            "follow-up-intent/materialization/safe-closeout",
+        )
+    ]
 
     assert manual_capability["availability"] == "available"
     assert manual_capability["live_enabled"] is True
@@ -62852,19 +62880,37 @@ def test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision
     assert cancel_capability["availability"] == "available"
     assert cancel_capability["live_enabled"] is True
     assert cancel_capability["frontend_safe"] is True
+    assert materialize_capability["live_enabled"] is True
+    assert materialize_capability["frontend_safe"] is True
+    assert materialize_capability["shared_method"] == (
+        "materialize_order_follow_up_intent"
+    )
+    assert safe_closeout_capability["live_enabled"] is True
+    assert safe_closeout_capability["frontend_safe"] is True
+    assert safe_closeout_capability["shared_method"] == (
+        "safe_closeout_materialized_follow_up_intent"
+    )
 
     live_routes = {item["route"]: item for item in live_enablement["paths"]}
     manual_live_route = live_routes["/api/v1/orders"]
     cancel_live_route = live_routes["/api/v1/orders/{client_order_id}/cancel"]
+    materialize_live_route = live_routes[
+        "/api/v1/orders/{source_client_order_id}/"
+        "follow-up-intent/materialization"
+    ]
+    safe_closeout_live_route = live_routes[
+        "/api/v1/orders/{source_client_order_id}/"
+        "follow-up-intent/materialization/safe-closeout"
+    ]
 
     assert live_enablement["status"] == "approval_required"
-    assert live_enablement["live_enabled_path_count"] == 2
-    assert live_enablement["live_eligible_path_count"] == 2
+    assert live_enablement["live_enabled_path_count"] == 4
+    assert live_enablement["live_eligible_path_count"] == 4
     assert live_enablement["live_command_runtime_enabled"] is True
     assert live_enablement["live_command_rest_client_available"] is True
     assert live_enablement["live_command_runtime_ready"] is True
     assert live_enablement["live_command_runtime_missing_reason"] is None
-    assert live_enablement["live_command_runtime_ready_path_count"] == 2
+    assert live_enablement["live_command_runtime_ready_path_count"] == 4
     assert manual_live_route["live_enabled"] is True
     assert manual_live_route["live_eligible"] is True
     assert manual_live_route["live_command_runtime_ready"] is True
@@ -62890,13 +62936,41 @@ def test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision
     assert cancel_live_route["live_eligible"] is True
     assert cancel_live_route["live_command_runtime_ready"] is True
     assert cancel_live_route["live_command_runtime_missing_reason"] is None
+    for path, adapter_reference in (
+        (
+            materialize_live_route,
+            "OperatorFollowUpMaterializationFacade.materialize",
+        ),
+        (
+            safe_closeout_live_route,
+            "OperatorFollowUpMaterializationFacade.safe_closeout",
+        ),
+    ):
+        assert path["live_enabled"] is True
+        assert path["live_eligible"] is True
+        assert path["live_command_runtime_ready"] is True
+        assert path["live_command_runtime_missing_reason"] is None
+        assert path["live_execution_adapter"]["source"] == (
+            "canonical_operator_follow_up_materialization_runtime"
+        )
+        assert path["live_execution_adapter"]["adapter_reference"] == (
+            adapter_reference
+        )
 
     spot_commands = {item["route"]: item for item in spot_suite["commands"]}
     manual_command = spot_commands["/api/v1/orders"]
     cancel_command = spot_commands["/api/v1/orders/{client_order_id}/cancel"]
+    materialize_command = spot_commands[
+        "/api/v1/orders/{source_client_order_id}/"
+        "follow-up-intent/materialization"
+    ]
+    safe_closeout_command = spot_commands[
+        "/api/v1/orders/{source_client_order_id}/"
+        "follow-up-intent/materialization/safe-closeout"
+    ]
 
-    assert spot_suite["live_enabled_command_count"] == 2
-    assert spot_suite["executable_command_count"] == 2
+    assert spot_suite["live_enabled_command_count"] == 4
+    assert spot_suite["executable_command_count"] == 4
     assert manual_command["live_enabled"] is True
     assert manual_command["live_eligible"] is True
     assert manual_command["executable"] is True
@@ -62905,6 +62979,11 @@ def test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision
     assert cancel_command["live_enabled"] is True
     assert cancel_command["live_eligible"] is True
     assert cancel_command["executable"] is True
+    for command in (materialize_command, safe_closeout_command):
+        assert command["live_enabled"] is True
+        assert command["live_eligible"] is True
+        assert command["executable"] is True
+        assert command["identity_key"] == "source_client_order_id"
 
 
 @pytest.mark.regression
@@ -73063,8 +73142,8 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
     assert payload["type"] == "spot_command_suite"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["module_id"] == "spot_operations"
-    assert payload["command_count"] == 10
-    assert payload["blocked_command_count"] == 10
+    assert payload["command_count"] == 12
+    assert payload["blocked_command_count"] == 12
     assert payload["live_enabled_command_count"] == 0
     assert payload["executable_command_count"] == 0
     assert payload["coverage_gap_count"] == 3
@@ -73189,6 +73268,7 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
     )
 
     commands = {item["mutation_family"]: item for item in payload["commands"]}
+    commands_by_route = {item["route"]: item for item in payload["commands"]}
     assert set(commands) == {
         AdminApiMutationFamilyType.SPOT_MANUAL_ORDER.value,
         AdminApiMutationFamilyType.SPOT_ORDER_CANCEL.value,
@@ -73200,6 +73280,7 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
         AdminApiMutationFamilyType.SPOT_RECOVERY_EXCHANGE_STATE_SNAPSHOT.value,
         AdminApiMutationFamilyType.SPOT_RECOVERY_RECONCILIATION_EXECUTION.value,
         AdminApiMutationFamilyType.SPOT_RECOVERY_RECONCILIATION_PROOF.value,
+        AdminApiMutationFamilyType.SPOT_FOLLOW_UP_INTENT.value,
     }
     manual = commands[AdminApiMutationFamilyType.SPOT_MANUAL_ORDER.value]
     assert manual["route"] == "/api/v1/orders"
@@ -73320,6 +73401,58 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
         item["shared_method"] == "record_reconciliation_plan"
         for item in cancel["proof_routes"]
     )
+
+    materialization_commands = {
+        "/api/v1/orders/{source_client_order_id}/follow-up-intent/materialization": (
+            AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+            AdminApiPermission.ORDER_CREATE,
+            "materialize_order_follow_up_intent",
+            "OperatorFollowUpMaterializationFacade.materialize",
+        ),
+        (
+            "/api/v1/orders/{source_client_order_id}/follow-up-intent/"
+            "materialization/safe-closeout"
+        ): (
+            AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+            AdminApiPermission.ORDER_CANCEL,
+            "safe_closeout_materialized_follow_up_intent",
+            "OperatorFollowUpMaterializationFacade.safe_closeout",
+        ),
+    }
+    for route, (
+        action_class,
+        required_permission,
+        shared_method,
+        adapter_reference,
+    ) in materialization_commands.items():
+        command = commands_by_route[route]
+        assert command["mutation_family"] == (
+            AdminApiMutationFamilyType.SPOT_FOLLOW_UP_INTENT.value
+        )
+        assert command["identity_key"] == "source_client_order_id"
+        assert command["action_class"] == action_class.value
+        assert command["required_permission"] == required_permission.value
+        assert command["shared_method"] == shared_method
+        assert command["live_adapter_configured"] is True
+        assert command["live_enabled"] is False
+        assert command["live_eligible"] is False
+        assert command["executable"] is False
+        assert command["browser_authority"] == "display_only"
+        assert command["bff_authority"] == "forward_only_no_execution"
+        adapter_precondition = next(
+            item
+            for item in command["readiness_preconditions"]
+            if item["precondition"]
+            == AdminApiLiveReadinessPrecondition.LIVE_EXECUTION_ADAPTER.value
+        )
+        assert adapter_precondition["source"] == (
+            "canonical_operator_follow_up_materialization_runtime"
+        )
+        assert adapter_precondition["expected_source"] == adapter_reference
+        assert all(
+            item["command_identity_key"] == "source_client_order_id"
+            for item in command["proof_routes"]
+        )
 
     campaign = commands[AdminApiMutationFamilyType.SPOT_CAMPAIGN_EXECUTION.value]
     assert campaign["route"] == "/api/v1/spot/campaign/executions"
@@ -74037,39 +74170,48 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     )
     assert live_payload["live_enabled_path_count"] == 0
     assert live_payload["live_eligible_path_count"] == 0
-    assert live_payload["preflight_check_count"] == 72
-    assert live_payload["blocking_preflight_check_count"] == 36
-    assert live_payload["passed_preflight_check_count"] == 36
-    assert live_payload["approval_snapshot_required_count"] == 9
+    assert live_payload["preflight_check_count"] == 88
+    assert live_payload["blocking_preflight_check_count"] == 44
+    assert live_payload["passed_preflight_check_count"] == 44
+    assert live_payload["approval_snapshot_required_count"] == 11
     assert live_payload["approval_snapshot_present_count"] == 0
-    assert live_payload["approval_snapshot_missing_count"] == 9
-    assert live_payload["approval_snapshot_required_field_count"] == 135
-    assert live_payload["approval_snapshot_missing_field_count"] == 135
-    assert live_payload["approval_store_required_count"] == 9
-    assert live_payload["approval_store_configured_count"] == 9
+    assert live_payload["approval_snapshot_missing_count"] == 11
+    assert live_payload["approval_snapshot_required_field_count"] == 165
+    assert live_payload["approval_snapshot_missing_field_count"] == 165
+    assert live_payload["approval_store_required_count"] == 11
+    assert live_payload["approval_store_configured_count"] == 11
     assert live_payload["approval_store_missing_count"] == 0
-    assert live_payload["approval_store_requirement_count"] == 108
+    assert live_payload["approval_store_requirement_count"] == 132
     assert live_payload["approval_store_missing_requirement_count"] == 0
-    assert live_payload["admission_audit_required_count"] == 9
+    assert live_payload["admission_audit_required_count"] == 11
     assert live_payload["admission_audit_configured_count"] == 0
-    assert live_payload["admission_audit_missing_count"] == 9
-    assert live_payload["admission_audit_fact_count"] == 90
-    assert live_payload["admission_audit_missing_fact_count"] == 81
-    assert live_payload["cap_guard_required_count"] == 9
+    assert live_payload["admission_audit_missing_count"] == 11
+    assert live_payload["admission_audit_fact_count"] == 110
+    assert live_payload["admission_audit_missing_fact_count"] == 99
+    assert live_payload["cap_guard_required_count"] == 11
     assert live_payload["cap_guard_configured_count"] == 0
-    assert live_payload["cap_guard_missing_count"] == 9
-    assert live_payload["cap_guard_requirement_count"] == 126
-    assert live_payload["cap_guard_missing_requirement_count"] == 126
-    assert live_payload["live_execution_adapter_required_count"] == 9
-    assert live_payload["live_execution_adapter_configured_count"] == 3
+    assert live_payload["cap_guard_missing_count"] == 11
+    assert live_payload["cap_guard_requirement_count"] == 154
+    assert live_payload["cap_guard_missing_requirement_count"] == 154
+    assert live_payload["live_execution_adapter_required_count"] == 11
+    assert live_payload["live_execution_adapter_configured_count"] == 5
     assert live_payload["live_execution_adapter_missing_count"] == 6
-    assert live_payload["readiness_precondition_count"] == 81
-    assert live_payload["blocking_readiness_precondition_count"] == 50
-    assert live_payload["passed_readiness_precondition_count"] == 31
+    assert live_payload["readiness_precondition_count"] == 99
+    assert live_payload["blocking_readiness_precondition_count"] == 60
+    assert live_payload["passed_readiness_precondition_count"] == 39
     assert live_payload["live_coinbase_orders_ran"] is False
     live_routes = {item["route"]: item for item in live_payload["paths"]}
     assert "/api/v1/orders" in live_routes
     assert "/api/v1/orders/{client_order_id}/cancel" in live_routes
+    assert (
+        "/api/v1/orders/{source_client_order_id}/follow-up-intent/materialization"
+        in live_routes
+    )
+    assert (
+        "/api/v1/orders/{source_client_order_id}/follow-up-intent/"
+        "materialization/safe-closeout"
+        in live_routes
+    )
     assert "/api/v1/stealth/orders/{stealth_order_id}/reveal" in live_routes
     assert "/api/v1/stealth/orders/{stealth_order_id}/move" in live_routes
     assert "/api/v1/stealth/orders/{stealth_order_id}/cancel" in live_routes
@@ -74095,12 +74237,23 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     configured_adapter_routes = {
         "/api/v1/orders",
         "/api/v1/orders/{client_order_id}/cancel",
+        (
+            "/api/v1/orders/{source_client_order_id}/follow-up-intent/"
+            "materialization"
+        ),
+        (
+            "/api/v1/orders/{source_client_order_id}/follow-up-intent/"
+            "materialization/safe-closeout"
+        ),
         "/api/v1/stealth/orders/{stealth_order_id}/reveal",
     }
-    assert live_routes["/api/v1/orders"]["status"] == "approval_required"
-    assert (
-        live_routes["/api/v1/stealth/orders/{stealth_order_id}/reveal"]["status"]
-        == "approval_required"
+    executable_adapter_routes = configured_adapter_routes - {
+        "/api/v1/stealth/orders/{stealth_order_id}/reveal"
+    }
+    assert all(
+        item["status"] == "approval_required"
+        for route, item in live_routes.items()
+        if route in configured_adapter_routes
     )
     assert all(
         item["status"] == "live_disabled"
@@ -74266,14 +74419,10 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         len(item["cap_guard_contract"]["requirements"]) == 14
         for item in live_routes.values()
     )
-    assert live_routes["/api/v1/orders"]["live_execution_adapter"]["status"] == (
-        "approval_required"
-    )
-    assert (
-        live_routes["/api/v1/stealth/orders/{stealth_order_id}/reveal"][
-            "live_execution_adapter"
-        ]["status"]
-        == "approval_required"
+    assert all(
+        item["live_execution_adapter"]["status"] == "approval_required"
+        for route, item in live_routes.items()
+        if route in configured_adapter_routes
     )
     assert all(
         item["live_execution_adapter"]["status"] == "live_disabled"
@@ -74284,12 +74433,10 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         item["live_execution_adapter"]["required"] is True
         for item in live_routes.values()
     )
-    assert live_routes["/api/v1/orders"]["live_execution_adapter"]["configured"] is True
-    assert (
-        live_routes["/api/v1/stealth/orders/{stealth_order_id}/reveal"][
-            "live_execution_adapter"
-        ]["configured"]
-        is True
+    assert all(
+        item["live_execution_adapter"]["configured"] is True
+        for route, item in live_routes.items()
+        if route in configured_adapter_routes
     )
     assert all(
         item["live_execution_adapter"]["configured"] is False
@@ -74307,18 +74454,12 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert all(
         item["live_execution_adapter"]["executable"] is True
         for route, item in live_routes.items()
-        if route in {
-            "/api/v1/orders",
-            "/api/v1/orders/{client_order_id}/cancel",
-        }
+        if route in executable_adapter_routes
     )
     assert all(
         item["live_execution_adapter"]["executable"] is False
         for route, item in live_routes.items()
-        if route not in {
-            "/api/v1/orders",
-            "/api/v1/orders/{client_order_id}/cancel",
-        }
+        if route not in executable_adapter_routes
     )
     assert all(
         item["live_execution_adapter"]["browser_authority"] == "display_only"
@@ -74364,19 +74505,13 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
             "parallel_exchange_execution_path",
         ]
         for route, item in live_routes.items()
-        if route in {
-            "/api/v1/orders",
-            "/api/v1/orders/{client_order_id}/cancel",
-        }
+        if route in executable_adapter_routes
     )
     assert all(
         item["live_execution_adapter"]["forbidden_methods"]
         == ["create_order", "cancel_order", "execute", "submit", "coinbase_client"]
         for route, item in live_routes.items()
-        if route not in {
-            "/api/v1/orders",
-            "/api/v1/orders/{client_order_id}/cancel",
-        }
+        if route not in executable_adapter_routes
     )
     assert all(
         item["live_execution_adapter"]["construction_contract"] is None
@@ -74390,8 +74525,12 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         item["readiness_precondition_count"] == 9
         for item in live_routes.values()
     )
-    assert live_routes["/api/v1/orders"]["blocking_readiness_precondition_count"] == 5
-    assert live_routes["/api/v1/orders"]["passed_readiness_precondition_count"] == 4
+    assert all(
+        item["blocking_readiness_precondition_count"] == 5
+        and item["passed_readiness_precondition_count"] == 4
+        for route, item in live_routes.items()
+        if route in executable_adapter_routes
+    )
     assert (
         live_routes["/api/v1/stealth/orders/{stealth_order_id}/reveal"][
             "blocking_readiness_precondition_count"
@@ -75620,9 +75759,24 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "POST /api/v1/orders/{source_client_order_id}/follow-up-intent"
         in spot_module["command_routes"]
     )
-    assert spot_module["action_posture"]["read_route_count"] == 22
-    assert spot_module["action_posture"]["command_route_count"] == 17
-    assert spot_module["action_posture"]["live_route_count"] == 5
+    assert (
+        "GET /api/v1/orders/{source_client_order_id}/follow-up-intent/"
+        "materialization"
+        in spot_module["read_routes"]
+    )
+    assert (
+        "POST /api/v1/orders/{source_client_order_id}/follow-up-intent/"
+        "materialization"
+        in spot_module["command_routes"]
+    )
+    assert (
+        "POST /api/v1/orders/{source_client_order_id}/follow-up-intent/"
+        "materialization/safe-closeout"
+        in spot_module["command_routes"]
+    )
+    assert spot_module["action_posture"]["read_route_count"] == 23
+    assert spot_module["action_posture"]["command_route_count"] == 19
+    assert spot_module["action_posture"]["live_route_count"] == 7
     assert spot_module["action_posture"]["command_gap_count"] == 2
     admin_module = registry_by_id["admin_system_health"]
     assert "GET /api/v1/admin/guard-risk-policy" not in admin_module["read_routes"]

@@ -23,7 +23,11 @@ SMOKE_NODE_IDS = (
     "tests/regression/test_admin_api_contract.py::"
     "test_admin_api_order_live_execution_service_dependency_reads_decision_log",
     "tests/regression/test_admin_api_contract.py::"
-    "test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision",
+    "test_read_surfaces_expose_all_controlled_live_order_routes_from_backend_decision",
+    "tests/regression/test_admin_api_order_follow_up_materialization_routes.py::"
+    "test_materialize_post_forwards_only_fixed_acknowledgements_and_context",
+    "tests/regression/test_admin_api_order_follow_up_materialization_routes.py::"
+    "test_safe_closeout_post_resolves_child_backend_side",
     "tests/regression/test_admin_api_contract.py::"
     "test_admin_api_manual_order_route_passes_backend_admission_to_command_service",
     "tests/regression/test_admin_api_contract.py::"

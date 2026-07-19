@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -48,6 +49,49 @@ class _MutationSdk:
     def create_order(self, **kwargs):
         self.calls.append(("create_order", dict(kwargs)))
         return {"success": True}
+
+
+def test_canonical_wrapper_hardens_sdk_to_zero_retry_no_redirect_transport(
+    requests_mock,
+) -> None:
+    import requests
+
+    session = requests.Session()
+    assert session.max_redirects > 0
+    assert session.trust_env is True
+    sdk = SimpleNamespace(session=session)
+
+    CoinbaseRestClient(sdk)
+
+    assert session.max_redirects == 0
+    assert session.trust_env is False
+    assert session.proxies == {}
+    assert set(session.adapters) == {"http://", "https://"}
+    assert all(
+        type(adapter.max_retries.total) is int
+        and adapter.max_retries.total == 0
+        for adapter in session.adapters.values()
+    )
+    requests_mock.get(
+        "https://coinbase.invalid/first",
+        status_code=307,
+        headers={"Location": "https://coinbase.invalid/second"},
+    )
+    requests_mock.get("https://coinbase.invalid/second", status_code=200)
+    with pytest.raises(requests.TooManyRedirects):
+        session.get("https://coinbase.invalid/first")
+    assert requests_mock.call_count == 1
+
+
+def test_canonical_wrapper_rejects_any_nonzero_transport_retry_policy() -> None:
+    import requests
+    from requests.adapters import HTTPAdapter
+
+    session = requests.Session()
+    session.mount("https://", HTTPAdapter(max_retries=1))
+
+    with pytest.raises(ValueError, match="coinbase_sdk_transport_retry_forbidden"):
+        CoinbaseRestClient(SimpleNamespace(session=session))
 
 
 _RAW_SDK_MUTATION_METHODS = frozenset({
@@ -532,7 +576,15 @@ def test_legacy_admin_mvp_runtime_cannot_enable_exchange_mutations(
     repository = Path(__file__).resolve().parents[2]
     production_hits = []
     canonical_scope_hits = []
-    for root_name in ("api", "business", "core", "dashboard_server.py", "external", "tools"):
+    for root_name in (
+        "api",
+        "application",
+        "business",
+        "core",
+        "dashboard_server.py",
+        "external",
+        "tools",
+    ):
         root = repository / root_name
         paths = [root] if root.is_file() else root.rglob("*.py")
         for path in paths:
@@ -542,11 +594,22 @@ def test_legacy_admin_mvp_runtime_cannot_enable_exchange_mutations(
                 production_hits.append(path.relative_to(repository).as_posix())
             if "canonical_coinbase_execution_scope" in source:
                 canonical_scope_hits.append(relative)
-    assert production_hits == []
+    assert production_hits == ["application/admin_api/mvp_service.py"]
     assert sorted(canonical_scope_hits) == [
         "api/v1/routes/orders.py",
+        "application/admin_api/operator_follow_up_materialization_runtime.py",
         "core/coinbase_execution_authority.py",
     ]
+    materialization_runtime = (
+        repository
+        / "application"
+        / "admin_api"
+        / "operator_follow_up_materialization_runtime.py"
+    ).read_text(encoding="utf-8")
+    assert "COINBASE_EXECUTION_SCOPE_SPOT_PLACE" in materialization_runtime
+    assert "COINBASE_EXECUTION_SCOPE_SPOT_CANCEL" in materialization_runtime
+    assert 'self.inflight_scope_factory("PLACE")' in materialization_runtime
+    assert 'self.inflight_scope_factory("CANCEL")' in materialization_runtime
 
 
 def test_legacy_compatibility_mutation_entrypoints_are_source_disabled() -> None:

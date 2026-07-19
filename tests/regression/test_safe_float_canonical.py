@@ -4,6 +4,8 @@ from decimal import Decimal
 from pathlib import Path
 import re
 
+import pytest
+
 from calculation import safe_float as package_export
 from calculation.formatter import safe_float as canonical
 import configuration as configuration_module
@@ -43,6 +45,7 @@ def test_safe_float_re_exports_are_same_object():
     assert configuration_module.safe_float is canonical
 
 
+@pytest.mark.serial
 def test_only_one_production_definition_in_repo():
     pattern = re.compile(r"^def\s+safe_float\s*\(", re.MULTILINE)
 
@@ -61,6 +64,7 @@ def test_only_one_production_definition_in_repo():
     )
 
 
+@pytest.mark.serial
 def test_production_imports_canonical_safe_float():
     pattern = re.compile(r"^\s*from\s+configuration\s+import\s+.*\bsafe_float\b")
 

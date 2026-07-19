@@ -7,8 +7,10 @@ HTTP or browser workflow is live-capable.
 The standing integration goal is `operator_ready_admin_mvp_runtime_v1`.
 Historical R1-R12 Preview artifacts and terminal results remain immutable and
 grant no new Futures Preview, R13, Slice 3/4/5, or mutation authority. The
-operator runtime described below activates only the two supported Spot Admin
-routes; it does not activate the legacy engine's autonomous trading loops.
+operator runtime described below activates only the four supported Spot Admin
+mutation routes: manual root place/cancel and explicit attached-intent
+materialize/safe-closeout. It does not activate the legacy engine's autonomous
+trading loops.
 Slice 1 uses only
 authoritative GET account/position reads. R7 consumed the sole authorized
 non-ordering Coinbase successor call after consumed R6. Exactly one
@@ -53,6 +55,34 @@ as not run with notional `0`.
   crossing the Coinbase cancel boundary, the service must durably mark the root
   `SUBMISSION_UNKNOWN`; a failed mark prevents the call, while process loss
   after the mark leaves the root quarantined until explicit reconciliation.
+- `GET /api/v1/orders/{source_client_order_id}/follow-up-intent/materialization`
+  is a strictly local Orders-detail read. It reports the attached intent,
+  backend-owned child candidate when durable evidence exists, append-only
+  attempt state, and remaining one-use call allowances. It makes no Coinbase
+  API call and runs no exchange read. Route dependency construction may
+  load the canonical client, but passive readback never invokes it.
+- `POST /api/v1/orders/{source_client_order_id}/follow-up-intent/materialization`
+  is the live-capable explicit follow-up path. The earlier attachment
+  acknowledgement is not live authority. This route requires fresh operator
+  intent and acknowledgements, exact Controlled-live authority, an authoritative
+  full source fill, flat lineage, approved Test portfolio, Spot product, market,
+  wallet, cap, duplicate-prevention, and audit evidence. It persists the exact
+  backend-derived child in a non-revealable local state before its durable
+  invocation boundary and may make one canonical Create call with no retry,
+  fallback, redirect, alternate identity, second child, or browser-supplied
+  trading term. Coinbase's documented response echo and one exact no-retry
+  post-Create read must bind the full child identity, side, LIMIT/GTC size and
+  price, approved portfolio, exchange identity, and current state before the
+  result can be accepted.
+- `POST /api/v1/orders/{source_client_order_id}/follow-up-intent/materialization/safe-closeout`
+  is the optional exact-child closeout. A fresh authoritative read that proves
+  the same child terminal records a zero-Cancel terminal result. A proven active
+  child may cross one separate Cancel boundary and make one canonical exact-ID
+  Cancel. A successful batch-cancel acknowledgement is not terminal proof; one
+  exact no-retry post-Cancel read must prove the bound child terminal before the
+  local projection can become terminal. An unknown Create can use this separate
+  allowance only after exact child reconciliation. Cancel never retries or
+  falls back to another identity.
 - `POST /api/v1/orders/{client_order_id}/fill-follow-up/trigger` is a guarded
   no-live local-state compatibility route. It can invoke the existing
   fill-follow-up executor after exact prerequisites and must prove one accepted
@@ -75,12 +105,13 @@ as not run with notional `0`.
 
 ## Supported Controlled-Live Surface
 
-Only the installed authenticated Admin API manual Spot LIMIT/GTC place and
-cancel routes can enter Controlled-live mode. The browser forwards operator
-requests but holds no exchange credentials or execution authority. The backend
-requires the exact outer flag, manager-issued owner-only lease, current
-lease-bound service decision, RBAC, intent, idempotency, approval, caps,
-portfolio/wallet evidence, audit, and reconciliation at each request.
+Only the installed authenticated Admin API manual Spot LIMIT/GTC place/cancel
+and attached-intent materialize/safe-closeout routes can enter Controlled-live
+mode. The browser forwards operator requests but holds no exchange credentials
+or execution authority. The backend requires the exact outer flag,
+manager-issued owner-only lease, current lease-bound service decision, RBAC,
+intent, idempotency, approval, caps, portfolio/wallet evidence, audit, and
+reconciliation at each request.
 
 Historical raw Spot smoke/sweep tools, legacy controlled-batch runners,
 dashboard WebSocket mutations, and legacy `main.py` Controlled-live startup

@@ -286,7 +286,7 @@ def operator_mvp_cap_guard_policy_error(
             return "operator_mvp_cancel_wallet_source_invalid"
         return None
 
-    if not _is_concrete_usdc_spot_product(product_scope):
+    if not is_concrete_usdc_spot_product(product_scope):
         return "operator_mvp_manual_product_scope_invalid"
     if expected_product_scope is not None and product_scope != expected_product_scope:
         return "operator_mvp_manual_product_scope_mismatch"
@@ -324,7 +324,9 @@ def _finite_decimal(value: object) -> Decimal | None:
     return parsed if parsed.is_finite() else None
 
 
-def _is_concrete_usdc_spot_product(value: str) -> bool:
+def is_concrete_usdc_spot_product(value: str) -> bool:
+    """Return whether one product is the installed MVP's concrete USDC Spot scope."""
+
     return bool(
         value
         and value == value.upper()

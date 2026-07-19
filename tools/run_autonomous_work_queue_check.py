@@ -29,7 +29,14 @@ R12_PREPARATION_DOC = (
 )
 FRONTEND_QUEUE_DOC = FRONTEND_ROOT / "docs" / "plans" / "AUTONOMOUS_WORK_QUEUE.md"
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-GOAL_ID = "futures_preview_acceptance_recovery_r12"
+GOAL_ID = "operator_authorize_and_materialize_follow_up_intent"
+CURRENT_ALIGNMENT_TOKEN = (
+    "operator_materialization_single_child_controlled_live_v1"
+)
+CURRENT_WORK_MODE = (
+    "operator_materialization_terminal_closeout_complete"
+)
+HISTORICAL_R12_GOAL_ID = "futures_preview_acceptance_recovery_r12"
 HISTORICAL_R11_GOAL_ID = "futures_preview_acceptance_recovery_r11"
 HISTORICAL_POST_R10_GOAL_ID = (
     "futures_post_r10_preview_compatibility_and_direction_selection"
@@ -54,8 +61,10 @@ CLOSED_LOOPHOLE_RULE = (
     "A candidate blocker cannot make itself in scope by generating evidence "
     "about the candidate blocker."
 )
-SLICE_STATUS = "complete_terminal_unknown_consumed"
-SLICE_BLOCKERS: tuple[str, ...] = (
+SLICE_STATUS = "complete"
+SLICE_BLOCKERS: tuple[str, ...] = ()
+HISTORICAL_R12_SLICE_STATUS = "complete_terminal_unknown_consumed"
+HISTORICAL_R12_SLICE_BLOCKERS: tuple[str, ...] = (
     "claim_only_recovery_unknown_consumed",
 )
 DEFAULT_NEXT_ACTION = "await_operator_direction_for_next_mvp"
@@ -63,11 +72,11 @@ HISTORICAL_R12_SUCCESSOR_ACTION = (
     "await_operator_authorization_for_operator_attach_single_follow_up_intent"
 )
 OPERATOR_QUESTION = (
-    "operator_attach_single_follow_up_intent is complete; operator direction "
-    "is required for the next MVP."
+    "Await operator direction for the next MVP."
 )
 OPERATOR_PROGRESS_WORDING = (
-    "R12 terminal unknown-consumed; offline closeout complete"
+    "Operator follow-up materialization MVP is complete; awaiting operator "
+    "direction for the next MVP"
 )
 HISTORICAL_R11_STATUS = "complete_terminal_no_retry"
 HISTORICAL_R11_NEXT_ACTION = "stop_and_await_operator_direction"
@@ -87,21 +96,22 @@ R7_TERMINAL_DIAGNOSTIC = (
     "sdk_returned__post_preview_value_error__before_acceptance"
 )
 MVP_SCOPE = {
-    "work_mode": "r12_terminal_unknown_consumed_offline_closeout_complete",
+    "work_mode": CURRENT_WORK_MODE,
     "product_goal": (
-        "R12 cycle 2 exact V3 eligible -> durable single-use claim -> "
-        "offline claim-only recovery terminal unknown-consumed."
+        "Preserve the completed one-child follow-up materialization MVP and "
+        "await explicit operator direction."
     ),
     "compatibility_result": POST_R10_COMPLETION_ALIGNMENT_TOKEN,
     "goal_authority": str(FRONTEND_GOAL_DOC),
     "frontend_authority": "operator_ui_only",
     "live_action_path": "auditable_backend_admin_interfaces_only",
     "phase_range_policy": "parked_unless_direct_current_slice_blocker",
-    "current_vertical_slice": "futures_exact_no_live_preview_slice_2r12",
+    "current_vertical_slice": GOAL_ID,
     "direct_blocker_rule": (
-        "r12_terminal_consumed_no_further_coinbase_calls"
+        "materialization_stops_for_scope_call_limit_or_immutable_"
+        "boundary_expansion"
     ),
-    "scope_posture": R12_ALIGNMENT_TOKEN,
+    "scope_posture": CURRENT_ALIGNMENT_TOKEN,
     "operator_progress_wording": OPERATOR_PROGRESS_WORDING,
     "operator_question": OPERATOR_QUESTION,
     "focused_blast_radius_tests_required": True,
@@ -131,7 +141,7 @@ STANDING_LIMITS = {
     "active_futures_slice": {
         "slice_id": "futures_exact_no_live_preview_slice_2r12",
         "recovery_id": "R12",
-        "status": SLICE_STATUS,
+        "status": HISTORICAL_R12_SLICE_STATUS,
         "policy": "V3",
         "product_id": "AVP-20DEC30-CDE",
         "contract_count": "1",
@@ -201,7 +211,7 @@ STANDING_LIMITS = {
     },
     "terminal_futures_slice": {
         "slice": "2R12",
-        "status": SLICE_STATUS,
+        "status": HISTORICAL_R12_SLICE_STATUS,
         "product_id": "AVP-20DEC30-CDE",
         "contract_count": "1",
         "opening_reference_notional_under_usdc": "100.00",
@@ -266,11 +276,14 @@ REQUIRED_STOP_CONDITIONS = [
 ]
 REQUIRED_GATES = [
     "npm run mvp:goal:check",
-    "focused tests for the R12 terminal closeout blast radius",
-    "R12_RELEASE_READY remains source-false",
-    "offline claim-only recovery creates no client or factory",
-    "independent R12 terminal safety audit",
-    "blind-contextless R12 terminal audit",
+    "backend focused materialization validation: 164 passed",
+    (
+        "backend canonical full: 1102 passed, 6 skipped parallel; 457 passed, "
+        "150 skipped serial"
+    ),
+    "frontend focused materialization validation: 179 passed",
+    "independent materialization safety audit: PASS",
+    "blind-contextless materialization audit: PASS",
     "npm run release:gate only at durable milestone closeout",
     (
         "python3.13 tools/run_parallel_regression.py --workers 4 only at "
@@ -330,13 +343,29 @@ def _current_goal_alignment() -> QueueCheck:
         BACKEND_GOAL_DOC,
         (
             GOAL_ID,
-            R12_ALIGNMENT_TOKEN,
+            CURRENT_ALIGNMENT_TOKEN,
+            "Status: `complete`",
             DEFAULT_NEXT_ACTION,
-            OPERATOR_QUESTION,
+            "operator_materialization_terminal_closeout_complete",
+            "no eligible filled attached intent",
+            "Coinbase eligibility/reconciliation reads: `0`",
+            "Coinbase Create calls: `0`",
+            "Coinbase Cancel calls: `0`",
+            "durable materialization attempts/claims: `0`",
+            "materialized children: `0`",
+            "no unknown live outcome",
+            "live-proof allowances remain unconsumed",
+            "Synthetic tests are not live proof",
+            "backend focused: `164 passed`",
+            "frontend focused: `179 passed`",
+            "independent safety audit: `PASS`",
+            "blind-contextless audit: `PASS`",
+            HISTORICAL_R12_GOAL_ID,
+            R12_ALIGNMENT_TOKEN,
             CLOSED_LOOPHOLE_RULE,
             SUCCESSOR_MAPPING_INVARIANT,
             PREVIEW_ID_INVARIANT,
-            SLICE_STATUS,
+            HISTORICAL_R12_SLICE_STATUS,
             "R12_RELEASE_READY=False",
             "Eligibility cycle 2",
             "exact_v3_eligible",
@@ -356,13 +385,28 @@ def _current_goal_alignment() -> QueueCheck:
         FRONTEND_GOAL_DOC,
         (
             GOAL_ID,
+            CURRENT_ALIGNMENT_TOKEN,
+            "Status: `complete`",
             DEFAULT_NEXT_ACTION,
-            OPERATOR_QUESTION,
+            OPERATOR_PROGRESS_WORDING,
+            "eligible-candidate count was `0`",
+            "Coinbase eligibility reads, reconciliation reads, Create calls",
+            "no unknown live outcome was recorded",
+            "proof allowances remain unconsumed",
+            "it is not a live proof",
+            "`164` backend tests and `179` frontend tests",
+            "independent safety audit and blind-contextless audit returned `PASS`",
+            "Existing attachment acknowledgement is never live authority",
+            (
+                "Invocation-started recovery journals unknown before "
+                "read-only reconciliation"
+            ),
+            HISTORICAL_R12_GOAL_ID,
             CLOSED_LOOPHOLE_RULE,
             SUCCESSOR_MAPPING_INVARIANT,
             PREVIEW_ID_INVARIANT,
             R12_ALIGNMENT_TOKEN,
-            SLICE_STATUS,
+            HISTORICAL_R12_SLICE_STATUS,
             "R12_RELEASE_READY = False",
             "eligibility cycle 2",
             "exact_v3_eligible",
@@ -385,10 +429,10 @@ def _slice_2r12_prepared_posture() -> QueueCheck:
     preparation = _contains_all(
         R12_PREPARATION_DOC,
         (
-            GOAL_ID,
+            HISTORICAL_R12_GOAL_ID,
             R12_ALIGNMENT_TOKEN,
             HISTORICAL_R12_SUCCESSOR_ACTION,
-            SLICE_STATUS,
+            HISTORICAL_R12_SLICE_STATUS,
             "R12_RELEASE_READY",
             "at most ten durably counted cycles",
             "eligibility cycle 2",
@@ -421,11 +465,10 @@ def _slice_2r12_prepared_posture() -> QueueCheck:
     backend = _contains_all(
         BACKEND_GOAL_DOC,
         (
-            GOAL_ID,
+            HISTORICAL_R12_GOAL_ID,
             R12_ALIGNMENT_TOKEN,
-            SLICE_STATUS,
-            DEFAULT_NEXT_ACTION,
-            OPERATOR_QUESTION,
+            HISTORICAL_R12_SLICE_STATUS,
+            HISTORICAL_R12_SUCCESSOR_ACTION,
             "R12_RELEASE_READY=False",
             "Eligibility cycle 2",
             "exact_v3_eligible",
@@ -438,11 +481,10 @@ def _slice_2r12_prepared_posture() -> QueueCheck:
     frontend = _contains_all(
         FRONTEND_GOAL_DOC,
         (
-            GOAL_ID,
+            HISTORICAL_R12_GOAL_ID,
             R12_ALIGNMENT_TOKEN,
-            SLICE_STATUS,
-            DEFAULT_NEXT_ACTION,
-            OPERATOR_QUESTION,
+            HISTORICAL_R12_SLICE_STATUS,
+            HISTORICAL_R12_SUCCESSOR_ACTION,
             "R12_RELEASE_READY = False",
             "eligibility cycle 2",
             "exact_v3_eligible",
@@ -666,7 +708,7 @@ def _entry_point_alignment() -> QueueCheck:
         _contains_all(
             PROJECT_ROOT / "README.md",
             (
-                GOAL_ID,
+                HISTORICAL_R12_GOAL_ID,
                 HISTORICAL_POST_R10_GOAL_ID,
                 "Current MVP Goal",
             ),
@@ -674,7 +716,7 @@ def _entry_point_alignment() -> QueueCheck:
         _contains_all(
             PROJECT_ROOT / "docs" / "README.md",
             (
-                GOAL_ID,
+                HISTORICAL_R12_GOAL_ID,
                 HISTORICAL_POST_R10_GOAL_ID,
                 "Current MVP Goal",
             ),
@@ -682,7 +724,7 @@ def _entry_point_alignment() -> QueueCheck:
         _contains_all(
             PROJECT_ROOT / "docs" / "MAINTAINER_HANDOFF.md",
             (
-                GOAL_ID,
+                HISTORICAL_R12_GOAL_ID,
                 HISTORICAL_POST_R10_GOAL_ID,
                 "Current Handoff State",
             ),
@@ -690,7 +732,7 @@ def _entry_point_alignment() -> QueueCheck:
         _contains_all(
             PROJECT_ROOT / "genai_data" / "README.md",
             (
-                GOAL_ID,
+                HISTORICAL_R12_GOAL_ID,
                 HISTORICAL_POST_R10_GOAL_ID,
                 "Current work authority",
             ),
@@ -769,7 +811,17 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
         "r12_eligibility_cycles_consumed": 2,
         "r12_preview_attempts_consumed": 1,
         "r12_release_gate_ready": False,
-        "live_coinbase_eligibility_reads_ran": True,
+        "materialization_candidate_count": 0,
+        "materialization_durable_attempts_claims": 0,
+        "materialized_children": 0,
+        "materialization_coinbase_eligibility_reads": 0,
+        "materialization_coinbase_reconciliation_reads": 0,
+        "materialization_coinbase_create_calls": 0,
+        "materialization_coinbase_cancel_calls": 0,
+        "materialization_unknown_live_outcome": False,
+        "materialization_live_proof_allowances_consumed": False,
+        "materialization_synthetic_validation_is_live_proof": False,
+        "live_coinbase_eligibility_reads_ran": False,
         "live_coinbase_preview_ran": None,
         "live_coinbase_preview_outcome": "unknown_consumed",
         "live_coinbase_orders_ran": False,
@@ -777,6 +829,22 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
         "live_order_notional_usdc": "0",
         "submitted_notional_usdc": "0",
         "executed_notional_usdc": "0",
+        "historical_r12": {
+            "goal_id": HISTORICAL_R12_GOAL_ID,
+            "alignment_token": R12_ALIGNMENT_TOKEN,
+            "slice_status": HISTORICAL_R12_SLICE_STATUS,
+            "blockers": list(HISTORICAL_R12_SLICE_BLOCKERS),
+            "workflow_claims_consumed": 1,
+            "claim_created": True,
+            "eligibility_cycles_consumed": 2,
+            "preview_attempts_consumed": 1,
+            "release_gate_ready": False,
+            "preview_network_reach": "unknown",
+            "preview_outcome": "unknown_consumed",
+            "coinbase_mutations_ran": False,
+            "submitted_notional_usdc": "0",
+            "executed_notional_usdc": "0",
+        },
         "historical_r11": {
             "status": HISTORICAL_R11_STATUS,
             "workflow_claims_consumed": 1,
@@ -791,9 +859,7 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
             "goal_id": GOAL_ID,
             "slice_status": SLICE_STATUS,
             "work_mode": MVP_SCOPE["work_mode"],
-            "live_coinbase_execution": (
-                "unknown_preview_reach_no_order_execution"
-            ),
+            "live_coinbase_execution": "not_run",
             "blockers": list(SLICE_BLOCKERS),
             "next_action": DEFAULT_NEXT_ACTION,
             "operator_wording": OPERATOR_PROGRESS_WORDING,
@@ -817,7 +883,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"{list(SLICE_BLOCKERS)}"
         )
         print(f"Default next action: {DEFAULT_NEXT_ACTION}")
-        print("Validation: focused local Linux Docker blast-radius tests")
+        print(
+            "Materialization: complete; candidate 0; Coinbase eligibility/"
+            "reconciliation/Create/Cancel calls 0; proof allowances unconsumed"
+        )
         print(
             "R12: terminal unknown-consumed/release disabled; eligibility "
             "cycles 2; workflow claims 1; conservative Preview-attempt "

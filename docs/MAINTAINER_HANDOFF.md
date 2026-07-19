@@ -131,7 +131,31 @@ audit ids. Expected fill status does not create a separate approval class.
 
 ## Current Handoff State
 
-- Current terminal: Goal `futures_preview_acceptance_recovery_r12` is
+- Current terminal: Goal
+  `operator_authorize_and_materialize_follow_up_intent` has Status: `complete`.
+  The backend-owned, separately acknowledged materialization and exact-child
+  safe-closeout paths are implemented and integrated through generated
+  contracts. Attachment acknowledgement remains local-only and supplies no
+  live authority. The proof found no eligible filled attached intent;
+  candidate count: `0`; Coinbase eligibility/reconciliation reads: `0`;
+  Coinbase Create calls: `0`; Coinbase Cancel calls: `0`; durable
+  materialization attempts/claims: `0`; materialized children: `0`; and
+  submitted/executed notional: `0 USDC` / `0 USDC`. There was no unknown live
+  outcome and the live-proof allowances remain unconsumed. Synthetic tests are
+  not live proof.
+  Validation completed with backend focused: `164 passed`; backend canonical
+  full: `1102 passed, 6 skipped` parallel and `457 passed, 150 skipped`
+  serial, runner status `passed`, live execution `false`, notional `0`;
+  frontend focused: `179 passed`; independent safety audit: `PASS`; and
+  blind-contextless audit: `PASS`. Current work mode is
+  `operator_materialization_terminal_closeout_complete`; current action is
+  `await_operator_direction_for_next_mvp`.
+- Controlled-live operational handoff is verified: the final installed
+  operator review stack reports runtime mode `controlled_live`, frontend
+  `0.0.0.0:3000`, backend `127.0.0.1:8787`, and approved Test portfolio
+  configuration without exposing its identifier. Release, startup, and status
+  made zero Coinbase calls and consumed no live-proof allowance.
+- Historical R12 terminal: Goal `futures_preview_acceptance_recovery_r12` is
   `complete_terminal_unknown_consumed`. Eligibility cycle 2 completed
   `exact_v3_eligible`, the durable R12 claim was created and consumed, and
   offline claim recovery appended `claim_only_recovery_unknown_consumed`
@@ -143,9 +167,9 @@ audit ids. Expected fill status does not create a separate approval class.
   mismatch was remediated before cycle 2 without changing policy or call
   bounds. The runner is source-bound to `R12_RELEASE_READY=False`; no further
   Coinbase call, R13 attempt, or Slice 3/4/5 activation is permitted. The
-  separately authorized routed Orders workspace and zero-notional local
-  follow-up-intent attachment are complete without changing that boundary.
-  Next action is `await_operator_direction_for_next_mvp`.
+  separately authorized routed Orders workspace, zero-notional local
+  follow-up-intent attachment, and completed materialization successor do not
+  change that historical boundary.
   See
   `docs/FUTURES_SLICE_2R12_PREPARATION.md`.
 - Historical predecessor: Goal `futures_preview_acceptance_recovery_r11` is complete.
@@ -158,9 +182,9 @@ audit ids. Expected fill status does not create a separate approval class.
   The immutable R11 file/evidence SHA-256 pair is
   `effb4bd037b853e06da14a0327d71eb8104e2b7edb2f56970b4c47ef855b6061` /
   `548bbb02709c70dc320219bc15520b40ed948309ad09ec0f8af8f812d63bedea`.
-  While R12 is the active successor, default API/UI readback never selects or
-  opens the historical R11 terminal. It binds directly to the fixed R12
-  singleton and now returns the strict recovered R12 terminal.
+  During the completed R12 successor workflow, default API/UI readback did not
+  select or open the historical R11 terminal. It bound directly to the fixed
+  R12 singleton and returned the strict recovered R12 terminal.
   It grants no schema/acceptance broadening, Slice 3/4/5, or other live
   authority. R12 is governed by its completed terminal boundary. See
   `docs/FUTURES_SLICE_2R11_TERMINAL_DIAGNOSIS.md`.
@@ -254,12 +278,12 @@ audit ids. Expected fill status does not create a separate approval class.
   remediated models emit correlated `allOf`/`oneOf` pairs, generated TypeScript
   preserves those pairs, hybrid identities are test-rejected, and both
   reviewers re-reviewed the remediation with no remaining findings.
-- Current goal id: `futures_preview_acceptance_recovery_r12`
-  (`complete_terminal_unknown_consumed`).
+- Current goal id: `operator_authorize_and_materialize_follow_up_intent`
+  (Status: `complete`).
 - Current work mode:
-  `r12_terminal_unknown_consumed_offline_closeout_complete`.
+  `operator_materialization_terminal_closeout_complete`.
 - Current next action: `await_operator_direction_for_next_mvp`; keep
-  `R12_RELEASE_READY=False` and make no further R12 Coinbase call.
+  historical `R12_RELEASE_READY=False` and make no further R12 Coinbase call.
 - Historical predecessor slice: Default-profile Futures readback -> exact AVAX US CFM Coinbase
   Preview Order -> immutable operator-visible no-live preview readback. The
   one-shot R1 artifact terminated before

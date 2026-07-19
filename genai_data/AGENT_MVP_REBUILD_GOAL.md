@@ -1,28 +1,85 @@
 # Coinbase Admin MVP Goal
 
-Goal ID: `futures_preview_acceptance_recovery_r12`
+Goal ID: `operator_authorize_and_materialize_follow_up_intent`
 
-Last reviewed: 2026-07-18 UTC.
+Last reviewed: 2026-07-19 UTC.
 
-Status: `complete_terminal_unknown_consumed`.
+Status: `complete`.
 
-Readiness: terminal closeout complete. Eligibility cycle 2 completed
+Readiness: implementation, generated-contract integration, focused and full
+validation, deployment validation, independent safety audit, and blind-
+contextless audit are complete. No eligible filled attached intent existed, so
+the bounded live proof did not run and its allowances remain unconsumed.
+
+Current machine alignment:
+`operator_materialization_single_child_controlled_live_v1`. Default action:
+`await_operator_direction_for_next_mvp`. Work mode:
+`operator_materialization_terminal_closeout_complete`.
+Await operator direction for the next MVP.
+
+Controlled-live operational handoff is verified: the final installed operator
+review stack reports runtime mode `controlled_live`, frontend `0.0.0.0:3000`,
+backend `127.0.0.1:8787`, and approved Test portfolio configuration without
+exposing its identifier. Release, startup, and status made zero Coinbase calls
+and consumed no live-proof allowance.
+
+Historical Futures Goal ID: `futures_preview_acceptance_recovery_r12`.
+Historical readiness: terminal closeout complete. Eligibility cycle 2 completed
 `exact_v3_eligible`, the one durable claim was created and consumed, and
 offline claim recovery appended terminal blocker
 `claim_only_recovery_unknown_consumed` without a Coinbase client or factory.
 The source gate is closed and no further Coinbase call is permitted.
 
-Machine alignment: `r12_separate_eligibility_and_single_use_attempt_v1`.
+Historical machine alignment: `r12_separate_eligibility_and_single_use_attempt_v1`.
 Slice status: `complete_terminal_unknown_consumed`. Work mode:
-`r12_terminal_unknown_consumed_offline_closeout_complete`. Default action:
-`await_operator_direction_for_next_mvp`.
+`r12_terminal_unknown_consumed_offline_closeout_complete`.
 
 The canonical cross-repository authority is
 `/home/developer/coinbase/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. This
 backend copy records the behavior-owner interpretation and must remain aligned
 with it.
 
-## Completed Slice 2R12 Terminal Workflow
+## Completed Operator Follow-Up Materialization Goal
+
+Goal `operator_authorize_and_materialize_follow_up_intent` is terminally
+complete. The authenticated Admin API and generated operator contract expose a
+separately acknowledged, backend-owned, one-use materialization path and an
+exact-child safe-closeout path. Attachment acknowledgement remains local-only
+and is never reinterpreted as live authority. All source/root identity, full-
+fill and terminal-state revalidation, approved Test portfolio and Spot-product
+policy, wallet/cap admission, RBAC, idempotency, exactly-once claiming, child
+identity/linkage, audit, reconciliation, duplicate prevention, rollback, and
+authoritative readback remain backend-owned.
+
+Terminal live-proof facts:
+
+- no eligible filled attached intent existed; candidate count: `0`
+- Coinbase eligibility/reconciliation reads: `0`
+- Coinbase Create calls: `0`
+- Coinbase Cancel calls: `0`
+- durable materialization attempts/claims: `0`
+- materialized children: `0`
+- submitted/executed notional: `0 USDC` / `0 USDC`
+- no unknown live outcome
+- live-proof allowances remain unconsumed
+- Synthetic tests are not live proof.
+
+Terminal validation evidence:
+
+- backend focused: `164 passed`
+- backend canonical full: `1102 passed, 6 skipped` parallel and
+  `457 passed, 150 skipped` serial; runner status `passed`, live Coinbase
+  execution `false`, and notional `0`
+- frontend focused: `179 passed`
+- independent safety audit: `PASS`
+- blind-contextless audit: `PASS`
+
+The implementation and validation goal is complete. Current action is
+`await_operator_direction_for_next_mvp`; no successor, second child, retry,
+fallback, redirect, scheduler, fan-out, Futures action, or other exchange
+authority is implied.
+
+## Historical Slice 2R12 Terminal Workflow
 
 Slice 2R12 kept eligibility and attempt phases structurally separate. Two of
 the authorized at most ten state-refresh cycles were durably counted. Each
@@ -90,9 +147,9 @@ policy, product `AVP-20DEC30-CDE`, one-contract scope, or strict
 The immutable R11 file/evidence SHA-256 pair is
 `effb4bd037b853e06da14a0327d71eb8104e2b7edb2f56970b4c47ef855b6061` /
 `548bbb02709c70dc320219bc15520b40ed948309ad09ec0f8af8f812d63bedea`.
-While R12 is the active successor, default API/UI readback never selects or
-opens the historical R11 terminal. It binds directly to the fixed R12
-singleton and now returns the strict recovered R12 terminal.
+During the completed R12 successor workflow, default API/UI readback did not
+select or open the historical R11 terminal. It bound directly to the fixed R12
+singleton and returned the strict recovered R12 terminal.
 R1-R10 remain byte-for-byte unchanged, and R8 content/hash remain inaccessible.
 The runner is permanently tombstoned. Synthetic backend/frontend remediation
 now foregrounds the exact policy boundary without exposing raw responses,
@@ -777,12 +834,11 @@ or claim owner.
 ## Scope And Validation
 
 R12 terminal closeout is complete under the hard source-disabled release gate.
-The active work mode is
-`r12_terminal_unknown_consumed_offline_closeout_complete`; it grants no new
-eligibility evidence, claim, idempotency key, Preview attempt, or Coinbase
-call. operator_attach_single_follow_up_intent is complete; operator direction
-is required for the next MVP. The current action is
-`await_operator_direction_for_next_mvp`; there are no ordered successors.
+It grants no new eligibility evidence, claim, idempotency key, Preview attempt,
+or Coinbase call. `operator_attach_single_follow_up_intent` is complete. The
+successor goal `operator_authorize_and_materialize_follow_up_intent` is also
+complete. Current action is `await_operator_direction_for_next_mvp`. There are
+no automatically selected successors beyond the completed authorization.
 
 A candidate blocker cannot make itself in scope by generating evidence about the candidate blocker.
 

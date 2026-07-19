@@ -96,6 +96,13 @@ offending regression surface before retrying. Do not disable the memory watch fo
 `--disable-memory-watch` only for a scoped diagnostic run where external
 process monitoring is already active.
 
+The runner streams combined pytest output through a bounded line guard. Exact
+xdist controller messages for an improperly terminated node, a worker crash
+with restart disabled, or the maximum crashed-worker count fail the lane even
+if xdist incorrectly exits `0`. Treat a `pytest_output_guard_failed` summary as
+a failed closeout gate. The summary persists only a fixed diagnostic marker,
+not arbitrary pytest output.
+
 Known memory-sensitive surface: `tests/regression/test_admin_api_contract.py`
 is intentionally broad, and `--dist loadfile` keeps that file in one xdist
 worker. If that file grows or starts retaining large failure payloads, split
@@ -183,6 +190,13 @@ temporary directories or OS temporary directories for high-churn stores, and
 delete them during test teardown. Durable runtime examples may still live under
 `runtime_state/` when a runbook explicitly asks for them, but regression tests
 must isolate those paths with temporary files.
+
+The canonical parallel runner therefore creates each lane's `--basetemp`
+under the OS temporary directory, outside the repository. Keep the default for
+normal closeout. A diagnostic `--basetemp-root` override must also remain
+outside the source tree; repository-wide source guards enumerate directory
+entries before they can exclude ignored paths, so repo-local pytest temp trees
+can make those guards time out.
 
 Large Admin API idempotency responses are especially sensitive: the file store
 externalizes responses over the inline limit into gzip blobs, and replay

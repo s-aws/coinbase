@@ -624,6 +624,12 @@ def test_installed_route_allowlist_cannot_be_bypassed_by_child_cancel_override(
     assert response.status_code == 501
     assert response.json()["status"] == AdminApiCommandStatus.NOT_IMPLEMENTED.value
     assert response.json()["failure_stage"] == "source_disabled_not_implemented"
+    assert response.json()["message"] == (
+        "Selected-chain compatibility cancellation is source-disabled in the "
+        "installed operator runtime; supported cancellation is limited to "
+        "manual Spot root cancel and explicit exact materialized-child "
+        "safe-closeout."
+    )
     assert service.root_cancel_commands == []
 
 

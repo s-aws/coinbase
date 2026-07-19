@@ -43,8 +43,11 @@ The response passes only if it identifies:
 - `README.spot-trading.md` and `docs/README.md` as appropriate entry points.
 - The invariant that spot uses the existing order lifecycle, not a spot-only
   placement engine.
-- The installed authenticated Admin API manual Spot LIMIT/GTC place/cancel
-  routes as the sole supported Controlled-live operator surface.
+- The four installed Controlled-live mutation routes: manual root place/cancel
+  and explicit attached-intent materialization/exact-child safe-closeout.
+- That intent attachment is local-only and never supplies materialization
+  authority; materialization and safe-closeout each require a fresh, separate
+  operator acknowledgement and remain backend-authorized.
 - Exact outer authority, manager lease, current lease-bound service decision,
   RBAC, intent, idempotency, approval, caps, Test-portfolio/wallet evidence,
   audit, reconciliation, and final route-bound SDK scope as distinct backend
@@ -65,8 +68,9 @@ The response passes only if it identifies:
 - Reconciliation/fill-backfill as the way local state is compared against
   Coinbase reality.
 - Planned skips as audit rows, not failed Coinbase submissions.
-- Which submission/audit evidence path applies to the supported Admin API
-  manual place/cancel routes, including authoritative terminal readback.
+- Which submission/linkage/audit evidence path applies to the supported Admin
+  API manual-root and attached-intent routes, including authoritative terminal
+  readback and exact child identity.
 - That direct-order audit output separates the read-only audit command fields
   from audited-order evidence fields such as
   `audited_order_live_submission_evidence`.
@@ -153,6 +157,7 @@ describe current execution surfaces; the pass criteria above are authoritative.
   and required
   gates. It flagged missing full-gate proof commands in the frontend
   spot-order flow doc; the doc was fixed to include `npm run release:gate` and
-  full backend regression. Current operator runtime posture is different:
-  manual placement and Spot cancel are route-scoped controlled-live
-  capabilities, while all request-level gates remain backend-owned.
+  full backend regression. Current operator runtime posture is different: the
+  two manual-root and two attached-intent mutations are distinct route-scoped
+  Controlled-live capabilities, while all request-level gates remain
+  backend-owned and intent attachment remains local-only.

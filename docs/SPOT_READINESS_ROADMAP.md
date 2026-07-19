@@ -2,10 +2,13 @@
 
 > **Current operator boundary:** historical raw Spot smoke, portfolio-sweep,
 > campaign, legacy dashboard, and legacy engine mutation paths are
-> source-disabled. The supported Controlled-live surface is the installed,
-> authenticated Admin API manual Spot LIMIT/GTC place/cancel workflow under
-> its manager lease and per-request backend gates. Commands retained below are
-> historical/read-only reference, not runnable mutation instructions.
+> source-disabled. The four installed Controlled-live mutation routes are
+> manual root place/cancel and explicit attached-intent
+> materialization/exact-child safe-closeout under the manager lease and
+> per-request backend gates. Intent attachment is local-only, successor
+> acknowledgement is fresh and separate, and no automatic follow-up execution
+> is installed. Commands retained below are historical/read-only reference, not
+> runnable mutation instructions.
 
 This is a domain readiness reference, not the current work queue. Standing
 closeout is `operator_ready_admin_mvp_runtime_v1`; only readiness failures that
@@ -1935,8 +1938,9 @@ Result on 2026-06-09:
 - The only warning was expected: the all-product selection rule resolves to
   concrete eligible product ids at run time.
 - No new placement primitive was added. Current campaign/sweep mutation modes
-  are source-disabled; supported Controlled-live testing uses authenticated
-  Admin API manual Spot place/cancel.
+  are source-disabled; the installed Controlled-live boundary is the four
+  authenticated Admin API manual-root and attached-intent routes described at
+  the top of this roadmap.
 - No live Coinbase orders were submitted for this phase. Submitted notional:
   `0` USDC. Executed notional: `0` USDC.
 
@@ -2313,9 +2317,11 @@ Status:
 - Evidence expected from each surface.
 - No live Coinbase orders are approved for this phase.
 
-Current note: dashboard, hotpoint, sweep, and campaign mutations are
-source-disabled; the installed authenticated Admin API manual Spot place/cancel
-routes are the sole supported Controlled-live surface.
+Current note: dashboard, hotpoint, sweep, campaign, and selected-chain
+compatibility mutations are source-disabled. The four installed Controlled-live
+mutation routes are manual root place/cancel and explicit attached-intent
+materialization/exact-child safe-closeout, each under its distinct backend
+authority and acknowledgement boundary.
 
 Result:
 
@@ -3716,8 +3722,9 @@ Result:
 - Added config-field and durable-tracking examples to
   `docs/examples/spot-campaign.md`.
 - The locked design kept `tools/run_spot_campaign.py` read-only. The former
-  sweep execution route is now source-disabled; current Controlled-live uses
-  authenticated Admin API manual Spot place/cancel.
+  sweep execution route is now source-disabled; the current Controlled-live
+  boundary is the four authenticated Admin API manual-root and attached-intent
+  routes described at the top of this roadmap.
 - No live Coinbase orders were submitted for this phase. Submitted notional:
   `0` USDC. Executed notional: `0` USDC.
 

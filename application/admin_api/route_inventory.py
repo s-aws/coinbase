@@ -99,6 +99,85 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="spot_operations",
+        surface=(
+            "GET /api/v1/orders/{source_client_order_id}/follow-up-intent/"
+            "materialization"
+        ),
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not applicable; authoritative local readback only",
+        caps="reports the fixed 3.10 submitted and 1.00 executed ceilings",
+        audit="returns the immutable attempt and append-only state binding",
+        shared_method="read_order_follow_up_materialization",
+        parity_test=(
+            "local intent, fill, lineage, exact-child, allowance, and durable "
+            "attempt readback only; no Coinbase read or exchange mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface=(
+            "POST /api/v1/orders/{source_client_order_id}/follow-up-intent/"
+            "materialization"
+        ),
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        permission=AdminApiPermission.ORDER_CREATE,
+        idempotency=(
+            "required durable one-use claim; exact key replays and changed "
+            "key or payload conflicts"
+        ),
+        approval=(
+            "required fresh explicit materialization header and "
+            "acknowledgements; the attachment acknowledgement is never live "
+            "authority"
+        ),
+        caps=(
+            "required backend fixed max submitted 3.10 USDC and max "
+            "executed/effective 1.00 USDC, plus wallet and standing-price policy"
+        ),
+        audit=(
+            "required immutable actor/source/root/intent/child/candidate binding "
+            "and append-only invocation/result events"
+        ),
+        shared_method="materialize_order_follow_up_intent",
+        parity_test=(
+            "fresh exact full-fill, Test portfolio, Spot product, wallet, cap, "
+            "market, and child-absence revalidation; persists only the exact "
+            "preclaimed child before one Create with zero retry or fallback"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface=(
+            "POST /api/v1/orders/{source_client_order_id}/follow-up-intent/"
+            "materialization/safe-closeout"
+        ),
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        permission=AdminApiPermission.ORDER_CANCEL,
+        idempotency=(
+            "required separate durable Cancel key; exact replay only and no "
+            "second boundary"
+        ),
+        approval=(
+            "required fresh exact-child safe-closeout header and acknowledgements"
+        ),
+        caps=(
+            "required one exact materialized child and at most one Cancel call"
+        ),
+        audit=(
+            "required authoritative child-state read and append-only Cancel "
+            "boundary/result evidence"
+        ),
+        shared_method="safe_closeout_materialized_follow_up_intent",
+        parity_test=(
+            "backend resolves the exact child and exchange evidence; terminal "
+            "state is a no-op, active state permits one Cancel, and unknown "
+            "consumes without retry, fallback, or alternate identity"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
         surface="POST /api/v1/orders/{client_order_id}/reconciliation",
         action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
         permission=AdminApiPermission.ORDER_CANCEL,

@@ -1,15 +1,22 @@
 # Spot Trading
 
-The next proposed MVP is `operator_attach_single_follow_up_intent`, pending
-distinct operator authorization. This document is domain behavior reference;
-it does not authorize that goal or broaden current live authority. Campaign,
-sweep, fan-out, scheduler, retry, and wallet-ledger expansion remain parked.
+This document is domain behavior reference; it grants no exchange authority.
+Campaign, sweep, fan-out, scheduler, retry, and wallet-ledger expansion remain
+parked.
 
-Current execution boundary: the product is the operator review stack, No-live
-is its safe default, and Controlled-live is available only through installed
-authenticated Admin API manual Spot LIMIT/GTC place/cancel. Legacy dashboard,
-hotpoint, stealth/engine, smoke, sweep, campaign, and batch mutation paths are
-source-disabled and cannot mint the canonical request scope.
+Current execution boundary: the product is the operator review stack and its
+installed default is Controlled-live, which fails closed without exact backend
+authority. The four installed Controlled-live mutation routes are manual root
+place/cancel and explicit attached-intent materialization/exact-child
+safe-closeout. Follow-up intent attachment is completed but local-only and its
+acknowledgement never becomes materialization authority. Materialization and
+safe-closeout each require a fresh, separate explicit operator acknowledgement;
+the backend revalidates exact source/root/child identity, authoritative fill or
+terminal state, approved Test portfolio, wallet/caps, RBAC, idempotency,
+exactly-once claiming, audit, reconciliation, and duplicate prevention. Legacy
+dashboard, hotpoint, stealth/engine, smoke, sweep, campaign, batch, and
+automatic follow-up mutation paths are source-disabled and cannot mint the
+canonical request scope.
 
 Spot trading uses the same order lifecycle, stealth lifecycle, sizing, fee,
 dashboard, and reconciliation paths as futures. There is no separate spot
@@ -95,9 +102,11 @@ increments and quote-notional minimums from `products.json`.
 
 ## Supported Controlled-Live Surface
 
-Spot Coinbase submission is limited to authenticated Admin API manual
-LIMIT/GTC place/cancel under the exact backend admission chain. No other source
-may add or reuse a REST placement path.
+Spot Coinbase mutation is limited to four installed Controlled-live mutation
+routes: manual root place/cancel and explicit attached-intent
+materialization/exact-child safe-closeout under the exact backend admission
+chain. Intent attachment itself is local-only. No other source may add or reuse
+a REST placement/cancel path, and no installed scheduler materializes intents.
 
 Scope note: offline dashboard/stealth compatibility fixtures use products
 configured in `products.json`; the portfolio sweep and campaign planning
@@ -117,6 +126,9 @@ exchange execution surfaces.
 | --- | --- | --- | --- |
 | Authenticated Admin API manual place | Exact flag/lease, current service decision, RBAC, intent, idempotency, acknowledgement, LIMIT/GTC, caps, Test portfolio/wallet, audit, reconciliation | canonical wrapper `create_order` under route-minted place scope | `client_order_id`, exchange evidence, audit/correlation, durable root and terminal readback |
 | Authenticated Admin API manual cancel | Same backend admission family plus exact local/exchange identity and cancellation quarantine | canonical wrapper cancel under route-minted cancel scope | audit/correlation, cancellation result and authoritative terminal readback |
+| Authenticated Admin API follow-up intent attachment | Exact eligible system-owned nonterminal source, RBAC, idempotency, duplicate prevention, explicit local acknowledgement | none; local-only and grants no live authority | durable attached intent, canonical audit, backend eligibility/readback |
+| Authenticated Admin API attached-intent materialization | Fresh explicit acknowledgement plus authoritative source fill, exact root/child tuple, Test portfolio, product/wallet/caps, RBAC, exactly-once claim, audit, reconciliation | one-use canonical wrapper `create_order` under route-minted materialization scope | durable child identity/linkage, exchange evidence, audit/correlation, authoritative readback |
+| Authenticated Admin API exact-child safe-closeout | Fresh separate acknowledgement plus exact linked child identity and authoritative nonterminal state | one-use exact-ID canonical wrapper cancel under route-minted safe-closeout scope | durable cancel outcome, child linkage, audit/correlation, authoritative terminal readback |
 | Dashboard place/cancel/hotpoint | source-disabled before runtime lookup | none | fixed source-disabled response |
 | Legacy stealth/engine | compatibility/read-only only; no canonical route scope | none | historical/local evidence only |
 | Sweep/campaign | offline planning, ledger, P/L, and reconciliation review | none | JSONL/read-only evidence |
@@ -153,11 +165,13 @@ exchange execution surfaces.
   Campaign and sweep tools remain useful for read-only planning, status,
   ledger, P/L, and reconciliation review; their mutation modes are
   source-disabled.
-- Supported Controlled-live manual place/cancel enters through authenticated
+- All four supported Controlled-live mutations enter through authenticated
   Admin API routes. The backend requires exact flag and manager lease, a fresh
-  lease-bound service decision, RBAC, operator intent, idempotency, explicit
-  acknowledgement, exact LIMIT/GTC input, caps, Test-portfolio/wallet evidence,
-  audit, reconciliation, and a route-minted final SDK scope.
+  lease-bound service decision, RBAC, operator intent, idempotency, a fresh
+  route-specific acknowledgement, exact route identity/input, caps,
+  Test-portfolio/wallet evidence, audit, reconciliation, duplicate prevention,
+  and a route-minted final SDK scope. The attached intent's earlier local
+  acknowledgement is never reused.
 - Dashboard `place_order`, `cancel_order`, and `place_hotpoint_test_order`
   return fixed source-disabled responses before runtime lookup.
 - Legacy stealth/hotpoint/engine code remains historical source material and
@@ -169,8 +183,9 @@ CRUD that creates an `order_parent` row for operator-managed local state.
 ## Disabled And Conditional Spot Features
 
 Spot is not a blanket futures/perpetual equivalent. The current supported
-Controlled-live surface is authenticated Admin API manual Spot LIMIT/GTC
-place/cancel; other paths are read-only, local-evidence, or source-disabled.
+Controlled-live surface is the four authenticated Admin API manual-root and
+attached-intent mutation routes described above; other paths are read-only,
+local-evidence, or source-disabled.
 
 Source-disabled for spot exchange mutation:
 
@@ -194,8 +209,13 @@ Conditional local/offline behavior for spot:
 
 Not disabled:
 
-- Authenticated Admin API manual Spot LIMIT/GTC place/cancel under exact
+- Authenticated Admin API manual Spot LIMIT/GTC root place/cancel under exact
   Controlled-live backend admission.
+- Explicit attached-intent materialization and exact-child safe-closeout under
+  their separate acknowledgements and exact backend-owned eligibility,
+  identity, claim, audit, reconciliation, and duplicate-prevention gates.
+- Local-only follow-up intent attachment and authoritative readback; attachment
+  grants no Coinbase-call authority.
 - Read-only sweep/campaign planning, status, ledger, P/L, and reconciliation
   review.
 

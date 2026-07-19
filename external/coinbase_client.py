@@ -20,6 +20,7 @@ Usage:
     >>> wallets = client.get_account_wallets()
 """
 
+from collections.abc import Mapping
 from decimal import Decimal, InvalidOperation
 from typing import Dict, List, Optional, Any
 from coinbase.rest import RESTClient
@@ -37,6 +38,34 @@ _CANCEL_IDENTITY_REJECTION_REASONS = {
     "ORDER_NOT_FOUND",
     "UNKNOWN_CANCEL_ORDER",
 }
+
+
+def _harden_sdk_transport(sdk_client: Any) -> None:
+    """Fail closed on retries and prevent Requests from following redirects.
+
+    The Coinbase SDK delegates to ``requests.Session.request`` without setting
+    ``allow_redirects``.  A zero ``max_redirects`` therefore allows the first
+    bounded request to receive a redirect response but raises before Requests
+    can emit a redirected second wire request.  Test doubles without a Session
+    remain supported; the canonical production SDK always exposes one.
+    """
+
+    session = getattr(sdk_client, "session", None)
+    if session is None:
+        return
+    adapters = getattr(session, "adapters", None)
+    if not isinstance(adapters, Mapping) or set(adapters) != {
+        "http://",
+        "https://",
+    }:
+        raise ValueError("coinbase_sdk_transport_invalid")
+    for adapter in adapters.values():
+        retry_total = getattr(getattr(adapter, "max_retries", None), "total", None)
+        if type(retry_total) is not int or retry_total != 0:
+            raise ValueError("coinbase_sdk_transport_retry_forbidden")
+    session.max_redirects = 0
+    session.trust_env = False
+    session.proxies = {}
 
 
 def coinbase_sdk_response_to_dict(response: Any) -> Any:
@@ -189,6 +218,7 @@ class CoinbaseRestClient:
         """
         if sdk_client is None:
             raise ValueError("sdk_client cannot be None")
+        _harden_sdk_transport(sdk_client)
         self._client = sdk_client
     
     # ========================================================================

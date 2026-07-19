@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import os
 from pathlib import Path
 from threading import RLock
+from typing import Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -44,7 +45,7 @@ class AdminApiAuditEvent(BaseModel):
     live_command_runtime_ready: bool | None = None
     live_command_runtime_missing_reason: str | None = None
     live_command_runtime_source: str | None = None
-    status: AdminApiCommandStatus
+    status: AdminApiCommandStatus | Literal["received"]
     failure_stage: str | None = None
     message: str | None = None
     admission_decision: AdminLiveAdmissionDecisionEvidence | None = None

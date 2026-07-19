@@ -351,6 +351,7 @@ owners:
       - data/**
     test_owns:
       - tests/regression/test_db_*.py
+      - tests/regression/test_operator_follow_up_materialization_repository.py
       - tests/regression/test_reconciler_schema.py
       - tests/unit/test_database.py
       - tests/unit/test_filled_follow_up_atomic_persistence.py
@@ -381,6 +382,7 @@ owners:
     test_owns:
       - tests/regression/test_size_validation.py
       - tests/regression/test_quantize_to_increment.py
+      - tests/regression/test_safe_float_canonical.py
       - tests/regression/test_maker_taker_fee_selection.py
       - tests/regression/test_per_side_mandatory_fee.py
       - tests/regression/test_fee_multiplier_by_product_type.py

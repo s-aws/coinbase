@@ -14,6 +14,8 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -58,7 +60,32 @@ DEFAULT_MAX_COMMIT_PERCENT = 85.0
 DEFAULT_MAX_PHYSICAL_PERCENT = 75.0
 DEFAULT_MIN_AVAILABLE_PHYSICAL_GB = 24.0
 DEFAULT_RUNTIME_ARTIFACT_FAIL_ABOVE_GB = 1.0
+DEFAULT_BASETEMP_ROOT = (
+    Path(tempfile.gettempdir()) / "coinbase" / "pytest-tmp" / "parallel-regression"
+)
 MEMORY_ABORT_EXIT_CODE = 87
+PYTEST_OUTPUT_GUARD_EXIT_CODE = 88
+ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+PYTEST_OUTPUT_GUARD_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (
+        re.compile(r"\[gw\d+\]\s+node down:\s+.+", re.IGNORECASE),
+        "xdist_node_not_properly_terminated",
+    ),
+    (
+        re.compile(
+            r"(?:xdist:\s+)?worker gw\d+ crashed and worker restarting disabled",
+            re.IGNORECASE,
+        ),
+        "xdist_worker_crashed_restart_disabled",
+    ),
+    (
+        re.compile(
+            r"(?:xdist:\s+)?maximum crashed workers reached:\s*\d+",
+            re.IGNORECASE,
+        ),
+        "xdist_maximum_crashed_workers_reached",
+    ),
+)
 
 
 @dataclass(frozen=True)
@@ -110,6 +137,76 @@ class RegressionRunResult:
     returncode: int
     peak_memory_snapshot: MemorySnapshot | None = None
     process_memory_snapshots: tuple[ProcessMemorySnapshot, ...] | None = None
+    unsafe_output_marker: str | None = None
+
+
+def detect_pytest_output_guard_marker(output: str) -> str | None:
+    """Return a fixed marker for unsafe xdist infrastructure output."""
+
+    for raw_line in output.splitlines():
+        normalized_line = ANSI_ESCAPE_PATTERN.sub("", raw_line).strip()
+        for pattern, marker in PYTEST_OUTPUT_GUARD_PATTERNS:
+            if pattern.fullmatch(normalized_line):
+                return marker
+    return None
+
+
+def _stream_process_output(
+    process: subprocess.Popen[str],
+    marker_holder: list[str | None],
+) -> None:
+    """Tee combined subprocess output while recording only fixed guard markers."""
+
+    if process.stdout is None:
+        return
+    try:
+        for line in iter(process.stdout.readline, ""):
+            print(line, end="", flush=True)
+            if marker_holder[0] is None:
+                marker_holder[0] = detect_pytest_output_guard_marker(line)
+    finally:
+        process.stdout.close()
+
+
+def _start_guarded_process(
+    command: RegressionCommand,
+) -> tuple[subprocess.Popen[str], list[str | None], threading.Thread]:
+    marker_holder: list[str | None] = [None]
+    process = subprocess.Popen(
+        command.command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        bufsize=1,
+    )
+    output_thread = threading.Thread(
+        target=_stream_process_output,
+        args=(process, marker_holder),
+        name=f"parallel-regression-output-{command.name}",
+        daemon=True,
+    )
+    output_thread.start()
+    return process, marker_holder, output_thread
+
+
+def _guarded_result_code(returncode: int, unsafe_output_marker: str | None) -> int:
+    if returncode == 0 and unsafe_output_marker is not None:
+        return PYTEST_OUTPUT_GUARD_EXIT_CODE
+    return returncode
+
+
+def _emit_output_guard_failure(command: RegressionCommand, marker: str) -> None:
+    print(
+        (
+            f"Pytest output guard failed {command.name}: marker={marker}; "
+            "the lane emitted unsafe xdist infrastructure output despite a "
+            "zero process exit code."
+        ),
+        file=sys.stderr,
+        flush=True,
+    )
 
 
 def _has_serial_marker(text: str) -> bool:
@@ -302,10 +399,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--basetemp-root",
-        default=str(Path("genai_tools") / "pytest-tmp" / "parallel-regression"),
+        default=str(DEFAULT_BASETEMP_ROOT),
         help=(
             "Root directory for per-run pytest temp directories. A unique run "
-            "directory is created under this root for each invocation."
+            "directory is created under this OS-temporary root for each "
+            "invocation."
         ),
     )
     parser.add_argument(
@@ -658,7 +756,7 @@ def _memory_guard_triggered(
     )
 
 
-def _terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
+def _terminate_process_tree(process: subprocess.Popen[object]) -> None:
     if sys.platform.startswith("win"):
         subprocess.run(
             ["taskkill.exe", "/PID", str(process.pid), "/T", "/F"],
@@ -683,22 +781,44 @@ def run_regression_command(
 ) -> RegressionRunResult:
     """Run one pytest lane and abort if system memory pressure is unsafe."""
 
+    process, marker_holder, output_thread = _start_guarded_process(command)
+
     if not memory_watch_enabled:
+        returncode = process.wait()
+        output_thread.join()
+        unsafe_output_marker = marker_holder[0]
+        guarded_returncode = _guarded_result_code(
+            returncode,
+            unsafe_output_marker,
+        )
+        if guarded_returncode == PYTEST_OUTPUT_GUARD_EXIT_CODE:
+            assert unsafe_output_marker is not None
+            _emit_output_guard_failure(command, unsafe_output_marker)
         return RegressionRunResult(
-            returncode=subprocess.run(command.command, check=False).returncode,
+            returncode=guarded_returncode,
+            unsafe_output_marker=unsafe_output_marker,
         )
 
-    process = subprocess.Popen(command.command)
     next_sample_at = time.monotonic()
     peak_snapshot: MemorySnapshot | None = None
     peak_process_snapshots: tuple[ProcessMemorySnapshot, ...] | None = None
     while True:
         returncode = process.poll()
         if returncode is not None:
+            output_thread.join()
+            unsafe_output_marker = marker_holder[0]
+            guarded_returncode = _guarded_result_code(
+                returncode,
+                unsafe_output_marker,
+            )
+            if guarded_returncode == PYTEST_OUTPUT_GUARD_EXIT_CODE:
+                assert unsafe_output_marker is not None
+                _emit_output_guard_failure(command, unsafe_output_marker)
             return RegressionRunResult(
-                returncode=returncode,
+                returncode=guarded_returncode,
                 peak_memory_snapshot=peak_snapshot,
                 process_memory_snapshots=peak_process_snapshots,
+                unsafe_output_marker=unsafe_output_marker,
             )
 
         now = time.monotonic()
@@ -745,6 +865,7 @@ def run_regression_command(
                     returncode=MEMORY_ABORT_EXIT_CODE,
                     peak_memory_snapshot=peak_snapshot,
                     process_memory_snapshots=process_snapshots,
+                    unsafe_output_marker=marker_holder[0],
                 )
             next_sample_at = now + memory_sample_seconds
 
@@ -799,6 +920,17 @@ def _format_process_memory_snapshots(
     return formatted or None
 
 
+def _format_pytest_output_guard_findings(
+    findings: dict[str, str | None],
+) -> list[dict[str, str]] | None:
+    formatted = [
+        {"command": command_name, "marker": marker}
+        for command_name, marker in findings.items()
+        if marker is not None
+    ]
+    return formatted or None
+
+
 def _format_runtime_artifact_findings(
     findings: Iterable[RuntimeArtifactFinding],
 ) -> list[dict[str, object]] | None:
@@ -831,6 +963,7 @@ def _emit_summary(
     memory_peak_snapshots: dict[str, MemorySnapshot | None] | None = None,
     process_memory_snapshots: dict[str, tuple[ProcessMemorySnapshot, ...] | None]
     | None = None,
+    pytest_output_guard_findings: dict[str, str | None] | None = None,
 ) -> None:
     print(
         SUMMARY_PREFIX
@@ -856,6 +989,11 @@ def _emit_summary(
                 ),
                 "process_memory_snapshots": _format_process_memory_snapshots(
                     process_memory_snapshots or {}
+                ),
+                "pytest_output_guard_findings": (
+                    _format_pytest_output_guard_findings(
+                        pytest_output_guard_findings or {}
+                    )
                 ),
                 "live_coinbase_execution": False,
                 "live_coinbase_notional_usdc": "0",
@@ -1002,6 +1140,7 @@ def main(argv: list[str] | None = None) -> int:
     process_memory_snapshots: dict[
         str, tuple[ProcessMemorySnapshot, ...] | None
     ] = {}
+    pytest_output_guard_findings: dict[str, str | None] = {}
 
     for command in commands:
         print(f"==> {command.name}: {_format_command(command.command)}", flush=True)
@@ -1016,12 +1155,17 @@ def main(argv: list[str] | None = None) -> int:
         )
         memory_peak_snapshots[command.name] = result.peak_memory_snapshot
         process_memory_snapshots[command.name] = result.process_memory_snapshots
+        pytest_output_guard_findings[command.name] = result.unsafe_output_marker
         if result.returncode != 0:
             _emit_summary(
                 status=(
                     "memory_guard_aborted"
                     if result.returncode == MEMORY_ABORT_EXIT_CODE
-                    else "failed"
+                    else (
+                        "pytest_output_guard_failed"
+                        if result.returncode == PYTEST_OUTPUT_GUARD_EXIT_CODE
+                        else "failed"
+                    )
                 ),
                 commands=commands,
                 failed=command.name,
@@ -1037,6 +1181,7 @@ def main(argv: list[str] | None = None) -> int:
                 runtime_artifact_findings=runtime_artifact_findings,
                 memory_peak_snapshots=memory_peak_snapshots,
                 process_memory_snapshots=process_memory_snapshots,
+                pytest_output_guard_findings=pytest_output_guard_findings,
             )
             return result.returncode
 
@@ -1054,6 +1199,7 @@ def main(argv: list[str] | None = None) -> int:
         runtime_artifact_findings=runtime_artifact_findings,
         memory_peak_snapshots=memory_peak_snapshots,
         process_memory_snapshots=process_memory_snapshots,
+        pytest_output_guard_findings=pytest_output_guard_findings,
     )
     return 0
 

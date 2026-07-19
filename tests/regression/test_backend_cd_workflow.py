@@ -190,12 +190,15 @@ def test_controlled_live_mvp_smoke_runner_records_timing_summary() -> None:
     assert command[:3] == [controlled_live_smoke.sys.executable, "-m", "pytest"]
     for nodeid in [
         "test_admin_api_order_live_execution_service_dependency_reads_decision_log",
-        "test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision",
+        "test_read_surfaces_expose_all_controlled_live_order_routes_from_backend_decision",
+        "test_materialize_post_forwards_only_fixed_acknowledgements_and_context",
+        "test_safe_closeout_post_resolves_child_backend_side",
         "test_admin_api_manual_order_route_passes_backend_admission_to_command_service",
         "test_admin_api_manual_order_route_executes_through_backend_runtime_dependencies",
         "test_admin_api_manual_order_route_blocks_limit_notional_above_backend_cap",
     ]:
         assert any(nodeid in part for part in command)
+    assert len(controlled_live_smoke.SMOKE_NODE_IDS) == 7
 
     summary = controlled_live_smoke.build_timing_summary(
         result=controlled_live_smoke.SmokeRunResult(
@@ -328,7 +331,7 @@ def test_backend_local_deployment_rejects_missing_smoke_nodes() -> None:
     smoke_node_ids = list(controlled_live_smoke.SMOKE_NODE_IDS)
     smoke_node_ids.remove(
         "tests/regression/test_admin_api_contract.py::"
-        "test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision"
+        "test_read_surfaces_expose_all_controlled_live_order_routes_from_backend_decision"
     )
 
     with pytest.raises(ValueError, match="required smoke nodes"):

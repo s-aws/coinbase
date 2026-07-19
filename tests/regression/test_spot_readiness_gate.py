@@ -73,7 +73,7 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
     )
     assert AUTONOMOUS_GOAL_ID == (
-        "futures_preview_acceptance_recovery_r12"
+        "operator_authorize_and_materialize_follow_up_intent"
     )
     assert AUTONOMOUS_HISTORICAL_PHASES == tuple(range(7961, 7981))
     check_results = {check["name"]: check for check in summary["checks"]}
@@ -84,22 +84,30 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     assert failed_checks == {}
     assert summary["status"] == "passed"
     assert summary["goal_id"] == (
-        "futures_preview_acceptance_recovery_r12"
+        "operator_authorize_and_materialize_follow_up_intent"
     )
     assert summary["historical_phase_range"] == "7961-7980"
     assert summary["historical_phase_count"] == 20
     assert summary["phase_range_status"] == "historical_not_work_authority"
-    assert summary["slice_status"] == "complete_terminal_unknown_consumed"
-    assert summary["blockers"] == ["claim_only_recovery_unknown_consumed"]
-    assert summary["default_next_action"] == (
-        "await_operator_direction_for_next_mvp"
-    )
+    assert summary["slice_status"] == "complete"
+    assert summary["blockers"] == []
+    assert summary["default_next_action"] == "await_operator_direction_for_next_mvp"
     assert summary["r12_workflow_claims_consumed"] == 1
     assert summary["r12_claim_created"] is True
     assert summary["r12_eligibility_cycles_consumed"] == 2
     assert summary["r12_preview_attempts_consumed"] == 1
     assert summary["r12_release_gate_ready"] is False
-    assert summary["live_coinbase_eligibility_reads_ran"] is True
+    assert summary["materialization_candidate_count"] == 0
+    assert summary["materialization_durable_attempts_claims"] == 0
+    assert summary["materialized_children"] == 0
+    assert summary["materialization_coinbase_eligibility_reads"] == 0
+    assert summary["materialization_coinbase_reconciliation_reads"] == 0
+    assert summary["materialization_coinbase_create_calls"] == 0
+    assert summary["materialization_coinbase_cancel_calls"] == 0
+    assert summary["materialization_unknown_live_outcome"] is False
+    assert summary["materialization_live_proof_allowances_consumed"] is False
+    assert summary["materialization_synthetic_validation_is_live_proof"] is False
+    assert summary["live_coinbase_eligibility_reads_ran"] is False
     assert summary["live_coinbase_preview_ran"] is None
     assert summary["live_coinbase_preview_outcome"] == "unknown_consumed"
     assert summary["live_coinbase_orders_ran"] is False
@@ -107,6 +115,22 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     assert summary["live_order_notional_usdc"] == "0"
     assert summary["submitted_notional_usdc"] == "0"
     assert summary["executed_notional_usdc"] == "0"
+    assert summary["historical_r12"] == {
+        "goal_id": "futures_preview_acceptance_recovery_r12",
+        "alignment_token": "r12_separate_eligibility_and_single_use_attempt_v1",
+        "slice_status": "complete_terminal_unknown_consumed",
+        "blockers": ["claim_only_recovery_unknown_consumed"],
+        "workflow_claims_consumed": 1,
+        "claim_created": True,
+        "eligibility_cycles_consumed": 2,
+        "preview_attempts_consumed": 1,
+        "release_gate_ready": False,
+        "preview_network_reach": "unknown",
+        "preview_outcome": "unknown_consumed",
+        "coinbase_mutations_ran": False,
+        "submitted_notional_usdc": "0",
+        "executed_notional_usdc": "0",
+    }
     assert summary["historical_r11"] == {
         "status": "complete_terminal_no_retry",
         "workflow_claims_consumed": 1,
@@ -116,10 +140,10 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         "historical_successor_authorized": False,
     }
     assert summary["mvp_scope"] == {
-        "work_mode": "r12_terminal_unknown_consumed_offline_closeout_complete",
+        "work_mode": "operator_materialization_terminal_closeout_complete",
         "product_goal": (
-            "R12 cycle 2 exact V3 eligible -> durable single-use claim -> "
-            "offline claim-only recovery terminal unknown-consumed."
+            "Preserve the completed one-child follow-up materialization MVP "
+            "and await explicit operator direction."
         ),
         "compatibility_result": (
             "official_wire_schema_and_project_acceptance_separated_"
@@ -131,33 +155,28 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         "frontend_authority": "operator_ui_only",
         "live_action_path": "auditable_backend_admin_interfaces_only",
         "phase_range_policy": "parked_unless_direct_current_slice_blocker",
-        "current_vertical_slice": "futures_exact_no_live_preview_slice_2r12",
+        "current_vertical_slice": (
+            "operator_authorize_and_materialize_follow_up_intent"
+        ),
         "direct_blocker_rule": (
-            "r12_terminal_consumed_no_further_coinbase_calls"
+            "materialization_stops_for_scope_call_limit_or_immutable_"
+            "boundary_expansion"
         ),
-        "scope_posture": (
-            "r12_separate_eligibility_and_single_use_attempt_v1"
-        ),
+        "scope_posture": "operator_materialization_single_child_controlled_live_v1",
         "operator_progress_wording": (
-            "R12 terminal unknown-consumed; offline closeout complete"
+            "Operator follow-up materialization MVP is complete; awaiting "
+            "operator direction for the next MVP"
         ),
-        "operator_question": (
-            "operator_attach_single_follow_up_intent is complete; operator "
-            "direction is required for the next MVP."
-        ),
+        "operator_question": "Await operator direction for the next MVP.",
         "focused_blast_radius_tests_required": True,
         "full_suite_at_durable_milestone_only": True,
         "active_work_policy": {
-            "current_priority": (
-                "await_operator_direction_for_next_mvp"
-            ),
+            "current_priority": "await_operator_direction_for_next_mvp",
             "approved_phase_range_status": "historical_not_work_authority",
             "phase_range_work_allowed": False,
-            "slice_status": "complete_terminal_unknown_consumed",
-            "blockers": ["claim_only_recovery_unknown_consumed"],
-            "default_next_action": (
-                "await_operator_direction_for_next_mvp"
-            ),
+            "slice_status": "complete",
+            "blockers": [],
+            "default_next_action": "await_operator_direction_for_next_mvp",
             "ordered_successors": [],
             "allow_only_when_directly_blocks": [],
             "forbidden_default_actions": [
@@ -313,11 +332,14 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     ]
     assert summary["required_gates"] == [
         "npm run mvp:goal:check",
-        "focused tests for the R12 terminal closeout blast radius",
-        "R12_RELEASE_READY remains source-false",
-        "offline claim-only recovery creates no client or factory",
-        "independent R12 terminal safety audit",
-        "blind-contextless R12 terminal audit",
+        "backend focused materialization validation: 164 passed",
+        (
+            "backend canonical full: 1102 passed, 6 skipped parallel; 457 "
+            "passed, 150 skipped serial"
+        ),
+        "frontend focused materialization validation: 179 passed",
+        "independent materialization safety audit: PASS",
+        "blind-contextless materialization audit: PASS",
         "npm run release:gate only at durable milestone closeout",
         (
             "python3.13 tools/run_parallel_regression.py --workers 4 only at "
@@ -325,16 +347,15 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         ),
     ]
     assert summary["progress"] == {
-        "goal_id": "futures_preview_acceptance_recovery_r12",
-        "slice_status": "complete_terminal_unknown_consumed",
-        "work_mode": "r12_terminal_unknown_consumed_offline_closeout_complete",
-        "live_coinbase_execution": "unknown_preview_reach_no_order_execution",
-        "blockers": ["claim_only_recovery_unknown_consumed"],
-        "next_action": (
-            "await_operator_direction_for_next_mvp"
-        ),
+        "goal_id": "operator_authorize_and_materialize_follow_up_intent",
+        "slice_status": "complete",
+        "work_mode": "operator_materialization_terminal_closeout_complete",
+        "live_coinbase_execution": "not_run",
+        "blockers": [],
+        "next_action": "await_operator_direction_for_next_mvp",
         "operator_wording": (
-            "R12 terminal unknown-consumed; offline closeout complete"
+            "Operator follow-up materialization MVP is complete; awaiting "
+            "operator direction for the next MVP"
         ),
     }
     assert check_results["current_goal_alignment"]["passed"] is True
@@ -364,17 +385,21 @@ def test_autonomous_work_queue_check_reports_terminal_r12_without_inventing_prev
     summary = build_autonomous_work_queue_summary()
     active_slice = summary["standing_limits"]["active_futures_slice"]
 
-    assert summary["slice_status"] == "complete_terminal_unknown_consumed"
-    assert summary["blockers"] == ["claim_only_recovery_unknown_consumed"]
-    assert summary["default_next_action"] == (
-        "await_operator_direction_for_next_mvp"
+    assert summary["slice_status"] == "complete"
+    assert summary["blockers"] == []
+    assert summary["default_next_action"] == "await_operator_direction_for_next_mvp"
+    assert summary["historical_r12"]["slice_status"] == (
+        "complete_terminal_unknown_consumed"
     )
+    assert summary["historical_r12"]["blockers"] == [
+        "claim_only_recovery_unknown_consumed"
+    ]
     assert summary["r12_eligibility_cycles_consumed"] == 2
     assert summary["r12_workflow_claims_consumed"] == 1
     assert summary["r12_claim_created"] is True
     assert summary["r12_preview_attempts_consumed"] == 1
     assert summary["r12_release_gate_ready"] is False
-    assert summary["live_coinbase_eligibility_reads_ran"] is True
+    assert summary["live_coinbase_eligibility_reads_ran"] is False
     assert summary["live_coinbase_preview_ran"] is None
     assert summary["live_coinbase_preview_outcome"] == "unknown_consumed"
     assert summary["live_coinbase_orders_ran"] is False
@@ -408,16 +433,15 @@ def test_autonomous_work_queue_check_reports_terminal_r12_without_inventing_prev
     assert active_slice["executed_notional_usdc"] == "0"
 
     assert summary["progress"] == {
-        "goal_id": "futures_preview_acceptance_recovery_r12",
-        "slice_status": "complete_terminal_unknown_consumed",
-        "work_mode": "r12_terminal_unknown_consumed_offline_closeout_complete",
-        "live_coinbase_execution": "unknown_preview_reach_no_order_execution",
-        "blockers": ["claim_only_recovery_unknown_consumed"],
-        "next_action": (
-            "await_operator_direction_for_next_mvp"
-        ),
+        "goal_id": "operator_authorize_and_materialize_follow_up_intent",
+        "slice_status": "complete",
+        "work_mode": "operator_materialization_terminal_closeout_complete",
+        "live_coinbase_execution": "not_run",
+        "blockers": [],
+        "next_action": "await_operator_direction_for_next_mvp",
         "operator_wording": (
-            "R12 terminal unknown-consumed; offline closeout complete"
+            "Operator follow-up materialization MVP is complete; awaiting "
+            "operator direction for the next MVP"
         ),
     }
 
@@ -447,6 +471,71 @@ def test_post_r10_closeout_records_integration_invariants_and_gate_evidence():
     assert "`preview_id` must remain ephemeral and restricted" in (
         normalized_backend_goal
     )
+
+
+def test_operator_materialization_terminal_records_are_aligned():
+    documents = {
+        "goal": Path("genai_data/AGENT_MVP_REBUILD_GOAL.md").read_text(
+            encoding="utf-8"
+        ),
+        "handoff": Path("docs/MAINTAINER_HANDOFF.md").read_text(
+            encoding="utf-8"
+        ),
+        "roadmap": Path("docs/PUBLIC_ROADMAP.md").read_text(encoding="utf-8"),
+        "admin_readme": Path("README.admin-api.md").read_text(encoding="utf-8"),
+    }
+    normalized = {
+        name: " ".join(text.split()) for name, text in documents.items()
+    }
+
+    shared_terminal_facts = (
+        "operator_authorize_and_materialize_follow_up_intent",
+        "Status: `complete`",
+        "await_operator_direction_for_next_mvp",
+        "no eligible filled attached intent",
+        "Coinbase eligibility/reconciliation reads: `0`",
+        "Coinbase Create calls: `0`",
+        "Coinbase Cancel calls: `0`",
+        "durable materialization attempts/claims: `0`",
+        "materialized children: `0`",
+        "submitted/executed notional: `0 USDC` / `0 USDC`",
+        "no unknown live outcome",
+        "live-proof allowances remain unconsumed",
+        "Synthetic tests are not live proof",
+        "backend focused: `164 passed`",
+        "backend canonical full: `1102 passed, 6 skipped` parallel",
+        "`457 passed, 150 skipped` serial",
+        "frontend focused: `179 passed`",
+        "independent safety audit: `PASS`",
+        "blind-contextless audit: `PASS`",
+    )
+    for fact in shared_terminal_facts:
+        assert fact in normalized["goal"]
+        assert fact in normalized["handoff"]
+
+    for name in ("roadmap", "admin_readme"):
+        assert "operator_authorize_and_materialize_follow_up_intent" in normalized[name]
+        assert "Status: `complete`" in normalized[name]
+        assert "no eligible filled attached intent" in normalized[name]
+        assert "live-proof allowances remain unconsumed" in normalized[name]
+        assert "Synthetic tests are not live proof" in normalized[name]
+
+    assert "Historical Slice 2R12 Terminal" in normalized["goal"]
+    assert "Historical R12 terminal" in normalized["handoff"]
+    operational_handoff = (
+        "Controlled-live operational handoff is verified: the final installed "
+        "operator review stack reports runtime mode `controlled_live`, frontend "
+        "`0.0.0.0:3000`, backend `127.0.0.1:8787`, and approved Test portfolio "
+        "configuration without exposing its identifier."
+    )
+    zero_call_handoff = (
+        "Release, startup, and status made zero Coinbase calls and consumed no "
+        "live-proof allowance."
+    )
+    for name in ("goal", "handoff", "roadmap", "admin_readme"):
+        assert operational_handoff in normalized[name]
+        assert zero_call_handoff in normalized[name]
+        assert "does not yet claim final running-stack health" not in normalized[name]
 
 
 def test_r11_terminal_doc_records_exact_bounded_closeout_posture():

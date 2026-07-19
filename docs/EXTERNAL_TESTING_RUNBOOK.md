@@ -2,9 +2,12 @@
 
 > **Current operator boundary:** the raw live Spot smoke commands preserved in
 > this historical runbook are source-disabled and exit before SDK construction.
-> Controlled-live operator testing uses only the installed authenticated Admin
-> API manual Spot place/cancel workflow. External REST/WebSocket tests below
-> remain sandbox/read-only unless their own documented read-only opt-in applies.
+> The four installed Controlled-live mutation routes are manual root
+> place/cancel and explicit attached-intent materialization/exact-child
+> safe-closeout. They remain authenticated, operator-driven, and backend-gated;
+> intent attachment is local-only and supplies no live authority. External
+> REST/WebSocket tests below remain sandbox/read-only unless their own
+> documented read-only opt-in applies.
 
 ## Purpose
 
@@ -115,9 +118,11 @@ Notes:
 - The raw Spot smoke commands shown earlier are historical. Their CLI is
   source-disabled before SDK construction, including validation-matrix,
   reconciliation-gate, and retain-inventory combinations.
-- Controlled-live operator testing is outside this external-test runbook and
-  uses only authenticated Admin API manual Spot LIMIT/GTC place/cancel under
-  the manager lease and backend per-request gates.
+- Controlled-live operator testing is outside this external-test runbook. Its
+  four installed mutation routes are manual root place/cancel and explicit
+  attached-intent materialization/exact-child safe-closeout under the manager
+  lease, fresh route-specific acknowledgements, and all backend per-request
+  gates. No external-test command grants authority to any of them.
 
 ## What Is Covered
 

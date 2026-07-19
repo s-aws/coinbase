@@ -874,6 +874,15 @@ def _route_availability(surface: str, action_class: AdminApiActionClass) -> Admi
 CONTROLLED_LIVE_MVP_ROUTES = {
     ("POST", "/api/v1/orders"),
     ("POST", "/api/v1/orders/{client_order_id}/cancel"),
+    (
+        "POST",
+        "/api/v1/orders/{source_client_order_id}/follow-up-intent/materialization",
+    ),
+    (
+        "POST",
+        "/api/v1/orders/{source_client_order_id}/follow-up-intent/"
+        "materialization/safe-closeout",
+    ),
 }
 
 M58_SOURCE_PARKED_EXCHANGE_ROUTES = {
@@ -908,7 +917,7 @@ SOURCE_DISABLED_OPERATOR_COMMAND_ROUTES = (
     M58_SOURCE_PARKED_EXCHANGE_ROUTES
     | FUTURES_SOURCE_DISABLED_COMMAND_ROUTES
 )
-OPERATOR_FOLLOW_UP_INTENT_ROUTES = {
+OPERATOR_FOLLOW_UP_INTENT_LOCAL_ROUTES = {
     (
         "GET",
         "/api/v1/orders/{source_client_order_id}/follow-up-intent",
@@ -918,6 +927,25 @@ OPERATOR_FOLLOW_UP_INTENT_ROUTES = {
         "/api/v1/orders/{source_client_order_id}/follow-up-intent",
     ),
 }
+OPERATOR_FOLLOW_UP_MATERIALIZATION_ROUTES = {
+    (
+        "GET",
+        "/api/v1/orders/{source_client_order_id}/follow-up-intent/materialization",
+    ),
+    (
+        "POST",
+        "/api/v1/orders/{source_client_order_id}/follow-up-intent/materialization",
+    ),
+    (
+        "POST",
+        "/api/v1/orders/{source_client_order_id}/follow-up-intent/"
+        "materialization/safe-closeout",
+    ),
+}
+OPERATOR_FOLLOW_UP_INTENT_ROUTES = (
+    OPERATOR_FOLLOW_UP_INTENT_LOCAL_ROUTES
+    | OPERATOR_FOLLOW_UP_MATERIALIZATION_ROUTES
+)
 FUTURES_COMMAND_SOURCE_DISABLED_DETAIL = (
     "Current Futures command execution is source-disabled and returns "
     "status=not_implemented. Historical contract evidence is read-only; "
@@ -2768,6 +2796,10 @@ def _live_readiness_preconditions(
 ) -> list[AdminLiveReadinessPreconditionItem]:
     adapter_configured = bool(live_execution_adapter.get("configured"))
     adapter_source = str(live_execution_adapter.get("source") or "not_configured")
+    adapter_reference = str(
+        live_execution_adapter.get("adapter_reference")
+        or f"AdminApiCommandService.{shared_method}"
+    )
     adapter_status = AdminApiGateStatus.PASSED if adapter_configured else AdminApiGateStatus.BLOCKED
     service_status_value = live_execution_service.get(
         "status",
@@ -2853,7 +2885,7 @@ def _live_readiness_preconditions(
             status=adapter_status,
             configured=adapter_configured,
             source=adapter_source,
-            expected_source=f"AdminApiCommandService.{shared_method}",
+            expected_source=adapter_reference,
             detail=str(live_execution_adapter.get("detail") or ""),
             blocker=(
                 None
@@ -2870,7 +2902,7 @@ def _live_readiness_preconditions(
             status=AdminApiGateStatus.PASSED,
             configured=True,
             source="command_admission",
-            expected_source=f"AdminApiCommandService.{shared_method}",
+            expected_source=adapter_reference,
             detail=(
                 f"{method} {route} command admissions expose backend-owned "
                 "execution intent evidence, but the intent remains "
@@ -5229,7 +5261,7 @@ def _audit_event_from_command_event(
         source=AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG,
         action_class=event.action_class,
         endpoint=event.endpoint,
-        status=event.status.value,
+        status=str(getattr(event.status, "value", event.status)),
         actor_id=event.actor_id,
         permission=event.permission,
         client_order_id=event.client_order_id,
@@ -7169,6 +7201,10 @@ class AdminApiReadService:
                 method,
                 path,
             ) in OPERATOR_FOLLOW_UP_INTENT_ROUTES
+            follow_up_materialization_route = (
+                method,
+                path,
+            ) in OPERATOR_FOLLOW_UP_MATERIALIZATION_ROUTES
             follow_up_intent_blocked = (
                 follow_up_intent_route and not follow_up_intent_enabled
             )
@@ -7176,15 +7212,25 @@ class AdminApiReadService:
                 method,
                 path,
             ) in SOURCE_DISABLED_OPERATOR_COMMAND_ROUTES
-            controlled_live_enabled = _controlled_live_mvp_route_enabled(
-                method=method,
-                path=path,
-                live_service_state=live_service_state,
+            controlled_live_enabled = (
+                not follow_up_intent_blocked
+                and _controlled_live_mvp_route_enabled(
+                    method=method,
+                    path=path,
+                    live_service_state=live_service_state,
+                )
             )
-            if controlled_live_enabled:
-                availability = AdminApiRouteAvailability.AVAILABLE
-            elif source_disabled:
+            if source_disabled:
                 availability = AdminApiRouteAvailability.BACKEND_BLOCKED
+            elif follow_up_intent_blocked:
+                availability = AdminApiRouteAvailability.BACKEND_BLOCKED
+            elif controlled_live_enabled:
+                availability = AdminApiRouteAvailability.AVAILABLE
+            elif follow_up_materialization_route:
+                # Otherwise retain the route's ordinary availability:
+                # passive GET is available, live POST remains live-disabled
+                # until the current Controlled-live service decision admits it.
+                pass
             elif follow_up_intent_route:
                 availability = (
                     AdminApiRouteAvailability.AVAILABLE
@@ -7247,6 +7293,16 @@ class AdminApiReadService:
                             "operator_follow_up_intent_disabled"
                         )
                         if follow_up_intent_blocked
+                        else (
+                            "Backend-owned explicit one-use materialization or "
+                            "exact-child safe-closeout path"
+                        )
+                        if follow_up_materialization_route and method == "POST"
+                        else (
+                            "Backend-owned local materialization readback; "
+                            "no Coinbase call"
+                        )
+                        if follow_up_materialization_route
                         else (
                             "Backend-owned local operator follow-up intent "
                             "attachment; no Coinbase call"
@@ -8771,10 +8827,12 @@ class AdminApiReadService:
                 exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
                 support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
                 summary=(
-                    "Manual order and cancel by client_order_id are controlled-live "
-                    "backend route/runtime capabilities when current live-enablement "
-                    "readback is ready; this static catalog grants no per-request "
-                    "authority and performs no runtime eligibility reads."
+                    "Manual order, cancel by client_order_id, explicit attached-intent "
+                    "materialization, and exact-child safe closeout are controlled-live "
+                    "backend route/runtime capabilities when their route-specific "
+                    "feature and current live-enablement readback are ready; this "
+                    "static catalog grants no per-request authority and performs no "
+                    "runtime eligibility reads."
                 ),
                 backend_supported=True,
                 admin_api_exposed=True,
@@ -8785,18 +8843,43 @@ class AdminApiReadService:
                 command_routes=[
                     "POST /api/v1/orders",
                     "POST /api/v1/orders/{client_order_id}/cancel",
+                    (
+                        "POST /api/v1/orders/{source_client_order_id}/"
+                        "follow-up-intent/materialization"
+                    ),
+                    (
+                        "POST /api/v1/orders/{source_client_order_id}/"
+                        "follow-up-intent/materialization/safe-closeout"
+                    ),
                 ],
-                identity_keys=["client_order_id"],
+                identity_keys=[
+                    "client_order_id",
+                    "source_client_order_id",
+                    "child_client_order_id",
+                ],
                 backend_contract_refs=[
                     "application/admin_api/command_service.py",
+                    (
+                        "application/admin_api/"
+                        "operator_follow_up_materialization.py"
+                    ),
+                    (
+                        "application/admin_api/"
+                        "operator_follow_up_materialization_runtime.py"
+                    ),
                     "api/v1/routes/orders.py",
                 ],
                 frontend_contract_refs=[
                     "src/features/command-workflows/CommandWorkflowShell.tsx",
+                    (
+                        "src/features/operator-read-models/orders/"
+                        "OrderFollowUpMaterializationPanel.tsx"
+                    ),
                     "src/shared/api/contracts/backendApiClient.ts",
                 ],
                 documentation_refs=[
                     "docs/COMMAND_WORKFLOWS.md",
+                    "docs/LIVE_ORDER_SURFACES.md",
                     "docs/SPOT_ORDER_FRONTEND_FLOW.md",
                 ],
                 required_next_contract=(
@@ -10928,6 +11011,148 @@ class AdminApiReadService:
                 spot_rule_boundary=(
                     "This intent is restricted to authoritative system-owned Spot "
                     "orders and grants no Futures or generic exchange authority."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
+                surface=(
+                    "POST /api/v1/orders/{source_client_order_id}/"
+                    "follow-up-intent/materialization"
+                ),
+                mutation_id="spot.follow_up_intent_materialization",
+                mutation_family=(
+                    AdminApiMutationFamilyType.SPOT_FOLLOW_UP_INTENT
+                ),
+                workflow_id="spot.order_command_drafts",
+                related_workflow_ids=["spot.read_models"],
+                module="Spot Operations",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                    if follow_up_intent_enabled
+                    else AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED
+                ),
+                support_status=(
+                    AdminApiModuleSupportStatus.PLATFORM_READY
+                    if follow_up_intent_enabled
+                    else AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
+                ),
+                summary=(
+                    "The backend revalidates one attached intent and exact full "
+                    "source fill, derives and persists one quarantined child, and "
+                    "owns one durable canonical Create boundary with no retry or "
+                    "fallback."
+                ),
+                identity_keys=[
+                    "source_client_order_id",
+                    "follow_up_intent_id",
+                    "child_client_order_id",
+                ],
+                owning_backend_service=(
+                    "application/admin_api/operator_follow_up_materialization.py"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/orders.py::materialize_order_follow_up_intent",
+                    "application/admin_api/operator_follow_up_materialization.py::OperatorFollowUpMaterializationService",
+                    "application/admin_api/operator_follow_up_materialization_runtime.py::OperatorFollowUpMaterializationFacade",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    (
+                        "src/features/operator-read-models/orders/"
+                        "OrderFollowUpMaterializationPanel.tsx"
+                    ),
+                ],
+                documentation_refs=[
+                    "docs/LIVE_ORDER_SURFACES.md",
+                    "docs/plans/ADMIN_API_ROUTE_INVENTORY.md",
+                ],
+                blockers=(
+                    []
+                    if follow_up_intent_enabled
+                    else ["operator_follow_up_intent_disabled"]
+                ),
+                live_adapter_required=True,
+                frontend_boundary=(
+                    "The browser displays backend eligibility and terms and "
+                    "forwards only fresh fixed acknowledgements."
+                ),
+                route_local_boundary=(
+                    "The specialized backend service owns eligibility, durable "
+                    "claiming, exact child persistence, canonical Create, and "
+                    "fixed sanitized result readback."
+                ),
+                spot_rule_boundary=(
+                    "This approved-Test-profile Spot follow-up grants no Futures, "
+                    "scheduler, fan-out, or generic exchange authority."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
+                surface=(
+                    "POST /api/v1/orders/{source_client_order_id}/"
+                    "follow-up-intent/materialization/safe-closeout"
+                ),
+                mutation_id="spot.follow_up_intent_safe_closeout",
+                mutation_family=(
+                    AdminApiMutationFamilyType.SPOT_FOLLOW_UP_INTENT
+                ),
+                workflow_id="spot.order_command_drafts",
+                related_workflow_ids=["spot.read_models"],
+                module="Spot Operations",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                    if follow_up_intent_enabled
+                    else AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED
+                ),
+                support_status=(
+                    AdminApiModuleSupportStatus.PLATFORM_READY
+                    if follow_up_intent_enabled
+                    else AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
+                ),
+                summary=(
+                    "The backend reads the exact materialized child once; a "
+                    "terminal child records a no-Cancel closeout and an active "
+                    "child may cross one exact-ID canonical Cancel boundary."
+                ),
+                identity_keys=[
+                    "source_client_order_id",
+                    "child_client_order_id",
+                ],
+                owning_backend_service=(
+                    "application/admin_api/operator_follow_up_materialization.py"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/orders.py::safe_closeout_materialized_follow_up_intent",
+                    "application/admin_api/operator_follow_up_materialization.py::OperatorFollowUpMaterializationService",
+                    "application/admin_api/operator_follow_up_materialization_runtime.py::OperatorFollowUpMaterializationFacade",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    (
+                        "src/features/operator-read-models/orders/"
+                        "OrderFollowUpMaterializationPanel.tsx"
+                    ),
+                ],
+                documentation_refs=[
+                    "docs/LIVE_ORDER_SURFACES.md",
+                    "docs/plans/ADMIN_API_ROUTE_INVENTORY.md",
+                ],
+                blockers=(
+                    []
+                    if follow_up_intent_enabled
+                    else ["operator_follow_up_intent_disabled"]
+                ),
+                live_adapter_required=True,
+                frontend_boundary=(
+                    "The browser forwards only fresh fixed closeout "
+                    "acknowledgements and never supplies exchange identity."
+                ),
+                route_local_boundary=(
+                    "The specialized backend service owns the authoritative "
+                    "child read, distinct audit binding, one-use Cancel claim, "
+                    "and exact-ID canonical Cancel."
+                ),
+                spot_rule_boundary=(
+                    "This closeout is limited to the exact materialized Spot "
+                    "child and grants no unrelated cancel authority."
                 ),
             ),
             mutation_taxonomy_from_surface(
@@ -13590,6 +13815,7 @@ class AdminApiReadService:
         paths: list[AdminLiveEnablementPathItem] = []
         live_service_state = _decision_backed_live_service_state()
         command_runtime = build_admin_api_command_runtime_readiness()
+        follow_up_intent_enabled = operator_follow_up_intent_enabled()
         for item in ADMIN_API_ROUTE_INVENTORY:
             method, path = _surface_method_and_path(item.surface)
             if method != "POST" or not path.startswith("/api/v1/"):
@@ -13664,6 +13890,12 @@ class AdminApiReadService:
                 path=path,
                 live_service_state=live_service_state,
             )
+            follow_up_materialization_route = (
+                method,
+                path,
+            ) in OPERATOR_FOLLOW_UP_MATERIALIZATION_ROUTES
+            if follow_up_materialization_route and not follow_up_intent_enabled:
+                controlled_live_enabled = False
             controlled_live_runtime_ready = (
                 controlled_live_enabled and command_runtime.runtime_ready
             )
@@ -13674,6 +13906,10 @@ class AdminApiReadService:
             )
             if not controlled_live_enabled and (method, path) not in CONTROLLED_LIVE_MVP_ROUTES:
                 command_runtime_missing_reason = "not_controlled_live_mvp_route"
+            if follow_up_materialization_route and not follow_up_intent_enabled:
+                command_runtime_missing_reason = (
+                    "operator_follow_up_intent_disabled"
+                )
             path_live_status = live_execution_adapter.get(
                 "status",
                 AdminApiLiveExecutionStatus.LIVE_DISABLED,
@@ -53974,6 +54210,97 @@ class AdminApiReadService:
                 ),
             },
         }
+        command_metadata_entries = [
+            *command_metadata.items(),
+            (
+                AdminApiMutationFamilyType.SPOT_FOLLOW_UP_INTENT,
+                {
+                    "surface": (
+                        "POST /api/v1/orders/{source_client_order_id}/"
+                        "follow-up-intent/materialization"
+                    ),
+                    "identity_key": "source_client_order_id",
+                    "backend_contract_refs": [
+                        (
+                            "api/v1/routes/orders.py::"
+                            "materialize_order_follow_up_intent"
+                        ),
+                        (
+                            "application/admin_api/"
+                            "operator_follow_up_materialization.py::"
+                            "OperatorFollowUpMaterializationService"
+                        ),
+                        (
+                            "application/admin_api/"
+                            "operator_follow_up_materialization_runtime.py::"
+                            "OperatorFollowUpMaterializationFacade.materialize"
+                        ),
+                    ],
+                    "frontend_contract_refs": [
+                        (
+                            "src/features/operator-read-models/orders/"
+                            "OrderFollowUpMaterializationPanel.tsx"
+                        ),
+                        "src/shared/api/contracts/backendApiClient.ts",
+                    ],
+                    "documentation_refs": [
+                        "docs/LIVE_ORDER_SURFACES.md",
+                        "docs/plans/ADMIN_API_ROUTE_INVENTORY.md",
+                    ],
+                    "detail": (
+                        "Explicit attached-intent materialization is a specialized "
+                        "controlled-live backend route. The backend owns fresh "
+                        "source-fill, Test-portfolio, product, wallet, cap, child, "
+                        "idempotency, one-use Create, audit, and reconciliation "
+                        "authority; route readiness never authorizes a request."
+                    ),
+                },
+            ),
+            (
+                AdminApiMutationFamilyType.SPOT_FOLLOW_UP_INTENT,
+                {
+                    "surface": (
+                        "POST /api/v1/orders/{source_client_order_id}/"
+                        "follow-up-intent/materialization/safe-closeout"
+                    ),
+                    "identity_key": "source_client_order_id",
+                    "backend_contract_refs": [
+                        (
+                            "api/v1/routes/orders.py::"
+                            "safe_closeout_materialized_follow_up_intent"
+                        ),
+                        (
+                            "application/admin_api/"
+                            "operator_follow_up_materialization.py::"
+                            "OperatorFollowUpMaterializationService"
+                        ),
+                        (
+                            "application/admin_api/"
+                            "operator_follow_up_materialization_runtime.py::"
+                            "OperatorFollowUpMaterializationFacade.safe_closeout"
+                        ),
+                    ],
+                    "frontend_contract_refs": [
+                        (
+                            "src/features/operator-read-models/orders/"
+                            "OrderFollowUpMaterializationPanel.tsx"
+                        ),
+                        "src/shared/api/contracts/backendApiClient.ts",
+                    ],
+                    "documentation_refs": [
+                        "docs/LIVE_ORDER_SURFACES.md",
+                        "docs/plans/ADMIN_API_ROUTE_INVENTORY.md",
+                    ],
+                    "detail": (
+                        "Exact-child safe closeout is a specialized controlled-live "
+                        "backend route. The backend owns the authoritative child "
+                        "read, separate idempotency and audit binding, and at most "
+                        "one exact-ID Cancel; route readiness never authorizes a "
+                        "request."
+                    ),
+                },
+            ),
+        ]
         read_routes = [
             item.surface
             for item in ADMIN_API_ROUTE_INVENTORY
@@ -53981,7 +54308,7 @@ class AdminApiReadService:
             and item.action_class == AdminApiActionClass.READ_ONLY
         ]
         commands: list[SpotCommandSuiteCommandItem] = []
-        for mutation_family, metadata in command_metadata.items():
+        for mutation_family, metadata in command_metadata_entries:
             inventory_item = next(
                 item
                 for item in ADMIN_API_ROUTE_INVENTORY

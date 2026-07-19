@@ -850,6 +850,26 @@ CONTROLLED_LIVE_MVP_ADAPTER_ROUTES = {
         CONTROLLED_LIVE_MVP_ADAPTER_CANCEL_SERVICE_METHOD,
     ),
 }
+FOLLOW_UP_MATERIALIZATION_ADAPTER_SOURCE = (
+    "canonical_operator_follow_up_materialization_runtime"
+)
+FOLLOW_UP_MATERIALIZATION_ADAPTER_ROUTES = {
+    (
+        "POST",
+        "/api/v1/orders/{source_client_order_id}/follow-up-intent/materialization",
+        "spot_operations",
+        "materialize_order_follow_up_intent",
+        "materialize",
+    ),
+    (
+        "POST",
+        "/api/v1/orders/{source_client_order_id}/follow-up-intent/"
+        "materialization/safe-closeout",
+        "spot_operations",
+        "safe_closeout_materialized_follow_up_intent",
+        "safe_closeout",
+    ),
+}
 CONTROLLED_LIVE_MVP_ADAPTER_SOURCE = "canonical_admin_operator_runtime"
 CONTROLLED_LIVE_MVP_ADAPTER_MISSING_REASON = (
     "per_request_admission_required"
@@ -16757,6 +16777,63 @@ def build_controlled_live_mvp_execution_adapter_contract(
     }
 
 
+def build_follow_up_materialization_execution_adapter_contract(
+    *,
+    method: str,
+    route: str,
+    module_id: str,
+    service_method: str,
+    adapter_method: str,
+    action_class: AdminApiActionClass,
+    live_adapter_decision_store: FileAdminApiLiveAdapterDecisionStore | None = None,
+    include_construction_contract: bool = True,
+) -> dict[str, Any]:
+    """Return truthful installed evidence for the specialized one-use runtime."""
+
+    contract = build_controlled_live_mvp_execution_adapter_contract(
+        method=method,
+        route=route,
+        module_id=module_id,
+        service_method=service_method,
+        action_class=action_class,
+        live_adapter_decision_store=live_adapter_decision_store,
+        include_construction_contract=include_construction_contract,
+    )
+    adapter_reference = (
+        f"OperatorFollowUpMaterializationFacade.{adapter_method}"
+    )
+    contract.update(
+        {
+            "source": FOLLOW_UP_MATERIALIZATION_ADAPTER_SOURCE,
+            "adapter_reference": adapter_reference,
+            "construction_precondition_authority": (
+                "installed_operator_follow_up_materialization_runtime"
+            ),
+            "construction_contract_ref": (
+                "installed_operator_follow_up_materialization_runtime"
+            ),
+            "construction_satisfaction_authority": (
+                "installed_operator_follow_up_materialization_runtime"
+            ),
+            "evidence": [
+                "The installed route maps only to the specialized backend materialization facade.",
+                "The backend derives the child tuple and owns the durable one-use invocation boundary.",
+                "No browser, BFF, scheduler, manager reveal, retry, fallback, or alternate exchange path is introduced.",
+                "Current runtime authority and every request-bound materialization gate remain mandatory.",
+            ],
+            "detail": (
+                f"{method} {route} is the installed specialized backend adapter "
+                f"for {adapter_reference}. This capability does not authorize a "
+                "request; the execution lease, service decision, feature gate, "
+                "RBAC, fresh operator intent, idempotency, exact source-fill and "
+                "child reconciliation, Test portfolio, product, wallet, cap, and "
+                "append-only audit gates must pass."
+            ),
+        }
+    )
+    return contract
+
+
 def build_m55_stealth_reveal_live_execution_adapter_contract(
     *,
     method: str,
@@ -16859,6 +16936,42 @@ def build_live_execution_adapter_contract(
 ) -> dict[str, Any]:
     """Return route-specific live adapter evidence for Admin API readiness."""
 
+    materialization_route = next(
+        (
+            adapter_method
+            for (
+                expected_method,
+                expected_route,
+                expected_module,
+                expected_service_method,
+                adapter_method,
+            ) in FOLLOW_UP_MATERIALIZATION_ADAPTER_ROUTES
+            if (
+                method,
+                route,
+                module_id,
+                service_method,
+            )
+            == (
+                expected_method,
+                expected_route,
+                expected_module,
+                expected_service_method,
+            )
+        ),
+        None,
+    )
+    if materialization_route is not None:
+        return build_follow_up_materialization_execution_adapter_contract(
+            method=method,
+            route=route,
+            module_id=module_id,
+            service_method=service_method,
+            adapter_method=materialization_route,
+            action_class=action_class,
+            live_adapter_decision_store=live_adapter_decision_store,
+            include_construction_contract=include_construction_contract,
+        )
     if (
         method,
         route,

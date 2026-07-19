@@ -2,10 +2,12 @@
 
 > **Current operator boundary:** raw smoke, sweep, campaign, legacy dashboard,
 > and legacy engine mutations are source-disabled. Release validation must use
-> synthetic/no-live checks. Separately authorized Controlled-live operator
-> testing may use only the installed authenticated Admin API manual Spot
-> LIMIT/GTC place/cancel workflow under the manager-issued lease and all
-> backend per-request gates.
+> synthetic/no-live checks. The four installed Controlled-live mutation routes
+> are manual root place/cancel and explicit attached-intent materialization/exact-child safe-closeout
+> under the manager-issued lease and
+> all backend per-request gates. Intent attachment is local-only; each successor
+> mutation requires fresh, separate operator acknowledgement and cannot run
+> automatically.
 
 This is a closeout policy, not a work queue. Current scope is
 `operator_ready_admin_mvp_runtime_v1`; Slice 2R12 is terminal consumed and
@@ -185,6 +187,6 @@ Before retirement, the runner selected a previewable USDC pair and printed a
 No current live run can originate from this CLI.
 
 Historical smoke artifacts used short prefixed `client_order_id` values. That
-historical exception grants no current order authority. Current Controlled-live
-manual Spot place/cancel uses the Admin API identity, audit, and reconciliation
-contract.
+historical exception grants no current order authority. The four current
+Controlled-live mutation routes use the Admin API identity, route-specific
+acknowledgement, audit, and reconciliation contracts described above.

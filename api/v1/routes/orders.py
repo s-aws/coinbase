@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 import uuid
+import hashlib
+import json
 from typing import Annotated, Callable, Literal, NoReturn
 
 from fastapi import (
@@ -94,6 +96,11 @@ from application.admin_api.models import (
     AdminApiErrorResponse,
     AdminLiveAdmissionDecisionEvidence,
     AdminOrderDetailResponse,
+    AdminOrderFollowUpMaterializationCancelRequest,
+    AdminOrderFollowUpMaterializationCancelResponse,
+    AdminOrderFollowUpMaterializationCommandResponse,
+    AdminOrderFollowUpMaterializationReadResponse,
+    AdminOrderFollowUpMaterializationRequest,
     AdminOrderFollowUpIntentAttachRequest,
     AdminOrderFollowUpIntentAttachResponse,
     AdminOrderFollowUpIntentReadResponse,
@@ -141,6 +148,14 @@ from application.admin_api.operator_follow_up_intent import (
     OperatorFollowUpIntentService,
     get_default_operator_follow_up_intent_service,
 )
+from application.admin_api.operator_follow_up_materialization import (
+    AUTHORIZE_AND_MATERIALIZE_FOLLOW_UP_INTENT,
+    SAFE_CLOSEOUT_MATERIALIZED_FOLLOW_UP_INTENT,
+    OperatorFollowUpMaterializationError,
+    OperatorFollowUpMaterializationRequestContext,
+    OperatorFollowUpMaterializationService,
+    get_default_operator_follow_up_materialization_service,
+)
 from application.admin_api.mvp_service import (
     AdminMvpRequestContext,
     AdminMvpService,
@@ -155,6 +170,8 @@ from core.operator_follow_up_intent import operator_follow_up_intent_enabled
 from core.enums import (
     AdminApiActionClass,
     AdminApiCommandStatus,
+    AdminApiErrorCode,
+    AdminApiErrorSeverity,
     AdminApiGateStatus,
     AdminApiIdempotencyDecision,
     AdminApiLiveAdmissionBlocker,
@@ -323,6 +340,85 @@ FOLLOW_UP_INTENT_ATTACH_ROUTE_RESPONSES = {
     },
 }
 
+FOLLOW_UP_MATERIALIZATION_READ_ROUTE_RESPONSES = {
+    **READ_ROUTE_RESPONSES,
+    404: {
+        "model": AdminApiErrorResponse,
+        "description": "The backend-owned source order or attached intent was not found.",
+    },
+    409: {
+        "model": AdminApiErrorResponse,
+        "description": "The durable materialization evidence is inconsistent.",
+    },
+    503: {
+        "model": AdminApiErrorResponse,
+        "description": "Authoritative local materialization evidence is unavailable.",
+    },
+}
+
+FOLLOW_UP_MATERIALIZATION_COMMAND_ROUTE_RESPONSES = {
+    200: {
+        "model": AdminOrderFollowUpMaterializationCommandResponse,
+        "description": "The one-use Create boundary reached a durable classification.",
+    },
+    400: {
+        "model": (
+            AdminOrderFollowUpMaterializationCommandResponse
+            | AdminApiErrorResponse
+        ),
+        "description": (
+            "The Create boundary returned durable evidence, or explicit "
+            "materialization authorization was rejected before a durable result."
+        ),
+    },
+    401: READ_ROUTE_RESPONSES[401],
+    403: READ_ROUTE_RESPONSES[403],
+    404: FOLLOW_UP_MATERIALIZATION_READ_ROUTE_RESPONSES[404],
+    409: {
+        "model": (
+            AdminOrderFollowUpMaterializationCommandResponse
+            | AdminApiErrorResponse
+        ),
+        "description": (
+            "The Create boundary returned durable evidence, or eligibility, "
+            "idempotency, or the one-use boundary conflicts."
+        ),
+    },
+    422: {
+        "model": AdminApiErrorResponse,
+        "description": "Required headers or fixed acknowledgements are invalid.",
+    },
+    503: FOLLOW_UP_MATERIALIZATION_READ_ROUTE_RESPONSES[503],
+}
+
+FOLLOW_UP_MATERIALIZATION_CANCEL_ROUTE_RESPONSES = {
+    **FOLLOW_UP_MATERIALIZATION_COMMAND_ROUTE_RESPONSES,
+    200: {
+        "model": AdminOrderFollowUpMaterializationCancelResponse,
+        "description": "The exact child closeout reached a durable classification.",
+    },
+    400: {
+        "model": (
+            AdminOrderFollowUpMaterializationCancelResponse
+            | AdminApiErrorResponse
+        ),
+        "description": (
+            "The Cancel boundary returned durable evidence, or explicit "
+            "safe-closeout authorization was rejected before a durable result."
+        ),
+    },
+    409: {
+        "model": (
+            AdminOrderFollowUpMaterializationCancelResponse
+            | AdminApiErrorResponse
+        ),
+        "description": (
+            "The Cancel boundary returned durable evidence, or safe-closeout "
+            "idempotency or the one-use boundary conflicts."
+        ),
+    },
+}
+
 
 def get_read_service() -> AdminApiReadService:
     """Return the read-only Admin API status service."""
@@ -386,6 +482,23 @@ def get_order_follow_up_intent_service() -> OperatorFollowUpIntentService:
     return get_default_operator_follow_up_intent_service()
 
 
+def get_order_follow_up_materialization_service(
+) -> OperatorFollowUpMaterializationService:
+    """Return the backend-owned one-use materialization coordinator."""
+
+    return get_default_operator_follow_up_materialization_service()
+
+
+def _follow_up_materialization_environment() -> str:
+    """Bind live authority to backend deployment state, never browser input."""
+
+    return (
+        os.environ.get("COINBASE_ADMIN_API_ENVIRONMENT", "").strip()
+        or os.environ.get("COINBASE_BACKEND_DEPLOYMENT_TIER", "").strip()
+        or "local"
+    )
+
+
 def require_operator_follow_up_intent_enabled() -> None:
     """Fail closed until the checkpointed local-state feature is activated."""
 
@@ -407,6 +520,274 @@ def _raise_follow_up_intent_error(exc: OperatorFollowUpIntentError) -> NoReturn:
         status_code=exc.http_status_code,
         detail=exc.code,
     ) from exc
+
+
+def _raise_follow_up_materialization_error(
+    exc: OperatorFollowUpMaterializationError,
+) -> NoReturn:
+    """Expose only the materialization kernel's fixed value-blind code."""
+
+    raise HTTPException(
+        status_code=exc.http_status_code,
+        detail=exc.code,
+    ) from exc
+
+
+_FOLLOW_UP_MATERIALIZATION_RECEIPT_MESSAGE = (
+    "follow_up_materialization_authorization_received_for_evaluation"
+)
+_FOLLOW_UP_MATERIALIZATION_AUDIT_ENDPOINT = (
+    "POST /api/v1/orders/{source_client_order_id}/follow-up-intent/materialization"
+)
+_FOLLOW_UP_MATERIALIZATION_CLOSEOUT_AUDIT_ENDPOINT = (
+    "POST /api/v1/orders/{source_client_order_id}/follow-up-intent/"
+    "materialization/safe-closeout"
+)
+
+
+def _follow_up_materialization_audit_id(
+    *,
+    phase: str,
+    endpoint: str,
+    actor: AdminApiActor,
+    source_client_order_id: str,
+    idempotency_key: str,
+    correlation_id: str,
+    operator_intent: str,
+    action_class: AdminApiActionClass,
+    permission: AdminApiPermission,
+) -> str:
+    """Derive one stable audit identity without exposing request values."""
+
+    payload = {
+        "phase": phase,
+        "endpoint": endpoint,
+        "actor_id": actor.actor_id,
+        "roles": sorted(role.value for role in actor.roles),
+        "source_client_order_id": source_client_order_id,
+        "idempotency_key": idempotency_key,
+        "correlation_id": correlation_id,
+        "operator_intent": operator_intent,
+        "action_class": action_class.value,
+        "permission": permission.value,
+    }
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return str(
+        uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            f"coinbase://admin-api/follow-up-materialization-audit/{digest}",
+        )
+    )
+
+
+def _same_audit_event(
+    left: AdminApiAuditEvent,
+    right: AdminApiAuditEvent,
+) -> bool:
+    return left.model_dump(exclude={"recorded_at"}) == right.model_dump(
+        exclude={"recorded_at"}
+    )
+
+
+def _append_follow_up_materialization_audit(
+    *,
+    audit_store: FileAdminApiAuditStore,
+    audit_id: str,
+    actor: AdminApiActor,
+    endpoint: str,
+    source_client_order_id: str,
+    idempotency_key: str,
+    correlation_id: str,
+    operator_intent: str,
+    action_class: AdminApiActionClass,
+    permission: AdminApiPermission,
+    status_value: AdminApiCommandStatus | Literal["received"],
+    failure_stage: str,
+    message: str,
+    live_coinbase_read_ran: bool = False,
+    live_coinbase_orders_ran: bool = False,
+    live_exchange_submitted: bool = False,
+) -> str:
+    """Append one value-blind event idempotently without conflicting IDs."""
+
+    event = AdminApiAuditEvent(
+        audit_id=audit_id,
+        actor_id=actor.actor_id,
+        action_class=action_class,
+        permission=permission,
+        endpoint=endpoint,
+        request_id=correlation_id,
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        client_order_id=source_client_order_id,
+        live_exchange_submitted=live_exchange_submitted,
+        live_coinbase_orders_ran=live_coinbase_orders_ran,
+        live_coinbase_read_ran=live_coinbase_read_ran,
+        status=status_value,
+        failure_stage=failure_stage,
+        message=message,
+    )
+    existing = audit_store.find_unique_by_audit_id(audit_id)
+    if existing is not None:
+        if not _same_audit_event(existing, event):
+            raise ValueError("follow_up_materialization_audit_id_conflict")
+        return audit_id
+    try:
+        return audit_store.append_unique(event)
+    except ValueError:
+        existing = audit_store.find_unique_by_audit_id(audit_id)
+        if existing is None or not _same_audit_event(existing, event):
+            raise
+        return audit_id
+
+
+def _follow_up_materialization_error_code(
+    http_status_code: int,
+) -> AdminApiErrorCode:
+    if http_status_code == status.HTTP_403_FORBIDDEN:
+        return AdminApiErrorCode.PERMISSION_DENIED
+    if http_status_code == status.HTTP_422_UNPROCESSABLE_ENTITY:
+        return AdminApiErrorCode.VALIDATION_ERROR
+    if http_status_code == status.HTTP_409_CONFLICT:
+        return AdminApiErrorCode.IDEMPOTENCY_CONFLICT
+    if http_status_code >= status.HTTP_500_INTERNAL_SERVER_ERROR:
+        return AdminApiErrorCode.BACKEND_UNAVAILABLE
+    return AdminApiErrorCode.REQUEST_ERROR
+
+
+def _follow_up_materialization_error_severity(
+    http_status_code: int,
+) -> AdminApiErrorSeverity:
+    if http_status_code >= status.HTTP_500_INTERNAL_SERVER_ERROR:
+        return AdminApiErrorSeverity.ERROR
+    return AdminApiErrorSeverity.WARNING
+
+
+def _follow_up_materialization_error_response(
+    *,
+    http_status_code: int,
+    diagnostic_code: str,
+    correlation_id: str,
+    audit_id: str | None,
+    live_coinbase_orders_ran: bool = False,
+) -> JSONResponse:
+    body = AdminApiErrorResponse(
+        code=_follow_up_materialization_error_code(http_status_code),
+        message=diagnostic_code,
+        severity=_follow_up_materialization_error_severity(http_status_code),
+        correlation_id=correlation_id,
+        audit_id=audit_id,
+        live_coinbase_orders_ran=live_coinbase_orders_ran,
+    )
+    return JSONResponse(
+        status_code=http_status_code,
+        content=body.model_dump(mode="json"),
+        headers={"X-Correlation-Id": correlation_id},
+    )
+
+
+def _record_follow_up_materialization_outcome_error(
+    *,
+    audit_store: FileAdminApiAuditStore,
+    actor: AdminApiActor,
+    endpoint: str,
+    source_client_order_id: str,
+    idempotency_key: str,
+    correlation_id: str,
+    operator_intent: str,
+    action_class: AdminApiActionClass,
+    permission: AdminApiPermission,
+    diagnostic_code: str,
+    http_status_code: int,
+    failure_stage: str,
+    live_coinbase_read_ran: bool,
+    live_coinbase_orders_ran: bool,
+    live_exchange_submitted: bool,
+) -> str:
+    phase = f"outcome:{http_status_code}:{diagnostic_code}"
+    audit_id = _follow_up_materialization_audit_id(
+        phase=phase,
+        endpoint=endpoint,
+        actor=actor,
+        source_client_order_id=source_client_order_id,
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        action_class=action_class,
+        permission=permission,
+    )
+    return _append_follow_up_materialization_audit(
+        audit_store=audit_store,
+        audit_id=audit_id,
+        actor=actor,
+        endpoint=endpoint,
+        source_client_order_id=source_client_order_id,
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        action_class=action_class,
+        permission=permission,
+        status_value=(
+            AdminApiCommandStatus.CONFLICT
+            if http_status_code == status.HTTP_409_CONFLICT
+            else AdminApiCommandStatus.REJECTED
+        ),
+        failure_stage=failure_stage,
+        message=diagnostic_code,
+        live_coinbase_read_ran=live_coinbase_read_ran,
+        live_coinbase_orders_ran=live_coinbase_orders_ran,
+        live_exchange_submitted=live_exchange_submitted,
+    )
+
+
+def _follow_up_materialization_execution_evidence(
+    exc: OperatorFollowUpMaterializationError,
+) -> tuple[str, bool, bool, bool]:
+    """Normalize service evidence without understating an unknown boundary."""
+
+    evidence_is_complete = all(
+        value is not None
+        for value in (
+            exc.live_coinbase_read_ran,
+            exc.live_coinbase_orders_ran,
+            exc.live_exchange_submitted,
+        )
+    )
+    if not evidence_is_complete:
+        return "exchange_boundary_outcome_unknown", True, True, True
+    return (
+        exc.failure_stage,
+        bool(exc.live_coinbase_read_ran),
+        bool(exc.live_coinbase_orders_ran),
+        bool(exc.live_exchange_submitted),
+    )
+
+
+def _follow_up_materialization_response(payload: object) -> JSONResponse:
+    """Return typed durable evidence with replay/correlation headers."""
+
+    response_status = getattr(payload, "status", AdminApiCommandStatus.ACCEPTED)
+    status_code = status.HTTP_200_OK
+    if response_status == AdminApiCommandStatus.CONFLICT:
+        status_code = status.HTTP_409_CONFLICT
+    elif response_status == AdminApiCommandStatus.REJECTED:
+        status_code = status.HTTP_400_BAD_REQUEST
+    elif response_status == AdminApiCommandStatus.NOT_IMPLEMENTED:
+        status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    headers: dict[str, str] = {}
+    correlation_id = str(getattr(payload, "correlation_id", "") or "").strip()
+    if correlation_id:
+        headers["X-Correlation-Id"] = correlation_id
+    if bool(getattr(payload, "replayed", False)):
+        headers["X-Idempotency-Replayed"] = "true"
+    content = (
+        payload.model_dump(mode="json")
+        if hasattr(payload, "model_dump")
+        else jsonable_encoder(payload)
+    )
+    return JSONResponse(status_code=status_code, content=content, headers=headers)
 
 
 def _follow_up_intent_attach_response(
@@ -1719,6 +2100,445 @@ def attach_order_follow_up_intent(
     return _follow_up_intent_attach_response(payload)
 
 
+@router.get(
+    "/orders/{source_client_order_id}/follow-up-intent/materialization",
+    response_model=AdminOrderFollowUpMaterializationReadResponse,
+    responses=FOLLOW_UP_MATERIALIZATION_READ_ROUTE_RESPONSES,
+    summary="Read local follow-up materialization eligibility and one-use state",
+)
+def get_order_follow_up_materialization(
+    source_client_order_id: Annotated[
+        str,
+        Path(
+            min_length=36,
+            max_length=36,
+            pattern=_CANONICAL_UUID_PATH_PATTERN,
+        ),
+    ],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    _feature_enabled: Annotated[
+        None,
+        Depends(require_operator_follow_up_intent_enabled),
+    ],
+    service: Annotated[
+        OperatorFollowUpMaterializationService,
+        Depends(get_order_follow_up_materialization_service),
+    ],
+) -> JSONResponse:
+    """Read PostgreSQL evidence only; this GET cannot contact Coinbase."""
+
+    require_permission(actor, AdminApiPermission.AUDIT_READ)
+    try:
+        payload = service.read(source_client_order_id=source_client_order_id)
+    except OperatorFollowUpMaterializationError as exc:
+        _raise_follow_up_materialization_error(exc)
+    return _read_response(payload)
+
+
+@router.post(
+    "/orders/{source_client_order_id}/follow-up-intent/materialization",
+    response_model=AdminOrderFollowUpMaterializationCommandResponse,
+    status_code=status.HTTP_200_OK,
+    responses=FOLLOW_UP_MATERIALIZATION_COMMAND_ROUTE_RESPONSES,
+    summary="Explicitly authorize one attached follow-up intent materialization",
+)
+def materialize_order_follow_up_intent(
+    body: AdminOrderFollowUpMaterializationRequest,
+    source_client_order_id: Annotated[
+        str,
+        Path(
+            min_length=36,
+            max_length=36,
+            pattern=_CANONICAL_UUID_PATH_PATTERN,
+        ),
+    ],
+    idempotency_key: Annotated[
+        str,
+        Header(
+            alias="Idempotency-Key",
+            min_length=1,
+            max_length=255,
+            pattern=_VISIBLE_ASCII_HEADER_PATTERN,
+        ),
+    ],
+    correlation_id: Annotated[
+        str,
+        Header(
+            alias="X-Correlation-Id",
+            min_length=1,
+            max_length=255,
+            pattern=_VISIBLE_ASCII_HEADER_PATTERN,
+        ),
+    ],
+    operator_intent: Annotated[
+        Literal["authorize_and_materialize_follow_up_intent"],
+        Header(alias="X-Operator-Intent"),
+    ],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    _feature_enabled: Annotated[
+        None,
+        Depends(require_operator_follow_up_intent_enabled),
+    ],
+    service: Annotated[
+        OperatorFollowUpMaterializationService,
+        Depends(get_order_follow_up_materialization_service),
+    ],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+) -> JSONResponse:
+    """Forward only fixed acknowledgements and authenticated operator context."""
+
+    action_class = AdminApiActionClass.LIVE_EXCHANGE_PLACE
+    permission = AdminApiPermission.ORDER_CREATE
+    endpoint = _FOLLOW_UP_MATERIALIZATION_AUDIT_ENDPOINT
+    receipt_audit_id = _follow_up_materialization_audit_id(
+        phase="authorization_received_for_evaluation",
+        endpoint=endpoint,
+        actor=actor,
+        source_client_order_id=source_client_order_id,
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        action_class=action_class,
+        permission=permission,
+    )
+    try:
+        _append_follow_up_materialization_audit(
+            audit_store=audit_store,
+            audit_id=receipt_audit_id,
+            actor=actor,
+            endpoint=endpoint,
+            source_client_order_id=source_client_order_id,
+            idempotency_key=idempotency_key,
+            correlation_id=correlation_id,
+            operator_intent=operator_intent,
+            action_class=action_class,
+            permission=permission,
+            status_value="received",
+            failure_stage="authorization_received_for_evaluation",
+            message=_FOLLOW_UP_MATERIALIZATION_RECEIPT_MESSAGE,
+        )
+    except Exception:
+        return _follow_up_materialization_error_response(
+            http_status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            diagnostic_code="follow_up_materialization_audit_unavailable",
+            correlation_id=correlation_id,
+            audit_id=None,
+        )
+    context = OperatorFollowUpMaterializationRequestContext(
+        actor_id=actor.actor_id,
+        roles=tuple(role.value for role in actor.roles),
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        audit_id=receipt_audit_id,
+        environment=_follow_up_materialization_environment(),
+    )
+    try:
+        require_permission(actor, permission)
+        payload = service.materialize(
+            source_client_order_id=source_client_order_id,
+            request=body,
+            context=context,
+        )
+    except HTTPException as exc:
+        materialization_error = OperatorFollowUpMaterializationError(
+            str(exc.detail),
+            exc.status_code,
+            failure_stage="pre_exchange_evaluation",
+            live_coinbase_read_ran=False,
+            live_coinbase_orders_ran=False,
+            live_exchange_submitted=False,
+        )
+        failure_stage, live_read_ran, live_orders_ran, live_submitted = (
+            _follow_up_materialization_execution_evidence(materialization_error)
+        )
+        try:
+            outcome_audit_id = _record_follow_up_materialization_outcome_error(
+                audit_store=audit_store,
+                actor=actor,
+                endpoint=endpoint,
+                source_client_order_id=source_client_order_id,
+                idempotency_key=idempotency_key,
+                correlation_id=correlation_id,
+                operator_intent=operator_intent,
+                action_class=action_class,
+                permission=permission,
+                diagnostic_code=materialization_error.code,
+                http_status_code=materialization_error.http_status_code,
+                failure_stage=failure_stage,
+                live_coinbase_read_ran=live_read_ran,
+                live_coinbase_orders_ran=live_orders_ran,
+                live_exchange_submitted=live_submitted,
+            )
+        except Exception:
+            return _follow_up_materialization_error_response(
+                http_status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                diagnostic_code="follow_up_materialization_audit_unavailable",
+                correlation_id=correlation_id,
+                audit_id=receipt_audit_id,
+                live_coinbase_orders_ran=live_orders_ran,
+            )
+        return _follow_up_materialization_error_response(
+            http_status_code=materialization_error.http_status_code,
+            diagnostic_code=materialization_error.code,
+            correlation_id=correlation_id,
+            audit_id=outcome_audit_id,
+            live_coinbase_orders_ran=live_orders_ran,
+        )
+    except OperatorFollowUpMaterializationError as exc:
+        failure_stage, live_read_ran, live_orders_ran, live_submitted = (
+            _follow_up_materialization_execution_evidence(exc)
+        )
+        try:
+            outcome_audit_id = _record_follow_up_materialization_outcome_error(
+                audit_store=audit_store,
+                actor=actor,
+                endpoint=endpoint,
+                source_client_order_id=source_client_order_id,
+                idempotency_key=idempotency_key,
+                correlation_id=correlation_id,
+                operator_intent=operator_intent,
+                action_class=action_class,
+                permission=permission,
+                diagnostic_code=exc.code,
+                http_status_code=exc.http_status_code,
+                failure_stage=failure_stage,
+                live_coinbase_read_ran=live_read_ran,
+                live_coinbase_orders_ran=live_orders_ran,
+                live_exchange_submitted=live_submitted,
+            )
+        except Exception:
+            return _follow_up_materialization_error_response(
+                http_status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                diagnostic_code="follow_up_materialization_audit_unavailable",
+                correlation_id=correlation_id,
+                audit_id=receipt_audit_id,
+                live_coinbase_orders_ran=live_orders_ran,
+            )
+        return _follow_up_materialization_error_response(
+            http_status_code=exc.http_status_code,
+            diagnostic_code=exc.code,
+            correlation_id=correlation_id,
+            audit_id=outcome_audit_id,
+            live_coinbase_orders_ran=live_orders_ran,
+        )
+    if (
+        str(getattr(payload, "audit_id", "")) != receipt_audit_id
+        or str(getattr(getattr(payload, "attempt", None), "audit_id", ""))
+        != receipt_audit_id
+    ):
+        return _follow_up_materialization_error_response(
+            http_status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            diagnostic_code="follow_up_materialization_audit_binding_conflict",
+            correlation_id=correlation_id,
+            audit_id=receipt_audit_id,
+            live_coinbase_orders_ran=True,
+        )
+    return _follow_up_materialization_response(payload)
+
+
+@router.post(
+    "/orders/{source_client_order_id}/follow-up-intent/materialization/safe-closeout",
+    response_model=AdminOrderFollowUpMaterializationCancelResponse,
+    status_code=status.HTTP_200_OK,
+    responses=FOLLOW_UP_MATERIALIZATION_CANCEL_ROUTE_RESPONSES,
+    summary="Authorize at most one Cancel for the exact materialized child",
+)
+def safe_closeout_materialized_follow_up_intent(
+    body: AdminOrderFollowUpMaterializationCancelRequest,
+    source_client_order_id: Annotated[
+        str,
+        Path(
+            min_length=36,
+            max_length=36,
+            pattern=_CANONICAL_UUID_PATH_PATTERN,
+        ),
+    ],
+    idempotency_key: Annotated[
+        str,
+        Header(
+            alias="Idempotency-Key",
+            min_length=1,
+            max_length=255,
+            pattern=_VISIBLE_ASCII_HEADER_PATTERN,
+        ),
+    ],
+    correlation_id: Annotated[
+        str,
+        Header(
+            alias="X-Correlation-Id",
+            min_length=1,
+            max_length=255,
+            pattern=_VISIBLE_ASCII_HEADER_PATTERN,
+        ),
+    ],
+    operator_intent: Annotated[
+        Literal["safe_closeout_materialized_follow_up_intent"],
+        Header(alias="X-Operator-Intent"),
+    ],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    _feature_enabled: Annotated[
+        None,
+        Depends(require_operator_follow_up_intent_enabled),
+    ],
+    service: Annotated[
+        OperatorFollowUpMaterializationService,
+        Depends(get_order_follow_up_materialization_service),
+    ],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+) -> JSONResponse:
+    """Resolve the exact child in the backend; no exchange ID is accepted."""
+
+    action_class = AdminApiActionClass.LIVE_EXCHANGE_CANCEL
+    permission = AdminApiPermission.ORDER_CANCEL
+    endpoint = _FOLLOW_UP_MATERIALIZATION_CLOSEOUT_AUDIT_ENDPOINT
+    receipt_audit_id = _follow_up_materialization_audit_id(
+        phase="authorization_received_for_evaluation",
+        endpoint=endpoint,
+        actor=actor,
+        source_client_order_id=source_client_order_id,
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        action_class=action_class,
+        permission=permission,
+    )
+    try:
+        _append_follow_up_materialization_audit(
+            audit_store=audit_store,
+            audit_id=receipt_audit_id,
+            actor=actor,
+            endpoint=endpoint,
+            source_client_order_id=source_client_order_id,
+            idempotency_key=idempotency_key,
+            correlation_id=correlation_id,
+            operator_intent=operator_intent,
+            action_class=action_class,
+            permission=permission,
+            status_value="received",
+            failure_stage="authorization_received_for_evaluation",
+            message=_FOLLOW_UP_MATERIALIZATION_RECEIPT_MESSAGE,
+        )
+    except Exception:
+        return _follow_up_materialization_error_response(
+            http_status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            diagnostic_code="follow_up_materialization_audit_unavailable",
+            correlation_id=correlation_id,
+            audit_id=None,
+        )
+    context = OperatorFollowUpMaterializationRequestContext(
+        actor_id=actor.actor_id,
+        roles=tuple(role.value for role in actor.roles),
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        audit_id=receipt_audit_id,
+        environment=_follow_up_materialization_environment(),
+    )
+    try:
+        require_permission(actor, permission)
+        payload = service.safe_closeout(
+            source_client_order_id=source_client_order_id,
+            request=body,
+            context=context,
+        )
+    except HTTPException as exc:
+        materialization_error = OperatorFollowUpMaterializationError(
+            str(exc.detail),
+            exc.status_code,
+            failure_stage="pre_exchange_evaluation",
+            live_coinbase_read_ran=False,
+            live_coinbase_orders_ran=False,
+            live_exchange_submitted=False,
+        )
+        failure_stage, live_read_ran, live_orders_ran, live_submitted = (
+            _follow_up_materialization_execution_evidence(materialization_error)
+        )
+        try:
+            outcome_audit_id = _record_follow_up_materialization_outcome_error(
+                audit_store=audit_store,
+                actor=actor,
+                endpoint=endpoint,
+                source_client_order_id=source_client_order_id,
+                idempotency_key=idempotency_key,
+                correlation_id=correlation_id,
+                operator_intent=operator_intent,
+                action_class=action_class,
+                permission=permission,
+                diagnostic_code=materialization_error.code,
+                http_status_code=materialization_error.http_status_code,
+                failure_stage=failure_stage,
+                live_coinbase_read_ran=live_read_ran,
+                live_coinbase_orders_ran=live_orders_ran,
+                live_exchange_submitted=live_submitted,
+            )
+        except Exception:
+            return _follow_up_materialization_error_response(
+                http_status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                diagnostic_code="follow_up_materialization_audit_unavailable",
+                correlation_id=correlation_id,
+                audit_id=receipt_audit_id,
+                live_coinbase_orders_ran=live_orders_ran,
+            )
+        return _follow_up_materialization_error_response(
+            http_status_code=materialization_error.http_status_code,
+            diagnostic_code=materialization_error.code,
+            correlation_id=correlation_id,
+            audit_id=outcome_audit_id,
+            live_coinbase_orders_ran=live_orders_ran,
+        )
+    except OperatorFollowUpMaterializationError as exc:
+        failure_stage, live_read_ran, live_orders_ran, live_submitted = (
+            _follow_up_materialization_execution_evidence(exc)
+        )
+        try:
+            outcome_audit_id = _record_follow_up_materialization_outcome_error(
+                audit_store=audit_store,
+                actor=actor,
+                endpoint=endpoint,
+                source_client_order_id=source_client_order_id,
+                idempotency_key=idempotency_key,
+                correlation_id=correlation_id,
+                operator_intent=operator_intent,
+                action_class=action_class,
+                permission=permission,
+                diagnostic_code=exc.code,
+                http_status_code=exc.http_status_code,
+                failure_stage=failure_stage,
+                live_coinbase_read_ran=live_read_ran,
+                live_coinbase_orders_ran=live_orders_ran,
+                live_exchange_submitted=live_submitted,
+            )
+        except Exception:
+            return _follow_up_materialization_error_response(
+                http_status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                diagnostic_code="follow_up_materialization_audit_unavailable",
+                correlation_id=correlation_id,
+                audit_id=receipt_audit_id,
+                live_coinbase_orders_ran=live_orders_ran,
+            )
+        return _follow_up_materialization_error_response(
+            http_status_code=exc.http_status_code,
+            diagnostic_code=exc.code,
+            correlation_id=correlation_id,
+            audit_id=outcome_audit_id,
+            live_coinbase_orders_ran=live_orders_ran,
+        )
+    if (
+        str(getattr(payload, "audit_id", "")) != receipt_audit_id
+        or str(getattr(getattr(payload, "attempt", None), "audit_id", ""))
+        != receipt_audit_id
+    ):
+        return _follow_up_materialization_error_response(
+            http_status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            diagnostic_code="follow_up_materialization_audit_binding_conflict",
+            correlation_id=correlation_id,
+            audit_id=receipt_audit_id,
+            live_coinbase_orders_ran=True,
+        )
+    return _follow_up_materialization_response(payload)
+
+
 @router.post(
     "/orders/{client_order_id}/reconciliation",
     response_model=AdminApiCommandResponse,
@@ -1953,9 +2773,10 @@ def cancel_order_fill_follow_up_child_by_root_client_order_id(
                 "cancel_order_fill_follow_up_child_by_root_client_order_id"
             ),
             message=(
-                "Selected-chain child cancellation is source-disabled in the "
-                "installed operator runtime; only manual Spot root cancel is "
-                "supported."
+                "Selected-chain compatibility cancellation is source-disabled in the "
+                "installed operator runtime; supported cancellation is limited to "
+                "manual Spot root cancel and explicit exact materialized-child "
+                "safe-closeout."
             ),
             client_order_id=root_client_order_id,
             correlation_id=correlation_id,

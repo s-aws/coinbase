@@ -77,10 +77,15 @@ any Coinbase read or `products.json` write.
 The legacy dashboard WebSocket remains available for read/control compatibility
 and source material, but its exchange mutation messages are source-disabled.
 Legacy `main.py` Controlled-live startup and historical raw smoke/sweep/batch
-mutation modes are also source-disabled. The only supported Controlled-live
-operator path is installed authenticated Admin API manual Spot LIMIT/GTC
-place/cancel; new UI work must use its generated contract and backend read
-models.
+mutation modes are also source-disabled. The four installed Controlled-live
+mutation routes are manual root place/cancel and explicit attached-intent
+materialization/exact-child safe-closeout. Intent attachment is local-only and
+never supplies live authority; materialization and safe-closeout each require a
+fresh, separate explicit acknowledgement plus the backend's exact identity,
+fill/terminal-state, Test-portfolio, wallet/cap, RBAC, idempotency, audit,
+reconciliation, duplicate-prevention, and route-scope gates. No scheduler or
+autonomous follow-up execution is installed. New UI work must use generated
+contracts and backend read models.
 
 For the ordered documentation index, start at [docs/README.md](docs/README.md).
 For spot setup notes, see [README.spot-trading.md](README.spot-trading.md).

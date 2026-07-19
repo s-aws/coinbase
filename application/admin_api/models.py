@@ -5234,6 +5234,347 @@ class AdminOrderFollowUpIntentAttachResponse(BaseModel):
     browser_authority: str = "display_and_forward_only"
 
 
+class AdminOrderFollowUpMaterializationRequest(BaseModel):
+    """Fresh operator authority for one attached intent's one-shot Create."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    authorize_materialization_of_attached_intent: Literal[True]
+    acknowledge_unknown_outcome_consumes_create_allowance: Literal[True]
+    acknowledge_child_terms_are_backend_derived: Literal[True]
+
+
+class AdminOrderFollowUpMaterializationCancelRequest(BaseModel):
+    """Fresh operator authority for one exact materialized child's closeout."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    authorize_single_cancel_for_safe_closeout: Literal[True]
+    acknowledge_unknown_outcome_consumes_cancel_allowance: Literal[True]
+
+
+class AdminOrderFollowUpMaterializationEligibilityEvidence(BaseModel):
+    """Backend-owned fresh materialization and exchange-readiness evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_order_follow_up_materialization_eligibility"
+    source_client_order_id: str = Field(min_length=1)
+    root_client_order_id: str = Field(min_length=1)
+    attached_intent_present: bool
+    source_status: str = Field(min_length=1)
+    source_full_fill_proven: bool
+    source_terminal_revalidated: bool
+    test_portfolio_revalidated: bool
+    product_policy_revalidated: bool
+    wallet_revalidated: bool
+    cap_revalidated: bool
+    reconciliation_revalidated: bool
+    child_absent: bool
+    attempt_unconsumed: bool
+    ready: bool
+    backend_decision: Literal["ready", "blocked", "consumed", "terminal"]
+    blockers: list[str] = Field(default_factory=list)
+    live_read_required_for_fresh_authorization: bool = True
+    browser_authority: str = "display_only"
+
+
+class AdminOrderFollowUpMaterializationCandidate(BaseModel):
+    """Sanitized order terms derived only by the backend."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    child_client_order_id: str = Field(min_length=1)
+    product_id: str = Field(min_length=1)
+    side: Literal["BUY", "SELL"]
+    order_type: Literal["LIMIT"] = "LIMIT"
+    time_in_force: Literal["GOOD_UNTIL_CANCELLED"] = "GOOD_UNTIL_CANCELLED"
+    base_size: str = Field(min_length=1)
+    limit_price: str = Field(min_length=1)
+    submitted_notional_usdc: str = Field(min_length=1)
+    max_submitted_notional_usdc: str = Field(min_length=1)
+    max_executed_notional_usdc: str = Field(min_length=1)
+    effective_notional_cap_usdc: str = Field(min_length=1)
+    post_only: Literal[False] = False
+    backend_derived: Literal[True] = True
+    child_identity_authority: str = "backend_only"
+
+
+class AdminOrderFollowUpMaterializationCallAllowance(BaseModel):
+    """Durable one-use Create and safe-closeout Cancel accounting."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    create_call_limit: Literal[1] = 1
+    create_call_count: int = Field(ge=0, le=1)
+    create_call_consumed: bool
+    create_retry_allowed: Literal[False] = False
+    cancel_call_limit: Literal[1] = 1
+    cancel_call_count: int = Field(ge=0, le=1)
+    cancel_call_consumed: bool
+    cancel_retry_allowed: Literal[False] = False
+    fallback_allowed: Literal[False] = False
+
+
+class AdminOrderFollowUpMaterializationAttempt(BaseModel):
+    """Sanitized durable state for one intent-bound materialization attempt."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    materialization_id: str = Field(min_length=1)
+    follow_up_intent_id: str = Field(min_length=1)
+    source_client_order_id: str = Field(min_length=1)
+    root_client_order_id: str = Field(min_length=1)
+    child_client_order_id: str = Field(min_length=1)
+    state: Literal[
+        "KNOWN_NOT_INVOKED",
+        "CREATE_INVOCATION_STARTED",
+        "CREATE_EXPLICITLY_REJECTED",
+        "CREATE_ACCEPTED_NONTERMINAL",
+        "CREATE_ACCEPTED_TERMINAL",
+        "CREATE_UNKNOWN_CONSUMED",
+        "CANCEL_INVOCATION_STARTED",
+        "CANCEL_EXPLICITLY_REJECTED",
+        "CANCEL_ACCEPTED_NONTERMINAL",
+        "CANCEL_ACCEPTED_TERMINAL",
+        "CANCEL_UNKNOWN_CONSUMED",
+        "CHILD_ALREADY_TERMINAL_NO_CANCEL",
+    ]
+    terminal: bool
+    unknown_outcome: bool
+    exchange_order_id_present: bool = False
+    exchange_order_id_authority: Literal["withheld_backend_evidence"] = (
+        "withheld_backend_evidence"
+    )
+    correlation_id: str = Field(min_length=1)
+    audit_id: str = Field(min_length=1)
+    recorded_at: str = Field(min_length=1)
+    updated_at: str = Field(min_length=1)
+
+
+class AdminOrderFollowUpMaterializationAuditEvent(BaseModel):
+    """Sanitized append-only operation evidence; private actor data is omitted."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    event_id: str = Field(min_length=1)
+    state: Literal[
+        "KNOWN_NOT_INVOKED",
+        "CREATE_INVOCATION_STARTED",
+        "CREATE_EXPLICITLY_REJECTED",
+        "CREATE_ACCEPTED_NONTERMINAL",
+        "CREATE_ACCEPTED_TERMINAL",
+        "CREATE_UNKNOWN_CONSUMED",
+        "CANCEL_INVOCATION_STARTED",
+        "CANCEL_EXPLICITLY_REJECTED",
+        "CANCEL_ACCEPTED_NONTERMINAL",
+        "CANCEL_ACCEPTED_TERMINAL",
+        "CANCEL_UNKNOWN_CONSUMED",
+        "CHILD_ALREADY_TERMINAL_NO_CANCEL",
+    ]
+    diagnostic_code: str = Field(min_length=1)
+    operation_audit_id: str = Field(min_length=1)
+    environment: str = Field(min_length=1)
+    operator_intent: str = Field(min_length=1)
+    correlation_id: str = Field(min_length=1)
+    exchange_order_id_present: bool = False
+    recorded_at: str = Field(min_length=1)
+
+
+class AdminOrderFollowUpMaterializationLocalProjection(BaseModel):
+    """Sanitized durable proof that both local child tables agree."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    local_state_event_id: str = Field(min_length=1)
+    materialization_id: str = Field(min_length=1)
+    child_client_order_id: str = Field(min_length=1)
+    transition_kind: Literal[
+        "CREATE_EXPLICITLY_REJECTED",
+        "CREATE_ACCEPTED_ACTIVE",
+        "CREATE_ACCEPTED_TERMINAL",
+        "CREATE_UNKNOWN_QUARANTINED",
+        "RECONCILED_ACTIVE",
+        "RECONCILED_TERMINAL",
+        "CANCEL_EXPLICITLY_REJECTED_ACTIVE",
+        "CANCEL_ACCEPTED_TERMINAL",
+        "CANCEL_UNKNOWN_QUARANTINED",
+        "TERMINAL_WITHOUT_CANCEL",
+    ]
+    authoritative_order_status: str = Field(min_length=1)
+    exchange_order_id_present: bool = False
+    operation_audit_id: str = Field(min_length=1)
+    recorded_at: str = Field(min_length=1)
+    order_parent_and_stealth_match: Literal[True] = True
+
+
+class AdminOrderFollowUpMaterializationSafeCloseoutEligibility(BaseModel):
+    """Backend decision to permit one exact-child reconciliation request."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    request_eligible: bool
+    backend_decision: Literal[
+        "eligible_for_authoritative_read",
+        "blocked",
+        "consumed",
+        "terminal",
+    ]
+    blockers: list[str] = Field(default_factory=list)
+    authoritative_child_read_required: Literal[True] = True
+    cancel_only_if_authoritatively_active: Literal[True] = True
+    browser_authority: str = "display_only"
+
+
+class AdminOrderFollowUpMaterializationAuthorizationRequestForwardability(
+    BaseModel
+):
+    """Backend-owned permission to forward a fresh no-live acknowledgement."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    request_forwardable: bool
+    backend_decision: Literal[
+        "forward_fresh_acknowledgement_only",
+        "blocked",
+    ]
+    blockers: list[str]
+    acknowledgement_only: Literal[True] = True
+    live_eligibility: Literal[False] = False
+    exchange_call_authority: Literal[False] = False
+    browser_authority: Literal[
+        "display_and_forward_fresh_acknowledgement_only"
+    ] = "display_and_forward_fresh_acknowledgement_only"
+
+
+class AdminOrderFollowUpMaterializationReadResponse(BaseModel):
+    """Passive, strictly local materialization readback."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_order_follow_up_materialization_readback"
+    source_client_order_id: str = Field(min_length=1)
+    root_client_order_id: str = Field(min_length=1)
+    follow_up_intent_id: str | None = Field(default=None, min_length=1)
+    environment: str = Field(min_length=1)
+    portfolio_scope: Literal["approved_test_portfolio"] = (
+        "approved_test_portfolio"
+    )
+    required_materialization_operator_intent: Literal[
+        "authorize_and_materialize_follow_up_intent"
+    ] = "authorize_and_materialize_follow_up_intent"
+    required_safe_closeout_operator_intent: Literal[
+        "safe_closeout_materialized_follow_up_intent"
+    ] = "safe_closeout_materialized_follow_up_intent"
+    eligibility: AdminOrderFollowUpMaterializationEligibilityEvidence
+    authorization_request_forwardability: (
+        AdminOrderFollowUpMaterializationAuthorizationRequestForwardability
+    )
+    candidate: AdminOrderFollowUpMaterializationCandidate | None = None
+    attempt: AdminOrderFollowUpMaterializationAttempt | None = None
+    call_allowance: AdminOrderFollowUpMaterializationCallAllowance
+    audit_events: list[AdminOrderFollowUpMaterializationAuditEvent] = Field(
+        default_factory=list
+    )
+    local_projection: (
+        AdminOrderFollowUpMaterializationLocalProjection | None
+    ) = None
+    safe_closeout_eligibility: (
+        AdminOrderFollowUpMaterializationSafeCloseoutEligibility
+    )
+    read_only: Literal[True] = True
+    local_state_mutated: Literal[False] = False
+    live_coinbase_read_ran: Literal[False] = False
+    live_coinbase_create_call_count: Literal[0] = 0
+    live_coinbase_cancel_call_count: Literal[0] = 0
+    exchange_state_mutated: Literal[False] = False
+    browser_authority: str = "display_only"
+
+
+class AdminOrderFollowUpMaterializationCommandResponse(BaseModel):
+    """One-shot Create result with durable unknown-outcome semantics."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_order_follow_up_materialization_command"
+    status: AdminApiCommandStatus
+    action_class: Literal[AdminApiActionClass.LIVE_EXCHANGE_PLACE] = (
+        AdminApiActionClass.LIVE_EXCHANGE_PLACE
+    )
+    required_permission: Literal[AdminApiPermission.ORDER_CREATE] = (
+        AdminApiPermission.ORDER_CREATE
+    )
+    service_method: Literal["materialize_order_follow_up_intent"] = (
+        "materialize_order_follow_up_intent"
+    )
+    message: str = Field(min_length=1)
+    source_client_order_id: str = Field(min_length=1)
+    root_client_order_id: str = Field(min_length=1)
+    child_client_order_id: str = Field(min_length=1)
+    environment: str = Field(min_length=1)
+    portfolio_scope: Literal["approved_test_portfolio"] = (
+        "approved_test_portfolio"
+    )
+    operator_intent: Literal[
+        "authorize_and_materialize_follow_up_intent"
+    ]
+    correlation_id: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    audit_id: str = Field(min_length=1)
+    replayed: bool = False
+    eligibility: AdminOrderFollowUpMaterializationEligibilityEvidence
+    candidate: AdminOrderFollowUpMaterializationCandidate
+    attempt: AdminOrderFollowUpMaterializationAttempt
+    call_allowance: AdminOrderFollowUpMaterializationCallAllowance
+    live_coinbase_read_ran: bool
+    live_coinbase_create_call_count: int = Field(ge=0, le=1)
+    live_coinbase_cancel_call_count: Literal[0] = 0
+    live_exchange_submitted: bool
+    exchange_state_mutated: bool
+    browser_authority: str = "display_and_forward_only"
+
+
+class AdminOrderFollowUpMaterializationCancelResponse(BaseModel):
+    """One-shot exact-child safe-closeout result."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_order_follow_up_materialization_cancel"
+    status: AdminApiCommandStatus
+    action_class: Literal[AdminApiActionClass.LIVE_EXCHANGE_CANCEL] = (
+        AdminApiActionClass.LIVE_EXCHANGE_CANCEL
+    )
+    required_permission: Literal[AdminApiPermission.ORDER_CANCEL] = (
+        AdminApiPermission.ORDER_CANCEL
+    )
+    service_method: Literal["safe_closeout_materialized_follow_up_intent"] = (
+        "safe_closeout_materialized_follow_up_intent"
+    )
+    message: str = Field(min_length=1)
+    source_client_order_id: str = Field(min_length=1)
+    root_client_order_id: str = Field(min_length=1)
+    child_client_order_id: str = Field(min_length=1)
+    environment: str = Field(min_length=1)
+    portfolio_scope: Literal["approved_test_portfolio"] = (
+        "approved_test_portfolio"
+    )
+    operator_intent: Literal[
+        "safe_closeout_materialized_follow_up_intent"
+    ]
+    correlation_id: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    audit_id: str = Field(min_length=1)
+    replayed: bool = False
+    attempt: AdminOrderFollowUpMaterializationAttempt
+    call_allowance: AdminOrderFollowUpMaterializationCallAllowance
+    live_coinbase_read_ran: bool
+    live_coinbase_create_call_count: Literal[0] = 0
+    live_coinbase_cancel_call_count: int = Field(ge=0, le=1)
+    live_exchange_cancel_submitted: bool
+    exchange_state_mutated: bool
+    browser_authority: str = "display_and_forward_only"
+
+
 class AdminOrderFillFollowUpReplayResponse(BaseModel):
     """No-live fill-event replay evidence keyed by ``client_order_id``."""
 

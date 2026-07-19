@@ -34,6 +34,7 @@ def test_re_export_is_same_object():
     assert formatter_module.quantize_to_increment is canonical
 
 
+@pytest.mark.serial
 def test_only_one_def_in_repo():
     """Static-source guard: a single ``def quantize_to_increment(``
     must appear in the repo. Re-exports are imports, not defs."""

@@ -13,14 +13,41 @@ Maintainer handoff for contextless agents starts at
 The product is the **operator review stack**. An unqualified installed startup
 uses **Controlled-live** for operator testing and fails closed unless its exact
 master opt-in, approved Test portfolio, and owner-only execution lease are
-present. **No-live** is an explicit alternate posture, not the default. Only installed
-authenticated Admin API manual Spot LIMIT/GTC place/cancel can enter
-Controlled-live. Historical dashboard, legacy engine, raw smoke/sweep, and
-controlled-batch mutation paths are source-disabled.
+present. **No-live** is an explicit alternate posture, not the default. The
+four installed Controlled-live mutation routes are manual root place/cancel
+and explicit attached-intent materialization/exact-child safe-closeout. Each is
+authenticated and backend-owned under its distinct acknowledgement, identity,
+idempotency, policy/cap/wallet, audit, reconciliation, and final route-scope
+gates. Intent attachment remains local-only and never supplies live authority.
+Historical dashboard, legacy engine, raw smoke/sweep, controlled-batch, and
+automatic follow-up mutation paths are source-disabled.
 
 ## Current Status
 
-Goal `futures_preview_acceptance_recovery_r12` is
+Goal `operator_authorize_and_materialize_follow_up_intent` has Status:
+`complete`. The authenticated backend-owned materialization and exact-child
+safe-closeout contracts, generated operator integration, focused/full gates,
+and independent audits passed. The live proof found no eligible filled
+attached intent: candidate count, durable materialization attempt/claim count,
+materialized-child count, Coinbase eligibility/reconciliation reads, Create
+calls, Cancel calls, and submitted/executed notional are all zero; there was no
+unknown live outcome. The live-proof allowances remain unconsumed. Synthetic
+tests are not live proof. Current action is
+`await_operator_direction_for_next_mvp`.
+
+Validation evidence is backend focused `164 passed`; backend canonical full
+`1102 passed, 6 skipped` parallel and `457 passed, 150 skipped` serial with
+status `passed`, live execution `false`, and notional `0`; frontend focused
+`179 passed`; independent safety audit `PASS`; and blind-contextless audit
+`PASS`.
+
+Controlled-live operational handoff is verified: the final installed operator
+review stack reports runtime mode `controlled_live`, frontend `0.0.0.0:3000`,
+backend `127.0.0.1:8787`, and approved Test portfolio configuration without
+exposing its identifier. Release, startup, and status made zero Coinbase calls
+and consumed no live-proof allowance.
+
+Historical goal `futures_preview_acceptance_recovery_r12` is
 `complete_terminal_unknown_consumed`. Eligibility cycle 2 created the one
 durable R12 claim, and offline claim recovery recorded terminal blocker
 `claim_only_recovery_unknown_consumed` without constructing a Coinbase client
@@ -44,8 +71,24 @@ projection. The accepted boundary
 records only a future intent at zero notional. It does not call Coinbase,
 invoke an order-engine follow-up handler, create a child, run reconciliation,
 or mutate exchange state. The companion `GET` route is authoritative local
-eligibility/readback. Later intent materialization requires separate fresh
-authorization and all applicable live gates.
+eligibility/readback.
+
+The distinct successor control is now implemented at
+`GET/POST /api/v1/orders/{source_client_order_id}/follow-up-intent/materialization`
+with optional
+`POST .../materialization/safe-closeout`. Attachment acknowledgement is never
+reused. The backend alone derives and durably binds the exact USDC Spot child
+tuple, revalidates authoritative full fill, approved Test portfolio, wallet,
+caps, market, lineage, duplicate absence, and RBAC, then preclaims a quarantined
+local child before one one-use Create boundary. Coinbase's documented Create
+identity echo and one exact post-Create order read must match the full durable
+tuple before acceptance. The optional separately acknowledged closeout performs
+one exact pre-Cancel read, at most one exact-ID Cancel, and one exact post-Cancel
+read before terminal status can be recorded. Invocation-started and ambiguous
+outcomes consume their allowance, reconcile read-only, and never repeat a
+mutation. Passive GET is local-only and exposes a backend-owned
+acknowledgement-forwardability decision that explicitly grants no live or
+exchange-call authority.
 
 The predecessor goal `futures_preview_acceptance_recovery_r11` is complete.
 R11 is consumed, terminal `blocked`, immutable, and cannot be retried. It stopped at
@@ -76,9 +119,10 @@ a No-live append-only futures/perpetual risk-proof record route, read-only guard
 cross-module audit workbench evidence, backend-owned approval, cap/guard,
 admission audit, reconciliation plan, and live-service decision evidence
 routes, and read-only spot operator routes. Command posture is route-specific:
-manual Spot placement and cancel can reach the shared live service after exact
-backend admission, while Futures commands, Stealth commands, movement/reprice,
-campaign, and sweep routes remain No-live or local-evidence boundaries. See
+the two manual-root and two attached-intent mutation routes can reach their
+distinct shared live-service boundaries after exact backend admission, while
+Futures commands, Stealth commands, movement/reprice, campaign, and sweep
+routes remain No-live or local-evidence boundaries. See
 [Live Order Surfaces](docs/LIVE_ORDER_SURFACES.md). The guarded
 fill-follow-up trigger is the No-live local-state compatibility exception:
 after exact route-bound approval, cap/guard wallet proof, reconciliation,
@@ -1924,7 +1968,8 @@ grant browser/BFF authority.
 The legacy dashboard `place_order`, `cancel_order`, and
 `place_hotpoint_test_order` WebSocket messages are source-disabled and return a
 fixed error before runtime or command-service lookup. Controlled-live product
-UI must use the authenticated HTTP Admin API manual Spot place/cancel contract.
+UI must use the authenticated HTTP Admin API contracts for manual-root or
+explicit attached-intent mutations.
 
 Mutating HTTP command responses include the current fail-closed live execution
 gate decision and M34 route-bound admission decision evidence. M35 persists
@@ -2438,7 +2483,7 @@ reconciliation, and per-action backend authorization. Starting or checking the
 operator review stack uses the call-free health/session path and makes no Coinbase call.
 On bootstrap/health, `live_execution_enabled=true` and
 `mutating_routes_live_disabled=false` mean only that the Controlled-live
-runtime is armed and the two manual Spot routes are supported. Health
+runtime is armed and the four scoped Spot mutation routes are installed. Health
 diagnostics still state that per-request authorization is required; these
 aggregate fields are not an approval or an eligible order decision.
 
@@ -2467,10 +2512,12 @@ route-scoped; every request still requires the current lease-bound service
 decision and full proof chain, and only the authenticated route may mint the
 final SDK scope. Exact-live `main.py` startup is source-disabled.
 
-Fill-follow-up contracts may persist and report local parent/child evidence,
-but the installed runtime starts no autonomous follow-up consumer and those
-contracts cannot mint manual place/cancel SDK scope or authorize Coinbase
-mutation.
+Fill-follow-up compatibility contracts may persist and report local
+parent/child evidence, but the installed runtime starts no autonomous follow-up
+consumer and those compatibility contracts cannot mint any installed SDK
+scope. The distinct explicit attached-intent materialization and exact-child
+safe-closeout routes can mint only their own one-use scopes after fresh
+acknowledgement and every backend gate succeeds.
 
 The installed operator stack sets
 `COINBASE_ADMIN_API_OPERATOR_FOLLOW_UP_INTENT_ENABLED=1` only for its backend

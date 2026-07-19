@@ -1,12 +1,17 @@
-import re
+import io
 import json
-import pytest
+import re
+import sys
 from pathlib import Path
 
+import pytest
+
 from tools.run_parallel_regression import (
+    DEFAULT_BASETEMP_ROOT,
     DEFAULT_MAX_COMMIT_GB,
     DEFAULT_RUNTIME_ARTIFACT_FAIL_ABOVE_GB,
     MEMORY_ABORT_EXIT_CODE,
+    PYTEST_OUTPUT_GUARD_EXIT_CODE,
     PYTEST_TRACEBACK_STYLE,
     PYTEST_OUTPUT_MODE,
     SERIAL_SAFE_COMMENT,
@@ -18,6 +23,7 @@ from tools.run_parallel_regression import (
     RuntimeArtifactFinding,
     build_commands,
     build_parser,
+    detect_pytest_output_guard_marker,
     find_serial_classification_findings,
     main,
     run_regression_command,
@@ -205,6 +211,10 @@ def test_parallel_regression_runner_defaults_to_bounded_memory_watch():
     assert (
         args.runtime_artifact_fail_above_gb
         == DEFAULT_RUNTIME_ARTIFACT_FAIL_ABOVE_GB
+    )
+    assert Path(args.basetemp_root) == DEFAULT_BASETEMP_ROOT
+    assert not DEFAULT_BASETEMP_ROOT.resolve().is_relative_to(
+        Path(__file__).resolve().parents[2]
     )
 
 
@@ -564,13 +574,14 @@ def test_run_regression_command_aborts_on_memory_pressure(monkeypatch, capsys):
 
     class FakeProcess:
         pid = 1234
+        stdout = io.StringIO("")
 
         def poll(self):
             return None
 
     monkeypatch.setattr(
         "tools.run_parallel_regression.subprocess.Popen",
-        lambda _command: FakeProcess(),
+        lambda _command, **_kwargs: FakeProcess(),
     )
     monkeypatch.setattr(
         "tools.run_parallel_regression.read_system_memory_snapshot",
@@ -621,13 +632,14 @@ def test_run_regression_command_aborts_on_absolute_commit_pressure(
 
     class FakeProcess:
         pid = 1234
+        stdout = io.StringIO("")
 
         def poll(self):
             return None
 
     monkeypatch.setattr(
         "tools.run_parallel_regression.subprocess.Popen",
-        lambda _command: FakeProcess(),
+        lambda _command, **_kwargs: FakeProcess(),
     )
     monkeypatch.setattr(
         "tools.run_parallel_regression.read_system_memory_snapshot",
@@ -705,13 +717,14 @@ def test_run_regression_command_reports_peak_memory_without_abort(monkeypatch):
 
     class FakeProcess:
         pid = 1234
+        stdout = io.StringIO("")
 
         def poll(self):
             return next(poll_results)
 
     monkeypatch.setattr(
         "tools.run_parallel_regression.subprocess.Popen",
-        lambda _command: FakeProcess(),
+        lambda _command, **_kwargs: FakeProcess(),
     )
     monkeypatch.setattr(
         "tools.run_parallel_regression.read_system_memory_snapshot",
@@ -741,3 +754,120 @@ def test_run_regression_command_reports_peak_memory_without_abort(monkeypatch):
     assert result.peak_memory_snapshot is not None
     assert result.peak_memory_snapshot.commit_used_gb == 48.5
     assert result.process_memory_snapshots == process_snapshots
+
+
+@pytest.mark.parametrize(
+    ("output", "expected_marker"),
+    [
+        (
+            "[gw2] node down: Not properly terminated",
+            "xdist_node_not_properly_terminated",
+        ),
+        (
+            "worker gw2 crashed and worker restarting disabled",
+            "xdist_worker_crashed_restart_disabled",
+        ),
+        (
+            "maximum crashed workers reached: 1",
+            "xdist_maximum_crashed_workers_reached",
+        ),
+    ],
+)
+def test_pytest_output_guard_classifies_xdist_crash_markers(
+    output,
+    expected_marker,
+):
+    assert detect_pytest_output_guard_marker(output) == expected_marker
+
+
+def test_pytest_output_guard_ignores_normal_pytest_output():
+    assert detect_pytest_output_guard_marker("1087 passed, 6 skipped") is None
+    assert detect_pytest_output_guard_marker("a worker crashed in a unit fixture") is None
+
+
+def test_run_regression_command_fails_closed_on_xdist_crash_output(capsys):
+    result = run_regression_command(
+        RegressionCommand(
+            "probe",
+            (
+                sys.executable,
+                "-c",
+                (
+                    "import sys; print('[gw2] node down: Not properly terminated', "
+                    "file=sys.stderr)"
+                ),
+            ),
+        ),
+        memory_watch_enabled=False,
+        memory_sample_seconds=5,
+        max_commit_gb=96.0,
+        max_commit_percent=85.0,
+        max_physical_percent=75.0,
+        min_available_physical_gb=24.0,
+    )
+
+    captured = capsys.readouterr()
+    assert result.returncode == PYTEST_OUTPUT_GUARD_EXIT_CODE
+    assert result.unsafe_output_marker == "xdist_node_not_properly_terminated"
+    assert "node down: Not properly terminated" in captured.out
+
+
+def test_run_regression_command_streams_normal_output_without_false_failure(capsys):
+    result = run_regression_command(
+        RegressionCommand(
+            "probe",
+            (sys.executable, "-c", "print('1 passed')"),
+        ),
+        memory_watch_enabled=False,
+        memory_sample_seconds=5,
+        max_commit_gb=96.0,
+        max_commit_percent=85.0,
+        max_physical_percent=75.0,
+        min_available_physical_gb=24.0,
+    )
+
+    captured = capsys.readouterr()
+    assert result.returncode == 0
+    assert result.unsafe_output_marker is None
+    assert "1 passed" in captured.out
+
+
+def test_parallel_regression_runner_reports_output_guard_failure(
+    monkeypatch,
+    tmp_path,
+    capsys,
+):
+    monkeypatch.setattr(
+        "tools.run_parallel_regression.is_xdist_available",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        "tools.run_parallel_regression.run_regression_command",
+        lambda _command, **_kwargs: RegressionRunResult(
+            returncode=PYTEST_OUTPUT_GUARD_EXIT_CODE,
+            unsafe_output_marker="xdist_worker_crashed_restart_disabled",
+        ),
+    )
+
+    exit_code = main(
+        [
+            "--parallel-only",
+            "--runtime-state-dir",
+            str(tmp_path / "runtime_state"),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == PYTEST_OUTPUT_GUARD_EXIT_CODE
+    summary_line = next(
+        line for line in captured.out.splitlines() if line.startswith(SUMMARY_PREFIX)
+    )
+    summary = json.loads(summary_line.removeprefix(SUMMARY_PREFIX))
+    assert summary["status"] == "pytest_output_guard_failed"
+    assert summary["failed_command"] == "parallel_safe_regression"
+    assert summary["pytest_output_guard_findings"] == [
+        {
+            "command": "parallel_safe_regression",
+            "marker": "xdist_worker_crashed_restart_disabled",
+        }
+    ]

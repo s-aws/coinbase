@@ -7082,6 +7082,372 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
+  /api/v1/orders/{source_client_order_id}/follow-up-intent/materialization:
+    get:
+      tags:
+      - orders
+      summary: Read local follow-up materialization eligibility and one-use state
+      description: Read PostgreSQL evidence only; this GET cannot contact Coinbase.
+      operationId: get_order_follow_up_materialization_api_v1_orders__source_client_order_id__follow_up_intent_materialization_get
+      parameters:
+      - name: source_client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 36
+          maxLength: 36
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Source Client Order Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOrderFollowUpMaterializationReadResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '404':
+          description: The backend-owned source order or attached intent was not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: The durable materialization evidence is inconsistent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '503':
+          description: Authoritative local materialization evidence is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - orders
+      summary: Explicitly authorize one attached follow-up intent materialization
+      description: Forward only fixed acknowledgements and authenticated operator
+        context.
+      operationId: materialize_order_follow_up_intent_api_v1_orders__source_client_order_id__follow_up_intent_materialization_post
+      parameters:
+      - name: source_client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 36
+          maxLength: 36
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Source Client Order Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: ^[!-~]+$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: ^[!-~]+$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: authorize_and_materialize_follow_up_intent
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminOrderFollowUpMaterializationRequest'
+      responses:
+        '200':
+          description: The one-use Create boundary reached a durable classification.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOrderFollowUpMaterializationCommandResponse'
+        '400':
+          description: The Create boundary returned durable evidence, or explicit
+            materialization authorization was rejected before a durable result.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: '#/components/schemas/AdminOrderFollowUpMaterializationCommandResponse'
+                - $ref: '#/components/schemas/AdminApiErrorResponse'
+                title: Response 400 Materialize Order Follow Up Intent Api V1 Orders  Source
+                  Client Order Id  Follow Up Intent Materialization Post
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '404':
+          description: The backend-owned source order or attached intent was not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: The Create boundary returned durable evidence, or eligibility,
+            idempotency, or the one-use boundary conflicts.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: '#/components/schemas/AdminOrderFollowUpMaterializationCommandResponse'
+                - $ref: '#/components/schemas/AdminApiErrorResponse'
+                title: Response 409 Materialize Order Follow Up Intent Api V1 Orders  Source
+                  Client Order Id  Follow Up Intent Materialization Post
+        '422':
+          description: Required headers or fixed acknowledgements are invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '503':
+          description: Authoritative local materialization evidence is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+  /api/v1/orders/{source_client_order_id}/follow-up-intent/materialization/safe-closeout:
+    post:
+      tags:
+      - orders
+      summary: Authorize at most one Cancel for the exact materialized child
+      description: Resolve the exact child in the backend; no exchange ID is accepted.
+      operationId: safe_closeout_materialized_follow_up_intent_api_v1_orders__source_client_order_id__follow_up_intent_materialization_safe_closeout_post
+      parameters:
+      - name: source_client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 36
+          maxLength: 36
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Source Client Order Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: ^[!-~]+$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: ^[!-~]+$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: safe_closeout_materialized_follow_up_intent
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminOrderFollowUpMaterializationCancelRequest'
+      responses:
+        '200':
+          description: The exact child closeout reached a durable classification.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOrderFollowUpMaterializationCancelResponse'
+        '400':
+          description: The Cancel boundary returned durable evidence, or explicit
+            safe-closeout authorization was rejected before a durable result.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: '#/components/schemas/AdminOrderFollowUpMaterializationCancelResponse'
+                - $ref: '#/components/schemas/AdminApiErrorResponse'
+                title: Response 400 Safe Closeout Materialized Follow Up Intent Api
+                  V1 Orders  Source Client Order Id  Follow Up Intent Materialization
+                  Safe Closeout Post
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '404':
+          description: The backend-owned source order or attached intent was not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: The Cancel boundary returned durable evidence, or safe-closeout
+            idempotency or the one-use boundary conflicts.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: '#/components/schemas/AdminOrderFollowUpMaterializationCancelResponse'
+                - $ref: '#/components/schemas/AdminApiErrorResponse'
+                title: Response 409 Safe Closeout Materialized Follow Up Intent Api
+                  V1 Orders  Source Client Order Id  Follow Up Intent Materialization
+                  Safe Closeout Post
+        '422':
+          description: Required headers or fixed acknowledgements are invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '503':
+          description: Authoritative local materialization evidence is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
   /api/v1/orders/{client_order_id}/reconciliation:
     post:
       tags:
@@ -141654,6 +142020,909 @@ components:
       - eligibility
       title: AdminOrderFollowUpIntentReadResponse
       description: Authoritative local readback for a source order's one intent slot.
+    AdminOrderFollowUpMaterializationAttempt:
+      properties:
+        materialization_id:
+          type: string
+          minLength: 1
+          title: Materialization Id
+        follow_up_intent_id:
+          type: string
+          minLength: 1
+          title: Follow Up Intent Id
+        source_client_order_id:
+          type: string
+          minLength: 1
+          title: Source Client Order Id
+        root_client_order_id:
+          type: string
+          minLength: 1
+          title: Root Client Order Id
+        child_client_order_id:
+          type: string
+          minLength: 1
+          title: Child Client Order Id
+        state:
+          type: string
+          enum:
+          - KNOWN_NOT_INVOKED
+          - CREATE_INVOCATION_STARTED
+          - CREATE_EXPLICITLY_REJECTED
+          - CREATE_ACCEPTED_NONTERMINAL
+          - CREATE_ACCEPTED_TERMINAL
+          - CREATE_UNKNOWN_CONSUMED
+          - CANCEL_INVOCATION_STARTED
+          - CANCEL_EXPLICITLY_REJECTED
+          - CANCEL_ACCEPTED_NONTERMINAL
+          - CANCEL_ACCEPTED_TERMINAL
+          - CANCEL_UNKNOWN_CONSUMED
+          - CHILD_ALREADY_TERMINAL_NO_CANCEL
+          title: State
+        terminal:
+          type: boolean
+          title: Terminal
+        unknown_outcome:
+          type: boolean
+          title: Unknown Outcome
+        exchange_order_id_present:
+          type: boolean
+          title: Exchange Order Id Present
+          default: false
+        exchange_order_id_authority:
+          type: string
+          const: withheld_backend_evidence
+          title: Exchange Order Id Authority
+          default: withheld_backend_evidence
+        correlation_id:
+          type: string
+          minLength: 1
+          title: Correlation Id
+        audit_id:
+          type: string
+          minLength: 1
+          title: Audit Id
+        recorded_at:
+          type: string
+          minLength: 1
+          title: Recorded At
+        updated_at:
+          type: string
+          minLength: 1
+          title: Updated At
+      additionalProperties: false
+      type: object
+      required:
+      - materialization_id
+      - follow_up_intent_id
+      - source_client_order_id
+      - root_client_order_id
+      - child_client_order_id
+      - state
+      - terminal
+      - unknown_outcome
+      - correlation_id
+      - audit_id
+      - recorded_at
+      - updated_at
+      title: AdminOrderFollowUpMaterializationAttempt
+      description: Sanitized durable state for one intent-bound materialization attempt.
+    AdminOrderFollowUpMaterializationAuditEvent:
+      properties:
+        event_id:
+          type: string
+          minLength: 1
+          title: Event Id
+        state:
+          type: string
+          enum:
+          - KNOWN_NOT_INVOKED
+          - CREATE_INVOCATION_STARTED
+          - CREATE_EXPLICITLY_REJECTED
+          - CREATE_ACCEPTED_NONTERMINAL
+          - CREATE_ACCEPTED_TERMINAL
+          - CREATE_UNKNOWN_CONSUMED
+          - CANCEL_INVOCATION_STARTED
+          - CANCEL_EXPLICITLY_REJECTED
+          - CANCEL_ACCEPTED_NONTERMINAL
+          - CANCEL_ACCEPTED_TERMINAL
+          - CANCEL_UNKNOWN_CONSUMED
+          - CHILD_ALREADY_TERMINAL_NO_CANCEL
+          title: State
+        diagnostic_code:
+          type: string
+          minLength: 1
+          title: Diagnostic Code
+        operation_audit_id:
+          type: string
+          minLength: 1
+          title: Operation Audit Id
+        environment:
+          type: string
+          minLength: 1
+          title: Environment
+        operator_intent:
+          type: string
+          minLength: 1
+          title: Operator Intent
+        correlation_id:
+          type: string
+          minLength: 1
+          title: Correlation Id
+        exchange_order_id_present:
+          type: boolean
+          title: Exchange Order Id Present
+          default: false
+        recorded_at:
+          type: string
+          minLength: 1
+          title: Recorded At
+      additionalProperties: false
+      type: object
+      required:
+      - event_id
+      - state
+      - diagnostic_code
+      - operation_audit_id
+      - environment
+      - operator_intent
+      - correlation_id
+      - recorded_at
+      title: AdminOrderFollowUpMaterializationAuditEvent
+      description: Sanitized append-only operation evidence; private actor data is
+        omitted.
+    AdminOrderFollowUpMaterializationAuthorizationRequestForwardability:
+      properties:
+        request_forwardable:
+          type: boolean
+          title: Request Forwardable
+        backend_decision:
+          type: string
+          enum:
+          - forward_fresh_acknowledgement_only
+          - blocked
+          title: Backend Decision
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        acknowledgement_only:
+          type: boolean
+          const: true
+          title: Acknowledgement Only
+          default: true
+        live_eligibility:
+          type: boolean
+          const: false
+          title: Live Eligibility
+          default: false
+        exchange_call_authority:
+          type: boolean
+          const: false
+          title: Exchange Call Authority
+          default: false
+        browser_authority:
+          type: string
+          const: display_and_forward_fresh_acknowledgement_only
+          title: Browser Authority
+          default: display_and_forward_fresh_acknowledgement_only
+      additionalProperties: false
+      type: object
+      required:
+      - request_forwardable
+      - backend_decision
+      - blockers
+      title: AdminOrderFollowUpMaterializationAuthorizationRequestForwardability
+      description: Backend-owned permission to forward a fresh no-live acknowledgement.
+    AdminOrderFollowUpMaterializationCallAllowance:
+      properties:
+        create_call_limit:
+          type: integer
+          const: 1
+          title: Create Call Limit
+          default: 1
+        create_call_count:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Create Call Count
+        create_call_consumed:
+          type: boolean
+          title: Create Call Consumed
+        create_retry_allowed:
+          type: boolean
+          const: false
+          title: Create Retry Allowed
+          default: false
+        cancel_call_limit:
+          type: integer
+          const: 1
+          title: Cancel Call Limit
+          default: 1
+        cancel_call_count:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Cancel Call Count
+        cancel_call_consumed:
+          type: boolean
+          title: Cancel Call Consumed
+        cancel_retry_allowed:
+          type: boolean
+          const: false
+          title: Cancel Retry Allowed
+          default: false
+        fallback_allowed:
+          type: boolean
+          const: false
+          title: Fallback Allowed
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - create_call_count
+      - create_call_consumed
+      - cancel_call_count
+      - cancel_call_consumed
+      title: AdminOrderFollowUpMaterializationCallAllowance
+      description: Durable one-use Create and safe-closeout Cancel accounting.
+    AdminOrderFollowUpMaterializationCancelRequest:
+      properties:
+        authorize_single_cancel_for_safe_closeout:
+          type: boolean
+          const: true
+          title: Authorize Single Cancel For Safe Closeout
+        acknowledge_unknown_outcome_consumes_cancel_allowance:
+          type: boolean
+          const: true
+          title: Acknowledge Unknown Outcome Consumes Cancel Allowance
+      additionalProperties: false
+      type: object
+      required:
+      - authorize_single_cancel_for_safe_closeout
+      - acknowledge_unknown_outcome_consumes_cancel_allowance
+      title: AdminOrderFollowUpMaterializationCancelRequest
+      description: Fresh operator authority for one exact materialized child's closeout.
+    AdminOrderFollowUpMaterializationCancelResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_order_follow_up_materialization_cancel
+        status:
+          $ref: '#/components/schemas/AdminApiCommandStatus'
+        action_class:
+          type: string
+          const: live_exchange_cancel
+          title: Action Class
+          default: live_exchange_cancel
+        required_permission:
+          type: string
+          const: order:cancel
+          title: Required Permission
+          default: order:cancel
+        service_method:
+          type: string
+          const: safe_closeout_materialized_follow_up_intent
+          title: Service Method
+          default: safe_closeout_materialized_follow_up_intent
+        message:
+          type: string
+          minLength: 1
+          title: Message
+        source_client_order_id:
+          type: string
+          minLength: 1
+          title: Source Client Order Id
+        root_client_order_id:
+          type: string
+          minLength: 1
+          title: Root Client Order Id
+        child_client_order_id:
+          type: string
+          minLength: 1
+          title: Child Client Order Id
+        environment:
+          type: string
+          minLength: 1
+          title: Environment
+        portfolio_scope:
+          type: string
+          const: approved_test_portfolio
+          title: Portfolio Scope
+          default: approved_test_portfolio
+        operator_intent:
+          type: string
+          const: safe_closeout_materialized_follow_up_intent
+          title: Operator Intent
+        correlation_id:
+          type: string
+          minLength: 1
+          title: Correlation Id
+        idempotency_key:
+          type: string
+          minLength: 1
+          title: Idempotency Key
+        audit_id:
+          type: string
+          minLength: 1
+          title: Audit Id
+        replayed:
+          type: boolean
+          title: Replayed
+          default: false
+        attempt:
+          $ref: '#/components/schemas/AdminOrderFollowUpMaterializationAttempt'
+        call_allowance:
+          $ref: '#/components/schemas/AdminOrderFollowUpMaterializationCallAllowance'
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+        live_coinbase_create_call_count:
+          type: integer
+          const: 0
+          title: Live Coinbase Create Call Count
+          default: 0
+        live_coinbase_cancel_call_count:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Live Coinbase Cancel Call Count
+        live_exchange_cancel_submitted:
+          type: boolean
+          title: Live Exchange Cancel Submitted
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_and_forward_only
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - message
+      - source_client_order_id
+      - root_client_order_id
+      - child_client_order_id
+      - environment
+      - operator_intent
+      - correlation_id
+      - idempotency_key
+      - audit_id
+      - attempt
+      - call_allowance
+      - live_coinbase_read_ran
+      - live_coinbase_cancel_call_count
+      - live_exchange_cancel_submitted
+      - exchange_state_mutated
+      title: AdminOrderFollowUpMaterializationCancelResponse
+      description: One-shot exact-child safe-closeout result.
+    AdminOrderFollowUpMaterializationCandidate:
+      properties:
+        child_client_order_id:
+          type: string
+          minLength: 1
+          title: Child Client Order Id
+        product_id:
+          type: string
+          minLength: 1
+          title: Product Id
+        side:
+          type: string
+          enum:
+          - BUY
+          - SELL
+          title: Side
+        order_type:
+          type: string
+          const: LIMIT
+          title: Order Type
+          default: LIMIT
+        time_in_force:
+          type: string
+          const: GOOD_UNTIL_CANCELLED
+          title: Time In Force
+          default: GOOD_UNTIL_CANCELLED
+        base_size:
+          type: string
+          minLength: 1
+          title: Base Size
+        limit_price:
+          type: string
+          minLength: 1
+          title: Limit Price
+        submitted_notional_usdc:
+          type: string
+          minLength: 1
+          title: Submitted Notional Usdc
+        max_submitted_notional_usdc:
+          type: string
+          minLength: 1
+          title: Max Submitted Notional Usdc
+        max_executed_notional_usdc:
+          type: string
+          minLength: 1
+          title: Max Executed Notional Usdc
+        effective_notional_cap_usdc:
+          type: string
+          minLength: 1
+          title: Effective Notional Cap Usdc
+        post_only:
+          type: boolean
+          const: false
+          title: Post Only
+          default: false
+        backend_derived:
+          type: boolean
+          const: true
+          title: Backend Derived
+          default: true
+        child_identity_authority:
+          type: string
+          title: Child Identity Authority
+          default: backend_only
+      additionalProperties: false
+      type: object
+      required:
+      - child_client_order_id
+      - product_id
+      - side
+      - base_size
+      - limit_price
+      - submitted_notional_usdc
+      - max_submitted_notional_usdc
+      - max_executed_notional_usdc
+      - effective_notional_cap_usdc
+      title: AdminOrderFollowUpMaterializationCandidate
+      description: Sanitized order terms derived only by the backend.
+    AdminOrderFollowUpMaterializationCommandResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_order_follow_up_materialization_command
+        status:
+          $ref: '#/components/schemas/AdminApiCommandStatus'
+        action_class:
+          type: string
+          const: live_exchange_place
+          title: Action Class
+          default: live_exchange_place
+        required_permission:
+          type: string
+          const: order:create
+          title: Required Permission
+          default: order:create
+        service_method:
+          type: string
+          const: materialize_order_follow_up_intent
+          title: Service Method
+          default: materialize_order_follow_up_intent
+        message:
+          type: string
+          minLength: 1
+          title: Message
+        source_client_order_id:
+          type: string
+          minLength: 1
+          title: Source Client Order Id
+        root_client_order_id:
+          type: string
+          minLength: 1
+          title: Root Client Order Id
+        child_client_order_id:
+          type: string
+          minLength: 1
+          title: Child Client Order Id
+        environment:
+          type: string
+          minLength: 1
+          title: Environment
+        portfolio_scope:
+          type: string
+          const: approved_test_portfolio
+          title: Portfolio Scope
+          default: approved_test_portfolio
+        operator_intent:
+          type: string
+          const: authorize_and_materialize_follow_up_intent
+          title: Operator Intent
+        correlation_id:
+          type: string
+          minLength: 1
+          title: Correlation Id
+        idempotency_key:
+          type: string
+          minLength: 1
+          title: Idempotency Key
+        audit_id:
+          type: string
+          minLength: 1
+          title: Audit Id
+        replayed:
+          type: boolean
+          title: Replayed
+          default: false
+        eligibility:
+          $ref: '#/components/schemas/AdminOrderFollowUpMaterializationEligibilityEvidence'
+        candidate:
+          $ref: '#/components/schemas/AdminOrderFollowUpMaterializationCandidate'
+        attempt:
+          $ref: '#/components/schemas/AdminOrderFollowUpMaterializationAttempt'
+        call_allowance:
+          $ref: '#/components/schemas/AdminOrderFollowUpMaterializationCallAllowance'
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+        live_coinbase_create_call_count:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Live Coinbase Create Call Count
+        live_coinbase_cancel_call_count:
+          type: integer
+          const: 0
+          title: Live Coinbase Cancel Call Count
+          default: 0
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_and_forward_only
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - message
+      - source_client_order_id
+      - root_client_order_id
+      - child_client_order_id
+      - environment
+      - operator_intent
+      - correlation_id
+      - idempotency_key
+      - audit_id
+      - eligibility
+      - candidate
+      - attempt
+      - call_allowance
+      - live_coinbase_read_ran
+      - live_coinbase_create_call_count
+      - live_exchange_submitted
+      - exchange_state_mutated
+      title: AdminOrderFollowUpMaterializationCommandResponse
+      description: One-shot Create result with durable unknown-outcome semantics.
+    AdminOrderFollowUpMaterializationEligibilityEvidence:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_order_follow_up_materialization_eligibility
+        source_client_order_id:
+          type: string
+          minLength: 1
+          title: Source Client Order Id
+        root_client_order_id:
+          type: string
+          minLength: 1
+          title: Root Client Order Id
+        attached_intent_present:
+          type: boolean
+          title: Attached Intent Present
+        source_status:
+          type: string
+          minLength: 1
+          title: Source Status
+        source_full_fill_proven:
+          type: boolean
+          title: Source Full Fill Proven
+        source_terminal_revalidated:
+          type: boolean
+          title: Source Terminal Revalidated
+        test_portfolio_revalidated:
+          type: boolean
+          title: Test Portfolio Revalidated
+        product_policy_revalidated:
+          type: boolean
+          title: Product Policy Revalidated
+        wallet_revalidated:
+          type: boolean
+          title: Wallet Revalidated
+        cap_revalidated:
+          type: boolean
+          title: Cap Revalidated
+        reconciliation_revalidated:
+          type: boolean
+          title: Reconciliation Revalidated
+        child_absent:
+          type: boolean
+          title: Child Absent
+        attempt_unconsumed:
+          type: boolean
+          title: Attempt Unconsumed
+        ready:
+          type: boolean
+          title: Ready
+        backend_decision:
+          type: string
+          enum:
+          - ready
+          - blocked
+          - consumed
+          - terminal
+          title: Backend Decision
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        live_read_required_for_fresh_authorization:
+          type: boolean
+          title: Live Read Required For Fresh Authorization
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+      additionalProperties: false
+      type: object
+      required:
+      - source_client_order_id
+      - root_client_order_id
+      - attached_intent_present
+      - source_status
+      - source_full_fill_proven
+      - source_terminal_revalidated
+      - test_portfolio_revalidated
+      - product_policy_revalidated
+      - wallet_revalidated
+      - cap_revalidated
+      - reconciliation_revalidated
+      - child_absent
+      - attempt_unconsumed
+      - ready
+      - backend_decision
+      title: AdminOrderFollowUpMaterializationEligibilityEvidence
+      description: Backend-owned fresh materialization and exchange-readiness evidence.
+    AdminOrderFollowUpMaterializationLocalProjection:
+      properties:
+        local_state_event_id:
+          type: string
+          minLength: 1
+          title: Local State Event Id
+        materialization_id:
+          type: string
+          minLength: 1
+          title: Materialization Id
+        child_client_order_id:
+          type: string
+          minLength: 1
+          title: Child Client Order Id
+        transition_kind:
+          type: string
+          enum:
+          - CREATE_EXPLICITLY_REJECTED
+          - CREATE_ACCEPTED_ACTIVE
+          - CREATE_ACCEPTED_TERMINAL
+          - CREATE_UNKNOWN_QUARANTINED
+          - RECONCILED_ACTIVE
+          - RECONCILED_TERMINAL
+          - CANCEL_EXPLICITLY_REJECTED_ACTIVE
+          - CANCEL_ACCEPTED_TERMINAL
+          - CANCEL_UNKNOWN_QUARANTINED
+          - TERMINAL_WITHOUT_CANCEL
+          title: Transition Kind
+        authoritative_order_status:
+          type: string
+          minLength: 1
+          title: Authoritative Order Status
+        exchange_order_id_present:
+          type: boolean
+          title: Exchange Order Id Present
+          default: false
+        operation_audit_id:
+          type: string
+          minLength: 1
+          title: Operation Audit Id
+        recorded_at:
+          type: string
+          minLength: 1
+          title: Recorded At
+        order_parent_and_stealth_match:
+          type: boolean
+          const: true
+          title: Order Parent And Stealth Match
+          default: true
+      additionalProperties: false
+      type: object
+      required:
+      - local_state_event_id
+      - materialization_id
+      - child_client_order_id
+      - transition_kind
+      - authoritative_order_status
+      - operation_audit_id
+      - recorded_at
+      title: AdminOrderFollowUpMaterializationLocalProjection
+      description: Sanitized durable proof that both local child tables agree.
+    AdminOrderFollowUpMaterializationReadResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_order_follow_up_materialization_readback
+        source_client_order_id:
+          type: string
+          minLength: 1
+          title: Source Client Order Id
+        root_client_order_id:
+          type: string
+          minLength: 1
+          title: Root Client Order Id
+        follow_up_intent_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Follow Up Intent Id
+        environment:
+          type: string
+          minLength: 1
+          title: Environment
+        portfolio_scope:
+          type: string
+          const: approved_test_portfolio
+          title: Portfolio Scope
+          default: approved_test_portfolio
+        required_materialization_operator_intent:
+          type: string
+          const: authorize_and_materialize_follow_up_intent
+          title: Required Materialization Operator Intent
+          default: authorize_and_materialize_follow_up_intent
+        required_safe_closeout_operator_intent:
+          type: string
+          const: safe_closeout_materialized_follow_up_intent
+          title: Required Safe Closeout Operator Intent
+          default: safe_closeout_materialized_follow_up_intent
+        eligibility:
+          $ref: '#/components/schemas/AdminOrderFollowUpMaterializationEligibilityEvidence'
+        authorization_request_forwardability:
+          $ref: '#/components/schemas/AdminOrderFollowUpMaterializationAuthorizationRequestForwardability'
+        candidate:
+          anyOf:
+          - $ref: '#/components/schemas/AdminOrderFollowUpMaterializationCandidate'
+          - type: 'null'
+        attempt:
+          anyOf:
+          - $ref: '#/components/schemas/AdminOrderFollowUpMaterializationAttempt'
+          - type: 'null'
+        call_allowance:
+          $ref: '#/components/schemas/AdminOrderFollowUpMaterializationCallAllowance'
+        audit_events:
+          items:
+            $ref: '#/components/schemas/AdminOrderFollowUpMaterializationAuditEvent'
+          type: array
+          title: Audit Events
+        local_projection:
+          anyOf:
+          - $ref: '#/components/schemas/AdminOrderFollowUpMaterializationLocalProjection'
+          - type: 'null'
+        safe_closeout_eligibility:
+          $ref: '#/components/schemas/AdminOrderFollowUpMaterializationSafeCloseoutEligibility'
+        read_only:
+          type: boolean
+          const: true
+          title: Read Only
+          default: true
+        local_state_mutated:
+          type: boolean
+          const: false
+          title: Local State Mutated
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          const: false
+          title: Live Coinbase Read Ran
+          default: false
+        live_coinbase_create_call_count:
+          type: integer
+          const: 0
+          title: Live Coinbase Create Call Count
+          default: 0
+        live_coinbase_cancel_call_count:
+          type: integer
+          const: 0
+          title: Live Coinbase Cancel Call Count
+          default: 0
+        exchange_state_mutated:
+          type: boolean
+          const: false
+          title: Exchange State Mutated
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+      additionalProperties: false
+      type: object
+      required:
+      - source_client_order_id
+      - root_client_order_id
+      - environment
+      - eligibility
+      - authorization_request_forwardability
+      - call_allowance
+      - safe_closeout_eligibility
+      title: AdminOrderFollowUpMaterializationReadResponse
+      description: Passive, strictly local materialization readback.
+    AdminOrderFollowUpMaterializationRequest:
+      properties:
+        authorize_materialization_of_attached_intent:
+          type: boolean
+          const: true
+          title: Authorize Materialization Of Attached Intent
+        acknowledge_unknown_outcome_consumes_create_allowance:
+          type: boolean
+          const: true
+          title: Acknowledge Unknown Outcome Consumes Create Allowance
+        acknowledge_child_terms_are_backend_derived:
+          type: boolean
+          const: true
+          title: Acknowledge Child Terms Are Backend Derived
+      additionalProperties: false
+      type: object
+      required:
+      - authorize_materialization_of_attached_intent
+      - acknowledge_unknown_outcome_consumes_create_allowance
+      - acknowledge_child_terms_are_backend_derived
+      title: AdminOrderFollowUpMaterializationRequest
+      description: Fresh operator authority for one attached intent's one-shot Create.
+    AdminOrderFollowUpMaterializationSafeCloseoutEligibility:
+      properties:
+        request_eligible:
+          type: boolean
+          title: Request Eligible
+        backend_decision:
+          type: string
+          enum:
+          - eligible_for_authoritative_read
+          - blocked
+          - consumed
+          - terminal
+          title: Backend Decision
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        authoritative_child_read_required:
+          type: boolean
+          const: true
+          title: Authoritative Child Read Required
+          default: true
+        cancel_only_if_authoritatively_active:
+          type: boolean
+          const: true
+          title: Cancel Only If Authoritatively Active
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+      additionalProperties: false
+      type: object
+      required:
+      - request_eligible
+      - backend_decision
+      title: AdminOrderFollowUpMaterializationSafeCloseoutEligibility
+      description: Backend decision to permit one exact-child reconciliation request.
     AdminOrderListResponse:
       properties:
         type:
