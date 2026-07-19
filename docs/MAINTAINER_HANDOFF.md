@@ -144,7 +144,14 @@ audit ids. Expected fill status does not create a separate approval class.
   not created and was not required. Eligibility, reconciliation, Create, and
   Cancel did not run. All one-use proof allowances and all live allowances
   remain unconsumed. The goal authority is closed and grants no continuing
-  proof call. Operator wording: Follow-up Operations workspace deployed; exact
+  proof call. A durable terminal-goal seal now makes any later candidate
+  non-actionable with fixed reason `follow_up_live_proof_goal_terminal` and
+  blocks transactionally before eligibility reads or new proof acquisition,
+  while attached-intent navigation and already-existing exact-child closeout
+  readback remain available. A preexisting fixed-goal claim makes startup fail
+  closed rather than sealing over it. A future proof requires a distinct goal
+  identity and explicit operator authorization; the completed identity cannot
+  be reopened. Operator wording: Follow-up Operations workspace deployed; exact
   post-gate candidate count 0; all live allowances remain unconsumed. Keep the
   Controlled-live operator stack available; its posture supplies no authority
   from this completed goal.

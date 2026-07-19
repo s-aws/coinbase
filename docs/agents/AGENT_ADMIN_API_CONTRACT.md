@@ -40,6 +40,16 @@ not created or required, eligibility/reconciliation/Create/Cancel did not run,
 and all one-use proof allowances remain unconsumed. The goal authority is
 closed and grants no continuing proof call. Keep the Controlled-live stack
 available under its separate runtime controls.
+The repository persists a terminal seal for that exact fixed goal identity.
+Queue readback classifies any later candidate as blocked/non-actionable with
+`follow_up_live_proof_goal_terminal`, and the transactional claim boundary
+checks the seal before a live eligibility read or new proof acquisition.
+Attached-intent navigation and already-existing exact-child safe-closeout
+readback remain available. A preexisting claim under the same fixed identity
+makes initialization fail closed rather than sealing over in-progress
+evidence. The generic materialization implementation remains installed, but a
+future proof requires a distinct goal identity and explicit operator
+authorization; the completed identity cannot be reopened.
 
 The four installed Controlled-live mutation routes are manual Spot LIMIT/GTC
 place/cancel and explicit attached-intent materialization/exact-child

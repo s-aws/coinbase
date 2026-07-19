@@ -17,6 +17,17 @@ Create, and Cancel did not run. All one-use proof allowances and all live
 allowances remain unconsumed. The goal authority is closed and grants no
 continuing proof call. The Controlled-live operator stack is to remain
 available, but its availability is not authority from this completed goal.
+The backend persists a durable terminal-goal seal for this exact goal identity.
+Any candidate that appears after closeout is backend-classified blocked with
+fixed diagnostic `follow_up_live_proof_goal_terminal`; the claim transaction
+checks the seal before candidate selection or any live eligibility read. It
+does not suppress attached-intent navigation or already-existing exact-child
+safe-closeout readback. If startup finds a preexisting claim under the same
+fixed goal identity, initialization fails closed rather than sealing over an
+in-progress operation. The installed generic follow-up materialization
+implementation remains reusable, but a future proof must use a distinct goal
+identity and explicit operator authorization rather than reopening or deleting
+this seal.
 
 Current machine alignment:
 `operator_follow_up_operations_queue_single_proof_v1`. Current/default action:

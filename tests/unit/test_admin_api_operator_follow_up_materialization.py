@@ -1105,6 +1105,58 @@ def test_passive_read_is_repository_only_and_reports_no_coinbase_calls():
     assert exchange.events == []
 
 
+@pytest.mark.parametrize("operation", ("materialize", "safe_closeout"))
+def test_terminal_live_proof_goal_blocks_before_any_live_read_or_mutation(
+    operation: str,
+):
+    repository = FakeRepository(
+        existing=(
+            _record(
+                state=MaterializationRecordState.CREATE_ACCEPTED,
+                create_consumed=True,
+                diagnostic_code="follow_up_materialization_create_accepted",
+            )
+            if operation == "safe_closeout"
+            else None
+        ),
+        live_proof_claim_error=RuntimeError(
+            "follow_up_live_proof_goal_terminal"
+        ),
+    )
+    service, repository, runtime, exchange = _service(repository=repository)
+
+    with pytest.raises(OperatorFollowUpMaterializationError) as blocked:
+        if operation == "materialize":
+            service.materialize(
+                source_client_order_id="source-001",
+                request=_authorization(),
+                context=_context(),
+            )
+        else:
+            service.safe_closeout(
+                source_client_order_id="source-001",
+                request=_closeout_authorization(),
+                context=_context(
+                    operator_intent=SAFE_CLOSEOUT_MATERIALIZED_FOLLOW_UP_INTENT,
+                    idempotency_key="safe-closeout-key-001",
+                ),
+            )
+
+    assert blocked.value.code == "follow_up_live_proof_operation_unavailable"
+    assert blocked.value.failure_stage in {
+        "eligibility_claim_before_read",
+        "reconciliation_claim_before_read",
+    }
+    assert blocked.value.live_coinbase_read_ran is False
+    assert blocked.value.live_coinbase_orders_ran is False
+    assert blocked.value.live_exchange_submitted is False
+    assert runtime.events == []
+    assert exchange.events == []
+    assert repository.events == [
+        "read:CREATE" if operation == "materialize" else "read:CANCEL"
+    ]
+
+
 @pytest.mark.parametrize(
     ("context", "authorization", "expected_code"),
     [

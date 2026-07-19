@@ -1939,6 +1939,158 @@ def test_live_proof_eligibility_claim_fails_closed_for_zero_or_multiple_candidat
     ) == 0
 
 
+def test_terminal_zero_candidate_goal_cannot_reacquire_authority_after_later_candidate(
+    repository_harness: _RepositoryHarness,
+):
+    sealed_repository = repository_harness.repository(
+        terminal_live_proof_goal_ids=None,
+    )
+    absent_source_id = str(uuid.uuid4())
+
+    with pytest.raises(FollowUpIntentStoreConflict) as zero_candidate_claim:
+        _claim_live_proof_eligibility(sealed_repository, absent_source_id)
+
+    assert zero_candidate_claim.value.code == "follow_up_live_proof_goal_terminal"
+    assert repository_harness.scalar(
+        f'SELECT COUNT(*) FROM "{repository_harness.schema}".'
+        "operator_follow_up_live_proof_terminal_goal"
+    ) == 1
+    with pytest.raises(psycopg2.Error) as immutable_seal:
+        repository_harness.execute(
+            f'DELETE FROM "{repository_harness.schema}".'
+            "operator_follow_up_live_proof_terminal_goal WHERE goal_id = %s",
+            (OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,),
+        )
+    assert immutable_seal.value.pgcode == "P0001"
+    assert repository_harness.scalar(
+        f'SELECT COUNT(*) FROM "{repository_harness.schema}".'
+        "operator_follow_up_live_proof_terminal_goal"
+    ) == 1
+
+    _repository, _root_id, source_id, _intent_id = _attach_then_fill(
+        repository_harness
+    )
+    restarted_repositories = (
+        repository_harness.repository(),
+        repository_harness.repository(),
+    )
+
+    page = restarted_repositories[0].list_operations()
+    assert page.total_matching_count == 1
+    assert len(page.items) == 1
+    assert page.items[0].state == "blocked"
+    assert page.items[0].state_reason_code == "follow_up_live_proof_goal_terminal"
+    assert page.items[0].actionability == "none"
+    materialization_readback = restarted_repositories[0].read_materialization(
+        source_id
+    )
+    assert materialization_readback.readiness.eligible is False
+    assert "follow_up_live_proof_goal_terminal" in (
+        materialization_readback.readiness.blockers
+    )
+
+    def claim(repository: OperatorFollowUpIntentRepository) -> str:
+        try:
+            _claim_live_proof_eligibility(repository, source_id)
+            return "claimed"
+        except FollowUpIntentStoreConflict as exc:
+            return exc.code
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        outcomes = tuple(executor.map(claim, restarted_repositories))
+
+    assert outcomes == (
+        "follow_up_live_proof_goal_terminal",
+        "follow_up_live_proof_goal_terminal",
+    )
+    for operation_kind in (
+        FollowUpLiveProofOperationKind.CREATE,
+        FollowUpLiveProofOperationKind.RECONCILIATION_READ,
+        FollowUpLiveProofOperationKind.CANCEL,
+    ):
+        with pytest.raises(FollowUpIntentStoreConflict) as sealed_operation:
+            restarted_repositories[0].claim_follow_up_live_proof_operation(
+                goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+                operation_kind=operation_kind.value,
+                source_client_order_id=source_id,
+                correlation_id=f"sealed-{operation_kind.value.lower()}",
+                audit_id=str(uuid.uuid4()),
+                operation_idempotency_key_sha256="9" * 64,
+            )
+        assert sealed_operation.value.code == "follow_up_live_proof_goal_not_claimed"
+
+    assert repository_harness.scalar(
+        f'SELECT COUNT(*) FROM "{repository_harness.schema}".'
+        "operator_follow_up_live_proof_goal"
+    ) == 0
+    assert repository_harness.scalar(
+        f'SELECT COUNT(*) FROM "{repository_harness.schema}".'
+        "operator_follow_up_live_proof_event"
+    ) == 0
+
+
+def test_terminal_goal_seal_preserves_existing_exact_child_closeout_readback(
+    repository_harness: _RepositoryHarness,
+):
+    repository, root_id, source_id, intent_id = _attach_then_fill(
+        repository_harness
+    )
+    prepared = repository.prepare_materialization(
+        _materialization_command(
+            source_id=source_id,
+            root_id=root_id,
+            intent_id=intent_id,
+        )
+    )
+    repository.mark_create_invocation_started(
+        prepared.attempt.materialization_id
+    )
+    repository.record_create_result(
+        prepared.attempt.materialization_id,
+        outcome=FollowUpMaterializationState.CREATE_ACCEPTED_NONTERMINAL.value,
+        diagnostic_code="create_accepted_nonterminal",
+        exchange_order_id_sha256="a" * 64,
+    )
+
+    sealed_repository = repository_harness.repository(
+        terminal_live_proof_goal_ids=None,
+    )
+    page = sealed_repository.list_operations()
+    readback = sealed_repository.read_materialization(source_id)
+
+    assert page.total_matching_count == 1
+    assert len(page.items) == 1
+    assert page.items[0].state == "materialized_active"
+    assert page.items[0].state_reason_code == (
+        "materialized_child_active_cancel_available"
+    )
+    assert page.items[0].actionability == "safe_closeout_review"
+    assert "follow_up_live_proof_goal_terminal" not in (
+        readback.readiness.blockers
+    )
+
+
+def test_terminal_goal_seal_preserves_attached_awaiting_fill_readback(
+    repository_harness: _RepositoryHarness,
+):
+    _root_id, source_id = _insert_chain(repository_harness)
+    repository = repository_harness.repository()
+    attached = repository.attach(_command(source_id))
+    sealed_repository = repository_harness.repository(
+        terminal_live_proof_goal_ids=None,
+    )
+
+    page = sealed_repository.list_operations()
+
+    assert page.total_matching_count == 1
+    assert len(page.items) == 1
+    assert page.items[0].follow_up_intent_id == attached.record.follow_up_intent_id
+    assert page.items[0].source_client_order_id == source_id
+    assert page.items[0].state == "awaiting_source_fill"
+    assert page.items[0].state_reason_code == "source_full_fill_not_observed"
+    assert page.items[0].actionability == "none"
+
+
 def test_live_proof_claim_is_durable_singleton_across_repository_restart(
     repository_harness: _RepositoryHarness,
 ):

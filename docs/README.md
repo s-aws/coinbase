@@ -26,6 +26,15 @@ reconciliation, Create, and Cancel did not run; all one-use proof allowances
 remain unconsumed. The goal authority is closed and grants no continuing proof
 call. Keep the Controlled-live stack available for operator review under its
 separate durable controls.
+The exact completed goal is protected by a durable terminal-goal seal. A later
+candidate is reported as non-actionable with fixed reason
+`follow_up_live_proof_goal_terminal`, and the claim transaction rejects it
+before any eligibility read or new proof acquisition. Attached-intent
+navigation and already-existing exact-child safe-closeout readback remain
+available. A preexisting claim for the same fixed identity makes startup fail
+closed rather than sealing over in-progress evidence. Reusing the installed
+generic materialization path for another proof requires a distinct goal
+identity and explicit operator authorization; this seal is never reopened.
 
 Goal `futures_preview_acceptance_recovery_r12` is terminal
 `complete_terminal_unknown_consumed`. Its single durable claim is consumed,

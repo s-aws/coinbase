@@ -198,8 +198,14 @@ def _native_attempt(
 
 
 class _NativeRepository:
-    def __init__(self, attempt: SimpleNamespace | None = None) -> None:
+    def __init__(
+        self,
+        attempt: SimpleNamespace | None = None,
+        *,
+        readiness_blockers: tuple[str, ...] = (),
+    ) -> None:
         self.attempt = attempt
+        self.readiness_blockers = readiness_blockers
         self.calls: list[tuple[str, object]] = []
         self.audit_events: list[SimpleNamespace] = []
         self.local_projection: SimpleNamespace | None = None
@@ -276,10 +282,17 @@ class _NativeRepository:
 
     def read_materialization(self, source_client_order_id: str):
         self.calls.append(("read", source_client_order_id))
-        blockers = (
-            ("follow_up_materialization_already_prepared",)
-            if self.attempt is not None
-            else ()
+        blockers = tuple(
+            dict.fromkeys(
+                (
+                    *(
+                        ("follow_up_materialization_already_prepared",)
+                        if self.attempt is not None
+                        else ()
+                    ),
+                    *self.readiness_blockers,
+                )
+            )
         )
         return SimpleNamespace(
             readiness=_readiness(blockers=blockers),
@@ -3392,6 +3405,58 @@ def test_facade_passive_read_without_attempt_has_no_audit_projection() -> None:
         == "display_and_forward_fresh_acknowledgement_only"
     )
     assert native.calls == [("read", SOURCE_ID), ("activity", SOURCE_ID)]
+
+
+def test_facade_terminal_goal_readback_is_blocked_and_not_forwardable() -> None:
+    native = _NativeRepository(
+        readiness_blockers=("follow_up_live_proof_goal_terminal",),
+    )
+    facade = OperatorFollowUpMaterializationFacade(
+        service=_KernelService(), native_repository=native
+    )
+
+    response = facade.read(source_client_order_id=SOURCE_ID)
+
+    assert response.eligibility.ready is False
+    assert response.eligibility.backend_decision == "blocked"
+    assert response.eligibility.blockers == [
+        "follow_up_live_proof_goal_terminal",
+        "fresh_live_authorization_required",
+    ]
+    assert (
+        response.authorization_request_forwardability.request_forwardable
+        is False
+    )
+    assert (
+        response.authorization_request_forwardability.backend_decision
+        == "blocked"
+    )
+    assert response.authorization_request_forwardability.blockers == (
+        response.eligibility.blockers
+    )
+    assert response.safe_closeout_eligibility.request_eligible is False
+    assert native.calls == [("read", SOURCE_ID), ("activity", SOURCE_ID)]
+
+
+def test_facade_existing_exact_child_safe_closeout_remains_visible() -> None:
+    native = _NativeRepository(
+        _native_attempt(
+            state="CREATE_ACCEPTED_NONTERMINAL",
+            diagnostic="follow_up_materialization_create_accepted",
+            exchange_hash="b" * 64,
+        ),
+    )
+    facade = OperatorFollowUpMaterializationFacade(
+        service=_KernelService(), native_repository=native
+    )
+
+    response = facade.read(source_client_order_id=SOURCE_ID)
+
+    assert response.safe_closeout_eligibility.request_eligible is True
+    assert response.safe_closeout_eligibility.backend_decision == (
+        "eligible_for_authoritative_read"
+    )
+    assert response.safe_closeout_eligibility.blockers == []
 
 
 def test_facade_passive_read_retains_eligibility_activity_without_attempt() -> None:

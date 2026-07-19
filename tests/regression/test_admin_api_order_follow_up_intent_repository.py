@@ -79,13 +79,25 @@ class _RepositoryHarness:
     schema: str
     databases: list[PostgresDB] = field(default_factory=list)
 
-    def repository(self) -> OperatorFollowUpIntentRepository:
+    def repository(
+        self,
+        *,
+        terminal_live_proof_goal_ids: tuple[str, ...] | None = (),
+    ) -> OperatorFollowUpIntentRepository:
         database = _new_database()
         self.databases.append(database)
+        terminal_policy = (
+            {}
+            if terminal_live_proof_goal_ids is None
+            else {
+                "terminal_live_proof_goal_ids": terminal_live_proof_goal_ids,
+            }
+        )
         repository = OperatorFollowUpIntentRepository(
             database,
             configured_spot_portfolio_id=PORTFOLIO_ID,
             schema=self.schema,
+            **terminal_policy,
         )
         repository.ensure_schema()
         return repository

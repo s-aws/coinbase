@@ -398,6 +398,12 @@ def test_current_follow_up_operations_goal_records_zero_candidate_terminal_close
     assert summary["follow_up_operations_proof"][
         "continuing_live_proof_authority"
     ] is False
+    assert summary["follow_up_operations_proof"]["terminal_goal_seal"] == {
+        "status": "durably_sealed",
+        "late_candidate_actionability": "blocked",
+        "late_claim_behavior": "blocked_before_live_read",
+        "diagnostic_code": "follow_up_live_proof_goal_terminal",
+    }
     assert summary["historical_materialization_closeout"]["authority_status"] == (
         "historical_predecessor_not_current_authority"
     )
@@ -462,6 +468,12 @@ def test_follow_up_operations_zero_candidate_closeout_is_terminal_and_preserves_
         "allowances_consumed": False,
         "goal_authority": "closed",
         "continuing_live_proof_authority": False,
+        "terminal_goal_seal": {
+            "status": "durably_sealed",
+            "late_candidate_actionability": "blocked",
+            "late_claim_behavior": "blocked_before_live_read",
+            "diagnostic_code": "follow_up_live_proof_goal_terminal",
+        },
         "controlled_live_stack_posture": "remain_available",
     }
     assert summary["progress"] == {

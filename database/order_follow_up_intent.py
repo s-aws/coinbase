@@ -1005,6 +1005,9 @@ class OperatorFollowUpIntentRepository:
         *,
         configured_spot_portfolio_id: str,
         configured_spot_product_ids: tuple[str, ...] | None = None,
+        terminal_live_proof_goal_ids: tuple[str, ...] = (
+            OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        ),
         schema: str = "public",
         product_context_resolver: Callable[[str], Mapping[str, Any]] = (
             resolve_product_context
@@ -1031,6 +1034,19 @@ class OperatorFollowUpIntentRepository:
             if configured_spot_product_ids is not None
             else _configured_spot_product_ids()
         )
+        self.terminal_live_proof_goal_ids = tuple(
+            sorted(
+                {
+                    str(goal_id or "").strip()
+                    for goal_id in terminal_live_proof_goal_ids
+                }
+            )
+        )
+        if any(
+            not goal_id or len(goal_id) > 128
+            for goal_id in self.terminal_live_proof_goal_ids
+        ):
+            raise ValueError("invalid_terminal_live_proof_goal_id")
         self.product_context_resolver = product_context_resolver
         self.spot_policy_evaluator = spot_policy_evaluator
         self._schema_ready = False
@@ -1269,6 +1285,37 @@ class OperatorFollowUpIntentRepository:
                         )
                         """
                     )
+                    cursor.execute(
+                        f"""
+                        CREATE TABLE IF NOT EXISTS {self._table('operator_follow_up_live_proof_terminal_goal')} (
+                            goal_id VARCHAR(128) PRIMARY KEY,
+                            sealed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        )
+                        """
+                    )
+                    for terminal_goal_id in self.terminal_live_proof_goal_ids:
+                        cursor.execute(
+                            f"""
+                            SELECT 1
+                              FROM {self._table('operator_follow_up_live_proof_goal')}
+                             WHERE goal_id = %s
+                             FOR UPDATE
+                            """,
+                            (terminal_goal_id,),
+                        )
+                        if cursor.fetchone() is not None:
+                            raise FollowUpIntentStoreUnavailable(
+                                "follow_up_live_proof_terminal_seal_conflict"
+                            )
+                        cursor.execute(
+                            f"""
+                            INSERT INTO {self._table('operator_follow_up_live_proof_terminal_goal')} (
+                                goal_id
+                            ) VALUES (%s)
+                            ON CONFLICT (goal_id) DO NOTHING
+                            """,
+                            (terminal_goal_id,),
+                        )
                     cursor.execute(
                         f"""
                         CREATE TABLE IF NOT EXISTS {self._table('operator_follow_up_live_proof_event')} (
@@ -1788,6 +1835,7 @@ class OperatorFollowUpIntentRepository:
                         "operator_follow_up_materialization_attempt",
                         "operator_follow_up_materialization_event",
                         "operator_follow_up_materialized_child_state_event",
+                        "operator_follow_up_live_proof_terminal_goal",
                         "operator_follow_up_live_proof_event",
                     ):
                         trigger_name = f"{table_name}_append_only"
@@ -2757,6 +2805,25 @@ class OperatorFollowUpIntentRepository:
             else None
         )
 
+        cursor.execute(
+            f"""
+            SELECT EXISTS (
+                       SELECT 1
+                         FROM {self._table('operator_follow_up_live_proof_terminal_goal')}
+                        WHERE goal_id = %s
+                   )
+            """,
+            (OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,),
+        )
+        terminal_goal_row = cursor.fetchone()
+        terminal_goal_sealed = bool(
+            next(iter(terminal_goal_row.values()), False)
+            if isinstance(terminal_goal_row, Mapping)
+            else (terminal_goal_row and terminal_goal_row[0])
+        )
+        if terminal_goal_sealed and existing_attempt is None:
+            blockers.append("follow_up_live_proof_goal_terminal")
+
         if intent_id is None:
             blockers.append("follow_up_intent_not_attached")
         else:
@@ -3452,6 +3519,13 @@ class OperatorFollowUpIntentRepository:
             SELECT source_client_order_id
               FROM {self._table('operator_follow_up_intent')}
         ),
+        live_proof_goal_authority AS (
+            SELECT EXISTS (
+                       SELECT 1
+                         FROM {self._table('operator_follow_up_live_proof_terminal_goal')}
+                        WHERE goal_id = '{OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID}'
+                   ) AS live_proof_goal_terminal
+        ),
         latest_live_proof AS (
             SELECT DISTINCT ON (
                        event.source_client_order_id,
@@ -3514,7 +3588,8 @@ class OperatorFollowUpIntentRepository:
              GROUP BY evidence.client_order_id
         ),
         joined AS (
-            SELECT intent.follow_up_intent_id::text AS follow_up_intent_id,
+            SELECT live_proof_goal_authority.live_proof_goal_terminal,
+                   intent.follow_up_intent_id::text AS follow_up_intent_id,
                    intent.claim_id::text AS claim_id,
                    intent.source_client_order_id,
                    intent.root_client_order_id,
@@ -3698,6 +3773,7 @@ class OperatorFollowUpIntentRepository:
                 ON stream_evidence.client_order_id = source.client_order_id
               LEFT JOIN progress_evidence
                 ON progress_evidence.client_order_id = source.client_order_id
+             CROSS JOIN live_proof_goal_authority
         ),
         classified AS (
             SELECT joined.*,
@@ -3710,7 +3786,10 @@ class OperatorFollowUpIntentRepository:
                            WHEN source_status = 'FILLED'
                                 AND full_fill_consistent
                                 AND local_lineage_consistent
-                           THEN 'ready_for_materialization_authorization'
+                           THEN CASE
+                               WHEN live_proof_goal_terminal THEN 'blocked'
+                               ELSE 'ready_for_materialization_authorization'
+                           END
                            WHEN source_status IN ({terminal_status_sql})
                                 OR source_status = 'UNKNOWN'
                            THEN 'blocked'
@@ -3734,7 +3813,11 @@ class OperatorFollowUpIntentRepository:
                            WHEN source_status = 'FILLED'
                                 AND full_fill_consistent
                                 AND local_lineage_consistent
-                           THEN 'source_full_fill_locally_consistent'
+                           THEN CASE
+                               WHEN live_proof_goal_terminal
+                               THEN 'follow_up_live_proof_goal_terminal'
+                               ELSE 'source_full_fill_locally_consistent'
+                           END
                            WHEN source_status = 'FILLED'
                                 AND full_fill_consistent
                            THEN 'source_lineage_or_scope_inconsistent'
@@ -3766,7 +3849,10 @@ class OperatorFollowUpIntentRepository:
                            WHEN source_status = 'FILLED'
                                 AND full_fill_consistent
                                 AND local_lineage_consistent
-                           THEN 'materialization_review'
+                           THEN CASE
+                               WHEN live_proof_goal_terminal THEN 'none'
+                               ELSE 'materialization_review'
+                           END
                            ELSE 'none'
                        END
                        WHEN materialization_attempt_state = 'CREATE_UNKNOWN_CONSUMED'
@@ -4377,6 +4463,24 @@ class OperatorFollowUpIntentRepository:
                     "SELECT pg_advisory_xact_lock(31871, hashtext(%s))",
                     (normalized_goal,),
                 )
+                cursor.execute(
+                    f"""
+                    SELECT 1
+                      FROM {self._table('operator_follow_up_live_proof_terminal_goal')}
+                     WHERE goal_id = %s
+                     FOR UPDATE
+                    """,
+                    (normalized_goal,),
+                )
+                terminal_goal_sealed = cursor.fetchone() is not None
+                if (
+                    terminal_goal_sealed
+                    and operation
+                    == FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value
+                ):
+                    raise FollowUpIntentStoreConflict(
+                        "follow_up_live_proof_goal_terminal"
+                    )
                 cursor.execute(
                     f"""
                     SELECT goal_id, source_client_order_id,

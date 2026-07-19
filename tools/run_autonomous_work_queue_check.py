@@ -165,6 +165,12 @@ FOLLOW_UP_OPERATIONS_PROOF = {
     "allowances_consumed": False,
     "goal_authority": "closed",
     "continuing_live_proof_authority": False,
+    "terminal_goal_seal": {
+        "status": "durably_sealed",
+        "late_candidate_actionability": "blocked",
+        "late_claim_behavior": "blocked_before_live_read",
+        "diagnostic_code": "follow_up_live_proof_goal_terminal",
+    },
     "controlled_live_stack_posture": "remain_available",
 }
 HISTORICAL_MATERIALIZATION_CLOSEOUT = {
@@ -390,6 +396,9 @@ def _current_goal_alignment() -> QueueCheck:
             "not created and was not required",
             "all live allowances remain unconsumed",
             "goal authority is closed",
+            "durable terminal-goal seal",
+            "follow_up_live_proof_goal_terminal",
+            "distinct goal identity and explicit operator authorization",
             "Eligibility, reconciliation, Create, and Cancel did not run",
             "Controlled-live",
             "remain available",
