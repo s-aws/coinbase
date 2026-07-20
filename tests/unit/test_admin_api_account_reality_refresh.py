@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 import json
+import multiprocessing
 from pathlib import Path
 from typing import Any, Callable
 
@@ -39,6 +40,7 @@ from application.admin_api.mvp_service import (
 
 PRIVATE_PORTFOLIO_UUID = "11111111-2222-4333-8444-555555555555"
 PRIVATE_EXCEPTION_TEXT = "withheld-account-refresh-detail"
+HOSTILE_EXTERNAL_TEXT = f"{PRIVATE_PORTFOLIO_UUID}:{PRIVATE_EXCEPTION_TEXT}"
 
 
 @dataclass
@@ -184,6 +186,35 @@ def _service(
     )
 
 
+def _refresh_from_independent_worker(
+    root: str,
+    start,
+    ready,
+    results,
+) -> None:
+    client = _StrictReadClient()
+    service = _service(Path(root), client)
+    ready.put(True)
+    if not start.wait(timeout=10):
+        results.put(("timeout", None, []))
+        return
+    result = service.refresh_account_reality(
+        {"reason": "cross-worker one-use claim"},
+        _context(
+            idempotency_key=(
+                f"cross-worker-refresh-{multiprocessing.current_process().pid}"
+            )
+        ),
+    )
+    results.put(
+        (
+            result.status_code,
+            result.body.get("diagnostic_code"),
+            client.calls,
+        )
+    )
+
+
 def test_refresh_reads_each_authorized_category_once_and_replay_is_call_free(
     monkeypatch,
     tmp_path,
@@ -236,6 +267,410 @@ def test_refresh_reads_each_authorized_category_once_and_replay_is_call_free(
     assert PRIVATE_PORTFOLIO_UUID not in serialized
     assert PRIVATE_EXCEPTION_TEXT not in serialized
     assert "private_extension" not in serialized
+
+
+def test_refresh_allowance_is_durably_consumed_for_new_keys_after_restart(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID", PRIVATE_PORTFOLIO_UUID)
+    client = _StrictReadClient()
+    service = _service(tmp_path, client)
+
+    before = service.get_read_response(
+        "/api/v1/admin/account-management",
+        {},
+        _context(idempotency_key="allowance-before-read"),
+    ).body["permissions"]
+    first = service.refresh_account_reality(
+        {"reason": "one authorized refresh"},
+        _context(idempotency_key="durable-refresh-first"),
+    )
+    same_process_new_key = service.refresh_account_reality(
+        {"reason": "must not dispatch again"},
+        _context(idempotency_key="durable-refresh-second"),
+    )
+    exact_replay = service.refresh_account_reality(
+        {"reason": "one authorized refresh"},
+        _context(idempotency_key="durable-refresh-first"),
+    )
+
+    restarted = _service(tmp_path, client)
+    after_restart = restarted.get_read_response(
+        "/api/v1/admin/account-management",
+        {},
+        _context(idempotency_key="allowance-after-read"),
+    ).body["permissions"]
+    restarted_new_key = restarted.refresh_account_reality(
+        {"reason": "reload must remain sealed"},
+        _context(idempotency_key="durable-refresh-after-restart"),
+    )
+
+    assert before["account_reality_refresh_allowed"] is True
+    assert before["account_reality_refresh_state"] == "available"
+    assert before["account_reality_refresh_remaining_uses"] == 1
+    assert before["account_reality_refresh_blocker"] == "none"
+    assert first.status_code == 200
+    assert first.body["status"] == "ready"
+    for blocked in (same_process_new_key, restarted_new_key):
+        assert blocked.status_code == 409
+        assert blocked.body["status"] == "blocked"
+        assert blocked.body["diagnostic_code"] == (
+            "account_reality_refresh_allowance_consumed"
+        )
+        assert blocked.body["live_coinbase_read_ran"] is False
+        assert blocked.body["local_state_mutated"] is False
+    assert exact_replay.status_code == 200
+    assert exact_replay.body == first.body
+    assert exact_replay.headers["X-Idempotency-Replayed"] == "true"
+    assert after_restart["account_reality_refresh_allowed"] is False
+    assert after_restart["account_reality_refresh_state"] == "consumed"
+    assert after_restart["account_reality_refresh_remaining_uses"] == 0
+    assert after_restart["account_reality_refresh_blocker"] == (
+        "account_reality_refresh_allowance_consumed"
+    )
+    assert after_restart["mutation_permissions_granted"] == []
+    assert client.calls == [
+        "api_key_permissions",
+        "portfolio_catalog",
+        "wallets",
+        "product_metadata",
+        "best_bid_ask",
+        "fee_summary",
+    ]
+
+
+def test_refresh_allowance_has_one_winner_across_independent_workers(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID", PRIVATE_PORTFOLIO_UUID)
+    context = multiprocessing.get_context("fork")
+    start = context.Event()
+    ready = context.Queue()
+    results = context.Queue()
+    workers = [
+        context.Process(
+            target=_refresh_from_independent_worker,
+            args=(str(tmp_path), start, ready, results),
+        )
+        for _ in range(2)
+    ]
+
+    for worker in workers:
+        worker.start()
+    assert [ready.get(timeout=10) for _ in workers] == [True, True]
+    start.set()
+    for worker in workers:
+        worker.join(timeout=15)
+
+    assert [worker.exitcode for worker in workers] == [0, 0]
+    outcomes = [results.get(timeout=10) for _ in workers]
+    assert sorted(item[0] for item in outcomes) == [200, 409]
+    blocked = next(item for item in outcomes if item[0] == 409)
+    assert blocked[1] == "account_reality_refresh_allowance_consumed"
+    assert sum(len(item[2]) for item in outcomes) == 6
+
+
+def test_refresh_allowance_state_corruption_fails_closed_without_reads(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID", PRIVATE_PORTFOLIO_UUID)
+    (tmp_path / "idempotency.jsonl").write_text(
+        "malformed durable authority row\n",
+        encoding="utf-8",
+    )
+    client = _StrictReadClient()
+    service = _service(tmp_path, client)
+
+    permissions = service.get_read_response(
+        "/api/v1/admin/account-management",
+        {},
+        _context(idempotency_key="corrupt-authority-read"),
+    ).body["permissions"]
+    result = service.refresh_account_reality(
+        {"reason": "must remain sealed"},
+        _context(idempotency_key="corrupt-authority-refresh"),
+    )
+
+    assert permissions["account_reality_refresh_allowed"] is False
+    assert permissions["account_reality_refresh_state"] == "unavailable"
+    assert permissions["account_reality_refresh_remaining_uses"] == 0
+    assert permissions["account_reality_refresh_blocker"] == (
+        "account_reality_refresh_allowance_state_unavailable"
+    )
+    assert permissions["mutation_permissions_granted"] == []
+    assert result.status_code == 503
+    assert result.body["status"] == "blocked"
+    assert result.body["diagnostic_code"] == (
+        "account_reality_refresh_allowance_state_unavailable"
+    )
+    assert result.body["live_coinbase_read_ran"] is False
+    assert client.calls == []
+
+
+@pytest.mark.parametrize(
+    ("family", "category", "blocker"),
+    (
+        ("wallet_values", "wallets", "wallet_inventory_values_invalid"),
+        ("wallet_currency", "wallets", "wallet_inventory_values_invalid"),
+        (
+            "product_identity",
+            "product_metadata",
+            "product_metadata_values_invalid",
+        ),
+        ("product_values", "product_metadata", "product_metadata_values_invalid"),
+        ("market_prices", "best_bid_ask", "best_bid_ask_scope_incomplete"),
+        ("market_time", "best_bid_ask", "best_bid_ask_scope_incomplete"),
+        ("fee_rates", "fee_summary", "fee_summary_evidence_incomplete"),
+        ("fee_name", "fee_summary", "fee_summary_evidence_incomplete"),
+        ("fee_pricing", "fee_summary", "fee_summary_evidence_incomplete"),
+        ("fee_money", "fee_summary", "fee_summary_evidence_incomplete"),
+    ),
+)
+def test_refresh_bounds_all_external_strings_before_persistence_and_readback(
+    monkeypatch,
+    tmp_path,
+    family: str,
+    category: str,
+    blocker: str,
+) -> None:
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID", PRIVATE_PORTFOLIO_UUID)
+
+    class _HostileExternalStringClient(_StrictReadClient):
+        def __init__(self, hostile_family: str) -> None:
+            super().__init__()
+            self.hostile_family = hostile_family
+
+        def get_account_wallets_strict(self) -> dict[str, object]:
+            value = super().get_account_wallets_strict()
+            wallets = value["wallets"]
+            if self.hostile_family == "wallet_values":
+                wallets["USDC"].update(  # type: ignore[index, union-attr]
+                    {
+                        "available_balance": HOSTILE_EXTERNAL_TEXT,
+                        "total_balance": HOSTILE_EXTERNAL_TEXT,
+                        "hold_balance": HOSTILE_EXTERNAL_TEXT,
+                        "updated_at": HOSTILE_EXTERNAL_TEXT,
+                    }
+                )
+            elif self.hostile_family == "wallet_currency":
+                wallets["USDC"].update(  # type: ignore[index, union-attr]
+                    {
+                        "currency": HOSTILE_EXTERNAL_TEXT,
+                        "available_balance": HOSTILE_EXTERNAL_TEXT,
+                        "total_balance": HOSTILE_EXTERNAL_TEXT,
+                        "hold_balance": HOSTILE_EXTERNAL_TEXT,
+                        "updated_at": HOSTILE_EXTERNAL_TEXT,
+                    }
+                )
+            return value
+
+        def get_products_batch(self, product_ids: list[str]) -> dict[str, object]:
+            products = super().get_products_batch(product_ids)
+            if self.hostile_family == "product_identity":
+                products["BTC-USDC"]["product_id"] = (  # type: ignore[index]
+                    HOSTILE_EXTERNAL_TEXT
+                )
+            elif self.hostile_family == "product_values":
+                products["BTC-USDC"].update(  # type: ignore[union-attr]
+                    {
+                        "product_type": HOSTILE_EXTERNAL_TEXT,
+                        "base_currency": HOSTILE_EXTERNAL_TEXT,
+                        "quote_currency": HOSTILE_EXTERNAL_TEXT,
+                        "base_increment": HOSTILE_EXTERNAL_TEXT,
+                        "quote_increment": HOSTILE_EXTERNAL_TEXT,
+                        "price_increment": HOSTILE_EXTERNAL_TEXT,
+                        "base_min_size": HOSTILE_EXTERNAL_TEXT,
+                        "quote_min_size": HOSTILE_EXTERNAL_TEXT,
+                        "display_name": HOSTILE_EXTERNAL_TEXT,
+                        "status": HOSTILE_EXTERNAL_TEXT,
+                        "mid_price": HOSTILE_EXTERNAL_TEXT,
+                        "contract_size": HOSTILE_EXTERNAL_TEXT,
+                        "expiry": HOSTILE_EXTERNAL_TEXT,
+                    }
+                )
+            return products
+
+        def get_best_bid_ask(self, *, product_ids: list[str]) -> dict[str, object]:
+            value = super().get_best_bid_ask(product_ids=product_ids)
+            pricebook = value["pricebooks"][0]  # type: ignore[index]
+            if self.hostile_family == "market_prices":
+                pricebook["bids"][0]["price"] = (  # type: ignore[index]
+                    HOSTILE_EXTERNAL_TEXT
+                )
+                pricebook["asks"][0]["price"] = (  # type: ignore[index]
+                    HOSTILE_EXTERNAL_TEXT
+                )
+            elif self.hostile_family == "market_time":
+                pricebook["time"] = HOSTILE_EXTERNAL_TEXT
+            return value
+
+        def get_spot_transaction_summary(self) -> dict[str, object]:
+            value = super().get_spot_transaction_summary()
+            if self.hostile_family == "fee_rates":
+                value["fee_tier"].update(  # type: ignore[union-attr]
+                    {
+                        "maker_fee_rate": HOSTILE_EXTERNAL_TEXT,
+                        "taker_fee_rate": HOSTILE_EXTERNAL_TEXT,
+                    }
+                )
+            elif self.hostile_family == "fee_name":
+                value["fee_tier"]["name"] = (  # type: ignore[index]
+                    HOSTILE_EXTERNAL_TEXT
+                )
+            elif self.hostile_family == "fee_pricing":
+                value["fee_tier"]["pricing_tier"] = (  # type: ignore[index]
+                    HOSTILE_EXTERNAL_TEXT
+                )
+            elif self.hostile_family == "fee_money":
+                value["volume_30day"] = {
+                    "value": HOSTILE_EXTERNAL_TEXT,
+                    "currency": HOSTILE_EXTERNAL_TEXT,
+                }
+                value["perpetuals_volume_30day"] = {
+                    "value": HOSTILE_EXTERNAL_TEXT,
+                    "currency": HOSTILE_EXTERNAL_TEXT,
+                }
+            return value
+
+    service = _service(tmp_path, _HostileExternalStringClient(family))
+    result = service.refresh_account_reality(
+        {},
+        _context(idempotency_key=f"hostile-external-strings-{family}"),
+    )
+    wallet_read = service.get_read_response(
+        "/api/v1/admin/wallet",
+        {},
+        _context(idempotency_key="hostile-wallet-read"),
+    ).body
+    products_read = service.get_read_response(
+        "/api/v1/admin/products",
+        {"product_id": ["BTC-USDC"]},
+        _context(idempotency_key="hostile-products-read"),
+    ).body
+    fees_read = service.get_read_response(
+        "/api/v1/admin/fees",
+        {},
+        _context(idempotency_key="hostile-fees-read"),
+    ).body
+
+    assert result.body["status"] == "blocked"
+    assert result.body["categories"][category] == {
+        "status": "blocked",
+        "complete": False,
+        "logical_call_count": 1,
+        "http_request_count": 2 if category == "wallets" else 1,
+        "blocker": blocker,
+    }
+    normal_wallets = [
+        {
+            "currency": "USDC",
+            "available_balance": "12.34",
+            "total_balance": "15.00",
+            "hold_balance": "2.66",
+            "updated_at": None,
+        }
+    ]
+    if family == "wallet_values":
+        assert result.body["wallets"] == [
+            {
+                "currency": "USDC",
+                "available_balance": "0",
+                "total_balance": "0",
+                "hold_balance": "0",
+                "updated_at": None,
+            }
+        ]
+        assert result.body["products"] == []
+        assert result.body["market"] == []
+        assert result.body["fees"]["status"] == "blocked"
+    elif family == "wallet_currency":
+        assert result.body["wallets"] == []
+        assert result.body["products"] == []
+        assert result.body["market"] == []
+        assert result.body["fees"]["status"] == "blocked"
+    else:
+        assert result.body["wallets"] == normal_wallets
+        product = result.body["products"][0]
+        assert product["product_id"] == "BTC-USDC"
+        assert product["display_name"] == "BTC-USDC"
+
+        if family == "product_identity":
+            assert product["read_status"] == "blocked"
+            assert product["read_error"] == "product_metadata_scope_mismatch"
+            assert product["status"] == "ONLINE"
+        elif family == "product_values":
+            assert product["read_status"] == "blocked"
+            assert product["read_error"] == "product_metadata_values_invalid"
+            assert product["status"] == "UNKNOWN"
+            for field_name in (
+                "base_currency",
+                "quote_currency",
+                "base_increment",
+                "quote_increment",
+                "price_increment",
+                "base_min_size",
+                "quote_min_size",
+                "mid_price",
+                "contract_size",
+                "expiry",
+            ):
+                assert product[field_name] is None
+
+        if family in {"market_prices", "market_time"}:
+            assert result.body["market"] == []
+            assert product["market_observed_at"] is None
+
+        fee_tier = result.body["fees"]["fee_tier"]
+        if family == "fee_rates":
+            assert fee_tier["status"] == "blocked"
+            assert fee_tier["maker_fee_rate"] is None
+            assert fee_tier["taker_fee_rate"] is None
+            assert fee_tier["read_error"] == "fee_tier_rate_missing"
+        elif family == "fee_name":
+            assert fee_tier["status"] == "blocked"
+            assert fee_tier["name"] is None
+            assert fee_tier["read_error"] == "fee_tier_name_invalid"
+        elif family == "fee_pricing":
+            assert fee_tier["status"] == "blocked"
+            assert fee_tier["pricing_tier"] is None
+            assert fee_tier["read_error"] == "fee_tier_pricing_tier_invalid"
+        elif family == "fee_money":
+            assert result.body["fees"]["status"] == "blocked"
+            assert result.body["fees"]["volume_30day"] == {
+                "value": "0",
+                "currency": "USD",
+            }
+            assert result.body["fees"]["perpetuals_volume_30day"] == {
+                "value": "0",
+                "currency": "USD",
+                "status": "blocked",
+                "read_error": "futures_coinbase_read_not_authorized",
+            }
+    AdminAccountRealityRefreshResponse.model_validate(result.body)
+
+    audit = (tmp_path / "command-audit.jsonl").read_text(encoding="utf-8")
+    durable = (tmp_path / "audit-and-account-reality.jsonl").read_text(
+        encoding="utf-8"
+    )
+    idempotency = (tmp_path / "idempotency.jsonl").read_text(encoding="utf-8")
+    durable_record = next(reversed(service.store.account_reality_refreshes.values()))
+    serialized = json.dumps(
+        [
+            result.body,
+            durable_record,
+            wallet_read,
+            products_read,
+            fees_read,
+        ],
+        sort_keys=True,
+    )
+    serialized += audit + durable + idempotency
+    assert PRIVATE_PORTFOLIO_UUID not in serialized
+    assert PRIVATE_EXCEPTION_TEXT not in serialized
+    assert len(serialized) < 100_000
 
 
 def test_refresh_changed_payload_conflicts_without_another_read(monkeypatch, tmp_path) -> None:
@@ -330,7 +765,12 @@ def test_unknown_after_reads_consumes_claim_and_replay_never_reads_again(
     assert replay.headers["X-Idempotency-Replayed"] == "true"
     assert len(client.calls) == 6
     assert PRIVATE_EXCEPTION_TEXT not in json.dumps(unknown.body, sort_keys=True)
-    assert service.store.account_reality_refreshes == {}
+    assert len(service.store.account_reality_refreshes) == 1
+    retained_claim = next(
+        iter(service.store.account_reality_refreshes.values())
+    )
+    assert retained_claim["terminal"] is False
+    assert retained_claim["projection"] == {}
     wallet = service.get_read_response(
         "/api/v1/admin/wallet",
         {},
@@ -388,8 +828,13 @@ def test_post_refresh_gets_project_latest_snapshot_without_coinbase_calls(
     assert readiness["products"][0]["fresh_until"] == (
         first.body["fresh_until"]
     )
-    assert account["permissions"]["account_reality_refresh_allowed"] is True
-    assert "account_reality:refresh" in account["permissions"][
+    assert account["permissions"]["account_reality_refresh_allowed"] is False
+    assert account["permissions"]["account_reality_refresh_state"] == "consumed"
+    assert account["permissions"]["account_reality_refresh_remaining_uses"] == 0
+    assert account["permissions"]["account_reality_refresh_blocker"] == (
+        "account_reality_refresh_allowance_consumed"
+    )
+    assert "account_reality:refresh" not in account["permissions"][
         "mutation_permissions_granted"
     ]
     AdminWalletReadResponse.model_validate(wallet)
@@ -823,9 +1268,13 @@ def test_projection_failure_cannot_publish_terminal_ready_idempotency(
     monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID", PRIVATE_PORTFOLIO_UUID)
 
     class _FailingProjectionLog(AdminMvpEvidenceLog):
+        account_refresh_append_count = 0
+
         def append(self, collection: str, key: str, record: object) -> None:
             if collection == "account_reality_refreshes":
-                raise RuntimeError("withheld projection write failure")
+                self.account_refresh_append_count += 1
+                if self.account_refresh_append_count == 2:
+                    raise RuntimeError("withheld projection write failure")
             super().append(collection, key, record)
 
     class _FailingUnknownOverwriteStore(FileIdempotencyStore):
@@ -980,6 +1429,12 @@ def test_refresh_route_openapi_documents_typed_terminal_outcomes() -> None:
         ]["schema"]["$ref"] == (
             "#/components/schemas/AdminAccountRealityRefreshResponse"
         )
+    assert "allowance is already consumed" in operation["responses"]["409"][
+        "description"
+    ]
+    assert "authority state is unavailable" in operation["responses"]["503"][
+        "description"
+    ]
     required_headers = {
         parameter["name"]
         for parameter in operation["parameters"]

@@ -189,6 +189,7 @@ from core.enums import (
     SpotRecoveryRepairCategory,
     StealthExchangeTruthEvidenceSource,
     StealthLifecycleEvent,
+    StealthOrderStatus,
     StealthCommandExecutionBlocker,
     StealthCommandExecutionPrerequisite,
     StealthCommandExecutionPrerequisiteLookupStatus,
@@ -216,6 +217,33 @@ from core.enums import (
 _CANONICAL_LOWERCASE_UUID_PATTERN = (
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
 )
+_PUBLIC_ORDER_PRODUCT_PATTERN = r"^[A-Z0-9][A-Z0-9._-]{0,254}$"
+_PUBLIC_ORDER_POSITIVE_DECIMAL_PATTERN = (
+    r"^(?:0\.\d*[1-9]\d*|[1-9]\d*(?:\.\d+)?)$"
+)
+_PUBLIC_ORDER_TIMEZONE_ISO_PATTERN = (
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}"
+    r"(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$"
+)
+_PUBLIC_ORDER_EXCHANGE_EVIDENCE_PATTERN = (
+    r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$"
+)
+_PUBLIC_ORDER_TRACE_EVIDENCE_PATTERN = (
+    r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,254}$"
+)
+_PUBLIC_FUTURES_POSITION_KEY_PATTERN = r"^fpos_[0-9a-f]{64}$"
+_PUBLIC_FUTURES_PRODUCT_PATTERN = r"^[A-Z0-9][A-Z0-9-]{1,63}$"
+_PUBLIC_FUTURES_DECIMAL_PATTERN = r"^-?(?:0|[1-9]\d*)(?:\.\d*[1-9])?$"
+_PUBLIC_FUTURES_TIMESTAMP_PATTERN = (
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}"
+    r"(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$"
+)
+
+
+def _uppercase_public_order_token(value: Any) -> Any:
+    if isinstance(value, str) and value == value.strip():
+        return value.upper()
+    return value
 
 _FOLLOW_UP_OPERATION_ATTEMPT_PUBLIC_PROJECTION = {
     FollowUpMaterializationState.KNOWN_NOT_INVOKED: (
@@ -4586,6 +4614,15 @@ class AdminFeesReadResponse(BaseModel):
     live_coinbase_orders_ran: bool = False
 
 
+class AdminProductReadItem(BaseModel):
+    """Sanitized product row with a canonical public trading status."""
+
+    model_config = ConfigDict(extra="allow")
+
+    product_id: str = Field(min_length=1)
+    status: Literal["ONLINE", "OFFLINE", "DELISTED", "UNKNOWN"] | None = None
+
+
 class AdminAccountRealityRefreshRequest(BaseModel):
     """Explicit operator intent for one bounded account-reality refresh."""
 
@@ -4626,7 +4663,7 @@ class AdminAccountRealityRefreshResponse(BaseModel):
     portfolio_scope: FlexibleDict = Field(default_factory=dict)
     wallet_inventory: FlexibleDict = Field(default_factory=dict)
     wallets: list[FlexibleDict] = Field(default_factory=list)
-    products: list[FlexibleDict] = Field(default_factory=list)
+    products: list[AdminProductReadItem] = Field(default_factory=list)
     market: list[FlexibleDict] = Field(default_factory=list)
     fees: FlexibleDict = Field(default_factory=dict)
     audit: FlexibleDict = Field(default_factory=dict)
@@ -4812,7 +4849,7 @@ class AdminProductsReadResponse(BaseModel):
     configured_product_scope: list[str]
     spot: list[str] = Field(default_factory=list)
     derivatives: list[str] = Field(default_factory=list)
-    products: list[FlexibleDict] = Field(default_factory=list)
+    products: list[AdminProductReadItem] = Field(default_factory=list)
     metadata_count: int = Field(ge=0)
     missing_metadata_count: int = Field(ge=0)
     spot_count: int = Field(ge=0)
@@ -4854,7 +4891,7 @@ class AdminProductsRefreshResponse(BaseModel):
     configured_product_scope: list[str] = Field(default_factory=list)
     spot: list[str] = Field(default_factory=list)
     derivatives: list[str] = Field(default_factory=list)
-    products: list[FlexibleDict] = Field(default_factory=list)
+    products: list[AdminProductReadItem] = Field(default_factory=list)
     metadata_count: int = Field(ge=0)
     missing_metadata_count: int = Field(ge=0)
     spot_count: int = Field(ge=0)
@@ -5145,25 +5182,108 @@ class AdminOrderReadItem(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    client_order_id: str
-    product_id: str | None = None
-    side: str | None = None
-    status: str | None = None
-    order_type: str | None = None
-    size: str | None = None
-    price: str | None = None
-    parent_client_order_id: str | None = None
+    client_order_id: str = Field(
+        pattern=_CANONICAL_LOWERCASE_UUID_PATTERN,
+        strict=True,
+    )
+    product_id: str | None = Field(
+        default=None,
+        pattern=_PUBLIC_ORDER_PRODUCT_PATTERN,
+        max_length=255,
+        strict=True,
+    )
+    side: Literal["BUY", "SELL"] | None = None
+    status: OrderStatus | StealthOrderStatus | Literal["RECONCILED_CLOSED"] | None = (
+        None
+    )
+    order_type: Annotated[
+        OrderType,
+        BeforeValidator(_uppercase_public_order_token),
+    ] | None = None
+    size: str | None = Field(
+        default=None,
+        pattern=_PUBLIC_ORDER_POSITIVE_DECIMAL_PATTERN,
+        max_length=128,
+        strict=True,
+    )
+    price: str | None = Field(
+        default=None,
+        pattern=_PUBLIC_ORDER_POSITIVE_DECIMAL_PATTERN,
+        max_length=128,
+        strict=True,
+    )
+    parent_client_order_id: str | None = Field(
+        default=None,
+        pattern=_CANONICAL_LOWERCASE_UUID_PATTERN,
+        strict=True,
+    )
     ownership_provenance: OrderOwnershipProvenance | None = None
     retail_portfolio_id: str | None = None
-    created_at: str | None = None
-    updated_at: str | None = None
-    exchange_order_id: str | None = None
-    exchange_order_id_evidence_only: bool = True
-    correlation_id: str | None = None
-    audit_id: str | None = None
+    created_at: str | None = Field(
+        default=None,
+        pattern=_PUBLIC_ORDER_TIMEZONE_ISO_PATTERN,
+        max_length=64,
+        strict=True,
+    )
+    updated_at: str | None = Field(
+        default=None,
+        pattern=_PUBLIC_ORDER_TIMEZONE_ISO_PATTERN,
+        max_length=64,
+        strict=True,
+    )
+    exchange_order_id: str | None = Field(
+        default=None,
+        pattern=_PUBLIC_ORDER_EXCHANGE_EVIDENCE_PATTERN,
+        max_length=64,
+        strict=True,
+    )
+    exchange_order_id_evidence_only: Literal[True] = True
+    correlation_id: str | None = Field(
+        default=None,
+        pattern=_PUBLIC_ORDER_TRACE_EVIDENCE_PATTERN,
+        max_length=255,
+        strict=True,
+    )
+    audit_id: str | None = Field(
+        default=None,
+        pattern=_PUBLIC_ORDER_TRACE_EVIDENCE_PATTERN,
+        max_length=255,
+        strict=True,
+    )
     last_lifecycle_event: StealthLifecycleEvent | None = None
-    failure_reason: str | None = None
-    source: str = "order_parent"
+    failure_reason: Literal[
+        "standing_price_limit_exceeded",
+        "placement_blocked",
+        "reveal_failed",
+        "failure_classification_withheld",
+    ] | None = None
+    source: Literal["order_parent", "stealth_orders"] = "order_parent"
+
+    @model_validator(mode="after")
+    def validate_public_order_scalar_evidence(self) -> Self:
+        for field_name in ("size", "price"):
+            value = getattr(self, field_name)
+            if value is None:
+                continue
+            try:
+                decimal_value = Decimal(value)
+            except InvalidOperation as exc:
+                raise ValueError("invalid public order decimal evidence") from exc
+            if not decimal_value.is_finite() or decimal_value <= 0:
+                raise ValueError("invalid public order decimal evidence")
+
+        for field_name in ("created_at", "updated_at"):
+            value = getattr(self, field_name)
+            if value is None:
+                continue
+            normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
+            try:
+                parsed = datetime.fromisoformat(normalized)
+            except ValueError as exc:
+                raise ValueError("invalid public order timestamp evidence") from exc
+            if parsed.tzinfo is None or parsed.utcoffset() is None:
+                raise ValueError("invalid public order timestamp evidence")
+        return self
 
 
 class AdminOrderPagination(BaseModel):
@@ -8069,15 +8189,103 @@ class AdminMovementRepricingDetailResponse(BaseModel):
 
 
 class AdminFuturesEvidenceItem(BaseModel):
-    """One futures/perpetual evidence cell with explicit availability."""
+    """One value-blind Futures evidence classification."""
 
     model_config = ConfigDict(extra="forbid")
 
-    name: str
+    name: Literal[
+        "collateral",
+        "margin",
+        "funding",
+        "liquidation",
+        "reduce_only_close_only",
+        "position_pnl",
+    ]
     status: AdminFuturesEvidenceStatus
     source: AdminFuturesEvidenceSource
-    value: Any | None = None
-    detail: str | None = None
+    value_label: str = Field(
+        pattern=(
+            r"^(?:collateral|margin|funding|liquidation|"
+            r"reduce_only_close_only|position_pnl)_"
+            r"(?:observed|unavailable|not_modeled)"
+            r"(?::amount:-?(?:0|[1-9]\d*)(?:\.\d*[1-9])?:(?:USD|USDC))?$"
+        ),
+        max_length=192,
+        strict=True,
+    )
+
+    @model_validator(mode="after")
+    def validate_value_label(self) -> Self:
+        prefix = f"{self.name}_{self.status.value}"
+        if self.value_label != prefix and not self.value_label.startswith(
+            f"{prefix}:amount:"
+        ):
+            raise ValueError("futures_evidence_value_label_contradiction")
+        if ":amount:" in self.value_label:
+            if self.status is not AdminFuturesEvidenceStatus.OBSERVED:
+                raise ValueError("futures_evidence_amount_without_observation")
+            amount = self.value_label.split(":amount:", 1)[1].rsplit(":", 1)[0]
+            parsed = Decimal(amount)
+            if (
+                not parsed.is_finite()
+                or len(parsed.as_tuple().digits) > 64
+                or (parsed and abs(parsed.adjusted()) > 64)
+                or amount == "-0"
+            ):
+                raise ValueError("futures_evidence_amount_invalid")
+        return self
+
+
+class AdminFuturesPortfolioScopeEvidence(BaseModel):
+    """Value-blind exact Default-profile scope for public Futures reads."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    portfolio_id: None = None
+    portfolio_name: Literal["Default"] = "Default"
+    portfolio_type: Literal["DEFAULT"] = "DEFAULT"
+    portfolio_id_withheld: Literal[True] = True
+    source: Literal[
+        "backend_rest_client",
+        "backend_rest_unavailable",
+        "backend_admin_mvp",
+        "backend_admin_api_local_evidence",
+        "backend_admin_read_contract",
+    ]
+    freshness_status: Literal[
+        "backend_rest_fresh",
+        "backend_rest_blocked",
+        "local_default_not_connected",
+        "offline_fixture",
+        "local_sanitized_evidence",
+    ]
+
+
+class AdminFuturesAccountRealityEvidence(BaseModel):
+    """Identifier-free account-reality classifications for Futures reads."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["ready", "unavailable", "offline_fixture", "stale", "blocked"]
+    source: Literal[
+        "backend_rest_client",
+        "backend_rest_unavailable",
+        "backend_admin_mvp",
+        "backend_admin_api_local_evidence",
+        "backend_admin_read_contract",
+    ]
+
+
+class AdminFuturesAccountReadinessEvidence(BaseModel):
+    """Strict Futures-only readiness booleans with no Spot or extension fields."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    futures_account_scope_ready: bool = Field(default=False, strict=True)
+    futures_default_profile_bound: bool = Field(default=False, strict=True)
+    futures_observed_position_scope_ready: bool = Field(default=False, strict=True)
+    usable_for_futures_risk: bool = Field(default=False, strict=True)
+    futures_margin_collateral_ready: bool = Field(default=False, strict=True)
 
 
 class AdminFuturesPortfolioBindingEvidence(BaseModel):
@@ -8087,12 +8295,25 @@ class AdminFuturesPortfolioBindingEvidence(BaseModel):
 
     status: Literal["matched", "blocked"]
     ready: bool
-    blocker: str | None
+    blocker: Literal[
+        "futures_default_portfolio_permissions_unavailable",
+        "futures_default_permissioned_portfolio_missing",
+        "futures_default_portfolio_type_mismatch",
+        "futures_default_portfolio_catalog_unavailable",
+        "futures_default_portfolio_catalog_ambiguous",
+        "futures_default_portfolio_label_mismatch",
+        "futures_default_portfolio_view_permission_missing",
+        "futures_default_portfolio_observed_at_missing",
+        "futures_default_portfolio_rest_client_unavailable",
+        "futures_default_portfolio_live_read_required",
+        "futures_coinbase_read_not_authorized",
+        "futures_default_portfolio_evidence_unavailable",
+    ] | None
     expected_portfolio_label: Literal["Default"]
     expected_portfolio_type: Literal["DEFAULT"]
-    observed_portfolio_id: str | None
-    observed_portfolio_label: str | None
-    observed_portfolio_type: str | None
+    observed_portfolio_id: None = None
+    observed_portfolio_label: Literal["Default"] | None
+    observed_portfolio_type: Literal["DEFAULT"] | None
     can_view: bool | None
     can_trade: bool | None
     read_authorized: bool
@@ -8111,7 +8332,11 @@ class AdminFuturesPortfolioBindingEvidence(BaseModel):
         "offline_fixture",
         "local_sanitized_evidence",
     ]
-    observed_at: str
+    observed_at: str = Field(
+        pattern=_PUBLIC_FUTURES_TIMESTAMP_PATTERN,
+        max_length=64,
+        strict=True,
+    )
     permissions_read_ran: bool
     portfolio_catalog_read_ran: bool
     permissions_error_present: bool
@@ -8119,7 +8344,8 @@ class AdminFuturesPortfolioBindingEvidence(BaseModel):
     account_family: Literal["coinbase_futures_us_cfm"]
     product_family: Literal["FUTURES_PERPETUALS"]
     profile_alias: Literal["Default"]
-    portfolio_id: str | None
+    portfolio_id: None = None
+    portfolio_id_withheld: Literal[True] = True
     credential_trade_permission_present: bool
     command_authority_granted: Literal[False]
     live_coinbase_execution_authorized: Literal[False]
@@ -8137,8 +8363,7 @@ class AdminFuturesPortfolioBindingEvidence(BaseModel):
             if self.blocker is not None:
                 raise ValueError("matched_futures_portfolio_binding_has_blocker")
             if (
-                self.observed_portfolio_id is None
-                or self.observed_portfolio_label != "Default"
+                self.observed_portfolio_label != "Default"
                 or self.observed_portfolio_type != "DEFAULT"
                 or self.can_view is not True
                 or self.permissions_read_ran is not True
@@ -8150,8 +8375,6 @@ class AdminFuturesPortfolioBindingEvidence(BaseModel):
                 raise ValueError("matched_futures_portfolio_binding_incomplete")
         elif not self.blocker:
             raise ValueError("blocked_futures_portfolio_binding_missing_blocker")
-        if self.portfolio_id != self.observed_portfolio_id:
-            raise ValueError("futures_portfolio_binding_identity_contradiction")
         if self.credential_trade_permission_present is not (self.can_trade is True):
             raise ValueError("futures_portfolio_trade_evidence_contradiction")
         return self
@@ -8162,30 +8385,174 @@ class AdminFuturesPositionReadItem(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    position_key: str
-    product_id: str
-    product_type: ProductType = ProductType.FUTURE
-    portfolio_uuid: str | None = None
-    position_side: AdminFuturesPositionSide | None = None
-    number_of_contracts: str | None = None
-    net_size: str | None = None
-    entry_price: str | None = None
-    entry_vwap: str | None = None
-    current_price: str | None = None
-    margin_type: str | None = None
-    margin_amount: FlexibleDict | None = None
-    leverage: str | None = None
-    liquidation_buffer_percentage: str | None = None
+    position_key: str = Field(
+        pattern=_PUBLIC_FUTURES_POSITION_KEY_PATTERN,
+        max_length=69,
+        strict=True,
+    )
+    product_id: str = Field(
+        pattern=_PUBLIC_FUTURES_PRODUCT_PATTERN,
+        max_length=64,
+        strict=True,
+    )
+    product_type: Literal[ProductType.FUTURE] = ProductType.FUTURE
+    position_side: AdminFuturesPositionSide = AdminFuturesPositionSide.UNKNOWN
+    number_of_contracts: str | None = Field(
+        default=None,
+        pattern=_PUBLIC_FUTURES_DECIMAL_PATTERN,
+        max_length=128,
+        strict=True,
+    )
+    net_size: str | None = Field(
+        default=None,
+        pattern=_PUBLIC_FUTURES_DECIMAL_PATTERN,
+        max_length=128,
+        strict=True,
+    )
+    entry_price: str | None = Field(
+        default=None,
+        pattern=_PUBLIC_FUTURES_DECIMAL_PATTERN,
+        max_length=128,
+        strict=True,
+    )
+    entry_vwap: str | None = Field(
+        default=None,
+        pattern=_PUBLIC_FUTURES_DECIMAL_PATTERN,
+        max_length=128,
+        strict=True,
+    )
+    current_price: str | None = Field(
+        default=None,
+        pattern=_PUBLIC_FUTURES_DECIMAL_PATTERN,
+        max_length=128,
+        strict=True,
+    )
+    margin_type: Literal[
+        "CROSS",
+        "ISOLATED",
+        "INTRADAY",
+        "OVERNIGHT",
+        "UNKNOWN",
+    ] = "UNKNOWN"
+    margin_amount_label: str = Field(
+        default="margin_amount_unavailable",
+        pattern=(
+            r"^(?:amount:(?:0|[1-9]\d*)(?:\.\d*[1-9])?:(?:USD|USDC)|"
+            r"margin_amount_unavailable)$"
+        ),
+        max_length=160,
+        strict=True,
+    )
+    leverage: str | None = Field(
+        default=None,
+        pattern=_PUBLIC_FUTURES_DECIMAL_PATTERN,
+        max_length=128,
+        strict=True,
+    )
+    liquidation_buffer_percentage: str | None = Field(
+        default=None,
+        pattern=_PUBLIC_FUTURES_DECIMAL_PATTERN,
+        max_length=128,
+        strict=True,
+    )
+    position_pnl_label: str = Field(
+        default="position_pnl_unavailable",
+        pattern=(
+            r"^(?:pnl:-?(?:0|[1-9]\d*)(?:\.\d*[1-9])?:(?:USD|USDC)|"
+            r"position_pnl_unavailable)$"
+        ),
+        max_length=160,
+        strict=True,
+    )
+    product_metadata_label: Literal[
+        "product_metadata:verified_futures_product",
+        "product_metadata_unavailable",
+    ] = "product_metadata_unavailable"
     open_order_side: OrderSide | None = None
     close_order_side: OrderSide | None = None
     reduce_only_order_side: OrderSide | None = None
     close_only_order_side: OrderSide | None = None
-    position_pnl: FlexibleDict | None = None
-    product_metadata: FlexibleDict | None = None
-    mandatory_fee_per_contract: str | None = None
-    raw_position: FlexibleDict = Field(default_factory=dict)
+    mandatory_fee_per_contract: str | None = Field(
+        default=None,
+        pattern=_PUBLIC_FUTURES_DECIMAL_PATTERN,
+        max_length=128,
+        strict=True,
+    )
     source: AdminFuturesEvidenceSource = AdminFuturesEvidenceSource.RUNTIME_ORDERBOOK
-    updated_at: str | None = None
+    updated_at: str | None = Field(
+        default=None,
+        pattern=_PUBLIC_FUTURES_TIMESTAMP_PATTERN,
+        max_length=64,
+        strict=True,
+    )
+
+    @model_validator(mode="after")
+    def validate_canonical_scalars(self) -> Self:
+        nonnegative_fields = (
+            "number_of_contracts",
+            "entry_price",
+            "entry_vwap",
+            "current_price",
+            "leverage",
+            "liquidation_buffer_percentage",
+            "mandatory_fee_per_contract",
+        )
+        for field_name in (
+            "number_of_contracts",
+            "net_size",
+            "entry_price",
+            "entry_vwap",
+            "current_price",
+            "leverage",
+            "liquidation_buffer_percentage",
+            "mandatory_fee_per_contract",
+        ):
+            value = getattr(self, field_name)
+            if value is None:
+                continue
+            parsed = Decimal(value)
+            if (
+                not parsed.is_finite()
+                or len(parsed.as_tuple().digits) > 64
+                or (parsed and abs(parsed.adjusted()) > 64)
+                or (field_name in nonnegative_fields and parsed < 0)
+                or value == "-0"
+            ):
+                raise ValueError("futures_position_decimal_invalid")
+        for label, prefix, nonnegative in (
+            (self.margin_amount_label, "amount:", True),
+            (self.position_pnl_label, "pnl:", False),
+        ):
+            if not label.startswith(prefix):
+                continue
+            amount = label[len(prefix):].rsplit(":", 1)[0]
+            parsed = Decimal(amount)
+            if (
+                not parsed.is_finite()
+                or len(parsed.as_tuple().digits) > 64
+                or (parsed and abs(parsed.adjusted()) > 64)
+                or (nonnegative and parsed < 0)
+                or amount == "-0"
+            ):
+                raise ValueError("futures_position_label_decimal_invalid")
+        return self
+
+
+class AdminFuturesPositionReadFilters(BaseModel):
+    """Bounded public filters returned with one Futures position page."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    product_id: str | None = Field(
+        default=None,
+        pattern=_PUBLIC_FUTURES_PRODUCT_PATTERN,
+        max_length=64,
+        strict=True,
+    )
+    position_side: AdminFuturesPositionSide | None = None
+    limit: int = Field(ge=1, le=500, strict=True)
+    offset: int = Field(ge=0, strict=True)
+    filter_status: Literal["accepted", "invalid"]
 
 
 class AdminFuturesPositionListResponse(BaseModel):
@@ -8194,25 +8561,29 @@ class AdminFuturesPositionListResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     type: str = "admin_futures_positions"
-    filters: FlexibleDict = Field(default_factory=dict)
+    filters: AdminFuturesPositionReadFilters
     count: int
     pagination: AdminOrderPagination
     items: list[AdminFuturesPositionReadItem] = Field(default_factory=list)
-    account_reality: AdminAccountRealityEvidence
-    portfolio_scope: AdminPortfolioScopeEvidence
+    account_reality: AdminFuturesAccountRealityEvidence
+    portfolio_scope: AdminFuturesPortfolioScopeEvidence
     portfolio_binding: AdminFuturesPortfolioBindingEvidence
-    read_only: bool = True
-    command_routes_mode: str = "not_modeled"
-    browser_authority: str = "display_only"
-    bff_authority: str = "forward_only_no_execution"
+    position_key_policy: Literal["opaque_backend_token"] = "opaque_backend_token"
+    private_identifier_values_included: Literal[False] = False
+    read_only: Literal[True] = True
+    command_routes_mode: Literal["not_implemented"] = "not_implemented"
+    browser_authority: Literal["display_only"] = "display_only"
+    bff_authority: Literal["forward_only_no_execution"] = (
+        "forward_only_no_execution"
+    )
     readback_source: Literal["backend_admin_api_local_evidence"] = (
         "backend_admin_api_local_evidence"
     )
     coinbase_read_attempted: Literal[False] = False
-    live_coinbase_read_ran: bool = False
-    live_coinbase_execution: str = "not_run"
-    notional_usdc: DecimalString = "0"
-    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: Literal[False] = False
+    live_coinbase_execution: Literal["not_run"] = "not_run"
+    notional_usdc: Literal["0"] = "0"
+    live_coinbase_orders_ran: Literal[False] = False
 
 
 class AdminFuturesPositionDetailResponse(BaseModel):
@@ -8221,24 +8592,44 @@ class AdminFuturesPositionDetailResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     type: str = "admin_futures_position_detail"
-    position_key: str
+    position_key: str | None = Field(
+        default=None,
+        pattern=_PUBLIC_FUTURES_POSITION_KEY_PATTERN,
+        max_length=69,
+        strict=True,
+    )
     found: bool
     position: AdminFuturesPositionReadItem | None = None
-    account_reality: AdminAccountRealityEvidence
-    portfolio_scope: AdminPortfolioScopeEvidence
+    account_reality: AdminFuturesAccountRealityEvidence
+    portfolio_scope: AdminFuturesPortfolioScopeEvidence
     portfolio_binding: AdminFuturesPortfolioBindingEvidence
-    read_only: bool = True
-    command_routes_mode: str = "not_modeled"
-    browser_authority: str = "display_only"
-    bff_authority: str = "forward_only_no_execution"
+    position_key_policy: Literal["opaque_backend_token"] = "opaque_backend_token"
+    private_identifier_values_included: Literal[False] = False
+    read_only: Literal[True] = True
+    command_routes_mode: Literal["not_implemented"] = "not_implemented"
+    browser_authority: Literal["display_only"] = "display_only"
+    bff_authority: Literal["forward_only_no_execution"] = (
+        "forward_only_no_execution"
+    )
     readback_source: Literal["backend_admin_api_local_evidence"] = (
         "backend_admin_api_local_evidence"
     )
     coinbase_read_attempted: Literal[False] = False
-    live_coinbase_read_ran: bool = False
-    live_coinbase_execution: str = "not_run"
-    notional_usdc: DecimalString = "0"
-    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: Literal[False] = False
+    live_coinbase_execution: Literal["not_run"] = "not_run"
+    notional_usdc: Literal["0"] = "0"
+    live_coinbase_orders_ran: Literal[False] = False
+
+    @model_validator(mode="after")
+    def validate_lookup_result(self) -> Self:
+        if self.found:
+            if self.position is None or self.position_key is None:
+                raise ValueError("futures_position_detail_found_without_position")
+            if self.position.position_key != self.position_key:
+                raise ValueError("futures_position_detail_key_mismatch")
+        elif self.position is not None:
+            raise ValueError("futures_position_detail_not_found_with_position")
+        return self
 
 
 class AdminFuturesAccountReadResponse(BaseModel):
@@ -8247,11 +8638,29 @@ class AdminFuturesAccountReadResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     type: str = "admin_futures_account"
-    configured_product_scope: list[str] = Field(default_factory=list)
-    observed_position_scope: list[str] = Field(default_factory=list)
-    account_reality: AdminAccountRealityEvidence
-    account_readiness: AdminAccountReadinessEvidence
-    portfolio_scope: AdminPortfolioScopeEvidence
+    configured_product_scope: list[
+        Annotated[
+            str,
+            Field(
+                pattern=_PUBLIC_FUTURES_PRODUCT_PATTERN,
+                max_length=64,
+                strict=True,
+            ),
+        ]
+    ] = Field(default_factory=list, max_length=500)
+    observed_position_scope: list[
+        Annotated[
+            str,
+            Field(
+                pattern=_PUBLIC_FUTURES_PRODUCT_PATTERN,
+                max_length=64,
+                strict=True,
+            ),
+        ]
+    ] = Field(default_factory=list, max_length=500)
+    account_reality: AdminFuturesAccountRealityEvidence
+    account_readiness: AdminFuturesAccountReadinessEvidence
+    portfolio_scope: AdminFuturesPortfolioScopeEvidence
     portfolio_binding: AdminFuturesPortfolioBindingEvidence
     collateral: AdminFuturesEvidenceItem
     margin: AdminFuturesEvidenceItem
@@ -8260,18 +8669,21 @@ class AdminFuturesAccountReadResponse(BaseModel):
     reduce_only_close_only: AdminFuturesEvidenceItem
     position_pnl: AdminFuturesEvidenceItem
     position_count: int = 0
-    read_only: bool = True
-    command_routes_mode: str = "not_modeled"
-    browser_authority: str = "display_only"
-    bff_authority: str = "forward_only_no_execution"
+    private_identifier_values_included: Literal[False] = False
+    read_only: Literal[True] = True
+    command_routes_mode: Literal["not_implemented"] = "not_implemented"
+    browser_authority: Literal["display_only"] = "display_only"
+    bff_authority: Literal["forward_only_no_execution"] = (
+        "forward_only_no_execution"
+    )
     readback_source: Literal["backend_admin_api_local_evidence"] = (
         "backend_admin_api_local_evidence"
     )
     coinbase_read_attempted: Literal[False] = False
-    live_coinbase_read_ran: bool = False
-    live_coinbase_execution: str = "not_run"
-    notional_usdc: DecimalString = "0"
-    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: Literal[False] = False
+    live_coinbase_execution: Literal["not_run"] = "not_run"
+    notional_usdc: Literal["0"] = "0"
+    live_coinbase_orders_ran: Literal[False] = False
 
 
 class _AdminFuturesPreviewFilesystemBoundModel(BaseModel):
@@ -33646,7 +34058,16 @@ class AdminApiFlexibleObject(BaseModel):
 class SpotReadinessResponse(AdminApiReadPayload):
     """Spot readiness response."""
 
+    module_id: str | None = None
+    account_reality: AdminApiFlexibleObject | None = None
+    account_scope: AdminApiFlexibleObject | None = None
+    portfolio_scope: AdminApiFlexibleObject | None = None
+    account_readiness: AdminApiFlexibleObject | None = None
+    spot_admission_input: AdminApiFlexibleObject | None = None
     products: list[AdminApiFlexibleObject | str] = Field(default_factory=list)
+    configured_product_scope: list[str] = Field(default_factory=list)
+    captured_at: str | None = None
+    fresh_until: str | None = None
     planned_budget: AdminApiFlexibleObject = Field(default_factory=AdminApiFlexibleObject)
     wallet_snapshot: AdminApiFlexibleObject | None = None
     action_guard_summary: list[AdminApiFlexibleObject] = Field(default_factory=list)
@@ -33656,11 +34077,14 @@ class SpotReadinessResponse(AdminApiReadPayload):
     values_withheld: bool = True
     coinbase_read_attempted: bool = False
     coinbase_read_succeeded: bool = False
+    coinbase_read_enabled: bool = False
     live_coinbase_read_ran: bool = False
     external_state_refresh_available: bool = False
     external_state_refresh_route: str | None = None
     browser_authority: str = "display_only"
     bff_authority: str = "read_only_forward"
+    read_only: bool = True
+    command_routes_mode: str = "backend_admin_api"
 
 
 class SpotSweepStatusResponse(AdminApiReadPayload):

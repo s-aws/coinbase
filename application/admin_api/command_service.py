@@ -10,6 +10,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from decimal import Decimal
+from pathlib import Path
 from threading import RLock
 from typing import Any, Callable, Iterator, Mapping
 import os
@@ -62,6 +63,7 @@ from .approval import FileAdminApiApprovalStore, evaluate_live_execution_gate
 from .audit import FileAdminApiAuditStore
 from .cap_guard import FileAdminApiCapGuardStore
 from .live_execution import coinbase_execution_authority_enabled
+from .idempotency import hashed_interprocess_lock, resolve_idempotency_store_path
 from .reconciliation import FileAdminApiReconciliationStore
 from .models import (
     AdminApiCommandResponse,
@@ -326,13 +328,20 @@ class SpotProfileOrderAdmissionCoordinator:
     The lock is keyed by the credential-bound portfolio UUID.  Callers hold it
     from the authoritative open-order read through the REST outcome and final
     local/audit evidence so two request-scoped command-service instances cannot
-    both admit an order from the same zero-open snapshot.
+    both admit an order from the same zero-open snapshot. A hashed advisory
+    file lock extends that exclusion across backend worker processes without
+    putting the private portfolio UUID in a filesystem path.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, lock_root: Path | str | None = None) -> None:
         self._registry_lock = RLock()
         self._profile_locks: dict[str, RLock] = {}
         self._uncertain_submissions: dict[str, dict[str, str]] = {}
+        self._lock_root = (
+            Path(lock_root).resolve()
+            if lock_root is not None
+            else resolve_idempotency_store_path().resolve().parent
+        )
 
     def _profile_lock(self, retail_portfolio_id: str) -> RLock:
         with self._registry_lock:
@@ -345,7 +354,12 @@ class SpotProfileOrderAdmissionCoordinator:
             raise ValueError("spot_portfolio_id_missing_for_admission_claim")
         lock = self._profile_lock(portfolio_id)
         with lock:
-            yield
+            with hashed_interprocess_lock(
+                lock_root=self._lock_root,
+                namespace="spot-profile-order-admission",
+                identity=portfolio_id,
+            ):
+                yield
 
     def record_uncertainty(
         self,
@@ -5331,10 +5345,79 @@ class AdminApiCommandService:
         stored_exchange_order_id = str(
             local_order.get("exchange_order_id") or ""
         ).strip()
+        terminal_statuses = {
+            OrderStatus.CANCELLED.value,
+            OrderStatus.FILLED.value,
+            OrderStatus.EXPIRED.value,
+            OrderStatus.FAILED.value,
+        }
         profile_claim = deps.spot_order_admission_coordinator.claim(profile_id)
         profile_claim.__enter__()
         reconciliation_started_at = datetime.now(timezone.utc).isoformat()
         try:
+            try:
+                claimed_local_order = read_registered_order(client_order_id)
+            except Exception as exc:
+                return self._reconcile_order_rejected(
+                    command=command,
+                    message=(
+                        "Canonical order ownership revalidation failed after "
+                        "the profile claim: "
+                        f"{_value_blind_exception_detail(exc)}"
+                    ),
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "live_coinbase_read_ran": True,
+                        "order_status_persisted": False,
+                        "recovery_disposition": (
+                            "quarantined_ownership_revalidation_failed"
+                        ),
+                        "safe_to_submit_another_root": False,
+                    },
+                    failure_stage="order_ownership",
+                    live_coinbase_read_ran=True,
+                )
+            claimed_status = str(
+                claimed_local_order.get("status")
+                if isinstance(claimed_local_order, Mapping)
+                else ""
+            ).upper()
+            claimed_binding_matches = bool(
+                isinstance(claimed_local_order, Mapping)
+                and str(claimed_local_order.get("client_order_id") or "")
+                == client_order_id
+                and str(claimed_local_order.get("retail_portfolio_id") or "")
+                == profile_id
+                and str(claimed_local_order.get("ownership_provenance") or "")
+                == OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+                and claimed_local_order.get("parent_order_id") is None
+                and str(claimed_local_order.get("product_id") or "")
+                == product_id
+                and str(claimed_local_order.get("exchange_order_id") or "").strip()
+                == stored_exchange_order_id
+            )
+            if not claimed_binding_matches:
+                return self._reconcile_order_rejected(
+                    command=command,
+                    message=(
+                        "Canonical order identity or ownership changed while "
+                        "waiting for the profile claim."
+                    ),
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "live_coinbase_read_ran": True,
+                        "order_status_persisted": False,
+                        "recovery_disposition": (
+                            "quarantined_ownership_revalidation_failed"
+                        ),
+                        "safe_to_submit_another_root": False,
+                    },
+                    failure_stage="order_ownership",
+                    live_coinbase_read_ran=True,
+                )
+            cancel_unknown_quarantined = bool(
+                claimed_status == OrderStatus.CANCELLATION_UNKNOWN.value
+            )
             try:
                 readback = exact_coinbase_order_readback(
                     deps.rest_client,
@@ -5393,6 +5476,37 @@ class AdminApiCommandService:
                     live_coinbase_read_ran=True,
                 )
 
+            terminal_status_proven = authoritative_status in terminal_statuses
+            if cancel_unknown_quarantined and not terminal_status_proven:
+                deps.spot_order_admission_coordinator.record_uncertainty(
+                    retail_portfolio_id=profile_id,
+                    client_order_id=client_order_id,
+                    reason="cancel_unknown_nonterminal_readback",
+                )
+                return self._reconcile_order_rejected(
+                    command=command,
+                    message=(
+                        "A nonterminal exchange read cannot clear a durable "
+                        "unknown cancellation outcome; terminal proof is "
+                        "required."
+                    ),
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "live_coinbase_read_ran": True,
+                        "readback": readback,
+                        "order_status_persisted": False,
+                        "authoritative_status": authoritative_status,
+                        "terminal_status_proven": False,
+                        "recovery_disposition": (
+                            "quarantined_cancel_outcome_unknown_nonterminal"
+                        ),
+                        "safe_to_submit_another_root": False,
+                    },
+                    failure_stage=(
+                        "reconciliation_cancel_unknown_nonterminal"
+                    ),
+                    live_coinbase_read_ran=True,
+                )
             exchange_order_id = str(readback.get("exchange_order_id") or "")
             try:
                 mark_submission_status(
@@ -5585,13 +5699,6 @@ class AdminApiCommandService:
                     )
                 fill_closeout_proven = True
 
-            terminal_statuses = {
-                OrderStatus.CANCELLED.value,
-                OrderStatus.FILLED.value,
-                OrderStatus.EXPIRED.value,
-                OrderStatus.FAILED.value,
-            }
-            terminal_status_proven = authoritative_status in terminal_statuses
             if terminal_status_proven:
                 deps.spot_order_admission_coordinator.resolve_uncertainty(
                     retail_portfolio_id=profile_id,
@@ -5743,7 +5850,10 @@ class AdminApiCommandService:
             isinstance(local_order, Mapping)
             and str(local_order.get("client_order_id") or "") == client_order_id
             and str(local_order.get("status") or "").upper()
-            == OrderStatus.SUBMISSION_UNKNOWN.value
+            in {
+                OrderStatus.SUBMISSION_UNKNOWN.value,
+                OrderStatus.CANCELLATION_UNKNOWN.value,
+            }
         ):
             return self._cancel_rejected(
                 command=command,
@@ -5846,6 +5956,17 @@ class AdminApiCommandService:
             "terminal_status_proven": False,
             "confirmed_absent": False,
         }
+        terminal_statuses = {
+            OrderStatus.CANCELLED.value,
+            OrderStatus.FILLED.value,
+            OrderStatus.EXPIRED.value,
+            OrderStatus.FAILED.value,
+        }
+        cancellable_active_statuses = {
+            OrderStatus.PENDING.value,
+            OrderStatus.OPEN.value,
+            OrderStatus.QUEUED.value,
+        }
 
         def quarantine_cancel_uncertainty(*, reason: str) -> None:
             deps.spot_order_admission_coordinator.record_uncertainty(
@@ -5860,7 +5981,7 @@ class AdminApiCommandService:
                 try:
                     mark_submission_status(
                         client_order_id=client_order_id,
-                        status=OrderStatus.SUBMISSION_UNKNOWN.value,
+                        status=OrderStatus.CANCELLATION_UNKNOWN.value,
                         exchange_order_id=(stored_exchange_order_id or None),
                     )
                     persisted = True
@@ -5879,17 +6000,84 @@ class AdminApiCommandService:
         profile_claim = deps.spot_order_admission_coordinator.claim(profile_id)
         profile_claim.__enter__()
         try:
-            terminal_statuses = {
-                OrderStatus.CANCELLED.value,
-                OrderStatus.FILLED.value,
-                OrderStatus.EXPIRED.value,
-                OrderStatus.FAILED.value,
-            }
-            cancellable_active_statuses = {
-                OrderStatus.PENDING.value,
-                OrderStatus.OPEN.value,
-                OrderStatus.QUEUED.value,
-            }
+            # The ownership read above intentionally precedes Coinbase profile
+            # verification, but it is stale after waiting for another worker's
+            # profile claim. Re-read under the cross-worker claim before any
+            # exact-order read or Cancel boundary. In particular, a prior
+            # worker's durable CANCELLATION_UNKNOWN quarantine must stop this
+            # request even when it arrived with a different idempotency key.
+            try:
+                claimed_local_order = read_registered_order(client_order_id)
+            except Exception as exc:
+                return self._cancel_rejected(
+                    command=command,
+                    message=(
+                        "Canonical order ownership revalidation failed after "
+                        "the profile claim: "
+                        f"{_value_blind_exception_detail(exc)}"
+                    ),
+                    data={"portfolio_scope": portfolio_scope},
+                    failure_stage="order_ownership",
+                )
+            claimed_status = str(
+                claimed_local_order.get("status")
+                if isinstance(claimed_local_order, Mapping)
+                else ""
+            ).upper()
+            if claimed_status in {
+                OrderStatus.SUBMISSION_UNKNOWN.value,
+                OrderStatus.CANCELLATION_UNKNOWN.value,
+            }:
+                return self._cancel_rejected(
+                    command=command,
+                    message=(
+                        "A durable unknown exchange outcome quarantines this "
+                        "root; run explicit selected-root reconciliation "
+                        "before any further cancellation attempt."
+                    ),
+                    data={
+                        "durable_cancel_quarantine": True,
+                        "recovery_disposition": (
+                            "quarantined_cancel_outcome_unknown"
+                        ),
+                        "safe_to_submit_another_root": False,
+                    },
+                    failure_stage="cancellation_uncertainty",
+                )
+            claimed_binding_matches = bool(
+                isinstance(claimed_local_order, Mapping)
+                and str(claimed_local_order.get("client_order_id") or "")
+                == client_order_id
+                and str(claimed_local_order.get("retail_portfolio_id") or "")
+                == profile_id
+                and str(claimed_local_order.get("ownership_provenance") or "")
+                == OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+                and claimed_local_order.get("parent_order_id") is None
+                and str(claimed_local_order.get("product_id") or "")
+                == product_id
+                and str(claimed_local_order.get("exchange_order_id") or "").strip()
+                == stored_exchange_order_id
+            )
+            if not claimed_binding_matches:
+                return self._cancel_rejected(
+                    command=command,
+                    message=(
+                        "Canonical order identity or ownership changed while "
+                        "waiting for the profile claim."
+                    ),
+                    data={"portfolio_scope": portfolio_scope},
+                    failure_stage="order_ownership",
+                )
+            if claimed_status not in cancellable_active_statuses:
+                return self._cancel_rejected(
+                    command=command,
+                    message=(
+                        "Canonical local order status is no longer eligible "
+                        "for cancellation after profile-claim revalidation."
+                    ),
+                    data={"portfolio_scope": portfolio_scope},
+                    failure_stage="cancellation_local_state",
+                )
             cancellation_readback["pre_cancel_read_attempted"] = True
             try:
                 pre_cancel_readback = exact_coinbase_order_readback(
@@ -6029,7 +6217,7 @@ class AdminApiCommandService:
             try:
                 mark_submission_status(
                     client_order_id=client_order_id,
-                    status=OrderStatus.SUBMISSION_UNKNOWN.value,
+                    status=OrderStatus.CANCELLATION_UNKNOWN.value,
                     exchange_order_id=proven_exchange_order_id,
                 )
             except Exception:

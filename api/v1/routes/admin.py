@@ -78,12 +78,18 @@ ACCOUNT_REALITY_REFRESH_RESPONSES = {
     **READ_ROUTE_RESPONSES,
     409: {
         "model": AdminAccountRealityRefreshResponse,
-        "description": "Idempotency key conflicts with a prior refresh claim.",
+        "description": (
+            "The idempotency key conflicts with a prior refresh claim, or the "
+            "single authorized account-reality refresh allowance is already "
+            "consumed."
+        ),
     },
     503: {
         "model": AdminAccountRealityRefreshResponse,
         "description": (
-            "The claimed refresh outcome is unknown and cannot be retried."
+            "The claimed refresh outcome is unknown and cannot be retried, or "
+            "the durable account-reality refresh authority state is "
+            "unavailable."
         ),
     },
 }

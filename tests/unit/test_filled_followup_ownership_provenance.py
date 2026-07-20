@@ -36,6 +36,7 @@ def test_ownership_and_standing_policy_enums_are_stable() -> None:
     )
     assert StandingPriceLimitPolicy.ADMIN_TEST_PROFILE.value == "admin_test_profile"
     assert OrderStatus.SUBMISSION_UNKNOWN.value == "SUBMISSION_UNKNOWN"
+    assert OrderStatus.CANCELLATION_UNKNOWN.value == "CANCELLATION_UNKNOWN"
     assert OrderStatus.SUBMITTED.value == "SUBMITTED"
 
 

@@ -3,8 +3,11 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
+import pytest
+from pydantic import ValidationError
+
 from application.admin_api import read_service
-from application.admin_api.models import AdminOrderDetailResponse
+from application.admin_api.models import AdminOrderDetailResponse, AdminOrderReadItem
 from application.admin_api.read_service import AdminApiReadService
 
 
@@ -12,6 +15,26 @@ ROOT_ID = "880e8400-e29b-41d4-a716-446655440000"
 CHILD_ID = "990e8400-e29b-41d4-a716-446655440000"
 STEALTH_ID = "770e8400-e29b-41d4-a716-446655440000"
 PRIVATE_PORTFOLIO_ID = "11111111-2222-4333-8444-555555555555"
+ORDER_PROJECTION_INVALID = "backend_order_projection_invalid"
+
+
+def _valid_public_order_row() -> dict[str, object]:
+    return {
+        "client_order_id": ROOT_ID,
+        "product_id": "BTC-USDC",
+        "side": "BUY",
+        "status": "OPEN",
+        "order_type": "limit",
+        "size": "0.0100",
+        "price": "100.00",
+        "parent_order_id": None,
+        "created_at": "2026-07-20T01:02:03Z",
+        "updated_at": "2026-07-20T01:03:04+00:00",
+        "exchange_order_id": "exchange-evidence-001",
+        "correlation_id": "corr:order-read-001",
+        "audit_id": "audit.order-read-001",
+        "source": "untrusted-row-source",
+    }
 
 
 def _assert_no_private_read_evidence(payload: object) -> None:
@@ -275,3 +298,179 @@ def test_order_detail_backend_read_error_is_optional_in_generated_schema() -> No
 
     assert "backend_read_error" in schema["properties"]
     assert "backend_read_error" not in schema.get("required", [])
+
+
+@pytest.mark.parametrize(
+    ("field", "malformed_value"),
+    [
+        ("client_order_id", "not-a-canonical-uuid"),
+        ("parent_order_id", "not-a-canonical-uuid"),
+        ("product_id", "BTC-USDC<script>private</script>"),
+        ("side", "PRIVATE_SIDE"),
+        ("status", "PRIVATE_BLOCKED_STATUS"),
+        ("order_type", "PRIVATE_ORDER_TYPE"),
+        ("size", "NaN"),
+        ("size", "Infinity"),
+        ("size", "0"),
+        ("price", "-1"),
+        ("created_at", "2026-07-20T01:02:03"),
+        ("updated_at", "private timestamp evidence"),
+        ("exchange_order_id", "private exchange evidence\nnext-line"),
+        ("correlation_id", "private correlation evidence\nnext-line"),
+        ("audit_id", "a" * 256),
+    ],
+)
+def test_order_list_and_detail_reject_whole_malformed_db_projection_with_fixed_error(
+    monkeypatch,
+    field: str,
+    malformed_value: object,
+) -> None:
+    import database.order as order_module
+
+    valid_row = _valid_public_order_row()
+    malformed_row = {**valid_row, "client_order_id": CHILD_ID, field: malformed_value}
+    if field != "parent_order_id":
+        malformed_row["parent_order_id"] = ROOT_ID
+
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_orders_page",
+        lambda **_kwargs: ([valid_row, malformed_row], 2),
+    )
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_order_summary",
+        lambda _client_order_id: malformed_row,
+        raising=False,
+    )
+
+    service = AdminApiReadService()
+    order_list = service.build_order_list().model_dump(mode="json")
+    order_detail = service.build_order_detail(
+        client_order_id=CHILD_ID,
+    ).model_dump(mode="json")
+
+    assert order_list["filters"]["backend_read_error"] == ORDER_PROJECTION_INVALID
+    assert order_list["items"] == []
+    assert order_list["count"] == 0
+    assert order_list["pagination"]["returned_count"] == 0
+    assert order_list["pagination"]["total_matching_count"] == 0
+    assert order_detail["found"] is False
+    assert order_detail["order"] is None
+    assert order_detail["backend_read_error"] == ORDER_PROJECTION_INVALID
+    serialized = json.dumps([order_list, order_detail], sort_keys=True)
+    if isinstance(malformed_value, str) and (
+        "private" in malformed_value.lower()
+        or "<script>" in malformed_value.lower()
+        or malformed_value in {"NaN", "Infinity", "not-a-canonical-uuid"}
+    ):
+        assert malformed_value not in serialized
+
+
+def test_order_projection_normalizes_only_known_values_and_fixes_evidence_labels(
+    monkeypatch,
+) -> None:
+    import database.order as order_module
+
+    row = _valid_public_order_row()
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_orders_page",
+        lambda **_kwargs: ([row], 1),
+    )
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_order_summary",
+        lambda _client_order_id: row,
+        raising=False,
+    )
+
+    service = AdminApiReadService()
+    order_list = service.build_order_list().model_dump(mode="json")
+    order_detail = service.build_order_detail(
+        client_order_id=ROOT_ID,
+    ).model_dump(mode="json")
+
+    assert "backend_read_error" not in order_list["filters"]
+    assert order_list["items"] == [order_detail["order"]]
+    item = order_list["items"][0]
+    assert item["client_order_id"] == ROOT_ID
+    assert item["side"] == "BUY"
+    assert item["status"] == "OPEN"
+    assert item["order_type"] == "LIMIT"
+    assert item["size"] == "0.0100"
+    assert item["price"] == "100.00"
+    assert item["created_at"] == "2026-07-20T01:02:03+00:00"
+    assert item["updated_at"] == "2026-07-20T01:03:04+00:00"
+    assert item["source"] == "order_parent"
+    assert item["exchange_order_id_evidence_only"] is True
+
+
+def test_admin_order_read_model_rejects_noncanonical_public_evidence() -> None:
+    valid = _valid_public_order_row()
+    valid["parent_client_order_id"] = valid.pop("parent_order_id")
+    valid["source"] = "order_parent"
+
+    item = AdminOrderReadItem(**valid)
+    assert item.exchange_order_id_evidence_only is True
+
+    stealth_child = AdminOrderReadItem(**{**valid, "source": "stealth_orders"})
+    assert stealth_child.source == "stealth_orders"
+    assert item.model_dump(mode="json")["order_type"] == "LIMIT"
+
+    for invalid_update in (
+        {"client_order_id": "NOT-A-UUID"},
+        {"source": "private_source"},
+        {"exchange_order_id_evidence_only": False},
+        {"size": "NaN"},
+        {"created_at": "2026-07-20T01:02:03"},
+    ):
+        with pytest.raises(ValidationError):
+            AdminOrderReadItem(**{**valid, **invalid_update})
+
+
+def test_order_list_and_detail_withhold_raw_failure_reason_text(
+    monkeypatch,
+) -> None:
+    import database.order as order_module
+
+    private_canary = "PRIVATE_EXCEPTION_TEXT account=secret-account"
+    row = {
+        **_valid_public_order_row(),
+        "last_lifecycle_event": "REVEAL_FAILED",
+        "failure_reason": private_canary,
+    }
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_orders_page",
+        lambda **_kwargs: ([row], 1),
+    )
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_order_summary",
+        lambda _client_order_id: row,
+        raising=False,
+    )
+
+    service = AdminApiReadService()
+    order_list = service.build_order_list().model_dump(mode="json")
+    order_detail = service.build_order_detail(
+        client_order_id=ROOT_ID,
+    ).model_dump(mode="json")
+    serialized = json.dumps([order_list, order_detail], sort_keys=True)
+
+    assert order_list["items"][0]["failure_reason"] == "reveal_failed"
+    assert order_detail["order"]["failure_reason"] == "reveal_failed"
+    assert private_canary not in serialized
+
+
+def test_admin_order_read_model_rejects_arbitrary_failure_reason_text() -> None:
+    valid = _valid_public_order_row()
+    valid["parent_client_order_id"] = valid.pop("parent_order_id")
+    valid["source"] = "order_parent"
+
+    with pytest.raises(ValidationError):
+        AdminOrderReadItem(
+            **valid,
+            failure_reason="PRIVATE_EXCEPTION_TEXT account=secret-account",
+        )

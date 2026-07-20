@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
+from .futures_public_projection import canonical_futures_timestamp
+
 
 DEFAULT_FUTURES_PROFILE_ALIAS = "Default"
 DEFAULT_FUTURES_PORTFOLIO_TYPE = "DEFAULT"
@@ -114,18 +116,108 @@ def serialize_public_futures_portfolio_binding(
         payload = dict(evidence)
     else:
         payload = {}
-    identifier_present = bool(
-        _string_or_none(payload.get("observed_portfolio_id"))
-        or _string_or_none(payload.get("portfolio_id"))
+    allowed_blockers = {
+        PERMISSIONS_UNAVAILABLE,
+        PERMISSIONED_PORTFOLIO_MISSING,
+        PORTFOLIO_TYPE_MISMATCH,
+        PORTFOLIO_CATALOG_UNAVAILABLE,
+        PORTFOLIO_CATALOG_AMBIGUOUS,
+        PORTFOLIO_LABEL_MISMATCH,
+        VIEW_PERMISSION_MISSING,
+        OBSERVED_AT_MISSING,
+        "futures_default_portfolio_rest_client_unavailable",
+        "futures_default_portfolio_live_read_required",
+        "futures_coinbase_read_not_authorized",
+        "futures_default_portfolio_evidence_unavailable",
+    }
+    canonical_observed_at = canonical_futures_timestamp(payload.get("observed_at"))
+    observed_at = canonical_observed_at or "1970-01-01T00:00:00Z"
+    permissions_read = payload.get("permissions_read_ran") is True
+    portfolio_catalog_read = payload.get("portfolio_catalog_read_ran") is True
+    permissions_error_present = payload.get("permissions_error_present") is True
+    portfolio_catalog_error_present = (
+        payload.get("portfolio_catalog_error_present") is True
     )
-    public_identifier = "withheld" if identifier_present else None
-    payload.update(
-        {
-            "observed_portfolio_id": public_identifier,
-            "portfolio_id": public_identifier,
-        }
+    can_view = (
+        payload.get("can_view") if isinstance(payload.get("can_view"), bool) else None
     )
-    return payload
+    can_trade = (
+        payload.get("can_trade")
+        if isinstance(payload.get("can_trade"), bool)
+        else None
+    )
+    matched = bool(
+        payload.get("status") == "matched"
+        and payload.get("ready") is True
+        and payload.get("read_authorized") is True
+        and payload.get("observed_portfolio_label") == "Default"
+        and payload.get("observed_portfolio_type") == "DEFAULT"
+        and can_view is True
+        and permissions_read
+        and portfolio_catalog_read
+        and not permissions_error_present
+        and not portfolio_catalog_error_present
+        and canonical_observed_at is not None
+    )
+    blocker = _string_or_none(payload.get("blocker"))
+    if matched:
+        blocker = None
+    elif canonical_observed_at is None:
+        blocker = OBSERVED_AT_MISSING
+    elif blocker not in allowed_blockers:
+        blocker = "futures_default_portfolio_evidence_unavailable"
+    source = _string_or_none(payload.get("source"))
+    if source not in {
+        "coinbase_api_key_permissions_and_portfolio_catalog",
+        "backend_rest_unavailable",
+        "backend_admin_read_contract",
+        "backend_admin_api_local_evidence",
+    }:
+        source = "backend_rest_unavailable"
+    freshness_status = _string_or_none(payload.get("freshness_status"))
+    allowed_freshness = {
+        "backend_rest_fresh",
+        "backend_rest_blocked",
+        "local_default_not_connected",
+        "offline_fixture",
+        "local_sanitized_evidence",
+    }
+    if freshness_status not in allowed_freshness:
+        freshness_status = "local_default_not_connected"
+    if matched:
+        freshness_status = "backend_rest_fresh"
+    return {
+        "status": "matched" if matched else "blocked",
+        "ready": matched,
+        "blocker": blocker,
+        "expected_portfolio_label": "Default",
+        "expected_portfolio_type": "DEFAULT",
+        "observed_portfolio_id": None,
+        "observed_portfolio_label": "Default" if matched else None,
+        "observed_portfolio_type": "DEFAULT" if matched else None,
+        "can_view": can_view,
+        "can_trade": can_trade,
+        "read_authorized": matched,
+        "selection_authority": "cdp_api_key_permissioned_portfolio",
+        "request_portfolio_override_allowed": False,
+        "source": source,
+        "freshness_status": freshness_status,
+        "observed_at": observed_at,
+        "permissions_read_ran": permissions_read,
+        "portfolio_catalog_read_ran": portfolio_catalog_read,
+        "permissions_error_present": permissions_error_present,
+        "portfolio_catalog_error_present": portfolio_catalog_error_present,
+        "account_family": "coinbase_futures_us_cfm",
+        "product_family": "FUTURES_PERPETUALS",
+        "profile_alias": "Default",
+        "portfolio_id": None,
+        "portfolio_id_withheld": True,
+        "credential_trade_permission_present": can_trade is True,
+        "command_authority_granted": False,
+        "live_coinbase_execution_authorized": False,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+    }
 
 
 def evaluate_futures_default_portfolio_binding(
@@ -195,7 +287,7 @@ def evaluate_futures_default_portfolio_binding(
         blocker = PORTFOLIO_LABEL_MISMATCH
     elif can_view is not True:
         blocker = VIEW_PERMISSION_MISSING
-    elif not normalized_observed_at:
+    elif canonical_futures_timestamp(normalized_observed_at) is None:
         blocker = OBSERVED_AT_MISSING
 
     read_ready = blocker is None

@@ -35,6 +35,67 @@ _CommandParameters = ParamSpec("_CommandParameters")
 _CommandResult = TypeVar("_CommandResult")
 
 
+@contextmanager
+def _interprocess_file_lock(path: Path) -> Iterator[None]:
+    """Serialize a bounded transaction across backend worker processes."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a+b") as handle:
+        if os.name == "nt":
+            import msvcrt
+
+            # ``msvcrt.locking`` locks a byte range from the current file
+            # position. Materialize byte zero so the same range is valid on
+            # every supported Windows CRT instead of relying on beyond-EOF
+            # locking behavior for a newly created empty file.
+            if os.fstat(handle.fileno()).st_size < 1:
+                handle.truncate(1)
+                handle.flush()
+                os.fsync(handle.fileno())
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+            try:
+                yield
+            finally:
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+@contextmanager
+def hashed_interprocess_lock(
+    *,
+    lock_root: Path | str,
+    namespace: str,
+    identity: str,
+) -> Iterator[None]:
+    """Lock one opaque identity across workers without exposing it in a path.
+
+    The operating system releases the advisory lock if a worker exits. The
+    empty lock file may remain and is safe to reuse. Callers must keep durable
+    fail-closed claim evidence around any external side effect because a lock
+    coordinates execution but is not itself a transaction journal.
+    """
+
+    normalized_namespace = str(namespace or "").strip()
+    normalized_identity = str(identity or "").strip()
+    if not normalized_namespace or not normalized_identity:
+        raise ValueError("A non-empty lock namespace and identity are required.")
+    digest = hashlib.sha256(
+        f"{normalized_namespace}\0{normalized_identity}".encode("utf-8")
+    ).hexdigest()
+    lock_path = Path(lock_root).resolve() / f".admin-api-{digest}.lock"
+    with _interprocess_file_lock(lock_path):
+        yield
+
+
 class IdempotencyRecord(BaseModel):
     """Stored evidence for one idempotent command request."""
 
@@ -113,20 +174,56 @@ class FileIdempotencyStore:
         *,
         idempotency_key: str,
     ) -> Iterator[None]:
-        """Serialize one key across store instances through final persistence."""
+        """Serialize one key across workers through final durable persistence.
 
-        lock_identity = (str(self.path.resolve()), idempotency_key)
+        Route handlers hold this boundary over idempotency evaluation, command
+        admission, any external side effect, audit, and response persistence.
+        The process-local lock avoids duplicate contenders in one worker; the
+        opaque file lock provides the same exclusion between workers.
+        """
+
+        resolved_store_path = self.path.resolve()
+        lock_identity = (str(resolved_store_path), idempotency_key)
         with _COMMAND_EXECUTION_LOCKS_GUARD:
             execution_lock = _COMMAND_EXECUTION_LOCKS.get(lock_identity)
             if execution_lock is None:
                 execution_lock = RLock()
                 _COMMAND_EXECUTION_LOCKS[lock_identity] = execution_lock
         with execution_lock:
-            yield
+            with hashed_interprocess_lock(
+                lock_root=resolved_store_path.parent,
+                namespace=f"admin-command:{resolved_store_path.name}",
+                identity=idempotency_key,
+            ):
+                yield
+
+    @contextmanager
+    def endpoint_claim_execution(self, *, endpoint: str) -> Iterator[None]:
+        """Serialize one endpoint-wide claim across store instances/workers."""
+
+        endpoint_digest = hashlib.sha256(endpoint.encode("utf-8")).hexdigest()
+        lock_path = self.path.parent / (
+            f"{self.path.name}.{endpoint_digest}.claim.lock"
+        )
+        with self._lock:
+            with _interprocess_file_lock(lock_path):
+                yield
 
     @property
     def _response_blob_dir(self) -> Path:
         return self.path.parent / f"{self.path.stem}_responses"
+
+    @contextmanager
+    def _store_access(self) -> Iterator[None]:
+        """Exclude cross-worker JSONL/blob reads from append transactions."""
+
+        resolved_store_path = self.path.resolve()
+        with hashed_interprocess_lock(
+            lock_root=resolved_store_path.parent,
+            namespace="admin-idempotency-store-access",
+            identity=str(resolved_store_path),
+        ):
+            yield
 
     def _response_blob_path(self, record: IdempotencyRecord) -> Path:
         if not record.response_blob_path:
@@ -273,31 +370,48 @@ class FileIdempotencyStore:
 
     def get_record(self, idempotency_key: str) -> IdempotencyRecord | None:
         with self._lock:
-            return self._load_latest_by_key().get(idempotency_key)
+            with self._store_access():
+                return self._load_latest_by_key().get(idempotency_key)
+
+    def has_record_for_endpoint(self, endpoint: str) -> bool:
+        """Return whether any durable command record claimed an endpoint."""
+
+        with self._lock:
+            with self._store_access():
+                return any(
+                    record.endpoint == endpoint
+                    for record in self._load_latest_by_key(
+                        hydrate_responses=False
+                    ).values()
+                )
 
     def evaluate(self, *, idempotency_key: str, payload_hash: str) -> IdempotencyCheck:
         with self._lock:
-            existing = self._load_latest_by_key(hydrate_responses=False).get(
-                idempotency_key
-            )
-            check = evaluate_idempotency(
-                existing=existing,
-                idempotency_key=idempotency_key,
-                payload_hash=payload_hash,
-            )
-            if (
-                check.decision == AdminApiIdempotencyDecision.REPLAY
-                and check.record is not None
-            ):
-                check.record = self._hydrate_response(check.record)
-            return check
+            with self._store_access():
+                existing = self._load_latest_by_key(hydrate_responses=False).get(
+                    idempotency_key
+                )
+                check = evaluate_idempotency(
+                    existing=existing,
+                    idempotency_key=idempotency_key,
+                    payload_hash=payload_hash,
+                )
+                if (
+                    check.decision == AdminApiIdempotencyDecision.REPLAY
+                    and check.record is not None
+                ):
+                    check.record = self._hydrate_response(check.record)
+                return check
 
     def put_record(self, record: IdempotencyRecord) -> None:
         with self._lock:
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            record = self._externalize_large_response(record)
-            with self.path.open("a", encoding="utf-8") as handle:
-                handle.write(record.model_dump_json() + "\n")
+            with self._store_access():
+                self.path.parent.mkdir(parents=True, exist_ok=True)
+                record = self._externalize_large_response(record)
+                with self.path.open("a", encoding="utf-8") as handle:
+                    handle.write(record.model_dump_json() + "\n")
+                    handle.flush()
+                    os.fsync(handle.fileno())
 
 
 def serialize_idempotent_command(

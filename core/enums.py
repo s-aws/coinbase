@@ -29,10 +29,15 @@ class OrderStatus(str, Enum):
     Engine event statuses also routed through order processing:
     - UPDATE: Incremental websocket update for an existing order
     - SNAPSHOT: Initial websocket snapshot payload
+
+    Backend-only uncertainty statuses are operation-specific:
+    - SUBMISSION_UNKNOWN: a Create outcome is not yet proven
+    - CANCELLATION_UNKNOWN: a Cancel outcome is not yet terminally proven
     """
     PENDING = "PENDING"
     SUBMITTED = "SUBMITTED"
     SUBMISSION_UNKNOWN = "SUBMISSION_UNKNOWN"
+    CANCELLATION_UNKNOWN = "CANCELLATION_UNKNOWN"
     OPEN = "OPEN"
     FILLED = "FILLED"
     CANCELLED = "CANCELLED"

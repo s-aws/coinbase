@@ -854,13 +854,15 @@ paths:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
         '409':
-          description: Idempotency key conflicts with a prior refresh claim.
+          description: The idempotency key conflicts with a prior refresh claim, or
+            the single authorized account-reality refresh allowance is already consumed.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminAccountRealityRefreshResponse'
         '503':
-          description: The claimed refresh outcome is unknown and cannot be retried.
+          description: The claimed refresh outcome is unknown and cannot be retried,
+            or the durable account-reality refresh authority state is unavailable.
           content:
             application/json:
               schema:
@@ -14978,8 +14980,7 @@ components:
           title: Wallets
         products:
           items:
-            additionalProperties: true
-            type: object
+            $ref: '#/components/schemas/AdminProductReadItem'
           type: array
           title: Products
         market:
@@ -18458,19 +18459,25 @@ components:
         configured_product_scope:
           items:
             type: string
+            maxLength: 64
+            pattern: ^[A-Z0-9][A-Z0-9-]{1,63}$
           type: array
+          maxItems: 500
           title: Configured Product Scope
         observed_position_scope:
           items:
             type: string
+            maxLength: 64
+            pattern: ^[A-Z0-9][A-Z0-9-]{1,63}$
           type: array
+          maxItems: 500
           title: Observed Position Scope
         account_reality:
-          $ref: '#/components/schemas/AdminAccountRealityEvidence'
+          $ref: '#/components/schemas/AdminFuturesAccountRealityEvidence'
         account_readiness:
-          $ref: '#/components/schemas/AdminAccountReadinessEvidence'
+          $ref: '#/components/schemas/AdminFuturesAccountReadinessEvidence'
         portfolio_scope:
-          $ref: '#/components/schemas/AdminPortfolioScopeEvidence'
+          $ref: '#/components/schemas/AdminFuturesPortfolioScopeEvidence'
         portfolio_binding:
           $ref: '#/components/schemas/AdminFuturesPortfolioBindingEvidence'
         collateral:
@@ -18489,20 +18496,29 @@ components:
           type: integer
           title: Position Count
           default: 0
+        private_identifier_values_included:
+          type: boolean
+          const: false
+          title: Private Identifier Values Included
+          default: false
         read_only:
           type: boolean
+          const: true
           title: Read Only
           default: true
         command_routes_mode:
           type: string
+          const: not_implemented
           title: Command Routes Mode
-          default: not_modeled
+          default: not_implemented
         browser_authority:
           type: string
+          const: display_only
           title: Browser Authority
           default: display_only
         bff_authority:
           type: string
+          const: forward_only_no_execution
           title: Bff Authority
           default: forward_only_no_execution
         readback_source:
@@ -18517,23 +18533,22 @@ components:
           default: false
         live_coinbase_read_ran:
           type: boolean
+          const: false
           title: Live Coinbase Read Ran
           default: false
         live_coinbase_execution:
           type: string
+          const: not_run
           title: Live Coinbase Execution
           default: not_run
         notional_usdc:
           type: string
-          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          const: '0'
           title: Notional Usdc
-          description: Decimal value serialized as a string; floats are not part of
-            the API contract.
           default: '0'
-          examples:
-          - '1.00'
         live_coinbase_orders_ran:
           type: boolean
+          const: false
           title: Live Coinbase Orders Ran
           default: false
       additionalProperties: false
@@ -18552,6 +18567,60 @@ components:
       title: AdminFuturesAccountReadResponse
       description: Read-only futures/perpetual account, collateral, margin, and risk
         evidence.
+    AdminFuturesAccountReadinessEvidence:
+      properties:
+        futures_account_scope_ready:
+          type: boolean
+          title: Futures Account Scope Ready
+          default: false
+        futures_default_profile_bound:
+          type: boolean
+          title: Futures Default Profile Bound
+          default: false
+        futures_observed_position_scope_ready:
+          type: boolean
+          title: Futures Observed Position Scope Ready
+          default: false
+        usable_for_futures_risk:
+          type: boolean
+          title: Usable For Futures Risk
+          default: false
+        futures_margin_collateral_ready:
+          type: boolean
+          title: Futures Margin Collateral Ready
+          default: false
+      additionalProperties: false
+      type: object
+      title: AdminFuturesAccountReadinessEvidence
+      description: Strict Futures-only readiness booleans with no Spot or extension
+        fields.
+    AdminFuturesAccountRealityEvidence:
+      properties:
+        status:
+          type: string
+          enum:
+          - ready
+          - unavailable
+          - offline_fixture
+          - stale
+          - blocked
+          title: Status
+        source:
+          type: string
+          enum:
+          - backend_rest_client
+          - backend_rest_unavailable
+          - backend_admin_mvp
+          - backend_admin_api_local_evidence
+          - backend_admin_read_contract
+          title: Source
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - source
+      title: AdminFuturesAccountRealityEvidence
+      description: Identifier-free account-reality classifications for Futures reads.
     AdminFuturesCommandAction:
       type: string
       enum:
@@ -102347,29 +102416,32 @@ components:
       properties:
         name:
           type: string
+          enum:
+          - collateral
+          - margin
+          - funding
+          - liquidation
+          - reduce_only_close_only
+          - position_pnl
           title: Name
         status:
           $ref: '#/components/schemas/AdminFuturesEvidenceStatus'
         source:
           $ref: '#/components/schemas/AdminFuturesEvidenceSource'
-        value:
-          anyOf:
-          - {}
-          - type: 'null'
-          title: Value
-        detail:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Detail
+        value_label:
+          type: string
+          maxLength: 192
+          pattern: ^(?:collateral|margin|funding|liquidation|reduce_only_close_only|position_pnl)_(?:observed|unavailable|not_modeled)(?::amount:-?(?:0|[1-9]\d*)(?:\.\d*[1-9])?:(?:USD|USDC))?$
+          title: Value Label
       additionalProperties: false
       type: object
       required:
       - name
       - status
       - source
+      - value_label
       title: AdminFuturesEvidenceItem
-      description: One futures/perpetual evidence cell with explicit availability.
+      description: One value-blind Futures evidence classification.
     AdminFuturesEvidenceSource:
       type: string
       enum:
@@ -102705,6 +102777,19 @@ components:
         blocker:
           anyOf:
           - type: string
+            enum:
+            - futures_default_portfolio_permissions_unavailable
+            - futures_default_permissioned_portfolio_missing
+            - futures_default_portfolio_type_mismatch
+            - futures_default_portfolio_catalog_unavailable
+            - futures_default_portfolio_catalog_ambiguous
+            - futures_default_portfolio_label_mismatch
+            - futures_default_portfolio_view_permission_missing
+            - futures_default_portfolio_observed_at_missing
+            - futures_default_portfolio_rest_client_unavailable
+            - futures_default_portfolio_live_read_required
+            - futures_coinbase_read_not_authorized
+            - futures_default_portfolio_evidence_unavailable
           - type: 'null'
           title: Blocker
         expected_portfolio_label:
@@ -102716,18 +102801,18 @@ components:
           const: DEFAULT
           title: Expected Portfolio Type
         observed_portfolio_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: 'null'
           title: Observed Portfolio Id
         observed_portfolio_label:
           anyOf:
           - type: string
+            const: Default
           - type: 'null'
           title: Observed Portfolio Label
         observed_portfolio_type:
           anyOf:
           - type: string
+            const: DEFAULT
           - type: 'null'
           title: Observed Portfolio Type
         can_view:
@@ -102770,6 +102855,8 @@ components:
           title: Freshness Status
         observed_at:
           type: string
+          maxLength: 64
+          pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$
           title: Observed At
         permissions_read_ran:
           type: boolean
@@ -102796,10 +102883,13 @@ components:
           const: Default
           title: Profile Alias
         portfolio_id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: 'null'
           title: Portfolio Id
+        portfolio_id_withheld:
+          type: boolean
+          const: true
+          title: Portfolio Id Withheld
+          default: true
         credential_trade_permission_present:
           type: boolean
           title: Credential Trade Permission Present
@@ -102827,7 +102917,6 @@ components:
       - blocker
       - expected_portfolio_label
       - expected_portfolio_type
-      - observed_portfolio_id
       - observed_portfolio_label
       - observed_portfolio_type
       - can_view
@@ -102845,7 +102934,6 @@ components:
       - account_family
       - product_family
       - profile_alias
-      - portfolio_id
       - credential_trade_permission_present
       - command_authority_granted
       - live_coinbase_execution_authorized
@@ -102853,6 +102941,51 @@ components:
       - bff_authority
       title: AdminFuturesPortfolioBindingEvidence
       description: Exact Coinbase Default-profile binding for US CFM Futures reads.
+    AdminFuturesPortfolioScopeEvidence:
+      properties:
+        portfolio_id:
+          type: 'null'
+          title: Portfolio Id
+        portfolio_name:
+          type: string
+          const: Default
+          title: Portfolio Name
+          default: Default
+        portfolio_type:
+          type: string
+          const: DEFAULT
+          title: Portfolio Type
+          default: DEFAULT
+        portfolio_id_withheld:
+          type: boolean
+          const: true
+          title: Portfolio Id Withheld
+          default: true
+        source:
+          type: string
+          enum:
+          - backend_rest_client
+          - backend_rest_unavailable
+          - backend_admin_mvp
+          - backend_admin_api_local_evidence
+          - backend_admin_read_contract
+          title: Source
+        freshness_status:
+          type: string
+          enum:
+          - backend_rest_fresh
+          - backend_rest_blocked
+          - local_default_not_connected
+          - offline_fixture
+          - local_sanitized_evidence
+          title: Freshness Status
+      additionalProperties: false
+      type: object
+      required:
+      - source
+      - freshness_status
+      title: AdminFuturesPortfolioScopeEvidence
+      description: Value-blind exact Default-profile scope for public Futures reads.
     AdminFuturesPositionDetailResponse:
       properties:
         type:
@@ -102860,7 +102993,11 @@ components:
           title: Type
           default: admin_futures_position_detail
         position_key:
-          type: string
+          anyOf:
+          - type: string
+            maxLength: 69
+            pattern: ^fpos_[0-9a-f]{64}$
+          - type: 'null'
           title: Position Key
         found:
           type: boolean
@@ -102870,25 +103007,39 @@ components:
           - $ref: '#/components/schemas/AdminFuturesPositionReadItem'
           - type: 'null'
         account_reality:
-          $ref: '#/components/schemas/AdminAccountRealityEvidence'
+          $ref: '#/components/schemas/AdminFuturesAccountRealityEvidence'
         portfolio_scope:
-          $ref: '#/components/schemas/AdminPortfolioScopeEvidence'
+          $ref: '#/components/schemas/AdminFuturesPortfolioScopeEvidence'
         portfolio_binding:
           $ref: '#/components/schemas/AdminFuturesPortfolioBindingEvidence'
+        position_key_policy:
+          type: string
+          const: opaque_backend_token
+          title: Position Key Policy
+          default: opaque_backend_token
+        private_identifier_values_included:
+          type: boolean
+          const: false
+          title: Private Identifier Values Included
+          default: false
         read_only:
           type: boolean
+          const: true
           title: Read Only
           default: true
         command_routes_mode:
           type: string
+          const: not_implemented
           title: Command Routes Mode
-          default: not_modeled
+          default: not_implemented
         browser_authority:
           type: string
+          const: display_only
           title: Browser Authority
           default: display_only
         bff_authority:
           type: string
+          const: forward_only_no_execution
           title: Bff Authority
           default: forward_only_no_execution
         readback_source:
@@ -102903,29 +103054,27 @@ components:
           default: false
         live_coinbase_read_ran:
           type: boolean
+          const: false
           title: Live Coinbase Read Ran
           default: false
         live_coinbase_execution:
           type: string
+          const: not_run
           title: Live Coinbase Execution
           default: not_run
         notional_usdc:
           type: string
-          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          const: '0'
           title: Notional Usdc
-          description: Decimal value serialized as a string; floats are not part of
-            the API contract.
           default: '0'
-          examples:
-          - '1.00'
         live_coinbase_orders_ran:
           type: boolean
+          const: false
           title: Live Coinbase Orders Ran
           default: false
       additionalProperties: false
       type: object
       required:
-      - position_key
       - found
       - account_reality
       - portfolio_scope
@@ -102939,9 +103088,7 @@ components:
           title: Type
           default: admin_futures_positions
         filters:
-          additionalProperties: true
-          type: object
-          title: Filters
+          $ref: '#/components/schemas/AdminFuturesPositionReadFilters'
         count:
           type: integer
           title: Count
@@ -102953,25 +103100,39 @@ components:
           type: array
           title: Items
         account_reality:
-          $ref: '#/components/schemas/AdminAccountRealityEvidence'
+          $ref: '#/components/schemas/AdminFuturesAccountRealityEvidence'
         portfolio_scope:
-          $ref: '#/components/schemas/AdminPortfolioScopeEvidence'
+          $ref: '#/components/schemas/AdminFuturesPortfolioScopeEvidence'
         portfolio_binding:
           $ref: '#/components/schemas/AdminFuturesPortfolioBindingEvidence'
+        position_key_policy:
+          type: string
+          const: opaque_backend_token
+          title: Position Key Policy
+          default: opaque_backend_token
+        private_identifier_values_included:
+          type: boolean
+          const: false
+          title: Private Identifier Values Included
+          default: false
         read_only:
           type: boolean
+          const: true
           title: Read Only
           default: true
         command_routes_mode:
           type: string
+          const: not_implemented
           title: Command Routes Mode
-          default: not_modeled
+          default: not_implemented
         browser_authority:
           type: string
+          const: display_only
           title: Browser Authority
           default: display_only
         bff_authority:
           type: string
+          const: forward_only_no_execution
           title: Bff Authority
           default: forward_only_no_execution
         readback_source:
@@ -102986,28 +103147,28 @@ components:
           default: false
         live_coinbase_read_ran:
           type: boolean
+          const: false
           title: Live Coinbase Read Ran
           default: false
         live_coinbase_execution:
           type: string
+          const: not_run
           title: Live Coinbase Execution
           default: not_run
         notional_usdc:
           type: string
-          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          const: '0'
           title: Notional Usdc
-          description: Decimal value serialized as a string; floats are not part of
-            the API contract.
           default: '0'
-          examples:
-          - '1.00'
         live_coinbase_orders_ran:
           type: boolean
+          const: false
           title: Live Coinbase Orders Ran
           default: false
       additionalProperties: false
       type: object
       required:
+      - filters
       - count
       - pagination
       - account_reality
@@ -103015,72 +103176,140 @@ components:
       - portfolio_binding
       title: AdminFuturesPositionListResponse
       description: Read-only futures/perpetual position list response.
-    AdminFuturesPositionReadItem:
+    AdminFuturesPositionReadFilters:
       properties:
-        position_key:
-          type: string
-          title: Position Key
         product_id:
-          type: string
-          title: Product Id
-        product_type:
-          $ref: '#/components/schemas/ProductType'
-          default: FUTURE
-        portfolio_uuid:
           anyOf:
           - type: string
+            maxLength: 64
+            pattern: ^[A-Z0-9][A-Z0-9-]{1,63}$
           - type: 'null'
-          title: Portfolio Uuid
+          title: Product Id
         position_side:
           anyOf:
           - $ref: '#/components/schemas/AdminFuturesPositionSide'
           - type: 'null'
+        limit:
+          type: integer
+          maximum: 500.0
+          minimum: 1.0
+          title: Limit
+        offset:
+          type: integer
+          minimum: 0.0
+          title: Offset
+        filter_status:
+          type: string
+          enum:
+          - accepted
+          - invalid
+          title: Filter Status
+      additionalProperties: false
+      type: object
+      required:
+      - limit
+      - offset
+      - filter_status
+      title: AdminFuturesPositionReadFilters
+      description: Bounded public filters returned with one Futures position page.
+    AdminFuturesPositionReadItem:
+      properties:
+        position_key:
+          type: string
+          maxLength: 69
+          pattern: ^fpos_[0-9a-f]{64}$
+          title: Position Key
+        product_id:
+          type: string
+          maxLength: 64
+          pattern: ^[A-Z0-9][A-Z0-9-]{1,63}$
+          title: Product Id
+        product_type:
+          type: string
+          const: FUTURE
+          title: Product Type
+          default: FUTURE
+        position_side:
+          $ref: '#/components/schemas/AdminFuturesPositionSide'
+          default: UNKNOWN
         number_of_contracts:
           anyOf:
           - type: string
+            maxLength: 128
+            pattern: ^-?(?:0|[1-9]\d*)(?:\.\d*[1-9])?$
           - type: 'null'
           title: Number Of Contracts
         net_size:
           anyOf:
           - type: string
+            maxLength: 128
+            pattern: ^-?(?:0|[1-9]\d*)(?:\.\d*[1-9])?$
           - type: 'null'
           title: Net Size
         entry_price:
           anyOf:
           - type: string
+            maxLength: 128
+            pattern: ^-?(?:0|[1-9]\d*)(?:\.\d*[1-9])?$
           - type: 'null'
           title: Entry Price
         entry_vwap:
           anyOf:
           - type: string
+            maxLength: 128
+            pattern: ^-?(?:0|[1-9]\d*)(?:\.\d*[1-9])?$
           - type: 'null'
           title: Entry Vwap
         current_price:
           anyOf:
           - type: string
+            maxLength: 128
+            pattern: ^-?(?:0|[1-9]\d*)(?:\.\d*[1-9])?$
           - type: 'null'
           title: Current Price
         margin_type:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
+          enum:
+          - CROSS
+          - ISOLATED
+          - INTRADAY
+          - OVERNIGHT
+          - UNKNOWN
           title: Margin Type
-        margin_amount:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
-          title: Margin Amount
+          default: UNKNOWN
+        margin_amount_label:
+          type: string
+          maxLength: 160
+          pattern: ^(?:amount:(?:0|[1-9]\d*)(?:\.\d*[1-9])?:(?:USD|USDC)|margin_amount_unavailable)$
+          title: Margin Amount Label
+          default: margin_amount_unavailable
         leverage:
           anyOf:
           - type: string
+            maxLength: 128
+            pattern: ^-?(?:0|[1-9]\d*)(?:\.\d*[1-9])?$
           - type: 'null'
           title: Leverage
         liquidation_buffer_percentage:
           anyOf:
           - type: string
+            maxLength: 128
+            pattern: ^-?(?:0|[1-9]\d*)(?:\.\d*[1-9])?$
           - type: 'null'
           title: Liquidation Buffer Percentage
+        position_pnl_label:
+          type: string
+          maxLength: 160
+          pattern: ^(?:pnl:-?(?:0|[1-9]\d*)(?:\.\d*[1-9])?:(?:USD|USDC)|position_pnl_unavailable)$
+          title: Position Pnl Label
+          default: position_pnl_unavailable
+        product_metadata_label:
+          type: string
+          enum:
+          - product_metadata:verified_futures_product
+          - product_metadata_unavailable
+          title: Product Metadata Label
+          default: product_metadata_unavailable
         open_order_side:
           anyOf:
           - $ref: '#/components/schemas/OrderSide'
@@ -103097,33 +103326,21 @@ components:
           anyOf:
           - $ref: '#/components/schemas/OrderSide'
           - type: 'null'
-        position_pnl:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
-          title: Position Pnl
-        product_metadata:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
-          title: Product Metadata
         mandatory_fee_per_contract:
           anyOf:
           - type: string
+            maxLength: 128
+            pattern: ^-?(?:0|[1-9]\d*)(?:\.\d*[1-9])?$
           - type: 'null'
           title: Mandatory Fee Per Contract
-        raw_position:
-          additionalProperties: true
-          type: object
-          title: Raw Position
         source:
           $ref: '#/components/schemas/AdminFuturesEvidenceSource'
           default: runtime_orderbook
         updated_at:
           anyOf:
           - type: string
+            maxLength: 64
+            pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$
           - type: 'null'
           title: Updated At
       additionalProperties: false
@@ -144067,40 +144284,53 @@ components:
       properties:
         client_order_id:
           type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
           title: Client Order Id
         product_id:
           anyOf:
           - type: string
+            maxLength: 255
+            pattern: ^[A-Z0-9][A-Z0-9._-]{0,254}$
           - type: 'null'
           title: Product Id
         side:
           anyOf:
           - type: string
+            enum:
+            - BUY
+            - SELL
           - type: 'null'
           title: Side
         status:
           anyOf:
+          - $ref: '#/components/schemas/OrderStatus'
+          - $ref: '#/components/schemas/StealthOrderStatus'
           - type: string
+            const: RECONCILED_CLOSED
           - type: 'null'
           title: Status
         order_type:
           anyOf:
-          - type: string
+          - $ref: '#/components/schemas/OrderType'
           - type: 'null'
-          title: Order Type
         size:
           anyOf:
           - type: string
+            maxLength: 128
+            pattern: ^(?:0\.\d*[1-9]\d*|[1-9]\d*(?:\.\d+)?)$
           - type: 'null'
           title: Size
         price:
           anyOf:
           - type: string
+            maxLength: 128
+            pattern: ^(?:0\.\d*[1-9]\d*|[1-9]\d*(?:\.\d+)?)$
           - type: 'null'
           title: Price
         parent_client_order_id:
           anyOf:
           - type: string
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
           - type: 'null'
           title: Parent Client Order Id
         ownership_provenance:
@@ -144115,30 +144345,41 @@ components:
         created_at:
           anyOf:
           - type: string
+            maxLength: 64
+            pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$
           - type: 'null'
           title: Created At
         updated_at:
           anyOf:
           - type: string
+            maxLength: 64
+            pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$
           - type: 'null'
           title: Updated At
         exchange_order_id:
           anyOf:
           - type: string
+            maxLength: 64
+            pattern: ^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$
           - type: 'null'
           title: Exchange Order Id
         exchange_order_id_evidence_only:
           type: boolean
+          const: true
           title: Exchange Order Id Evidence Only
           default: true
         correlation_id:
           anyOf:
           - type: string
+            maxLength: 255
+            pattern: ^[A-Za-z0-9][A-Za-z0-9._:-]{0,254}$
           - type: 'null'
           title: Correlation Id
         audit_id:
           anyOf:
           - type: string
+            maxLength: 255
+            pattern: ^[A-Za-z0-9][A-Za-z0-9._:-]{0,254}$
           - type: 'null'
           title: Audit Id
         last_lifecycle_event:
@@ -144148,10 +144389,18 @@ components:
         failure_reason:
           anyOf:
           - type: string
+            enum:
+            - standing_price_limit_exceeded
+            - placement_blocked
+            - reveal_failed
+            - failure_classification_withheld
           - type: 'null'
           title: Failure Reason
         source:
           type: string
+          enum:
+          - order_parent
+          - stealth_orders
           title: Source
           default: order_parent
       additionalProperties: false
@@ -144207,6 +144456,28 @@ components:
       - reason
       title: AdminProductCapabilityDecisionItem
       description: Read-only product capability policy decision for one capability.
+    AdminProductReadItem:
+      properties:
+        product_id:
+          type: string
+          minLength: 1
+          title: Product Id
+        status:
+          anyOf:
+          - type: string
+            enum:
+            - ONLINE
+            - OFFLINE
+            - DELISTED
+            - UNKNOWN
+          - type: 'null'
+          title: Status
+      additionalProperties: true
+      type: object
+      required:
+      - product_id
+      title: AdminProductReadItem
+      description: Sanitized product row with a canonical public trading status.
     AdminProductsReadResponse:
       properties:
         type:
@@ -144242,8 +144513,7 @@ components:
           title: Derivatives
         products:
           items:
-            additionalProperties: true
-            type: object
+            $ref: '#/components/schemas/AdminProductReadItem'
           type: array
           title: Products
         metadata_count:
@@ -144385,8 +144655,7 @@ components:
           title: Derivatives
         products:
           items:
-            additionalProperties: true
-            type: object
+            $ref: '#/components/schemas/AdminProductReadItem'
           type: array
           title: Products
         metadata_count:
@@ -147566,6 +147835,7 @@ components:
       - PENDING
       - SUBMITTED
       - SUBMISSION_UNKNOWN
+      - CANCELLATION_UNKNOWN
       - OPEN
       - FILLED
       - CANCELLED
@@ -147589,7 +147859,14 @@ components:
 
         - UPDATE: Incremental websocket update for an existing order
 
-        - SNAPSHOT: Initial websocket snapshot payload'
+        - SNAPSHOT: Initial websocket snapshot payload
+
+
+        Backend-only uncertainty statuses are operation-specific:
+
+        - SUBMISSION_UNKNOWN: a Create outcome is not yet proven
+
+        - CANCELLATION_UNKNOWN: a Cancel outcome is not yet terminally proven'
     OrderType:
       type: string
       enum:
@@ -149266,6 +149543,31 @@ components:
           type: boolean
           title: Live Coinbase Orders Ran
           default: false
+        module_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Module Id
+        account_reality:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiFlexibleObject'
+          - type: 'null'
+        account_scope:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiFlexibleObject'
+          - type: 'null'
+        portfolio_scope:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiFlexibleObject'
+          - type: 'null'
+        account_readiness:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiFlexibleObject'
+          - type: 'null'
+        spot_admission_input:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiFlexibleObject'
+          - type: 'null'
         products:
           items:
             anyOf:
@@ -149273,6 +149575,21 @@ components:
             - type: string
           type: array
           title: Products
+        configured_product_scope:
+          items:
+            type: string
+          type: array
+          title: Configured Product Scope
+        captured_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Captured At
+        fresh_until:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Fresh Until
         planned_budget:
           $ref: '#/components/schemas/AdminApiFlexibleObject'
         wallet_snapshot:
@@ -149310,6 +149627,10 @@ components:
           type: boolean
           title: Coinbase Read Succeeded
           default: false
+        coinbase_read_enabled:
+          type: boolean
+          title: Coinbase Read Enabled
+          default: false
         live_coinbase_read_ran:
           type: boolean
           title: Live Coinbase Read Ran
@@ -149331,6 +149652,14 @@ components:
           type: string
           title: Bff Authority
           default: read_only_forward
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        command_routes_mode:
+          type: string
+          title: Command Routes Mode
+          default: backend_admin_api
       additionalProperties: true
       type: object
       title: SpotReadinessResponse
@@ -173696,6 +174025,36 @@ components:
         repriced again. Callers must release the claim with ``release`` after
 
         both success and failure paths; there is no terminal ``done`` state.'
+    StealthOrderStatus:
+      type: string
+      enum:
+      - HIDDEN
+      - PENDING
+      - TRIGGERED
+      - REVEALED
+      - EXECUTED
+      - CANCELLED
+      title: StealthOrderStatus
+      description: 'Status of a stealth order throughout its internal lifecycle.
+
+
+        Distinct from OrderStatus (which tracks API-visible states like OPEN, FILLED).
+
+        StealthOrderStatus tracks the internal reveal and execution lifecycle of stealth
+        orders.
+
+
+        - HIDDEN: Order created, not yet revealed to exchange
+
+        - PENDING: Reveal condition partially met, watching for full trigger
+
+        - TRIGGERED: Reveal condition fully met, pending placement on exchange
+
+        - REVEALED: Order partially or fully revealed to exchange
+
+        - EXECUTED: Order fully executed
+
+        - CANCELLED: Order cancelled before execution'
     StealthPostWriteExecutionJournalReadResponse:
       properties:
         type:

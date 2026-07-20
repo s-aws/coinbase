@@ -44,7 +44,18 @@ def test_admin_spot_readiness_is_local_and_value_blind(monkeypatch):
     assert payload["values_withheld"] is True
     assert payload["coinbase_read_attempted"] is False
     assert payload["live_coinbase_read_ran"] is False
-    assert payload["wallet_snapshot"]["status"] == "withheld"
+    assert payload["account_reality"]["status"] == "blocked"
+    assert payload["account_reality"]["source"] == (
+        "backend_admin_api_local_evidence"
+    )
+    assert payload["portfolio_scope"]["portfolio_id"] == "withheld"
+    assert payload["portfolio_scope"]["portfolio_name"] == "Test"
+    assert payload["wallet_snapshot"]["available"] is False
+    assert payload["wallet_snapshot"]["backend_owned"] is True
+    assert payload["products"][0]["product_read_status"] == "blocked"
+    assert payload["products"][0]["capabilities"][
+        "product_capability_contract"
+    ]["mode"] == "blocked"
     _assert_private_exception_text_absent(payload)
 
 

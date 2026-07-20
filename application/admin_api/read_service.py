@@ -9,7 +9,8 @@ from functools import lru_cache
 import json
 import os
 from pathlib import Path
-from typing import Any, Callable
+import re
+from typing import Any, Callable, Literal
 import uuid
 
 from core.enums import (
@@ -105,6 +106,8 @@ from core.enums import (
     AdminApiVerifierReadinessStatus,
     OrderOwnershipProvenance,
     OrderSide,
+    OrderStatus,
+    OrderType,
     ProductCapability,
     ProductType,
     SpotFollowUpTrigger,
@@ -167,8 +170,6 @@ from .reconciliation import (
     ReconciliationPlanRecord,
 )
 from .models import (
-    AdminAccountReadinessEvidence,
-    AdminAccountRealityEvidence,
     AdminApiActor,
     AdminAuditModuleSummaryItem,
     AdminAuditWorkbenchEventItem,
@@ -443,6 +444,18 @@ from .models import (
 )
 from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 from .futures_command_service import FUTURES_COMMAND_SERVICE_CONTRACTS
+from .futures_public_projection import (
+    FuturesPublicProjectionError,
+    is_opaque_futures_position_key,
+    opaque_futures_position_key,
+    project_futures_position,
+    public_futures_account_readiness,
+    public_futures_account_reality,
+    public_futures_evidence,
+    public_futures_product_scope,
+    public_futures_product_id,
+    public_futures_portfolio_scope,
+)
 from .futures_proof_payload_fields import (
     iter_futures_proof_payload_field_contracts,
 )
@@ -797,6 +810,25 @@ FILL_FOLLOW_UP_TRIGGER_ENDPOINT = (
 FILL_FOLLOW_UP_TRIGGER_MODULE_ID = "spot_operations"
 FILL_FOLLOW_UP_TRIGGER_SERVICE_METHOD = "trigger_order_fill_follow_up"
 BACKEND_READ_FAILED = "backend_read_failed"
+BACKEND_ORDER_PROJECTION_INVALID = "backend_order_projection_invalid"
+_CANONICAL_UUID_TEXT_PATTERN = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+)
+_STRICT_TIMEZONE_ISO_PATTERN = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}"
+    r"(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$"
+)
+_KNOWN_PUBLIC_ORDER_STATUSES = {
+    *(status.value for status in OrderStatus),
+    *(status.value for status in StealthOrderStatus),
+    "RECONCILED_CLOSED",
+}
+_KNOWN_PUBLIC_ORDER_SIDES = {side.value for side in OrderSide}
+_KNOWN_PUBLIC_ORDER_TYPES = {order_type.value for order_type in OrderType}
+
+
+class _OrderProjectionError(ValueError):
+    """A fixed, value-blind rejection of an unsafe public order row."""
 
 
 def _value_blind_exception_detail(exc: BaseException) -> str:
@@ -807,6 +839,118 @@ def _string_or_none(value: Any) -> str | None:
     if value is None:
         return None
     return str(value)
+
+
+def _canonical_public_uuid(value: Any, *, nullable: bool = False) -> str | None:
+    if value is None and nullable:
+        return None
+    if value is None:
+        raise _OrderProjectionError(BACKEND_ORDER_PROJECTION_INVALID)
+    text = str(value)
+    if not _CANONICAL_UUID_TEXT_PATTERN.fullmatch(text):
+        raise _OrderProjectionError(BACKEND_ORDER_PROJECTION_INVALID)
+    try:
+        parsed = uuid.UUID(text)
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise _OrderProjectionError(BACKEND_ORDER_PROJECTION_INVALID) from exc
+    if str(parsed) != text:
+        raise _OrderProjectionError(BACKEND_ORDER_PROJECTION_INVALID)
+    return text
+
+
+def _safe_public_order_product(value: Any) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise _OrderProjectionError(BACKEND_ORDER_PROJECTION_INVALID)
+    if not 1 <= len(value) <= 255 or not value.isascii():
+        raise _OrderProjectionError(BACKEND_ORDER_PROJECTION_INVALID)
+    if not value[0].isalnum() or any(
+        not (character.isupper() or character.isdigit() or character in "._-")
+        for character in value
+    ):
+        raise _OrderProjectionError(BACKEND_ORDER_PROJECTION_INVALID)
+    return value
+
+
+def _known_public_order_value(
+    value: Any,
+    *,
+    allowed: set[str],
+) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or value != value.strip():
+        raise _OrderProjectionError(BACKEND_ORDER_PROJECTION_INVALID)
+    normalized = value.upper()
+    if normalized not in allowed:
+        raise _OrderProjectionError(BACKEND_ORDER_PROJECTION_INVALID)
+    return normalized
+
+
+def _positive_public_decimal(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        raise _OrderProjectionError(BACKEND_ORDER_PROJECTION_INVALID)
+    text = str(value)
+    if not 1 <= len(text) <= 128 or text != text.strip():
+        raise _OrderProjectionError(BACKEND_ORDER_PROJECTION_INVALID)
+    try:
+        decimal_value = Decimal(text)
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise _OrderProjectionError(BACKEND_ORDER_PROJECTION_INVALID) from exc
+    if (
+        not decimal_value.is_finite()
+        or decimal_value <= 0
+        or abs(decimal_value.adjusted()) > 100
+    ):
+        raise _OrderProjectionError(BACKEND_ORDER_PROJECTION_INVALID)
+    return format(decimal_value, "f")
+
+
+def _strict_timezone_iso(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        parsed = value
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            # ``order_parent.created_at`` is a PostgreSQL timestamp without a
+            # zone. The backend database contract is UTC; make that boundary
+            # explicit before exposing the timestamp.
+            parsed = parsed.replace(tzinfo=timezone.utc)
+    elif isinstance(value, str):
+        if not _STRICT_TIMEZONE_ISO_PATTERN.fullmatch(value):
+            raise _OrderProjectionError(BACKEND_ORDER_PROJECTION_INVALID)
+        normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
+        try:
+            parsed = datetime.fromisoformat(normalized)
+        except ValueError as exc:
+            raise _OrderProjectionError(BACKEND_ORDER_PROJECTION_INVALID) from exc
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            raise _OrderProjectionError(BACKEND_ORDER_PROJECTION_INVALID)
+    else:
+        raise _OrderProjectionError(BACKEND_ORDER_PROJECTION_INVALID)
+    return parsed.isoformat()
+
+
+def _safe_public_order_evidence(
+    value: Any,
+    *,
+    max_length: int,
+) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise _OrderProjectionError(BACKEND_ORDER_PROJECTION_INVALID)
+    if not 1 <= len(value) <= max_length or not value.isascii():
+        raise _OrderProjectionError(BACKEND_ORDER_PROJECTION_INVALID)
+    if not value[0].isalnum() or any(
+        not (character.isalnum() or character in "._:-")
+        for character in value
+    ):
+        raise _OrderProjectionError(BACKEND_ORDER_PROJECTION_INVALID)
+    return value
 
 
 def _ownership_provenance_or_none(
@@ -833,6 +977,27 @@ def _stealth_lifecycle_event_or_none(
         return StealthLifecycleEvent(str(value))
     except ValueError:
         return None
+
+
+def _public_order_failure_classification(
+    value: Any,
+    *,
+    last_lifecycle_event: StealthLifecycleEvent | None,
+) -> Literal[
+    "standing_price_limit_exceeded",
+    "placement_blocked",
+    "reveal_failed",
+    "failure_classification_withheld",
+] | None:
+    if value is None:
+        return None
+    if value == "standing_price_limit_exceeded":
+        return "standing_price_limit_exceeded"
+    if last_lifecycle_event == StealthLifecycleEvent.PLACEMENT_BLOCKED:
+        return "placement_blocked"
+    if last_lifecycle_event == StealthLifecycleEvent.REVEAL_FAILED:
+        return "reveal_failed"
+    return "failure_classification_withheld"
 
 
 def _now_iso() -> str:
@@ -2957,39 +3122,79 @@ def _path_id(method: str, path: str) -> str:
     return f"{method.lower()}.{normalized}"
 
 
-def _order_item_from_row(row: dict[str, Any]) -> AdminOrderReadItem:
-    return AdminOrderReadItem(
-        client_order_id=str(
-            row.get("client_order_id") or row.get("stealth_order_id") or ""
-        ),
-        product_id=_string_or_none(row.get("product_id")),
-        side=_string_or_none(row.get("side")),
-        status=_string_or_none(row.get("status")),
-        order_type=_string_or_none(row.get("order_type")),
-        size=_string_or_none(row.get("size")),
-        price=_string_or_none(row.get("price")),
-        parent_client_order_id=_string_or_none(row.get("parent_order_id")),
-        ownership_provenance=_ownership_provenance_or_none(
-            row.get("ownership_provenance")
-        ),
-        # The durable portfolio binding remains available to backend admission
-        # and consistency checks, but it is not part of ordinary Admin readback.
-        retail_portfolio_id=None,
-        created_at=_string_or_none(row.get("created_at")),
-        updated_at=_string_or_none(row.get("updated_at")),
-        exchange_order_id=_string_or_none(
-            row.get("exchange_order_id")
-            or row.get("coinbase_order_id")
-            or row.get("active_exchange_order_id")
-        ),
-        correlation_id=_string_or_none(row.get("correlation_id")),
-        audit_id=_string_or_none(row.get("audit_id")),
-        last_lifecycle_event=_stealth_lifecycle_event_or_none(
-            row.get("last_lifecycle_event")
-        ),
-        failure_reason=_string_or_none(row.get("failure_reason")),
-        source=_string_or_none(row.get("source")) or "order_parent",
+def _order_item_from_row(
+    row: dict[str, Any],
+    *,
+    expected_client_order_id: str | None = None,
+    authoritative_source: Literal["order_parent", "stealth_orders"] = (
+        "order_parent"
+    ),
+) -> AdminOrderReadItem:
+    if not isinstance(row, dict):
+        raise _OrderProjectionError(BACKEND_ORDER_PROJECTION_INVALID)
+    client_order_id = _canonical_public_uuid(
+        row.get("client_order_id") or row.get("stealth_order_id")
     )
+    if expected_client_order_id is not None:
+        expected_id = _canonical_public_uuid(expected_client_order_id)
+        if client_order_id != expected_id:
+            raise _OrderProjectionError(BACKEND_ORDER_PROJECTION_INVALID)
+    last_lifecycle_event = _stealth_lifecycle_event_or_none(
+        row.get("last_lifecycle_event")
+    )
+    try:
+        return AdminOrderReadItem(
+            client_order_id=client_order_id,
+            product_id=_safe_public_order_product(row.get("product_id")),
+            side=_known_public_order_value(
+                row.get("side"),
+                allowed=_KNOWN_PUBLIC_ORDER_SIDES,
+            ),
+            status=_known_public_order_value(
+                row.get("status"),
+                allowed=_KNOWN_PUBLIC_ORDER_STATUSES,
+            ),
+            order_type=_known_public_order_value(
+                row.get("order_type"),
+                allowed=_KNOWN_PUBLIC_ORDER_TYPES,
+            ),
+            size=_positive_public_decimal(row.get("size")),
+            price=_positive_public_decimal(row.get("price")),
+            parent_client_order_id=_canonical_public_uuid(
+                row.get("parent_order_id"),
+                nullable=True,
+            ),
+            ownership_provenance=_ownership_provenance_or_none(
+                row.get("ownership_provenance")
+            ),
+            # Durable portfolio binding remains available to backend admission
+            # but is not part of ordinary Admin readback.
+            retail_portfolio_id=None,
+            created_at=_strict_timezone_iso(row.get("created_at")),
+            updated_at=_strict_timezone_iso(row.get("updated_at")),
+            exchange_order_id=_safe_public_order_evidence(
+                row.get("exchange_order_id")
+                or row.get("coinbase_order_id")
+                or row.get("active_exchange_order_id"),
+                max_length=64,
+            ),
+            correlation_id=_safe_public_order_evidence(
+                row.get("correlation_id"),
+                max_length=255,
+            ),
+            audit_id=_safe_public_order_evidence(
+                row.get("audit_id"),
+                max_length=255,
+            ),
+            last_lifecycle_event=last_lifecycle_event,
+            failure_reason=_public_order_failure_classification(
+                row.get("failure_reason"),
+                last_lifecycle_event=last_lifecycle_event,
+            ),
+            source=authoritative_source,
+        )
+    except ValueError as exc:
+        raise _OrderProjectionError(BACKEND_ORDER_PROJECTION_INVALID) from exc
 
 
 def _opposite_follow_up_side(side: str | None) -> str | None:
@@ -4365,40 +4570,19 @@ def _numeric_float_or_none(value: Any) -> float | None:
         return None
 
 
-def _derive_position_side(position: dict[str, Any]) -> str | None:
-    for field_name in ("side", "position_side", "position_direction"):
-        value = position.get(field_name)
-        if value:
-            normalized = str(value).upper()
-            if normalized in {
-                AdminFuturesPositionSide.LONG.value,
-                AdminFuturesPositionSide.SHORT.value,
-            }:
-                return normalized
-    net_size = _numeric_float_or_none(position.get("net_size"))
-    if net_size is not None:
-        if net_size > 0:
-            return AdminFuturesPositionSide.LONG.value
-        if net_size < 0:
-            return AdminFuturesPositionSide.SHORT.value
-        return AdminFuturesPositionSide.FLAT.value
-    return None
-
-
-def _derive_number_of_contracts(position: dict[str, Any]) -> str | None:
-    for field_name in ("number_of_contracts", "contracts", "size"):
-        value = position.get(field_name)
-        if value is not None:
-            return str(value)
-    net_size = _numeric_float_or_none(position.get("net_size"))
-    if net_size is not None:
-        return str(abs(net_size))
-    return None
-
-
 def _position_key(product_id: str, position: dict[str, Any]) -> str:
-    portfolio_uuid = _string_or_none(position.get("portfolio_uuid")) or "runtime"
-    return f"futures_position:{portfolio_uuid}:{product_id}"
+    """Return a deterministic opaque token without embedding portfolio identity."""
+
+    portfolio_identity = (
+        _string_or_none(position.get("portfolio_uuid"))
+        or _string_or_none(position.get("portfolio_id"))
+        or _string_or_none(position.get("retail_portfolio_id"))
+        or "local-runtime-single-profile"
+    )
+    return opaque_futures_position_key(
+        product_id=product_id,
+        portfolio_identity=portfolio_identity,
+    )
 
 
 def _futures_position_item_from_raw(
@@ -4409,62 +4593,14 @@ def _futures_position_item_from_raw(
     mandatory_fee_per_contract: str | None,
     source: AdminFuturesEvidenceSource,
 ) -> AdminFuturesPositionReadItem:
-    position_side = _derive_position_side(position)
-    number_of_contracts = _derive_number_of_contracts(position)
-    open_order_side: str | None = None
-    close_order_side: str | None = None
-    if position_side in {
-        AdminFuturesPositionSide.LONG.value,
-        AdminFuturesPositionSide.SHORT.value,
-    }:
-        try:
-            from configuration import determine_open_close_sides
-
-            open_order_side, close_order_side = determine_open_close_sides(
-                ProductType.FUTURE.value,
-                position_side=position_side,
-                position_size=_numeric_float_or_none(number_of_contracts),
-            )
-        except Exception:
-            if position_side == AdminFuturesPositionSide.SHORT.value:
-                open_order_side = OrderSide.SELL.value
-                close_order_side = OrderSide.BUY.value
-            else:
-                open_order_side = OrderSide.BUY.value
-                close_order_side = OrderSide.SELL.value
-
-    position_pnl: dict[str, Any] = {}
-    for field_name in ("unrealized_pnl", "realized_pnl"):
-        if field_name in position:
-            position_pnl[field_name] = position[field_name]
-
-    return AdminFuturesPositionReadItem(
-        position_key=_position_key(product_id, position),
-        product_id=product_id,
-        product_type=ProductType.FUTURE.value,
-        portfolio_uuid=_string_or_none(position.get("portfolio_uuid")),
-        position_side=position_side,
-        number_of_contracts=number_of_contracts,
-        net_size=_decimal_string_or_none(position.get("net_size")),
-        entry_price=_decimal_string_or_none(position.get("entry_price")),
-        entry_vwap=_decimal_string_or_none(position.get("entry_vwap")),
-        current_price=_decimal_string_or_none(position.get("current_price")),
-        margin_type=_string_or_none(position.get("margin_type")),
-        margin_amount=_json_object_or_none(position.get("margin_amt")),
-        leverage=_decimal_string_or_none(position.get("leverage")),
-        liquidation_buffer_percentage=_decimal_string_or_none(
-            position.get("liquidation_buffer_percentage")
-        ),
-        open_order_side=open_order_side,
-        close_order_side=close_order_side,
-        reduce_only_order_side=close_order_side,
-        close_only_order_side=close_order_side,
-        position_pnl=position_pnl or None,
-        product_metadata=_dict_or_empty(product_metadata) or None,
-        mandatory_fee_per_contract=mandatory_fee_per_contract,
-        raw_position=dict(position),
-        source=source,
-        updated_at=_string_or_none(position.get("updated_at")),
+    return AdminFuturesPositionReadItem.model_validate(
+        project_futures_position(
+            product_id=product_id,
+            position=position,
+            product_metadata=product_metadata,
+            mandatory_fee_per_contract=mandatory_fee_per_contract,
+            source=source,
+        )
     )
 
 
@@ -4503,17 +4639,19 @@ def _futures_position_items() -> list[AdminFuturesPositionReadItem]:
         ):
             continue
         fee_payload = mandatory_fees.get(product_id, {})
-        items.append(
-            _futures_position_item_from_raw(
+        try:
+            item = _futures_position_item_from_raw(
                 product_id=product_id,
                 position=position,
                 product_metadata=product_metadata,
-                mandatory_fee_per_contract=_decimal_string_or_none(
-                    fee_payload.get("mandatory_fee_per_contract")
+                mandatory_fee_per_contract=fee_payload.get(
+                    "mandatory_fee_per_contract"
                 ),
                 source=source,
             )
-        )
+        except (FuturesPublicProjectionError, ValueError):
+            continue
+        items.append(item)
     return items
 
 
@@ -4525,30 +4663,33 @@ def _futures_evidence(
     value: Any | None = None,
     detail: str | None = None,
 ) -> AdminFuturesEvidenceItem:
-    return AdminFuturesEvidenceItem(
-        name=name,
-        status=status,
-        source=source,
-        value=value,
-        detail=detail,
+    # Rich backend evidence stays internal.  Public reads expose only the fixed
+    # availability/source classification, never arbitrary values or detail.
+    _ = (value, detail)
+    return AdminFuturesEvidenceItem.model_validate(
+        public_futures_evidence(
+            name=name,
+            status=status,
+            source=source,
+            value=value,
+        )
     )
 
 
 def _offline_futures_account_reality() -> dict[str, Any]:
-    return {
-        "status": "offline_fixture",
-        "source": "backend_admin_read_contract",
-        "proof_id": "futures-account-read-offline-fixture",
-    }
+    return public_futures_account_reality(
+        {
+            "status": "offline_fixture",
+            "source": "backend_admin_read_contract",
+        }
+    )
 
 
 def _offline_futures_portfolio_scope() -> dict[str, Any]:
-    return {
-        "portfolio_id": "unknown",
-        "portfolio_name": "Unbound offline fixture",
-        "source": "backend_admin_read_contract",
-        "freshness_status": "offline_fixture",
-    }
+    return public_futures_portfolio_scope(
+        source="backend_admin_read_contract",
+        freshness_status="offline_fixture",
+    )
 
 
 def _offline_futures_portfolio_binding() -> dict[str, Any]:
@@ -4568,7 +4709,7 @@ def _offline_futures_portfolio_binding() -> dict[str, Any]:
         "request_portfolio_override_allowed": False,
         "source": "backend_admin_read_contract",
         "freshness_status": "offline_fixture",
-        "observed_at": "not_observed",
+        "observed_at": "1970-01-01T00:00:00Z",
         "permissions_read_ran": False,
         "portfolio_catalog_read_ran": False,
         "permissions_error_present": False,
@@ -4577,6 +4718,7 @@ def _offline_futures_portfolio_binding() -> dict[str, Any]:
         "product_family": "FUTURES_PERPETUALS",
         "profile_alias": "Default",
         "portfolio_id": None,
+        "portfolio_id_withheld": True,
         "credential_trade_permission_present": False,
         "command_authority_granted": False,
         "live_coinbase_execution_authorized": False,
@@ -14509,8 +14651,19 @@ class AdminApiReadService:
             filters["backend_read_error"] = BACKEND_READ_FAILED
             rows = []
             total_matching_count = 0
-
-        items = [_order_item_from_row(row) for row in rows]
+        try:
+            if (
+                not isinstance(rows, list)
+                or isinstance(total_matching_count, bool)
+                or not isinstance(total_matching_count, int)
+                or total_matching_count < len(rows)
+            ):
+                raise _OrderProjectionError(BACKEND_ORDER_PROJECTION_INVALID)
+            items = [_order_item_from_row(row) for row in rows]
+        except (TypeError, ValueError):
+            filters["backend_read_error"] = BACKEND_ORDER_PROJECTION_INVALID
+            items = []
+            total_matching_count = 0
         next_offset = normalized_offset + len(items)
         has_more = next_offset < total_matching_count
         return AdminOrderListResponse(
@@ -14548,17 +14701,26 @@ class AdminApiReadService:
         except Exception:
             row = None
             backend_read_error = BACKEND_READ_FAILED
+        order = None
+        if row is not None:
+            try:
+                order = _order_item_from_row(
+                    row,
+                    expected_client_order_id=client_order_id,
+                )
+            except (TypeError, ValueError):
+                backend_read_error = BACKEND_ORDER_PROJECTION_INVALID
         return AdminOrderDetailResponse(
             client_order_id=client_order_id,
-            found=row is not None,
-            order=_order_item_from_row(row) if row else None,
+            found=order is not None,
+            order=order,
             backend_read_error=backend_read_error,
             fill_follow_up_decision_audit=(
                 _order_fill_follow_up_decision_audit(
                     row,
                     client_order_id=client_order_id,
                 )
-                if include_diagnostics
+                if include_diagnostics and order is not None
                 else None
             ),
         )
@@ -14927,7 +15089,24 @@ class AdminApiReadService:
         )
         root_item = _order_item_from_row(root_row) if root_row else None
         active_item = _order_item_from_row(row) if row else None
-        child_items = [_order_item_from_row(child_row) for child_row in child_rows]
+        child_items: list[AdminOrderReadItem] = []
+        for child_row in child_rows:
+            child_id = _string_or_none(child_row.get("client_order_id"))
+            child_sources = child_sources_by_id.get(child_id or "", set())
+            if "order_parent" in child_sources:
+                authoritative_source: Literal[
+                    "order_parent", "stealth_orders"
+                ] = "order_parent"
+            elif "stealth_orders" in child_sources:
+                authoritative_source = "stealth_orders"
+            else:
+                raise _OrderProjectionError(BACKEND_ORDER_PROJECTION_INVALID)
+            child_items.append(
+                _order_item_from_row(
+                    child_row,
+                    authoritative_source=authoritative_source,
+                )
+            )
         child_ids = [item.client_order_id for item in child_items]
         if root_item is not None and root_item.ownership_provenance != (
             OrderOwnershipProvenance.ADMIN_MANUAL_ROOT
@@ -35344,7 +35523,10 @@ class AdminApiReadService:
                 source=evidence.source,
                 evidence_route="/api/v1/futures/account",
                 resolved=observed,
-                detail=evidence.detail or f"{prerequisite_id.value} evidence unavailable.",
+                detail=(
+                    f"{prerequisite_id.value} evidence classification: "
+                    f"{evidence.value_label}."
+                ),
             )
 
         def position_scope_prerequisite(
@@ -53046,8 +53228,12 @@ class AdminApiReadService:
             if _include_unbound_runtime_contract_evidence
             else []
         )
-        configured_product_scope = sorted(products.keys())
-        observed_position_scope = sorted({item.product_id for item in positions})
+        configured_product_scope = public_futures_product_scope(
+            sorted(products.keys())
+        )
+        observed_position_scope = public_futures_product_scope(
+            sorted({item.product_id for item in positions})
+        )
         fee_info = (
             _runtime_fee_info()
             if _include_unbound_runtime_contract_evidence
@@ -53141,30 +53327,12 @@ class AdminApiReadService:
             )
         )
 
-        pnl_items = [
-            {
-                "position_key": item.position_key,
-                "product_id": item.product_id,
-                "position_pnl": item.position_pnl,
-            }
-            for item in positions
-            if item.position_pnl
-        ]
-        position_pnl = (
-            _futures_evidence(
-                name="position_pnl",
-                status=AdminFuturesEvidenceStatus.OBSERVED,
-                source=AdminFuturesEvidenceSource.RUNTIME_POSITIONS,
-                value={"positions": pnl_items},
-                detail="Position P/L is sourced from runtime futures position payloads.",
-            )
-            if pnl_items
-            else _futures_evidence(
-                name="position_pnl",
-                status=AdminFuturesEvidenceStatus.UNAVAILABLE,
-                source=AdminFuturesEvidenceSource.RUNTIME_UNAVAILABLE,
-                detail="No runtime futures position P/L is currently available.",
-            )
+        # Raw P/L mappings are intentionally not part of the browser contract.
+        # A future selected-field P/L contract must be modeled explicitly.
+        position_pnl = _futures_evidence(
+            name="position_pnl",
+            status=AdminFuturesEvidenceStatus.UNAVAILABLE,
+            source=AdminFuturesEvidenceSource.RUNTIME_UNAVAILABLE,
         )
 
         reduce_only_close_only = (
@@ -53205,15 +53373,15 @@ class AdminApiReadService:
         return AdminFuturesAccountReadResponse(
             configured_product_scope=configured_product_scope,
             observed_position_scope=observed_position_scope,
-            account_reality=AdminAccountRealityEvidence(
-                **_offline_futures_account_reality()
-            ),
-            account_readiness=AdminAccountReadinessEvidence(
-                futures_account_scope_ready=False,
-                futures_default_profile_bound=False,
-                futures_observed_position_scope_ready=False,
-                usable_for_futures_risk=False,
-                futures_margin_collateral_ready=False,
+            account_reality=_offline_futures_account_reality(),
+            account_readiness=public_futures_account_readiness(
+                {
+                    "futures_account_scope_ready": False,
+                    "futures_default_profile_bound": False,
+                    "futures_observed_position_scope_ready": False,
+                    "usable_for_futures_risk": False,
+                    "futures_margin_collateral_ready": False,
+                }
             ),
             portfolio_scope=_offline_futures_portfolio_scope(),
             portfolio_binding=_offline_futures_portfolio_binding(),
@@ -53239,24 +53407,45 @@ class AdminApiReadService:
 
         normalized_limit = max(1, min(limit, 500))
         normalized_offset = max(0, offset)
+        normalized_product_id: str | None = None
+        product_filter_valid = True
+        if product_id is not None:
+            try:
+                normalized_product_id = public_futures_product_id(product_id)
+            except FuturesPublicProjectionError:
+                product_filter_valid = False
+        normalized_position_side = (
+            position_side.strip().upper()
+            if isinstance(position_side, str)
+            and position_side == position_side.strip()
+            and position_side.strip().upper()
+            in {item.value for item in AdminFuturesPositionSide}
+            else None
+        )
+        side_filter_valid = position_side is None or normalized_position_side is not None
         filters: dict[str, Any] = {
-            "product_id": product_id,
-            "position_side": position_side,
+            "product_id": normalized_product_id,
+            "position_side": normalized_position_side,
             "limit": normalized_limit,
             "offset": normalized_offset,
+            "filter_status": (
+                "accepted" if product_filter_valid and side_filter_valid else "invalid"
+            ),
         }
         items = (
             _futures_position_items()
             if _include_unbound_runtime_contract_evidence
+            and product_filter_valid
+            and side_filter_valid
             else []
         )
         filtered: list[AdminFuturesPositionReadItem] = []
         for item in items:
-            if product_id and item.product_id != product_id:
+            if normalized_product_id and item.product_id != normalized_product_id:
                 continue
             if (
-                position_side
-                and str(item.position_side or "").upper() != position_side.upper()
+                normalized_position_side
+                and item.position_side.value != normalized_position_side
             ):
                 continue
             filtered.append(item)
@@ -53284,14 +53473,23 @@ class AdminApiReadService:
         self,
         *,
         position_key: str,
+        _include_unbound_runtime_contract_evidence: bool = False,
     ) -> AdminFuturesPositionDetailResponse:
         """Return one read-only futures/perpetual position by ``position_key``."""
 
-        positions: list[AdminFuturesPositionReadItem] = []
+        normalized_position_key = (
+            position_key if is_opaque_futures_position_key(position_key) else None
+        )
+        positions = (
+            _futures_position_items()
+            if normalized_position_key is not None
+            and _include_unbound_runtime_contract_evidence
+            else []
+        )
         for position in positions:
-            if position.position_key == position_key:
+            if position.position_key == normalized_position_key:
                 return AdminFuturesPositionDetailResponse(
-                    position_key=position_key,
+                    position_key=normalized_position_key,
                     found=True,
                     position=position,
                     account_reality=_offline_futures_account_reality(),
@@ -53299,7 +53497,7 @@ class AdminApiReadService:
                     portfolio_binding=_offline_futures_portfolio_binding(),
                 )
         return AdminFuturesPositionDetailResponse(
-            position_key=position_key,
+            position_key=normalized_position_key,
             found=False,
             position=None,
             account_reality=_offline_futures_account_reality(),
@@ -54894,53 +55092,22 @@ class AdminApiReadService:
         *,
         product_ids: list[str] | None = None,
     ) -> dict[str, Any]:
-        requested_product_ids = [
-            product_id
-            for raw_product_id in (product_ids or [])
-            if (product_id := str(raw_product_id).strip())
-        ]
-        return {
-            "type": "spot_readiness",
-            "status": "blocked",
-            "products": [
-                {"product_id": product_id}
-                for product_id in requested_product_ids
-            ],
-            "planned_budget": {},
-            "wallet_snapshot": {
-                "status": "withheld",
-                "available": False,
-                "values_withheld": True,
-                "reason": (
-                    "wallet_evidence_resolves_only_during_"
-                    "authorized_backend_action"
+        mvp_service = self.mvp_service
+        if mvp_service is None:
+            from .mvp_service import (
+                AdminMvpDependencies,
+                AdminMvpService,
+                AdminMvpStore,
+            )
+
+            mvp_service = AdminMvpService(
+                AdminMvpDependencies(
+                    rest_client=None,
+                    rest_client_available=False,
                 ),
-            },
-            "action_guard_summary": [
-                {
-                    "label": "Per-action wallet admission",
-                    "mode": "backend_only",
-                    "reason": (
-                        "wallet_evidence_resolves_only_during_"
-                        "authorized_backend_action"
-                    ),
-                }
-            ],
-            "message": (
-                "spot_readiness_requires_explicit_authorized_backend_action"
-            ),
-            "blockers": ["explicit_authorized_refresh_not_implemented"],
-            "local_only": True,
-            "values_withheld": True,
-            "coinbase_read_attempted": False,
-            "coinbase_read_succeeded": False,
-            "live_coinbase_read_ran": False,
-            "live_coinbase_orders_ran": False,
-            "external_state_refresh_available": False,
-            "external_state_refresh_route": None,
-            "browser_authority": "display_only",
-            "bff_authority": "read_only_forward",
-        }
+                store=AdminMvpStore(),
+            )
+        return mvp_service.build_spot_readiness(product_ids=product_ids)
 
     def build_spot_recovery_preview(
         self,

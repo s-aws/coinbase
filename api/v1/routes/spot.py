@@ -111,7 +111,7 @@ PNL_CHECKPOINT_DETAIL_ROUTE_RESPONSES = {
 def get_read_service() -> AdminApiReadService:
     """Return the read-only Admin API status service."""
 
-    return AdminApiReadService()
+    return AdminApiReadService(mvp_service=get_admin_mvp_service())
 
 
 def get_spot_pnl_checkpoint_service() -> AdminApiSpotPnlCheckpointService:

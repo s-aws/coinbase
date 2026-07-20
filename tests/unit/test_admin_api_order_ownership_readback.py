@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import uuid
 from types import SimpleNamespace
 
@@ -80,6 +81,20 @@ def test_order_item_exposes_ownership_and_blocked_reveal_evidence() -> None:
     assert item.last_lifecycle_event == StealthLifecycleEvent.PLACEMENT_BLOCKED
     assert item.failure_reason == "standing_price_limit_exceeded"
     assert item.exchange_order_id == "exchange-root-1"
+    assert item.source == "order_parent"
+
+
+def test_order_item_source_requires_authoritative_collection_context() -> None:
+    row = {**_filled_root(None), "source": "stealth_orders"}
+
+    parent_item = read_service._order_item_from_row(row)
+    stealth_item = read_service._order_item_from_row(
+        row,
+        authoritative_source="stealth_orders",
+    )
+
+    assert parent_item.source == "order_parent"
+    assert stealth_item.source == "stealth_orders"
 
 
 def test_automatic_complete_proof_requires_admin_root_provenance(monkeypatch) -> None:
@@ -350,3 +365,42 @@ def test_operator_visible_chain_remains_after_submission_and_terminal_reconcilia
         blocker.startswith("follow_up_child_missing_")
         for blocker in reconciled_chain.blockers
     )
+
+
+def test_stealth_only_chain_child_preserves_source_and_withholds_raw_failure(
+    monkeypatch,
+) -> None:
+    root = _filled_root(OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value)
+    private_canary = "PRIVATE_COINBASE_EXCEPTION account=secret-account"
+    stealth_child = {
+        "stealth_order_id": CHILD_ID,
+        "product_id": "BTC-USDC",
+        "side": "SELL",
+        "size": "0.01",
+        "price": "160.00",
+        "parent_order_id": ROOT_ID,
+        "stealth_status": "HIDDEN",
+        "last_lifecycle_event": StealthLifecycleEvent.REVEAL_FAILED.value,
+        "failure_reason": private_canary,
+    }
+    monkeypatch.setattr(
+        "database.order.get_parent_order",
+        lambda client_order_id: root if client_order_id == ROOT_ID else None,
+    )
+    monkeypatch.setattr("database.order.get_parent_orders", lambda: [root])
+    monkeypatch.setattr(
+        "database.order.get_stealth_children_for_parent",
+        lambda parent_order_id: (
+            [stealth_child] if parent_order_id == ROOT_ID else []
+        ),
+    )
+
+    chain = read_service.AdminApiReadService().build_order_fill_follow_up_chain(
+        client_order_id=ROOT_ID,
+    )
+    payload = chain.model_dump(mode="json")
+
+    assert payload["follow_up_child_count"] == 1
+    assert payload["follow_up_children"][0]["source"] == "stealth_orders"
+    assert payload["follow_up_children"][0]["failure_reason"] == "reveal_failed"
+    assert private_canary not in json.dumps(payload, sort_keys=True)

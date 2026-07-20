@@ -8,6 +8,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from core.enums import OrderStatus
 from application.admin_api.spot_portfolio_binding import (
     SpotPortfolioBindingError,
     evaluate_spot_test_portfolio_binding,
@@ -1045,6 +1046,11 @@ def test_runtime_root_registrar_persists_and_hydrates_exact_test_scope() -> None
         status="SUBMITTED",
         exchange_order_id="exchange-test-root",
     )
+    registrar.mark_submission_status(
+        client_order_id="22daf1ea-4c57-4c03-98c5-e74459576228",
+        status=OrderStatus.CANCELLATION_UNKNOWN.value,
+        exchange_order_id="exchange-test-root",
+    )
     unresolved = registrar.get_unresolved_admin_manual_root_submissions(
         TEST_PORTFOLIO_ID
     )
@@ -1063,8 +1069,14 @@ def test_runtime_root_registrar_persists_and_hydrates_exact_test_scope() -> None
             "client_order_id": "22daf1ea-4c57-4c03-98c5-e74459576228",
             "status": "SUBMITTED",
             "exchange_order_id": "exchange-test-root",
-        }
+        },
+        {
+            "client_order_id": "22daf1ea-4c57-4c03-98c5-e74459576228",
+            "status": OrderStatus.CANCELLATION_UNKNOWN.value,
+            "exchange_order_id": "exchange-test-root",
+        },
     ]
+    assert len(OrderStatus.CANCELLATION_UNKNOWN.value) <= 20
     assert unresolved == [
         {"client_order_id": "unresolved-root", "status": "OPEN"}
     ]
@@ -1404,6 +1416,7 @@ def test_manual_spot_cancel_uses_verified_exchange_id_and_confirms_terminal_stat
                 "ownership_provenance": "ADMIN_MANUAL_ROOT",
                 "parent_order_id": None,
                 "product_id": "BTC-USDC",
+                "status": OrderStatus.OPEN.value,
             }
 
         def mark_submission_status(self, **_kwargs: object) -> None:

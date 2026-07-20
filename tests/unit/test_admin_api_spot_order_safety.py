@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 from datetime import datetime, timedelta, timezone
 from threading import Event, Lock, Thread
 from types import SimpleNamespace
@@ -8,6 +8,7 @@ from typing import Any, Callable, Mapping
 
 import pytest
 
+from core.enums import OrderStatus
 from application.admin_api.command_service import (
     AdminApiCommandDependencies,
     AdminApiCommandService,
@@ -704,6 +705,137 @@ def test_reconcile_selected_root_persists_exact_terminal_without_exchange_mutati
     else:
         assert rest_client.list_fills_calls == []
         assert recorded_proofs == []
+
+
+def test_reconcile_resolves_create_unknown_to_exact_nonterminal_status() -> None:
+    """Exact OPEN proof can resolve an uncertain Create without cancelling."""
+
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+    rest_client = _SpotRestClient()
+    rest_client.history = [
+        {
+            "client_order_id": client_order_id,
+            "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
+            "status": "OPEN",
+        }
+    ]
+    registrar = _RootRegistrar()
+    _registered_root(registrar, client_order_id)
+    registrar.rows[client_order_id].update(
+        {
+            "status": OrderStatus.SUBMISSION_UNKNOWN.value,
+            "exchange_order_id": "exchange-order-1",
+        }
+    )
+    service = _service(rest_client, registrar)
+
+    blocked_cancel = service.cancel_order_by_client_order_id(
+        _cancel_command(client_order_id, idempotency_key="cancel-before-create-reconcile")
+    )
+    reconciled = service.reconcile_order_by_client_order_id(
+        _reconcile_command(client_order_id)
+    )
+
+    assert blocked_cancel.status == AdminApiCommandStatus.REJECTED
+    assert blocked_cancel.failure_stage == "cancellation_uncertainty"
+    assert blocked_cancel.live_coinbase_read_ran is False
+    assert blocked_cancel.live_coinbase_orders_ran is False
+    assert reconciled.status == AdminApiCommandStatus.ACCEPTED
+    assert reconciled.data["authoritative_status"] == OrderStatus.OPEN.value
+    assert reconciled.data["terminal_status_proven"] is False
+    assert reconciled.data["order_status_persisted"] is True
+    assert registrar.rows[client_order_id]["status"] == OrderStatus.OPEN.value
+    assert registrar.status_calls == [(client_order_id, OrderStatus.OPEN.value)]
+    assert rest_client.cancel_client_calls == []
+    assert rest_client.cancel_exchange_calls == []
+
+
+def test_reconcile_preserves_cancel_unknown_on_nonterminal_readback() -> None:
+    """An OPEN read cannot clear a durable prior Cancel uncertainty claim."""
+
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+    rest_client = _SpotRestClient()
+    rest_client.history = [
+        {
+            "client_order_id": client_order_id,
+            "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
+            "status": "OPEN",
+        }
+    ]
+    registrar = _RootRegistrar()
+    _registered_root(registrar, client_order_id)
+    registrar.rows[client_order_id].update(
+        {
+            "status": OrderStatus.CANCELLATION_UNKNOWN.value,
+            "exchange_order_id": "exchange-order-1",
+        }
+    )
+    service = _service(rest_client, registrar)
+
+    reconciled = service.reconcile_order_by_client_order_id(
+        _reconcile_command(client_order_id)
+    )
+    cancelled = service.cancel_order_by_client_order_id(
+        _cancel_command(client_order_id, idempotency_key="cancel-after-open-read")
+    )
+
+    assert reconciled.status == AdminApiCommandStatus.REJECTED
+    assert reconciled.failure_stage == "reconciliation_cancel_unknown_nonterminal"
+    assert reconciled.data["order_status_persisted"] is False
+    assert reconciled.data["terminal_status_proven"] is False
+    assert reconciled.data["recovery_disposition"] == (
+        "quarantined_cancel_outcome_unknown_nonterminal"
+    )
+    assert reconciled.data["safe_to_submit_another_root"] is False
+    assert registrar.rows[client_order_id]["status"] == (
+        OrderStatus.CANCELLATION_UNKNOWN.value
+    )
+    assert registrar.status_calls == []
+    assert cancelled.status == AdminApiCommandStatus.REJECTED
+    assert cancelled.failure_stage == "cancellation_uncertainty"
+    assert cancelled.live_coinbase_read_ran is False
+    assert cancelled.live_coinbase_orders_ran is False
+    assert rest_client.cancel_client_calls == []
+    assert rest_client.cancel_exchange_calls == []
+
+
+def test_reconcile_terminal_proof_may_clear_cancel_unknown() -> None:
+    """Exact terminal proof can safely replace the durable Cancel quarantine."""
+
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+    rest_client = _SpotRestClient()
+    rest_client.history = [
+        {
+            "client_order_id": client_order_id,
+            "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
+            "status": "CANCELLED",
+        }
+    ]
+    registrar = _RootRegistrar()
+    _registered_root(registrar, client_order_id)
+    registrar.rows[client_order_id].update(
+        {
+            "status": OrderStatus.CANCELLATION_UNKNOWN.value,
+            "exchange_order_id": "exchange-order-1",
+        }
+    )
+
+    response = _service(rest_client, registrar).reconcile_order_by_client_order_id(
+        _reconcile_command(client_order_id)
+    )
+
+    assert response.status == AdminApiCommandStatus.ACCEPTED
+    assert response.data["terminal_status_proven"] is True
+    assert response.data["authoritative_status"] == "CANCELLED"
+    assert registrar.rows[client_order_id]["status"] == OrderStatus.CANCELLED.value
+    assert registrar.status_calls == [
+        (client_order_id, OrderStatus.CANCELLED.value)
+    ]
+    assert rest_client.cancel_client_calls == []
+    assert rest_client.cancel_exchange_calls == []
 
 
 @pytest.mark.parametrize(
@@ -2082,6 +2214,69 @@ def test_submit_serializes_profile_open_read_through_create_outcome() -> None:
     assert rejected.failure_stage in {"submission_uncertainty", "active_order_limit"}
 
 
+def test_proven_create_status_persistence_failure_blocks_after_restart() -> None:
+    """The durable PENDING root must quarantine a proven Create across restart."""
+
+    first_client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+    second_client_order_id = "0ba18a83-b30c-4c71-ad01-8f4e439d8f70"
+    private_marker = "private-root-status-write-detail-must-not-leak"
+
+    class _FailOpenStatusRegistrar(_RootRegistrar):
+        def mark_submission_status(
+            self,
+            *,
+            client_order_id: str,
+            status: str,
+            exchange_order_id: str | None = None,
+        ) -> None:
+            if status == OrderStatus.OPEN.value:
+                raise RuntimeError(private_marker)
+            super().mark_submission_status(
+                client_order_id=client_order_id,
+                status=status,
+                exchange_order_id=exchange_order_id,
+            )
+
+    rest_client = _SpotRestClient()
+    rest_client.history = [
+        {
+            "client_order_id": first_client_order_id,
+            "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
+            "status": OrderStatus.OPEN.value,
+        }
+    ]
+    registrar = _FailOpenStatusRegistrar()
+
+    first = _service(
+        rest_client,
+        registrar,
+        coordinator=SpotProfileOrderAdmissionCoordinator(),
+    ).place_manual_order(_manual_command(first_client_order_id))
+    second = _service(
+        rest_client,
+        registrar,
+        coordinator=SpotProfileOrderAdmissionCoordinator(),
+    ).place_manual_order(_manual_command(second_client_order_id))
+
+    assert first.status == AdminApiCommandStatus.REJECTED
+    assert first.failure_stage == "order_root_status_persistence"
+    assert first.live_exchange_submitted is True
+    assert private_marker not in str(first.model_dump(mode="json"))
+    assert registrar.rows[first_client_order_id]["status"] == (
+        OrderStatus.PENDING.value
+    )
+    assert second.status == AdminApiCommandStatus.REJECTED
+    assert second.failure_stage == "submission_uncertainty"
+    assert len(second.data["durable_unresolved_roots"]) == 1
+    unresolved = second.data["durable_unresolved_roots"][0]
+    assert unresolved["client_order_id"] == first_client_order_id
+    assert unresolved["product_id"] == "BTC-USDC"
+    assert unresolved["status"] == OrderStatus.PENDING.value
+    assert "exchange_order_id" not in unresolved
+    assert len(rest_client.create_calls) == 1
+
+
 def test_submit_audit_failure_reports_proven_live_order_without_accepting() -> None:
     rest_client = _SpotRestClient()
     rest_client.history = [
@@ -2396,10 +2591,12 @@ def test_cancel_unknown_is_durably_quarantined_across_restart_and_new_key() -> N
     )
 
     assert first.failure_stage == "cancellation_unknown"
-    assert registrar.rows[client_order_id]["status"] == "SUBMISSION_UNKNOWN"
+    assert registrar.rows[client_order_id]["status"] == (
+        OrderStatus.CANCELLATION_UNKNOWN.value
+    )
     assert registrar.status_calls[-1] == (
         client_order_id,
-        "SUBMISSION_UNKNOWN",
+        OrderStatus.CANCELLATION_UNKNOWN.value,
     )
     assert second.status == AdminApiCommandStatus.REJECTED
     assert second.failure_stage == "cancellation_uncertainty"
@@ -2410,6 +2607,52 @@ def test_cancel_unknown_is_durably_quarantined_across_restart_and_new_key() -> N
     assert len(rest_client.list_calls) == 1
     assert rest_client.api_key_permission_calls == 1
     assert rest_client.portfolio_calls == 1
+
+
+def test_cancel_revalidates_unknown_local_state_after_profile_claim() -> None:
+    """A waiter must not use the OPEN snapshot read before profile locking."""
+
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+    rest_client = _SpotRestClient()
+    rest_client.history = [
+        {
+            "client_order_id": client_order_id,
+            "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
+            "status": "OPEN",
+        }
+    ]
+    registrar = _RootRegistrar()
+    _registered_root(registrar, client_order_id)
+
+    class _PriorWorkerCompletedUnknownCoordinator(
+        SpotProfileOrderAdmissionCoordinator
+    ):
+        @contextmanager
+        def claim(self, retail_portfolio_id: str):
+            registrar.mark_submission_status(
+                client_order_id=client_order_id,
+                status=OrderStatus.CANCELLATION_UNKNOWN.value,
+                exchange_order_id="exchange-order-1",
+            )
+            with super().claim(retail_portfolio_id):
+                yield
+
+    response = _service(
+        rest_client,
+        registrar,
+        coordinator=_PriorWorkerCompletedUnknownCoordinator(),
+    ).cancel_order_by_client_order_id(
+        _cancel_command(client_order_id, idempotency_key="waiting-command-key")
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "cancellation_uncertainty"
+    assert response.live_coinbase_read_ran is False
+    assert response.live_coinbase_orders_ran is False
+    assert rest_client.list_calls == []
+    assert rest_client.cancel_client_calls == []
+    assert rest_client.cancel_exchange_calls == []
 
 
 def test_cancel_persists_durable_unknown_claim_before_coinbase_boundary() -> None:
@@ -2436,10 +2679,12 @@ def test_cancel_persists_durable_unknown_claim_before_coinbase_boundary() -> Non
             _cancel_command(client_order_id, idempotency_key="cancel-process-loss")
         )
 
-    assert registrar.rows[client_order_id]["status"] == "SUBMISSION_UNKNOWN"
+    assert registrar.rows[client_order_id]["status"] == (
+        OrderStatus.CANCELLATION_UNKNOWN.value
+    )
     assert registrar.status_calls[-1] == (
         client_order_id,
-        "SUBMISSION_UNKNOWN",
+        OrderStatus.CANCELLATION_UNKNOWN.value,
     )
     assert rest_client.cancel_client_calls == []
     assert rest_client.cancel_exchange_calls == ["exchange-order-1"]
@@ -2469,7 +2714,7 @@ def test_cancel_does_not_cross_coinbase_boundary_without_durable_claim() -> None
             status: str,
             exchange_order_id: str | None = None,
         ) -> None:
-            if status == "SUBMISSION_UNKNOWN":
+            if status == OrderStatus.CANCELLATION_UNKNOWN.value:
                 raise RuntimeError("synthetic private persistence detail")
             super().mark_submission_status(
                 client_order_id=client_order_id,

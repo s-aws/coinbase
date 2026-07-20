@@ -31,9 +31,26 @@ FRONTEND_QUEUE_DOC = FRONTEND_ROOT / "docs" / "plans" / "AUTONOMOUS_WORK_QUEUE.m
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
 GOAL_ID = "operator_follow_up_operations_queue_and_single_live_proof"
 ACTIVE_GOAL_ID = "operator_core_workspaces_origin_prod_alignment_v1"
-ACTIVE_GOAL_STATUS = "in_progress"
-ACTIVE_ACTION = "implement_validate_audit_and_deploy_core_operator_workspaces"
-ACTIVE_DEFAULT_ACTION = "continue_bounded_implementation_and_offline_remediation"
+ACTIVE_GOAL_STATUS = "complete"
+ACTIVE_ACTION = "complete_core_operator_workspaces_origin_prod_alignment"
+ACTIVE_DEFAULT_ACTION = "await_operator_direction_for_next_mvp"
+ACTIVE_COMPLETION_MARKER = (
+    "Goal `operator_core_workspaces_origin_prod_alignment_v1` is complete."
+)
+ACTIVE_SCOPE_MARKER = (
+    "Portfolio, Spot Operations, Futures Operations, Orders-detail, "
+    "Automation, and System Operations"
+)
+ACTIVE_REFRESH_BOUNDARY = (
+    "The one authorized account-reality refresh completed and is consumed "
+    "and sealed; its evidence is stale for live eligibility and cannot be "
+    "rerun under this goal."
+)
+ACTIVE_NO_LIVE_PROOF = "No goal-scoped Create, Cancel, or live proof has run."
+ACTIVE_OPTIONAL_ALLOWANCES = (
+    "The optional Spot Create and exact-order Cancel allowances remain "
+    "unconsumed."
+)
 CURRENT_ALIGNMENT_TOKEN = "operator_follow_up_operations_queue_single_proof_v1"
 CURRENT_ACTION = "complete_zero_candidates_all_live_allowances_unconsumed"
 CURRENT_WORK_MODE = CURRENT_ACTION
@@ -390,12 +407,23 @@ def _current_goal_alignment() -> QueueCheck:
         (
             ACTIVE_GOAL_ID,
             f"Status: `{ACTIVE_GOAL_STATUS}`",
+            ACTIVE_COMPLETION_MARKER,
             ACTIVE_ACTION,
             ACTIVE_DEFAULT_ACTION,
             "persistent authenticated operator shell",
-            "Portfolio, Spot Operations, Orders-detail, and System Operations",
+            ACTIVE_SCOPE_MARKER,
             "Diagnostics separate",
-            "No goal-scoped Coinbase call has run yet.",
+            ACTIVE_REFRESH_BOUNDARY,
+            ACTIVE_NO_LIVE_PROOF,
+            ACTIVE_OPTIONAL_ALLOWANCES,
+            "Futures is source-disabled and call-free",
+            "Automation is GET-only",
+            "`1109 passed, 6 skipped` parallel",
+            "`599 passed, 150 skipped` serial",
+            "frontend full `1440 passed`",
+            "E2E `13 passed`",
+            "independent safety audit `PASS`",
+            "final blind re-audit is not claimed as passed",
             GOAL_ID,
             "complete_zero_candidates",
             "passive local SQL",
@@ -439,12 +467,15 @@ def _current_goal_alignment() -> QueueCheck:
         (
             ACTIVE_GOAL_ID,
             f"Status: `{ACTIVE_GOAL_STATUS}`",
+            ACTIVE_COMPLETION_MARKER,
             ACTIVE_ACTION,
             ACTIVE_DEFAULT_ACTION,
             "persistent authenticated operator shell",
-            "Portfolio, Spot Operations, Orders-detail, and System Operations",
+            ACTIVE_SCOPE_MARKER,
             "Diagnostics separate",
-            "No goal-scoped Coinbase call has run yet.",
+            ACTIVE_REFRESH_BOUNDARY,
+            ACTIVE_NO_LIVE_PROOF,
+            ACTIVE_OPTIONAL_ALLOWANCES,
             GOAL_ID,
             "completed with zero candidates",
             "passive local SQL",
@@ -814,6 +845,21 @@ def _entry_point_alignment() -> QueueCheck:
                 *current_goal_requirements,
                 "four installed Controlled-live mutation routes",
                 "current post-lease service decision",
+            ),
+        ),
+        _contains_all(
+            PROJECT_ROOT / "docs" / "ADMIN_MODULE_CAPABILITY_MATRIX.md",
+            (
+                ACTIVE_GOAL_ID,
+                ACTIVE_ACTION,
+                ACTIVE_DEFAULT_ACTION,
+                ACTIVE_GOAL_STATUS,
+                ACTIVE_COMPLETION_MARKER,
+                ACTIVE_SCOPE_MARKER,
+                ACTIVE_REFRESH_BOUNDARY,
+                ACTIVE_OPTIONAL_ALLOWANCES,
+                "Futures is source-disabled and call-free",
+                "Automation is GET-only",
             ),
         ),
         _contains_all(

@@ -670,24 +670,68 @@ def test_operator_materialization_terminal_records_are_aligned():
 
 def test_core_workspaces_goal_is_discoverable_from_backend_entry_points():
     documents = {
+        "root_readme": Path("README.md").read_text(encoding="utf-8"),
         "admin_readme": Path("README.admin-api.md").read_text(encoding="utf-8"),
         "docs_index": Path("docs/README.md").read_text(encoding="utf-8"),
         "handoff": Path("docs/MAINTAINER_HANDOFF.md").read_text(encoding="utf-8"),
         "roadmap": Path("docs/PUBLIC_ROADMAP.md").read_text(encoding="utf-8"),
+        "capability_matrix": Path(
+            "docs/ADMIN_MODULE_CAPABILITY_MATRIX.md"
+        ).read_text(encoding="utf-8"),
         "contract_agent": Path(
             "docs/agents/AGENT_ADMIN_API_CONTRACT.md"
         ).read_text(encoding="utf-8"),
+        "genai_index": Path("genai_data/README.md").read_text(encoding="utf-8"),
+        "goal": Path("genai_data/AGENT_MVP_REBUILD_GOAL.md").read_text(
+            encoding="utf-8"
+        ),
     }
     current_goal = "operator_core_workspaces_origin_prod_alignment_v1"
-    current_action = "implement_validate_audit_and_deploy_core_operator_workspaces"
-    default_action = "continue_bounded_implementation_and_offline_remediation"
+    current_action = "complete_core_operator_workspaces_origin_prod_alignment"
+    default_action = "await_operator_direction_for_next_mvp"
+    completion_marker = (
+        "Goal `operator_core_workspaces_origin_prod_alignment_v1` is complete."
+    )
+    completed_scope = (
+        "Portfolio, Spot Operations, Futures Operations, Orders-detail, "
+        "Automation, and System Operations"
+    )
+    refresh_boundary = (
+        "The one authorized account-reality refresh completed and is consumed "
+        "and sealed; its evidence is stale for live eligibility and cannot be "
+        "rerun under this goal."
+    )
+    no_live_proof = "No goal-scoped Create, Cancel, or live proof has run."
+    optional_allowances = (
+        "The optional Spot Create and exact-order Cancel allowances remain "
+        "unconsumed."
+    )
     historical_goal = "operator_follow_up_operations_queue_and_single_live_proof"
 
     for body in documents.values():
         normalized = " ".join(body.split())
         assert current_goal in normalized
+        assert "Status: `complete`" in normalized
+        assert completion_marker in normalized
         assert current_action in normalized
         assert default_action in normalized
+        assert completed_scope in normalized
+        assert refresh_boundary in normalized
+        assert no_live_proof in normalized
+        assert optional_allowances in normalized
+        assert "Futures is source-disabled and call-free" in normalized
+        assert "Automation is GET-only" in normalized
+        assert "`1109 passed, 6 skipped` parallel" in normalized
+        assert "`599 passed, 150 skipped` serial" in normalized
+        assert "frontend full `1440 passed`" in normalized
+        assert "E2E `13 passed`" in normalized
+        assert "independent safety audit `PASS`" in normalized
+        assert "final blind re-audit is not claimed as passed" in normalized
+
+    for name, body in documents.items():
+        if name == "capability_matrix":
+            continue
+        normalized = " ".join(body.split())
         assert historical_goal in normalized
         assert "complete_zero_candidates" in normalized
 

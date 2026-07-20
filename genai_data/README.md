@@ -10,12 +10,27 @@ at `/home/developer/coinbase/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. An
 individual analysis or implementation note does not become current work merely
 because it lives in this directory.
 
-The current goal has Status: `in_progress`. Its current action is
-`implement_validate_audit_and_deploy_core_operator_workspaces`; its default
-action is `continue_bounded_implementation_and_offline_remediation`. It aligns
-the persistent authenticated Portfolio, Spot Operations, Orders-detail, and
-System Operations workspaces while keeping Diagnostics separate. No goal-scoped
-Coinbase call has run yet.
+Status: `complete`.
+Goal `operator_core_workspaces_origin_prod_alignment_v1` is complete. Current
+action is `complete_core_operator_workspaces_origin_prod_alignment`; default
+action is `await_operator_direction_for_next_mvp`. It delivered the persistent
+authenticated operator shell and routed Portfolio, Spot Operations, Futures
+Operations, Orders-detail, Automation, and System Operations workspaces while
+keeping Diagnostics separate.
+
+The one authorized account-reality refresh completed and is consumed and
+sealed; its evidence is stale for live eligibility and cannot be rerun under
+this goal. No goal-scoped Create, Cancel, or live proof has run. The optional
+Spot Create and exact-order Cancel allowances remain unconsumed. Futures is
+source-disabled and call-free; its workspace exposes sanitized local evidence
+only. Automation is GET-only through one local
+`GET /api/v1/admin/capabilities`; it exposes no command or exchange action.
+
+Current validation evidence is backend full `1109 passed, 6 skipped` parallel
+and `599 passed, 150 skipped` serial, frontend full `1440 passed`, E2E
+`13 passed`, and independent safety audit `PASS`. The final blind re-audit is
+not claimed as passed; neither are the canonical release gate or final
+installed Controlled-live stack verification.
 
 Historical predecessor goal
 `operator_follow_up_operations_queue_and_single_live_proof` completed with

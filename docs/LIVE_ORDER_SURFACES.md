@@ -53,8 +53,11 @@ as not run with notional `0`.
   also carry exact `manual_live_acknowledgement=true`; a missing or false
   acknowledgement is rejected before any Coinbase read. Immediately before
   crossing the Coinbase cancel boundary, the service must durably mark the root
-  `SUBMISSION_UNKNOWN`; a failed mark prevents the call, while process loss
-  after the mark leaves the root quarantined until explicit reconciliation.
+  `CANCELLATION_UNKNOWN`; a failed mark prevents the call, while process loss
+  after the mark leaves the root quarantined until explicit reconciliation
+  proves a terminal exact-order status. `SUBMISSION_UNKNOWN` remains reserved
+  for uncertain Create outcomes and may be resolved by an exact recognized
+  nonterminal or terminal readback.
 - `GET /api/v1/orders/{source_client_order_id}/follow-up-intent/materialization`
   is a strictly local Orders-detail read. It reports the attached intent,
   backend-owned child candidate when durable evidence exists, append-only

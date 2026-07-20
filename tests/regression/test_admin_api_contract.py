@@ -3609,6 +3609,27 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "exchange_order_id" in order_item_schema["properties"]
     assert "correlation_id" in order_item_schema["properties"]
     assert "audit_id" in order_item_schema["properties"]
+    order_item_properties = order_item_schema["properties"]
+    assert order_item_properties["client_order_id"]["pattern"] == (
+        "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    )
+    assert order_item_properties["side"]["anyOf"][0]["enum"] == ["BUY", "SELL"]
+    assert order_item_properties["size"]["anyOf"][0]["pattern"].startswith("^")
+    assert order_item_properties["price"]["anyOf"][0]["pattern"].startswith("^")
+    assert order_item_properties["created_at"]["anyOf"][0]["pattern"].endswith(
+        "$"
+    )
+    assert order_item_properties["exchange_order_id_evidence_only"]["const"] is True
+    assert order_item_properties["source"]["enum"] == [
+        "order_parent",
+        "stealth_orders",
+    ]
+    assert order_item_properties["failure_reason"]["anyOf"][0]["enum"] == [
+        "standing_price_limit_exceeded",
+        "placement_blocked",
+        "reveal_failed",
+        "failure_classification_withheld",
+    ]
     order_detail_schema = written["components"]["schemas"][
         "AdminOrderDetailResponse"
     ]
@@ -7965,9 +7986,82 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     ]
     assert "position_key" in futures_position_schema["properties"]
     assert "product_id" in futures_position_schema["properties"]
-    assert "client_order_id" not in futures_position_schema["properties"]
-    assert "order_id" not in futures_position_schema["properties"]
-    assert "cost_basis" not in futures_position_schema["properties"]
+    assert futures_position_schema["additionalProperties"] is False
+    assert futures_position_schema["properties"]["position_key"]["pattern"] == (
+        r"^fpos_[0-9a-f]{64}$"
+    )
+    for private_or_unbounded_field in (
+        "client_order_id",
+        "order_id",
+        "cost_basis",
+        "portfolio_uuid",
+        "raw_position",
+        "product_metadata",
+        "position_pnl",
+        "margin_amount",
+    ):
+        assert private_or_unbounded_field not in futures_position_schema["properties"]
+    for safe_scalar_label in (
+        "margin_amount_label",
+        "position_pnl_label",
+        "product_metadata_label",
+    ):
+        assert safe_scalar_label in futures_position_schema["properties"]
+    futures_evidence_schema = written["components"]["schemas"][
+        "AdminFuturesEvidenceItem"
+    ]
+    assert futures_evidence_schema["additionalProperties"] is False
+    assert "value_label" in futures_evidence_schema["properties"]
+    assert "value" not in futures_evidence_schema["properties"]
+    assert "detail" not in futures_evidence_schema["properties"]
+    futures_scope_schema = written["components"]["schemas"][
+        "AdminFuturesPortfolioScopeEvidence"
+    ]
+    futures_account_reality_schema = written["components"]["schemas"][
+        "AdminFuturesAccountRealityEvidence"
+    ]
+    futures_account_readiness_schema = written["components"]["schemas"][
+        "AdminFuturesAccountReadinessEvidence"
+    ]
+    futures_position_filters_schema = written["components"]["schemas"][
+        "AdminFuturesPositionReadFilters"
+    ]
+    futures_binding_schema = written["components"]["schemas"][
+        "AdminFuturesPortfolioBindingEvidence"
+    ]
+    assert futures_account_reality_schema["additionalProperties"] is False
+    assert set(futures_account_reality_schema["properties"]) == {"status", "source"}
+    assert futures_account_readiness_schema["additionalProperties"] is False
+    assert set(futures_account_readiness_schema["properties"]) == {
+        "futures_account_scope_ready",
+        "futures_default_profile_bound",
+        "futures_observed_position_scope_ready",
+        "usable_for_futures_risk",
+        "futures_margin_collateral_ready",
+    }
+    assert futures_position_filters_schema["additionalProperties"] is False
+    assert set(futures_position_filters_schema["properties"]) == {
+        "product_id",
+        "position_side",
+        "limit",
+        "offset",
+        "filter_status",
+    }
+    assert futures_position_filters_schema["properties"]["limit"]["minimum"] == 1
+    assert futures_position_filters_schema["properties"]["limit"]["maximum"] == 500
+    assert futures_position_filters_schema["properties"]["offset"]["minimum"] == 0
+    assert futures_scope_schema["properties"]["portfolio_id"] == {
+        "type": "null",
+        "title": "Portfolio Id",
+    }
+    assert futures_scope_schema["properties"]["portfolio_id_withheld"]["const"] is True
+    assert futures_binding_schema["properties"]["portfolio_id"]["type"] == "null"
+    assert futures_binding_schema["properties"]["observed_portfolio_id"]["type"] == (
+        "null"
+    )
+    assert futures_binding_schema["properties"]["portfolio_id_withheld"]["const"] is (
+        True
+    )
     futures_account_schema = written["components"]["schemas"][
         "AdminFuturesAccountReadResponse"
     ]
@@ -7976,6 +8070,32 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "funding" in futures_account_schema["properties"]
     assert "liquidation" in futures_account_schema["properties"]
     assert "command_routes_mode" in futures_account_schema["properties"]
+    assert futures_account_schema["properties"]["command_routes_mode"]["const"] == (
+        "not_implemented"
+    )
+    assert futures_account_schema["properties"]["live_coinbase_read_ran"]["const"] is (
+        False
+    )
+    assert futures_account_schema["properties"][
+        "private_identifier_values_included"
+    ]["const"] is False
+    for response_schema_name in (
+        "AdminFuturesPositionListResponse",
+        "AdminFuturesPositionDetailResponse",
+    ):
+        response_schema = written["components"]["schemas"][response_schema_name]
+        assert response_schema["properties"]["position_key_policy"]["const"] == (
+            "opaque_backend_token"
+        )
+        assert response_schema["properties"]["command_routes_mode"]["const"] == (
+            "not_implemented"
+        )
+        assert response_schema["properties"]["live_coinbase_read_ran"]["const"] is (
+            False
+        )
+        assert response_schema["properties"][
+            "private_identifier_values_included"
+        ]["const"] is False
     futures_command_suite_schema = written["components"]["schemas"][
         "AdminFuturesCommandSuiteResponse"
     ]
@@ -78541,7 +78661,7 @@ def test_admin_api_order_list_read_service_returns_pagination_metadata(monkeypat
 
     rows = [
         {
-            "client_order_id": f"client-{index}",
+            "client_order_id": f"00000000-0000-4000-8000-{index:012d}",
             "product_id": "BTC-USDC",
             "status": "OPEN",
             "correlation_id": f"corr-{index}",
@@ -78570,7 +78690,10 @@ def test_admin_api_order_list_read_service_returns_pagination_metadata(monkeypat
     )
 
     assert response.count == 2
-    assert [item.client_order_id for item in response.items] == ["client-1", "client-2"]
+    assert [item.client_order_id for item in response.items] == [
+        "00000000-0000-4000-8000-000000000001",
+        "00000000-0000-4000-8000-000000000002",
+    ]
     assert response.items[0].correlation_id == "corr-1"
     assert response.items[0].audit_id == "audit-1"
     assert response.pagination.limit == 2
@@ -78644,8 +78767,10 @@ def test_admin_api_order_detail_surfaces_no_live_fill_follow_up_decision(
 
     from application.admin_api.read_service import AdminApiReadService
 
+    root_id = "770e8400-e29b-41d4-a716-446655440000"
+    child_id = "771e8400-e29b-41d4-a716-446655440000"
     root_order = {
-        "client_order_id": "root-follow-up-buy",
+        "client_order_id": root_id,
         "product_id": "BTC-USD",
         "side": "BUY",
         "status": "FILLED",
@@ -78658,14 +78783,14 @@ def test_admin_api_order_detail_surfaces_no_live_fill_follow_up_decision(
         "exchange_order_id": "exchange-evidence-root",
     }
     child_order = {
-        "client_order_id": "child-follow-up-sell",
+        "client_order_id": child_id,
         "product_id": "BTC-USD",
         "side": "SELL",
         "status": "PENDING",
         "order_type": "limit",
         "size": "0.01",
         "price": "101.00",
-        "parent_order_id": "root-follow-up-buy",
+        "parent_order_id": root_id,
         "created_at": "2026-07-10T01:03:00Z",
         "updated_at": "2026-07-10T01:03:00Z",
     }
@@ -78673,7 +78798,7 @@ def test_admin_api_order_detail_surfaces_no_live_fill_follow_up_decision(
         order_module,
         "get_parent_order",
         lambda client_order_id: (
-            root_order if client_order_id == "root-follow-up-buy" else None
+            root_order if client_order_id == root_id else None
         ),
     )
     monkeypatch.setattr(
@@ -78694,7 +78819,7 @@ def test_admin_api_order_detail_surfaces_no_live_fill_follow_up_decision(
     )
 
     response = AdminApiReadService().build_order_detail(
-        client_order_id="root-follow-up-buy",
+        client_order_id=root_id,
         include_diagnostics=True,
     )
 
@@ -78702,7 +78827,7 @@ def test_admin_api_order_detail_surfaces_no_live_fill_follow_up_decision(
     assert payload["read_only"] is True
     assert payload["live_coinbase_orders_ran"] is False
     audit = payload["fill_follow_up_decision_audit"]
-    assert audit["client_order_id"] == "root-follow-up-buy"
+    assert audit["client_order_id"] == root_id
     assert audit["source_order_status"] == "FILLED"
     assert audit["filled_status_observed"] is True
     assert audit["trigger"] == "filled"
@@ -78712,9 +78837,9 @@ def test_admin_api_order_detail_surfaces_no_live_fill_follow_up_decision(
     assert audit["policy_allowed"] is True
     assert audit["policy_intent"] == "exit"
     assert audit["follow_up_decision"] == "eligible_no_live"
-    assert audit["root_parent_client_order_id"] == "root-follow-up-buy"
+    assert audit["root_parent_client_order_id"] == root_id
     assert audit["parent_client_order_id"] is None
-    assert audit["existing_follow_up_client_order_ids"] == ["child-follow-up-sell"]
+    assert audit["existing_follow_up_client_order_ids"] == [child_id]
     assert audit["existing_follow_up_count"] == 1
     assert audit["flat_hierarchy_enforced"] is True
     assert audit["chain_source"] == "order_parent"
@@ -79994,6 +80119,9 @@ def test_admin_api_order_fill_follow_up_chain_surfaces_parent_child_readback(
     assert payload["follow_up_children"][0]["ownership_provenance"] == (
         "ADMIN_FILL_FOLLOW_UP"
     )
+    assert payload["root_order"]["source"] == "order_parent"
+    assert payload["active_order"]["source"] == "order_parent"
+    assert payload["follow_up_children"][0]["source"] == "order_parent"
     assert payload["follow_up_children"][0]["status"] == "HIDDEN"
     assert payload["follow_up_children"][0]["last_lifecycle_event"] == (
         "PLACEMENT_BLOCKED"
@@ -81214,12 +81342,12 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
         "product_id": "BTC-USD",
         "side": "SELL",
         "status": "HIDDEN",
-        "order_type": "limit",
+        "order_type": "LIMIT",
         "size": "0.01",
         "price": "101.00",
         "parent_client_order_id": root_id,
-        "created_at": "2026-07-10T01:03:00Z",
-        "updated_at": "2026-07-10T01:03:00Z",
+        "created_at": "2026-07-10T01:03:00+00:00",
+        "updated_at": "2026-07-10T01:03:00+00:00",
         "exchange_order_id": None,
         "exchange_order_id_evidence_only": True,
         "correlation_id": "corr-child-follow-up-executor",
@@ -81290,14 +81418,14 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
             "product_id": "BTC-USD",
             "side": "SELL",
             "status": "HIDDEN",
-            "order_type": "limit",
+            "order_type": "LIMIT",
             "size": "0.01",
             "price": "101.00",
             "parent_client_order_id": root_id,
             "ownership_provenance": "ADMIN_FILL_FOLLOW_UP",
             "retail_portfolio_id": None,
-            "created_at": "2026-07-10T01:03:00Z",
-            "updated_at": "2026-07-10T01:03:00Z",
+            "created_at": "2026-07-10T01:03:00+00:00",
+            "updated_at": "2026-07-10T01:03:00+00:00",
             "exchange_order_id": None,
             "exchange_order_id_evidence_only": True,
             "correlation_id": "corr-child-follow-up-executor",
@@ -84926,40 +85054,43 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
                 "name": "collateral",
                 "status": "unavailable",
                 "source": "runtime_unavailable",
-                "detail": "No futures balance summary has been observed.",
+                "value_label": "collateral_unavailable",
             },
             "margin": {
                 "name": "margin",
                 "status": "observed",
                 "source": "fee_manager",
-                "value": {
-                    "margin_window_type": "FCM_MARGIN_WINDOW_TYPE_OVERNIGHT",
-                    "overnight_margin_active": True,
-                },
+                "value_label": "margin_observed",
             },
             "funding": {
                 "name": "funding",
                 "status": "not_modeled",
                 "source": "backend_contract",
+                "value_label": "funding_not_modeled",
             },
             "liquidation": {
                 "name": "liquidation",
                 "status": "unavailable",
                 "source": "runtime_unavailable",
+                "value_label": "liquidation_unavailable",
             },
             "reduce_only_close_only": {
                 "name": "reduce_only_close_only",
                 "status": "observed",
                 "source": "position_side_derivation",
+                "value_label": "reduce_only_close_only_observed",
             },
             "position_pnl": {
                 "name": "position_pnl",
                 "status": "observed",
                 "source": "runtime_positions",
+                "value_label": "position_pnl_observed",
             },
             "position_count": 1,
+            "private_identifier_values_included": False,
             "read_only": True,
-            "command_routes_mode": "not_modeled",
+            "command_routes_mode": "not_implemented",
+            "live_coinbase_read_ran": False,
             "live_coinbase_orders_ran": False,
         },
         build_futures_command_suite=lambda: {
@@ -85821,7 +85952,7 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
         },
         build_futures_positions=lambda **kwargs: {
             "type": "admin_futures_positions",
-            "filters": kwargs,
+            "filters": {**kwargs, "filter_status": "accepted"},
             "count": 1,
             "pagination": {
                 "limit": kwargs["limit"],
@@ -85833,10 +85964,9 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
             },
             "items": [
                 {
-                    "position_key": "futures_position:default-portfolio:BIP-20DEC30-CDE",
+                    "position_key": "fpos_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                     "product_id": "BIP-20DEC30-CDE",
                     "product_type": "FUTURE",
-                    "portfolio_uuid": "default-portfolio",
                     "position_side": "LONG",
                     "number_of_contracts": "2",
                     "open_order_side": "BUY",
@@ -85847,7 +85977,10 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
                 }
             ],
             "read_only": True,
-            "command_routes_mode": "not_modeled",
+            "command_routes_mode": "not_implemented",
+            "position_key_policy": "opaque_backend_token",
+            "private_identifier_values_included": False,
+            "live_coinbase_read_ran": False,
             "live_coinbase_orders_ran": False,
         },
         build_futures_position_detail=lambda position_key: {
@@ -85867,7 +86000,10 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
                 "source": "runtime_orderbook",
             },
             "read_only": True,
-            "command_routes_mode": "not_modeled",
+            "command_routes_mode": "not_implemented",
+            "position_key_policy": "opaque_backend_token",
+            "private_identifier_values_included": False,
+            "live_coinbase_read_ran": False,
             "live_coinbase_orders_ran": False,
         },
     )
@@ -85882,7 +86018,7 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
             "blocker": None,
             "expected_portfolio_label": "Default",
             "expected_portfolio_type": "DEFAULT",
-            "observed_portfolio_id": "default-portfolio",
+            "observed_portfolio_id": None,
             "observed_portfolio_label": "Default",
             "observed_portfolio_type": "DEFAULT",
             "can_view": True,
@@ -85900,7 +86036,8 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
             "account_family": "coinbase_futures_us_cfm",
             "product_family": "FUTURES_PERPETUALS",
             "profile_alias": "Default",
-            "portfolio_id": "default-portfolio",
+            "portfolio_id": None,
+            "portfolio_id_withheld": True,
             "credential_trade_permission_present": True,
             "command_authority_granted": False,
             "live_coinbase_execution_authorized": False,
@@ -85911,18 +86048,19 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
             "account_reality": {
                 "status": "ready",
                 "source": "backend_rest_client",
-                "proof_id": "account-reality-route-test",
             },
             "portfolio_scope": {
-                "portfolio_id": "default-portfolio",
+                "portfolio_id": None,
                 "portfolio_name": "Default",
+                "portfolio_type": "DEFAULT",
+                "portfolio_id_withheld": True,
                 "source": "backend_rest_client",
                 "freshness_status": "backend_rest_fresh",
             },
             "portfolio_binding": binding,
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution",
-            "live_coinbase_read_ran": True,
+            "live_coinbase_read_ran": False,
             "live_coinbase_execution": "not_run",
             "notional_usdc": "0",
         }
@@ -85972,12 +86110,12 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
         headers=_headers(roles=AdminApiRole.VIEWER.value),
     )
     detail_response = client.get(
-        "/api/v1/futures/positions/futures_position%3Adefault-portfolio%3ABIP-20DEC30-CDE",
+        "/api/v1/futures/positions/fpos_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         headers=_headers(roles=AdminApiRole.VIEWER.value),
     )
 
     assert account_response.status_code == 200
-    assert account_response.json()["command_routes_mode"] == "not_modeled"
+    assert account_response.json()["command_routes_mode"] == "not_implemented"
     assert account_response.json()["margin"]["status"] == "observed"
     assert command_suite_response.status_code == 200
     command_suite = command_suite_response.json()
@@ -86287,20 +86425,20 @@ def test_admin_api_futures_read_routes_use_read_service_without_commands(monkeyp
     assert positions_response.status_code == 200
     position = positions_response.json()["items"][0]
     assert position["position_key"] == (
-        "futures_position:default-portfolio:BIP-20DEC30-CDE"
+        "fpos_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     )
     assert position["close_order_side"] == "SELL"
     assert "client_order_id" not in position
     assert "cost_basis" not in position
     assert detail_response.status_code == 200
     assert detail_response.json()["position_key"] == (
-        "futures_position:default-portfolio:BIP-20DEC30-CDE"
+        "fpos_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     )
     assert detail_response.json()["live_coinbase_orders_ran"] is False
     assert [path for path, _query in authoritative_calls] == [
         "/api/v1/futures/account",
         "/api/v1/futures/positions",
-        "/api/v1/futures/positions/futures_position:default-portfolio:BIP-20DEC30-CDE",
+        "/api/v1/futures/positions/fpos_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     ]
 
 
@@ -86376,7 +86514,7 @@ def test_admin_api_offline_futures_read_service_does_not_promote_runtime_positio
     command_suite = service.build_futures_command_suite()
 
     assert account.type == "admin_futures_account"
-    assert account.command_routes_mode == "not_modeled"
+    assert account.command_routes_mode == "not_implemented"
     assert "BIP-20DEC30-CDE" in account.configured_product_scope
     assert "BTC-USDC" not in account.configured_product_scope
     assert account.observed_position_scope == []
@@ -93878,6 +94016,7 @@ def test_admin_api_audit_workbench_read_service_normalizes_cross_module_evidence
     from application.admin_api.audit import AdminApiAuditEvent, FileAdminApiAuditStore
     from application.admin_api.read_service import AdminApiReadService
 
+    client_order_id = "660e8400-e29b-41d4-a716-446655440000"
     audit_path = _store_dir() / "audit.jsonl"
     audit_store = FileAdminApiAuditStore(audit_path)
     audit_store.append(
@@ -93889,7 +94028,7 @@ def test_admin_api_audit_workbench_read_service_normalizes_cross_module_evidence
             request_id="corr-001",
             operator_intent="manual_one_off",
             idempotency_key="idem-001",
-            client_order_id="client-abc",
+            client_order_id=client_order_id,
             coinbase_order_id="exchange-evidence-001",
             live_exchange_submitted=False,
             live_coinbase_orders_ran=False,
@@ -93931,7 +94070,7 @@ def test_admin_api_audit_workbench_read_service_normalizes_cross_module_evidence
         lambda **_kwargs: (
             [
                 {
-                    "client_order_id": "client-abc",
+                    "client_order_id": client_order_id,
                     "product_id": "BTC-USDC",
                     "status": "OPEN",
                     "exchange_order_id": "exchange-evidence-001",
@@ -93946,7 +94085,7 @@ def test_admin_api_audit_workbench_read_service_normalizes_cross_module_evidence
 
     response = AdminApiReadService().build_audit_workbench(
         module=AdminAuditWorkbenchModule.ORDERS,
-        client_order_id="client-abc",
+        client_order_id=client_order_id,
         correlation_id="corr-001",
         limit=10,
         offset=0,
@@ -94035,7 +94174,7 @@ def test_admin_api_audit_workbench_read_service_normalizes_cross_module_evidence
         "detail": "HTTP live execution is blocked.",
     }
     assert events_by_source[AdminAuditEvidenceSource.ORDER_PARENT].client_order_id == (
-        "client-abc"
+        client_order_id
     )
     for event in response.events:
         assert event.exchange_order_id_evidence_only is True

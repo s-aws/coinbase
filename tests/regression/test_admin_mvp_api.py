@@ -277,7 +277,10 @@ def test_admin_futures_openapi_exposes_authoritative_default_profile_read_eviden
     }
 
     assert binding_fields <= set(binding["properties"])
-    assert binding_fields <= set(binding["required"])
+    assert (binding_fields - {"observed_portfolio_id"}) <= set(binding["required"])
+    assert binding["properties"]["observed_portfolio_id"]["type"] == "null"
+    assert binding["properties"]["portfolio_id"]["type"] == "null"
+    assert binding["properties"]["portfolio_id_withheld"]["const"] is True
     for schema_name in (
         "AdminFuturesAccountReadResponse",
         "AdminFuturesPositionListResponse",
@@ -1888,7 +1891,9 @@ def test_admin_wallet_read_does_not_probe_cfm_margin_when_client_would_fail():
 
     assert futures.status_code == 200
     assert futures.body["collateral"]["status"] == "unavailable"
-    assert futures.body["collateral"]["value"]["account_family"] == "coinbase_futures_us_cfm"
+    assert futures.body["collateral"]["value_label"] == "collateral_unavailable"
+    assert "value" not in futures.body["collateral"]
+    assert "detail" not in futures.body["collateral"]
     assert futures.body["margin"]["status"] == "unavailable"
     assert_no_coinbase_reads(rest_client)
 
@@ -2122,7 +2127,7 @@ def test_spot_and_futures_reads_are_local_and_call_free(monkeypatch):
 
     assert spot.status_code == 200
     assert spot.body["status"] == "blocked"
-    assert spot.body["account_reality"]["status"] == "unavailable"
+    assert spot.body["account_reality"]["status"] == "blocked"
     assert spot.body["account_reality"]["source"] == (
         "backend_admin_api_local_evidence"
     )
@@ -2198,9 +2203,8 @@ def test_admin_futures_reads_ignore_available_default_profile_client():
     )
 
     assert account.status_code == 200
-    assert account.body["portfolio_scope"]["portfolio_id"] == (
-        "local-futures-evidence"
-    )
+    assert account.body["portfolio_scope"]["portfolio_id"] is None
+    assert account.body["portfolio_scope"]["portfolio_id_withheld"] is True
     binding = account.body["portfolio_binding"]
     assert binding["status"] == "blocked"
     assert binding["ready"] is False
@@ -2259,9 +2263,8 @@ def test_admin_futures_reads_ignore_non_default_remote_key(monkeypatch):
     )
 
     assert account.status_code == 200
-    assert account.body["portfolio_scope"]["portfolio_id"] == (
-        "local-futures-evidence"
-    )
+    assert account.body["portfolio_scope"]["portfolio_id"] is None
+    assert account.body["portfolio_scope"]["portfolio_id_withheld"] is True
     assert account.body["portfolio_binding"]["blocker"] == (
         "futures_coinbase_read_not_authorized"
     )
@@ -2295,9 +2298,10 @@ def test_admin_futures_reads_do_not_import_conflicting_remote_position():
     assert account.body["account_readiness"]["futures_account_scope_ready"] is False
     assert account.body["account_readiness"]["usable_for_futures_risk"] is False
     assert account.body["position_count"] == 0
-    assert account.body["account_reality"]["read_error"] == (
-        "futures_coinbase_read_not_authorized"
-    )
+    assert account.body["account_reality"] == {
+        "status": "unavailable",
+        "source": "backend_admin_api_local_evidence",
+    }
     assert positions.body["items"] == []
     assert positions.body["count"] == 0
     assert "different-portfolio" not in repr(account.body)
@@ -2474,17 +2478,19 @@ def test_admin_futures_perpetuals_read_contract_exposes_blocked_contract_evidenc
     assert account_body["observed_position_scope"] == []
     assert account_body["position_count"] == 0
     assert account_body["collateral"]["status"] == "unavailable"
-    assert account_body["collateral"]["value"]["account_family"] == "coinbase_futures_us_cfm"
-    assert account_body["collateral"]["value"]["intx_applicability"] == "not_applicable_us_account"
+    assert account_body["collateral"]["value_label"] == "collateral_unavailable"
+    assert "value" not in account_body["collateral"]
+    assert "detail" not in account_body["collateral"]
     assert account_body["margin"]["name"] == "margin"
     assert account_body["margin"]["status"] == "unavailable"
     assert account_body["funding"]["status"] == "unavailable"
-    assert account_body["funding"]["value"]["funding_required"] is None
+    assert account_body["funding"]["value_label"] == "funding_unavailable"
     assert account_body["liquidation"]["source"] == "runtime_unavailable"
     assert account_body["reduce_only_close_only"]["status"] == "unavailable"
     assert account_body["position_pnl"]["status"] == "unavailable"
     assert account_body["read_only"] is True
-    assert account_body["command_routes_mode"] == "backend_admin_api_local_evidence"
+    assert account_body["command_routes_mode"] == "not_implemented"
+    assert account_body["private_identifier_values_included"] is False
     assert account_body["live_coinbase_orders_ran"] is False
 
     positions = service.get_read_response(

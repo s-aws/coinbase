@@ -251,9 +251,31 @@ def test_public_binding_projection_withholds_uuid_but_retains_internal_exact_id(
 
     assert evidence.observed_portfolio_id == DEFAULT_PORTFOLIO_ID
     assert evidence.to_dict()["portfolio_id"] == DEFAULT_PORTFOLIO_ID
-    assert public["observed_portfolio_id"] == "withheld"
-    assert public["portfolio_id"] == "withheld"
+    assert public["observed_portfolio_id"] is None
+    assert public["portfolio_id"] is None
+    assert public["portfolio_id_withheld"] is True
     assert public["status"] == "matched"
     assert public["profile_alias"] == "Default"
     assert public["can_view"] is True
     assert DEFAULT_PORTFOLIO_ID not in json.dumps(public, sort_keys=True)
+
+
+def test_public_binding_projection_fails_closed_on_non_timestamp_observation() -> None:
+    evidence = evaluate_futures_default_portfolio_binding(
+        permissions=permissions(),
+        portfolios=portfolio_catalog(),
+        observed_at="withheld-reader-exception-text",
+        permissions_read=True,
+        portfolio_catalog_read=True,
+    )
+
+    assert evidence.read_ready is False
+    assert evidence.blocker == "futures_default_portfolio_observed_at_missing"
+    public = serialize_public_futures_portfolio_binding(evidence)
+
+    assert public["status"] == "blocked"
+    assert public["ready"] is False
+    assert public["read_authorized"] is False
+    assert public["blocker"] == "futures_default_portfolio_observed_at_missing"
+    assert public["observed_at"] == "1970-01-01T00:00:00Z"
+    assert "withheld-reader-exception-text" not in json.dumps(public, sort_keys=True)
