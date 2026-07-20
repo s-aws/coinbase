@@ -2783,14 +2783,45 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     AdminApiRouteInventoryItem(
         module_id="automation_control_plane",
         surface=(
+            "POST /api/v1/automation/runs/{run_id}/eligibility-cycles"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.ACCOUNT_REALITY_REFRESH,
+        idempotency=(
+            "required exact-run cycle claim; exact replay is call-free and "
+            "changed payload, actor, or intent conflicts"
+        ),
+        approval=(
+            "required approved-read and unknown-consumes-cycle acknowledgements; "
+            "also requires automation:trigger and automation:resume"
+        ),
+        caps=(
+            "required one goal-global cycle, at most ten cycles, exactly seven approved "
+            "BTC-USDC read categories, and zero exchange mutations"
+        ),
+        audit=(
+            "required PostgreSQL cycle/category claims with fixed sanitized "
+            "terminal diagnostics and exact or unknown call accounting"
+        ),
+        shared_method="refresh_spot_eligibility",
+        parity_test=(
+            "seven approved read-only categories with no individual retry; "
+            "bounded Coinbase call accounting and zero active-order catalog, "
+            "Create, Cancel, or other exchange mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="automation_control_plane",
+        surface=(
             "POST /api/v1/automation/runs/{run_id}/authorize-single-child"
         ),
         action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
         permission=AdminApiPermission.ORDER_CREATE,
         idempotency="required exact-run command; no alternate identity or retry",
         approval=(
-            "required explicit single-child and unknown-consumption "
-            "acknowledgements; also requires automation:trigger"
+            "required explicit single-child, exact-child safe-closeout, and "
+            "unknown-consumption acknowledgements; also requires "
+            "automation:trigger and order:cancel"
         ),
         caps=(
             "required BTC-USDC-only one-Test-portfolio-child cap guard; 3.10 "

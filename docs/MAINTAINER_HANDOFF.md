@@ -5,15 +5,18 @@ working on the enterprise admin platform.
 
 ## Current Handoff State
 
-Goal `operator_spot_automation_single_child_execution_adapter_v1` is at a
-source-gated checkpoint, not a live-ready completion. Installed claims stop at
-`automation_active_order_catalog_read_not_authorized` before every Coinbase
-read or mutation; eligibility, Create, and Cancel allowances remain unconsumed.
-The exact remaining coordinator/admission/closeout work and consolidated draft
-authorization are in
+Goal `operator_spot_automation_single_child_execution_adapter_v1` is at an
+eligibility-coordinator-complete, source-gated checkpoint, not a live-ready
+completion. The installed explicit operator refresh owns a durable goal-global
+ten-cycle ledger and seven approved fixed-order/no-retry read categories.
+Installed claims stop at
+`automation_active_order_catalog_read_not_authorized` before the canonical
+account-wide active-order guard, invocation claim, Create, or mutation. No live
+refresh ran; read, Create, and Cancel allowances remain unconsumed. The exact
+remaining admission/closeout work and consolidated draft authorization are in
 [Operator Spot Automation Single-Child Adapter v1](OPERATOR_SPOT_AUTOMATION_SINGLE_CHILD_ADAPTER.md).
-Current checkpoint gates passed backend full `1165 passed, 6 skipped`
-parallel and `630 passed, 150 skipped` serial, frontend full `1514 passed`,
+Current checkpoint gates passed backend full `1170 passed, 6 skipped`
+parallel and `651 passed, 150 skipped` serial, frontend full `1536 passed`,
 browser E2E `15/15`, independent safety and blind-contextless audits, and the
 frontend build/security/readiness gates. All reported zero Coinbase execution
 and zero notional.

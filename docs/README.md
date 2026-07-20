@@ -4,14 +4,17 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 
 ## Project Entry
 
-Current goal `operator_spot_automation_single_child_execution_adapter_v1` is a
-source-gated checkpoint. The one-child `BTC-USDC` operator contracts and
-PostgreSQL evidence are implemented, while installed execution stops at
-`automation_active_order_catalog_read_not_authorized` before every Coinbase
-read or mutation. Create and Cancel allowances remain unconsumed. See
+Current goal `operator_spot_automation_single_child_execution_adapter_v1` is an
+eligibility-coordinator-complete, source-gated checkpoint. The one-child
+`BTC-USDC` operator contracts, goal-global ten-cycle PostgreSQL eligibility
+ledger, strict seven-category reader, and explicit operator refresh are
+implemented. Installed execution stops at
+`automation_active_order_catalog_read_not_authorized` before the canonical
+account-wide active-order guard, invocation claim, Create, or mutation. No live
+refresh ran; read, Create, and Cancel allowances remain unconsumed. See
 [Operator Spot Automation Single-Child Adapter v1](OPERATOR_SPOT_AUTOMATION_SINGLE_CHILD_ADAPTER.md).
-Current checkpoint gates passed backend full `1165 passed, 6 skipped`
-parallel and `630 passed, 150 skipped` serial, frontend full `1514 passed`,
+Current checkpoint gates passed backend full `1170 passed, 6 skipped`
+parallel and `651 passed, 150 skipped` serial, frontend full `1536 passed`,
 browser E2E `15/15`, and both independent audits with no Coinbase execution
 or notional.
 

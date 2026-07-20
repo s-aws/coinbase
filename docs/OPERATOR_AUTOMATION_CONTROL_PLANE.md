@@ -2,8 +2,9 @@
 
 > Current successor checkpoint: the separately authorized
 > `operator_spot_automation_single_child_execution_adapter_v1` installs a typed
-> one-child `BTC-USDC` plan and operator readback, but remains
-> `SOURCE_GATED` at fixed diagnostic
+> one-child `BTC-USDC` plan, goal-global ten-cycle eligibility ledger, strict
+> seven-category operator refresh, and readback, but remains `SOURCE_GATED` at
+> fixed diagnostic
 > `automation_active_order_catalog_read_not_authorized`. It made zero Coinbase
 > reads, Create calls, or Cancel calls and consumed no live allowance. See
 > [Operator Spot Automation Single-Child Adapter v1](OPERATOR_SPOT_AUTOMATION_SINGLE_CHILD_ADAPTER.md).
@@ -38,12 +39,14 @@ The backend owns:
   RBAC, local actionability, audit, and fixed diagnostics;
 - exact `client_order_id` linkage fields reserved for a future domain adapter.
 
-The control plane does not claim current portfolio, wallet, inventory, cap,
-order-admission, exchange-call, or reconciliation evidence. Before any future
-run can cross a domain boundary, its typed backend adapter must independently
-revalidate those rules through the owning Spot or Orders service and persist
-exact child linkage. The adapter cannot inherit authority from definition
-metadata or browser confirmation.
+The control plane itself does not claim current portfolio, wallet, inventory,
+cap, order-admission, exchange-call, or reconciliation evidence. The Spot
+successor adapter now owns a separate explicit, durable seven-category
+eligibility refresh and exposes only its sanitized evidence. A future run still
+cannot cross the domain boundary until the owning Spot service revalidates all
+rules, completes the separately authorized account-wide active-order guard,
+and persists exact child linkage. Neither definition metadata, eligibility
+readback, nor browser confirmation grants execution authority.
 
 The browser displays generated backend contracts and forwards explicit
 operator requests. It does not calculate products, sizes, prices, caps,

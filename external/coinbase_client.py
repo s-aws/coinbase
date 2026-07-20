@@ -1123,6 +1123,7 @@ class CoinbaseRestClient:
         Raises:
             Exception: If API call fails
         """
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
         return self._client.list_orders(
             order_status=order_status,
             order_ids=order_ids,

@@ -22,14 +22,15 @@ frontend request
 ```
 
 Current goal `operator_spot_automation_single_child_execution_adapter_v1` is at
-a source-gated checkpoint, not a live-ready completion. Current action is
-`await_consolidated_canonical_spot_adapter_continuation_authority`. Installed
-claims and authorization stop at
-`automation_active_order_catalog_read_not_authorized` before every Coinbase
-read or mutation. All eligibility, Create, and Cancel allowances are
-unconsumed. Do not ungate the adapter until the canonical eligibility,
-route-owned admission/execution scope, exact-child reconciliation, and safe
-closeout gaps in
+an eligibility-coordinator-complete, source-gated checkpoint, not a live-ready
+completion. Current action is
+`await_active_order_catalog_and_canonical_execution_authority`. The durable
+seven-category operator refresh is installed, while production execution stops
+at `automation_active_order_catalog_read_not_authorized` before the canonical
+account-wide active-order guard, invocation claim, Create, or mutation. No live
+refresh ran; all read, Create, and Cancel allowances are unconsumed. Do not
+ungate the adapter until the route-owned admission/execution scope, exact-child
+reconciliation, and safe closeout gaps in
 `docs/OPERATOR_SPOT_AUTOMATION_SINGLE_CHILD_ADAPTER.md` are resolved under
 explicit authority.
 

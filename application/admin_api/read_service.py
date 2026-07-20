@@ -8486,7 +8486,11 @@ class AdminApiReadService:
             "POST /api/v1/automation/control-plane/drain",
             "POST /api/v1/automation/control-plane/shutdown",
             "POST /api/v1/automation/definitions/{definition_id}/runs",
+            "POST /api/v1/automation/runs/{run_id}/eligibility-cycles",
             "POST /api/v1/automation/runs/{run_id}/authorize-single-child",
+        ]
+        operator_automation_eligibility_command_surfaces = [
+            "POST /api/v1/automation/runs/{run_id}/eligibility-cycles",
         ]
         operator_automation_live_command_surfaces = [
             "POST /api/v1/automation/runs/{run_id}/authorize-single-child",
@@ -8495,6 +8499,7 @@ class AdminApiReadService:
             surface
             for surface in operator_automation_command_surfaces
             if surface not in operator_automation_live_command_surfaces
+            and surface not in operator_automation_eligibility_command_surfaces
         ]
         functionality_inventory = [
             functionality_item(
@@ -10083,6 +10088,10 @@ class AdminApiReadService:
             route_inventory_item(surface)
             for surface in operator_automation_local_command_surfaces
         ]
+        operator_automation_eligibility_command_rows = [
+            route_inventory_item(surface)
+            for surface in operator_automation_eligibility_command_surfaces
+        ]
         mutation_taxonomy = [
             mutation_taxonomy_item(
                 mutation_id="automation.operator_control_plane",
@@ -10180,6 +10189,128 @@ class AdminApiReadService:
                 live_adapter_required=False,
             ),
             mutation_taxonomy_item(
+                mutation_id="automation.spot_eligibility_refresh",
+                mutation_family=(
+                    AdminApiMutationFamilyType.ADMIN_ACCOUNT_REALITY_REFRESH
+                ),
+                workflow_id="automation.operator_control_plane",
+                module_id="automation",
+                module="Automation",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Explicit operator-triggered, PostgreSQL-claimed BTC-USDC "
+                    "eligibility refresh over exactly seven approved read-only "
+                    "Coinbase categories; page loading and replay are call-free."
+                ),
+                command_surfaces=operator_automation_eligibility_command_surfaces,
+                action_classes=[
+                    row.action_class
+                    for row in operator_automation_eligibility_command_rows
+                ],
+                required_permissions=[
+                    AdminApiPermission.ACCOUNT_REALITY_REFRESH,
+                    AdminApiPermission.AUTOMATION_RESUME,
+                    AdminApiPermission.AUTOMATION_TRIGGER,
+                ],
+                identity_keys=[
+                    "definition_id",
+                    "run_id",
+                    "cycle_number",
+                    "plan_sha256",
+                    "client_order_id",
+                ],
+                payload_binding_fields=[
+                    "route",
+                    "actor",
+                    "operator_intent",
+                    "run_id",
+                    "expected_plan_sha256",
+                    "confirm_approved_eligibility_reads",
+                    "confirm_unknown_consumes_cycle",
+                    "reason",
+                    "idempotency_key",
+                    "correlation_id",
+                ],
+                idempotency_contract=(
+                    "required goal-global cycle claim; exact terminal replay is "
+                    "reader-free and changed request, actor, intent, or correlation "
+                    "identity conflicts"
+                ),
+                approval_contract=(
+                    "no approval snapshot; explicit approved-read and unknown-"
+                    "consumes-cycle acknowledgements plus authenticated operator "
+                    "intent are required"
+                ),
+                cap_guard_contract=(
+                    "exact immutable BTC-USDC plan retains the 3.10 submitted and "
+                    "1.00 possible-execution USDC ceilings; refresh cannot admit "
+                    "or submit an order"
+                ),
+                admission_audit_contract=(
+                    "durable goal-global cycle and ordered category claims persist "
+                    "only fixed diagnostics, freshness, hashes, and call accounting"
+                ),
+                reconciliation_contract=(
+                    "exact-order reconciliation is one approved read category; "
+                    "account-wide active-order admission and all mutations remain "
+                    "source-gated"
+                ),
+                owning_backend_service=(
+                    "application/admin_api/operator_automation.py::"
+                    "OperatorAutomationService"
+                ),
+                shared_command_service_method="refresh_spot_eligibility",
+                route_inventory_refs=[
+                    row.surface
+                    for row in operator_automation_eligibility_command_rows
+                ],
+                backend_contract_refs=[
+                    "api/v1/routes/operator_automation.py",
+                    "application/admin_api/operator_spot_eligibility.py",
+                    "application/admin_api/operator_spot_eligibility_reader.py",
+                    "application/admin_api/operator_spot_eligibility_postgres.py",
+                    "database/operator_automation.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    "src/features/operator-read-models/automation",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_SPOT_AUTOMATION_SINGLE_CHILD_ADAPTER.md",
+                ],
+                required_next_contract=(
+                    "Separately authorized account-wide active-order catalog guard "
+                    "and canonical Spot execution coordinator."
+                ),
+                blockers=[
+                    "automation_active_order_catalog_read_not_authorized",
+                ],
+                frontend_boundary=(
+                    "The UI may render generated evidence and forward only the "
+                    "explicit acknowledged refresh; it cannot call Coinbase or "
+                    "infer eligibility or execution authority."
+                ),
+                bff_boundary=(
+                    "The BFF forwards the allowlisted request once with server-held "
+                    "auth and never retries, redirects, normalizes raw Coinbase "
+                    "responses, or acquires exchange authority."
+                ),
+                route_local_boundary=(
+                    "The route binds auth, three RBAC permissions, run identity, "
+                    "acknowledgements, intent, idempotency, and correlation before "
+                    "the typed coordinator; it imports no Coinbase client."
+                ),
+                spot_rule_boundary=(
+                    "This exact BTC-USDC eligibility evidence is Spot-only and must "
+                    "not be copied into Futures or generic orchestration."
+                ),
+                approval_required=False,
+                cap_guard_required=False,
+                reconciliation_required=False,
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_item(
                 mutation_id="automation.spot_single_child_execution",
                 mutation_family=AdminApiMutationFamilyType.SPOT_CAMPAIGN_EXECUTION,
                 workflow_id="automation.operator_control_plane",
@@ -10193,14 +10324,19 @@ class AdminApiReadService:
                 ),
                 summary=(
                     "One explicitly operator-triggered BTC-USDC automation child "
-                    "authorization route; installed execution is source-gated "
-                    "before every Coinbase read or mutation."
+                    "authorization route; installed execution is source-gated after "
+                    "the separate eligibility refresh and before the account-wide "
+                    "active-order read or mutation."
                 ),
                 command_surfaces=operator_automation_live_command_surfaces,
-                action_classes=[AdminApiActionClass.LIVE_EXCHANGE_PLACE],
+                action_classes=[
+                    AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+                    AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                ],
                 required_permissions=[
                     AdminApiPermission.AUTOMATION_TRIGGER,
                     AdminApiPermission.ORDER_CREATE,
+                    AdminApiPermission.ORDER_CANCEL,
                 ],
                 identity_keys=[
                     "definition_id",
@@ -10223,8 +10359,9 @@ class AdminApiReadService:
                     "rejection; changed payload reuse is rejected"
                 ),
                 approval_contract=(
-                    "explicit single-child and unknown-consumption acknowledgements "
-                    "plus backend RBAC; no prior acknowledgement is reused"
+                    "explicit single-child, exact-child safe-closeout, and "
+                    "unknown-consumption acknowledgements plus backend RBAC; "
+                    "no prior acknowledgement is reused"
                 ),
                 cap_guard_contract=(
                     "BTC-USDC only; submitted notional at most 3.10 USDC and "
@@ -10273,8 +10410,10 @@ class AdminApiReadService:
                     "with server-held authentication and performs no retry."
                 ),
                 route_local_boundary=(
-                    "The installed route remains source-gated before eligibility, "
-                    "invocation claims, coordinator construction, or Coinbase."
+                    "The explicit eligibility route owns one durable seven-category "
+                    "read cycle; the single-child authorization route remains "
+                    "source-gated before the account-wide active-order read, "
+                    "invocation claim, canonical execution coordinator, or mutation."
                 ),
                 spot_rule_boundary=(
                     "BTC-USDC wallet, inventory, cap, and child rules are Spot-only "

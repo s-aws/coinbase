@@ -58,6 +58,7 @@ def test_list_orders_forwards_exact_retail_portfolio_scope():
 
     client = CoinbaseRestClient.__new__(CoinbaseRestClient)
     client._client = MagicMock()
+    client._client.session = None
     client._client.list_orders.return_value = {"orders": [], "has_next": False}
 
     response = client.list_orders(

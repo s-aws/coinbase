@@ -75038,6 +75038,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "spot.usdc_pair_snapshot_order_plan",
         "spot.usdc_pair_snapshot_allowlist_live_handoff",
         "automation.operator_control_plane",
+        "automation.spot_eligibility_refresh",
         "automation.spot_single_child_execution",
         "stealth.create",
         "stealth.reveal",
@@ -75090,6 +75091,35 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "POST /api/v1/automation/runs/{run_id}/authorize-single-child"
         not in automation_control_taxonomy["command_surfaces"]
     )
+    assert (
+        "POST /api/v1/automation/runs/{run_id}/eligibility-cycles"
+        not in automation_control_taxonomy["command_surfaces"]
+    )
+    automation_eligibility_taxonomy = taxonomy_by_id[
+        "automation.spot_eligibility_refresh"
+    ]
+    assert automation_eligibility_taxonomy["mutation_family"] == (
+        AdminApiMutationFamilyType.ADMIN_ACCOUNT_REALITY_REFRESH.value
+    )
+    assert automation_eligibility_taxonomy["action_classes"] == [
+        AdminApiActionClass.LOCAL_STATE_MUTATION.value
+    ]
+    assert set(automation_eligibility_taxonomy["required_permissions"]) == {
+        AdminApiPermission.ACCOUNT_REALITY_REFRESH.value,
+        AdminApiPermission.AUTOMATION_RESUME.value,
+        AdminApiPermission.AUTOMATION_TRIGGER.value,
+    }
+    assert automation_eligibility_taxonomy["command_surfaces"] == [
+        "POST /api/v1/automation/runs/{run_id}/eligibility-cycles"
+    ]
+    assert automation_eligibility_taxonomy["approval_required"] is False
+    assert automation_eligibility_taxonomy["cap_guard_required"] is False
+    assert automation_eligibility_taxonomy["reconciliation_required"] is False
+    assert automation_eligibility_taxonomy["live_adapter_required"] is False
+    assert automation_eligibility_taxonomy["live_coinbase_execution"] == "not_run"
+    assert automation_eligibility_taxonomy["blockers"] == [
+        "automation_active_order_catalog_read_not_authorized",
+    ]
     automation_spot_taxonomy = taxonomy_by_id[
         "automation.spot_single_child_execution"
     ]
@@ -75097,11 +75127,13 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         AdminApiMutationFamilyType.SPOT_CAMPAIGN_EXECUTION.value
     )
     assert automation_spot_taxonomy["action_classes"] == [
-        AdminApiActionClass.LIVE_EXCHANGE_PLACE.value
+        AdminApiActionClass.LIVE_EXCHANGE_PLACE.value,
+        AdminApiActionClass.LIVE_EXCHANGE_CANCEL.value,
     ]
     assert set(automation_spot_taxonomy["required_permissions"]) == {
         AdminApiPermission.AUTOMATION_TRIGGER.value,
         AdminApiPermission.ORDER_CREATE.value,
+        AdminApiPermission.ORDER_CANCEL.value,
     }
     assert automation_spot_taxonomy["approval_required"] is True
     assert automation_spot_taxonomy["cap_guard_required"] is True

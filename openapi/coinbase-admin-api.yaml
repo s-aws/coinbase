@@ -11592,6 +11592,126 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/automation/runs/{run_id}/eligibility-cycles:
+    post:
+      tags:
+      - operator-automation
+      summary: Refresh Spot Eligibility
+      operationId: refresh_operator_automation_spot_eligibility
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 36
+          maxLength: 36
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Run Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: ^[\x21-\x7e]+$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: ^[\x21-\x7e]+$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: refresh_automation_spot_eligibility
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutomationEligibilityRefreshRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationEligibilityCycleMutationResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Not Found
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/automation/runs/{run_id}/authorize-single-child:
     post:
       tags:
@@ -11630,7 +11750,7 @@ paths:
         in: header
         required: true
         schema:
-          const: authorize_automation_single_child_create
+          const: authorize_automation_single_child_create_and_safe_closeout
           type: string
           title: X-Operator-Intent
       - name: Authorization
@@ -149681,6 +149801,108 @@ components:
       required:
       - mode
       title: AutomationDefinitionScheduleRequest
+    AutomationEligibilityCycleMutationResponse:
+      properties:
+        type:
+          type: string
+          const: automation_eligibility_cycle_mutation
+          title: Type
+          default: automation_eligibility_cycle_mutation
+        status:
+          type: string
+          const: accepted
+          title: Status
+          default: accepted
+        run:
+          $ref: '#/components/schemas/AutomationRunItem'
+        replayed:
+          type: boolean
+          title: Replayed
+          default: false
+        audit_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Audit Id
+        correlation_id:
+          type: string
+          maxLength: 255
+          minLength: 1
+          pattern: ^[\x21-\x7e]+$
+          title: Correlation Id
+        activity:
+          $ref: '#/components/schemas/AutomationEligibilityRefreshActivity'
+      additionalProperties: false
+      type: object
+      required:
+      - run
+      - audit_id
+      - correlation_id
+      title: AutomationEligibilityCycleMutationResponse
+    AutomationEligibilityRefreshActivity:
+      properties:
+        coinbase_api_call_count:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Coinbase Api Call Count
+          default: 0
+        exchange_mutation_count:
+          type: integer
+          const: 0
+          title: Exchange Mutation Count
+          default: 0
+        create_call_count:
+          type: integer
+          const: 0
+          title: Create Call Count
+          default: 0
+        cancel_call_count:
+          type: integer
+          const: 0
+          title: Cancel Call Count
+          default: 0
+        call_count_exact:
+          type: boolean
+          title: Call Count Exact
+          default: true
+        recurring_worker_started:
+          type: boolean
+          const: false
+          title: Recurring Worker Started
+          default: false
+      additionalProperties: false
+      type: object
+      title: AutomationEligibilityRefreshActivity
+      description: Current-cycle accounting for approved read-only eligibility evidence.
+    AutomationEligibilityRefreshRequest:
+      properties:
+        confirm_approved_eligibility_reads:
+          type: boolean
+          const: true
+          title: Confirm Approved Eligibility Reads
+        confirm_unknown_consumes_cycle:
+          type: boolean
+          const: true
+          title: Confirm Unknown Consumes Cycle
+        expected_plan_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Expected Plan Sha256
+        reason:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Reason
+      additionalProperties: false
+      type: object
+      required:
+      - confirm_approved_eligibility_reads
+      - confirm_unknown_consumes_cycle
+      - expected_plan_sha256
+      - reason
+      title: AutomationEligibilityRefreshRequest
+      description: Exact-run authorization for one bounded seven-category read cycle.
     AutomationFilters:
       properties:
         domain:
@@ -149713,38 +149935,28 @@ components:
     AutomationNoExchangeActivity:
       properties:
         coinbase_api_call_count:
-          anyOf:
-          - type: integer
-            minimum: 0.0
-          - type: 'null'
+          type: integer
+          const: 0
           title: Coinbase Api Call Count
           default: 0
         exchange_mutation_count:
-          anyOf:
-          - type: integer
-            maximum: 1.0
-            minimum: 0.0
-          - type: 'null'
+          type: integer
+          const: 0
           title: Exchange Mutation Count
           default: 0
         create_call_count:
-          anyOf:
-          - type: integer
-            maximum: 1.0
-            minimum: 0.0
-          - type: 'null'
+          type: integer
+          const: 0
           title: Create Call Count
           default: 0
         cancel_call_count:
-          anyOf:
-          - type: integer
-            maximum: 1.0
-            minimum: 0.0
-          - type: 'null'
+          type: integer
+          const: 0
           title: Cancel Call Count
           default: 0
         call_count_exact:
           type: boolean
+          const: true
           title: Call Count Exact
           default: true
         recurring_worker_started:
@@ -150029,7 +150241,9 @@ components:
         allowed_actions:
           items:
             type: string
-            const: AUTHORIZE_SINGLE_CHILD
+            enum:
+            - REFRESH_ELIGIBILITY
+            - AUTHORIZE_SINGLE_CHILD
           type: array
           maxItems: 1
           title: Allowed Actions
@@ -150096,6 +150310,52 @@ components:
       - pagination
       - items
       title: AutomationRunListResponse
+    AutomationRunMutationActivity:
+      properties:
+        coinbase_api_call_count:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Coinbase Api Call Count
+          default: 0
+        exchange_mutation_count:
+          anyOf:
+          - type: integer
+            maximum: 2.0
+            minimum: 0.0
+          - type: 'null'
+          title: Exchange Mutation Count
+          default: 0
+        create_call_count:
+          anyOf:
+          - type: integer
+            maximum: 1.0
+            minimum: 0.0
+          - type: 'null'
+          title: Create Call Count
+          default: 0
+        cancel_call_count:
+          anyOf:
+          - type: integer
+            maximum: 1.0
+            minimum: 0.0
+          - type: 'null'
+          title: Cancel Call Count
+          default: 0
+        call_count_exact:
+          type: boolean
+          title: Call Count Exact
+          default: true
+        recurring_worker_started:
+          type: boolean
+          const: false
+          title: Recurring Worker Started
+          default: false
+      additionalProperties: false
+      type: object
+      title: AutomationRunMutationActivity
+      description: Truthful current-request accounting for one run mutation workflow.
     AutomationRunMutationResponse:
       properties:
         type:
@@ -150125,7 +150385,7 @@ components:
           pattern: ^[\x21-\x7e]+$
           title: Correlation Id
         activity:
-          $ref: '#/components/schemas/AutomationNoExchangeActivity'
+          $ref: '#/components/schemas/AutomationRunMutationActivity'
       additionalProperties: false
       type: object
       required:
@@ -150145,6 +150405,10 @@ components:
           type: boolean
           const: true
           title: Confirm Single Child Create
+        confirm_exact_child_safe_closeout_cancel:
+          type: boolean
+          const: true
+          title: Confirm Exact Child Safe Closeout Cancel
         confirm_unknown_consumes_allowance:
           type: boolean
           const: true
@@ -150162,6 +150426,7 @@ components:
       type: object
       required:
       - confirm_single_child_create
+      - confirm_exact_child_safe_closeout_cancel
       - confirm_unknown_consumes_allowance
       - expected_plan_sha256
       - reason

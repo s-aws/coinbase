@@ -14,21 +14,24 @@ plans.
 ## Current MVP Goal
 
 Current goal `operator_spot_automation_single_child_execution_adapter_v1` is
-at a source-gated checkpoint, not a live-ready completion. The typed
-PostgreSQL one-child `BTC-USDC` plan, deterministic child claim, generated
-backend/frontend readback, and durable future-coordinator persistence
-primitives are implemented. No callable or injectable production execution
-coordinator is installed.
-Installed
-production claims fail closed with
-`automation_active_order_catalog_read_not_authorized` before every Coinbase
-read, invocation claim, Create, or Cancel. All goal-scoped live allowances are
-unconsumed. Completing the canonical eligibility/admission/exact-child path
-requires the consolidated successor authority recorded in
+at an eligibility-coordinator-complete, source-gated checkpoint, not a
+live-ready completion. The typed PostgreSQL one-child `BTC-USDC` plan,
+deterministic child claim, goal-global ten-cycle eligibility ledger, strict
+seven-category reader, generated backend/frontend readback, and explicit
+operator refresh are implemented. Navigation is call-free; a refresh is
+backend-owned, fixed-order, no-retry, freshness-bound, and value-blind.
+
+Installed production claims fail closed with
+`automation_active_order_catalog_read_not_authorized` before the canonical
+account-wide active-order guard, invocation claim, Create, or Cancel. No live
+eligibility refresh was exercised during implementation, and all goal-scoped
+read, Create, and Cancel allowances are unconsumed. Completing the canonical
+admission/exact-child execution path requires the consolidated successor
+authority recorded in
 [the adapter checkpoint](docs/OPERATOR_SPOT_AUTOMATION_SINGLE_CHILD_ADAPTER.md).
 
-Current checkpoint validation passed backend full `1165 passed, 6 skipped`
-parallel and `630 passed, 150 skipped` serial, frontend full `1514 passed`,
+Current checkpoint validation passed backend full `1170 passed, 6 skipped`
+parallel and `651 passed, 150 skipped` serial, frontend full `1536 passed`,
 browser E2E `15/15`, independent safety and blind-contextless audits, and the
 frontend build/security/readiness gates. Every gate reported no Coinbase
 execution and `0 USDC` notional.

@@ -5,17 +5,19 @@ private model routing, private release planning, or internal research notes.
 
 ## Current Direction
 
-- `operator_spot_automation_single_child_execution_adapter_v1` is at a
-  source-gated checkpoint. One immutable `BTC-USDC` child plan, PostgreSQL
-  claim/evidence primitives, generated operator readback, and fixed cap display
-  are implemented. The installed path blocks before all Coinbase activity at
-  `automation_active_order_catalog_read_not_authorized`; all eligibility,
-  Create, and Cancel allowances remain unconsumed. The proposed continuation,
-  pending explicit operator authorization, is the consolidated canonical
-  eligibility/admission/active-order-guard/exact-child closeout work documented in
+- `operator_spot_automation_single_child_execution_adapter_v1` is at an
+  eligibility-coordinator-complete, source-gated checkpoint. One immutable
+  `BTC-USDC` child plan, a goal-global ten-cycle PostgreSQL ledger, the seven
+  approved strict read categories, generated operator refresh/readback, and
+  fixed cap display are implemented. The installed path blocks at
+  `automation_active_order_catalog_read_not_authorized` before the canonical
+  account-wide active-order guard, invocation claim, Create, or Cancel. No live
+  refresh ran; all read, Create, and Cancel allowances remain unconsumed. The
+  proposed continuation, pending explicit operator authorization, is the
+  consolidated canonical admission/active-order-guard/exact-child closeout work documented in
   [the adapter checkpoint](OPERATOR_SPOT_AUTOMATION_SINGLE_CHILD_ADAPTER.md).
-  Current checkpoint gates passed backend full `1165 passed, 6 skipped`
-  parallel and `630 passed, 150 skipped` serial, frontend full `1514 passed`,
+  Current checkpoint gates passed backend full `1170 passed, 6 skipped`
+  parallel and `651 passed, 150 skipped` serial, frontend full `1536 passed`,
   browser E2E `15/15`, and both independent audits with zero Coinbase
   execution and zero notional.
 

@@ -9,11 +9,12 @@ boundary because one canonical read lacks goal authority.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from decimal import Decimal
 import hashlib
 import json
 import os
-from typing import Any, Mapping, Protocol
+from typing import Any, Callable, Mapping, Protocol
 import uuid
 
 from .automation_models import (
@@ -36,10 +37,12 @@ from .automation_models import (
     AutomationDefinitionScheduleRequest,
     AutomationDefinitionState,
     AutomationDomain,
+    AutomationEligibilityCycleMutationResponse,
+    AutomationEligibilityRefreshActivity,
+    AutomationEligibilityRefreshRequest,
     AutomationFilters,
     AutomationJobKind,
     AutomationMutationContext,
-    AutomationNoExchangeActivity,
     AutomationOneShotRunRequest,
     AutomationSingleChildAuthorizationRequest,
     AutomationPagination,
@@ -49,6 +52,7 @@ from .automation_models import (
     AutomationRunFilters,
     AutomationRunItem,
     AutomationRunListResponse,
+    AutomationRunMutationActivity,
     AutomationRunMutationResponse,
     AutomationRunState,
     domain_for_job_kind,
@@ -75,6 +79,14 @@ class AutomationRepositoryMutation:
     audit_id: str
     correlation_id: str
     replayed: bool = False
+
+
+@dataclass(frozen=True)
+class AutomationEligibilityRepositoryMutation(AutomationRepositoryMutation):
+    """One run projection plus current-cycle read accounting."""
+
+    coinbase_api_call_count: int | None = 0
+    call_count_exact: bool = True
 
 
 class AutomationRepositoryError(RuntimeError):
@@ -169,6 +181,14 @@ class OperatorAutomationRepository(Protocol):
         request: Mapping[str, Any],
         context: AutomationMutationContext,
     ) -> AutomationRepositoryMutation: ...
+
+    def refresh_spot_eligibility(
+        self,
+        *,
+        run_id: str,
+        request: Mapping[str, Any],
+        context: AutomationMutationContext,
+    ) -> AutomationEligibilityRepositoryMutation: ...
 
     def list_runs(
         self,
@@ -291,8 +311,14 @@ def _control_allowed_actions(posture: Any) -> list[str]:
 class PostgresOperatorAutomationRepositoryAdapter:
     """Adapt typed store records to the narrow Admin API repository protocol."""
 
-    def __init__(self, repository: Any) -> None:
+    def __init__(
+        self,
+        repository: Any,
+        *,
+        spot_eligibility_reader_factory: Callable[..., Any] | None = None,
+    ) -> None:
         self.repository = repository
+        self._spot_eligibility_reader_factory = spot_eligibility_reader_factory
 
     @staticmethod
     def _call(operation: Any) -> Any:
@@ -414,9 +440,15 @@ class PostgresOperatorAutomationRepositoryAdapter:
             "updated_at": record.updated_at,
         }
 
-    def _run(self, record: Any) -> Mapping[str, Any]:
+    def _run(
+        self,
+        record: Any,
+        *,
+        eligibility_cycle_number: int | None = None,
+    ) -> Mapping[str, Any]:
         plan = None
         attempts: tuple[Any, ...] = ()
+        cycles: tuple[Any, ...] = ()
         execution = None
         eligibility_lifetime_call_count: int | None = 0
         eligibility_lifetime_call_count_exact = True
@@ -437,6 +469,9 @@ class PostgresOperatorAutomationRepositoryAdapter:
                     cycle_number=None,
                 )
             )
+            cycles = self._call(
+                self.repository.list_spot_eligibility_cycles
+            )
             execution = self._call(
                 lambda: self.repository.get_spot_run_execution(record.run_id)
             )
@@ -452,14 +487,75 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 else None
             )
 
-        latest_cycle = max(
-            (attempt.cycle_number for attempt in attempts),
-            default=None,
+        run_cycles = tuple(
+            cycle
+            for cycle in cycles
+            if str(getattr(cycle, "run_id", "")) == str(record.run_id)
+        )
+        if eligibility_cycle_number is None:
+            latest_cycle_record = max(
+                run_cycles,
+                key=lambda cycle: int(cycle.cycle_number),
+                default=None,
+            )
+        else:
+            if (
+                type(eligibility_cycle_number) is not int
+                or not 1 <= eligibility_cycle_number <= 10
+            ):
+                raise AutomationRepositoryUnavailable(
+                    "automation_spot_eligibility_projection_cycle_invalid"
+                )
+            cycle_matches = tuple(
+                cycle
+                for cycle in run_cycles
+                if int(cycle.cycle_number) == eligibility_cycle_number
+            )
+            if len(cycle_matches) != 1:
+                raise AutomationRepositoryUnavailable(
+                    "automation_spot_eligibility_projection_cycle_invalid"
+                )
+            latest_cycle_record = cycle_matches[0]
+        latest_cycle = (
+            int(latest_cycle_record.cycle_number)
+            if latest_cycle_record is not None
+            else None
         )
         current_attempts = tuple(
             attempt
             for attempt in attempts
             if attempt.cycle_number == latest_cycle
+        )
+        now = datetime.now(timezone.utc)
+
+        def fresh_deadline(value: Any) -> datetime | None:
+            if value is None:
+                return None
+            if isinstance(value, datetime):
+                parsed = value
+            elif isinstance(value, str):
+                try:
+                    parsed = datetime.fromisoformat(
+                        value.replace("Z", "+00:00")
+                    )
+                except ValueError:
+                    return None
+            else:
+                return None
+            if parsed.tzinfo is None or parsed.utcoffset() is None:
+                return None
+            return parsed.astimezone(timezone.utc)
+
+        cycle_fresh_until = (
+            fresh_deadline(latest_cycle_record.fresh_until)
+            if latest_cycle_record is not None
+            else None
+        )
+        current_cycle_fresh = bool(
+            latest_cycle_record is not None
+            and latest_cycle_record.state == "SUCCEEDED"
+            and cycle_fresh_until is not None
+            and now < cycle_fresh_until
         )
         plan_readback = None
         if plan is not None:
@@ -472,6 +568,10 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 and attempt.coinbase_api_call_count is not None
                 and attempt.portfolio_id_sha256
                 == plan.portfolio_id_sha256
+                and (
+                    fresh_deadline(attempt.fresh_until) is not None
+                    and now < fresh_deadline(attempt.fresh_until)
+                )
                 for attempt in current_attempts
             )
             plan_readback = {
@@ -529,22 +629,38 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 for category in AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES
                 if category in successful_categories
             ]
-            call_count_exact = all(
-                attempt.call_count_exact for attempt in current_attempts
+            call_count_exact = bool(
+                latest_cycle_record is None
+                or latest_cycle_record.call_count_exact
             )
             call_count = (
-                sum(
-                    int(attempt.coinbase_api_call_count or 0)
-                    for attempt in current_attempts
-                )
-                if call_count_exact
-                else None
+                int(latest_cycle_record.coinbase_api_call_count)
+                if latest_cycle_record is not None
+                and latest_cycle_record.coinbase_api_call_count is not None
+                and call_count_exact
+                else (0 if latest_cycle_record is None else None)
             )
             eligible = bool(
                 current_attempts
                 and successful_categories
                 == set(AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES)
+                and current_cycle_fresh
             )
+            if eligible:
+                eligibility_blocker = None
+            elif latest_cycle_record is None:
+                eligibility_blocker = record.diagnostic_code
+            elif latest_cycle_record.state == "OPEN":
+                eligibility_blocker = (
+                    "automation_spot_eligibility_cycle_in_progress"
+                )
+            elif (
+                latest_cycle_record.state == "SUCCEEDED"
+                and not current_cycle_fresh
+            ):
+                eligibility_blocker = "automation_spot_eligibility_stale"
+            else:
+                eligibility_blocker = latest_cycle_record.diagnostic_code
             eligibility = {
                 "cycle_number": latest_cycle,
                 "required_categories": list(
@@ -553,15 +669,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 ),
                 "completed_categories": completed,
                 "eligible": eligible,
-                "blocker_code": (
-                    None
-                    if eligible
-                    else (
-                        record.diagnostic_code
-                        if record.state is AutomationRunState.BLOCKED
-                        else "automation_eligibility_incomplete"
-                    )
-                ),
+                "blocker_code": eligibility_blocker,
                 "coinbase_api_call_count": call_count,
                 "call_count_exact": call_count_exact,
             }
@@ -620,13 +728,26 @@ class PostgresOperatorAutomationRepositoryAdapter:
             )
             child_terminal = execution.child_terminal
             client_order_id = execution.client_order_id
-        elif record.state is AutomationRunState.UNKNOWN_CONSUMED:
+        elif (
+            record.state is AutomationRunState.UNKNOWN_CONSUMED
+            and execution is None
+        ):
             call_count_exact = False
             coinbase_api_call_count = None
             create_call_count = None
-            cancel_call_count = None
+            cancel_call_count = 0
 
         live_execution_available = False
+        refresh_available = bool(
+            plan is not None
+            and record.state is AutomationRunState.BLOCKED
+            and record.diagnostic_code
+            == "automation_active_order_catalog_read_not_authorized"
+            and execution is None
+            and not record.live_attempt_consumed
+            and len(cycles) < 10
+            and not any(cycle.state == "OPEN" for cycle in cycles)
+        )
 
         return {
             "run_id": record.run_id,
@@ -650,7 +771,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
             "allowed_actions": (
                 ["AUTHORIZE_SINGLE_CHILD"]
                 if live_execution_available
-                else []
+                else (["REFRESH_ELIGIBILITY"] if refresh_available else [])
             ),
             "audit_id": record.audit_id,
             "correlation_id": record.correlation_id,
@@ -1195,6 +1316,195 @@ class PostgresOperatorAutomationRepositoryAdapter:
             "automation_active_order_catalog_read_not_authorized"
         )
 
+    def refresh_spot_eligibility(
+        self,
+        *,
+        run_id: str,
+        request: Mapping[str, Any],
+        context: AutomationMutationContext,
+    ) -> AutomationEligibilityRepositoryMutation:
+        """Run one exact seven-category cycle and restore the source gate."""
+
+        record = self._call(lambda: self.repository.get_run(run_id))
+        if record is None:
+            raise AutomationRepositoryNotFound(AUTOMATION_NOT_FOUND)
+        source_gate_restored = bool(
+            record.state is AutomationRunState.BLOCKED
+            and record.diagnostic_code
+            == "automation_active_order_catalog_read_not_authorized"
+        )
+        newer_cycle_in_progress = bool(
+            record.state is AutomationRunState.PREPARING
+            and record.diagnostic_code == "automation_spot_source_gate_resumed"
+        )
+        if (
+            record.job_kind is not AutomationJobKind.SPOT_CAMPAIGN
+            or record.definition_revision is None
+            or not (source_gate_restored or newer_cycle_in_progress)
+            or record.live_attempt_consumed
+        ):
+            raise AutomationRepositoryConflict(
+                "automation_spot_eligibility_run_ineligible"
+            )
+        plan = self._call(
+            lambda: self.repository.get_spot_single_child_plan(
+                record.definition_id,
+                record.definition_revision,
+            )
+        )
+        if plan is None:
+            raise AutomationRepositoryConflict(
+                "automation_single_child_plan_missing"
+            )
+        if request.get("expected_plan_sha256") != plan.plan_sha256:
+            raise AutomationRepositoryConflict(
+                "automation_single_child_plan_mismatch"
+            )
+        from application.admin_api.operator_spot_eligibility import (
+            SpotEligibilityCoordinator,
+            SpotEligibilityCoordinatorConflict,
+            SpotEligibilityRunContext,
+        )
+        from application.admin_api.operator_spot_eligibility_postgres import (
+            PostgresSpotEligibilityLedger,
+        )
+        from application.admin_api.operator_spot_eligibility_reader import (
+            SpotEligibilityPlanTerms,
+        )
+
+        run_context = SpotEligibilityRunContext(
+            run_id=str(record.run_id),
+            definition_id=str(record.definition_id),
+            definition_revision=int(record.definition_revision),
+            plan_sha256=plan.plan_sha256,
+            portfolio_id_sha256=plan.portfolio_id_sha256,
+            correlation_id=context.correlation_id,
+        )
+        plan_terms = SpotEligibilityPlanTerms(
+            plan_sha256=plan.plan_sha256,
+            product_id=plan.product_id,
+            side=plan.side,
+            base_size=plan.base_size,
+            limit_price=plan.limit_price,
+            submitted_notional_usdc=plan.submitted_notional_usdc,
+            possible_execution_notional_usdc=(
+                plan.possible_execution_notional_usdc
+            ),
+            max_submitted_notional_usdc=(
+                plan.max_submitted_notional_usdc
+            ),
+            max_possible_execution_notional_usdc=(
+                plan.max_possible_execution_notional_usdc
+            ),
+            post_only=plan.post_only,
+        )
+        def build_reader() -> Any:
+            if self._spot_eligibility_reader_factory is None:
+                raise RuntimeError(
+                    "automation_spot_eligibility_reader_unavailable"
+                )
+            return self._spot_eligibility_reader_factory(
+                expected_context=run_context,
+                plan=plan_terms,
+            )
+        ledger = PostgresSpotEligibilityLedger(
+            repository=self.repository,
+            mutation_context=context,
+            request_payload=request,
+        )
+        try:
+            cycle_result = self._call(
+                lambda: SpotEligibilityCoordinator(
+                    ledger=ledger,
+                    reader_factory=build_reader,
+                ).run(run_context)
+            )
+        except SpotEligibilityCoordinatorConflict as exc:
+            raise AutomationRepositoryConflict(exc.code) from None
+
+        current = self._call(lambda: self.repository.get_run(run_id))
+        if current is None:
+            raise AutomationRepositoryUnavailable(
+                "automation_spot_eligibility_result_unavailable"
+            )
+        cycles = self._call(self.repository.list_spot_eligibility_cycles)
+        matches = tuple(
+            cycle
+            for cycle in cycles
+            if str(cycle.run_id) == run_id
+            and int(cycle.cycle_number) == cycle_result.cycle_number
+        )
+        open_cycles = tuple(
+            cycle
+            for cycle in cycles
+            if cycle.state == "OPEN"
+        )
+        source_gate_restored = bool(
+            current.state is AutomationRunState.BLOCKED
+            and current.diagnostic_code
+            == "automation_active_order_catalog_read_not_authorized"
+        )
+        terminal_result_during_newer_cycle = bool(
+            current.state is AutomationRunState.PREPARING
+            and current.diagnostic_code == "automation_spot_source_gate_resumed"
+            and len(open_cycles) == 1
+            and str(open_cycles[0].run_id) == run_id
+            and int(open_cycles[0].cycle_number) > cycle_result.cycle_number
+            and open_cycles[0].plan_sha256 == plan.plan_sha256
+        )
+        if (
+            len(matches) != 1
+            or matches[0].state != cycle_result.outcome.value
+            or not (source_gate_restored or terminal_result_during_newer_cycle)
+        ):
+            raise AutomationRepositoryUnavailable(
+                "automation_spot_eligibility_result_unavailable"
+            )
+        cycle = matches[0]
+        return AutomationEligibilityRepositoryMutation(
+            entity=self._run(
+                current,
+                eligibility_cycle_number=cycle_result.cycle_number,
+            ),
+            audit_id=cycle.audit_id,
+            correlation_id=cycle.correlation_id,
+            replayed=cycle_result.replayed,
+            coinbase_api_call_count=cycle_result.coinbase_api_call_count,
+            call_count_exact=cycle_result.call_count_exact,
+        )
+
+    def resume_spot_source_gated_run(
+        self,
+        *,
+        run_id: str,
+        expected_plan_sha256: str,
+        context: AutomationMutationContext,
+    ) -> AutomationRepositoryMutation:
+        """Expose a repository-only continuation primitive to future wiring."""
+
+        command = self._command(
+            context=context,
+            payload={
+                "operation": "resume_automation_spot_source_gated_run",
+                "run_id": run_id,
+                "expected_plan_sha256": expected_plan_sha256,
+            },
+        )
+        result = self._call(
+            lambda: self.repository.resume_spot_source_gated_run(
+                run_id,
+                expected_plan_sha256=expected_plan_sha256,
+                command=command,
+            )
+        )
+        entity = getattr(result.entity, "run", result.entity)
+        return AutomationRepositoryMutation(
+            entity=self._run(entity),
+            audit_id=result.audit_id,
+            correlation_id=result.correlation_id,
+            replayed=result.replayed,
+        )
+
     def list_runs(
         self,
         *,
@@ -1567,35 +1877,90 @@ class OperatorAutomationService:
                 context=context,
             )
             run = AutomationRunItem.model_validate(result.entity)
-            unknown = run.state is AutomationRunState.UNKNOWN_CONSUMED
-            current_create_count = (
-                0 if result.replayed else run.create_call_count
-            )
             return AutomationRunMutationResponse(
                 run=run,
                 replayed=result.replayed,
                 audit_id=result.audit_id,
                 correlation_id=result.correlation_id,
-                activity=AutomationNoExchangeActivity(
-                    coinbase_api_call_count=(
-                        current_create_count
-                    ),
-                    exchange_mutation_count=(
-                        0
-                        if result.replayed
-                        else (None if unknown else current_create_count)
-                    ),
-                    create_call_count=(
-                        current_create_count
-                    ),
-                    cancel_call_count=0,
-                    call_count_exact=(True if result.replayed else run.call_count_exact),
+                activity=self._run_mutation_activity(
+                    run=run,
+                    replayed=result.replayed,
                 ),
             )
         except OperatorAutomationError:
             raise
         except Exception as exc:
             raise self._translate_error(exc) from None
+
+    def refresh_spot_eligibility(
+        self,
+        *,
+        run_id: str,
+        request: AutomationEligibilityRefreshRequest,
+        context: AutomationMutationContext,
+    ) -> AutomationEligibilityCycleMutationResponse:
+        try:
+            result = self.repository.refresh_spot_eligibility(
+                run_id=run_id,
+                request=request.model_dump(mode="json"),
+                context=context,
+            )
+            return AutomationEligibilityCycleMutationResponse(
+                run=AutomationRunItem.model_validate(result.entity),
+                replayed=result.replayed,
+                audit_id=result.audit_id,
+                correlation_id=result.correlation_id,
+                activity=AutomationEligibilityRefreshActivity(
+                    coinbase_api_call_count=(
+                        0 if result.replayed else result.coinbase_api_call_count
+                    ),
+                    call_count_exact=(
+                        True if result.replayed else result.call_count_exact
+                    ),
+                ),
+            )
+        except OperatorAutomationError:
+            raise
+        except Exception as exc:
+            raise self._translate_error(exc) from None
+
+    @staticmethod
+    def _run_mutation_activity(
+        *,
+        run: AutomationRunItem,
+        replayed: bool,
+    ) -> AutomationRunMutationActivity:
+        if replayed:
+            return AutomationRunMutationActivity()
+
+        create_count = run.create_call_count
+        cancel_count = run.cancel_call_count
+        if run.call_count_exact:
+            exchange_count = (
+                None
+                if create_count is None or cancel_count is None
+                else create_count + cancel_count
+            )
+            return AutomationRunMutationActivity(
+                coinbase_api_call_count=exchange_count,
+                exchange_mutation_count=exchange_count,
+                create_call_count=create_count,
+                cancel_call_count=cancel_count,
+                call_count_exact=True,
+            )
+
+        exchange_count = (
+            None
+            if create_count is None or cancel_count is None
+            else create_count + cancel_count
+        )
+        return AutomationRunMutationActivity(
+            coinbase_api_call_count=None,
+            exchange_mutation_count=exchange_count,
+            create_call_count=create_count,
+            cancel_call_count=cancel_count,
+            call_count_exact=False,
+        )
 
     def list_runs(
         self,
@@ -1680,6 +2045,30 @@ class OperatorAutomationService:
             raise self._translate_error(exc) from None
 
 
+def _default_spot_eligibility_reader_factory(
+    *,
+    expected_context: Any,
+    plan: Any,
+) -> Any:
+    """Resolve the canonical client only for an explicit refresh mutation."""
+
+    from application.admin_api.operator_spot_eligibility_reader import (
+        CoinbaseApprovedSpotEligibilityReader,
+    )
+    from configuration import REST_CLIENT
+
+    portfolio_id = str(
+        os.environ.get("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID") or ""
+    ).strip()
+    return CoinbaseApprovedSpotEligibilityReader(
+        rest_client=REST_CLIENT,
+        expected_context=expected_context,
+        approved_portfolio_id=portfolio_id,
+        approved_portfolio_label="Test",
+        plan=plan,
+    )
+
+
 def get_default_operator_automation_service() -> OperatorAutomationService:
     """Resolve the PostgreSQL repository lazily to keep imports local-only."""
 
@@ -1690,7 +2079,12 @@ def get_default_operator_automation_service() -> OperatorAutomationService:
 
         repository = get_default_operator_automation_repository()
         return OperatorAutomationService(
-            PostgresOperatorAutomationRepositoryAdapter(repository)
+            PostgresOperatorAutomationRepositoryAdapter(
+                repository,
+                spot_eligibility_reader_factory=(
+                    _default_spot_eligibility_reader_factory
+                ),
+            )
         )
     except Exception:
         raise OperatorAutomationError(AUTOMATION_UNAVAILABLE, 503) from None

@@ -66,6 +66,9 @@ _AUTOMATION_SPOT_ELIGIBILITY_CATEGORY_SET = frozenset(
 _AUTOMATION_SPOT_ELIGIBILITY_OUTCOMES = frozenset(
     {"SUCCEEDED", "REJECTED", "UNKNOWN"}
 )
+_AUTOMATION_SPOT_ELIGIBILITY_CYCLE_STATES = frozenset(
+    {"OPEN", "SUCCEEDED", "REJECTED", "UNKNOWN"}
+)
 _AUTOMATION_SPOT_MUTATION_OUTCOMES = frozenset(
     {"ACCEPTED", "REJECTED", "UNKNOWN"}
 )
@@ -91,6 +94,18 @@ def _iso(value: datetime | str | None) -> str | None:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc).isoformat()
+
+
+def _aware_utc_datetime(value: datetime | str | None) -> datetime | None:
+    if value is None:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value) if isinstance(value, str) else value
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(parsed, datetime) or parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(timezone.utc)
 
 
 def _hash(value: str) -> str:
@@ -240,6 +255,28 @@ class AutomationSpotSingleChildPlanRecord:
 
 
 @dataclass(frozen=True)
+class AutomationSpotEligibilityCycleRecord:
+    goal_key: str
+    cycle_number: int
+    run_id: str
+    definition_id: str
+    definition_revision: int
+    plan_sha256: str
+    portfolio_id_sha256: str
+    product_id: Literal["BTC-USDC"]
+    client_order_id: str
+    state: Literal["OPEN", "SUCCEEDED", "REJECTED", "UNKNOWN"]
+    coinbase_api_call_count: int | None
+    call_count_exact: bool
+    fresh_until: str | None
+    diagnostic_code: str
+    audit_id: str
+    correlation_id: str
+    started_at: str
+    finalized_at: str | None
+
+
+@dataclass(frozen=True)
 class AutomationSpotEligibilityAttemptRecord:
     run_id: str
     cycle_number: int
@@ -249,12 +286,21 @@ class AutomationSpotEligibilityAttemptRecord:
     eligible: bool | None
     coinbase_api_call_count: int | None
     call_count_exact: bool
+    observed_at: str | None
+    fresh_until: str | None
+    evidence_sha256: str | None
     diagnostic_code: str
     audit_id: str
     correlation_id: str
     started_at: str
     finalized_at: str | None
     portfolio_id_sha256: str | None = None
+
+
+@dataclass(frozen=True)
+class AutomationSpotEligibilityCycleAllocationRecord:
+    run: AutomationRunRecord
+    cycle: AutomationSpotEligibilityCycleRecord
 
 
 @dataclass(frozen=True)
@@ -496,15 +542,90 @@ class OperatorAutomationRepository:
             )
             cursor.execute(
                 f"""
+                CREATE TABLE IF NOT EXISTS {self._prefix}automation_spot_eligibility_cycle (
+                    goal_key TEXT NOT NULL CHECK (
+                        goal_key = '{_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY}'
+                    ),
+                    cycle_number SMALLINT NOT NULL CHECK (cycle_number BETWEEN 1 AND 10),
+                    run_id UUID NOT NULL REFERENCES {self._prefix}automation_run(run_id),
+                    definition_id UUID NOT NULL,
+                    definition_revision INTEGER NOT NULL CHECK (definition_revision >= 1),
+                    plan_sha256 CHAR(64) NOT NULL
+                        CHECK (plan_sha256 ~ '^[0-9a-f]{{64}}$'),
+                    portfolio_id_sha256 CHAR(64) NOT NULL
+                        CHECK (portfolio_id_sha256 ~ '^[0-9a-f]{{64}}$'),
+                    product_id TEXT NOT NULL CHECK (product_id = 'BTC-USDC'),
+                    client_order_id UUID NOT NULL,
+                    state TEXT NOT NULL CHECK (
+                        state IN ('OPEN','SUCCEEDED','REJECTED','UNKNOWN')
+                    ),
+                    coinbase_api_call_count INTEGER CHECK (
+                        coinbase_api_call_count IS NULL
+                        OR coinbase_api_call_count >= 0
+                    ),
+                    call_count_exact BOOLEAN NOT NULL DEFAULT FALSE,
+                    fresh_until TIMESTAMPTZ,
+                    diagnostic_code TEXT NOT NULL
+                        CHECK (char_length(diagnostic_code) BETWEEN 1 AND 96),
+                    audit_id UUID NOT NULL,
+                    correlation_id TEXT NOT NULL
+                        CHECK (char_length(correlation_id) BETWEEN 1 AND 255),
+                    started_at TIMESTAMPTZ NOT NULL,
+                    finalized_at TIMESTAMPTZ,
+                    PRIMARY KEY (goal_key, cycle_number),
+                    FOREIGN KEY (definition_id, definition_revision)
+                        REFERENCES {self._prefix}automation_spot_single_child_plan(
+                            definition_id, definition_revision
+                        ),
+                    CONSTRAINT automation_spot_eligibility_cycle_result_shape_valid
+                    CHECK (
+                        (state = 'OPEN' AND coinbase_api_call_count IS NULL
+                            AND NOT call_count_exact AND fresh_until IS NULL
+                            AND finalized_at IS NULL)
+                        OR
+                        (state = 'SUCCEEDED'
+                            AND coinbase_api_call_count IS NOT NULL
+                            AND call_count_exact AND fresh_until IS NOT NULL
+                            AND finalized_at IS NOT NULL)
+                        OR
+                        (state = 'REJECTED'
+                            AND coinbase_api_call_count IS NOT NULL
+                            AND call_count_exact AND finalized_at IS NOT NULL)
+                        OR
+                        (state = 'UNKNOWN' AND coinbase_api_call_count IS NULL
+                            AND NOT call_count_exact AND fresh_until IS NULL
+                            AND finalized_at IS NOT NULL)
+                    )
+                )
+                """
+            )
+            cursor.execute(
+                f"""
+                CREATE UNIQUE INDEX IF NOT EXISTS automation_spot_one_open_eligibility_cycle
+                ON {self._prefix}automation_spot_eligibility_cycle (goal_key)
+                WHERE state = 'OPEN'
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_eligibility_cycle
+                ADD COLUMN IF NOT EXISTS fresh_until TIMESTAMPTZ
+                """
+            )
+            cursor.execute(
+                f"""
                 CREATE TABLE IF NOT EXISTS {self._prefix}automation_spot_eligibility_attempt (
                     run_id UUID NOT NULL REFERENCES {self._prefix}automation_run(run_id),
+                    goal_key TEXT NOT NULL DEFAULT '{_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY}'
+                        CHECK (goal_key = '{_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY}'),
                     cycle_number SMALLINT NOT NULL CHECK (cycle_number BETWEEN 1 AND 10),
                     category TEXT NOT NULL CHECK (category IN ({eligibility_categories})),
                     allowance_consumed BOOLEAN NOT NULL CHECK (allowance_consumed),
                     outcome TEXT CHECK (outcome IN ('SUCCEEDED','REJECTED','UNKNOWN')),
                     eligible BOOLEAN,
-                    coinbase_api_call_count INTEGER CHECK (
-                        coinbase_api_call_count IS NULL OR coinbase_api_call_count >= 1
+                    coinbase_api_call_count INTEGER CONSTRAINT
+                        automation_spot_eligibility_call_count_nonnegative CHECK (
+                        coinbase_api_call_count IS NULL OR coinbase_api_call_count >= 0
                     ),
                     call_count_exact BOOLEAN NOT NULL DEFAULT FALSE,
                     diagnostic_code TEXT NOT NULL CHECK (char_length(diagnostic_code) BETWEEN 1 AND 96),
@@ -512,20 +633,60 @@ class OperatorAutomationRepository:
                     correlation_id TEXT NOT NULL CHECK (char_length(correlation_id) BETWEEN 1 AND 255),
                     started_at TIMESTAMPTZ NOT NULL,
                     finalized_at TIMESTAMPTZ,
+                    observed_at TIMESTAMPTZ,
+                    fresh_until TIMESTAMPTZ,
+                    evidence_sha256 CHAR(64) CHECK (
+                        evidence_sha256 IS NULL
+                        OR evidence_sha256 ~ '^[0-9a-f]{{64}}$'
+                    ),
                     portfolio_id_sha256 CHAR(64) CHECK (
                         portfolio_id_sha256 IS NULL
                         OR portfolio_id_sha256 ~ '^[0-9a-f]{{64}}$'
                     ),
                     PRIMARY KEY (run_id, cycle_number, category),
+                    CONSTRAINT automation_spot_eligibility_cycle_fk
+                    FOREIGN KEY (goal_key, cycle_number)
+                        REFERENCES {self._prefix}automation_spot_eligibility_cycle(
+                            goal_key, cycle_number
+                        ),
+                    CONSTRAINT automation_spot_eligibility_result_shape_valid
                     CHECK (
                         (outcome IS NULL AND eligible IS NULL AND coinbase_api_call_count IS NULL
-                            AND call_count_exact = FALSE AND finalized_at IS NULL)
+                            AND call_count_exact = FALSE AND finalized_at IS NULL
+                            AND observed_at IS NULL AND fresh_until IS NULL
+                            AND evidence_sha256 IS NULL)
                         OR
-                        (outcome IS NOT NULL AND eligible IS NOT NULL AND finalized_at IS NOT NULL
-                            AND ((call_count_exact AND coinbase_api_call_count IS NOT NULL)
-                                OR (NOT call_count_exact AND coinbase_api_call_count IS NULL)))
+                        (outcome = 'SUCCEEDED' AND eligible IS TRUE
+                            AND call_count_exact
+                            AND coinbase_api_call_count >= 1
+                            AND finalized_at IS NOT NULL
+                            AND observed_at IS NOT NULL
+                            AND fresh_until > observed_at
+                            AND evidence_sha256 IS NOT NULL)
+                        OR
+                        (outcome = 'REJECTED' AND eligible IS FALSE
+                            AND call_count_exact
+                            AND coinbase_api_call_count IS NOT NULL
+                            AND finalized_at IS NOT NULL
+                            AND observed_at IS NOT NULL
+                            AND (fresh_until IS NULL OR fresh_until > observed_at))
+                        OR
+                        (outcome = 'UNKNOWN' AND eligible IS FALSE
+                            AND NOT call_count_exact
+                            AND coinbase_api_call_count IS NULL
+                            AND finalized_at IS NOT NULL
+                            AND observed_at IS NULL AND fresh_until IS NULL
+                            AND evidence_sha256 IS NULL)
                     )
                 )
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_eligibility_attempt
+                ADD COLUMN IF NOT EXISTS goal_key TEXT NOT NULL
+                    DEFAULT '{_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY}'
+                    CHECK (goal_key = '{_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY}')
                 """
             )
             cursor.execute(
@@ -535,6 +696,270 @@ class OperatorAutomationRepository:
                     portfolio_id_sha256 IS NULL
                     OR portfolio_id_sha256 ~ '^[0-9a-f]{{64}}$'
                 )
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_eligibility_attempt
+                ADD COLUMN IF NOT EXISTS observed_at TIMESTAMPTZ,
+                ADD COLUMN IF NOT EXISTS fresh_until TIMESTAMPTZ,
+                ADD COLUMN IF NOT EXISTS evidence_sha256 CHAR(64) CHECK (
+                    evidence_sha256 IS NULL
+                    OR evidence_sha256 ~ '^[0-9a-f]{{64}}$'
+                )
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_eligibility_attempt
+                DROP CONSTRAINT IF EXISTS
+                    automation_spot_eligibility_attempt_coinbase_api_call_count_check
+                """
+            )
+            cursor.execute(
+                f"""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1
+                        FROM pg_constraint AS constraint_row
+                        JOIN pg_class AS table_row
+                          ON table_row.oid = constraint_row.conrelid
+                        JOIN pg_namespace AS namespace_row
+                          ON namespace_row.oid = table_row.relnamespace
+                        WHERE namespace_row.nspname = '{self.schema}'
+                          AND table_row.relname =
+                              'automation_spot_eligibility_attempt'
+                          AND constraint_row.conname =
+                              'automation_spot_eligibility_call_count_nonnegative'
+                    ) THEN
+                        ALTER TABLE {self._prefix}automation_spot_eligibility_attempt
+                        ADD CONSTRAINT
+                            automation_spot_eligibility_call_count_nonnegative
+                        CHECK (
+                            coinbase_api_call_count IS NULL
+                            OR coinbase_api_call_count >= 0
+                        );
+                    END IF;
+                END;
+                $$
+                """
+            )
+            cursor.execute(
+                f"""
+                UPDATE {self._prefix}automation_spot_eligibility_attempt
+                SET outcome = 'UNKNOWN', eligible = FALSE,
+                    coinbase_api_call_count = NULL, call_count_exact = FALSE,
+                    diagnostic_code =
+                        'automation_spot_eligibility_legacy_evidence_unknown',
+                    observed_at = NULL, fresh_until = NULL,
+                    evidence_sha256 = NULL, portfolio_id_sha256 = NULL
+                WHERE outcome IS NOT NULL AND observed_at IS NULL
+                """
+            )
+            cursor.execute(
+                f"""
+                UPDATE {self._prefix}automation_spot_eligibility_cycle AS cycle
+                SET state = 'UNKNOWN', coinbase_api_call_count = NULL,
+                    call_count_exact = FALSE, fresh_until = NULL,
+                    diagnostic_code =
+                        'automation_spot_eligibility_legacy_cycle_unknown',
+                    finalized_at = COALESCE(cycle.finalized_at, NOW())
+                WHERE cycle.state = 'SUCCEEDED'
+                  AND cycle.fresh_until IS NULL
+                  OR EXISTS (
+                      SELECT 1
+                      FROM {self._prefix}automation_spot_eligibility_attempt
+                          AS attempt
+                      WHERE attempt.goal_key = cycle.goal_key
+                        AND attempt.cycle_number = cycle.cycle_number
+                        AND attempt.diagnostic_code =
+                            'automation_spot_eligibility_legacy_evidence_unknown'
+                  )
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_eligibility_attempt
+                DROP CONSTRAINT IF EXISTS
+                    automation_spot_eligibility_result_shape_valid
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_eligibility_attempt
+                ADD CONSTRAINT automation_spot_eligibility_result_shape_valid
+                CHECK (
+                    (outcome IS NULL AND eligible IS NULL
+                        AND coinbase_api_call_count IS NULL
+                        AND NOT call_count_exact AND finalized_at IS NULL
+                        AND observed_at IS NULL AND fresh_until IS NULL
+                        AND evidence_sha256 IS NULL)
+                    OR
+                    (outcome = 'SUCCEEDED' AND eligible IS TRUE
+                        AND call_count_exact AND coinbase_api_call_count >= 1
+                        AND finalized_at IS NOT NULL
+                        AND observed_at IS NOT NULL
+                        AND fresh_until > observed_at
+                        AND evidence_sha256 IS NOT NULL)
+                    OR
+                    (outcome = 'REJECTED' AND eligible IS FALSE
+                        AND call_count_exact
+                        AND coinbase_api_call_count IS NOT NULL
+                        AND finalized_at IS NOT NULL
+                        AND observed_at IS NOT NULL
+                        AND (fresh_until IS NULL OR fresh_until > observed_at))
+                    OR
+                    (outcome = 'UNKNOWN' AND eligible IS FALSE
+                        AND NOT call_count_exact
+                        AND coinbase_api_call_count IS NULL
+                        AND finalized_at IS NOT NULL
+                        AND observed_at IS NULL AND fresh_until IS NULL
+                        AND evidence_sha256 IS NULL)
+                )
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_eligibility_cycle
+                DROP CONSTRAINT IF EXISTS
+                    automation_spot_eligibility_cycle_result_shape_valid
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_eligibility_cycle
+                ADD CONSTRAINT
+                    automation_spot_eligibility_cycle_result_shape_valid
+                CHECK (
+                    (state = 'OPEN' AND coinbase_api_call_count IS NULL
+                        AND NOT call_count_exact AND fresh_until IS NULL
+                        AND finalized_at IS NULL)
+                    OR
+                    (state = 'SUCCEEDED'
+                        AND coinbase_api_call_count IS NOT NULL
+                        AND call_count_exact AND fresh_until IS NOT NULL
+                        AND finalized_at IS NOT NULL)
+                    OR
+                    (state = 'REJECTED'
+                        AND coinbase_api_call_count IS NOT NULL
+                        AND call_count_exact AND finalized_at IS NOT NULL)
+                    OR
+                    (state = 'UNKNOWN' AND coinbase_api_call_count IS NULL
+                        AND NOT call_count_exact AND fresh_until IS NULL
+                        AND finalized_at IS NOT NULL)
+                )
+                """
+            )
+            cursor.execute(
+                f"""
+                SELECT attempt.cycle_number, attempt.run_id,
+                       MIN(attempt.started_at) AS started_at,
+                       (ARRAY_AGG(attempt.audit_id ORDER BY attempt.started_at))[1]
+                           AS audit_id,
+                       (ARRAY_AGG(attempt.correlation_id
+                                  ORDER BY attempt.started_at))[1]
+                           AS correlation_id,
+                       run.definition_id, run.definition_revision,
+                       plan.plan_sha256, plan.portfolio_id_sha256,
+                       plan.product_id
+                FROM {self._prefix}automation_spot_eligibility_attempt AS attempt
+                JOIN {self._prefix}automation_run AS run
+                  ON run.run_id = attempt.run_id
+                LEFT JOIN {self._prefix}automation_spot_single_child_plan AS plan
+                  ON plan.definition_id = run.definition_id
+                 AND plan.definition_revision = run.definition_revision
+                LEFT JOIN {self._prefix}automation_spot_eligibility_cycle AS cycle
+                  ON cycle.goal_key = attempt.goal_key
+                 AND cycle.cycle_number = attempt.cycle_number
+                WHERE cycle.cycle_number IS NULL
+                GROUP BY attempt.cycle_number, attempt.run_id,
+                         run.definition_id, run.definition_revision,
+                         plan.plan_sha256, plan.portfolio_id_sha256,
+                         plan.product_id
+                ORDER BY attempt.cycle_number, attempt.run_id
+                """
+            )
+            orphan_cycles = self._rows(cursor)
+            if len({int(row["cycle_number"]) for row in orphan_cycles}) != len(
+                orphan_cycles
+            ):
+                raise AutomationStoreUnavailable(
+                    "automation_spot_eligibility_legacy_cycle_ambiguous"
+                )
+            migrated_at = _utc_now()
+            for orphan in orphan_cycles:
+                if (
+                    orphan.get("definition_revision") is None
+                    or orphan.get("plan_sha256") is None
+                    or orphan.get("portfolio_id_sha256") is None
+                    or orphan.get("product_id") != "BTC-USDC"
+                ):
+                    raise AutomationStoreUnavailable(
+                        "automation_spot_eligibility_legacy_binding_missing"
+                    )
+                client_order_id = self.deterministic_spot_client_order_id(
+                    run_id=str(orphan["run_id"]),
+                    plan_sha256=orphan["plan_sha256"],
+                )
+                cursor.execute(
+                    f"""
+                    INSERT INTO {self._prefix}automation_spot_eligibility_cycle (
+                        goal_key, cycle_number, run_id, definition_id,
+                        definition_revision, plan_sha256,
+                        portfolio_id_sha256, product_id, client_order_id,
+                        state, coinbase_api_call_count, call_count_exact,
+                        diagnostic_code, audit_id, correlation_id,
+                        started_at, finalized_at
+                    ) VALUES (
+                        %s,%s,%s,%s,%s,%s,%s,%s,%s,
+                        'UNKNOWN',NULL,FALSE,
+                        'automation_spot_eligibility_legacy_cycle_unknown',
+                        %s,%s,%s,%s
+                    )
+                    """,
+                    (
+                        _AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
+                        int(orphan["cycle_number"]),
+                        str(orphan["run_id"]),
+                        str(orphan["definition_id"]),
+                        int(orphan["definition_revision"]),
+                        orphan["plan_sha256"],
+                        orphan["portfolio_id_sha256"],
+                        orphan["product_id"],
+                        client_order_id,
+                        str(orphan["audit_id"]),
+                        orphan["correlation_id"],
+                        orphan["started_at"],
+                        migrated_at,
+                    ),
+                )
+            cursor.execute(
+                f"""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1
+                        FROM pg_constraint AS constraint_row
+                        JOIN pg_class AS table_row
+                          ON table_row.oid = constraint_row.conrelid
+                        JOIN pg_namespace AS namespace_row
+                          ON namespace_row.oid = table_row.relnamespace
+                        WHERE namespace_row.nspname = '{self.schema}'
+                          AND table_row.relname =
+                              'automation_spot_eligibility_attempt'
+                          AND constraint_row.conname =
+                              'automation_spot_eligibility_cycle_fk'
+                    ) THEN
+                        ALTER TABLE {self._prefix}automation_spot_eligibility_attempt
+                        ADD CONSTRAINT automation_spot_eligibility_cycle_fk
+                        FOREIGN KEY (goal_key, cycle_number)
+                        REFERENCES {self._prefix}automation_spot_eligibility_cycle(
+                            goal_key, cycle_number
+                        );
+                    END IF;
+                END;
+                $$
                 """
             )
             cursor.execute(
@@ -769,6 +1194,54 @@ class OperatorAutomationRepository:
                 CREATE TRIGGER automation_spot_plan_no_delete
                 BEFORE DELETE ON {self._prefix}automation_spot_single_child_plan
                 FOR EACH ROW EXECUTE FUNCTION {immutable_plan_function}()
+                """
+            )
+            immutable_cycle_binding_function = (
+                f'"{self.schema}".reject_automation_spot_cycle_binding_mutation'
+            )
+            cursor.execute(
+                f"""
+                CREATE OR REPLACE FUNCTION {immutable_cycle_binding_function}()
+                RETURNS trigger LANGUAGE plpgsql AS $$
+                BEGIN
+                    IF TG_OP = 'DELETE' THEN
+                        RAISE EXCEPTION 'automation_spot_eligibility_cycle_is_immutable';
+                    END IF;
+                    IF NEW.goal_key IS DISTINCT FROM OLD.goal_key
+                       OR NEW.cycle_number IS DISTINCT FROM OLD.cycle_number
+                       OR NEW.run_id IS DISTINCT FROM OLD.run_id
+                       OR NEW.definition_id IS DISTINCT FROM OLD.definition_id
+                       OR NEW.definition_revision IS DISTINCT FROM OLD.definition_revision
+                       OR NEW.plan_sha256 IS DISTINCT FROM OLD.plan_sha256
+                       OR NEW.portfolio_id_sha256 IS DISTINCT FROM OLD.portfolio_id_sha256
+                       OR NEW.product_id IS DISTINCT FROM OLD.product_id
+                       OR NEW.client_order_id IS DISTINCT FROM OLD.client_order_id
+                       OR NEW.started_at IS DISTINCT FROM OLD.started_at THEN
+                        RAISE EXCEPTION 'automation_spot_eligibility_cycle_binding_is_immutable';
+                    END IF;
+                    RETURN NEW;
+                END;
+                $$
+                """
+            )
+            cursor.execute(
+                f"DROP TRIGGER IF EXISTS automation_spot_cycle_binding_no_update ON {self._prefix}automation_spot_eligibility_cycle"
+            )
+            cursor.execute(
+                f"""
+                CREATE TRIGGER automation_spot_cycle_binding_no_update
+                BEFORE UPDATE ON {self._prefix}automation_spot_eligibility_cycle
+                FOR EACH ROW EXECUTE FUNCTION {immutable_cycle_binding_function}()
+                """
+            )
+            cursor.execute(
+                f"DROP TRIGGER IF EXISTS automation_spot_cycle_no_delete ON {self._prefix}automation_spot_eligibility_cycle"
+            )
+            cursor.execute(
+                f"""
+                CREATE TRIGGER automation_spot_cycle_no_delete
+                BEFORE DELETE ON {self._prefix}automation_spot_eligibility_cycle
+                FOR EACH ROW EXECUTE FUNCTION {immutable_cycle_binding_function}()
                 """
             )
 
@@ -1949,12 +2422,65 @@ class OperatorAutomationRepository:
                 else None
             ),
             call_count_exact=bool(row["call_count_exact"]),
+            observed_at=_iso(row.get("observed_at")),
+            fresh_until=_iso(row.get("fresh_until")),
+            evidence_sha256=row.get("evidence_sha256"),
             diagnostic_code=row["diagnostic_code"],
             audit_id=str(row["audit_id"]),
             correlation_id=row["correlation_id"],
             started_at=_iso(row["started_at"]) or "",
             finalized_at=_iso(row.get("finalized_at")),
             portfolio_id_sha256=row.get("portfolio_id_sha256"),
+        )
+
+    @staticmethod
+    def _spot_eligibility_cycle_from_row(
+        row: Mapping[str, Any],
+    ) -> AutomationSpotEligibilityCycleRecord:
+        state = str(row["state"])
+        if state not in _AUTOMATION_SPOT_ELIGIBILITY_CYCLE_STATES:
+            raise AutomationStoreUnavailable(
+                "automation_spot_eligibility_cycle_state_invalid"
+            )
+        return AutomationSpotEligibilityCycleRecord(
+            goal_key=row["goal_key"],
+            cycle_number=int(row["cycle_number"]),
+            run_id=str(row["run_id"]),
+            definition_id=str(row["definition_id"]),
+            definition_revision=int(row["definition_revision"]),
+            plan_sha256=row["plan_sha256"],
+            portfolio_id_sha256=row["portfolio_id_sha256"],
+            product_id=row["product_id"],
+            client_order_id=str(row["client_order_id"]),
+            state=state,
+            coinbase_api_call_count=(
+                int(row["coinbase_api_call_count"])
+                if row.get("coinbase_api_call_count") is not None
+                else None
+            ),
+            call_count_exact=bool(row["call_count_exact"]),
+            fresh_until=_iso(row.get("fresh_until")),
+            diagnostic_code=row["diagnostic_code"],
+            audit_id=str(row["audit_id"]),
+            correlation_id=row["correlation_id"],
+            started_at=_iso(row["started_at"]) or "",
+            finalized_at=_iso(row.get("finalized_at")),
+        )
+
+    def list_spot_eligibility_cycles(
+        self,
+    ) -> tuple[AutomationSpotEligibilityCycleRecord, ...]:
+        rows = self.database.execute_query(
+            f"""
+            SELECT *
+            FROM {self._prefix}automation_spot_eligibility_cycle
+            WHERE goal_key = %s
+            ORDER BY cycle_number
+            """,
+            (_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,),
+        )
+        return tuple(
+            self._spot_eligibility_cycle_from_row(row) for row in rows
         )
 
     @staticmethod
@@ -1984,6 +2510,9 @@ class OperatorAutomationRepository:
                 else None
             ),
             call_count_exact=bool(value["call_count_exact"]),
+            observed_at=value.get("observed_at"),
+            fresh_until=value.get("fresh_until"),
+            evidence_sha256=value.get("evidence_sha256"),
             diagnostic_code=value["diagnostic_code"],
             audit_id=value["audit_id"],
             correlation_id=value["correlation_id"],
@@ -1993,15 +2522,7 @@ class OperatorAutomationRepository:
         )
 
     @staticmethod
-    def _validate_spot_eligibility_identity(
-        *,
-        cycle_number: int,
-        category: str,
-    ) -> None:
-        if type(cycle_number) is not int or not 1 <= cycle_number <= 10:
-            raise AutomationStoreInvalid(
-                "automation_spot_eligibility_cycle_invalid"
-            )
+    def _validate_spot_eligibility_category(*, category: str) -> None:
         if category not in _AUTOMATION_SPOT_ELIGIBILITY_CATEGORY_SET:
             raise AutomationStoreInvalid(
                 "automation_spot_eligibility_category_invalid"
@@ -2038,28 +2559,116 @@ class OperatorAutomationRepository:
             raise AutomationStoreConflict("automation_spot_run_plan_missing")
         return run, plan
 
+    def _lock_open_spot_eligibility_cycle_cursor(
+        self,
+        cursor: Any,
+        *,
+        run: Mapping[str, Any],
+        plan: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        cursor.execute(
+            f"""
+            SELECT *
+            FROM {self._prefix}automation_spot_eligibility_cycle
+            WHERE goal_key = %s AND state = 'OPEN'
+            FOR UPDATE
+            """,
+            (_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,),
+        )
+        cycle = self._row(cursor)
+        if cycle is None:
+            raise AutomationStoreConflict(
+                "automation_spot_eligibility_cycle_not_open"
+            )
+        expected_client_order_id = self.deterministic_spot_client_order_id(
+            run_id=str(run["run_id"]),
+            plan_sha256=plan["plan_sha256"],
+        )
+        if (
+            str(cycle["run_id"]) != str(run["run_id"])
+            or str(cycle["definition_id"]) != str(run["definition_id"])
+            or int(cycle["definition_revision"])
+            != int(run["definition_revision"])
+            or cycle["plan_sha256"] != plan["plan_sha256"]
+            or cycle["portfolio_id_sha256"]
+            != plan["portfolio_id_sha256"]
+            or cycle["product_id"] != plan["product_id"]
+            or str(cycle["client_order_id"]) != expected_client_order_id
+        ):
+            raise AutomationStoreUnavailable(
+                "automation_spot_eligibility_cycle_binding_invalid"
+            )
+        return cycle
+
+    def _lock_spot_eligibility_attempts_cursor(
+        self,
+        cursor: Any,
+        *,
+        run_id: str,
+        cycle_number: int,
+    ) -> list[dict[str, Any]]:
+        cursor.execute(
+            f"""
+            SELECT *
+            FROM {self._prefix}automation_spot_eligibility_attempt
+            WHERE run_id = %s AND goal_key = %s AND cycle_number = %s
+            FOR UPDATE
+            """,
+            (
+                run_id,
+                _AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
+                cycle_number,
+            ),
+        )
+        return self._rows(cursor)
+
+    @staticmethod
+    def _require_next_spot_eligibility_category(
+        attempts: list[Mapping[str, Any]],
+        *,
+        category: str,
+    ) -> None:
+        consumed = {str(row["category"]) for row in attempts}
+        if category in consumed:
+            raise AutomationStoreConflict(
+                "automation_spot_eligibility_category_consumed"
+            )
+        if any(row["outcome"] is None for row in attempts):
+            raise AutomationStoreConflict(
+                "automation_spot_eligibility_attempt_in_progress"
+            )
+        expected_prefix = set(
+            AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[: len(attempts)]
+        )
+        if consumed != expected_prefix:
+            raise AutomationStoreUnavailable(
+                "automation_spot_eligibility_sequence_corrupt"
+            )
+        if (
+            len(attempts) >= len(AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES)
+            or category != AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[len(attempts)]
+        ):
+            raise AutomationStoreConflict(
+                "automation_spot_eligibility_category_sequence_invalid"
+            )
+
     def start_spot_eligibility_attempt(
         self,
         run_id: str,
         *,
-        cycle_number: int,
         category: str,
         command: AutomationMutationCommand,
     ) -> AutomationStoreMutation[AutomationSpotEligibilityAttemptRecord]:
         _validate_id(run_id, code="automation_run_id_invalid")
-        self._validate_spot_eligibility_identity(
-            cycle_number=cycle_number,
-            category=category,
-        )
-        resource_type = (
-            f"spot_eligibility_start_{cycle_number}_{category.lower()}"
-        )
+        self._validate_spot_eligibility_category(category=category)
+        resource_type = f"spot_eligibility_start_{category.lower()}"
         with self.database.get_cursor() as cursor:
             replay = self._idempotency_replay(
                 cursor,
                 command=command,
                 resource_type=resource_type,
             )
+            self._lock_spot_live_goal_cursor(cursor)
             if replay is not None:
                 return AutomationStoreMutation(
                     self._spot_eligibility_from_json(replay["entity"]),
@@ -2067,64 +2676,42 @@ class OperatorAutomationRepository:
                     replay["correlation_id"],
                     True,
                 )
-            run, _ = self._require_spot_run_plan(
+            run, plan = self._require_spot_run_plan(
                 cursor,
                 run_id=run_id,
                 allowed_states=frozenset({OperatorAutomationRunState.PREPARING}),
             )
-            cursor.execute(
-                f"""
-                SELECT COALESCE(MAX(cycle_number), 0)
-                FROM {self._prefix}automation_spot_eligibility_attempt
-                WHERE run_id = %s
-                """,
-                (run_id,),
+            cycle = self._lock_open_spot_eligibility_cycle_cursor(
+                cursor,
+                run=run,
+                plan=plan,
             )
-            max_cycle = int(cursor.fetchone()[0])
-            if cycle_number > max_cycle + 1:
-                raise AutomationStoreConflict(
-                    "automation_spot_eligibility_cycle_sequence_invalid"
-                )
-            if cycle_number > 1:
-                cursor.execute(
-                    f"""
-                    SELECT 1
-                    FROM {self._prefix}automation_spot_eligibility_attempt
-                    WHERE run_id = %s AND cycle_number < %s AND outcome IS NULL
-                    LIMIT 1
-                    """,
-                    (run_id, cycle_number),
-                )
-                if cursor.fetchone() is not None:
-                    raise AutomationStoreConflict(
-                        "automation_spot_eligibility_prior_cycle_incomplete"
-                    )
-            cursor.execute(
-                f"""
-                SELECT 1 FROM {self._prefix}automation_spot_eligibility_attempt
-                WHERE run_id = %s AND cycle_number = %s AND category = %s
-                """,
-                (run_id, cycle_number, category),
+            cycle_number = int(cycle["cycle_number"])
+            attempts = self._lock_spot_eligibility_attempts_cursor(
+                cursor,
+                run_id=run_id,
+                cycle_number=cycle_number,
             )
-            if cursor.fetchone() is not None:
-                raise AutomationStoreConflict(
-                    "automation_spot_eligibility_category_consumed"
-                )
+            self._require_next_spot_eligibility_category(
+                attempts,
+                category=category,
+            )
             now = _utc_now()
             audit_id = _new_id()
             diagnostic = "automation_spot_eligibility_invocation_started"
             cursor.execute(
                 f"""
                 INSERT INTO {self._prefix}automation_spot_eligibility_attempt (
-                    run_id, cycle_number, category, allowance_consumed,
+                    run_id, goal_key, cycle_number, category, allowance_consumed,
                     outcome, eligible, coinbase_api_call_count, call_count_exact,
                     diagnostic_code, audit_id, correlation_id, started_at,
                     finalized_at
-                ) VALUES (%s,%s,%s,TRUE,NULL,NULL,NULL,FALSE,%s,%s,%s,%s,NULL)
+                ) VALUES (%s,%s,%s,%s,TRUE,NULL,NULL,NULL,FALSE,%s,%s,%s,%s,NULL)
                 RETURNING *
                 """,
                 (
                     run_id,
+                    _AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
                     cycle_number,
                     category,
                     diagnostic,
@@ -2167,46 +2754,70 @@ class OperatorAutomationRepository:
         self,
         run_id: str,
         *,
-        cycle_number: int,
         category: str,
         outcome: str,
         eligible: bool,
         coinbase_api_call_count: int | None,
         call_count_exact: bool,
         portfolio_id_sha256: str | None,
+        observed_at: datetime | str | None,
+        fresh_until: datetime | str | None,
+        evidence_sha256: str | None,
         command: AutomationMutationCommand,
     ) -> AutomationStoreMutation[AutomationSpotEligibilityAttemptRecord]:
         _validate_id(run_id, code="automation_run_id_invalid")
-        self._validate_spot_eligibility_identity(
-            cycle_number=cycle_number,
-            category=category,
-        )
+        self._validate_spot_eligibility_category(category=category)
         normalized_outcome = str(outcome).upper()
         if normalized_outcome not in _AUTOMATION_SPOT_ELIGIBILITY_OUTCOMES:
             raise AutomationStoreInvalid(
                 "automation_spot_eligibility_outcome_invalid"
             )
-        if type(eligible) is not bool or (
-            normalized_outcome in {"REJECTED", "UNKNOWN"} and eligible
+        normalized_observed_at = _aware_utc_datetime(observed_at)
+        normalized_fresh_until = _aware_utc_datetime(fresh_until)
+        valid_evidence_sha256 = bool(
+            evidence_sha256 is not None
+            and _SHA256_PATTERN.fullmatch(evidence_sha256) is not None
+        )
+        known_result = (
+            normalized_outcome == "SUCCEEDED"
+            and eligible is True
+            and call_count_exact is True
+            and type(coinbase_api_call_count) is int
+            and coinbase_api_call_count >= 1
+            and normalized_observed_at is not None
+            and normalized_fresh_until is not None
+            and normalized_fresh_until > normalized_observed_at
+            and valid_evidence_sha256
+        ) or (
+            normalized_outcome == "REJECTED"
+            and eligible is False
+            and call_count_exact is True
+            and type(coinbase_api_call_count) is int
+            and coinbase_api_call_count >= 0
+            and normalized_observed_at is not None
+            and (
+                fresh_until is None
+                or (
+                    normalized_fresh_until is not None
+                    and normalized_fresh_until > normalized_observed_at
+                )
+            )
+            and (evidence_sha256 is None or valid_evidence_sha256)
+        )
+        unknown_result = (
+            normalized_outcome == "UNKNOWN"
+            and eligible is False
+            and call_count_exact is False
+            and coinbase_api_call_count is None
+            and observed_at is None
+            and fresh_until is None
+            and evidence_sha256 is None
+        )
+        if type(eligible) is not bool or type(call_count_exact) is not bool or not (
+            known_result or unknown_result
         ):
             raise AutomationStoreInvalid(
                 "automation_spot_eligibility_result_invalid"
-            )
-        if type(call_count_exact) is not bool:
-            raise AutomationStoreInvalid(
-                "automation_spot_eligibility_accounting_invalid"
-            )
-        if call_count_exact:
-            if (
-                type(coinbase_api_call_count) is not int
-                or coinbase_api_call_count < 1
-            ):
-                raise AutomationStoreInvalid(
-                    "automation_spot_eligibility_accounting_invalid"
-                )
-        elif coinbase_api_call_count is not None:
-            raise AutomationStoreInvalid(
-                "automation_spot_eligibility_accounting_invalid"
             )
         catalog_proof = bool(
             category == "PORTFOLIO_CATALOG"
@@ -2228,15 +2839,14 @@ class OperatorAutomationRepository:
             raise AutomationStoreInvalid(
                 "automation_spot_portfolio_binding_forbidden"
             )
-        resource_type = (
-            f"spot_eligibility_finalize_{cycle_number}_{category.lower()}"
-        )
+        resource_type = f"spot_eligibility_finalize_{category.lower()}"
         with self.database.get_cursor() as cursor:
             replay = self._idempotency_replay(
                 cursor,
                 command=command,
                 resource_type=resource_type,
             )
+            self._lock_spot_live_goal_cursor(cursor)
             if replay is not None:
                 return AutomationStoreMutation(
                     self._spot_eligibility_from_json(replay["entity"]),
@@ -2256,15 +2866,25 @@ class OperatorAutomationRepository:
                 raise AutomationStoreConflict(
                     "automation_spot_portfolio_binding_mismatch"
                 )
-            cursor.execute(
-                f"""
-                SELECT * FROM {self._prefix}automation_spot_eligibility_attempt
-                WHERE run_id = %s AND cycle_number = %s AND category = %s
-                FOR UPDATE
-                """,
-                (run_id, cycle_number, category),
+            cycle = self._lock_open_spot_eligibility_cycle_cursor(
+                cursor,
+                run=run,
+                plan=plan,
             )
-            attempt = self._row(cursor)
+            cycle_number = int(cycle["cycle_number"])
+            attempts = self._lock_spot_eligibility_attempts_cursor(
+                cursor,
+                run_id=run_id,
+                cycle_number=cycle_number,
+            )
+            attempt = next(
+                (
+                    row
+                    for row in attempts
+                    if str(row["category"]) == category
+                ),
+                None,
+            )
             if attempt is None:
                 raise AutomationStoreNotFound(
                     "automation_spot_eligibility_attempt_not_found"
@@ -2285,7 +2905,8 @@ class OperatorAutomationRepository:
                     coinbase_api_call_count = %s, call_count_exact = %s,
                     diagnostic_code = %s, audit_id = %s,
                     correlation_id = %s, finalized_at = %s,
-                    portfolio_id_sha256 = %s
+                    portfolio_id_sha256 = %s, observed_at = %s,
+                    fresh_until = %s, evidence_sha256 = %s
                 WHERE run_id = %s AND cycle_number = %s AND category = %s
                 RETURNING *
                 """,
@@ -2299,6 +2920,9 @@ class OperatorAutomationRepository:
                     command.correlation_id,
                     now,
                     portfolio_id_sha256,
+                    normalized_observed_at,
+                    normalized_fresh_until,
+                    evidence_sha256,
                     run_id,
                     cycle_number,
                     category,
@@ -2307,6 +2931,84 @@ class OperatorAutomationRepository:
             row = self._row(cursor)
             assert row is not None
             record = self._spot_eligibility_from_row(row)
+            terminal_cycle_state: str | None = None
+            if normalized_outcome in {"REJECTED", "UNKNOWN"}:
+                terminal_cycle_state = normalized_outcome
+            elif (
+                category == AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[-1]
+                and len(attempts)
+                == len(AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES)
+            ):
+                terminal_cycle_state = "SUCCEEDED"
+            if terminal_cycle_state is not None:
+                if terminal_cycle_state == "UNKNOWN":
+                    cycle_call_count = None
+                    cycle_count_exact = False
+                    cycle_fresh_until = None
+                else:
+                    prior_counts = [
+                        int(item["coinbase_api_call_count"])
+                        for item in attempts
+                        if item["category"] != category
+                        and item["coinbase_api_call_count"] is not None
+                    ]
+                    cycle_call_count = sum(prior_counts) + int(
+                        coinbase_api_call_count or 0
+                    )
+                    cycle_count_exact = True
+                    if terminal_cycle_state == "SUCCEEDED":
+                        successful_deadlines = [
+                            item["fresh_until"]
+                            for item in attempts
+                            if item["category"] != category
+                            and item["outcome"] == "SUCCEEDED"
+                            and item["fresh_until"] is not None
+                        ]
+                        if (
+                            len(successful_deadlines)
+                            != len(AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES) - 1
+                            or normalized_fresh_until is None
+                        ):
+                            raise AutomationStoreUnavailable(
+                                "automation_spot_eligibility_freshness_corrupt"
+                            )
+                        cycle_fresh_until = min(
+                            *successful_deadlines,
+                            normalized_fresh_until,
+                        )
+                    else:
+                        cycle_fresh_until = normalized_fresh_until
+                cycle_diagnostic = (
+                    f"automation_spot_eligibility_cycle_"
+                    f"{terminal_cycle_state.lower()}"
+                )
+                cursor.execute(
+                    f"""
+                    UPDATE {self._prefix}automation_spot_eligibility_cycle
+                    SET state = %s, coinbase_api_call_count = %s,
+                        call_count_exact = %s, fresh_until = %s,
+                        diagnostic_code = %s,
+                        audit_id = %s, correlation_id = %s, finalized_at = %s
+                    WHERE goal_key = %s AND cycle_number = %s
+                      AND state = 'OPEN'
+                    """,
+                    (
+                        terminal_cycle_state,
+                        cycle_call_count,
+                        cycle_count_exact,
+                        cycle_fresh_until,
+                        cycle_diagnostic,
+                        audit_id,
+                        command.correlation_id,
+                        now,
+                        _AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
+                        cycle_number,
+                    ),
+                )
+                if cursor.rowcount != 1:
+                    raise AutomationStoreConflict(
+                        "automation_spot_eligibility_cycle_not_open"
+                    )
             self._append_event(
                 cursor,
                 definition_id=str(run["definition_id"]),
@@ -2319,6 +3021,41 @@ class OperatorAutomationRepository:
                 correlation_id=command.correlation_id,
                 recorded_at=now,
             )
+            if terminal_cycle_state is not None:
+                source_gate = "automation_active_order_catalog_read_not_authorized"
+                cursor.execute(
+                    f"""
+                    UPDATE {self._prefix}automation_run
+                    SET state = %s, diagnostic_code = %s, audit_id = %s,
+                        correlation_id = %s, updated_at = %s
+                    WHERE run_id = %s AND state = %s
+                    """,
+                    (
+                        OperatorAutomationRunState.BLOCKED.value,
+                        source_gate,
+                        audit_id,
+                        command.correlation_id,
+                        now,
+                        run_id,
+                        OperatorAutomationRunState.PREPARING.value,
+                    ),
+                )
+                if cursor.rowcount != 1:
+                    raise AutomationStoreConflict(
+                        "automation_spot_run_state_invalid"
+                    )
+                self._append_event(
+                    cursor,
+                    definition_id=str(run["definition_id"]),
+                    run_id=run_id,
+                    from_state=OperatorAutomationRunState.PREPARING.value,
+                    to_state=OperatorAutomationRunState.BLOCKED.value,
+                    diagnostic_code=source_gate,
+                    audit_id=audit_id,
+                    idempotency_key_sha256=_hash(command.idempotency_key),
+                    correlation_id=command.correlation_id,
+                    recorded_at=now,
+                )
             self._store_idempotency(
                 cursor,
                 command=command,
@@ -2493,18 +3230,63 @@ class OperatorAutomationRepository:
         self,
         cursor: Any,
         *,
-        run_id: str,
+        run: Mapping[str, Any],
+        plan: Mapping[str, Any],
         cycle_number: int,
-        portfolio_id_sha256: str,
     ) -> None:
+        run_id = str(run["run_id"])
+        cursor.execute(
+            f"""
+            SELECT *
+            FROM {self._prefix}automation_spot_eligibility_cycle
+            WHERE goal_key = %s AND cycle_number = %s
+            FOR UPDATE
+            """,
+            (_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY, cycle_number),
+        )
+        cycle = self._row(cursor)
+        cycle_fresh_until = (
+            _aware_utc_datetime(cycle.get("fresh_until"))
+            if cycle is not None
+            else None
+        )
+        expected_client_order_id = self.deterministic_spot_client_order_id(
+            run_id=run_id,
+            plan_sha256=plan["plan_sha256"],
+        )
+        if (
+            cycle is None
+            or cycle["state"] != "SUCCEEDED"
+            or not bool(cycle["call_count_exact"])
+            or cycle["coinbase_api_call_count"] is None
+            or cycle_fresh_until is None
+            or cycle_fresh_until <= _utc_now()
+            or str(cycle["run_id"]) != run_id
+            or str(cycle["definition_id"]) != str(run["definition_id"])
+            or int(cycle["definition_revision"])
+            != int(run["definition_revision"])
+            or cycle["plan_sha256"] != plan["plan_sha256"]
+            or cycle["portfolio_id_sha256"]
+            != plan["portfolio_id_sha256"]
+            or cycle["product_id"] != plan["product_id"]
+            or str(cycle["client_order_id"]) != expected_client_order_id
+        ):
+            raise AutomationStoreConflict(
+                "automation_spot_exact_eligibility_not_proven"
+            )
         cursor.execute(
             f"""
             SELECT category, outcome, eligible, coinbase_api_call_count,
                    call_count_exact, portfolio_id_sha256
             FROM {self._prefix}automation_spot_eligibility_attempt
-            WHERE run_id = %s AND cycle_number = %s
+            WHERE run_id = %s AND goal_key = %s AND cycle_number = %s
+            FOR UPDATE
             """,
-            (run_id, cycle_number),
+            (
+                run_id,
+                _AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
+                cycle_number,
+            ),
         )
         attempts = self._rows(cursor)
         if (
@@ -2518,7 +3300,7 @@ class OperatorAutomationRepository:
                 or (
                     row["category"] == "PORTFOLIO_CATALOG"
                     and row.get("portfolio_id_sha256")
-                    != portfolio_id_sha256
+                    != plan["portfolio_id_sha256"]
                 )
                 or (
                     row["category"] != "PORTFOLIO_CATALOG"
@@ -2633,9 +3415,9 @@ class OperatorAutomationRepository:
             )
             self._require_spot_eligible_cycle(
                 cursor,
-                run_id=run_id,
+                run=run,
+                plan=plan,
                 cycle_number=eligibility_cycle,
-                portfolio_id_sha256=plan["portfolio_id_sha256"],
             )
             cursor.execute(
                 f"SELECT 1 FROM {self._prefix}automation_spot_run_execution WHERE run_id = %s",
@@ -3506,6 +4288,329 @@ class OperatorAutomationRepository:
                 command.correlation_id,
             )
 
+    def _lock_spot_live_goal_cursor(self, cursor: Any) -> dict[str, Any]:
+        cursor.execute(
+            f"""
+            SELECT *
+            FROM {self._prefix}automation_spot_live_proof_goal
+            WHERE singleton = 1
+            FOR UPDATE
+            """
+        )
+        goal = self._row(cursor)
+        if (
+            goal is None
+            or goal.get("goal_key") != _AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY
+        ):
+            raise AutomationStoreUnavailable(
+                "automation_spot_live_proof_goal_unavailable"
+            )
+        return goal
+
+    def _insert_spot_eligibility_cycle_cursor(
+        self,
+        cursor: Any,
+        *,
+        run: Mapping[str, Any],
+        plan: Mapping[str, Any],
+        cycle_number: int,
+        audit_id: str,
+        correlation_id: str,
+        recorded_at: datetime,
+    ) -> AutomationSpotEligibilityCycleRecord:
+        client_order_id = self.deterministic_spot_client_order_id(
+            run_id=str(run["run_id"]),
+            plan_sha256=plan["plan_sha256"],
+        )
+        cursor.execute(
+            f"""
+            INSERT INTO {self._prefix}automation_spot_eligibility_cycle (
+                goal_key, cycle_number, run_id, definition_id,
+                definition_revision, plan_sha256, portfolio_id_sha256,
+                product_id, client_order_id, state,
+                coinbase_api_call_count, call_count_exact, diagnostic_code,
+                audit_id, correlation_id, started_at, finalized_at
+            ) VALUES (
+                %s,%s,%s,%s,%s,%s,%s,%s,%s,'OPEN',NULL,FALSE,
+                'automation_spot_eligibility_cycle_opened',%s,%s,%s,NULL
+            )
+            RETURNING *
+            """,
+            (
+                _AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
+                cycle_number,
+                str(run["run_id"]),
+                str(run["definition_id"]),
+                int(run["definition_revision"]),
+                plan["plan_sha256"],
+                plan["portfolio_id_sha256"],
+                plan["product_id"],
+                client_order_id,
+                audit_id,
+                correlation_id,
+                recorded_at,
+            ),
+        )
+        row = self._row(cursor)
+        assert row is not None
+        return self._spot_eligibility_cycle_from_row(row)
+
+    def _resume_spot_source_gate_and_allocate_cycle_cursor(
+        self,
+        cursor: Any,
+        *,
+        run_id: str,
+        expected_plan_sha256: str,
+        command: AutomationMutationCommand,
+    ) -> tuple[AutomationRunRecord, AutomationSpotEligibilityCycleRecord, str]:
+        cursor.execute(
+            f"""
+            SELECT run.*, plan.plan_sha256, plan.portfolio_id_sha256,
+                   plan.product_id
+            FROM {self._prefix}automation_run AS run
+            LEFT JOIN {self._prefix}automation_spot_single_child_plan AS plan
+              ON plan.definition_id = run.definition_id
+             AND plan.definition_revision = run.definition_revision
+            WHERE run.run_id = %s
+            FOR UPDATE OF run
+            """,
+            (run_id,),
+        )
+        row = self._row(cursor)
+        if row is None:
+            raise AutomationStoreNotFound("automation_run_not_found")
+        if (
+            row["job_kind"] != OperatorAutomationJobKind.SPOT_CAMPAIGN.value
+            or row.get("definition_revision") is None
+            or row.get("plan_sha256") is None
+            or row.get("portfolio_id_sha256") is None
+            or row.get("product_id") != "BTC-USDC"
+        ):
+            raise AutomationStoreConflict(
+                "automation_single_child_run_ineligible"
+            )
+        if expected_plan_sha256 != row["plan_sha256"]:
+            raise AutomationStoreConflict(
+                "automation_single_child_plan_mismatch"
+            )
+        if (
+            row["state"] != OperatorAutomationRunState.BLOCKED.value
+            or row["diagnostic_code"]
+            != "automation_active_order_catalog_read_not_authorized"
+        ):
+            raise AutomationStoreConflict(
+                "automation_single_child_run_not_resumable"
+            )
+
+        cursor.execute(
+            f"""
+            SELECT *
+            FROM {self._prefix}automation_spot_eligibility_cycle
+            WHERE goal_key = %s
+            ORDER BY cycle_number
+            FOR UPDATE
+            """,
+            (_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,),
+        )
+        cycles = self._rows(cursor)
+        if any(cycle["state"] == "OPEN" for cycle in cycles):
+            raise AutomationStoreConflict(
+                "automation_spot_eligibility_cycle_in_progress"
+            )
+        next_cycle = max(
+            (int(cycle["cycle_number"]) for cycle in cycles),
+            default=0,
+        ) + 1
+        if next_cycle > 10:
+            raise AutomationStoreConflict(
+                "automation_spot_eligibility_cycles_exhausted"
+            )
+
+        now = _utc_now()
+        audit_id = _new_id()
+        diagnostic = "automation_spot_source_gate_resumed"
+        cursor.execute(
+            f"""
+            UPDATE {self._prefix}automation_run
+            SET state = %s, diagnostic_code = %s, audit_id = %s,
+                correlation_id = %s, updated_at = %s
+            WHERE run_id = %s RETURNING *
+            """,
+            (
+                OperatorAutomationRunState.PREPARING.value,
+                diagnostic,
+                audit_id,
+                command.correlation_id,
+                now,
+                run_id,
+            ),
+        )
+        updated = self._row(cursor)
+        assert updated is not None
+        record = self._run_from_row(updated)
+        cycle = self._insert_spot_eligibility_cycle_cursor(
+            cursor,
+            run=row,
+            plan=row,
+            cycle_number=next_cycle,
+            audit_id=audit_id,
+            correlation_id=command.correlation_id,
+            recorded_at=now,
+        )
+        self._append_event(
+            cursor,
+            definition_id=record.definition_id,
+            run_id=run_id,
+            from_state=OperatorAutomationRunState.BLOCKED.value,
+            to_state=OperatorAutomationRunState.PREPARING.value,
+            diagnostic_code=diagnostic,
+            audit_id=audit_id,
+            idempotency_key_sha256=_hash(command.idempotency_key),
+            correlation_id=command.correlation_id,
+            recorded_at=now,
+        )
+        return record, cycle, audit_id
+
+    def resume_spot_source_gated_run(
+        self,
+        run_id: str,
+        *,
+        expected_plan_sha256: str,
+        command: AutomationMutationCommand,
+    ) -> AutomationStoreMutation[AutomationSpotEligibilityCycleAllocationRecord]:
+        """Atomically resume the exact source gate and allocate its next cycle."""
+
+        _validate_id(run_id, code="automation_run_id_invalid")
+        resource_type = "spot_source_gate_resume"
+        with self.database.get_cursor() as cursor:
+            replay = self._idempotency_replay(
+                cursor,
+                command=command,
+                resource_type=resource_type,
+            )
+            self._lock_spot_live_goal_cursor(cursor)
+            if replay is not None:
+                identity = replay["entity"]
+                replay_run_id = identity.get("run_id")
+                replay_cycle_number = identity.get("cycle_number")
+                if (
+                    replay_run_id != run_id
+                    or type(replay_cycle_number) is not int
+                    or not 1 <= replay_cycle_number <= 10
+                ):
+                    raise AutomationStoreUnavailable(
+                        "automation_spot_eligibility_replay_identity_invalid"
+                    )
+                cursor.execute(
+                    f"SELECT * FROM {self._prefix}automation_run "
+                    "WHERE run_id = %s FOR UPDATE",
+                    (run_id,),
+                )
+                current_run = self._row(cursor)
+                if current_run is None:
+                    raise AutomationStoreUnavailable(
+                        "automation_spot_eligibility_replay_run_missing"
+                    )
+                cursor.execute(
+                    f"""
+                    SELECT *
+                    FROM {self._prefix}automation_spot_eligibility_cycle
+                    WHERE goal_key = %s AND cycle_number = %s
+                    FOR UPDATE
+                    """,
+                    (
+                        _AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
+                        replay_cycle_number,
+                    ),
+                )
+                current_cycle = self._row(cursor)
+                if (
+                    current_cycle is None
+                    or str(current_cycle["run_id"]) != run_id
+                    or current_cycle["plan_sha256"] != expected_plan_sha256
+                ):
+                    raise AutomationStoreUnavailable(
+                        "automation_spot_eligibility_replay_binding_invalid"
+                    )
+                if current_cycle["state"] == "OPEN":
+                    raise AutomationStoreConflict(
+                        "automation_spot_eligibility_cycle_in_progress"
+                    )
+                source_gate_restored = bool(
+                    current_run["state"]
+                    == OperatorAutomationRunState.BLOCKED.value
+                    and current_run["diagnostic_code"]
+                    == "automation_active_order_catalog_read_not_authorized"
+                )
+                replay_during_newer_cycle = False
+                if (
+                    current_run["state"]
+                    == OperatorAutomationRunState.PREPARING.value
+                    and current_run["diagnostic_code"]
+                    == "automation_spot_source_gate_resumed"
+                ):
+                    cursor.execute(
+                        f"""
+                        SELECT *
+                        FROM {self._prefix}automation_spot_eligibility_cycle
+                        WHERE goal_key = %s AND state = 'OPEN'
+                        FOR UPDATE
+                        """,
+                        (_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,),
+                    )
+                    open_cycles = self._rows(cursor)
+                    replay_during_newer_cycle = bool(
+                        len(open_cycles) == 1
+                        and str(open_cycles[0]["run_id"]) == run_id
+                        and int(open_cycles[0]["cycle_number"])
+                        > replay_cycle_number
+                        and open_cycles[0]["plan_sha256"]
+                        == expected_plan_sha256
+                    )
+                if not (source_gate_restored or replay_during_newer_cycle):
+                    raise AutomationStoreUnavailable(
+                        "automation_spot_eligibility_terminal_source_gate_missing"
+                    )
+                return AutomationStoreMutation(
+                    AutomationSpotEligibilityCycleAllocationRecord(
+                        run=self._run_from_row(current_run),
+                        cycle=self._spot_eligibility_cycle_from_row(
+                            current_cycle
+                        ),
+                    ),
+                    replay["audit_id"],
+                    replay["correlation_id"],
+                    True,
+                )
+            record, cycle, audit_id = (
+                self._resume_spot_source_gate_and_allocate_cycle_cursor(
+                    cursor,
+                    run_id=run_id,
+                    expected_plan_sha256=expected_plan_sha256,
+                    command=command,
+                )
+            )
+            self._store_idempotency(
+                cursor,
+                command=command,
+                resource_type=resource_type,
+                resource_id=run_id,
+                audit_id=audit_id,
+                result={
+                    "run_id": run_id,
+                    "cycle_number": cycle.cycle_number,
+                },
+                recorded_at=_utc_now(),
+            )
+            return AutomationStoreMutation(
+                AutomationSpotEligibilityCycleAllocationRecord(
+                    run=record,
+                    cycle=cycle,
+                ),
+                audit_id,
+                command.correlation_id,
+            )
+
     @staticmethod
     def _run_transition_allowed(
         current: OperatorAutomationRunState,
@@ -3821,6 +4926,7 @@ class OperatorAutomationRepository:
 
         recovered: list[AutomationRunRecord] = []
         with self.database.get_cursor() as cursor:
+            self._lock_spot_live_goal_cursor(cursor)
             cursor.execute(
                 f"""
                 SELECT * FROM {self._prefix}automation_run
@@ -3834,6 +4940,7 @@ class OperatorAutomationRepository:
             for row in rows:
                 current = OperatorAutomationRunState(row["state"])
                 execution = None
+                open_eligibility_cycle = None
                 if current is OperatorAutomationRunState.ACTIVE:
                     cursor.execute(
                         f"""
@@ -3857,10 +4964,38 @@ class OperatorAutomationRepository:
                         # actionable only for a separately claimed exact-child
                         # safe closeout and must survive process restarts.
                         continue
+                if current in _PRE_INVOCATION_STATES:
+                    cursor.execute(
+                        f"""
+                        SELECT *
+                        FROM {self._prefix}automation_spot_eligibility_cycle
+                        WHERE goal_key = %s AND run_id = %s AND state = 'OPEN'
+                        FOR UPDATE
+                        """,
+                        (
+                            _AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
+                            str(row["run_id"]),
+                        ),
+                    )
+                    open_eligibility_cycle = self._row(cursor)
+                    if open_eligibility_cycle is not None:
+                        self._lock_spot_eligibility_attempts_cursor(
+                            cursor,
+                            run_id=str(row["run_id"]),
+                            cycle_number=int(
+                                open_eligibility_cycle["cycle_number"]
+                            ),
+                        )
                 if current in _POST_INVOCATION_STATES:
                     target = OperatorAutomationRunState.UNKNOWN_CONSUMED
                     diagnostic = "restart_unknown_consumed"
                     live_consumed = True
+                elif open_eligibility_cycle is not None:
+                    target = OperatorAutomationRunState.BLOCKED
+                    diagnostic = (
+                        "automation_active_order_catalog_read_not_authorized"
+                    )
+                    live_consumed = False
                 elif current in _PRE_INVOCATION_STATES:
                     target = OperatorAutomationRunState.BLOCKED
                     diagnostic = "restart_pre_invocation_blocked"
@@ -3873,6 +5008,58 @@ class OperatorAutomationRepository:
                 evidence_key = _hash(
                     f"automation-restart:{row['run_id']}:{current.value}:{diagnostic}"
                 )
+                if open_eligibility_cycle is not None:
+                    cycle_number = int(
+                        open_eligibility_cycle["cycle_number"]
+                    )
+                    cursor.execute(
+                        f"""
+                        UPDATE {self._prefix}automation_spot_eligibility_attempt
+                        SET outcome = 'UNKNOWN', eligible = FALSE,
+                            coinbase_api_call_count = NULL,
+                            call_count_exact = FALSE,
+                            diagnostic_code = 'automation_spot_eligibility_unknown',
+                            audit_id = %s, correlation_id = %s,
+                            finalized_at = %s, portfolio_id_sha256 = NULL,
+                            observed_at = NULL, fresh_until = NULL,
+                            evidence_sha256 = NULL
+                        WHERE run_id = %s AND goal_key = %s
+                          AND cycle_number = %s AND outcome IS NULL
+                        """,
+                        (
+                            audit_id,
+                            correlation_id,
+                            now,
+                            str(row["run_id"]),
+                            _AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
+                            cycle_number,
+                        ),
+                    )
+                    cursor.execute(
+                        f"""
+                        UPDATE {self._prefix}automation_spot_eligibility_cycle
+                        SET state = 'UNKNOWN', coinbase_api_call_count = NULL,
+                            call_count_exact = FALSE,
+                            fresh_until = NULL,
+                            diagnostic_code =
+                                'automation_spot_eligibility_cycle_unknown',
+                            audit_id = %s, correlation_id = %s,
+                            finalized_at = %s
+                        WHERE goal_key = %s AND cycle_number = %s
+                          AND state = 'OPEN'
+                        """,
+                        (
+                            audit_id,
+                            correlation_id,
+                            now,
+                            _AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
+                            cycle_number,
+                        ),
+                    )
+                    if cursor.rowcount != 1:
+                        raise AutomationStoreUnavailable(
+                            "automation_spot_eligibility_cycle_recovery_failed"
+                        )
                 if current in _POST_INVOCATION_STATES:
                     if execution is None:
                         cursor.execute(

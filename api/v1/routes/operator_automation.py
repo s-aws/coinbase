@@ -39,6 +39,8 @@ from application.admin_api.automation_models import (
     AutomationDefinitionScheduleRequest,
     AutomationDefinitionState,
     AutomationDomain,
+    AutomationEligibilityCycleMutationResponse,
+    AutomationEligibilityRefreshRequest,
     AutomationJobKind,
     AutomationMutationContext,
     AutomationOneShotRunRequest,
@@ -172,7 +174,13 @@ _ClaimRunIntent = Annotated[
     Header(alias="X-Operator-Intent"),
 ]
 _AuthorizeSingleChildIntent = Annotated[
-    Literal["authorize_automation_single_child_create"],
+    Literal[
+        "authorize_automation_single_child_create_and_safe_closeout"
+    ],
+    Header(alias="X-Operator-Intent"),
+]
+_RefreshEligibilityIntent = Annotated[
+    Literal["refresh_automation_spot_eligibility"],
     Header(alias="X-Operator-Intent"),
 ]
 
@@ -260,8 +268,15 @@ def _scope_run_item(
         actor, AdminApiPermission.AUTOMATION_TRIGGER
     )
     permissions = {
+        "REFRESH_ELIGIBILITY": can_trigger
+        and actor_has_permission(actor, AdminApiPermission.AUTOMATION_RESUME)
+        and actor_has_permission(
+            actor,
+            AdminApiPermission.ACCOUNT_REALITY_REFRESH,
+        ),
         "AUTHORIZE_SINGLE_CHILD": can_trigger
-        and actor_has_permission(actor, AdminApiPermission.ORDER_CREATE),
+        and actor_has_permission(actor, AdminApiPermission.ORDER_CREATE)
+        and actor_has_permission(actor, AdminApiPermission.ORDER_CANCEL),
     }
     allowed_actions = [
         action for action in item.allowed_actions if permissions.get(action, False)
@@ -307,6 +322,10 @@ def _scope_payload_for_actor(payload: Any, actor: AdminApiActor) -> Any:
             update={"run": _scope_run_item(payload.run, actor)}
         )
     if isinstance(payload, AutomationRunMutationResponse):
+        return payload.model_copy(
+            update={"run": _scope_run_item(payload.run, actor)}
+        )
+    if isinstance(payload, AutomationEligibilityCycleMutationResponse):
         return payload.model_copy(
             update={"run": _scope_run_item(payload.run, actor)}
         )
@@ -912,6 +931,41 @@ def claim_one_shot_run(
 
 
 @router.post(
+    "/automation/runs/{run_id}/eligibility-cycles",
+    response_model=AutomationEligibilityCycleMutationResponse,
+    responses=_MUTATION_RESPONSES,
+    operation_id="refresh_operator_automation_spot_eligibility",
+)
+def refresh_spot_eligibility(
+    request: Request,
+    body: AutomationEligibilityRefreshRequest,
+    run_id: _EntityId,
+    actor: _Actor,
+    service: _Service,
+    idempotency_key: _IdempotencyKey,
+    correlation_id: _CorrelationId,
+    operator_intent: _RefreshEligibilityIntent,
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.AUTOMATION_TRIGGER)
+    require_permission(actor, AdminApiPermission.AUTOMATION_RESUME)
+    require_permission(actor, AdminApiPermission.ACCOUNT_REALITY_REFRESH)
+    _require_query_shape(request, frozenset())
+    return _mutation_result(
+        lambda: service.refresh_spot_eligibility(
+            run_id=run_id,
+            request=body,
+            context=_context(
+                actor=actor,
+                idempotency_key=idempotency_key,
+                correlation_id=correlation_id,
+                operator_intent=operator_intent,
+            ),
+        ),
+        actor=actor,
+    )
+
+
+@router.post(
     "/automation/runs/{run_id}/authorize-single-child",
     response_model=AutomationRunMutationResponse,
     responses=_MUTATION_RESPONSES,
@@ -929,6 +983,7 @@ def authorize_single_child(
 ) -> JSONResponse:
     require_permission(actor, AdminApiPermission.AUTOMATION_TRIGGER)
     require_permission(actor, AdminApiPermission.ORDER_CREATE)
+    require_permission(actor, AdminApiPermission.ORDER_CANCEL)
     _require_query_shape(request, frozenset())
     return _mutation_result(
         lambda: service.authorize_single_child(

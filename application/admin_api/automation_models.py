@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from enum import Enum
-from typing import Literal, Self
+from typing import cast, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from application.admin_api.product_policy import DEFAULT_SPOT_PRODUCT_SCOPE
@@ -79,7 +79,9 @@ _V1_RUN_DIAGNOSTICS = {
     AutomationRunState.CLAIMED: frozenset(
         {"one_shot_run_claimed"}
     ),
-    AutomationRunState.PREPARING: frozenset({"preparing"}),
+    AutomationRunState.PREPARING: frozenset(
+        {"preparing", "automation_spot_source_gate_resumed"}
+    ),
     AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION: frozenset(
         {"awaiting_operator_authorization"}
     ),
@@ -147,8 +149,40 @@ class AutomationNoExchangeActivity(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    coinbase_api_call_count: Literal[0] = 0
+    exchange_mutation_count: Literal[0] = 0
+    create_call_count: Literal[0] = 0
+    cancel_call_count: Literal[0] = 0
+    call_count_exact: Literal[True] = True
+    recurring_worker_started: Literal[False] = False
+
+
+class AutomationEligibilityRefreshActivity(BaseModel):
+    """Current-cycle accounting for approved read-only eligibility evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
     coinbase_api_call_count: int | None = Field(default=0, ge=0)
-    exchange_mutation_count: int | None = Field(default=0, ge=0, le=1)
+    exchange_mutation_count: Literal[0] = 0
+    create_call_count: Literal[0] = 0
+    cancel_call_count: Literal[0] = 0
+    call_count_exact: bool = True
+    recurring_worker_started: Literal[False] = False
+
+    @model_validator(mode="after")
+    def validate_call_accounting(self) -> Self:
+        if self.call_count_exact is (self.coinbase_api_call_count is None):
+            raise ValueError("automation_eligibility_refresh_activity_invalid")
+        return self
+
+
+class AutomationRunMutationActivity(BaseModel):
+    """Truthful current-request accounting for one run mutation workflow."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    coinbase_api_call_count: int | None = Field(default=0, ge=0)
+    exchange_mutation_count: int | None = Field(default=0, ge=0, le=2)
     create_call_count: int | None = Field(default=0, ge=0, le=1)
     cancel_call_count: int | None = Field(default=0, ge=0, le=1)
     call_count_exact: bool = True
@@ -156,17 +190,35 @@ class AutomationNoExchangeActivity(BaseModel):
 
     @model_validator(mode="after")
     def validate_call_accounting(self) -> Self:
-        any_unknown = any(
-            value is None
-            for value in (
-                self.coinbase_api_call_count,
-                self.exchange_mutation_count,
-                self.create_call_count,
-                self.cancel_call_count,
-            )
+        counts = (
+            self.coinbase_api_call_count,
+            self.exchange_mutation_count,
+            self.create_call_count,
+            self.cancel_call_count,
         )
-        if self.call_count_exact is any_unknown:
-            raise ValueError("automation_activity_call_count_invalid")
+        any_unknown = any(value is None for value in counts)
+        if self.call_count_exact:
+            if any_unknown:
+                raise ValueError("automation_run_mutation_activity_invalid")
+            total = cast(int, self.coinbase_api_call_count)
+            exchange = cast(int, self.exchange_mutation_count)
+            create = cast(int, self.create_call_count)
+            cancel = cast(int, self.cancel_call_count)
+            if (
+                total < exchange
+                or exchange != create + cancel
+                or (cancel == 1 and create != 1)
+            ):
+                raise ValueError("automation_run_mutation_activity_invalid")
+            return self
+
+        allowed_unknown = {
+            (None, None, None, 0),
+            (None, None, 1, None),
+            (None, 1, 1, 0),
+        }
+        if not any_unknown or counts not in allowed_unknown:
+            raise ValueError("automation_run_mutation_activity_invalid")
         return self
 
 
@@ -347,7 +399,24 @@ class AutomationSingleChildAuthorizationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     confirm_single_child_create: Literal[True]
+    confirm_exact_child_safe_closeout_cancel: Literal[True]
     confirm_unknown_consumes_allowance: Literal[True]
+    expected_plan_sha256: str = Field(pattern=_SHA256_PATTERN)
+    reason: str = Field(min_length=1, max_length=255)
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def normalize_reason(cls, value: object) -> object:
+        return _normalized_operator_text(value, code="automation_reason_invalid")
+
+
+class AutomationEligibilityRefreshRequest(BaseModel):
+    """Exact-run authorization for one bounded seven-category read cycle."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    confirm_approved_eligibility_reads: Literal[True]
+    confirm_unknown_consumes_cycle: Literal[True]
     expected_plan_sha256: str = Field(pattern=_SHA256_PATTERN)
     reason: str = Field(min_length=1, max_length=255)
 
@@ -553,7 +622,9 @@ class AutomationRunItem(BaseModel):
     child_terminal: bool | None = None
     single_child_plan: AutomationSingleChildPlanReadback | None = None
     eligibility: AutomationSingleChildEligibilityReadback | None = None
-    allowed_actions: list[Literal["AUTHORIZE_SINGLE_CHILD"]] = Field(
+    allowed_actions: list[
+        Literal["REFRESH_ELIGIBILITY", "AUTHORIZE_SINGLE_CHILD"]
+    ] = Field(
         default_factory=list,
         max_length=1,
     )
@@ -607,11 +678,22 @@ class AutomationRunItem(BaseModel):
             self.state is not AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
             or self.eligibility is None
             or not self.eligibility.eligible
-            or "AUTHORIZE_SINGLE_CHILD" not in self.allowed_actions
+            or self.allowed_actions != ["AUTHORIZE_SINGLE_CHILD"]
         ):
             raise ValueError("automation_live_execution_availability_invalid")
-        if not self.live_execution_available and self.allowed_actions:
-            raise ValueError("automation_live_execution_action_invalid")
+        if not self.live_execution_available:
+            if "AUTHORIZE_SINGLE_CHILD" in self.allowed_actions:
+                raise ValueError("automation_live_execution_action_invalid")
+            if self.allowed_actions and (
+                self.allowed_actions != ["REFRESH_ELIGIBILITY"]
+                or self.job_kind is not AutomationJobKind.SPOT_CAMPAIGN
+                or self.state is not AutomationRunState.BLOCKED
+                or self.diagnostic_code
+                != "automation_active_order_catalog_read_not_authorized"
+                or self.single_child_plan is None
+                or self.live_attempt_consumed
+            ):
+                raise ValueError("automation_eligibility_refresh_action_invalid")
         if self.updated_at < self.claimed_at:
             raise ValueError("automation_run_timestamp_invalid")
         return self
@@ -642,6 +724,9 @@ class AutomationRunEventItem(BaseModel):
             },
             "preparing": {
                 (AutomationRunState.CLAIMED, AutomationRunState.PREPARING),
+            },
+            "automation_spot_source_gate_resumed": {
+                (AutomationRunState.BLOCKED, AutomationRunState.PREPARING),
             },
             "awaiting_operator_authorization": {
                 (
@@ -1056,6 +1141,26 @@ class AutomationRunDetailResponse(BaseModel):
     )
 
 
+class AutomationEligibilityCycleMutationResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["automation_eligibility_cycle_mutation"] = (
+        "automation_eligibility_cycle_mutation"
+    )
+    status: Literal["accepted"] = "accepted"
+    run: AutomationRunItem
+    replayed: bool = False
+    audit_id: str = Field(pattern=_CANONICAL_UUID_PATTERN)
+    correlation_id: str = Field(
+        min_length=1,
+        max_length=255,
+        pattern=_VISIBLE_ASCII_PATTERN,
+    )
+    activity: AutomationEligibilityRefreshActivity = Field(
+        default_factory=AutomationEligibilityRefreshActivity
+    )
+
+
 class AutomationRunMutationResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -1069,8 +1174,8 @@ class AutomationRunMutationResponse(BaseModel):
         max_length=255,
         pattern=_VISIBLE_ASCII_PATTERN,
     )
-    activity: AutomationNoExchangeActivity = Field(
-        default_factory=AutomationNoExchangeActivity
+    activity: AutomationRunMutationActivity = Field(
+        default_factory=AutomationRunMutationActivity
     )
 
 

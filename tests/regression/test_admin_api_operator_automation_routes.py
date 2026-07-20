@@ -15,6 +15,8 @@ from api.v1.routes import operator_automation as operator_automation_routes
 from application.admin_api.automation_models import (
     AutomationControlAction,
     AutomationDefinitionLifecycleAction,
+    AutomationEligibilityCycleMutationResponse,
+    AutomationEligibilityRefreshActivity,
     AutomationRunDetailResponse,
     AutomationRunItem,
     AutomationRunMutationResponse,
@@ -139,6 +141,52 @@ def _actionable_single_child_run() -> dict[str, Any]:
             "call_count_exact": True,
         },
         "allowed_actions": ["AUTHORIZE_SINGLE_CHILD"],
+    }
+
+
+def _source_gated_single_child_run() -> dict[str, Any]:
+    categories = [
+        "api_key_permissions",
+        "portfolio_catalog",
+        "wallet_balances",
+        "product_metadata",
+        "best_bid_ask",
+        "fee_summary",
+        "exact_order_reconciliation",
+    ]
+    return {
+        **_run(),
+        "job_kind": "SPOT_CAMPAIGN",
+        "state": "BLOCKED",
+        "diagnostic_code": "automation_active_order_catalog_read_not_authorized",
+        "adapter_status": "BLOCKED",
+        "live_execution_available": False,
+        "call_count_exact": True,
+        "single_child_plan": {
+            "plan_sha256": "a" * 64,
+            "portfolio_scope": "CONFIGURED_UNVERIFIED",
+            "product_id": "BTC-USDC",
+            "side": "BUY",
+            "base_size": "0.5",
+            "limit_price": "2",
+            "order_type": "LIMIT",
+            "time_in_force": "GOOD_UNTIL_CANCELLED",
+            "post_only": False,
+            "submitted_notional_usdc": "1",
+            "possible_execution_notional_usdc": "1",
+            "max_submitted_notional_usdc": "3.10",
+            "max_possible_execution_notional_usdc": "1.00",
+        },
+        "eligibility": {
+            "cycle_number": None,
+            "required_categories": categories,
+            "completed_categories": [],
+            "eligible": False,
+            "blocker_code": "automation_active_order_catalog_read_not_authorized",
+            "coinbase_api_call_count": 0,
+            "call_count_exact": True,
+        },
+        "allowed_actions": ["REFRESH_ELIGIBILITY"],
     }
 
 
@@ -757,12 +805,179 @@ def _install_authorize_single_child_probe(
 def _authorize_single_child_body(**overrides: Any) -> dict[str, Any]:
     body: dict[str, Any] = {
         "confirm_single_child_create": True,
+        "confirm_exact_child_safe_closeout_cancel": True,
         "confirm_unknown_consumes_allowance": True,
         "expected_plan_sha256": "a" * 64,
         "reason": "Authorize this exact prepared child",
     }
     body.update(overrides)
     return body
+
+
+def _install_refresh_eligibility_probe(
+    monkeypatch: pytest.MonkeyPatch,
+    repository: _FakeRepository,
+) -> None:
+    def refresh_spot_eligibility(
+        _service: OperatorAutomationService,
+        *,
+        run_id: str,
+        request: Any,
+        context: Any,
+    ) -> AutomationEligibilityCycleMutationResponse:
+        repository._record(
+            "refresh_spot_eligibility",
+            run_id=run_id,
+            request=request,
+            context=context,
+        )
+        return AutomationEligibilityCycleMutationResponse(
+            run=AutomationRunItem.model_validate(
+                _source_gated_single_child_run()
+            ),
+            audit_id=AUDIT_ID,
+            correlation_id=context.correlation_id,
+            activity=AutomationEligibilityRefreshActivity(
+                coinbase_api_call_count=3,
+                call_count_exact=True,
+            ),
+        )
+
+    monkeypatch.setattr(
+        OperatorAutomationService,
+        "refresh_spot_eligibility",
+        refresh_spot_eligibility,
+        raising=False,
+    )
+
+
+def _refresh_eligibility_body(**overrides: Any) -> dict[str, Any]:
+    body: dict[str, Any] = {
+        "confirm_approved_eligibility_reads": True,
+        "confirm_unknown_consumes_cycle": True,
+        "expected_plan_sha256": "a" * 64,
+        "reason": "Refresh this exact source-gated run",
+    }
+    body.update(overrides)
+    return body
+
+
+def test_refresh_spot_eligibility_route_binds_exact_run_request_and_context(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repository = _FakeRepository()
+    _install_refresh_eligibility_probe(monkeypatch, repository)
+
+    response = _client(repository).post(
+        f"/api/v1/automation/runs/{RUN_ID}/eligibility-cycles",
+        json=_refresh_eligibility_body(),
+        headers=_headers(
+            roles="trader",
+            operator_intent="refresh_automation_spot_eligibility",
+            idempotency_key="automation-eligibility-cycle-1",
+        ),
+    )
+
+    assert response.status_code == 200
+    assert response.headers["X-Correlation-Id"] == (
+        "automation-route-correlation"
+    )
+    payload = response.json()
+    assert payload["type"] == "automation_eligibility_cycle_mutation"
+    assert payload["run"]["live_execution_available"] is False
+    assert payload["activity"] == {
+        "coinbase_api_call_count": 3,
+        "exchange_mutation_count": 0,
+        "create_call_count": 0,
+        "cancel_call_count": 0,
+        "call_count_exact": True,
+        "recurring_worker_started": False,
+    }
+    name, call = repository.calls[-1]
+    assert name == "refresh_spot_eligibility"
+    assert call["run_id"] == RUN_ID
+    assert call["request"].model_dump(mode="json") == (
+        _refresh_eligibility_body()
+    )
+    assert call["context"].idempotency_key == "automation-eligibility-cycle-1"
+    assert call["context"].operator_intent == (
+        "refresh_automation_spot_eligibility"
+    )
+
+
+def test_refresh_spot_eligibility_requires_exact_three_read_permissions(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repository = _FakeRepository()
+    _install_refresh_eligibility_probe(monkeypatch, repository)
+    permission_checks: list[AdminApiPermission] = []
+
+    def require_all_permissions(
+        _actor: Any,
+        permission: AdminApiPermission,
+    ) -> None:
+        permission_checks.append(permission)
+        if permission is AdminApiPermission.ACCOUNT_REALITY_REFRESH:
+            raise HTTPException(status_code=403, detail="forbidden")
+
+    monkeypatch.setattr(
+        operator_automation_routes,
+        "require_permission",
+        require_all_permissions,
+    )
+
+    response = _client(repository).post(
+        f"/api/v1/automation/runs/{RUN_ID}/eligibility-cycles",
+        json=_refresh_eligibility_body(),
+        headers=_headers(
+            roles="trader",
+            operator_intent="refresh_automation_spot_eligibility",
+        ),
+    )
+
+    assert response.status_code == 403
+    assert permission_checks == [
+        AdminApiPermission.AUTOMATION_TRIGGER,
+        AdminApiPermission.AUTOMATION_RESUME,
+        AdminApiPermission.ACCOUNT_REALITY_REFRESH,
+    ]
+    assert repository.calls == []
+
+
+@pytest.mark.parametrize(
+    ("query", "body", "intent"),
+    [
+        (
+            {"retry": "true"},
+            _refresh_eligibility_body(),
+            "refresh_automation_spot_eligibility",
+        ),
+        (
+            {},
+            _refresh_eligibility_body(product_id="BTC-USDC"),
+            "refresh_automation_spot_eligibility",
+        ),
+        ({}, _refresh_eligibility_body(), "claim_automation_one_shot_run"),
+    ],
+)
+def test_refresh_spot_eligibility_rejects_query_body_or_intent_broadening(
+    monkeypatch: pytest.MonkeyPatch,
+    query: dict[str, str],
+    body: dict[str, Any],
+    intent: str,
+):
+    repository = _FakeRepository()
+    _install_refresh_eligibility_probe(monkeypatch, repository)
+
+    response = _client(repository).post(
+        f"/api/v1/automation/runs/{RUN_ID}/eligibility-cycles",
+        params=query,
+        json=body,
+        headers=_headers(roles="trader", operator_intent=intent),
+    )
+
+    assert response.status_code == 422
+    assert repository.calls == []
 
 
 def test_authorize_single_child_route_binds_exact_run_request_and_context(
@@ -776,7 +991,9 @@ def test_authorize_single_child_route_binds_exact_run_request_and_context(
         json=_authorize_single_child_body(),
         headers=_headers(
             roles="trader",
-            operator_intent="authorize_automation_single_child_create",
+            operator_intent=(
+                "authorize_automation_single_child_create_and_safe_closeout"
+            ),
             idempotency_key="automation-single-child-authorization-1",
         ),
     )
@@ -796,29 +1013,29 @@ def test_authorize_single_child_route_binds_exact_run_request_and_context(
         "automation-single-child-authorization-1"
     )
     assert call["context"].operator_intent == (
-        "authorize_automation_single_child_create"
+        "authorize_automation_single_child_create_and_safe_closeout"
     )
 
 
-def test_authorize_single_child_requires_trigger_and_order_create_before_service(
+def test_authorize_single_child_requires_trigger_create_and_cancel_before_service(
     monkeypatch: pytest.MonkeyPatch,
 ):
     repository = _FakeRepository()
     _install_authorize_single_child_probe(monkeypatch, repository)
     permission_checks: list[AdminApiPermission] = []
 
-    def require_both_permissions(
+    def require_all_permissions(
         _actor: Any,
         permission: AdminApiPermission,
     ) -> None:
         permission_checks.append(permission)
-        if permission is AdminApiPermission.ORDER_CREATE:
+        if permission is AdminApiPermission.ORDER_CANCEL:
             raise HTTPException(status_code=403, detail="forbidden")
 
     monkeypatch.setattr(
         operator_automation_routes,
         "require_permission",
-        require_both_permissions,
+        require_all_permissions,
     )
 
     response = _client(repository).post(
@@ -826,7 +1043,9 @@ def test_authorize_single_child_requires_trigger_and_order_create_before_service
         json=_authorize_single_child_body(),
         headers=_headers(
             roles="trader",
-            operator_intent="authorize_automation_single_child_create",
+            operator_intent=(
+                "authorize_automation_single_child_create_and_safe_closeout"
+            ),
         ),
     )
 
@@ -834,6 +1053,7 @@ def test_authorize_single_child_requires_trigger_and_order_create_before_service
     assert permission_checks == [
         AdminApiPermission.AUTOMATION_TRIGGER,
         AdminApiPermission.ORDER_CREATE,
+        AdminApiPermission.ORDER_CANCEL,
     ]
     assert repository.calls == []
 
@@ -842,10 +1062,10 @@ def test_authorize_single_child_requires_trigger_and_order_create_before_service
     ("query", "body", "intent"),
     [
         ({"refresh": "true"}, _authorize_single_child_body(), (
-            "authorize_automation_single_child_create"
+            "authorize_automation_single_child_create_and_safe_closeout"
         )),
         ({}, _authorize_single_child_body(product_id="BTC-USDC"), (
-            "authorize_automation_single_child_create"
+            "authorize_automation_single_child_create_and_safe_closeout"
         )),
         ({}, _authorize_single_child_body(), "claim_automation_one_shot_run"),
     ],
@@ -926,6 +1146,7 @@ def test_app_openapi_and_inventory_expose_only_local_control_plane_actions():
         "/api/v1/automation/definitions/{definition_id}/runs",
         "/api/v1/automation/runs",
         "/api/v1/automation/runs/{run_id}",
+        "/api/v1/automation/runs/{run_id}/eligibility-cycles",
         "/api/v1/automation/runs/{run_id}/authorize-single-child",
         "/api/v1/automation/runs/{run_id}/events",
     }
@@ -993,6 +1214,10 @@ def test_app_openapi_and_inventory_expose_only_local_control_plane_actions():
         ),
         (
             "POST",
+            "/api/v1/automation/runs/{run_id}/eligibility-cycles",
+        ): "refresh_operator_automation_spot_eligibility",
+        (
+            "POST",
             "/api/v1/automation/runs/{run_id}/authorize-single-child",
         ): "authorize_operator_automation_single_child",
         ("GET", "/api/v1/automation/runs/{run_id}/events"): (
@@ -1015,6 +1240,9 @@ def test_app_openapi_and_inventory_expose_only_local_control_plane_actions():
     assert inventory[
         "POST /api/v1/automation/definitions/{definition_id}/runs"
     ].permission == AdminApiPermission.AUTOMATION_TRIGGER
+    assert inventory[
+        "POST /api/v1/automation/runs/{run_id}/eligibility-cycles"
+    ].permission == AdminApiPermission.ACCOUNT_REALITY_REFRESH
     assert inventory[
         "POST /api/v1/automation/runs/{run_id}/authorize-single-child"
     ].permission == AdminApiPermission.ORDER_CREATE

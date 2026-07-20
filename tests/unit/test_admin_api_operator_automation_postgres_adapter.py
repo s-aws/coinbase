@@ -3,21 +3,33 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 from typing import Any
 
 import pytest
 
-from application.admin_api.automation_models import AutomationMutationContext
+from application.admin_api.automation_models import (
+    AutomationMutationContext,
+    AutomationRunEventItem,
+    AutomationRunItem,
+)
 from application.admin_api.automation_models import (
     AutomationSingleChildAuthorizationRequest,
 )
 from application.admin_api.operator_automation import (
+    OperatorAutomationRepository,
+    OperatorAutomationService,
     AutomationRepositoryConflict,
     AutomationRepositoryUnavailable,
     PostgresOperatorAutomationRepositoryAdapter,
     get_default_operator_automation_service,
+)
+from application.admin_api.operator_spot_eligibility import (
+    APPROVED_SPOT_ELIGIBILITY_ORDER,
+    SpotEligibilityReadOutcome,
+    SpotEligibilityReadResult,
+    derive_spot_eligibility_client_order_id,
 )
 from core.enums import (
     OperatorAutomationControlPosture,
@@ -38,6 +50,8 @@ from database.operator_automation import (
     AutomationSpotSingleChildPlanTerms,
     AutomationSpotSingleChildPlanRecord,
     AutomationSpotEligibilityAttemptRecord,
+    AutomationSpotEligibilityCycleAllocationRecord,
+    AutomationSpotEligibilityCycleRecord,
     AutomationStoreMutation,
     AutomationStorePage,
 )
@@ -47,6 +61,7 @@ NOW = datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc).isoformat()
 DEFINITION_ID = "2f744264-8d18-46a2-b89d-f0c206216515"
 RUN_ID = "19cae8ee-d8ec-43d3-a0f7-8f55ba1d76a0"
 AUDIT_ID = "26371b41-f16e-4dad-83cc-946055440c62"
+SECOND_AUDIT_ID = "1f1fce8b-59bb-4518-97e0-caf466db889a"
 PORTFOLIO_ID = "483d1403-5d4d-4ae1-9084-ae2b080902b7"
 
 
@@ -134,6 +149,41 @@ def _plan() -> AutomationSpotSingleChildPlanRecord:
     )
 
 
+def _eligibility_cycle(
+    *,
+    cycle_number: int = 1,
+    state: str = "REJECTED",
+) -> AutomationSpotEligibilityCycleRecord:
+    return AutomationSpotEligibilityCycleRecord(
+        goal_key="operator_spot_automation_single_child_execution_adapter_v1",
+        cycle_number=cycle_number,
+        run_id=RUN_ID,
+        definition_id=DEFINITION_ID,
+        definition_revision=1,
+        plan_sha256="e" * 64,
+        portfolio_id_sha256=hashlib.sha256(
+            PORTFOLIO_ID.encode("utf-8")
+        ).hexdigest(),
+        product_id="BTC-USDC",
+        client_order_id=(
+            "0d05789c-95f7-542e-8fba-ebf89c5bc80f"
+        ),
+        state=state,
+        coinbase_api_call_count=(7 if state == "SUCCEEDED" else 1),
+        call_count_exact=True,
+        fresh_until=(
+            "2099-07-20T12:00:00+00:00"
+            if state == "SUCCEEDED"
+            else None
+        ),
+        diagnostic_code=f"automation_spot_eligibility_cycle_{state.lower()}",
+        audit_id=AUDIT_ID,
+        correlation_id="adapter-correlation-1",
+        started_at=NOW,
+        finalized_at=NOW,
+    )
+
+
 class _RawRepository:
     def __init__(self) -> None:
         self.calls: list[tuple[str, tuple[Any, ...], dict[str, Any]]] = []
@@ -144,6 +194,7 @@ class _RawRepository:
             diagnostic_code="one_shot_run_claimed",
         )
         self.plan: AutomationSpotSingleChildPlanRecord | None = None
+        self.cycles: tuple[AutomationSpotEligibilityCycleRecord, ...] = ()
 
     def has_spot_single_child_run(self) -> bool:
         self.calls.append(("has_spot_single_child_run", (), {}))
@@ -215,6 +266,12 @@ class _RawRepository:
             ("list_spot_eligibility_attempts", (run_id, cycle_number), {})
         )
         return ()
+
+    def list_spot_eligibility_cycles(
+        self,
+    ) -> tuple[AutomationSpotEligibilityCycleRecord, ...]:
+        self.calls.append(("list_spot_eligibility_cycles", (), {}))
+        return self.cycles
 
     def get_spot_run_execution(self, run_id: str):
         self.calls.append(("get_spot_run_execution", (run_id,), {}))
@@ -297,6 +354,36 @@ class _RawRepository:
                     "command": command,
                 },
             )
+        )
+        return AutomationStoreMutation(
+            entity=self.current_run,
+            audit_id=AUDIT_ID,
+            correlation_id=command.correlation_id,
+        )
+
+    def resume_spot_source_gated_run(
+        self,
+        run_id: str,
+        *,
+        expected_plan_sha256: str,
+        command: AutomationMutationCommand,
+    ) -> AutomationStoreMutation:
+        self.calls.append(
+            (
+                "resume_spot_source_gated_run",
+                (run_id,),
+                {
+                    "expected_plan_sha256": expected_plan_sha256,
+                    "command": command,
+                },
+            )
+        )
+        self.current_run = replace(
+            self.current_run,
+            state=OperatorAutomationRunState.PREPARING,
+            diagnostic_code="automation_spot_source_gate_resumed",
+            audit_id=AUDIT_ID,
+            correlation_id=command.correlation_id,
         )
         return AutomationStoreMutation(
             entity=self.current_run,
@@ -441,6 +528,9 @@ def test_single_child_readback_withholds_test_scope_until_catalog_proves_it():
         eligible=True,
         coinbase_api_call_count=1,
         call_count_exact=True,
+        observed_at=NOW,
+        fresh_until="2099-07-20T12:00:00+00:00",
+        evidence_sha256="f" * 64,
         diagnostic_code="automation_spot_eligibility_succeeded",
         audit_id=AUDIT_ID,
         correlation_id="adapter-correlation-1",
@@ -451,6 +541,7 @@ def test_single_child_readback_withholds_test_scope_until_catalog_proves_it():
     raw.list_spot_eligibility_attempts = lambda run_id, cycle_number=None: (
         portfolio_attempt,
     )
+    raw.cycles = (_eligibility_cycle(),)
 
     catalog_proven = adapter.get_run(RUN_ID)
 
@@ -465,6 +556,10 @@ def test_single_child_readback_withholds_test_scope_until_catalog_proves_it():
     raw.list_spot_eligibility_attempts = lambda run_id, cycle_number=None: (
         portfolio_attempt,
         current_unbound_attempt,
+    )
+    raw.cycles = (
+        _eligibility_cycle(cycle_number=1),
+        _eligibility_cycle(cycle_number=2),
     )
 
     older_only = adapter.get_run(RUN_ID)
@@ -542,6 +637,7 @@ def test_campaign_claim_prepares_then_blocks_before_calls_when_open_order_read_i
         "transition_run",
         "get_spot_single_child_plan",
         "list_spot_eligibility_attempts",
+        "list_spot_eligibility_cycles",
         "get_spot_run_execution",
     ]
     assert result.entity["state"] == "BLOCKED"
@@ -673,6 +769,7 @@ def test_adapter_authorization_fails_before_invocation_for_unapproved_open_order
             run_id=RUN_ID,
             request=AutomationSingleChildAuthorizationRequest(
                 confirm_single_child_create=True,
+                confirm_exact_child_safe_closeout_cancel=True,
                 confirm_unknown_consumes_allowance=True,
                 expected_plan_sha256=raw.plan.plan_sha256,
                 reason="Authorize exact child",
@@ -680,7 +777,7 @@ def test_adapter_authorization_fails_before_invocation_for_unapproved_open_order
             context=_context().model_copy(
                 update={
                     "operator_intent": (
-                        "authorize_automation_single_child_create"
+                        "authorize_automation_single_child_create_and_safe_closeout"
                     )
                 }
             ),
@@ -695,6 +792,291 @@ def test_adapter_authorization_fails_before_invocation_for_unapproved_open_order
     assert audit_call[2]["expected_plan_sha256"] == raw.plan.plan_sha256
     assert audit_call[2]["command"].idempotency_key == (
         "adapter-idempotency-1"
+    )
+
+
+class _SuccessfulEligibilityReader:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def __getattr__(self, name: str):
+        if not name.startswith("read_"):
+            raise AttributeError(name)
+
+        def read(_context):
+            self.calls.append(name)
+            observed = datetime.now(timezone.utc)
+            return SpotEligibilityReadResult(
+                outcome=SpotEligibilityReadOutcome.SUCCEEDED,
+                eligible=True,
+                logical_call_count=1,
+                http_request_count=1,
+                call_count_exact=True,
+                observed_at=observed,
+                evidence_sha256="f" * 64,
+            )
+
+        return read
+
+
+def test_adapter_runs_one_seven_category_cycle_and_restores_source_gate():
+    raw = _RawRepository()
+    raw.plan = _plan()
+    raw.current_run = _run(
+        state=OperatorAutomationRunState.BLOCKED,
+        diagnostic_code="automation_active_order_catalog_read_not_authorized",
+        job_kind=OperatorAutomationJobKind.SPOT_CAMPAIGN,
+    )
+    raw.cycles = ()
+    attempts: list[AutomationSpotEligibilityAttemptRecord] = []
+    client_order_id = derive_spot_eligibility_client_order_id(
+        run_id=RUN_ID,
+        plan_sha256=raw.plan.plan_sha256,
+    )
+
+    def resume(run_id, *, expected_plan_sha256, command):
+        raw.calls.append(
+            (
+                "resume_spot_source_gated_run",
+                (run_id,),
+                {
+                    "expected_plan_sha256": expected_plan_sha256,
+                    "command": command,
+                },
+            )
+        )
+        raw.current_run = replace(
+            raw.current_run,
+            state=OperatorAutomationRunState.PREPARING,
+            diagnostic_code="automation_spot_source_gate_resumed",
+        )
+        cycle = replace(
+            _eligibility_cycle(state="REJECTED"),
+            state="OPEN",
+            coinbase_api_call_count=None,
+            call_count_exact=False,
+            fresh_until=None,
+            diagnostic_code="automation_spot_eligibility_cycle_opened",
+            client_order_id=client_order_id,
+            finalized_at=None,
+        )
+        raw.cycles = (cycle,)
+        return AutomationStoreMutation(
+            AutomationSpotEligibilityCycleAllocationRecord(
+                run=raw.current_run,
+                cycle=cycle,
+            ),
+            AUDIT_ID,
+            command.correlation_id,
+        )
+
+    def start(run_id, *, category, command):
+        raw.calls.append(
+            (
+                "start_spot_eligibility_attempt",
+                (run_id,),
+                {"category": category, "command": command},
+            )
+        )
+        record = AutomationSpotEligibilityAttemptRecord(
+            run_id=run_id,
+            cycle_number=1,
+            category=category,
+            allowance_consumed=True,
+            outcome=None,
+            eligible=None,
+            coinbase_api_call_count=None,
+            call_count_exact=False,
+            observed_at=None,
+            fresh_until=None,
+            evidence_sha256=None,
+            diagnostic_code="automation_spot_eligibility_invocation_started",
+            audit_id=AUDIT_ID,
+            correlation_id=command.correlation_id,
+            started_at=datetime.now(timezone.utc).isoformat(),
+            finalized_at=None,
+        )
+        attempts.append(record)
+        return AutomationStoreMutation(
+            record,
+            AUDIT_ID,
+            command.correlation_id,
+        )
+
+    def finalize(run_id, *, category, command, **kwargs):
+        raw.calls.append(
+            (
+                "finalize_spot_eligibility_attempt",
+                (run_id,),
+                {"category": category, "command": command, **kwargs},
+            )
+        )
+        index = next(
+            i for i, item in enumerate(attempts) if item.category == category
+        )
+        record = replace(
+            attempts[index],
+            outcome=kwargs["outcome"],
+            eligible=kwargs["eligible"],
+            coinbase_api_call_count=kwargs["coinbase_api_call_count"],
+            call_count_exact=kwargs["call_count_exact"],
+            observed_at=kwargs["observed_at"].isoformat(),
+            fresh_until=kwargs["fresh_until"].isoformat(),
+            evidence_sha256=kwargs["evidence_sha256"],
+            diagnostic_code=(
+                f"automation_spot_eligibility_{kwargs['outcome'].lower()}"
+            ),
+            portfolio_id_sha256=kwargs["portfolio_id_sha256"],
+            finalized_at=datetime.now(timezone.utc).isoformat(),
+        )
+        attempts[index] = record
+        if category == APPROVED_SPOT_ELIGIBILITY_ORDER[-1].value:
+            raw.cycles = (
+                replace(
+                    raw.cycles[0],
+                    state="SUCCEEDED",
+                    coinbase_api_call_count=7,
+                    call_count_exact=True,
+                    fresh_until=min(
+                        str(item.fresh_until) for item in attempts
+                    ),
+                    diagnostic_code=(
+                        "automation_spot_eligibility_cycle_succeeded"
+                    ),
+                    finalized_at=datetime.now(timezone.utc).isoformat(),
+                ),
+            )
+            raw.current_run = replace(
+                raw.current_run,
+                state=OperatorAutomationRunState.BLOCKED,
+                diagnostic_code=(
+                    "automation_active_order_catalog_read_not_authorized"
+                ),
+            )
+        return AutomationStoreMutation(
+            record,
+            AUDIT_ID,
+            command.correlation_id,
+        )
+
+    raw.resume_spot_source_gated_run = resume
+    raw.start_spot_eligibility_attempt = start
+    raw.finalize_spot_eligibility_attempt = finalize
+    raw.list_spot_eligibility_attempts = (
+        lambda run_id, cycle_number=None: tuple(attempts)
+    )
+    reader = _SuccessfulEligibilityReader()
+    adapter = PostgresOperatorAutomationRepositoryAdapter(
+        raw,
+        spot_eligibility_reader_factory=lambda **_kwargs: reader,
+    )
+
+    result = adapter.refresh_spot_eligibility(
+        run_id=RUN_ID,
+        request={
+            "confirm_approved_eligibility_reads": True,
+            "confirm_unknown_consumes_cycle": True,
+            "expected_plan_sha256": raw.plan.plan_sha256,
+            "reason": "Refresh this exact source-gated run",
+        },
+        context=_context().model_copy(
+            update={
+                "operator_intent": "refresh_automation_spot_eligibility"
+            }
+        ),
+    )
+
+    assert reader.calls == [
+        "read_api_key_permissions",
+        "read_portfolio_catalog",
+        "read_account_wallet_balances",
+        "read_product_metadata",
+        "read_best_bid_ask",
+        "read_fee_summary",
+        "read_exact_order_reconciliation",
+    ]
+    assert result.entity["state"] == "BLOCKED"
+    assert result.entity["diagnostic_code"] == (
+        "automation_active_order_catalog_read_not_authorized"
+    )
+    assert result.entity["eligibility"]["eligible"] is True
+    assert result.entity["live_execution_available"] is False
+    assert result.entity["allowed_actions"] == ["REFRESH_ELIGIBILITY"]
+    assert result.coinbase_api_call_count == 7
+    assert result.call_count_exact is True
+    assert result.replayed is False
+    assert [name for name, _args, _kwargs in raw.calls].count(
+        "start_spot_eligibility_attempt"
+    ) == 7
+    assert [name for name, _args, _kwargs in raw.calls].count(
+        "finalize_spot_eligibility_attempt"
+    ) == 7
+
+
+def test_adapter_resumes_only_the_exact_source_gated_plan_without_service_exposure():
+    raw = _RawRepository()
+    raw.plan = _plan()
+    raw.current_run = _run(
+        state=OperatorAutomationRunState.BLOCKED,
+        diagnostic_code="automation_active_order_catalog_read_not_authorized",
+        job_kind=OperatorAutomationJobKind.SPOT_CAMPAIGN,
+    )
+    context = _context().model_copy(
+        update={
+            "operator_intent": "resume_automation_spot_source_gated_run",
+        }
+    )
+
+    result = PostgresOperatorAutomationRepositoryAdapter(
+        raw
+    ).resume_spot_source_gated_run(
+        run_id=RUN_ID,
+        expected_plan_sha256=raw.plan.plan_sha256,
+        context=context,
+    )
+
+    assert [call[0] for call in raw.calls] == [
+        "resume_spot_source_gated_run",
+        "get_spot_single_child_plan",
+        "list_spot_eligibility_attempts",
+        "list_spot_eligibility_cycles",
+        "get_spot_run_execution",
+    ]
+    resume_call = raw.calls[0]
+    assert resume_call[2]["expected_plan_sha256"] == raw.plan.plan_sha256
+    command = resume_call[2]["command"]
+    assert command.idempotency_key == context.idempotency_key
+    assert command.actor_id == context.actor_id
+    assert command.correlation_id == context.correlation_id
+    assert command.operator_intent == context.operator_intent
+    assert result.entity["state"] == "PREPARING"
+    assert result.entity["diagnostic_code"] == (
+        "automation_spot_source_gate_resumed"
+    )
+    assert result.entity["coinbase_api_call_count"] == 0
+    assert result.entity["create_call_count"] == 0
+    assert result.entity["cancel_call_count"] == 0
+    AutomationRunItem.model_validate(result.entity)
+    AutomationRunEventItem.model_validate(
+        {
+            "event_id": "36371b41-f16e-4dad-83cc-946055440c62",
+            "run_id": RUN_ID,
+            "sequence": 4,
+            "from_state": "BLOCKED",
+            "state": "PREPARING",
+            "diagnostic_code": "automation_spot_source_gate_resumed",
+            "audit_id": AUDIT_ID,
+            "correlation_id": context.correlation_id,
+            "recorded_at": NOW,
+        }
+    )
+
+    assert not hasattr(
+        OperatorAutomationService,
+        "resume_spot_source_gated_run",
+    )
+    assert "resume_spot_source_gated_run" not in (
+        OperatorAutomationRepository.__dict__
     )
 
 
@@ -777,6 +1159,9 @@ def test_run_projection_reports_lifetime_eligibility_calls_across_all_cycles():
             eligible=True,
             coinbase_api_call_count=1,
             call_count_exact=True,
+            observed_at=NOW,
+            fresh_until="2099-07-20T12:00:00+00:00",
+            evidence_sha256="f" * 64,
             diagnostic_code="automation_spot_eligibility_succeeded",
             audit_id=AUDIT_ID,
             correlation_id="adapter-correlation-1",
@@ -794,12 +1179,78 @@ def test_run_projection_reports_lifetime_eligibility_calls_across_all_cycles():
     raw.list_spot_eligibility_attempts = lambda run_id, cycle_number=None: (
         attempts
     )
+    raw.cycles = (
+        _eligibility_cycle(cycle_number=1, state="SUCCEEDED"),
+        _eligibility_cycle(cycle_number=2, state="SUCCEEDED"),
+    )
 
     projected = PostgresOperatorAutomationRepositoryAdapter(raw)._run(
         raw.current_run
     )
 
     assert projected["eligibility"]["cycle_number"] == 2
+    assert projected["eligibility"]["coinbase_api_call_count"] == 7
+    assert projected["coinbase_api_call_count"] == 14
+    assert projected["call_count_exact"] is True
+
+
+def test_run_projection_can_bind_an_exact_replayed_terminal_cycle():
+    raw = _RawRepository()
+    raw.plan = _plan()
+    raw.current_run = _run(
+        state=OperatorAutomationRunState.PREPARING,
+        diagnostic_code="automation_spot_source_gate_resumed",
+        job_kind=OperatorAutomationJobKind.SPOT_CAMPAIGN,
+    )
+    attempts = tuple(
+        AutomationSpotEligibilityAttemptRecord(
+            run_id=RUN_ID,
+            cycle_number=cycle,
+            category=category,
+            allowance_consumed=True,
+            outcome="SUCCEEDED",
+            eligible=True,
+            coinbase_api_call_count=1,
+            call_count_exact=True,
+            observed_at=NOW,
+            fresh_until="2099-07-20T12:00:00+00:00",
+            evidence_sha256=(str(cycle) * 64),
+            diagnostic_code="automation_spot_eligibility_succeeded",
+            audit_id=(AUDIT_ID if cycle == 1 else SECOND_AUDIT_ID),
+            correlation_id=f"adapter-correlation-{cycle}",
+            started_at=NOW,
+            finalized_at=NOW,
+            portfolio_id_sha256=(
+                raw.plan.portfolio_id_sha256
+                if category == "PORTFOLIO_CATALOG"
+                else None
+            ),
+        )
+        for cycle in (1, 2)
+        for category in AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES
+    )
+    raw.list_spot_eligibility_attempts = lambda run_id, cycle_number=None: (
+        attempts
+    )
+    raw.cycles = (
+        replace(
+            _eligibility_cycle(cycle_number=1, state="SUCCEEDED"),
+            audit_id=AUDIT_ID,
+            correlation_id="adapter-correlation-1",
+        ),
+        replace(
+            _eligibility_cycle(cycle_number=2, state="SUCCEEDED"),
+            audit_id=SECOND_AUDIT_ID,
+            correlation_id="adapter-correlation-2",
+        ),
+    )
+
+    projected = PostgresOperatorAutomationRepositoryAdapter(raw)._run(
+        raw.current_run,
+        eligibility_cycle_number=1,
+    )
+
+    assert projected["eligibility"]["cycle_number"] == 1
     assert projected["eligibility"]["coinbase_api_call_count"] == 7
     assert projected["coinbase_api_call_count"] == 14
     assert projected["call_count_exact"] is True

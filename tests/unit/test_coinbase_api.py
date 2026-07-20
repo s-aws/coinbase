@@ -108,6 +108,102 @@ class TestCoinbaseRESTAPIClient:
             }
         ]
 
+    def test_list_orders_rechecks_no_retry_transport_before_wire_call(self):
+        class RetryPolicy:
+            def __init__(self) -> None:
+                self.total = 0
+
+        class Adapter:
+            def __init__(self) -> None:
+                self.max_retries = RetryPolicy()
+
+        class Session:
+            def __init__(self) -> None:
+                self.adapters = {
+                    "http://": Adapter(),
+                    "https://": Adapter(),
+                }
+                self.max_redirects = 0
+                self.trust_env = False
+                self.proxies = {}
+                self.verify = True
+
+        class FakeSDKClient:
+            def __init__(self):
+                self.calls = []
+                self.session = Session()
+                self.base_url = "api.coinbase.com"
+                self.timeout = 10
+
+            def list_orders(self, **kwargs):
+                self.calls.append(dict(kwargs))
+                return {"orders": [], "has_next": False}
+
+        sdk_client = FakeSDKClient()
+        client = CoinbaseRestClient(sdk_client)
+        sdk_client.session.adapters["https://"].max_retries.total = 1
+
+        with pytest.raises(
+            ValueError,
+            match="coinbase_sdk_transport_retry_forbidden",
+        ):
+            client.list_orders(product_ids=["BTC-USDC"], product_type="SPOT")
+
+        assert sdk_client.calls == []
+
+    def test_list_orders_restores_zero_redirects_at_each_page_boundary(self):
+        class RetryPolicy:
+            total = 0
+
+        class Adapter:
+            max_retries = RetryPolicy()
+
+        class Session:
+            adapters = {"http://": Adapter(), "https://": Adapter()}
+            max_redirects = 0
+            trust_env = False
+            proxies = {}
+            verify = True
+
+        class FakeSDKClient:
+            def __init__(self):
+                self.calls = []
+                self.session = Session()
+                self.base_url = "api.coinbase.com"
+                self.timeout = 10
+
+            def list_orders(self, **kwargs):
+                self.calls.append(
+                    {
+                        "kwargs": dict(kwargs),
+                        "max_redirects": self.session.max_redirects,
+                    }
+                )
+                return {"orders": [], "has_next": False}
+
+        sdk_client = FakeSDKClient()
+        client = CoinbaseRestClient(sdk_client)
+        sdk_client.session.max_redirects = 30
+
+        client.list_orders(product_ids=["BTC-USDC"], product_type="SPOT")
+
+        assert sdk_client.calls == [
+            {
+                "kwargs": {
+                    "order_status": None,
+                    "order_ids": None,
+                    "product_ids": ["BTC-USDC"],
+                    "limit": None,
+                    "start_date": None,
+                    "end_date": None,
+                    "cursor": None,
+                    "product_type": "SPOT",
+                    "retail_portfolio_id": None,
+                },
+                "max_redirects": 0,
+            }
+        ]
+
     def test_get_order_passes_exchange_order_id_to_sdk(self):
         class FakeSDKClient:
             def __init__(self):

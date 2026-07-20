@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass, field, replace
+from datetime import datetime, timedelta, timezone
 import hashlib
 import os
 import re
@@ -44,6 +44,30 @@ TEST_DB_NAME = os.environ.get("COINBASE_DB_NAME", "postgres")
 TEST_DB_USER = os.environ.get("COINBASE_DB_USER", "postgres")
 TEST_DB_PASSWORD = os.environ.get("COINBASE_DB_PASSWORD", "postgres")
 _SCHEMA_PATTERN = re.compile(r"^test_operator_automation_[0-9a-f]{32}$")
+
+
+def _eligibility_evidence(seed: str, outcome: str) -> dict[str, str | None]:
+    normalized = outcome.upper()
+    if normalized == "UNKNOWN":
+        return {
+            "observed_at": None,
+            "fresh_until": None,
+            "evidence_sha256": None,
+        }
+    observed_at = datetime.now(timezone.utc)
+    return {
+        "observed_at": observed_at.isoformat(),
+        "fresh_until": (
+            (observed_at + timedelta(minutes=5)).isoformat()
+            if normalized == "SUCCEEDED"
+            else None
+        ),
+        "evidence_sha256": (
+            hashlib.sha256(seed.encode("utf-8")).hexdigest()
+            if normalized == "SUCCEEDED"
+            else None
+        ),
+    }
 
 
 def _new_database() -> PostgresDB:
@@ -182,6 +206,7 @@ def test_schema_is_idempotent_and_persists_only_hashed_key_and_actor(
         "automation_event_outbox",
         "automation_idempotency",
         "automation_run",
+        "automation_spot_eligibility_cycle",
         "automation_spot_eligibility_attempt",
         "automation_spot_live_proof_goal",
         "automation_spot_run_execution",
@@ -584,6 +609,158 @@ def test_blocked_spot_authorization_is_idempotently_bound_and_audited_without_ca
         limit=20,
         offset=0,
     ).total == events.total
+
+
+def test_source_gated_spot_run_resume_is_exact_plan_bound_and_audited_without_calls(
+    repository_harness: _Harness,
+):
+    repository = repository_harness.repository()
+    _, plan, run = _prepare_spot_run(repository, "spot-source-gate-resume")
+    repository.transition_run(
+        run.run_id,
+        OperatorAutomationRunState.BLOCKED,
+        diagnostic_code="automation_active_order_catalog_read_not_authorized",
+        command=_mutation("spot-source-gate-resume-initial-block"),
+    )
+    before = repository.list_run_events(run.run_id, limit=20, offset=0)
+    command = _mutation("spot-source-gate-resume-command")
+
+    first = repository.resume_spot_source_gated_run(
+        run.run_id,
+        expected_plan_sha256=plan.plan_sha256,
+        command=command,
+    )
+
+    assert first.replayed is False
+    assert first.entity.run.state is OperatorAutomationRunState.PREPARING
+    assert first.entity.run.diagnostic_code == "automation_spot_source_gate_resumed"
+    assert first.entity.run.live_attempt_consumed is False
+    assert first.entity.run.coinbase_api_call_count == 0
+    assert first.entity.run.create_call_count == 0
+    assert first.entity.run.cancel_call_count == 0
+    assert first.entity.cycle.state == "OPEN"
+    assert repository.get_run(run.run_id) == first.entity.run
+
+    with pytest.raises(AutomationStoreConflict) as in_progress:
+        repository.resume_spot_source_gated_run(
+            run.run_id,
+            expected_plan_sha256=plan.plan_sha256,
+            command=command,
+        )
+    assert in_progress.value.code == (
+        "automation_spot_eligibility_cycle_in_progress"
+    )
+
+    events = repository.list_run_events(run.run_id, limit=20, offset=0)
+    assert events.total == before.total + 1
+    resume_event = events.items[-1]
+    assert resume_event.from_state is OperatorAutomationRunState.BLOCKED
+    assert resume_event.to_state is OperatorAutomationRunState.PREPARING
+    assert resume_event.diagnostic_code == "automation_spot_source_gate_resumed"
+    assert resume_event.idempotency_key_sha256 == hashlib.sha256(
+        command.idempotency_key.encode("utf-8")
+    ).hexdigest()
+    assert resume_event.correlation_id == command.correlation_id
+
+    category = AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[0]
+    repository.start_spot_eligibility_attempt(
+        run.run_id,
+        category=category,
+        command=_mutation("spot-source-gate-replay-start"),
+    )
+    repository.finalize_spot_eligibility_attempt(
+        run.run_id,
+        category=category,
+        outcome="REJECTED",
+        eligible=False,
+        coinbase_api_call_count=0,
+        call_count_exact=True,
+        portfolio_id_sha256=None,
+        **_eligibility_evidence("spot-source-gate-replay", "REJECTED"),
+        command=_mutation("spot-source-gate-replay-finish"),
+    )
+    events_after_terminal = repository.list_run_events(
+        run.run_id,
+        limit=20,
+        offset=0,
+    )
+    replay = repository.resume_spot_source_gated_run(
+        run.run_id,
+        expected_plan_sha256=plan.plan_sha256,
+        command=command,
+    )
+    assert replay.replayed is True
+    assert replay.audit_id == first.audit_id
+    assert replay.entity.run.state is OperatorAutomationRunState.BLOCKED
+    assert replay.entity.cycle.cycle_number == first.entity.cycle.cycle_number
+    assert replay.entity.cycle.state == "REJECTED"
+    assert repository.list_run_events(
+        run.run_id,
+        limit=20,
+        offset=0,
+    ).total == events_after_terminal.total
+
+    for changed_command in (
+        replace(command, payload_sha256="f" * 64),
+        replace(command, actor_id="different-private-actor"),
+        replace(command, correlation_id="different-correlation"),
+        replace(command, operator_intent="different operator intent"),
+    ):
+        with pytest.raises(AutomationStoreConflict) as changed_replay:
+            repository.resume_spot_source_gated_run(
+                run.run_id,
+                expected_plan_sha256=plan.plan_sha256,
+                command=changed_command,
+            )
+        assert changed_replay.value.code == "automation_idempotency_conflict"
+
+    assert repository.list_run_events(
+        run.run_id,
+        limit=20,
+        offset=0,
+    ).total == events_after_terminal.total
+
+
+def test_source_gated_spot_run_resume_rejects_wrong_plan_or_block_reason(
+    repository_harness: _Harness,
+):
+    repository = repository_harness.repository()
+    _, plan, run = _prepare_spot_run(
+        repository,
+        "spot-source-gate-resume-rejection",
+    )
+    repository.transition_run(
+        run.run_id,
+        OperatorAutomationRunState.BLOCKED,
+        diagnostic_code="automation_run_blocked",
+        command=_mutation("spot-source-gate-resume-other-block"),
+    )
+    before = repository.list_run_events(run.run_id, limit=20, offset=0)
+
+    with pytest.raises(AutomationStoreConflict) as wrong_plan:
+        repository.resume_spot_source_gated_run(
+            run.run_id,
+            expected_plan_sha256="f" * 64,
+            command=_mutation("spot-source-gate-resume-wrong-plan"),
+        )
+    assert wrong_plan.value.code == "automation_single_child_plan_mismatch"
+
+    with pytest.raises(AutomationStoreConflict) as wrong_reason:
+        repository.resume_spot_source_gated_run(
+            run.run_id,
+            expected_plan_sha256=plan.plan_sha256,
+            command=_mutation("spot-source-gate-resume-wrong-reason"),
+        )
+    assert wrong_reason.value.code == "automation_single_child_run_not_resumable"
+    current = repository.get_run(run.run_id)
+    assert current is not None
+    assert current.state is OperatorAutomationRunState.BLOCKED
+    assert current.diagnostic_code == "automation_run_blocked"
+    assert repository.list_run_events(
+        run.run_id,
+        limit=20,
+        offset=0,
+    ).total == before.total
 
 
 def test_restart_recovery_terminally_blocks_pre_invocation_and_quarantines_started_run(
@@ -1043,12 +1220,41 @@ def _prepare_spot_run(
     return definition, plan, run
 
 
+def _allocate_spot_eligibility_cycle(
+    repository: OperatorAutomationRepository,
+    run_id: str,
+    plan_sha256: str,
+    seed: str,
+):
+    run = repository.get_run(run_id)
+    assert run is not None
+    if run.state is OperatorAutomationRunState.PREPARING:
+        run = repository.transition_run(
+            run_id,
+            OperatorAutomationRunState.BLOCKED,
+            diagnostic_code="automation_active_order_catalog_read_not_authorized",
+            command=_mutation(f"{seed}-source-gate"),
+        ).entity
+    assert run.state is OperatorAutomationRunState.BLOCKED
+    assert run.diagnostic_code == (
+        "automation_active_order_catalog_read_not_authorized"
+    )
+    resumed = repository.resume_spot_source_gated_run(
+        run_id,
+        expected_plan_sha256=plan_sha256,
+        command=_mutation(f"{seed}-cycle"),
+    )
+    cycles = repository.list_spot_eligibility_cycles()
+    assert cycles[-1].state == "OPEN"
+    assert resumed.entity.run.state is OperatorAutomationRunState.PREPARING
+    assert resumed.entity.cycle == cycles[-1]
+    return resumed, resumed.entity.cycle
+
+
 def _complete_eligible_cycle(
     repository: OperatorAutomationRepository,
     run_id: str,
     seed: str,
-    *,
-    cycle_number: int = 1,
 ) -> None:
     run = repository.get_run(run_id)
     assert run is not None and run.definition_revision is not None
@@ -1057,10 +1263,19 @@ def _complete_eligible_cycle(
         run.definition_revision,
     )
     assert plan is not None
+    cycles = repository.list_spot_eligibility_cycles()
+    if not cycles or cycles[-1].state != "OPEN":
+        _allocate_spot_eligibility_cycle(
+            repository,
+            run_id,
+            plan.plan_sha256,
+            seed,
+        )
+        cycles = repository.list_spot_eligibility_cycles()
+    cycle_number = cycles[-1].cycle_number
     for index, category in enumerate(AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES):
         started = repository.start_spot_eligibility_attempt(
             run_id,
-            cycle_number=cycle_number,
             category=category,
             command=_mutation(f"{seed}-{index}-start"),
         )
@@ -1068,7 +1283,6 @@ def _complete_eligible_cycle(
         assert started.entity.allowance_consumed is True
         finalized = repository.finalize_spot_eligibility_attempt(
             run_id,
-            cycle_number=cycle_number,
             category=category,
             outcome="SUCCEEDED",
             eligible=True,
@@ -1079,10 +1293,25 @@ def _complete_eligible_cycle(
                 if category == "PORTFOLIO_CATALOG"
                 else None
             ),
+            **_eligibility_evidence(f"{seed}-{index}", "SUCCEEDED"),
             command=_mutation(f"{seed}-{index}-finish"),
         )
         assert finalized.entity.outcome == "SUCCEEDED"
         assert finalized.entity.eligible is True
+        assert finalized.entity.cycle_number == cycle_number
+    cycle = repository.list_spot_eligibility_cycles()[-1]
+    assert cycle.state == "SUCCEEDED"
+    assert cycle.coinbase_api_call_count == len(
+        AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES
+    )
+    assert cycle.call_count_exact is True
+    assert cycle.fresh_until is not None
+    current = repository.get_run(run_id)
+    assert current is not None
+    assert current.state is OperatorAutomationRunState.BLOCKED
+    assert current.diagnostic_code == (
+        "automation_active_order_catalog_read_not_authorized"
+    )
 
 
 def _await_spot_authorization(
@@ -1090,6 +1319,19 @@ def _await_spot_authorization(
     run_id: str,
     seed: str,
 ):
+    current = repository.get_run(run_id)
+    assert current is not None
+    if current.state is OperatorAutomationRunState.BLOCKED:
+        # Historical Create-ledger tests predate the source-gated eligibility
+        # ledger. The production repository deliberately has no
+        # BLOCKED -> AWAITING transition because the separately required
+        # canonical active-order catalog is outside this repository phase.
+        repository.database.execute_update(
+            f'UPDATE "{repository.schema}".automation_run '
+            "SET state = 'PREPARING', diagnostic_code = 'test_fixture_preparing' "
+            "WHERE run_id = %s",
+            (run_id,),
+        )
     return repository.transition_run(
         run_id,
         OperatorAutomationRunState.AWAITING_OPERATOR_AUTHORIZATION,
@@ -1196,68 +1438,629 @@ def test_spot_single_child_plan_has_only_atomic_definition_write_path_and_is_imm
     )
 
 
-def test_spot_eligibility_attempts_are_cycle_and_category_bounded(
+def test_spot_eligibility_cycle_is_goal_global_bound_and_atomically_resumed(
     repository_harness: _Harness,
 ):
     repository = repository_harness.repository()
-    _, _, run = _prepare_spot_run(repository, "spot-eligibility")
+    definition, plan, run = _prepare_spot_run(repository, "spot-eligibility")
+    goal_before = repository.get_spot_live_proof_goal()
+    events_before = repository.list_run_events(run.run_id, limit=50, offset=0)
+    blocked = repository.transition_run(
+        run.run_id,
+        OperatorAutomationRunState.BLOCKED,
+        diagnostic_code="automation_active_order_catalog_read_not_authorized",
+        command=_mutation("spot-eligibility-source-gate"),
+    ).entity
+    command = _mutation("spot-eligibility-cycle")
+
+    resumed = repository.resume_spot_source_gated_run(
+        run.run_id,
+        expected_plan_sha256=plan.plan_sha256,
+        command=command,
+    )
+    with pytest.raises(AutomationStoreConflict) as replay_in_progress:
+        repository.resume_spot_source_gated_run(
+            run.run_id,
+            expected_plan_sha256=plan.plan_sha256,
+            command=command,
+        )
+
+    assert resumed.entity.run.state is OperatorAutomationRunState.PREPARING
+    assert replay_in_progress.value.code == (
+        "automation_spot_eligibility_cycle_in_progress"
+    )
+    cycles = repository.list_spot_eligibility_cycles()
+    assert len(cycles) == 1
+    cycle = cycles[0]
+    assert resumed.entity.cycle == cycle
+    assert cycle.goal_key == (
+        "operator_spot_automation_single_child_execution_adapter_v1"
+    )
+    assert cycle.cycle_number == 1
+    assert cycle.state == "OPEN"
+    assert cycle.run_id == run.run_id
+    assert cycle.definition_id == definition.definition_id
+    assert cycle.definition_revision == definition.revision
+    assert cycle.plan_sha256 == plan.plan_sha256
+    assert cycle.portfolio_id_sha256 == plan.portfolio_id_sha256
+    assert cycle.product_id == "BTC-USDC"
+    assert cycle.client_order_id == repository.deterministic_spot_client_order_id(
+        run_id=run.run_id,
+        plan_sha256=plan.plan_sha256,
+    )
+    assert cycle.coinbase_api_call_count is None
+    assert cycle.call_count_exact is False
+    assert cycle.fresh_until is None
+    assert repository.get_spot_live_proof_goal() == goal_before
+    assert repository.get_spot_run_execution(run.run_id) is None
+    assert repository.list_run_events(
+        run.run_id,
+        limit=50,
+        offset=0,
+    ).total == events_before.total + 2
+
+    with pytest.raises(psycopg2.errors.RaiseException):
+        repository_harness.database.execute_update(
+            f'UPDATE "{repository_harness.schema}".automation_spot_eligibility_cycle '
+            "SET product_id = 'ETH-USDC' WHERE goal_key = %s AND cycle_number = 1",
+            (cycle.goal_key,),
+        )
+    with pytest.raises(psycopg2.errors.RaiseException):
+        repository_harness.database.execute_update(
+            f'DELETE FROM "{repository_harness.schema}".automation_spot_eligibility_cycle '
+            "WHERE goal_key = %s AND cycle_number = 1",
+            (cycle.goal_key,),
+        )
+
+    assert blocked.live_attempt_consumed is False
+
+
+def test_spot_eligibility_mutations_lock_idempotency_before_goal_singleton(
+    repository_harness: _Harness,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repository = repository_harness.repository()
+    _definition, plan, run = _prepare_spot_run(
+        repository,
+        "spot-eligibility-lock-order",
+    )
+    repository.transition_run(
+        run.run_id,
+        OperatorAutomationRunState.BLOCKED,
+        diagnostic_code="automation_active_order_catalog_read_not_authorized",
+        command=_mutation("spot-eligibility-lock-order-source-gate"),
+    )
+    events: list[str] = []
+    original_idempotency = repository._idempotency_replay
+    original_goal = repository._lock_spot_live_goal_cursor
+
+    def traced_idempotency(*args, **kwargs):
+        events.append("idempotency")
+        return original_idempotency(*args, **kwargs)
+
+    def traced_goal(*args, **kwargs):
+        events.append("goal")
+        return original_goal(*args, **kwargs)
+
+    monkeypatch.setattr(repository, "_idempotency_replay", traced_idempotency)
+    monkeypatch.setattr(repository, "_lock_spot_live_goal_cursor", traced_goal)
+
+    repository.resume_spot_source_gated_run(
+        run.run_id,
+        expected_plan_sha256=plan.plan_sha256,
+        command=_mutation("spot-eligibility-lock-order-resume"),
+    )
+    assert events == ["idempotency", "goal"]
+
+    events.clear()
     category = AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[0]
-    command = _mutation("spot-eligibility-start")
+    repository.start_spot_eligibility_attempt(
+        run.run_id,
+        category=category,
+        command=_mutation("spot-eligibility-lock-order-start"),
+    )
+    assert events == ["idempotency", "goal"]
+
+    events.clear()
+    repository.finalize_spot_eligibility_attempt(
+        run.run_id,
+        category=category,
+        outcome="REJECTED",
+        eligible=False,
+        coinbase_api_call_count=0,
+        call_count_exact=True,
+        portfolio_id_sha256=None,
+        **_eligibility_evidence(
+            "spot-eligibility-lock-order-finalize",
+            "REJECTED",
+        ),
+        command=_mutation("spot-eligibility-lock-order-finalize"),
+    )
+    assert events == ["idempotency", "goal"]
+
+
+def test_spot_eligibility_attempts_use_open_cycle_and_fixed_category_order(
+    repository_harness: _Harness,
+):
+    repository = repository_harness.repository()
+    _, plan, run = _prepare_spot_run(repository, "spot-attempt-order")
+    _, cycle = _allocate_spot_eligibility_cycle(
+        repository,
+        run.run_id,
+        plan.plan_sha256,
+        "spot-attempt-order",
+    )
+    category = AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[0]
+    command = _mutation("spot-attempt-order-start")
 
     started = repository.start_spot_eligibility_attempt(
         run.run_id,
-        cycle_number=1,
         category=category,
         command=command,
     )
     replay = repository.start_spot_eligibility_attempt(
         run.run_id,
-        cycle_number=1,
         category=category,
         command=command,
     )
+    assert started.entity.cycle_number == cycle.cycle_number
     assert replay.replayed is True
     assert replay.entity == started.entity
     with pytest.raises(AutomationStoreConflict) as duplicate:
         repository.start_spot_eligibility_attempt(
             run.run_id,
-            cycle_number=1,
             category=category,
-            command=_mutation("spot-eligibility-duplicate"),
+            command=_mutation("spot-attempt-order-duplicate"),
         )
     assert duplicate.value.code == "automation_spot_eligibility_category_consumed"
 
-    terminal = repository.finalize_spot_eligibility_attempt(
-        run.run_id,
-        cycle_number=1,
-        category=category,
-        outcome="UNKNOWN",
-        eligible=False,
-        coinbase_api_call_count=None,
-        call_count_exact=False,
-        portfolio_id_sha256=None,
-        command=_mutation("spot-eligibility-finish"),
-    ).entity
-    assert terminal.outcome == "UNKNOWN"
-    assert terminal.coinbase_api_call_count is None
-    assert terminal.call_count_exact is False
-
-    with pytest.raises(AutomationStoreInvalid) as cycle_limit:
+    with pytest.raises(TypeError):
         repository.start_spot_eligibility_attempt(
             run.run_id,
-            cycle_number=11,
+            cycle_number=cycle.cycle_number,
             category=category,
-            command=_mutation("spot-eligibility-cycle-11"),
+            command=_mutation("caller-cycle-forbidden"),
         )
-    assert cycle_limit.value.code == "automation_spot_eligibility_cycle_invalid"
+    with pytest.raises(AutomationStoreConflict) as open_attempt:
+        repository.start_spot_eligibility_attempt(
+            run.run_id,
+            category=AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[1],
+            command=_mutation("spot-attempt-order-open-attempt"),
+        )
+    assert open_attempt.value.code == (
+        "automation_spot_eligibility_attempt_in_progress"
+    )
+
+    finalized = repository.finalize_spot_eligibility_attempt(
+        run.run_id,
+        category=category,
+        outcome="SUCCEEDED",
+        eligible=True,
+        coinbase_api_call_count=1,
+        call_count_exact=True,
+        portfolio_id_sha256=None,
+        **_eligibility_evidence("spot-attempt-order", "SUCCEEDED"),
+        command=_mutation("spot-attempt-order-finish"),
+    ).entity
+    assert finalized.outcome == "SUCCEEDED"
+    assert finalized.coinbase_api_call_count == 1
+    assert finalized.call_count_exact is True
+    assert finalized.observed_at is not None
+    assert finalized.fresh_until is not None
+    assert finalized.evidence_sha256 is not None
+
+    with pytest.raises(AutomationStoreConflict) as skipped:
+        repository.start_spot_eligibility_attempt(
+            run.run_id,
+            category=AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[2],
+            command=_mutation("spot-attempt-order-skipped"),
+        )
+    assert skipped.value.code == (
+        "automation_spot_eligibility_category_sequence_invalid"
+    )
     with pytest.raises(AutomationStoreInvalid) as category_invalid:
         repository.start_spot_eligibility_attempt(
             run.run_id,
-            cycle_number=2,
             category="UNAPPROVED_READ",
-            command=_mutation("spot-eligibility-category-invalid"),
+            command=_mutation("spot-attempt-order-category-invalid"),
         )
     assert category_invalid.value.code == "automation_spot_eligibility_category_invalid"
+
+
+@pytest.mark.parametrize(
+    (
+        "outcome",
+        "eligible",
+        "call_count",
+        "call_count_exact",
+        "expected_cycle_state",
+    ),
+    [
+        ("SUCCEEDED", True, 3, True, "OPEN"),
+        ("REJECTED", False, 0, True, "REJECTED"),
+        ("REJECTED", False, 4, True, "REJECTED"),
+        ("UNKNOWN", False, None, False, "UNKNOWN"),
+    ],
+)
+def test_spot_eligibility_result_shapes_allow_zero_rejections_and_multipage_counts(
+    repository_harness: _Harness,
+    outcome: str,
+    eligible: bool,
+    call_count: int | None,
+    call_count_exact: bool,
+    expected_cycle_state: str,
+):
+    repository = repository_harness.repository()
+    _, plan, run = _prepare_spot_run(
+        repository,
+        f"eligibility-shape-{outcome.lower()}-{call_count}",
+    )
+    _allocate_spot_eligibility_cycle(
+        repository,
+        run.run_id,
+        plan.plan_sha256,
+        f"eligibility-shape-{outcome.lower()}-{call_count}",
+    )
+    category = AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[0]
+    repository.start_spot_eligibility_attempt(
+        run.run_id,
+        category=category,
+        command=_mutation(f"shape-{outcome}-{call_count}-start"),
+    )
+
+    result = repository.finalize_spot_eligibility_attempt(
+        run.run_id,
+        category=category,
+        outcome=outcome,
+        eligible=eligible,
+        coinbase_api_call_count=call_count,
+        call_count_exact=call_count_exact,
+        portfolio_id_sha256=None,
+        **_eligibility_evidence(
+            f"shape-{outcome}-{call_count}",
+            outcome,
+        ),
+        command=_mutation(f"shape-{outcome}-{call_count}-finish"),
+    )
+
+    assert result.entity.outcome == outcome
+    assert result.entity.coinbase_api_call_count == call_count
+    cycle = repository.list_spot_eligibility_cycles()[-1]
+    assert cycle.state == expected_cycle_state
+    if expected_cycle_state == "OPEN":
+        assert cycle.coinbase_api_call_count is None
+        assert repository.get_run(run.run_id).state is (
+            OperatorAutomationRunState.PREPARING
+        )
+    else:
+        assert cycle.coinbase_api_call_count == call_count
+        current = repository.get_run(run.run_id)
+        assert current is not None
+        assert current.state is OperatorAutomationRunState.BLOCKED
+        assert current.diagnostic_code == (
+            "automation_active_order_catalog_read_not_authorized"
+        )
+
+
+@pytest.mark.parametrize(
+    ("outcome", "eligible", "call_count", "call_count_exact"),
+    [
+        ("SUCCEEDED", True, 0, True),
+        ("SUCCEEDED", False, 1, True),
+        ("SUCCEEDED", True, None, False),
+        ("REJECTED", True, 1, True),
+        ("REJECTED", False, None, False),
+        ("UNKNOWN", True, None, False),
+        ("UNKNOWN", False, 1, True),
+    ],
+)
+def test_spot_eligibility_result_shapes_reject_incoherent_evidence(
+    repository_harness: _Harness,
+    outcome: str,
+    eligible: bool,
+    call_count: int | None,
+    call_count_exact: bool,
+):
+    repository = repository_harness.repository()
+    _, plan, run = _prepare_spot_run(
+        repository,
+        f"eligibility-invalid-{outcome.lower()}-{eligible}-{call_count}",
+    )
+    _allocate_spot_eligibility_cycle(
+        repository,
+        run.run_id,
+        plan.plan_sha256,
+        f"eligibility-invalid-{outcome.lower()}-{eligible}-{call_count}",
+    )
+    category = AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[0]
+    repository.start_spot_eligibility_attempt(
+        run.run_id,
+        category=category,
+        command=_mutation(
+            f"invalid-{outcome}-{eligible}-{call_count}-start"
+        ),
+    )
+
+    with pytest.raises(AutomationStoreInvalid) as invalid:
+        repository.finalize_spot_eligibility_attempt(
+            run.run_id,
+            category=category,
+            outcome=outcome,
+            eligible=eligible,
+            coinbase_api_call_count=call_count,
+            call_count_exact=call_count_exact,
+            portfolio_id_sha256=None,
+            **_eligibility_evidence(
+                f"invalid-{outcome}-{eligible}-{call_count}",
+                outcome,
+            ),
+            command=_mutation(
+                f"invalid-{outcome}-{eligible}-{call_count}-finish"
+            ),
+        )
+    assert invalid.value.code == "automation_spot_eligibility_result_invalid"
+
+
+def test_spot_eligibility_freshness_and_evidence_shapes_fail_closed(
+    repository_harness: _Harness,
+):
+    repository = repository_harness.repository()
+    _, plan, run = _prepare_spot_run(repository, "eligibility-freshness")
+    _allocate_spot_eligibility_cycle(
+        repository,
+        run.run_id,
+        plan.plan_sha256,
+        "eligibility-freshness",
+    )
+    category = AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[0]
+    repository.start_spot_eligibility_attempt(
+        run.run_id,
+        category=category,
+        command=_mutation("eligibility-freshness-start"),
+    )
+    evidence = _eligibility_evidence("eligibility-freshness", "SUCCEEDED")
+    invalid_shapes = (
+        {**evidence, "observed_at": None},
+        {**evidence, "fresh_until": None},
+        {**evidence, "evidence_sha256": None},
+        {**evidence, "fresh_until": evidence["observed_at"]},
+        {**evidence, "evidence_sha256": "A" * 64},
+    )
+    for index, invalid_evidence in enumerate(invalid_shapes):
+        with pytest.raises(AutomationStoreInvalid) as invalid:
+            repository.finalize_spot_eligibility_attempt(
+                run.run_id,
+                category=category,
+                outcome="SUCCEEDED",
+                eligible=True,
+                coinbase_api_call_count=1,
+                call_count_exact=True,
+                portfolio_id_sha256=None,
+                **invalid_evidence,
+                command=_mutation(f"eligibility-freshness-invalid-{index}"),
+            )
+        assert invalid.value.code == "automation_spot_eligibility_result_invalid"
+
+    with pytest.raises(AutomationStoreInvalid) as rejected_without_observation:
+        repository.finalize_spot_eligibility_attempt(
+            run.run_id,
+            category=category,
+            outcome="REJECTED",
+            eligible=False,
+            coinbase_api_call_count=0,
+            call_count_exact=True,
+            portfolio_id_sha256=None,
+            observed_at=None,
+            fresh_until=None,
+            evidence_sha256=None,
+            command=_mutation("eligibility-rejected-no-observation"),
+        )
+    assert rejected_without_observation.value.code == (
+        "automation_spot_eligibility_result_invalid"
+    )
+
+    with pytest.raises(AutomationStoreInvalid) as unknown_with_evidence:
+        repository.finalize_spot_eligibility_attempt(
+            run.run_id,
+            category=category,
+            outcome="UNKNOWN",
+            eligible=False,
+            coinbase_api_call_count=None,
+            call_count_exact=False,
+            portfolio_id_sha256=None,
+            observed_at=evidence["observed_at"],
+            fresh_until=None,
+            evidence_sha256=None,
+            command=_mutation("eligibility-unknown-with-observation"),
+        )
+    assert unknown_with_evidence.value.code == (
+        "automation_spot_eligibility_result_invalid"
+    )
+
+
+def test_spot_eligibility_result_shape_is_database_enforced(
+    repository_harness: _Harness,
+):
+    repository = repository_harness.repository()
+    _, plan, run = _prepare_spot_run(repository, "eligibility-db-shape")
+    _, cycle = _allocate_spot_eligibility_cycle(
+        repository,
+        run.run_id,
+        plan.plan_sha256,
+        "eligibility-db-shape",
+    )
+    category = AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[0]
+    repository.start_spot_eligibility_attempt(
+        run.run_id,
+        category=category,
+        command=_mutation("eligibility-db-shape-start"),
+    )
+
+    with pytest.raises(psycopg2.errors.CheckViolation):
+        repository_harness.database.execute_update(
+            f'UPDATE "{repository_harness.schema}".'
+            "automation_spot_eligibility_attempt "
+            "SET outcome = 'UNKNOWN', eligible = FALSE, "
+            "coinbase_api_call_count = 1, call_count_exact = TRUE, "
+            "finalized_at = NOW() "
+            "WHERE run_id = %s AND cycle_number = %s AND category = %s",
+            (run.run_id, cycle.cycle_number, category),
+        )
+
+
+def test_spot_eligibility_restart_terminalizes_open_cycle_and_allocates_next(
+    repository_harness: _Harness,
+):
+    repository = repository_harness.repository()
+    _, plan, run = _prepare_spot_run(repository, "eligibility-restart")
+    _, first_cycle = _allocate_spot_eligibility_cycle(
+        repository,
+        run.run_id,
+        plan.plan_sha256,
+        "eligibility-restart",
+    )
+    category = AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[0]
+    repository.start_spot_eligibility_attempt(
+        run.run_id,
+        category=category,
+        command=_mutation("eligibility-restart-attempt"),
+    )
+    goal_before = repository.get_spot_live_proof_goal()
+
+    restarted = repository_harness.repository()
+    recovered = restarted.recover_runs_after_restart()
+
+    assert [item.run_id for item in recovered] == [run.run_id]
+    attempt = restarted.list_spot_eligibility_attempts(
+        run.run_id,
+        cycle_number=first_cycle.cycle_number,
+    )[0]
+    assert attempt.outcome == "UNKNOWN"
+    assert attempt.eligible is False
+    assert attempt.coinbase_api_call_count is None
+    assert attempt.call_count_exact is False
+    cycle = restarted.list_spot_eligibility_cycles()[0]
+    assert cycle.state == "UNKNOWN"
+    assert cycle.coinbase_api_call_count is None
+    assert cycle.call_count_exact is False
+    current = restarted.get_run(run.run_id)
+    assert current is not None
+    assert current.state is OperatorAutomationRunState.BLOCKED
+    assert current.diagnostic_code == (
+        "automation_active_order_catalog_read_not_authorized"
+    )
+    assert restarted.get_spot_live_proof_goal() == goal_before
+    assert restarted.get_spot_run_execution(run.run_id) is None
+    assert restarted.recover_runs_after_restart() == ()
+
+    resumed = restarted.resume_spot_source_gated_run(
+        run.run_id,
+        expected_plan_sha256=plan.plan_sha256,
+        command=_mutation("eligibility-restart-next-cycle"),
+    )
+    assert resumed.entity.run.state is OperatorAutomationRunState.PREPARING
+    assert resumed.entity.cycle.cycle_number == 2
+    cycles = restarted.list_spot_eligibility_cycles()
+    assert [item.cycle_number for item in cycles] == [1, 2]
+    assert [item.state for item in cycles] == ["UNKNOWN", "OPEN"]
+
+    after_empty_cycle_restart = repository_harness.repository()
+    recovered_empty = after_empty_cycle_restart.recover_runs_after_restart()
+    assert [item.run_id for item in recovered_empty] == [run.run_id]
+    assert [item.state for item in after_empty_cycle_restart.list_spot_eligibility_cycles()] == [
+        "UNKNOWN",
+        "UNKNOWN",
+    ]
+
+
+def test_spot_eligibility_cycle_allocation_rolls_back_resume_on_insert_failure(
+    repository_harness: _Harness,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repository = repository_harness.repository()
+    _, plan, run = _prepare_spot_run(repository, "eligibility-atomic")
+    blocked = repository.transition_run(
+        run.run_id,
+        OperatorAutomationRunState.BLOCKED,
+        diagnostic_code="automation_active_order_catalog_read_not_authorized",
+        command=_mutation("eligibility-atomic-source-gate"),
+    ).entity
+    event_count = repository.list_run_events(run.run_id, limit=50, offset=0).total
+    idempotency_count = repository_harness.scalar(
+        f'SELECT COUNT(*) FROM "{repository_harness.schema}".automation_idempotency'
+    )
+
+    def fail_cycle_insert(*_args, **_kwargs):
+        raise RuntimeError("synthetic_cycle_insert_failure")
+
+    monkeypatch.setattr(
+        repository,
+        "_insert_spot_eligibility_cycle_cursor",
+        fail_cycle_insert,
+    )
+    with pytest.raises(RuntimeError, match="synthetic_cycle_insert_failure"):
+        repository.resume_spot_source_gated_run(
+            run.run_id,
+            expected_plan_sha256=plan.plan_sha256,
+            command=_mutation("eligibility-atomic-resume"),
+        )
+
+    assert repository.get_run(run.run_id) == blocked
+    assert repository.list_spot_eligibility_cycles() == ()
+    assert repository.list_run_events(run.run_id, limit=50, offset=0).total == (
+        event_count
+    )
+    assert repository_harness.scalar(
+        f'SELECT COUNT(*) FROM "{repository_harness.schema}".automation_idempotency'
+    ) == idempotency_count
+
+
+def test_spot_eligibility_goal_has_at_most_ten_terminal_cycles(
+    repository_harness: _Harness,
+):
+    repository = repository_harness.repository()
+    _, plan, run = _prepare_spot_run(repository, "eligibility-cycle-limit")
+
+    for cycle_number in range(1, 11):
+        _, cycle = _allocate_spot_eligibility_cycle(
+            repository,
+            run.run_id,
+            plan.plan_sha256,
+            f"eligibility-cycle-limit-{cycle_number}",
+        )
+        assert cycle.cycle_number == cycle_number
+        category = AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[0]
+        repository.start_spot_eligibility_attempt(
+            run.run_id,
+            category=category,
+            command=_mutation(f"eligibility-limit-{cycle_number}-start"),
+        )
+        repository.finalize_spot_eligibility_attempt(
+            run.run_id,
+            category=category,
+            outcome="REJECTED",
+            eligible=False,
+            coinbase_api_call_count=0,
+            call_count_exact=True,
+            portfolio_id_sha256=None,
+            **_eligibility_evidence(
+                f"eligibility-limit-{cycle_number}",
+                "REJECTED",
+            ),
+            command=_mutation(f"eligibility-limit-{cycle_number}-finish"),
+        )
+
+    with pytest.raises(AutomationStoreConflict) as exhausted:
+        repository.resume_spot_source_gated_run(
+            run.run_id,
+            expected_plan_sha256=plan.plan_sha256,
+            command=_mutation("eligibility-cycle-limit-11"),
+        )
+    assert exhausted.value.code == "automation_spot_eligibility_cycles_exhausted"
+    assert len(repository.list_spot_eligibility_cycles()) == 10
+    assert repository.get_run(run.run_id).state is (
+        OperatorAutomationRunState.BLOCKED
+    )
 
 
 def test_portfolio_catalog_proof_is_exactly_bound_to_the_run_plan(
@@ -1265,27 +2068,46 @@ def test_portfolio_catalog_proof_is_exactly_bound_to_the_run_plan(
 ):
     repository = repository_harness.repository()
     _, plan, run = _prepare_spot_run(repository, "spot-catalog-binding")
+    _allocate_spot_eligibility_cycle(
+        repository,
+        run.run_id,
+        plan.plan_sha256,
+        "spot-catalog-binding",
+    )
+    first_category = AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[0]
+    repository.start_spot_eligibility_attempt(
+        run.run_id,
+        category=first_category,
+        command=_mutation("catalog-first-start"),
+    )
+    repository.finalize_spot_eligibility_attempt(
+        run.run_id,
+        category=first_category,
+        outcome="SUCCEEDED",
+        eligible=True,
+        coinbase_api_call_count=1,
+        call_count_exact=True,
+        portfolio_id_sha256=None,
+        **_eligibility_evidence("catalog-first", "SUCCEEDED"),
+        command=_mutation("catalog-first-finish"),
+    )
     category = "PORTFOLIO_CATALOG"
 
-    def start(seed: str, cycle: int) -> None:
-        repository.start_spot_eligibility_attempt(
-            run.run_id,
-            cycle_number=cycle,
-            category=category,
-            command=_mutation(f"{seed}-start"),
-        )
-
-    start("catalog-missing", 1)
+    repository.start_spot_eligibility_attempt(
+        run.run_id,
+        category=category,
+        command=_mutation("catalog-missing-start"),
+    )
     with pytest.raises(AutomationStoreInvalid) as missing:
         repository.finalize_spot_eligibility_attempt(
             run.run_id,
-            cycle_number=1,
             category=category,
             outcome="SUCCEEDED",
             eligible=True,
             coinbase_api_call_count=1,
             call_count_exact=True,
             portfolio_id_sha256=None,
+            **_eligibility_evidence("catalog-missing", "SUCCEEDED"),
             command=_mutation("catalog-missing-finish"),
         )
     assert missing.value.code == "automation_spot_portfolio_binding_required"
@@ -1293,47 +2115,46 @@ def test_portfolio_catalog_proof_is_exactly_bound_to_the_run_plan(
     with pytest.raises(AutomationStoreConflict) as mismatch:
         repository.finalize_spot_eligibility_attempt(
             run.run_id,
-            cycle_number=1,
             category=category,
             outcome="SUCCEEDED",
             eligible=True,
             coinbase_api_call_count=1,
             call_count_exact=True,
             portfolio_id_sha256="f" * 64,
+            **_eligibility_evidence("catalog-mismatch", "SUCCEEDED"),
             command=_mutation("catalog-mismatch-finish"),
         )
     assert mismatch.value.code == "automation_spot_portfolio_binding_mismatch"
 
     bound = repository.finalize_spot_eligibility_attempt(
         run.run_id,
-        cycle_number=1,
         category=category,
         outcome="SUCCEEDED",
         eligible=True,
         coinbase_api_call_count=1,
         call_count_exact=True,
         portfolio_id_sha256=plan.portfolio_id_sha256,
+        **_eligibility_evidence("catalog-bound", "SUCCEEDED"),
         command=_mutation("catalog-bound-finish"),
     ).entity
     assert bound.portfolio_id_sha256 == plan.portfolio_id_sha256
 
-    other_category = "API_KEY_PERMISSIONS"
+    other_category = "ACCOUNT_WALLET_BALANCES"
     repository.start_spot_eligibility_attempt(
         run.run_id,
-        cycle_number=1,
         category=other_category,
         command=_mutation("other-binding-start"),
     )
     with pytest.raises(AutomationStoreInvalid) as unrelated:
         repository.finalize_spot_eligibility_attempt(
             run.run_id,
-            cycle_number=1,
             category=other_category,
             outcome="SUCCEEDED",
             eligible=True,
             coinbase_api_call_count=1,
             call_count_exact=True,
             portfolio_id_sha256=plan.portfolio_id_sha256,
+            **_eligibility_evidence("other-binding", "SUCCEEDED"),
             command=_mutation("other-binding-finish"),
         )
     assert unrelated.value.code == "automation_spot_portfolio_binding_forbidden"
@@ -1343,11 +2164,33 @@ def test_schema_migrates_legacy_catalog_attempt_without_inventing_binding(
     repository_harness: _Harness,
 ):
     repository = repository_harness.repository()
-    _, _, run = _prepare_spot_run(repository, "spot-catalog-migration")
+    _, plan, run = _prepare_spot_run(repository, "spot-catalog-migration")
+    _allocate_spot_eligibility_cycle(
+        repository,
+        run.run_id,
+        plan.plan_sha256,
+        "spot-catalog-migration",
+    )
+    first_category = AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[0]
+    repository.start_spot_eligibility_attempt(
+        run.run_id,
+        category=first_category,
+        command=_mutation("catalog-migration-first-start"),
+    )
+    repository.finalize_spot_eligibility_attempt(
+        run.run_id,
+        category=first_category,
+        outcome="SUCCEEDED",
+        eligible=True,
+        coinbase_api_call_count=1,
+        call_count_exact=True,
+        portfolio_id_sha256=None,
+        **_eligibility_evidence("catalog-migration-first", "SUCCEEDED"),
+        command=_mutation("catalog-migration-first-finish"),
+    )
     category = "PORTFOLIO_CATALOG"
     repository.start_spot_eligibility_attempt(
         run.run_id,
-        cycle_number=1,
         category=category,
         command=_mutation("catalog-migration-start"),
     )
@@ -1360,6 +2203,8 @@ def test_schema_migrates_legacy_catalog_attempt_without_inventing_binding(
         "SET outcome = 'SUCCEEDED', eligible = TRUE, "
         "coinbase_api_call_count = 1, call_count_exact = TRUE, "
         "diagnostic_code = 'automation_spot_eligibility_succeeded', "
+        "observed_at = NOW(), fresh_until = NOW() + INTERVAL '5 minutes', "
+        f"evidence_sha256 = '{'a' * 64}', "
         "finalized_at = NOW() WHERE run_id = %s AND cycle_number = 1 "
         "AND category = %s",
         (run.run_id, category),

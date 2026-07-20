@@ -4,21 +4,22 @@ Goal ID: `operator_spot_automation_single_child_execution_adapter_v1`
 
 Last reviewed: 2026-07-20 UTC.
 
-Status: `source_gated_checkpoint`.
+Status: `eligibility_coordinator_complete_source_gated`.
 
 Current action:
-`await_consolidated_canonical_spot_adapter_continuation_authority`.
+`await_active_order_catalog_and_canonical_execution_authority`.
 
-The installed operator path stops at fixed diagnostic
-`automation_active_order_catalog_read_not_authorized` before every Coinbase
-read, Create, or Cancel. All eligibility and mutation allowances remain
-unconsumed. This is not a live-ready completion. The exact remaining canonical
-eligibility/admission/exact-child work and consolidated draft authorization are
-recorded in
+The installed operator path includes a durable, explicit, seven-category
+eligibility refresh and stops at fixed diagnostic
+`automation_active_order_catalog_read_not_authorized` before the canonical
+account-wide active-order guard, invocation claim, Create, or Cancel. No live
+refresh ran and all read and mutation allowances remain unconsumed. This is not
+a live-ready completion. The exact remaining canonical
+admission/exact-child work and consolidated draft authorization are recorded in
 `docs/OPERATOR_SPOT_AUTOMATION_SINGLE_CHILD_ADAPTER.md`.
 
-Current checkpoint validation passed backend full `1165 passed, 6 skipped`
-parallel and `630 passed, 150 skipped` serial, frontend full `1514 passed`,
+Current checkpoint validation passed backend full `1170 passed, 6 skipped`
+parallel and `651 passed, 150 skipped` serial, frontend full `1536 passed`,
 browser E2E `15/15`, independent safety and blind-contextless audits, and the
 frontend build/security/readiness gates. All gates reported no Coinbase
 execution and zero notional.
