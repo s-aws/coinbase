@@ -32,6 +32,9 @@ DEPLOYMENT_TIER_ENV = "COINBASE_BACKEND_DEPLOYMENT_TIER"
 OS_TRUSTSTORE_ENV = "COINBASE_ADMIN_API_OS_TRUSTSTORE"
 EXECUTION_AUTHORITY_ENV = "COINBASE_EXECUTION_ENABLED"
 LIVE_RUNTIME_ENABLED_ENV = "COINBASE_ADMIN_API_LIVE_EXECUTION_ENABLED"
+OPERATOR_AUTOMATION_ENABLED_ENV = (
+    "COINBASE_ADMIN_API_OPERATOR_AUTOMATION_ENABLED"
+)
 DISABLED_ENV_VALUES = {"0", "false", "no", "off", "disabled"}
 ENABLED_ENV_VALUES = {"1", "true", "yes", "on"}
 OIDC_REQUIRED_ENV_VARS = (
@@ -42,6 +45,9 @@ OIDC_REQUIRED_ENV_VARS = (
 STARTUP_AUTH_MODE_VALUES = tuple(mode.value for mode in AdminApiAuthMode)
 FOLLOW_UP_INTENT_SCHEMA_STARTUP_ERROR = (
     "Admin API follow-up intent schema initialization failed."
+)
+OPERATOR_AUTOMATION_SCHEMA_STARTUP_ERROR = (
+    "Admin API operator automation schema initialization failed."
 )
 
 
@@ -299,6 +305,16 @@ def initialize_order_follow_up_intent_schema() -> None:
     create_order_follow_up_intent_tables()
 
 
+def initialize_operator_automation_schema() -> None:
+    """Create the durable operator automation schema before serving."""
+
+    from database.operator_automation import (
+        initialize_operator_automation_schema as initialize_schema,
+    )
+
+    initialize_schema()
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the local Admin API server."""
 
@@ -321,6 +337,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             initialize_order_follow_up_intent_schema()
         except Exception:
             print(FOLLOW_UP_INTENT_SCHEMA_STARTUP_ERROR, file=sys.stderr)
+            return 2
+
+    if os.environ.get(OPERATOR_AUTOMATION_ENABLED_ENV) == "1":
+        try:
+            initialize_operator_automation_schema()
+        except Exception:
+            print(OPERATOR_AUTOMATION_SCHEMA_STARTUP_ERROR, file=sys.stderr)
             return 2
 
     try:

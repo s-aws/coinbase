@@ -64,6 +64,7 @@ from application.admin_api.operator_mvp_policy import (
     OPERATOR_MVP_MAX_EXECUTED_NOTIONAL_USDC,
     OPERATOR_MVP_MAX_SUBMITTED_NOTIONAL_USDC,
 )
+from application.admin_api.product_policy import DEFAULT_SPOT_PRODUCT_SCOPE
 from application.admin_api.spot_portfolio_binding import (
     DEFAULT_SPOT_PORTFOLIO_LABEL,
     SPOT_PORTFOLIO_ID_ENV,
@@ -142,7 +143,6 @@ BACKEND_REST_CLIENT_SOURCE = "backend_rest_client"
 BACKEND_REST_FRESHNESS = "backend_rest_fresh"
 LOCAL_DEFAULT_FRESHNESS = "local_default_not_connected"
 SPOT_ADMISSION_QUOTE_CURRENCIES = ("USDC", "USD")
-DEFAULT_SPOT_PRODUCT_SCOPE = ("BTC-USDC",)
 ADMIN_PUBLIC_PRODUCT_DISPLAY_NAMES = {
     "BTC-USDC": "BTC-USDC",
     "AVP-20DEC30-CDE": "AVAX PERP",

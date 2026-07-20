@@ -21,28 +21,39 @@ frontend request
 -> typed response
 ```
 
-Goal `operator_core_workspaces_origin_prod_alignment_v1` has Status:
-`complete`. Goal `operator_core_workspaces_origin_prod_alignment_v1` is
-complete. Current action is
-`complete_core_operator_workspaces_origin_prod_alignment`; default action is
-`await_operator_direction_for_next_mvp`. It delivered the persistent
+Current goal `operator_automation_control_plane_origin_prod_alignment_v1` has
+status `complete`. Current action is
+`complete_operator_automation_control_plane_origin_prod_alignment`; the
+default is `await_operator_direction_for_next_mvp`. The completed
+predecessor `operator_core_workspaces_origin_prod_alignment_v1` delivered the persistent
 authenticated operator shell and routed Portfolio, Spot Operations, Futures
 Operations, Orders-detail, Automation, and System Operations workspaces while
 keeping Diagnostics separate.
+
+Historical predecessor record: Status: `complete`. Goal
+`operator_core_workspaces_origin_prod_alignment_v1` is complete. Current action
+is `complete_core_operator_workspaces_origin_prod_alignment`; default action is
+`await_operator_direction_for_next_mvp`. Its historical Automation is GET-only
+posture is superseded by the current PostgreSQL control plane and is not current
+authority.
 
 The one authorized account-reality refresh completed and is consumed and
 sealed; its evidence is stale for live eligibility and cannot be rerun under
 this goal. No goal-scoped Create, Cancel, or live proof has run. The optional
 Spot Create and exact-order Cancel allowances remain unconsumed. Futures is
 source-disabled and call-free; its workspace exposes sanitized local evidence
-only. Automation is GET-only through one local
-`GET /api/v1/admin/capabilities`; it exposes no command or exchange action.
+only. Automation now has a feature-gated PostgreSQL control plane with typed
+definitions, actor-scoped local lifecycle/posture/schedule mutations, terminal
+one-shot classification, restart recovery, and paginated definition/control/run
+audit routes. Its v1 domain adapters remain unavailable, it starts no recurring
+scheduler, and every current route reports zero Coinbase/exchange activity.
 
-Current validation evidence is backend full `1109 passed, 6 skipped` parallel
-and `599 passed, 150 skipped` serial, frontend full `1440 passed`, E2E
-`13 passed`, and independent safety audit `PASS`. The final blind re-audit is
-not claimed as passed; neither are the canonical release gate or final
-installed Controlled-live stack verification.
+Closeout evidence is backend full `1156 passed, 6 skipped` parallel and `609
+passed, 150 skipped` serial, frontend full `1499 passed`, browser E2E `15/15`,
+independent safety and blind-contextless audits `PASS`, and the canonical
+release gate `PASS`. Packaged and installed validation exercised the real
+Controlled-live entrypoint on a fresh empty PostgreSQL database and proved
+durable Automation readback with zero Coinbase or exchange activity.
 
 Historical predecessor goal
 `operator_follow_up_operations_queue_and_single_live_proof` completed with

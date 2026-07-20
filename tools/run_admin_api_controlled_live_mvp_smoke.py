@@ -34,6 +34,8 @@ SMOKE_NODE_IDS = (
     "test_admin_api_manual_order_route_executes_through_backend_runtime_dependencies",
     "tests/regression/test_admin_api_contract.py::"
     "test_admin_api_manual_order_route_blocks_limit_notional_above_backend_cap",
+    "tests/regression/test_admin_api_operator_runtime.py::"
+    "test_operator_runtime_initializes_enabled_durable_schemas_before_composition",
 )
 REQUIRED_BACKEND_CONTROLLED_LIVE_MVP_SMOKE_NODE_IDS = list(SMOKE_NODE_IDS)
 LIVE_COINBASE_EXECUTION_VALUES = ("not_run", "submitted", "failed", "unknown")

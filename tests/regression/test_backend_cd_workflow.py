@@ -196,9 +196,10 @@ def test_controlled_live_mvp_smoke_runner_records_timing_summary() -> None:
         "test_admin_api_manual_order_route_passes_backend_admission_to_command_service",
         "test_admin_api_manual_order_route_executes_through_backend_runtime_dependencies",
         "test_admin_api_manual_order_route_blocks_limit_notional_above_backend_cap",
+        "test_operator_runtime_initializes_enabled_durable_schemas_before_composition",
     ]:
         assert any(nodeid in part for part in command)
-    assert len(controlled_live_smoke.SMOKE_NODE_IDS) == 7
+    assert len(controlled_live_smoke.SMOKE_NODE_IDS) == 8
 
     summary = controlled_live_smoke.build_timing_summary(
         result=controlled_live_smoke.SmokeRunResult(

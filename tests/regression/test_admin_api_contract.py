@@ -75033,6 +75033,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "spot.usdc_pair_snapshot_dry_run",
         "spot.usdc_pair_snapshot_order_plan",
         "spot.usdc_pair_snapshot_allowlist_live_handoff",
+        "automation.operator_control_plane",
         "stealth.create",
         "stealth.reveal",
         "stealth.move",
@@ -75060,6 +75061,26 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     ]
     assert sorted(taxonomy_surfaces) == sorted(command_surfaces)
     assert len(taxonomy_surfaces) == len(set(taxonomy_surfaces))
+    automation_control_taxonomy = taxonomy_by_id[
+        "automation.operator_control_plane"
+    ]
+    assert automation_control_taxonomy["mutation_family"] == (
+        AdminApiMutationFamilyType.AUTOMATION_CONTROL_PLANE.value
+    )
+    assert automation_control_taxonomy["action_classes"] == [
+        AdminApiActionClass.LOCAL_STATE_MUTATION.value
+    ]
+    assert set(automation_control_taxonomy["required_permissions"]) == {
+        AdminApiPermission.AUTOMATION_CONFIGURE.value,
+        AdminApiPermission.AUTOMATION_CONTROL.value,
+        AdminApiPermission.AUTOMATION_RESUME.value,
+        AdminApiPermission.AUTOMATION_TRIGGER.value,
+    }
+    assert automation_control_taxonomy["approval_required"] is False
+    assert automation_control_taxonomy["cap_guard_required"] is False
+    assert automation_control_taxonomy["reconciliation_required"] is False
+    assert automation_control_taxonomy["live_adapter_required"] is False
+    assert automation_control_taxonomy["live_coinbase_execution"] == "not_run"
     assert {
         "admin.platform_evidence",
         "admin.approval_lifecycle",
@@ -75071,6 +75092,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "spot.read_models",
         "spot.order_command_drafts",
         "spot.sweep_automation_and_live_executor",
+        "automation.operator_control_plane",
         "stealth.lifecycle_reads",
         "stealth.create_command_draft",
         "stealth.reveal_command_draft",

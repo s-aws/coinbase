@@ -144,6 +144,99 @@ def test_operator_runtime_main_enters_canonical_main_only_after_preparation(
     assert lifecycle == ["compose", ("serve", "127.0.0.1", 8877)]
 
 
+def test_operator_runtime_initializes_enabled_durable_schemas_before_composition(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    environment = _authorized_environment(tmp_path)
+    environment["COINBASE_ADMIN_API_OPERATOR_AUTOMATION_ENABLED"] = "1"
+    lifecycle: list[object] = []
+    monkeypatch.setattr(
+        operator_runtime,
+        "initialize_operator_automation_schema",
+        lambda: lifecycle.append("operator_automation_schema"),
+        raising=False,
+    )
+
+    result = operator_runtime.main(
+        ["--host", "127.0.0.1", "--port", "8877"],
+        environ=environment,
+        credential_hydrator=lambda _target: SimpleNamespace(source="synthetic-test"),
+        runtime_composer=lambda: lifecycle.append("compose") or SimpleNamespace(),
+        server_runner=lambda config: lifecycle.append(
+            ("serve", config.host, config.port)
+        ),
+    )
+
+    assert result == 0
+    assert lifecycle == [
+        "operator_automation_schema",
+        "compose",
+        ("serve", "127.0.0.1", 8877),
+    ]
+
+
+@pytest.mark.parametrize("feature_value", [None, "0", "true", "yes", "01"])
+def test_operator_runtime_skips_automation_schema_without_exact_flag(
+    tmp_path: Path,
+    monkeypatch,
+    feature_value: str | None,
+) -> None:
+    environment = _authorized_environment(tmp_path)
+    if feature_value is not None:
+        environment["COINBASE_ADMIN_API_OPERATOR_AUTOMATION_ENABLED"] = feature_value
+    lifecycle: list[object] = []
+    monkeypatch.setattr(
+        operator_runtime,
+        "initialize_operator_automation_schema",
+        lambda: pytest.fail("non-exact feature value must not initialize schema"),
+    )
+
+    result = operator_runtime.main(
+        [],
+        environ=environment,
+        credential_hydrator=lambda _target: SimpleNamespace(source="synthetic-test"),
+        runtime_composer=lambda: lifecycle.append("compose") or SimpleNamespace(),
+        server_runner=lambda _config: lifecycle.append("serve"),
+    )
+
+    assert result == 0
+    assert lifecycle == ["compose", "serve"]
+
+
+def test_operator_runtime_fails_closed_before_composition_when_schema_init_fails(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    environment = _authorized_environment(tmp_path)
+    environment["COINBASE_ADMIN_API_OPERATOR_FOLLOW_UP_INTENT_ENABLED"] = "0"
+    environment["COINBASE_ADMIN_API_OPERATOR_AUTOMATION_ENABLED"] = "1"
+    lifecycle: list[object] = []
+    monkeypatch.setattr(
+        operator_runtime,
+        "initialize_operator_automation_schema",
+        lambda: (_ for _ in ()).throw(RuntimeError("withheld database detail")),
+        raising=False,
+    )
+
+    result = operator_runtime.main(
+        [],
+        environ=environment,
+        credential_hydrator=lambda _target: SimpleNamespace(source="synthetic-test"),
+        runtime_composer=lambda: lifecycle.append("compose") or SimpleNamespace(),
+        server_runner=lambda _config: lifecycle.append("serve"),
+    )
+
+    captured = capsys.readouterr()
+    assert result == 2
+    assert lifecycle == []
+    assert captured.err.strip() == (
+        "operator_admin_runtime_startup_failed:OperatorAdminRuntimeError"
+    )
+    assert "withheld database detail" not in captured.err
+
+
 def test_operator_server_registers_uvicorn_ingress_as_runtime_stop_hook(
     monkeypatch,
 ) -> None:

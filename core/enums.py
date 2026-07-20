@@ -196,6 +196,11 @@ class AdminApiPermission(str, Enum):
     SPOT_ORDER_CANCEL_PROOF_RECORD = "spot_order_cancel_proof:record"
     CAMPAIGN_READ = "campaign:read"
     CAMPAIGN_EXECUTE = "campaign:execute"
+    AUTOMATION_READ = "automation:read"
+    AUTOMATION_CONFIGURE = "automation:configure"
+    AUTOMATION_CONTROL = "automation:control"
+    AUTOMATION_RESUME = "automation:resume"
+    AUTOMATION_TRIGGER = "automation:trigger"
     SPOT_SWEEP_EXECUTE = "spot_sweep:execute"
     SPOT_PNL_RECORD = "spot_pnl:record"
     SPOT_RECOVERY_EXECUTE = "spot_recovery:execute"
@@ -324,6 +329,7 @@ class AdminApiMutationFamilyType(str, Enum):
     ADMIN_ACCOUNT_PRODUCTS_REFRESH = "admin_account_products_refresh"
     ADMIN_ACCOUNT_REALITY_REFRESH = "admin_account_reality_refresh"
     ADMIN_RUNTIME_CONTROL = "admin_runtime_control"
+    AUTOMATION_CONTROL_PLANE = "automation_control_plane"
     SPOT_MANUAL_ORDER = "spot_manual_order"
     SPOT_ORDER_CANCEL = "spot_order_cancel"
     SPOT_FOLLOW_UP_INTENT = "spot_follow_up_intent"
@@ -2917,6 +2923,62 @@ class RoundingDirection(str, Enum):
     UP = "up"
     DOWN = "down"
     NEAREST = "nearest"
+
+
+class OperatorAutomationControlPosture(str, Enum):
+    """Durable global admission posture for operator automation."""
+
+    ACTIVE = "ACTIVE"
+    PAUSED = "PAUSED"
+    DRAINING = "DRAINING"
+    SHUTDOWN = "SHUTDOWN"
+
+
+class OperatorAutomationDefinitionState(str, Enum):
+    """Lifecycle states for one durable automation definition."""
+
+    DRAFT = "DRAFT"
+    ENABLED = "ENABLED"
+    DISABLED = "DISABLED"
+    PAUSED = "PAUSED"
+    DRAINING = "DRAINING"
+
+
+class OperatorAutomationDomain(str, Enum):
+    """Backend domain that owns an automation definition's semantics."""
+
+    SPOT = "SPOT"
+    ORDERS = "ORDERS"
+
+
+class OperatorAutomationJobKind(str, Enum):
+    """Typed v1 automation classifications; never generic executable payloads."""
+
+    SPOT_CAMPAIGN = "SPOT_CAMPAIGN"
+    SPOT_SWEEP = "SPOT_SWEEP"
+    SPOT_LADDER = "SPOT_LADDER"
+    FOLLOW_UP = "FOLLOW_UP"
+
+
+class OperatorAutomationScheduleKind(str, Enum):
+    """Review-only schedule types supported by the v1 control plane."""
+
+    MANUAL_ONLY = "MANUAL_ONLY"
+    INTERVAL_REVIEW_ONLY = "INTERVAL_REVIEW_ONLY"
+
+
+class OperatorAutomationRunState(str, Enum):
+    """Durable run boundaries reserved for domain-owned adapters."""
+
+    CLAIMED = "CLAIMED"
+    PREPARING = "PREPARING"
+    AWAITING_OPERATOR_AUTHORIZATION = "AWAITING_OPERATOR_AUTHORIZATION"
+    BLOCKED = "BLOCKED"
+    ABORTED = "ABORTED"
+    INVOCATION_STARTED = "INVOCATION_STARTED"
+    ACTIVE = "ACTIVE"
+    TERMINAL = "TERMINAL"
+    UNKNOWN_CONSUMED = "UNKNOWN_CONSUMED"
 
 
 class FollowUpRevealDirection(str, Enum):

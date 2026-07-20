@@ -356,6 +356,126 @@ def test_admin_api_local_runner_skips_follow_up_intent_schema_when_feature_disab
 
 
 @pytest.mark.regression
+def test_admin_api_local_runner_initializes_operator_automation_schema_only_for_exact_flag(
+    monkeypatch,
+):
+    from core.runtime_controller import RuntimeController
+
+    uvicorn_calls: list[dict[str, object]] = []
+    startup_events: list[str] = []
+    monkeypatch.setenv(run_admin_api.AUTH_TOKEN_ENV, "local-test-token")
+    monkeypatch.setenv(
+        run_admin_api.OPERATOR_AUTOMATION_ENABLED_ENV,
+        "1",
+    )
+    monkeypatch.setenv("COINBASE_ADMIN_API_OPERATOR_FOLLOW_UP_INTENT_ENABLED", "0")
+    monkeypatch.setattr(
+        run_admin_api,
+        "initialize_operator_automation_schema",
+        lambda: startup_events.append("operator_automation_schema"),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "uvicorn",
+        _retained_uvicorn_stub(uvicorn_calls),
+    )
+    monkeypatch.setattr(
+        run_admin_api,
+        "get_runtime_controller",
+        lambda: RuntimeController(),
+    )
+
+    exit_code = run_admin_api.main([])
+
+    assert exit_code == 0
+    assert startup_events == ["operator_automation_schema"]
+    assert len(uvicorn_calls) == 1
+
+
+@pytest.mark.regression
+@pytest.mark.parametrize("feature_value", [None, "0", "true", "yes", "01"])
+def test_admin_api_local_runner_skips_operator_automation_schema_without_exact_flag(
+    monkeypatch,
+    feature_value,
+):
+    from core.runtime_controller import RuntimeController
+
+    uvicorn_calls: list[dict[str, object]] = []
+    monkeypatch.setenv(run_admin_api.AUTH_TOKEN_ENV, "local-test-token")
+    monkeypatch.setenv("COINBASE_ADMIN_API_OPERATOR_FOLLOW_UP_INTENT_ENABLED", "0")
+    if feature_value is None:
+        monkeypatch.delenv(
+            run_admin_api.OPERATOR_AUTOMATION_ENABLED_ENV,
+            raising=False,
+        )
+    else:
+        monkeypatch.setenv(
+            run_admin_api.OPERATOR_AUTOMATION_ENABLED_ENV,
+            feature_value,
+        )
+    monkeypatch.setattr(
+        run_admin_api,
+        "initialize_operator_automation_schema",
+        lambda: pytest.fail("disabled feature must not initialize its schema"),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "uvicorn",
+        _retained_uvicorn_stub(uvicorn_calls),
+    )
+    monkeypatch.setattr(
+        run_admin_api,
+        "get_runtime_controller",
+        lambda: RuntimeController(),
+    )
+
+    exit_code = run_admin_api.main([])
+
+    assert exit_code == 0
+    assert len(uvicorn_calls) == 1
+
+
+@pytest.mark.regression
+def test_admin_api_local_runner_fails_closed_when_operator_automation_schema_init_fails(
+    monkeypatch,
+    capsys,
+):
+    startup_events: list[str] = []
+    monkeypatch.setenv(run_admin_api.AUTH_TOKEN_ENV, "local-test-token")
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_OPERATOR_FOLLOW_UP_INTENT_ENABLED",
+        "1",
+    )
+    monkeypatch.setenv(
+        run_admin_api.OPERATOR_AUTOMATION_ENABLED_ENV,
+        "1",
+    )
+    monkeypatch.setattr(
+        run_admin_api,
+        "initialize_order_follow_up_intent_schema",
+        lambda: startup_events.append("follow_up_intent_schema"),
+    )
+    monkeypatch.setattr(
+        run_admin_api,
+        "initialize_operator_automation_schema",
+        lambda: (_ for _ in ()).throw(RuntimeError("withheld database detail")),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "uvicorn",
+        SimpleNamespace(run=lambda **_kwargs: pytest.fail("uvicorn must not start")),
+    )
+
+    exit_code = run_admin_api.main([])
+
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert startup_events == ["follow_up_intent_schema"]
+    assert captured.err.strip() == run_admin_api.OPERATOR_AUTOMATION_SCHEMA_STARTUP_ERROR
+    assert "withheld database detail" not in captured.err
+
+
+@pytest.mark.regression
 def test_admin_api_local_runner_is_not_a_trading_path():
     source = Path(run_admin_api.__file__).read_text(encoding="utf-8")
 

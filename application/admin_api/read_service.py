@@ -8462,6 +8462,31 @@ class AdminApiReadService:
                 ),
             ),
         ]
+        operator_automation_read_surfaces = [
+            "GET /api/v1/automation/control-plane",
+            "GET /api/v1/automation/control-plane/events",
+            "GET /api/v1/automation/definitions",
+            "GET /api/v1/automation/definitions/{definition_id}",
+            "GET /api/v1/automation/definitions/{definition_id}/events",
+            "GET /api/v1/automation/runs",
+            "GET /api/v1/automation/runs/{run_id}",
+            "GET /api/v1/automation/runs/{run_id}/events",
+        ]
+        operator_automation_command_surfaces = [
+            "POST /api/v1/automation/definitions",
+            "POST /api/v1/automation/definitions/{definition_id}/enable",
+            "POST /api/v1/automation/definitions/{definition_id}/disable",
+            "POST /api/v1/automation/definitions/{definition_id}/pause",
+            "POST /api/v1/automation/definitions/{definition_id}/resume",
+            "POST /api/v1/automation/definitions/{definition_id}/drain",
+            "POST /api/v1/automation/definitions/{definition_id}/schedule",
+            "POST /api/v1/automation/definitions/{definition_id}/schedule/clear",
+            "POST /api/v1/automation/control-plane/pause",
+            "POST /api/v1/automation/control-plane/resume",
+            "POST /api/v1/automation/control-plane/drain",
+            "POST /api/v1/automation/control-plane/shutdown",
+            "POST /api/v1/automation/definitions/{definition_id}/runs",
+        ]
         functionality_inventory = [
             functionality_item(
                 workflow_id="admin.platform_evidence",
@@ -9102,6 +9127,57 @@ class AdminApiReadService:
                 spot_rule_boundary=(
                     "This is an exact durable Admin Spot-root synchronization path; "
                     "it grants no Futures, stealth, or generic exchange-read authority."
+                ),
+            ),
+            functionality_item(
+                workflow_id="automation.operator_control_plane",
+                module_id="automation",
+                module="Automation",
+                workflow_type=AdminApiFunctionalityWorkflowType.AUTOMATION,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Authenticated PostgreSQL-backed definitions, lifecycle and "
+                    "posture controls, review-only schedules, one-shot local claims, "
+                    "restart recovery, and durable audit history."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=True,
+                command_capable=True,
+                live_designated=False,
+                live_enabled=False,
+                read_routes=operator_automation_read_surfaces,
+                command_routes=operator_automation_command_surfaces,
+                automation_routes=operator_automation_command_surfaces,
+                identity_keys=["definition_id", "run_id"],
+                backend_contract_refs=[
+                    "api/v1/routes/operator_automation.py",
+                    "application/admin_api/operator_automation.py",
+                    "database/operator_automation.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    "src/features/operator-read-models/automation",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_AUTOMATION_CONTROL_PLANE.md",
+                ],
+                required_next_contract=(
+                    "Each future executable job kind requires a separately reviewed "
+                    "typed domain adapter that revalidates domain policy and exchange "
+                    "authority; the control plane alone grants none."
+                ),
+                blockers=["automation_domain_adapters_unavailable"],
+                frontend_boundary=(
+                    "Render generated backend authority and forward explicit local "
+                    "operator intent only; never infer eligibility or call a domain "
+                    "executor or exchange from the browser."
+                ),
+                spot_rule_boundary=(
+                    "Spot product, wallet, inventory, cap, and execution rules remain "
+                    "inside a future typed Spot adapter; they do not apply to Orders "
+                    "follow-up classifications or any future non-Spot adapter."
                 ),
             ),
             functionality_item(
@@ -9990,7 +10066,106 @@ class AdminApiReadService:
             route_inventory_item(surface)
             for surface in usdc_pair_snapshot_allowlist_live_handoff_surfaces
         ]
+        operator_automation_command_rows = [
+            route_inventory_item(surface)
+            for surface in operator_automation_command_surfaces
+        ]
         mutation_taxonomy = [
+            mutation_taxonomy_item(
+                mutation_id="automation.operator_control_plane",
+                mutation_family=AdminApiMutationFamilyType.AUTOMATION_CONTROL_PLANE,
+                workflow_id="automation.operator_control_plane",
+                module_id="automation",
+                module="Automation",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Backend-owned local PostgreSQL automation definitions, control "
+                    "posture, review schedules, and one-shot claim classification."
+                ),
+                command_surfaces=operator_automation_command_surfaces,
+                action_classes=[AdminApiActionClass.LOCAL_STATE_MUTATION],
+                required_permissions=[
+                    AdminApiPermission.AUTOMATION_CONFIGURE,
+                    AdminApiPermission.AUTOMATION_CONTROL,
+                    AdminApiPermission.AUTOMATION_RESUME,
+                    AdminApiPermission.AUTOMATION_TRIGGER,
+                ],
+                identity_keys=["definition_id", "run_id"],
+                payload_binding_fields=[
+                    "route",
+                    "actor",
+                    "operator_intent",
+                    "definition_id",
+                    "body",
+                    "idempotency_key",
+                    "correlation_id",
+                ],
+                idempotency_contract=(
+                    "required; PostgreSQL claim and payload hash bind exact replay"
+                ),
+                approval_contract=(
+                    "not required for local control-plane state; explicit operator "
+                    "confirmation and RBAC do not grant domain execution authority"
+                ),
+                cap_guard_contract=(
+                    "not applicable while adapters are unavailable and exchange "
+                    "activity is fixed at zero"
+                ),
+                admission_audit_contract=(
+                    "each accepted mutation transaction appends fixed diagnostic, "
+                    "audit, correlation, and event-outbox evidence"
+                ),
+                reconciliation_contract=(
+                    "not applicable to local control-plane mutations; future domain "
+                    "execution must own reconciliation separately"
+                ),
+                owning_backend_service=(
+                    "application/admin_api/operator_automation.py::"
+                    "OperatorAutomationService"
+                ),
+                route_inventory_refs=[
+                    row.surface for row in operator_automation_command_rows
+                ],
+                backend_contract_refs=[
+                    "api/v1/routes/operator_automation.py",
+                    "application/admin_api/operator_automation.py",
+                    "database/operator_automation.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    "src/features/operator-read-models/automation",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_AUTOMATION_CONTROL_PLANE.md",
+                ],
+                required_next_contract=(
+                    "Separately authorized typed domain adapter with current product, "
+                    "portfolio, wallet, cap, execution, and reconciliation gates."
+                ),
+                blockers=["automation_domain_adapters_unavailable"],
+                frontend_boundary=(
+                    "The UI may forward only an explicit generated local-control "
+                    "request after actor-scoped backend actionability readback."
+                ),
+                bff_boundary=(
+                    "The BFF forwards only allowlisted generated Automation routes "
+                    "with server-held auth and never executes a job."
+                ),
+                route_local_boundary=(
+                    "Routes bind feature flag, auth, RBAC, identity, intent, and "
+                    "idempotency before the PostgreSQL service; they import no "
+                    "Coinbase client or domain executor."
+                ),
+                spot_rule_boundary=(
+                    "Spot policy belongs only to future typed Spot adapters and must "
+                    "not be copied into Orders, Futures, or generic orchestration."
+                ),
+                approval_required=False,
+                cap_guard_required=False,
+                reconciliation_required=False,
+                live_adapter_required=False,
+            ),
             mutation_taxonomy_item(
                 mutation_id="admin.approval_lifecycle",
                 mutation_family=AdminApiMutationFamilyType.ADMIN_APPROVAL_LIFECYCLE,

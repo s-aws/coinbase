@@ -31,7 +31,9 @@ from core.coinbase_execution_authority import (
 from tools.coinbase_live_credentials import ensure_live_coinbase_credentials
 from tools.run_admin_api import (
     AdminApiRunConfig,
+    OPERATOR_AUTOMATION_ENABLED_ENV,
     apply_local_environment,
+    initialize_operator_automation_schema,
     parse_run_config,
     prepare_live_coinbase_credentials,
     run_uvicorn_server,
@@ -198,6 +200,22 @@ def _run_admin_server(config: AdminApiRunConfig) -> None:
     run_uvicorn_server(config)
 
 
+def initialize_enabled_operator_schemas(
+    *,
+    environ: MutableMapping[str, str] | None = None,
+) -> None:
+    """Initialize enabled durable operator schemas before serving traffic."""
+
+    target = os.environ if environ is None else environ
+    if target.get(OPERATOR_AUTOMATION_ENABLED_ENV) == "1":
+        try:
+            initialize_operator_automation_schema()
+        except Exception:
+            raise OperatorAdminRuntimeError(
+                "operator_automation_schema_init_failed"
+            ) from None
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
@@ -216,6 +234,7 @@ def main(
             environ=environ,
             credential_hydrator=credential_hydrator,
         )
+        initialize_enabled_operator_schemas(environ=environ)
         if runtime_composer is None:
             compose_canonical_operator_runtime(environ=environ)
         else:
