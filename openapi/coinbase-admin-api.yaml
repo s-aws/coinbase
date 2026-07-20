@@ -394,6 +394,107 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/runtime/drain:
+    post:
+      tags:
+      - admin
+      summary: Drain backend runtime admission while retaining readback
+      operationId: admin_runtime_drain_api_v1_admin_runtime_drain_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminRuntimeControlRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminRuntimeControlResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflicts with a prior runtime command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminRuntimeControlResponse'
+        '503':
+          description: Runtime transition outcome is unknown and the durable claim
+            cannot be retried.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminRuntimeControlResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/admin/runtime/shutdown:
     post:
       tags:
@@ -661,6 +762,109 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/account-reality/refresh:
+    post:
+      tags:
+      - admin
+      summary: Explicitly refresh sanitized backend account-reality evidence
+      operationId: admin_account_reality_refresh_api_v1_admin_account_reality_refresh_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          pattern: \S
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          pattern: \S
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          pattern: \S
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminAccountRealityRefreshRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAccountRealityRefreshResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflicts with a prior refresh claim.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAccountRealityRefreshResponse'
+        '503':
+          description: The claimed refresh outcome is unknown and cannot be retried.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAccountRealityRefreshResponse'
         '422':
           description: Validation Error
           content:
@@ -14667,6 +14871,182 @@ components:
       - source
       title: AdminAccountRealityEvidence
       description: Backend account identity and proof source evidence.
+    AdminAccountRealityRefreshCategoryEvidence:
+      properties:
+        status:
+          type: string
+          title: Status
+        complete:
+          type: boolean
+          title: Complete
+        logical_call_count:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Logical Call Count
+        http_request_count:
+          type: integer
+          minimum: 0.0
+          title: Http Request Count
+        blocker:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Blocker
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - complete
+      - logical_call_count
+      - http_request_count
+      title: AdminAccountRealityRefreshCategoryEvidence
+      description: Fixed no-retry accounting for one authorized read category.
+    AdminAccountRealityRefreshRequest:
+      properties:
+        reason:
+          anyOf:
+          - type: string
+            maxLength: 500
+            minLength: 1
+          - type: 'null'
+          title: Reason
+      additionalProperties: false
+      type: object
+      title: AdminAccountRealityRefreshRequest
+      description: Explicit operator intent for one bounded account-reality refresh.
+    AdminAccountRealityRefreshResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_account_reality_refresh
+        status:
+          type: string
+          title: Status
+        diagnostic_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Diagnostic Code
+        refresh_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Refresh Id
+        captured_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Captured At
+        fresh_until:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Fresh Until
+        admission_ready:
+          type: boolean
+          title: Admission Ready
+          default: false
+        product_scope:
+          items:
+            type: string
+          type: array
+          title: Product Scope
+        categories:
+          additionalProperties:
+            $ref: '#/components/schemas/AdminAccountRealityRefreshCategoryEvidence'
+          type: object
+          title: Categories
+        account_reality:
+          additionalProperties: true
+          type: object
+          title: Account Reality
+        portfolio_scope:
+          additionalProperties: true
+          type: object
+          title: Portfolio Scope
+        wallet_inventory:
+          additionalProperties: true
+          type: object
+          title: Wallet Inventory
+        wallets:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Wallets
+        products:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Products
+        market:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Market
+        fees:
+          additionalProperties: true
+          type: object
+          title: Fees
+        audit:
+          additionalProperties: true
+          type: object
+          title: Audit
+        read_only:
+          type: boolean
+          title: Read Only
+          default: false
+        local_state_mutated:
+          type: boolean
+          title: Local State Mutated
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+          default: false
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      title: AdminAccountRealityRefreshResponse
+      description: Sanitized durable result for an explicit account-reality refresh.
     AdminAccountScopeEvidence:
       properties:
         scope_type:
@@ -15599,6 +15979,7 @@ components:
       - admin_live_service_decision
       - admin_live_adapter_decision
       - admin_account_products_refresh
+      - admin_account_reality_refresh
       - admin_runtime_control
       - spot_manual_order
       - spot_order_cancel
@@ -15649,6 +16030,7 @@ components:
       type: string
       enum:
       - analytics:read
+      - account_reality:refresh
       - audit:read
       - approval:read
       - approval:request
@@ -15686,6 +16068,7 @@ components:
       - config:update
       - runtime:pause
       - runtime:resume
+      - runtime:drain
       - runtime:shutdown
       title: AdminApiPermission
       description: Backend-enforced Admin API permission names.
@@ -144785,6 +145168,12 @@ components:
           - type: string
           - type: 'null'
           title: Reason
+        timeout_seconds:
+          type: number
+          maximum: 120.0
+          exclusiveMinimum: 0.0
+          title: Timeout Seconds
+          default: 30
       additionalProperties: true
       type: object
       title: AdminRuntimeControlRequest
@@ -144956,6 +145345,17 @@ components:
           type: boolean
           title: Drain Executed
           default: false
+        shutdown_queued:
+          type: boolean
+          title: Shutdown Queued
+          default: false
+        drain_timeout_seconds:
+          anyOf:
+          - type: number
+            maximum: 120.0
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Drain Timeout Seconds
         read_only:
           type: boolean
           title: Read Only

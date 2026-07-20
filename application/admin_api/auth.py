@@ -44,6 +44,7 @@ ROLE_PERMISSIONS: dict[AdminApiRole, frozenset[AdminApiPermission]] = {
     }),
     AdminApiRole.OPERATOR: frozenset({
         AdminApiPermission.ANALYTICS_READ,
+        AdminApiPermission.ACCOUNT_REALITY_REFRESH,
         AdminApiPermission.AUDIT_READ,
         AdminApiPermission.APPROVAL_READ,
         AdminApiPermission.ADMISSION_AUDIT_READ,
@@ -52,9 +53,11 @@ ROLE_PERMISSIONS: dict[AdminApiRole, frozenset[AdminApiPermission]] = {
         AdminApiPermission.CAMPAIGN_READ,
         AdminApiPermission.RUNTIME_PAUSE,
         AdminApiPermission.RUNTIME_RESUME,
+        AdminApiPermission.RUNTIME_DRAIN,
     }),
     AdminApiRole.TRADER: frozenset({
         AdminApiPermission.ANALYTICS_READ,
+        AdminApiPermission.ACCOUNT_REALITY_REFRESH,
         AdminApiPermission.AUDIT_READ,
         AdminApiPermission.APPROVAL_READ,
         AdminApiPermission.APPROVAL_REQUEST,
@@ -71,6 +74,7 @@ ROLE_PERMISSIONS: dict[AdminApiRole, frozenset[AdminApiPermission]] = {
         AdminApiPermission.SPOT_RECOVERY_RECORD,
         AdminApiPermission.RUNTIME_PAUSE,
         AdminApiPermission.RUNTIME_RESUME,
+        AdminApiPermission.RUNTIME_DRAIN,
     }),
     AdminApiRole.ADMIN: frozenset(AdminApiPermission),
     AdminApiRole.AUDITOR: frozenset({
@@ -86,6 +90,7 @@ ROLE_PERMISSIONS: dict[AdminApiRole, frozenset[AdminApiPermission]] = {
         AdminApiPermission.ANALYTICS_READ,
         AdminApiPermission.AUDIT_READ,
         AdminApiPermission.RUNTIME_PAUSE,
+        AdminApiPermission.RUNTIME_DRAIN,
         AdminApiPermission.RUNTIME_SHUTDOWN,
     }),
 }

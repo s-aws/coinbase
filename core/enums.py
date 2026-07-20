@@ -174,6 +174,7 @@ class AdminApiPermission(str, Enum):
     """Backend-enforced Admin API permission names."""
 
     ANALYTICS_READ = "analytics:read"
+    ACCOUNT_REALITY_REFRESH = "account_reality:refresh"
     AUDIT_READ = "audit:read"
     APPROVAL_READ = "approval:read"
     APPROVAL_REQUEST = "approval:request"
@@ -217,6 +218,7 @@ class AdminApiPermission(str, Enum):
     CONFIG_UPDATE = "config:update"
     RUNTIME_PAUSE = "runtime:pause"
     RUNTIME_RESUME = "runtime:resume"
+    RUNTIME_DRAIN = "runtime:drain"
     RUNTIME_SHUTDOWN = "runtime:shutdown"
 
 
@@ -315,6 +317,7 @@ class AdminApiMutationFamilyType(str, Enum):
     ADMIN_LIVE_SERVICE_DECISION = "admin_live_service_decision"
     ADMIN_LIVE_ADAPTER_DECISION = "admin_live_adapter_decision"
     ADMIN_ACCOUNT_PRODUCTS_REFRESH = "admin_account_products_refresh"
+    ADMIN_ACCOUNT_REALITY_REFRESH = "admin_account_reality_refresh"
     ADMIN_RUNTIME_CONTROL = "admin_runtime_control"
     SPOT_MANUAL_ORDER = "spot_manual_order"
     SPOT_ORDER_CANCEL = "spot_order_cancel"

@@ -13,16 +13,25 @@ plans.
 
 ## Current MVP Goal
 
-Goal `operator_follow_up_operations_queue_and_single_live_proof` has Status:
-`complete_zero_candidates`. Current/default action is
-`complete_zero_candidates_all_live_allowances_unconsumed`; next action is
-`await_operator_direction_for_next_mvp`. The deployed passive local-SQL
+Goal `operator_core_workspaces_origin_prod_alignment_v1` is `in_progress`.
+Current action is `implement_validate_audit_and_deploy_core_operator_workspaces`;
+default action is `continue_bounded_implementation_and_offline_remediation`.
+It aligns the persistent authenticated operator shell and routed Portfolio,
+Spot Operations, Orders-detail, and System Operations workspaces to generated,
+backend-owned Admin API contracts while keeping Diagnostics separate. No
+goal-scoped Coinbase call has run yet. The optional post-gate manual Spot proof
+remains unconsumed and retains the installed 3.10 USDC submitted / 1.00 USDC
+possible-execution ceilings and exact-order Cancel boundary.
+
+Historical predecessor
+`operator_follow_up_operations_queue_and_single_live_proof` completed with
+status `complete_zero_candidates`. The deployed passive local-SQL
 Follow-up Operations workspace passed its focused/full, deployment, safety, and
 blind-contextless gates. The exact post-gate local `materialization_review`
 candidate count is `0`. The queue made no Coinbase read, Create, or Cancel call;
 the goal-scoped proof claim was not created or required; and eligibility,
 reconciliation, Create, and Cancel did not run. All live allowances remain
-unconsumed, but this completed goal grants no continuing proof call. Keep the
+unconsumed, but that completed goal grants no continuing proof call. Keep the
 Controlled-live review stack available under its separate runtime controls.
 
 Historical goal `futures_preview_acceptance_recovery_r12` is

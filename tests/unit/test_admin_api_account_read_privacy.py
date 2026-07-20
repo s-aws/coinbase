@@ -193,6 +193,8 @@ def test_controlled_live_account_reads_retain_internal_binding_but_withhold_uuid
         == PRIVATE_PORTFOLIO_UUID
     )
     assert internal["futures_portfolio_binding"]["ready"] is True
+    assert client.calls
+    client.calls.clear()
 
     account = _read(service, "/api/v1/admin/account-management")
     wallet = _read(service, "/api/v1/admin/wallet")
@@ -209,18 +211,12 @@ def test_controlled_live_account_reads_retain_internal_binding_but_withhold_uuid
     )
     futures_account = _read(service, "/api/v1/futures/account")
     futures_positions = _read(service, "/api/v1/futures/positions")
-    public_position_key = futures_positions["items"][0]["position_key"]
     futures_detail = _read(
         service,
-        f"/api/v1/futures/positions/{public_position_key}",
+        "/api/v1/futures/positions/futures_position:default:AVP-20DEC30-CDE",
     )
     futures_command_suite = _read(service, "/api/v1/futures/command-suite")
     futures_risk_proofs = _read(service, "/api/v1/futures/risk-proofs")
-    futures_risk_proof_detail = _read(
-        service,
-        "/api/v1/futures/risk-proofs/"
-        f"{futures_risk_proofs['items'][0]['futures_risk_proof_id']}",
-    )
 
     public_payloads = (
         account,
@@ -233,7 +229,6 @@ def test_controlled_live_account_reads_retain_internal_binding_but_withhold_uuid
         futures_detail,
         futures_command_suite,
         futures_risk_proofs,
-        futures_risk_proof_detail,
     )
     typed_payloads = (
         (AdminAccountManagementReadResponse, account),
@@ -249,19 +244,24 @@ def test_controlled_live_account_reads_retain_internal_binding_but_withhold_uuid
     for payload in public_payloads:
         assert PRIVATE_PORTFOLIO_UUID not in _serialized(payload)
 
-    assert account["account_scope"]["scope_id"] == "withheld"
-    assert account["portfolio_scope"]["portfolio_id"] == "withheld"
-    assert wallet["wallet_inventory"]["available_notional_usdc"] == "12.34"
-    assert product["products"][0]["price_increment"] == "0.01"
-    assert fees["fee_tier"]["maker_fee_rate"] == "0.0040"
-    assert futures_account["portfolio_binding"]["observed_portfolio_id"] == (
-        "withheld"
+    assert client.calls == []
+    assert account["account_reality"]["read_error"] == (
+        "coinbase_page_load_read_not_authorized"
     )
-    assert futures_account["portfolio_binding"]["portfolio_id"] == "withheld"
-    assert futures_positions["items"][0]["portfolio_uuid"] is None
-    assert futures_positions["items"][0]["raw_position"] == {}
-    assert futures_positions["items"][0]["number_of_contracts"] == "1"
-    assert futures_detail["found"] is True
+    assert account["live_coinbase_read_ran"] is False
+    assert wallet["wallets"] == []
+    assert wallet["live_coinbase_read_ran"] is False
+    assert product["products"][0]["read_error"] == (
+        "coinbase_page_load_read_not_authorized"
+    )
+    assert product["live_coinbase_read_ran"] is False
+    assert fees["fee_tier"]["read_error"] == (
+        "coinbase_page_load_read_not_authorized"
+    )
+    assert fees["live_coinbase_read_ran"] is False
+    assert futures_account["position_count"] == 0
+    assert futures_positions["items"] == []
+    assert futures_detail["found"] is False
 
 
 def test_unavailable_rest_adapter_keeps_operator_reads_call_free_and_fixed() -> None:
@@ -284,13 +284,19 @@ def test_unavailable_rest_adapter_keeps_operator_reads_call_free_and_fixed() -> 
     futures_positions = _read(service, "/api/v1/futures/positions")
 
     assert account["account_reality"]["status"] == "unavailable"
-    assert account["account_reality"]["read_error"] == "rest_client_unavailable"
+    assert account["account_reality"]["read_error"] == (
+        "coinbase_page_load_read_not_authorized"
+    )
     assert account["live_coinbase_read_ran"] is False
     assert wallet["wallets"] == []
     assert wallet["live_coinbase_read_ran"] is False
-    assert product["products"][0]["read_error"] == "rest_client_unavailable"
+    assert product["products"][0]["read_error"] == (
+        "coinbase_page_load_read_not_authorized"
+    )
     assert product["live_coinbase_read_ran"] is False
-    assert fees["fee_tier"]["read_error"] == "rest_client_unavailable"
+    assert fees["fee_tier"]["read_error"] == (
+        "coinbase_page_load_read_not_authorized"
+    )
     assert fees["live_coinbase_read_ran"] is False
     assert futures_account["position_count"] == 0
     assert futures_account["live_coinbase_read_ran"] is False
@@ -299,18 +305,21 @@ def test_unavailable_rest_adapter_keeps_operator_reads_call_free_and_fixed() -> 
 
 
 def test_portfolio_name_fallback_cannot_reexpose_withheld_uuid() -> None:
+    client = _UnnamedPortfolioReadClient()
     service = AdminMvpService(
         AdminMvpDependencies(
-            rest_client=_UnnamedPortfolioReadClient(),
+            rest_client=client,
             rest_client_available=True,
         )
     )
 
     account = _read(service, "/api/v1/admin/account-management")
 
-    assert account["portfolio_scope"]["portfolio_id"] == "withheld"
-    assert account["portfolio_scope"]["portfolio_name"] == (
-        "Withheld Coinbase Portfolio"
+    assert client.calls == []
+    assert account["portfolio_scope"]["portfolio_id"] == "local-admin-portfolio"
+    assert account["portfolio_scope"]["portfolio_name"] == "Local Admin Portfolio"
+    assert account["account_reality"]["read_error"] == (
+        "coinbase_page_load_read_not_authorized"
     )
     assert PRIVATE_PORTFOLIO_UUID not in _serialized(account)
 
@@ -337,6 +346,6 @@ def test_failed_controlled_reads_expose_fixed_classification_not_exception_text(
 
     assert PRIVATE_EXCEPTION_TEXT not in serialized
     assert PRIVATE_PORTFOLIO_UUID not in serialized
-    assert "get_account_wallets_failed:RuntimeError" in serialized
-    assert "get_product_dict_failed:RuntimeError" in serialized
-    assert "get_transaction_summary_failed:RuntimeError" in serialized
+    assert "RuntimeError" not in serialized
+    assert "coinbase_page_load_read_not_authorized" in serialized
+    assert all(payload["live_coinbase_read_ran"] is False for payload in payloads)

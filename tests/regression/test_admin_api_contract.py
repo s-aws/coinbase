@@ -75784,7 +75784,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "GET /api/v1/admin/approvals" in admin_module["read_routes"]
     assert "POST /api/v1/admin/approvals/requests" in admin_module["command_routes"]
     assert admin_module["action_posture"]["read_route_count"] == 26
-    assert admin_module["action_posture"]["command_route_count"] == 11
+    assert admin_module["action_posture"]["command_route_count"] == 12
     assert registry_by_id["guard_risk_policy"]["read_routes"] == [
         "GET /api/v1/admin/guard-risk-policy"
     ]

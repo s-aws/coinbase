@@ -4,6 +4,11 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
+Current goal `operator_core_workspaces_origin_prod_alignment_v1` is in
+progress. It aligns normal authenticated Portfolio, Spot Operations,
+Orders-detail, and System Operations workflows to backend-owned contracts and
+keeps Diagnostics separate. No goal-scoped Coinbase call has run yet.
+
 Goal `futures_preview_acceptance_recovery_r12` is terminal
 `complete_terminal_unknown_consumed`. Its single claim is consumed and cannot
 be retried. Preparation and terminal records remain immutable historical

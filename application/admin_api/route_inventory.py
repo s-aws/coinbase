@@ -2395,6 +2395,18 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="admin_system_health",
+        surface="POST /api/v1/admin/runtime/drain",
+        action_class=AdminApiActionClass.ADMIN_RUNTIME,
+        permission=AdminApiPermission.RUNTIME_DRAIN,
+        idempotency="required",
+        approval="runtime permission required",
+        caps="not applicable",
+        audit="required",
+        shared_method="drain_runtime",
+        parity_test="drains local runtime admission and retains readback; no Coinbase call",
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="admin_system_health",
         surface="POST /api/v1/admin/runtime/shutdown",
         action_class=AdminApiActionClass.ADMIN_RUNTIME,
         permission=AdminApiPermission.RUNTIME_SHUTDOWN,
@@ -2402,8 +2414,8 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         approval="runtime permission required",
         caps="not applicable",
         audit="required",
-        shared_method="request_runtime_shutdown",
-        parity_test="requests local runtime shutdown only; no Coinbase call",
+        shared_method="queue_runtime_shutdown",
+        parity_test="queues response-safe local runtime shutdown only; no Coinbase call",
     ),
     AdminApiRouteInventoryItem(
         module_id="account_management",
@@ -2478,6 +2490,21 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test=(
             "source-disabled before Coinbase reads or products.json writes; "
             "no order execution"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="account_management",
+        surface="POST /api/v1/admin/account-reality/refresh",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.ACCOUNT_REALITY_REFRESH,
+        idempotency="required",
+        approval="not required; explicit authenticated operator intent required",
+        caps="not applicable; read-only Coinbase categories",
+        audit="required durable claim and terminal sanitized evidence",
+        shared_method="refresh_account_reality",
+        parity_test=(
+            "six approved read-only categories at most once each; strict "
+            "pagination without retries; zero order or Futures risk calls"
         ),
     ),
     AdminApiRouteInventoryItem(

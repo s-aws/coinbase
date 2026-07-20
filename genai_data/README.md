@@ -4,15 +4,22 @@
 
 `genai_data/` contains expanded engineering references and historical analyses.
 Current work authority is `AGENT_MVP_REBUILD_GOAL.md`, goal id
-`operator_follow_up_operations_queue_and_single_live_proof`,
+`operator_core_workspaces_origin_prod_alignment_v1`,
 paired with the frontend canonical goal
 at `/home/developer/coinbase/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. An
 individual analysis or implementation note does not become current work merely
 because it lives in this directory.
 
-The current goal has Status: `complete_zero_candidates`. Its current/default
-action is `complete_zero_candidates_all_live_allowances_unconsumed`; next action
-is `await_operator_direction_for_next_mvp`. The exact post-gate local
+The current goal has Status: `in_progress`. Its current action is
+`implement_validate_audit_and_deploy_core_operator_workspaces`; its default
+action is `continue_bounded_implementation_and_offline_remediation`. It aligns
+the persistent authenticated Portfolio, Spot Operations, Orders-detail, and
+System Operations workspaces while keeping Diagnostics separate. No goal-scoped
+Coinbase call has run yet.
+
+Historical predecessor goal
+`operator_follow_up_operations_queue_and_single_live_proof` completed with
+status `complete_zero_candidates`. Its exact post-gate local
 `materialization_review` candidate count is `0`, all live allowances remain
 unconsumed, and the closed goal grants no continuing proof call.
 

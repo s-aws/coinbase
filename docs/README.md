@@ -4,10 +4,17 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 
 ## Project Entry
 
-Goal `operator_follow_up_operations_queue_and_single_live_proof` has Status:
-`complete_zero_candidates`. Current/default action is
-`complete_zero_candidates_all_live_allowances_unconsumed`; next action is
-`await_operator_direction_for_next_mvp`. The passive backend-owned local-SQL
+Goal `operator_core_workspaces_origin_prod_alignment_v1` is `in_progress`.
+Current action is `implement_validate_audit_and_deploy_core_operator_workspaces`;
+default action is `continue_bounded_implementation_and_offline_remediation`.
+The current lane aligns a persistent authenticated shell and routed Portfolio,
+Spot Operations, Orders-detail, and System Operations workflows to backend
+authority while leaving Diagnostics technical and separate. Page loads are
+call-free local reads; no goal-scoped Coinbase call has run yet.
+
+Historical predecessor
+`operator_follow_up_operations_queue_and_single_live_proof` completed with
+status `complete_zero_candidates`. Its passive backend-owned local-SQL
 Follow-up Operations workspace is deployed, and focused/full validation,
 deployment validation, and both independent audits passed. Its exact post-gate
 local `materialization_review` candidate count is `0`.

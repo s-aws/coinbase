@@ -15,10 +15,12 @@ import hashlib
 import json
 import os
 from pathlib import Path
+from threading import Thread
 from typing import Any, Callable, Iterable, Mapping, Sequence
 from urllib.parse import unquote
 import uuid
 
+from application.admin_api.auth import ROLE_PERMISSIONS
 from application.admin_api.approval import (
     AdminApiApprovalLifecycleEvent,
     AdminApiApprovalRecord,
@@ -61,10 +63,13 @@ from core.enums import (
     AdminApiActionClass,
     AdminApiApprovalLifecycleEventType,
     AdminApiApprovalLifecycleStatus,
+    AdminApiAuthMode,
     AdminApiCommandStatus,
     AdminApiGateStatus,
     AdminApiIdempotencyDecision,
     AdminApiPermission,
+    AdminApiRole,
+    AdminApiSessionStatus,
 )
 
 
@@ -99,7 +104,9 @@ ACCOUNT_WALLET_ROUTE = "/api/v1/admin/wallet"
 ACCOUNT_PRODUCTS_ROUTE = "/api/v1/admin/products"
 ACCOUNT_PRODUCTS_REFRESH_ROUTE = "/api/v1/admin/products/refresh"
 ACCOUNT_FEES_ROUTE = "/api/v1/admin/fees"
+ACCOUNT_REALITY_REFRESH_ROUTE = "/api/v1/admin/account-reality/refresh"
 ACCOUNT_MANAGEMENT_MODULE_ID = "account_management"
+ACCOUNT_REALITY_REFRESH_TTL_SECONDS = 60
 PRODUCTS_JSON_PATH_ENV = "COINBASE_ADMIN_PRODUCTS_JSON_PATH"
 DEFAULT_PRODUCTS_JSON_PATH = Path(__file__).resolve().parents[2] / "products.json"
 FRONTEND_LOCAL_RELEASE_MANIFEST_ENV = "COINBASE_ADMIN_FRONTEND_LOCAL_RELEASE_MANIFEST_PATH"
@@ -284,6 +291,8 @@ LIVE_SERVICE_DECISION_PERMISSION = "config:update"
 LIVE_SERVICE_DECISION_SERVICE_METHOD = "record_live_service_decision"
 ACCOUNT_PRODUCTS_REFRESH_PERMISSION = "config:update"
 ACCOUNT_PRODUCTS_REFRESH_SERVICE_METHOD = "refresh_admin_products"
+ACCOUNT_REALITY_REFRESH_PERMISSION = "account_reality:refresh"
+ACCOUNT_REALITY_REFRESH_SERVICE_METHOD = "refresh_account_reality"
 LIVE_ADAPTER_DECISION_ROUTE = "/api/v1/admin/live-execution/adapter-decisions"
 LIVE_ADAPTER_DECISION_PERMISSION = "config:update"
 LIVE_ADAPTER_DECISION_SERVICE_METHOD = "record_live_adapter_decision"
@@ -300,11 +309,17 @@ ADMIN_RUNTIME_CONTROL_SPECS = {
         "service_method": "resume_runtime",
         "target_states": {"RUNNING"},
     },
+    "drain": {
+        "route": f"{ADMIN_RUNTIME_ROUTE}/drain",
+        "required_permission": "runtime:drain",
+        "service_method": "drain_runtime",
+        "target_states": {"DRAINING"},
+    },
     "shutdown": {
         "route": f"{ADMIN_RUNTIME_ROUTE}/shutdown",
         "required_permission": "runtime:shutdown",
-        "service_method": "request_runtime_shutdown",
-        "target_states": {"DRAINING", "STOPPED"},
+        "service_method": "queue_runtime_shutdown",
+        "target_states": {"RUNNING", "PAUSED", "DRAINING", "STOPPED"},
     },
 }
 DEFAULT_MAX_SUBMITTED_NOTIONAL_USDC = OPERATOR_MVP_MAX_SUBMITTED_NOTIONAL_USDC
@@ -323,6 +338,7 @@ ADMIN_MVP_EVIDENCE_LOG_PATH_ENVS = {
     "futures_risk_proofs": AUDIT_LOG_PATH_ENV,
     "futures_command_decisions": AUDIT_LOG_PATH_ENV,
     "futures_executor_decisions": AUDIT_LOG_PATH_ENV,
+    "account_reality_refreshes": AUDIT_LOG_PATH_ENV,
     "cap_guard_decisions": CAP_GUARD_LOG_PATH_ENV,
     "reconciliation_plans": RECONCILIATION_LOG_PATH_ENV,
     "service_decisions": LIVE_SERVICE_DECISION_LOG_PATH_ENV,
@@ -383,6 +399,7 @@ class AdminMvpStore:
     futures_risk_proofs: dict[str, dict[str, Any]] = field(default_factory=dict)
     futures_command_decisions: dict[str, dict[str, Any]] = field(default_factory=dict)
     futures_executor_decisions: dict[str, dict[str, Any]] = field(default_factory=dict)
+    account_reality_refreshes: dict[str, dict[str, Any]] = field(default_factory=dict)
     submitted_notional_usdc: Decimal = Decimal("0")
     executed_notional_usdc: Decimal = Decimal("0")
     live_coinbase_orders_ran: bool = False
@@ -516,6 +533,8 @@ def _evidence_collection_store(
         return store.futures_command_decisions
     if collection == "futures_executor_decisions":
         return store.futures_executor_decisions
+    if collection == "account_reality_refreshes":
+        return store.account_reality_refreshes
     return None
 
 
@@ -743,6 +762,9 @@ class AdminMvpDependencies:
     runtime_controller_factory: Callable[[], Any] = field(
         default_factory=lambda: _default_runtime_controller_factory
     )
+    runtime_shutdown_scheduler: Callable[[Callable[[], None]], None] = field(
+        default_factory=lambda: _default_runtime_shutdown_scheduler
+    )
     uuid_factory: Callable[[], str] = field(default_factory=lambda: lambda: str(uuid.uuid4()))
     now_factory: Callable[[], datetime] = field(
         default_factory=lambda: lambda: datetime.now(timezone.utc)
@@ -768,6 +790,16 @@ def _default_runtime_controller_factory() -> Any:
     from core.runtime_controller import get_runtime_controller
 
     return get_runtime_controller()
+
+
+def _default_runtime_shutdown_scheduler(target: Callable[[], None]) -> None:
+    """Start shutdown ownership outside the response-serving thread."""
+
+    Thread(
+        target=target,
+        name="admin-runtime-shutdown-owner",
+        daemon=False,
+    ).start()
 
 
 class AdminMvpService:
@@ -1002,6 +1034,50 @@ class AdminMvpService:
                 )
             )
 
+            if normalized_action == "shutdown":
+                try:
+                    terminal_audit_id = self._append_runtime_control_audit(
+                        spec=spec,
+                        context=context,
+                        status=AdminApiCommandStatus.ACCEPTED,
+                        failure_stage=None,
+                        message=(
+                            "Runtime shutdown receipt durably accepted; "
+                            "drain ownership is queued after the HTTP response."
+                        ),
+                    )
+                    response = self._runtime_control_response(
+                        action=normalized_action,
+                        spec=spec,
+                        context=context,
+                        before=before,
+                        after=before,
+                        status=AdminMvpCommandStatus.ACCEPTED.value,
+                        message=(
+                            "Runtime shutdown is queued for response-safe "
+                            "background ownership."
+                        ),
+                        transition_applied=False,
+                        accepted=True,
+                        audit_id=terminal_audit_id,
+                        attempt_audit_id=attempt_audit_id,
+                        shutdown_queued=True,
+                        drain_timeout_seconds=_runtime_shutdown_timeout(body),
+                    )
+                    self.idempotency_store.put_record(
+                        IdempotencyRecord(
+                            idempotency_key=context.idempotency_key,
+                            payload_hash=payload_hash,
+                            status=AdminApiCommandStatus.ACCEPTED,
+                            response=response,
+                            actor_id=context.actor_id,
+                            endpoint=f"POST {spec['route']}",
+                        )
+                    )
+                except Exception:
+                    return self._result(503, unknown_response, context)
+                return self._ok(response, context)
+
             try:
                 transition = self._runtime_transition(controller, normalized_action)
                 transition_applied = bool(transition())
@@ -1061,6 +1137,78 @@ class AdminMvpService:
                 return self._result(503, unknown_response, context)
             return self._ok(response, context)
 
+    def schedule_queued_runtime_shutdown(
+        self,
+        body: Mapping[str, Any],
+        context: AdminMvpRequestContext,
+    ) -> None:
+        """Transfer shutdown ownership to a separate bounded owner thread."""
+
+        timeout_seconds = _runtime_shutdown_timeout(body)
+        spec = ADMIN_RUNTIME_CONTROL_SPECS["shutdown"]
+
+        def owner() -> None:
+            try:
+                self._append_runtime_control_audit(
+                    spec=spec,
+                    context=context,
+                    status=AdminApiCommandStatus.REJECTED,
+                    failure_stage="runtime_shutdown_owner_started",
+                    message=(
+                        "Queued runtime shutdown owner started its bounded drain."
+                    ),
+                )
+                controller = self.dependencies.runtime_controller_factory()
+                drain_and_stop = getattr(controller, "drain_and_stop", None)
+                if not callable(drain_and_stop):
+                    raise RuntimeError("runtime drain owner unavailable")
+                result = drain_and_stop(timeout_seconds=timeout_seconds)
+                drained_clean = bool(getattr(result, "drained_clean", False))
+                self._append_runtime_control_audit(
+                    spec=spec,
+                    context=context,
+                    status=(
+                        AdminApiCommandStatus.ACCEPTED
+                        if drained_clean
+                        else AdminApiCommandStatus.REJECTED
+                    ),
+                    failure_stage=(
+                        None
+                        if drained_clean
+                        else "runtime_shutdown_drain_timeout"
+                    ),
+                    message=(
+                        "Queued runtime shutdown completed cleanly."
+                        if drained_clean
+                        else "Queued runtime shutdown completed after a bounded drain timeout."
+                    ),
+                )
+            except Exception:
+                try:
+                    self._append_runtime_control_audit(
+                        spec=spec,
+                        context=context,
+                        status=AdminApiCommandStatus.REJECTED,
+                        failure_stage="runtime_shutdown_owner_failed",
+                        message="Queued runtime shutdown owner failed with withheld detail.",
+                    )
+                except Exception:
+                    pass
+
+        try:
+            self.dependencies.runtime_shutdown_scheduler(owner)
+        except Exception:
+            try:
+                self._append_runtime_control_audit(
+                    spec=spec,
+                    context=context,
+                    status=AdminApiCommandStatus.REJECTED,
+                    failure_stage="runtime_shutdown_schedule_failed",
+                    message="Queued runtime shutdown owner could not be scheduled.",
+                )
+            except Exception:
+                pass
+
     def _append_runtime_control_audit(
         self,
         *,
@@ -1105,12 +1253,16 @@ class AdminMvpService:
         audit_id: str,
         attempt_audit_id: str | None = None,
         failure_stage: str | None = None,
+        shutdown_queued: bool = False,
+        drain_timeout_seconds: float | None = None,
     ) -> dict[str, Any]:
         """Build one typed, Coinbase-call-free runtime-control response."""
 
         runtime_state_mutated = (
             before["runtime_state"] != after["runtime_state"]
         )
+        drain_requested = action in {"drain", "shutdown"}
+        drain_executed = action == "drain" and accepted is True
         return {
             "type": "admin_runtime_control",
             "status": status,
@@ -1146,15 +1298,17 @@ class AdminMvpService:
             "runtime_state_after": after["runtime_state"],
             "transition_applied": transition_applied,
             "runtime_state_mutated": runtime_state_mutated,
-            "local_state_mutated": runtime_state_mutated,
+            "local_state_mutated": True,
             "order_state_mutated": False,
             "exchange_state_mutated": False,
             "coinbase_order_submitted": False,
             "coinbase_order_cancel_submitted": False,
             "live_exchange_submitted": False,
             "live_coinbase_read_ran": False,
-            "drain_requested": action == "shutdown",
-            "drain_executed": False,
+            "drain_requested": drain_requested,
+            "drain_executed": drain_executed,
+            "shutdown_queued": shutdown_queued,
+            "drain_timeout_seconds": drain_timeout_seconds,
             "read_only": False,
             "frontend_safe": True,
             "browser_authority": "display_only",
@@ -1290,6 +1444,322 @@ class AdminMvpService:
                 context,
             )
         return self._error(404, f"Admin MVP route not found: {normalized_path}", context)
+
+    def refresh_account_reality(
+        self,
+        body: Mapping[str, Any],
+        context: AdminMvpRequestContext,
+    ) -> AdminMvpApiResult:
+        """Claim and run one no-retry read of the approved account categories."""
+
+        product_scope = list(DEFAULT_SPOT_PRODUCT_SCOPE)
+        payload_hash = make_payload_hash(
+            {
+                "endpoint": f"POST {ACCOUNT_REALITY_REFRESH_ROUTE}",
+                "actor_id": context.actor_id,
+                "roles": list(context.roles),
+                "operator_intent": context.operator_intent,
+                "body": dict(body),
+                "product_scope": product_scope,
+            }
+        )
+        with self.idempotency_store.command_execution(
+            idempotency_key=context.idempotency_key,
+        ):
+            check = self.idempotency_store.evaluate(
+                idempotency_key=context.idempotency_key,
+                payload_hash=payload_hash,
+            )
+            if (
+                check.decision == AdminApiIdempotencyDecision.REPLAY
+                and check.record is not None
+            ):
+                response = dict(check.record.response)
+                result = self._result(
+                    503 if response.get("status") == "outcome_unknown" else 200,
+                    response,
+                    context,
+                )
+                return AdminMvpApiResult(
+                    status_code=result.status_code,
+                    body=result.body,
+                    headers={**result.headers, "X-Idempotency-Replayed": "true"},
+                )
+            if check.decision == AdminApiIdempotencyDecision.CONFLICT:
+                return self._result(
+                    409,
+                    _account_reality_refresh_response(
+                        status="conflict",
+                        diagnostic_code=(
+                            "account_reality_refresh_idempotency_conflict"
+                        ),
+                        product_scope=product_scope,
+                        context=context,
+                    ),
+                    context,
+                )
+
+            now = self.dependencies.now_factory().astimezone(timezone.utc)
+            captured_at = now.isoformat()
+            fresh_until = (
+                now + timedelta(seconds=ACCOUNT_REALITY_REFRESH_TTL_SECONDS)
+            ).isoformat()
+            refresh_id = self.dependencies.uuid_factory()
+            try:
+                attempt_audit_id = self._append_account_reality_refresh_audit(
+                    context=context,
+                    status=AdminApiCommandStatus.REJECTED,
+                    failure_stage="account_reality_refresh_claimed",
+                    message=(
+                        "Account-reality refresh durably claimed; terminal "
+                        "outcome is pending."
+                    ),
+                    live_coinbase_read_ran=False,
+                )
+                unknown_response = _account_reality_refresh_response(
+                    status="outcome_unknown",
+                    diagnostic_code="account_reality_refresh_outcome_unknown",
+                    refresh_id=refresh_id,
+                    captured_at=captured_at,
+                    fresh_until=fresh_until,
+                    product_scope=product_scope,
+                    context=context,
+                    audit_id=attempt_audit_id,
+                    local_state_mutated=True,
+                )
+                self.idempotency_store.put_record(
+                    IdempotencyRecord(
+                        idempotency_key=context.idempotency_key,
+                        payload_hash=payload_hash,
+                        status=AdminApiCommandStatus.REJECTED,
+                        response=unknown_response,
+                        actor_id=context.actor_id,
+                        endpoint=f"POST {ACCOUNT_REALITY_REFRESH_ROUTE}",
+                    )
+                )
+            except Exception:
+                response = _account_reality_refresh_response(
+                    status="outcome_unknown",
+                    diagnostic_code="account_reality_refresh_claim_persist_failed",
+                    refresh_id=refresh_id,
+                    captured_at=captured_at,
+                    fresh_until=fresh_until,
+                    product_scope=product_scope,
+                    context=context,
+                )
+                return self._result(503, response, context)
+
+            response: dict[str, Any] | None = None
+            reads_started = False
+            try:
+                progress_audit_id = self._append_account_reality_refresh_audit(
+                    context=context,
+                    status=AdminApiCommandStatus.REJECTED,
+                    failure_stage="account_reality_refresh_reads_may_have_run",
+                    message=(
+                        "Account-reality refresh entered its no-retry read "
+                        "boundary; read outcome is conservatively unknown."
+                    ),
+                    live_coinbase_read_ran=True,
+                )
+                progress_unknown = _account_reality_refresh_response(
+                    status="outcome_unknown",
+                    diagnostic_code="account_reality_refresh_outcome_unknown",
+                    refresh_id=refresh_id,
+                    captured_at=captured_at,
+                    fresh_until=fresh_until,
+                    product_scope=product_scope,
+                    context=context,
+                    audit_id=progress_audit_id,
+                    live_coinbase_read_ran=True,
+                    local_state_mutated=True,
+                )
+                self.idempotency_store.put_record(
+                    IdempotencyRecord(
+                        idempotency_key=context.idempotency_key,
+                        payload_hash=payload_hash,
+                        status=AdminApiCommandStatus.REJECTED,
+                        response=progress_unknown,
+                        actor_id=context.actor_id,
+                        endpoint=f"POST {ACCOUNT_REALITY_REFRESH_ROUTE}",
+                    )
+                )
+                reads_started = True
+                response, projection = _read_account_reality_categories(
+                    rest_client=(
+                        self.dependencies.rest_client
+                        if self.dependencies.rest_client_available
+                        else None
+                    ),
+                    context=context,
+                    refresh_id=refresh_id,
+                    captured_at=captured_at,
+                    fresh_until=fresh_until,
+                    product_scope=product_scope,
+                    attempt_audit_id=attempt_audit_id,
+                )
+                terminal_observed_at = (
+                    self.dependencies.now_factory().astimezone(timezone.utc)
+                )
+                if terminal_observed_at >= datetime.fromisoformat(fresh_until):
+                    _expire_account_reality_refresh_evidence(response, projection)
+                terminal_status = (
+                    AdminApiCommandStatus.ACCEPTED
+                    if response["status"] == "ready"
+                    else AdminApiCommandStatus.REJECTED
+                )
+                terminal_audit_id = str(uuid.uuid4())
+                response["audit"] = {
+                    **dict(response["audit"]),
+                    "audit_id": terminal_audit_id,
+                    "attempt_audit_id": attempt_audit_id,
+                }
+                record = {
+                    "refresh_id": refresh_id,
+                    "captured_at": captured_at,
+                    "fresh_until": fresh_until,
+                    "terminal": True,
+                    "terminal_audit_id": terminal_audit_id,
+                    "response": response,
+                    "projection": projection,
+                }
+                self._persist_record(
+                    "account_reality_refreshes",
+                    refresh_id,
+                    record,
+                )
+                self.idempotency_store.put_record(
+                    IdempotencyRecord(
+                        idempotency_key=context.idempotency_key,
+                        payload_hash=payload_hash,
+                        status=terminal_status,
+                        response=response,
+                        actor_id=context.actor_id,
+                        endpoint=f"POST {ACCOUNT_REALITY_REFRESH_ROUTE}",
+                    )
+                )
+                self._append_account_reality_refresh_audit(
+                    context=context,
+                    status=terminal_status,
+                    failure_stage=(
+                        None
+                        if response["status"] == "ready"
+                        else "account_reality_refresh_blocked"
+                    ),
+                    message=(
+                        "Account-reality refresh completed with ready evidence."
+                        if response["status"] == "ready"
+                        else "Account-reality refresh completed with fixed blocked evidence."
+                    ),
+                    live_coinbase_read_ran=bool(
+                        response["live_coinbase_read_ran"]
+                    ),
+                    audit_id=terminal_audit_id,
+                )
+                self.store.account_reality_refreshes[refresh_id] = record
+            except Exception:
+                observed_read = (
+                    bool(response.get("live_coinbase_read_ran"))
+                    if isinstance(response, Mapping)
+                    else reads_started
+                )
+                quarantine_audit_id = attempt_audit_id
+                try:
+                    quarantine_audit_id = self._append_account_reality_refresh_audit(
+                        context=context,
+                        status=AdminApiCommandStatus.REJECTED,
+                        failure_stage=(
+                            "account_reality_refresh_terminal_quarantined"
+                        ),
+                        message=(
+                            "Account-reality refresh terminal publication failed; "
+                            "the claimed outcome remains unknown and quarantined."
+                        ),
+                        live_coinbase_read_ran=observed_read,
+                    )
+                except Exception:
+                    pass
+                progress_unknown = _account_reality_refresh_response(
+                    status="outcome_unknown",
+                    diagnostic_code="account_reality_refresh_outcome_unknown",
+                    refresh_id=refresh_id,
+                    captured_at=captured_at,
+                    fresh_until=fresh_until,
+                    product_scope=product_scope,
+                    categories=(
+                        _mapping(response.get("categories"))
+                        if isinstance(response, Mapping)
+                        else {}
+                    ),
+                    context=context,
+                    audit_id=quarantine_audit_id,
+                    live_coinbase_read_ran=observed_read,
+                    local_state_mutated=True,
+                )
+                try:
+                    self.idempotency_store.put_record(
+                        IdempotencyRecord(
+                            idempotency_key=context.idempotency_key,
+                            payload_hash=payload_hash,
+                            status=AdminApiCommandStatus.REJECTED,
+                            response=progress_unknown,
+                            actor_id=context.actor_id,
+                            endpoint=f"POST {ACCOUNT_REALITY_REFRESH_ROUTE}",
+                        )
+                    )
+                except Exception:
+                    pass
+                quarantine_record = {
+                    "refresh_id": refresh_id,
+                    "captured_at": captured_at,
+                    "fresh_until": fresh_until,
+                    "terminal": False,
+                    "quarantined": True,
+                    "response": progress_unknown,
+                    "projection": {},
+                }
+                try:
+                    self._persist_record(
+                        "account_reality_refreshes",
+                        refresh_id,
+                        quarantine_record,
+                    )
+                except Exception:
+                    pass
+                self.store.account_reality_refreshes.pop(refresh_id, None)
+                return self._result(503, progress_unknown, context)
+            return self._ok(response, context)
+
+    def _append_account_reality_refresh_audit(
+        self,
+        *,
+        context: AdminMvpRequestContext,
+        status: AdminApiCommandStatus,
+        failure_stage: str | None,
+        message: str,
+        live_coinbase_read_ran: bool,
+        audit_id: str | None = None,
+    ) -> str:
+        event_values: dict[str, Any] = {
+            "actor_id": context.actor_id,
+            "action_class": AdminApiActionClass.LOCAL_STATE_MUTATION,
+            "permission": AdminApiPermission.ACCOUNT_REALITY_REFRESH,
+            "endpoint": f"POST {ACCOUNT_REALITY_REFRESH_ROUTE}",
+            "request_id": context.correlation_id,
+            "operator_intent": context.operator_intent,
+            "idempotency_key": context.idempotency_key,
+            "live_exchange_submitted": False,
+            "live_coinbase_orders_ran": False,
+            "live_coinbase_read_ran": live_coinbase_read_ran,
+            "status": status,
+            "failure_stage": failure_stage,
+            "message": message,
+        }
+        if audit_id is not None:
+            event_values["audit_id"] = audit_id
+        return self.audit_store.append(
+            AdminApiAuditEvent(**event_values)
+        )
 
     def record_live_service_decision(
         self,
@@ -5977,7 +6447,34 @@ class AdminMvpService:
     def _operator_local_account_snapshot(self) -> dict[str, Any]:
         """Return call-free local evidence for ordinary operator reads."""
 
-        return _source_disabled_operator_account_snapshot(self._now_iso())
+        latest = _latest_record(self.store.account_reality_refreshes)
+        projection = _mapping(latest.get("projection")) if latest else {}
+        if not projection or latest.get("terminal") is not True:
+            return _source_disabled_operator_account_snapshot(self._now_iso())
+
+        snapshot = json.loads(json.dumps(projection, sort_keys=True, default=str))
+        account_reality = snapshot.setdefault("account_reality", {})
+        proof_origin_read_ran = bool(account_reality.get("coinbase_read_ran"))
+        account_reality["proof_origin_coinbase_read_ran"] = proof_origin_read_ran
+        account_reality["coinbase_read_ran"] = False
+        snapshot["coinbase_read_enabled"] = False
+        snapshot["coinbase_read_ran"] = False
+
+        fresh_until = str(
+            account_reality.get("fresh_until")
+            or latest.get("fresh_until")
+            or ""
+        )
+        try:
+            expires_at = datetime.fromisoformat(fresh_until.replace("Z", "+00:00"))
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            stale = self.dependencies.now_factory().astimezone(timezone.utc) >= expires_at
+        except (TypeError, ValueError):
+            stale = True
+        if stale:
+            _mark_account_reality_snapshot_stale(snapshot)
+        return snapshot
 
     def _account_snapshot(self) -> dict[str, Any]:
         """Read Coinbase account state only from an explicit live action path."""
@@ -6495,7 +6992,7 @@ class AdminMvpService:
         method_name_by_action = {
             "pause": "request_pause",
             "resume": "resume",
-            "shutdown": "request_shutdown",
+            "drain": "request_shutdown",
         }
         transition = getattr(controller, method_name_by_action[action], None)
         if callable(transition):
@@ -6522,14 +7019,25 @@ class AdminMvpService:
         }
 
     def _admin_session(self, context: AdminMvpRequestContext) -> dict[str, Any]:
+        roles = [AdminApiRole(role) for role in context.roles]
+        permissions: set[AdminApiPermission] = set()
+        for role in roles:
+            permissions.update(ROLE_PERMISSIONS.get(role, frozenset()))
         return {
             "type": "admin_session",
-            "status": "authenticated",
-            "session_status": "authenticated",
-            "actor": {"actor_id": context.actor_id, "roles": list(context.roles)},
-            "actor_id": context.actor_id,
-            "roles": list(context.roles),
-            "auth_mode": "bootstrap_bearer",
+            "status": AdminApiSessionStatus.SIGNED_IN.value,
+            "actor": {
+                "actor_id": context.actor_id,
+                "roles": [role.value for role in roles],
+            },
+            "permissions": [
+                permission.value
+                for permission in sorted(
+                    permissions,
+                    key=lambda permission: permission.value,
+                )
+            ],
+            "auth_mode": AdminApiAuthMode.BOOTSTRAP_BEARER.value,
             "bearer_token_visible_to_browser": False,
             "live_coinbase_orders_ran": False,
         }
@@ -6566,7 +7074,11 @@ class AdminMvpService:
         snapshot = self._operator_local_account_snapshot()
         return {
             "type": "admin_account_management",
-            "status": "warning",
+            "status": (
+                "ready"
+                if snapshot["account_reality"].get("status") == "ready"
+                else "warning"
+            ),
             "module_id": ACCOUNT_MANAGEMENT_MODULE_ID,
             "environment": self._account_management_environment(),
             "operator": {
@@ -6653,8 +7165,16 @@ class AdminMvpService:
         context: AdminMvpRequestContext,
     ) -> dict[str, Any]:
         product_ids = _admin_product_scope(query)
+        snapshot = self._operator_local_account_snapshot()
+        stored_products = {
+            str(row.get("product_id") or ""): row
+            for row in snapshot.get("products", [])
+            if isinstance(row, Mapping) and row.get("product_id")
+        }
         rows = [
-            _blocked_admin_product_row(
+            dict(stored_products[product_id])
+            if product_id in stored_products
+            else _blocked_admin_product_row(
                 product_id,
                 COINBASE_PAGE_LOAD_READ_NOT_AUTHORIZED,
             )
@@ -6727,9 +7247,12 @@ class AdminMvpService:
         return metadata, None
 
     def _admin_fees(self, context: AdminMvpRequestContext) -> dict[str, Any]:
-        snapshot = _blocked_admin_fee_evidence(
-            COINBASE_PAGE_LOAD_READ_NOT_AUTHORIZED
-        )
+        account_snapshot = self._operator_local_account_snapshot()
+        snapshot = dict(_mapping(account_snapshot.get("fees")))
+        if not snapshot:
+            snapshot = _blocked_admin_fee_evidence(
+                COINBASE_PAGE_LOAD_READ_NOT_AUTHORIZED
+            )
         return {
             "type": "admin_fee_evidence",
             "status": snapshot["status"],
@@ -6899,12 +7422,22 @@ class AdminMvpService:
         self,
         context: AdminMvpRequestContext,
     ) -> dict[str, Any]:
+        refresh_allowed = bool(
+            {"operator", "trader", "admin"}.intersection(context.roles)
+        )
         return {
             "actor_id": context.actor_id,
             "roles": list(context.roles),
             "required_permission": "analytics:read",
             "permission_status": "visible",
-            "mutation_permissions_granted": [],
+            "account_reality_refresh_allowed": refresh_allowed,
+            "account_reality_refresh_route": ACCOUNT_REALITY_REFRESH_ROUTE,
+            "account_reality_refresh_permission": (
+                ACCOUNT_REALITY_REFRESH_PERMISSION
+            ),
+            "mutation_permissions_granted": (
+                [ACCOUNT_REALITY_REFRESH_PERMISSION] if refresh_allowed else []
+            ),
         }
 
     def _account_management_prerequisites(
@@ -7636,12 +8169,23 @@ class AdminMvpService:
     def _spot_readiness(self, query: Mapping[str, Any]) -> dict[str, Any]:
         snapshot = self._operator_local_account_snapshot()
         spot_admission_input = _spot_admission_input_from_snapshot(snapshot)
+        stored_products = {
+            str(row.get("product_id") or ""): row
+            for row in snapshot.get("products", [])
+            if isinstance(row, Mapping) and row.get("product_id")
+        }
+        requested_product_ids = (
+            _query_values(query, "product_id")
+            or list(DEFAULT_SPOT_PRODUCT_SCOPE)
+        )
         product_rows = [
-            _blocked_admin_product_row(
+            dict(stored_products[product_id])
+            if product_id in stored_products
+            else _blocked_admin_product_row(
                 product_id,
                 COINBASE_PAGE_LOAD_READ_NOT_AUTHORIZED,
             )
-            for product_id in _query_values(query, "product_id")
+            for product_id in requested_product_ids
         ]
         products = _spot_readiness_products(product_rows, snapshot)
         return {
@@ -7654,6 +8198,9 @@ class AdminMvpService:
             "account_readiness": snapshot["readiness"],
             "spot_admission_input": spot_admission_input,
             "products": products,
+            "configured_product_scope": list(DEFAULT_SPOT_PRODUCT_SCOPE),
+            "captured_at": snapshot["account_reality"].get("generated_at"),
+            "fresh_until": snapshot["account_reality"].get("fresh_until"),
             "planned_budget": _spot_readiness_planned_budget(),
             "wallet_snapshot": _spot_readiness_wallet_snapshot(snapshot, spot_admission_input),
             "action_guard_summary": _spot_readiness_guard_summary(
@@ -7666,6 +8213,8 @@ class AdminMvpService:
             "bff_authority": "read_only_forward",
             "coinbase_read_enabled": snapshot["coinbase_read_enabled"],
             "live_coinbase_read_ran": snapshot["coinbase_read_ran"],
+            "external_state_refresh_available": True,
+            "external_state_refresh_route": ACCOUNT_REALITY_REFRESH_ROUTE,
             "command_routes_mode": "backend_admin_api",
             **self._live_outputs(False, Decimal("0")),
         }
@@ -9241,6 +9790,20 @@ class AdminMvpService:
                 live_enabled=False,
                 module_id=ACCOUNT_MANAGEMENT_MODULE_ID,
             ),
+            _command_capability(
+                route=ACCOUNT_REALITY_REFRESH_ROUTE,
+                action_class="local_state_mutation",
+                required_permission=ACCOUNT_REALITY_REFRESH_PERMISSION,
+                shared_method=ACCOUNT_REALITY_REFRESH_SERVICE_METHOD,
+                live_enabled=False,
+                module_id=ACCOUNT_MANAGEMENT_MODULE_ID,
+                approval="not_required",
+                caps="not_required",
+                detail=(
+                    "Explicit bounded online read; durable idempotency and "
+                    "audit are required, with no exchange execution."
+                ),
+            ),
             *(
                 _command_capability(
                     route=str(spec["route"]),
@@ -9876,6 +10439,727 @@ def _object_to_dict(value: Any) -> dict[str, Any]:
     return {}
 
 
+def _account_reality_refresh_response(
+    *,
+    status: str,
+    diagnostic_code: str | None,
+    product_scope: Sequence[str],
+    context: AdminMvpRequestContext,
+    refresh_id: str | None = None,
+    captured_at: str | None = None,
+    fresh_until: str | None = None,
+    admission_ready: bool = False,
+    categories: Mapping[str, Mapping[str, Any]] | None = None,
+    account_reality: Mapping[str, Any] | None = None,
+    portfolio_scope: Mapping[str, Any] | None = None,
+    wallet_inventory: Mapping[str, Any] | None = None,
+    wallets: Sequence[Mapping[str, Any]] | None = None,
+    products: Sequence[Mapping[str, Any]] | None = None,
+    market: Sequence[Mapping[str, Any]] | None = None,
+    fees: Mapping[str, Any] | None = None,
+    audit_id: str | None = None,
+    live_coinbase_read_ran: bool = False,
+    local_state_mutated: bool = False,
+) -> dict[str, Any]:
+    """Build the fixed public response without raw Coinbase values."""
+
+    return {
+        "type": "admin_account_reality_refresh",
+        "status": status,
+        "diagnostic_code": diagnostic_code,
+        "refresh_id": refresh_id,
+        "captured_at": captured_at,
+        "fresh_until": fresh_until,
+        "admission_ready": admission_ready,
+        "product_scope": list(product_scope),
+        "categories": {
+            str(key): dict(value) for key, value in (categories or {}).items()
+        },
+        "account_reality": dict(account_reality or {}),
+        "portfolio_scope": dict(portfolio_scope or {}),
+        "wallet_inventory": dict(wallet_inventory or {}),
+        "wallets": [dict(row) for row in (wallets or [])],
+        "products": [dict(row) for row in (products or [])],
+        "market": [dict(row) for row in (market or [])],
+        "fees": dict(fees or {}),
+        "audit": {
+            "correlation_id": context.correlation_id,
+            "idempotency_key": context.idempotency_key,
+            "operator_intent": context.operator_intent,
+            "audit_id": audit_id,
+            "audit_surface": ACCOUNT_REALITY_REFRESH_ROUTE,
+        },
+        "read_only": False,
+        "local_state_mutated": local_state_mutated,
+        "exchange_state_mutated": False,
+        "live_exchange_submitted": False,
+        "live_coinbase_read_ran": live_coinbase_read_ran,
+        "live_coinbase_orders_ran": False,
+        "live_coinbase_execution": "not_run",
+        "notional_usdc": "0",
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+    }
+
+
+def _expire_account_reality_refresh_evidence(
+    response: dict[str, Any],
+    projection: dict[str, Any],
+) -> None:
+    """Fail terminal readiness closed when the bounded reads outlive their TTL."""
+
+    _mark_account_reality_snapshot_stale(projection)
+    response.update(
+        {
+            "status": "blocked",
+            "diagnostic_code": "account_reality_refresh_expired",
+            "admission_ready": False,
+            "account_reality": dict(_mapping(projection.get("account_reality"))),
+            "portfolio_scope": dict(_mapping(projection.get("portfolio_scope"))),
+            "wallet_inventory": dict(_mapping(projection.get("wallet_inventory"))),
+            "wallets": [
+                dict(row)
+                for row in projection.get("wallets", [])
+                if isinstance(row, Mapping)
+            ],
+            "products": [
+                dict(row)
+                for row in projection.get("products", [])
+                if isinstance(row, Mapping)
+            ],
+            "market": [
+                dict(row)
+                for row in projection.get("market", [])
+                if isinstance(row, Mapping)
+            ],
+            "fees": dict(_mapping(projection.get("fees"))),
+        }
+    )
+
+
+def _account_refresh_invoke(
+    client: Any,
+    method_name: str,
+    *,
+    category: str,
+    categories: dict[str, dict[str, Any]],
+    args: tuple[Any, ...] = (),
+    kwargs: Mapping[str, Any] | None = None,
+) -> tuple[Any, bool]:
+    """Invoke one logical category once and emit only fixed diagnostics."""
+
+    method = getattr(client, method_name, None) if client is not None else None
+    if not callable(method):
+        categories[category] = {
+            "status": "blocked",
+            "complete": False,
+            "logical_call_count": 0,
+            "http_request_count": 0,
+            "blocker": f"{category}_read_unavailable",
+        }
+        return None, False
+    try:
+        value = method(*args, **dict(kwargs or {}))
+    except Exception as exc:
+        transport_blocked_before_request = (
+            isinstance(exc, ValueError)
+            and str(exc).startswith("coinbase_sdk_transport_")
+        )
+        categories[category] = {
+            "status": "blocked",
+            "complete": False,
+            "logical_call_count": 1,
+            "http_request_count": (
+                0 if transport_blocked_before_request else 1
+            ),
+            "blocker": f"{category}_read_failed",
+        }
+        return None, False
+    categories[category] = {
+        "status": "ready",
+        "complete": True,
+        "logical_call_count": 1,
+        "http_request_count": 1,
+        "blocker": None,
+    }
+    return value, True
+
+
+def _strict_refresh_value(value: Any, field_name: str, default: Any) -> Any:
+    if isinstance(value, Mapping):
+        return value.get(field_name, default)
+    return getattr(value, field_name, default)
+
+
+def _account_refresh_market_rows(
+    value: Any,
+    product_scope: Sequence[str],
+) -> list[dict[str, Any]]:
+    data = _mapping(value)
+    raw_rows = data.get("pricebooks")
+    if not isinstance(raw_rows, list):
+        return []
+    allowed = set(product_scope)
+    seen: set[str] = set()
+    rows: list[dict[str, Any]] = []
+    for raw_row in raw_rows:
+        row = _object_to_dict(raw_row)
+        product_id = str(row.get("product_id") or "").strip()
+        if not product_id or product_id not in allowed or product_id in seen:
+            return []
+        bids = row.get("bids")
+        asks = row.get("asks")
+        bid = _object_to_dict(bids[0]) if isinstance(bids, list) and bids else {}
+        ask = _object_to_dict(asks[0]) if isinstance(asks, list) and asks else {}
+        best_bid = _optional_text(bid.get("price"))
+        best_ask = _optional_text(ask.get("price"))
+        if best_bid is None or best_ask is None:
+            return []
+        try:
+            bid_value = Decimal(best_bid)
+            ask_value = Decimal(best_ask)
+        except (InvalidOperation, ValueError):
+            return []
+        if (
+            not bid_value.is_finite()
+            or not ask_value.is_finite()
+            or bid_value <= 0
+            or ask_value <= 0
+            or bid_value > ask_value
+        ):
+            return []
+        rows.append(
+            {
+                "product_id": product_id,
+                "best_bid": best_bid,
+                "best_ask": best_ask,
+                "observed_at": _optional_text(row.get("time")),
+                "source": BACKEND_REST_CLIENT_SOURCE,
+                "read_status": "ready",
+            }
+        )
+        seen.add(product_id)
+    return rows
+
+
+def _account_refresh_positive_decimal(value: Any) -> bool:
+    try:
+        parsed = Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        return False
+    return parsed.is_finite() and parsed > 0
+
+
+def _account_refresh_product_row_valid(row: Mapping[str, Any]) -> bool:
+    product_id = str(row.get("product_id") or "").strip().upper()
+    if product_id not in DEFAULT_SPOT_PRODUCT_SCOPE:
+        return False
+    expected_base, expected_quote = product_id.split("-", 1)
+    status = str(row.get("status") or "").strip().upper()
+    return bool(
+        row.get("read_status") == "ready"
+        and row.get("product_type") == "SPOT"
+        and row.get("product_family") == "spot"
+        and str(row.get("base_currency") or "").strip().upper() == expected_base
+        and str(row.get("quote_currency") or "").strip().upper() == expected_quote
+        and status == "ONLINE"
+        and not any(
+            bool(row.get(flag))
+            for flag in (
+                "trading_disabled",
+                "is_disabled",
+                "cancel_only",
+                "view_only",
+                "auction_mode",
+            )
+        )
+        and all(
+            _account_refresh_positive_decimal(row.get(field))
+            for field in (
+                "base_increment",
+                "quote_increment",
+                "price_increment",
+                "base_min_size",
+                "quote_min_size",
+            )
+        )
+    )
+
+
+def _account_refresh_fee_valid(snapshot: Mapping[str, Any]) -> bool:
+    fee_tier = _mapping(snapshot.get("fee_tier"))
+    try:
+        maker = Decimal(str(fee_tier.get("maker_fee_rate")))
+        taker = Decimal(str(fee_tier.get("taker_fee_rate")))
+    except (InvalidOperation, ValueError):
+        return False
+    return bool(
+        fee_tier.get("status") == "ready"
+        and maker.is_finite()
+        and taker.is_finite()
+        and Decimal("0") <= maker < Decimal("1")
+        and Decimal("0") <= taker < Decimal("1")
+    )
+
+
+def _account_refresh_first_blocker(
+    categories: Mapping[str, Mapping[str, Any]],
+    binding: Mapping[str, Any],
+) -> str:
+    for evidence in categories.values():
+        blocker = str(evidence.get("blocker") or "").strip()
+        if blocker:
+            return blocker
+    binding_blocker = str(binding.get("blocker") or "").strip()
+    return binding_blocker or "account_reality_refresh_incomplete"
+
+
+def _read_account_reality_categories(
+    *,
+    rest_client: Any,
+    context: AdminMvpRequestContext,
+    refresh_id: str,
+    captured_at: str,
+    fresh_until: str,
+    product_scope: list[str],
+    attempt_audit_id: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Read only the six approved categories and return sanitized evidence."""
+
+    categories: dict[str, dict[str, Any]] = {}
+    expected_portfolio_id = str(
+        os.environ.get(SPOT_PORTFOLIO_ID_ENV) or ""
+    ).strip()
+    permissions: Any = None
+    portfolios: Any = None
+    permissions_complete = False
+    portfolios_complete = False
+    strict_wallets: Any = None
+    wallets_call_complete = False
+    products_value: Any = None
+    products_call_complete = False
+    market_value: Any = None
+    market_call_complete = False
+    fee_value: Any = None
+    fee_call_complete = False
+
+    if not expected_portfolio_id:
+        for category in (
+            "api_key_permissions",
+            "portfolio_catalog",
+            "wallets",
+            "product_metadata",
+            "best_bid_ask",
+            "fee_summary",
+        ):
+            categories[category] = {
+                "status": "blocked",
+                "complete": False,
+                "logical_call_count": 0,
+                "http_request_count": 0,
+                "blocker": "approved_test_portfolio_not_configured",
+            }
+    else:
+        permissions, permissions_complete = _account_refresh_invoke(
+            rest_client,
+            "get_api_key_permissions",
+            category="api_key_permissions",
+            categories=categories,
+        )
+        portfolios, portfolios_complete = _account_refresh_invoke(
+            rest_client,
+            "list_portfolios",
+            category="portfolio_catalog",
+            categories=categories,
+        )
+
+    internal_binding = _spot_test_profile_binding_evidence(
+        permissions=permissions,
+        portfolios=portfolios,
+        expected_portfolio_id=expected_portfolio_id,
+        expected_portfolio_label=(
+            os.environ.get(SPOT_PORTFOLIO_LABEL_ENV, "").strip()
+            or DEFAULT_SPOT_PORTFOLIO_LABEL
+        ),
+        permissions_read=permissions_complete,
+        portfolio_catalog_read=portfolios_complete,
+        permissions_error=(
+            None
+            if permissions_complete
+            else categories["api_key_permissions"]["blocker"]
+        ),
+        portfolio_catalog_error=(
+            None
+            if portfolios_complete
+            else categories["portfolio_catalog"]["blocker"]
+        ),
+    )
+    spot_binding = serialize_public_spot_portfolio_scope(internal_binding)
+
+    if internal_binding.get("ready") is True:
+        strict_wallets, wallets_call_complete = _account_refresh_invoke(
+            rest_client,
+            "get_account_wallets_strict",
+            category="wallets",
+            categories=categories,
+        )
+    elif expected_portfolio_id:
+        for category in (
+            "wallets",
+            "product_metadata",
+            "best_bid_ask",
+            "fee_summary",
+        ):
+            categories[category] = {
+                "status": "blocked",
+                "complete": False,
+                "logical_call_count": 0,
+                "http_request_count": 0,
+                "blocker": "approved_test_portfolio_binding_blocked",
+            }
+
+    wallet_complete = bool(
+        wallets_call_complete
+        and _strict_refresh_value(strict_wallets, "complete", False)
+    )
+    wallet_request_count = int(
+        _strict_refresh_value(
+            strict_wallets,
+            "request_count",
+            categories["wallets"]["http_request_count"],
+        )
+        or 0
+    )
+    categories["wallets"]["http_request_count"] = wallet_request_count
+    if wallets_call_complete and not wallet_complete:
+        strict_blocker = str(
+            _strict_refresh_value(strict_wallets, "blocker", "") or ""
+        )
+        if strict_blocker == "account_transport_policy_invalid":
+            wallet_blocker = "wallet_transport_policy_invalid"
+        elif strict_blocker in {
+            "account_row_invalid",
+            "account_currency_duplicate",
+            "account_balance_invalid",
+        }:
+            wallet_blocker = "wallet_inventory_invalid"
+        elif strict_blocker == "account_page_read_failed":
+            wallet_blocker = "wallet_inventory_read_failed"
+        else:
+            wallet_blocker = "wallet_inventory_pagination_incomplete"
+        categories["wallets"].update(
+            {
+                "status": "blocked",
+                "complete": False,
+                "blocker": wallet_blocker,
+            }
+        )
+    wallet_values = (
+        _strict_refresh_value(strict_wallets, "wallets", {})
+        if wallet_complete
+        else {}
+    )
+    wallets = _normalize_wallets(wallet_values)
+
+    wallet_portfolio_ids = {
+        str(item).strip()
+        for item in (
+            _strict_refresh_value(strict_wallets, "portfolio_ids", ()) or ()
+        )
+        if str(item or "").strip()
+    }
+    if wallet_complete and wallet_portfolio_ids != {expected_portfolio_id}:
+        wallet_complete = False
+        wallets = []
+        categories["wallets"].update(
+            {
+                "status": "blocked",
+                "complete": False,
+                "blocker": "wallet_inventory_portfolio_scope_mismatch",
+            }
+        )
+
+    if internal_binding.get("ready") is True and wallet_complete:
+        products_value, products_call_complete = _account_refresh_invoke(
+            rest_client,
+            "get_products_batch",
+            category="product_metadata",
+            categories=categories,
+            args=(product_scope,),
+        )
+        market_value, market_call_complete = _account_refresh_invoke(
+            rest_client,
+            "get_best_bid_ask",
+            category="best_bid_ask",
+            categories=categories,
+            kwargs={"product_ids": product_scope},
+        )
+        fee_value, fee_call_complete = _account_refresh_invoke(
+            rest_client,
+            "get_spot_transaction_summary",
+            category="fee_summary",
+            categories=categories,
+        )
+    elif internal_binding.get("ready") is True:
+        for category in (
+            "product_metadata",
+            "best_bid_ask",
+            "fee_summary",
+        ):
+            categories[category] = {
+                "status": "blocked",
+                "complete": False,
+                "logical_call_count": 0,
+                "http_request_count": 0,
+                "blocker": "wallet_inventory_scope_blocked",
+            }
+
+    product_mapping = (
+        dict(products_value)
+        if products_call_complete and isinstance(products_value, Mapping)
+        else {}
+    )
+    product_complete = bool(
+        products_call_complete and set(product_mapping) == set(product_scope)
+    )
+    if products_call_complete and not product_complete:
+        categories["product_metadata"].update(
+            {
+                "status": "blocked",
+                "complete": False,
+                "blocker": "product_metadata_scope_incomplete",
+            }
+        )
+    product_rows = [
+        _admin_product_metadata_row(
+            product_id,
+            _mapping(product_mapping.get(product_id)),
+        )
+        for product_id in product_scope
+        if product_id in product_mapping
+    ]
+    if product_complete and not all(
+        _account_refresh_product_row_valid(row) for row in product_rows
+    ):
+        product_complete = False
+        categories["product_metadata"].update(
+            {
+                "status": "blocked",
+                "complete": False,
+                "blocker": "product_metadata_values_invalid",
+            }
+        )
+
+    market_rows = (
+        _account_refresh_market_rows(market_value, product_scope)
+        if market_call_complete
+        else []
+    )
+    market_complete = bool(
+        market_call_complete
+        and {row["product_id"] for row in market_rows} == set(product_scope)
+    )
+    if market_call_complete and not market_complete:
+        categories["best_bid_ask"].update(
+            {
+                "status": "blocked",
+                "complete": False,
+                "blocker": "best_bid_ask_scope_incomplete",
+            }
+        )
+    market_by_product = {row["product_id"]: row for row in market_rows}
+    product_rows = [
+        {
+            **row,
+            "best_bid": _mapping(market_by_product.get(row["product_id"])).get(
+                "best_bid"
+            ),
+            "best_ask": _mapping(market_by_product.get(row["product_id"])).get(
+                "best_ask"
+            ),
+            "market_observed_at": _mapping(
+                market_by_product.get(row["product_id"])
+            ).get("observed_at"),
+        }
+        for row in product_rows
+    ]
+
+    fee_snapshot = _admin_fee_evidence_snapshot(
+        fee_value,
+        summary_read=fee_call_complete,
+        read_error=None if fee_call_complete else "fee_summary_read_failed",
+        require_nested_spot_fee_tier=True,
+    )
+    futures_fee_tier = _blocked_admin_fee_tier(
+        "futures_coinbase_read_not_authorized"
+    )
+    fee_snapshot["futures_fee_input"] = _futures_fee_input(futures_fee_tier)
+    fee_snapshot["perpetuals_volume_30day"] = {
+        **_admin_fee_money(None),
+        "status": "blocked",
+        "read_error": "futures_coinbase_read_not_authorized",
+    }
+    fee_complete = bool(
+        fee_call_complete and _account_refresh_fee_valid(fee_snapshot)
+    )
+    if fee_call_complete and not fee_complete:
+        categories["fee_summary"].update(
+            {
+                "status": "blocked",
+                "complete": False,
+                "blocker": "fee_summary_evidence_incomplete",
+            }
+        )
+
+    wallet_inventory = _wallet_inventory_from_wallets(wallets)
+    if not wallet_complete:
+        wallet_inventory.update(
+            {
+                "status": "blocked",
+                "freshness_status": "account_reality_refresh_incomplete",
+                "error": categories["wallets"]["blocker"],
+                "quote_wallet_status": "blocked",
+                "quote_wallet_error": categories["wallets"]["blocker"],
+            }
+        )
+    spot_wallet_ready = bool(
+        wallet_complete
+        and _spot_admission_quote_ready(wallet_inventory)
+        and _account_refresh_positive_decimal(
+            wallet_inventory.get("available_notional_usdc")
+        )
+    )
+    spot_product_rows = [
+        row
+        for row in product_rows
+        if row.get("product_id") in DEFAULT_SPOT_PRODUCT_SCOPE
+    ]
+    spot_product_ready = bool(
+        spot_product_rows
+        and all(
+            row.get("read_status") == "ready"
+            and row.get("product_family") == "spot"
+            and not bool(row.get("trading_disabled"))
+            and row.get("best_bid") is not None
+            and row.get("best_ask") is not None
+            for row in spot_product_rows
+        )
+    )
+    categories_complete = all(
+        bool(item.get("complete")) for item in categories.values()
+    )
+    admission_ready = bool(
+        categories_complete
+        and internal_binding.get("ready") is True
+        and spot_wallet_ready
+        and spot_product_ready
+        and fee_complete
+    )
+    status = "ready" if admission_ready else "blocked"
+    diagnostic_code = (
+        None
+        if admission_ready
+        else _account_refresh_first_blocker(categories, internal_binding)
+    )
+    live_coinbase_read_ran = any(
+        int(item.get("logical_call_count") or 0) > 0
+        for item in categories.values()
+    )
+    source = (
+        BACKEND_REST_CLIENT_SOURCE
+        if live_coinbase_read_ran
+        else "backend_rest_unavailable"
+    )
+    readiness = {
+        "spot_account_ready": admission_ready,
+        "spot_wallet_inventory_ready": spot_wallet_ready,
+        "spot_test_profile_bound": internal_binding.get("ready") is True,
+        "futures_account_scope_ready": False,
+        "futures_default_profile_bound": False,
+        "futures_observed_position_scope_ready": False,
+        "futures_margin_collateral_ready": False,
+        "usable_for_spot_admission": admission_ready,
+        "usable_for_futures_risk": False,
+    }
+    account_reality = {
+        "status": status,
+        "source": source,
+        "proof_id": refresh_id,
+        "generated_at": captured_at,
+        "fresh_until": fresh_until,
+        "coinbase_read_ran": live_coinbase_read_ran,
+        "proof_origin_coinbase_read_ran": live_coinbase_read_ran,
+        "read_error": diagnostic_code or "none",
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+    }
+    portfolio_scope = {
+        "portfolio_id": "withheld",
+        "portfolio_name": str(
+            spot_binding.get("expected_portfolio_label")
+            or DEFAULT_SPOT_PORTFOLIO_LABEL
+        ),
+        "source": source,
+        "freshness_status": (
+            BACKEND_REST_FRESHNESS
+            if live_coinbase_read_ran
+            else LOCAL_DEFAULT_FRESHNESS
+        ),
+    }
+    projection = {
+        "account_reality": account_reality,
+        "account_scope": {
+            "scope_type": "backend_account_reality_refresh",
+            "scope_id": "withheld",
+            "source": source,
+            "freshness_status": portfolio_scope["freshness_status"],
+            "account_count": len(wallets),
+            "configured_product_scope": product_scope,
+            "observed_position_scope": [],
+        },
+        "portfolio_scope": portfolio_scope,
+        "futures_portfolio_binding": _source_disabled_futures_account_snapshot(
+            captured_at
+        )["futures_portfolio_binding"],
+        "spot_portfolio_binding": spot_binding,
+        "wallet_inventory": wallet_inventory,
+        "wallets": wallets,
+        "readiness": readiness,
+        "futures_positions": [],
+        "futures_margin_collateral": _blocked_futures_margin_collateral(
+            "futures_coinbase_read_not_authorized",
+            "This account-reality refresh does not read Futures margin or collateral.",
+        ),
+        "products": product_rows,
+        "market": market_rows,
+        "fees": fee_snapshot,
+        "coinbase_read_enabled": False,
+        "coinbase_read_ran": False,
+    }
+    response = _account_reality_refresh_response(
+        status=status,
+        diagnostic_code=diagnostic_code,
+        refresh_id=refresh_id,
+        captured_at=captured_at,
+        fresh_until=fresh_until,
+        admission_ready=admission_ready,
+        product_scope=product_scope,
+        categories=categories,
+        account_reality=account_reality,
+        portfolio_scope=portfolio_scope,
+        wallet_inventory=wallet_inventory,
+        wallets=wallets,
+        products=product_rows,
+        market=market_rows,
+        fees=fee_snapshot,
+        context=context,
+        audit_id=attempt_audit_id,
+        live_coinbase_read_ran=live_coinbase_read_ran,
+        local_state_mutated=True,
+    )
+    return response, projection
+
+
 def _optional_text(value: Any) -> str | None:
     text = str(value or "").strip()
     return text or None
@@ -9910,8 +11194,12 @@ def _admin_product_metadata_row(
         "product_id": str(metadata.get("product_id") or product_id),
         "product_type": product_type,
         "product_family": _admin_product_family(product_type, product_id),
-        "base_currency": _optional_text(metadata.get("base_currency")),
-        "quote_currency": _optional_text(metadata.get("quote_currency")),
+        "base_currency": _optional_text(
+            metadata.get("base_currency_id") or metadata.get("base_currency")
+        ),
+        "quote_currency": _optional_text(
+            metadata.get("quote_currency_id") or metadata.get("quote_currency")
+        ),
         "base_increment": _optional_text(metadata.get("base_increment")),
         "quote_increment": _optional_text(metadata.get("quote_increment")),
         "price_increment": _optional_text(metadata.get("price_increment")),
@@ -9921,6 +11209,10 @@ def _admin_product_metadata_row(
         "status": _optional_text(metadata.get("status")),
         "mid_price": _optional_text(metadata.get("mid_price") or metadata.get("price")),
         "trading_disabled": bool(metadata.get("trading_disabled", False)),
+        "is_disabled": bool(metadata.get("is_disabled", False)),
+        "cancel_only": bool(metadata.get("cancel_only", False)),
+        "view_only": bool(metadata.get("view_only", False)),
+        "auction_mode": bool(metadata.get("auction_mode", False)),
         "contract_size": _optional_text(
             metadata.get("contract_size") or future_details.get("contract_size")
         ),
@@ -10068,6 +11360,7 @@ def _admin_fee_evidence_snapshot(
     *,
     summary_read: bool,
     read_error: str | None,
+    require_nested_spot_fee_tier: bool = False,
 ) -> dict[str, Any]:
     data = _mapping(summary)
     if not summary_read or read_error is not None:
@@ -10077,6 +11370,7 @@ def _admin_fee_evidence_snapshot(
         data,
         tier_key="fee_tier",
         source="coinbase_transaction_summary.fee_tier",
+        require_nested=require_nested_spot_fee_tier,
     )
     futures_tier = _admin_fee_tier(
         data,
@@ -10117,8 +11411,11 @@ def _admin_fee_tier(
     *,
     tier_key: str,
     source: str,
+    require_nested: bool = False,
 ) -> dict[str, Any]:
     tier = _mapping(summary.get(tier_key))
+    if require_nested and not tier:
+        return _blocked_admin_fee_tier(f"{tier_key}_missing")
     source_data = tier if tier else summary
     maker_fee_rate = _optional_text(source_data.get("maker_fee_rate"))
     taker_fee_rate = _optional_text(source_data.get("taker_fee_rate"))
@@ -10394,6 +11691,70 @@ def _source_disabled_operator_account_snapshot(generated_at: str) -> dict[str, A
     return snapshot
 
 
+def _mark_account_reality_snapshot_stale(snapshot: dict[str, Any]) -> None:
+    """Fail a durable refresh projection closed after its freshness window."""
+
+    account_reality = snapshot.setdefault("account_reality", {})
+    account_reality.update(
+        {
+            "status": "stale",
+            "read_error": "account_reality_snapshot_stale",
+            "coinbase_read_ran": False,
+        }
+    )
+    for key in (
+        "spot_account_ready",
+        "spot_wallet_inventory_ready",
+        "spot_test_profile_bound",
+        "futures_account_scope_ready",
+        "futures_default_profile_bound",
+        "futures_observed_position_scope_ready",
+        "futures_margin_collateral_ready",
+        "usable_for_spot_admission",
+        "usable_for_futures_risk",
+    ):
+        snapshot.setdefault("readiness", {})[key] = False
+    snapshot.setdefault("account_scope", {})["freshness_status"] = "stale"
+    snapshot.setdefault("portfolio_scope", {})["freshness_status"] = "stale"
+    snapshot.setdefault("wallet_inventory", {}).update(
+        {
+            "freshness_status": "stale",
+            "quote_wallet_status": "blocked",
+            "quote_wallet_error": "account_reality_snapshot_stale",
+        }
+    )
+    stale_wallets: list[dict[str, Any]] = []
+    for wallet in snapshot.get("wallets", []):
+        if isinstance(wallet, Mapping):
+            stale_wallets.append(
+                {**dict(wallet), "freshness_status": "stale"}
+            )
+    snapshot["wallets"] = stale_wallets
+    stale_products: list[dict[str, Any]] = []
+    for product in snapshot.get("products", []):
+        if not isinstance(product, Mapping):
+            continue
+        stale_products.append(
+            {
+                **dict(product),
+                "read_status": "blocked",
+                "read_error": "account_reality_snapshot_stale",
+            }
+        )
+    snapshot["products"] = stale_products
+    fees = snapshot.get("fees")
+    if isinstance(fees, dict):
+        fees["status"] = "blocked"
+        fee_tier = fees.get("fee_tier")
+        if isinstance(fee_tier, dict):
+            fee_tier["status"] = "blocked"
+            fee_tier["read_error"] = "account_reality_snapshot_stale"
+        spot_fee_input = fees.get("spot_fee_input")
+        if isinstance(spot_fee_input, dict):
+            spot_fee_input["status"] = "blocked"
+            spot_fee_input["first_blocker"] = "account_reality_snapshot_stale"
+
+
 def _spot_admission_input_from_snapshot(snapshot: Mapping[str, Any]) -> dict[str, Any]:
     readiness = _mapping(snapshot.get("readiness"))
     wallet_inventory = _mapping(snapshot.get("wallet_inventory"))
@@ -10460,6 +11821,7 @@ def _spot_readiness_product(
     snapshot: Mapping[str, Any],
 ) -> dict[str, Any]:
     readiness = _mapping(snapshot.get("readiness"))
+    account_reality = _mapping(snapshot.get("account_reality"))
     wallet_inventory = _mapping(snapshot.get("wallet_inventory"))
     product_id = str(product_row.get("product_id") or "")
     quote_currency = str(
@@ -10485,6 +11847,14 @@ def _spot_readiness_product(
         "quote_min_size": product_row.get("quote_min_size"),
         "display_name": product_row.get("display_name"),
         "trading_disabled": bool(product_row.get("trading_disabled", False)),
+        "best_bid": product_row.get("best_bid"),
+        "best_ask": product_row.get("best_ask"),
+        "market_observed_at": product_row.get("market_observed_at"),
+        "captured_at": account_reality.get("generated_at"),
+        "fresh_until": account_reality.get("fresh_until"),
+        "freshness_status": _mapping(snapshot.get("account_scope")).get(
+            "freshness_status"
+        ),
         "product_read_status": product_row.get("read_status"),
         "product_read_error": product_row.get("read_error"),
         "product_metadata_source": product_row.get("source"),
@@ -10709,13 +12079,13 @@ def _normalize_wallets(value: Any) -> list[dict[str, Any]]:
         wallets.append(
             {
                 "currency": currency,
-                "available_balance": _decimal_text(
+                "available_balance": _wallet_decimal_text(
                     _decimal_value(data.get("available_balance"), Decimal("0"))
                 ),
-                "total_balance": _decimal_text(
+                "total_balance": _wallet_decimal_text(
                     _decimal_value(data.get("total_balance"), Decimal("0"))
                 ),
-                "hold_balance": _decimal_text(
+                "hold_balance": _wallet_decimal_text(
                     _wallet_hold_balance(data),
                 ),
                 "updated_at": data.get("updated_at"),
@@ -13029,8 +14399,12 @@ def _wallet_rows_for_admin(
         rows.append(
             {
                 **wallet,
-                "source": BACKEND_REST_CLIENT_SOURCE,
-                "freshness_status": BACKEND_REST_FRESHNESS,
+                "source": str(
+                    wallet.get("source") or BACKEND_REST_CLIENT_SOURCE
+                ),
+                "freshness_status": str(
+                    wallet.get("freshness_status") or BACKEND_REST_FRESHNESS
+                ),
                 "admission_asset": admission_asset,
                 "admission_ready": admission_ready,
                 "browser_authority": "display_only",
@@ -13881,6 +15255,23 @@ def _decimal_text(value: Decimal) -> str:
     return format(normalized, "f")
 
 
+def _runtime_shutdown_timeout(body: Mapping[str, Any]) -> float:
+    raw_value = body.get("timeout_seconds", 30)
+    try:
+        value = Decimal(str(raw_value))
+    except (InvalidOperation, ValueError):
+        raise ValueError("runtime_shutdown_timeout_invalid") from None
+    if not value.is_finite() or value <= 0 or value > 120:
+        raise ValueError("runtime_shutdown_timeout_invalid")
+    return float(value)
+
+
+def _wallet_decimal_text(value: Decimal) -> str:
+    """Preserve authoritative wallet precision without cent quantization."""
+
+    return format(value, "f")
+
+
 def _latest_record(records: Mapping[str, dict[str, Any]]) -> dict[str, Any] | None:
     if not records:
         return None
@@ -14424,6 +15815,9 @@ def _command_capability(
     shared_method: str,
     live_enabled: bool,
     module_id: str | None = None,
+    approval: str = "required",
+    caps: str = "required",
+    detail: str = "Mutating route is backend-owned and auditable.",
 ) -> dict[str, Any]:
     return {
         "module_id": module_id
@@ -14438,13 +15832,13 @@ def _command_capability(
         "required_permission": required_permission,
         "shared_method": shared_method,
         "idempotency": "required",
-        "approval": "required",
-        "caps": "required",
+        "approval": approval,
+        "caps": caps,
         "audit": "required",
         "command_contract": True,
         "compatibility_mode": "backend_admin_api_only",
         "parity_test": "tests/regression/test_admin_mvp_api.py",
-        "detail": "Mutating route is backend-owned and auditable.",
+        "detail": detail,
     }
 
 
@@ -14729,7 +16123,10 @@ def _manual_order_command(
         "route": MANUAL_ORDER_ROUTE,
         "method": "POST",
         "identity_key": "client_order_id",
+        "required_permission": MANUAL_ORDER_PERMISSION,
         "shared_method": MANUAL_ORDER_SERVICE_METHOD,
+        "backend_owned": True,
+        "route_bound": True,
         "status": "ready" if executable else "blocked",
         "live_execution_status": live_execution_status,
         "live_enabled": route_live_enabled,

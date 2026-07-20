@@ -30,6 +30,10 @@ R12_PREPARATION_DOC = (
 FRONTEND_QUEUE_DOC = FRONTEND_ROOT / "docs" / "plans" / "AUTONOMOUS_WORK_QUEUE.md"
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
 GOAL_ID = "operator_follow_up_operations_queue_and_single_live_proof"
+ACTIVE_GOAL_ID = "operator_core_workspaces_origin_prod_alignment_v1"
+ACTIVE_GOAL_STATUS = "in_progress"
+ACTIVE_ACTION = "implement_validate_audit_and_deploy_core_operator_workspaces"
+ACTIVE_DEFAULT_ACTION = "continue_bounded_implementation_and_offline_remediation"
 CURRENT_ALIGNMENT_TOKEN = "operator_follow_up_operations_queue_single_proof_v1"
 CURRENT_ACTION = "complete_zero_candidates_all_live_allowances_unconsumed"
 CURRENT_WORK_MODE = CURRENT_ACTION
@@ -384,13 +388,16 @@ def _current_goal_alignment() -> QueueCheck:
     backend = _contains_all(
         BACKEND_GOAL_DOC,
         (
+            ACTIVE_GOAL_ID,
+            f"Status: `{ACTIVE_GOAL_STATUS}`",
+            ACTIVE_ACTION,
+            ACTIVE_DEFAULT_ACTION,
+            "persistent authenticated operator shell",
+            "Portfolio, Spot Operations, Orders-detail, and System Operations",
+            "Diagnostics separate",
+            "No goal-scoped Coinbase call has run yet.",
             GOAL_ID,
-            CURRENT_ALIGNMENT_TOKEN,
-            "Status: `complete_zero_candidates`",
-            DEFAULT_NEXT_ACTION,
-            NEXT_ACTION,
-            CURRENT_WORK_MODE,
-            OPERATOR_PROGRESS_WORDING,
+            "complete_zero_candidates",
             "passive local SQL",
             "never live eligibility",
             "exact post-gate local `materialization_review` candidate count",
@@ -430,17 +437,21 @@ def _current_goal_alignment() -> QueueCheck:
     frontend = _contains_all(
         FRONTEND_GOAL_DOC,
         (
+            ACTIVE_GOAL_ID,
+            f"Status: `{ACTIVE_GOAL_STATUS}`",
+            ACTIVE_ACTION,
+            ACTIVE_DEFAULT_ACTION,
+            "persistent authenticated operator shell",
+            "Portfolio, Spot Operations, Orders-detail, and System Operations",
+            "Diagnostics separate",
+            "No goal-scoped Coinbase call has run yet.",
             GOAL_ID,
-            CURRENT_ALIGNMENT_TOKEN,
-            "Status: `complete_zero_candidates`",
-            DEFAULT_NEXT_ACTION,
-            NEXT_ACTION,
-            OPERATOR_PROGRESS_WORDING,
+            "completed with zero candidates",
             "passive local SQL",
             "never live eligibility",
             "exact local `materialization_review` candidates only",
             "goal-scoped single-candidate proof claim",
-            "all live allowances remain unconsumed",
+            "live allowances from that predecessor remain unconsumed",
             "operator_authorize_and_materialize_follow_up_intent",
             "historical predecessor",
             HISTORICAL_R12_GOAL_ID,
@@ -746,14 +757,19 @@ def _historical_slice_2r11_terminal_posture() -> QueueCheck:
 
 
 def _entry_point_alignment() -> QueueCheck:
+    current_goal_requirements = (
+        ACTIVE_GOAL_ID,
+        ACTIVE_ACTION,
+        ACTIVE_DEFAULT_ACTION,
+        ACTIVE_GOAL_STATUS,
+        GOAL_ID,
+        "complete_zero_candidates",
+    )
     documents = [
         _contains_all(
             PROJECT_ROOT / "README.admin-api.md",
             (
-                GOAL_ID,
-                DEFAULT_NEXT_ACTION,
-                NEXT_ACTION,
-                "complete_zero_candidates",
+                *current_goal_requirements,
                 "Current Status",
                 "Historical predecessor goal",
             ),
@@ -761,22 +777,16 @@ def _entry_point_alignment() -> QueueCheck:
         _contains_all(
             PROJECT_ROOT / "README.md",
             (
+                *current_goal_requirements,
                 HISTORICAL_R12_GOAL_ID,
                 HISTORICAL_POST_R10_GOAL_ID,
-                GOAL_ID,
-                DEFAULT_NEXT_ACTION,
-                NEXT_ACTION,
-                "complete_zero_candidates",
                 "Current MVP Goal",
             ),
         ),
         _contains_all(
             PROJECT_ROOT / "docs" / "README.md",
             (
-                GOAL_ID,
-                DEFAULT_NEXT_ACTION,
-                NEXT_ACTION,
-                "complete_zero_candidates",
+                *current_goal_requirements,
                 HISTORICAL_R12_GOAL_ID,
                 HISTORICAL_POST_R10_GOAL_ID,
                 "Current MVP Goal",
@@ -785,10 +795,7 @@ def _entry_point_alignment() -> QueueCheck:
         _contains_all(
             PROJECT_ROOT / "docs" / "MAINTAINER_HANDOFF.md",
             (
-                GOAL_ID,
-                DEFAULT_NEXT_ACTION,
-                NEXT_ACTION,
-                "complete_zero_candidates",
+                *current_goal_requirements,
                 HISTORICAL_R12_GOAL_ID,
                 HISTORICAL_POST_R10_GOAL_ID,
                 "Current Handoff State",
@@ -797,20 +804,14 @@ def _entry_point_alignment() -> QueueCheck:
         _contains_all(
             PROJECT_ROOT / "docs" / "PUBLIC_ROADMAP.md",
             (
-                GOAL_ID,
-                DEFAULT_NEXT_ACTION,
-                NEXT_ACTION,
-                "complete_zero_candidates",
+                *current_goal_requirements,
                 "Historical predecessor goal",
             ),
         ),
         _contains_all(
             PROJECT_ROOT / "docs" / "agents" / "AGENT_ADMIN_API_CONTRACT.md",
             (
-                GOAL_ID,
-                DEFAULT_NEXT_ACTION,
-                NEXT_ACTION,
-                "complete_zero_candidates",
+                *current_goal_requirements,
                 "four installed Controlled-live mutation routes",
                 "current post-lease service decision",
             ),
@@ -818,6 +819,7 @@ def _entry_point_alignment() -> QueueCheck:
         _contains_all(
             PROJECT_ROOT / "genai_data" / "README.md",
             (
+                *current_goal_requirements,
                 HISTORICAL_R12_GOAL_ID,
                 HISTORICAL_POST_R10_GOAL_ID,
                 "Current work authority",

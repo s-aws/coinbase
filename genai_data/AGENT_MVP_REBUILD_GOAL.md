@@ -1,10 +1,33 @@
 # Coinbase Admin MVP Goal
 
-Goal ID: `operator_follow_up_operations_queue_and_single_live_proof`
+Goal ID: `operator_core_workspaces_origin_prod_alignment_v1`
 
 Last reviewed: 2026-07-19 UTC.
 
-Status: `complete_zero_candidates`.
+Status: `in_progress`.
+
+Goal `operator_core_workspaces_origin_prod_alignment_v1` is in progress. It
+aligns a persistent authenticated operator shell and routed Portfolio, Spot
+Operations, Orders-detail, and System Operations workspaces to backend-owned
+Admin API contracts while keeping Diagnostics separate. Current action:
+`implement_validate_audit_and_deploy_core_operator_workspaces`. Default action:
+`continue_bounded_implementation_and_offline_remediation`. No goal-scoped
+Coinbase call has run yet.
+
+The backend remains authoritative for authentication, RBAC, approved Test
+portfolio and product scope, account and wallet evidence, price/size/cap
+validation, identity, idempotency, admission, audit, reconciliation, exchange
+call accounting, terminal classification, and runtime controls. Page loads use
+call-free local projections. The only goal-scoped external-read boundary is one
+explicit operator account-reality refresh across the six authorized categories
+without category retry. The optional post-gate proof remains unconsumed: at
+most one manual Spot Create under the installed 3.10 USDC submitted and 1.00
+USDC possible-execution caps, followed only if necessary by one exact-order
+Cancel, with no retry, fallback, redirect, alternate order, or other mutation.
+
+Historical predecessor Goal ID:
+`operator_follow_up_operations_queue_and_single_live_proof`.
+Historical predecessor status: `complete_zero_candidates`.
 
 The routed Follow-up Operations workspace is deployed and its focused/full
 validation, deployment validation, independent safety audit, and

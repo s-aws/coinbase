@@ -21,7 +21,10 @@ Usage:
 """
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
+import logging
+import math
 from typing import Dict, List, Optional, Any
 from coinbase.rest import RESTClient
 from core.models import Product, Wallet, Position, Order
@@ -34,13 +37,49 @@ from core.coinbase_execution_authority import (
 
 
 ACCOUNT_PAGE_LIMIT = 250
+MAX_ACCOUNT_REFRESH_PAGES = 100
+MAX_COINBASE_REFRESH_TIMEOUT_SECONDS = 30
 _CANCEL_IDENTITY_REJECTION_REASONS = {
     "ORDER_NOT_FOUND",
     "UNKNOWN_CANCEL_ORDER",
 }
 
 
-def _harden_sdk_transport(sdk_client: Any) -> None:
+@dataclass(frozen=True)
+class StrictAccountWalletRead:
+    """One no-retry cursor walk with explicit completeness evidence."""
+
+    wallets: Dict[str, Wallet]
+    complete: bool
+    page_count: int
+    request_count: int
+    blocker: str | None
+    portfolio_ids: frozenset[str]
+
+
+class _CoinbaseSdkValueBlindLogFilter(logging.Filter):
+    """Prevent the pinned SDK from logging raw response bodies or JSON."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.msg = "Coinbase SDK transport detail withheld."
+        record.args = ()
+        return True
+
+
+def _install_coinbase_sdk_value_blind_logging() -> None:
+    sdk_logger = logging.getLogger("coinbase.RESTClient")
+    if not any(
+        isinstance(item, _CoinbaseSdkValueBlindLogFilter)
+        for item in sdk_logger.filters
+    ):
+        sdk_logger.addFilter(_CoinbaseSdkValueBlindLogFilter())
+
+
+def _harden_sdk_transport(
+    sdk_client: Any,
+    *,
+    require_bounded_timeout: bool = False,
+) -> None:
     """Fail closed on retries and prevent Requests from following redirects.
 
     The Coinbase SDK delegates to ``requests.Session.request`` without setting
@@ -50,9 +89,24 @@ def _harden_sdk_transport(sdk_client: Any) -> None:
     remain supported; the canonical production SDK always exposes one.
     """
 
+    _install_coinbase_sdk_value_blind_logging()
     session = getattr(sdk_client, "session", None)
     if session is None:
         return
+    if require_bounded_timeout:
+        timeout = getattr(sdk_client, "timeout", None)
+        if (
+            isinstance(timeout, bool)
+            or not isinstance(timeout, (int, float))
+            or not math.isfinite(timeout)
+            or timeout <= 0
+            or timeout > MAX_COINBASE_REFRESH_TIMEOUT_SECONDS
+        ):
+            raise ValueError("coinbase_sdk_transport_timeout_forbidden")
+        if getattr(sdk_client, "base_url", None) != "api.coinbase.com":
+            raise ValueError("coinbase_sdk_transport_base_url_forbidden")
+        if getattr(session, "verify", None) is not True:
+            raise ValueError("coinbase_sdk_transport_tls_verification_required")
     adapters = getattr(session, "adapters", None)
     if not isinstance(adapters, Mapping) or set(adapters) != {
         "http://",
@@ -255,6 +309,146 @@ class CoinbaseRestClient:
                 wallets[currency] = wallet
         
         return wallets
+
+    def get_account_wallets_strict(self) -> StrictAccountWalletRead:
+        """Read every wallet page once and fail closed on cursor anomalies.
+
+        Unlike the compatibility ``get_account_wallets`` helper, this method
+        retains explicit completeness and wire-request accounting for an
+        operator-authorized account-reality refresh. It never retries a page.
+        Concrete portfolio identifiers are returned only as internal binding
+        input; callers must not persist or expose them.
+        """
+
+        accounts: List[Dict[str, Any]] = []
+        cursor: Optional[str] = None
+        seen_cursors: set[str] = set()
+        page_count = 0
+
+        def failed(blocker: str) -> StrictAccountWalletRead:
+            return StrictAccountWalletRead(
+                wallets={},
+                complete=False,
+                page_count=page_count,
+                request_count=page_count,
+                blocker=blocker,
+                portfolio_ids=frozenset(),
+            )
+
+        while True:
+            if page_count >= MAX_ACCOUNT_REFRESH_PAGES:
+                return failed("account_page_limit_exceeded")
+            kwargs: Dict[str, Any] = {"limit": ACCOUNT_PAGE_LIMIT}
+            if cursor is not None:
+                kwargs["cursor"] = cursor
+            try:
+                _harden_sdk_transport(
+                    self._client,
+                    require_bounded_timeout=True,
+                )
+            except ValueError:
+                return failed("account_transport_policy_invalid")
+            page_count += 1
+            try:
+                response = coinbase_sdk_response_to_dict(
+                    self._client.get_accounts(**kwargs)
+                )
+            except Exception:
+                return failed("account_page_read_failed")
+            if not isinstance(response, dict):
+                return failed("account_page_invalid")
+            page_accounts = response.get("accounts")
+            if not isinstance(page_accounts, list):
+                return failed("account_page_accounts_invalid")
+            for raw_account in page_accounts:
+                account = _object_to_dict(raw_account)
+                if not account:
+                    return failed("account_row_invalid")
+                accounts.append(account)
+            has_next = response.get("has_next")
+            if type(has_next) is not bool:
+                return failed("account_pagination_metadata_invalid")
+            if has_next is False:
+                break
+
+            raw_cursor = response.get("cursor")
+            if not isinstance(raw_cursor, str) or not raw_cursor.strip():
+                return failed("account_cursor_missing")
+            next_cursor = raw_cursor.strip()
+            if next_cursor in seen_cursors:
+                return failed("account_cursor_repeated")
+            seen_cursors.add(next_cursor)
+            cursor = next_cursor
+
+        wallets: Dict[str, Wallet] = {}
+        portfolio_ids: set[str] = set()
+        for account in accounts:
+            if account.get("deleted_at") is not None:
+                continue
+            if account.get("active") is not True or account.get("ready") is not True:
+                return failed("account_row_invalid")
+            currency = str(account.get("currency") or "").strip().upper()
+            if not currency:
+                return failed("account_row_invalid")
+            if currency in wallets:
+                return failed("account_currency_duplicate")
+            available_money = _object_to_dict(account.get("available_balance"))
+            hold_money = _object_to_dict(account.get("hold"))
+            if (
+                "value" not in available_money
+                or "value" not in hold_money
+                or not str(available_money.get("value") or "").strip()
+                or not str(hold_money.get("value") or "").strip()
+                or str(available_money.get("currency") or "").strip().upper()
+                != currency
+                or str(hold_money.get("currency") or "").strip().upper()
+                != currency
+            ):
+                return failed("account_balance_invalid")
+            try:
+                available = Decimal(str(available_money["value"]))
+                hold = Decimal(str(hold_money["value"]))
+                wallet = Wallet.from_wallet_dict(account)
+                total = Decimal(wallet.total_balance)
+            except (InvalidOperation, TypeError, ValueError):
+                return failed("account_balance_invalid")
+            if (
+                not available.is_finite()
+                or not hold.is_finite()
+                or not total.is_finite()
+                or available < 0
+                or hold < 0
+                or total < 0
+                or total != available + hold
+            ):
+                return failed("account_balance_invalid")
+            explicit_total = account.get("total_balance", account.get("balance"))
+            if explicit_total not in (None, ""):
+                explicit_money = _object_to_dict(explicit_total)
+                if (
+                    "value" not in explicit_money
+                    or not str(explicit_money.get("value") or "").strip()
+                    or str(explicit_money.get("currency") or "").strip().upper()
+                    != currency
+                ):
+                    return failed("account_balance_invalid")
+            portfolio_id = str(
+                account.get("retail_portfolio_id")
+                or account.get("portfolio_uuid")
+                or ""
+            ).strip()
+            if not portfolio_id:
+                return failed("account_row_invalid")
+            wallets[currency] = wallet
+            portfolio_ids.add(portfolio_id)
+        return StrictAccountWalletRead(
+            wallets=wallets,
+            complete=True,
+            page_count=page_count,
+            request_count=page_count,
+            blocker=None,
+            portfolio_ids=frozenset(portfolio_ids),
+        )
     
     def get_transaction_summary(self) -> Dict[str, Any]:
         """Retrieve account transaction summary.
@@ -271,7 +465,15 @@ class CoinbaseRestClient:
             >>> summary = client.get_transaction_summary()
             >>> fees = summary.get('total_fees')
         """
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
         response = self._client.get_transaction_summary()
+        return coinbase_sdk_response_to_dict(response)
+
+    def get_spot_transaction_summary(self) -> Dict[str, Any]:
+        """Read the Spot-only fee summary once for account-reality refresh."""
+
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
+        response = self._client.get_transaction_summary(product_type="SPOT")
         return coinbase_sdk_response_to_dict(response)
 
     def get_api_key_permissions(self) -> Dict[str, Any]:
@@ -283,6 +485,7 @@ class CoinbaseRestClient:
         not create a second SDK client or infer scope from order payloads.
         """
 
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
         response = self._client.get_api_key_permissions()
         data = coinbase_sdk_response_to_dict(response)
         return data if isinstance(data, dict) else {}
@@ -351,9 +554,36 @@ class CoinbaseRestClient:
         
         return products
 
+    def get_products_batch(self, product_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        """Read one exact product scope through one SDK request."""
+
+        exact_scope = list(dict.fromkeys(str(item).strip() for item in product_ids))
+        if not exact_scope or any(not product_id for product_id in exact_scope):
+            raise ValueError("product_batch_scope_invalid")
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
+        response = coinbase_sdk_response_to_dict(
+            self._client.get_products(product_ids=exact_scope)
+        )
+        if not isinstance(response, dict):
+            raise ValueError("product_batch_response_invalid")
+        rows = response.get("products")
+        if not isinstance(rows, list):
+            raise ValueError("product_batch_rows_invalid")
+        products: Dict[str, Dict[str, Any]] = {}
+        for row in rows:
+            data = _object_to_dict(row)
+            product_id = str(data.get("product_id") or "").strip()
+            if not product_id or product_id not in exact_scope:
+                raise ValueError("product_batch_identity_invalid")
+            if product_id in products:
+                raise ValueError("product_batch_identity_duplicate")
+            products[product_id] = data
+        return products
+
     def get_best_bid_ask(self, *, product_ids: List[str]) -> Dict[str, Any]:
         """Return exact best-bid/ask evidence for the requested products."""
 
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
         response = self._client.get_best_bid_ask(product_ids=product_ids)
         data = coinbase_sdk_response_to_dict(response)
         return data if isinstance(data, dict) else {}
@@ -790,6 +1020,7 @@ class CoinbaseRestClient:
             >>> for portfolio in portfolios:
             ...     print(f"Portfolio: {portfolio['name']}")
         """
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
         lister = getattr(self._client, "get_portfolios", None)
         if callable(lister):
             response = lister()

@@ -71,6 +71,12 @@ def serialize_public_spot_portfolio_scope(
         {
             "expected_portfolio_id": None,
             "observed_portfolio_id": None,
+            "observed_portfolio_label": None,
+            "observed_portfolio_label_matches_expected": bool(
+                payload.get("observed_portfolio_label")
+                and payload.get("observed_portfolio_label")
+                == payload.get("expected_portfolio_label")
+            ),
             "portfolio_id": None,
         }
     )

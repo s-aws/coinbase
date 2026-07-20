@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Body, Depends, Header, Query
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, Header, Query
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
@@ -16,6 +16,8 @@ from application.admin_api.auth import (
 from application.admin_api.models import (
     AdminApiActor,
     AdminAccountManagementReadResponse,
+    AdminAccountRealityRefreshRequest,
+    AdminAccountRealityRefreshResponse,
     AdminAuditWorkbenchReadResponse,
     AdminFeesReadResponse,
     AdminApiErrorResponse,
@@ -68,6 +70,20 @@ RUNTIME_CONTROL_RESPONSES = {
         "description": (
             "Runtime transition outcome is unknown and the durable claim cannot "
             "be retried."
+        ),
+    },
+}
+
+ACCOUNT_REALITY_REFRESH_RESPONSES = {
+    **READ_ROUTE_RESPONSES,
+    409: {
+        "model": AdminAccountRealityRefreshResponse,
+        "description": "Idempotency key conflicts with a prior refresh claim.",
+    },
+    503: {
+        "model": AdminAccountRealityRefreshResponse,
+        "description": (
+            "The claimed refresh outcome is unknown and cannot be retried."
         ),
     },
 }
@@ -223,21 +239,21 @@ def admin_runtime_resume(
 
 
 @router.post(
-    "/admin/runtime/shutdown",
+    "/admin/runtime/drain",
     response_model=AdminRuntimeControlResponse,
     responses=RUNTIME_CONTROL_RESPONSES,
-    summary="Request backend runtime shutdown",
+    summary="Drain backend runtime admission while retaining readback",
 )
-def admin_runtime_shutdown(
+def admin_runtime_drain(
     body: Annotated[AdminRuntimeControlRequest, Body(default_factory=AdminRuntimeControlRequest)],
     idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
     correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
     operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
 ) -> JSONResponse:
-    require_permission(actor, AdminApiPermission.RUNTIME_SHUTDOWN)
+    require_permission(actor, AdminApiPermission.RUNTIME_DRAIN)
     result = get_admin_mvp_service().control_runtime(
-        "shutdown",
+        "drain",
         body.model_dump(mode="json", exclude_none=True),
         _admin_mvp_context(
             actor,
@@ -246,6 +262,51 @@ def admin_runtime_shutdown(
             operator_intent=operator_intent,
         ),
     )
+    return JSONResponse(
+        status_code=result.status_code,
+        content=jsonable_encoder(result.body),
+        headers=result.headers,
+    )
+
+
+@router.post(
+    "/admin/runtime/shutdown",
+    response_model=AdminRuntimeControlResponse,
+    responses=RUNTIME_CONTROL_RESPONSES,
+    summary="Request backend runtime shutdown",
+)
+def admin_runtime_shutdown(
+    background_tasks: BackgroundTasks,
+    body: Annotated[AdminRuntimeControlRequest, Body(default_factory=AdminRuntimeControlRequest)],
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.RUNTIME_SHUTDOWN)
+    service = get_admin_mvp_service()
+    context = _admin_mvp_context(
+        actor,
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+    )
+    body_payload = body.model_dump(mode="json", exclude_none=True)
+    result = service.control_runtime(
+        "shutdown",
+        body_payload,
+        context,
+    )
+    if (
+        result.status_code == 200
+        and result.body.get("shutdown_queued") is True
+        and result.headers.get("X-Idempotency-Replayed") != "true"
+    ):
+        background_tasks.add_task(
+            service.schedule_queued_runtime_shutdown,
+            body_payload,
+            context,
+        )
     return JSONResponse(
         status_code=result.status_code,
         content=jsonable_encoder(result.body),
@@ -304,6 +365,48 @@ def admin_wallet(
             idempotency_key=idempotency_key,
             correlation_id=correlation_id,
             operator_intent=operator_intent or "read_admin_wallet",
+        ),
+    )
+    return JSONResponse(
+        status_code=result.status_code,
+        content=jsonable_encoder(result.body),
+        headers=result.headers,
+    )
+
+
+@router.post(
+    "/admin/account-reality/refresh",
+    response_model=AdminAccountRealityRefreshResponse,
+    responses=ACCOUNT_REALITY_REFRESH_RESPONSES,
+    summary="Explicitly refresh sanitized backend account-reality evidence",
+)
+def admin_account_reality_refresh(
+    body: Annotated[
+        AdminAccountRealityRefreshRequest,
+        Body(default_factory=AdminAccountRealityRefreshRequest),
+    ],
+    idempotency_key: Annotated[
+        str,
+        Header(alias="Idempotency-Key", min_length=1, pattern=r"\S"),
+    ],
+    correlation_id: Annotated[
+        str,
+        Header(alias="X-Correlation-Id", min_length=1, pattern=r"\S"),
+    ],
+    operator_intent: Annotated[
+        str,
+        Header(alias="X-Operator-Intent", min_length=1, pattern=r"\S"),
+    ],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.ACCOUNT_REALITY_REFRESH)
+    result = get_admin_mvp_service().refresh_account_reality(
+        body.model_dump(mode="json", exclude_none=True),
+        _admin_mvp_context(
+            actor,
+            idempotency_key=idempotency_key,
+            correlation_id=correlation_id,
+            operator_intent=operator_intent,
         ),
     )
     return JSONResponse(

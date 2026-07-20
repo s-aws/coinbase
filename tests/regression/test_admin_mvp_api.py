@@ -222,6 +222,7 @@ def test_admin_runtime_openapi_exposes_status_and_control_paths():
     for path in (
         "/api/v1/admin/runtime/pause",
         "/api/v1/admin/runtime/resume",
+        "/api/v1/admin/runtime/drain",
         "/api/v1/admin/runtime/shutdown",
     ):
         assert openapi["paths"][path]["post"]["responses"]["200"]["content"][
@@ -1424,6 +1425,9 @@ def test_admin_runtime_status_exposes_backend_runtime_controller_state():
     assert capability_by_route[("POST", "/api/v1/admin/runtime/resume")][
         "permission"
     ] == "runtime:resume"
+    assert capability_by_route[("POST", "/api/v1/admin/runtime/drain")][
+        "permission"
+    ] == "runtime:drain"
     assert capability_by_route[("POST", "/api/v1/admin/runtime/shutdown")][
         "permission"
     ] == "runtime:shutdown"
@@ -1501,12 +1505,29 @@ def test_admin_runtime_control_uses_backend_controller_without_coinbase_submissi
     assert shutdown.body["status"] == "accepted"
     assert shutdown.body["route"] == "/api/v1/admin/runtime/shutdown"
     assert shutdown.body["required_permission"] == "runtime:shutdown"
-    assert shutdown.body["service_method"] == "request_runtime_shutdown"
+    assert shutdown.body["service_method"] == "queue_runtime_shutdown"
     assert shutdown.body["runtime_state_before"] == "RUNNING"
-    assert shutdown.body["runtime_state_after"] == "DRAINING"
-    assert shutdown.body["admitting"] is False
-    assert shutdown.body["stopping"] is True
+    assert shutdown.body["runtime_state_after"] == "RUNNING"
+    assert shutdown.body["shutdown_queued"] is True
+    assert shutdown.body["drain_requested"] is True
     assert shutdown.body["drain_executed"] is False
+
+    drain = service.control_runtime(
+        "drain",
+        {},
+        context(idempotency_key="runtime-drain"),
+    )
+    assert drain.status_code == 200
+    assert drain.body["status"] == "accepted"
+    assert drain.body["required_permission"] == "runtime:drain"
+    assert drain.body["service_method"] == "drain_runtime"
+    assert drain.body["runtime_state_before"] == "RUNNING"
+    assert drain.body["runtime_state_after"] == "DRAINING"
+    assert drain.body["admitting"] is False
+    assert drain.body["stopping"] is True
+    assert drain.body["drain_requested"] is True
+    assert drain.body["drain_executed"] is True
+    assert drain.body["shutdown_queued"] is False
     assert rest_client.create_order_calls == []
     assert rest_client.cancel_order_calls == []
 

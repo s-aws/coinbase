@@ -4267,6 +4267,7 @@ class AdminRuntimeControlRequest(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     reason: str | None = None
+    timeout_seconds: float = Field(default=30, gt=0, le=120)
 
 
 class AdminRuntimeControlResponse(BaseModel):
@@ -4315,6 +4316,8 @@ class AdminRuntimeControlResponse(BaseModel):
     notional_usdc: DecimalString = "0"
     drain_requested: bool = False
     drain_executed: bool = False
+    shutdown_queued: bool = False
+    drain_timeout_seconds: float | None = Field(default=None, gt=0, le=120)
     read_only: bool = False
     frontend_safe: bool = True
     browser_authority: str = "display_only"
@@ -4581,6 +4584,62 @@ class AdminFeesReadResponse(BaseModel):
     live_coinbase_execution: str = "not_run"
     notional_usdc: DecimalString = "0"
     live_coinbase_orders_ran: bool = False
+
+
+class AdminAccountRealityRefreshRequest(BaseModel):
+    """Explicit operator intent for one bounded account-reality refresh."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str | None = Field(default=None, min_length=1, max_length=500)
+
+
+class AdminAccountRealityRefreshCategoryEvidence(BaseModel):
+    """Fixed no-retry accounting for one authorized read category."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: str
+    complete: bool
+    logical_call_count: int = Field(ge=0, le=1)
+    http_request_count: int = Field(ge=0)
+    blocker: str | None = None
+
+
+class AdminAccountRealityRefreshResponse(BaseModel):
+    """Sanitized durable result for an explicit account-reality refresh."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_account_reality_refresh"
+    status: str
+    diagnostic_code: str | None = None
+    refresh_id: str | None = None
+    captured_at: str | None = None
+    fresh_until: str | None = None
+    admission_ready: bool = False
+    product_scope: list[str] = Field(default_factory=list)
+    categories: dict[str, AdminAccountRealityRefreshCategoryEvidence] = Field(
+        default_factory=dict
+    )
+    account_reality: FlexibleDict = Field(default_factory=dict)
+    portfolio_scope: FlexibleDict = Field(default_factory=dict)
+    wallet_inventory: FlexibleDict = Field(default_factory=dict)
+    wallets: list[FlexibleDict] = Field(default_factory=list)
+    products: list[FlexibleDict] = Field(default_factory=list)
+    market: list[FlexibleDict] = Field(default_factory=list)
+    fees: FlexibleDict = Field(default_factory=dict)
+    audit: FlexibleDict = Field(default_factory=dict)
+    read_only: bool = False
+    local_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    live_exchange_submitted: bool = False
+    live_coinbase_read_ran: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
 
 
 class AdminMvpEvidenceResponse(BaseModel):

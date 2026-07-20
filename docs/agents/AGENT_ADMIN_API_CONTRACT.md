@@ -21,10 +21,17 @@ frontend request
 -> typed response
 ```
 
-Goal `operator_follow_up_operations_queue_and_single_live_proof` has Status:
-`complete_zero_candidates`. Current/default action is
-`complete_zero_candidates_all_live_allowances_unconsumed`; next action is
-`await_operator_direction_for_next_mvp`. The deployed passive local-SQL
+Goal `operator_core_workspaces_origin_prod_alignment_v1` has Status:
+`in_progress`. Current action is
+`implement_validate_audit_and_deploy_core_operator_workspaces`; default action
+is `continue_bounded_implementation_and_offline_remediation`. It aligns the
+persistent authenticated Portfolio, Spot Operations, Orders-detail, and System
+Operations workspaces to backend-owned Admin API contracts while keeping
+Diagnostics separate. No goal-scoped Coinbase call has run yet.
+
+Historical predecessor goal
+`operator_follow_up_operations_queue_and_single_live_proof` completed with
+status `complete_zero_candidates`. The deployed passive local-SQL
 Follow-up Operations queue retrieves its page, exact count, and four
 latest durable operation slots in one PostgreSQL statement with no N+1 reader.
 Its current-request activity is exact zero. Durable eligibility-read, Create,

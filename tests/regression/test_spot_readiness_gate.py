@@ -668,7 +668,7 @@ def test_operator_materialization_terminal_records_are_aligned():
         assert zero_call_handoff in normalized[name]
 
 
-def test_follow_up_operations_goal_is_discoverable_from_backend_entry_points():
+def test_core_workspaces_goal_is_discoverable_from_backend_entry_points():
     documents = {
         "admin_readme": Path("README.admin-api.md").read_text(encoding="utf-8"),
         "docs_index": Path("docs/README.md").read_text(encoding="utf-8"),
@@ -678,15 +678,17 @@ def test_follow_up_operations_goal_is_discoverable_from_backend_entry_points():
             "docs/agents/AGENT_ADMIN_API_CONTRACT.md"
         ).read_text(encoding="utf-8"),
     }
-    current_goal = "operator_follow_up_operations_queue_and_single_live_proof"
-    current_action = "complete_zero_candidates_all_live_allowances_unconsumed"
-    next_action = "await_operator_direction_for_next_mvp"
+    current_goal = "operator_core_workspaces_origin_prod_alignment_v1"
+    current_action = "implement_validate_audit_and_deploy_core_operator_workspaces"
+    default_action = "continue_bounded_implementation_and_offline_remediation"
+    historical_goal = "operator_follow_up_operations_queue_and_single_live_proof"
 
     for body in documents.values():
         normalized = " ".join(body.split())
         assert current_goal in normalized
         assert current_action in normalized
-        assert next_action in normalized
+        assert default_action in normalized
+        assert historical_goal in normalized
         assert "complete_zero_candidates" in normalized
 
     assert "four installed Controlled-live mutation routes" in documents[

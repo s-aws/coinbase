@@ -15,6 +15,14 @@ contracts only.
 Spot is the first complete product module, not the generic model for futures,
 perpetuals, stealth orders, movement/repricing, or future modules.
 
+The current goal is `operator_core_workspaces_origin_prod_alignment_v1`
+(`in_progress`): persistent authenticated Portfolio, Spot Operations,
+Orders-detail, and System Operations workspaces backed by generated Admin API
+contracts, with Diagnostics separate. Current action is
+`implement_validate_audit_and_deploy_core_operator_workspaces`; default action
+is `continue_bounded_implementation_and_offline_remediation`. No goal-scoped
+Coinbase call has run yet.
+
 ## Start Here
 
 1. Read `AGENTS.md`, then `agent.md`.

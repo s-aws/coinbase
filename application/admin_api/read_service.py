@@ -9773,9 +9773,17 @@ class AdminApiReadService:
             route_inventory_item(surface)
             for surface in account_products_refresh_surfaces
         ]
+        account_reality_refresh_surfaces = [
+            "POST /api/v1/admin/account-reality/refresh",
+        ]
+        account_reality_refresh_rows = [
+            route_inventory_item(surface)
+            for surface in account_reality_refresh_surfaces
+        ]
         admin_runtime_control_surfaces = [
             "POST /api/v1/admin/runtime/pause",
             "POST /api/v1/admin/runtime/resume",
+            "POST /api/v1/admin/runtime/drain",
             "POST /api/v1/admin/runtime/shutdown",
         ]
         admin_runtime_control_rows = [
@@ -10370,6 +10378,90 @@ class AdminApiReadService:
                 spot_rule_boundary=(
                     "Spot product metadata can inform spot evidence, but spot "
                     "wallet or USDC rules must not be copied into non-spot modules."
+                ),
+                approval_required=False,
+                cap_guard_required=False,
+                reconciliation_required=False,
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_item(
+                mutation_id="admin.account_reality_refresh",
+                mutation_family=(
+                    AdminApiMutationFamilyType.ADMIN_ACCOUNT_REALITY_REFRESH
+                ),
+                workflow_id="account_management_reality_refresh",
+                module_id="account_management",
+                module="Account Management / Wallet / Market Metadata",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Account-reality refresh is an explicit backend-owned, "
+                    "durably claimed read workflow. It publishes only sanitized "
+                    "freshness, wallet, product, market, fee, and admission "
+                    "evidence for call-free operator projections."
+                ),
+                command_surfaces=account_reality_refresh_surfaces,
+                action_classes=[
+                    row.action_class for row in account_reality_refresh_rows
+                ],
+                required_permissions=[
+                    row.permission for row in account_reality_refresh_rows
+                ],
+                identity_keys=[
+                    "refresh_id",
+                    "request_id",
+                    "correlation_id",
+                    "idempotency_key",
+                ],
+                idempotency_contract=(
+                    "required durable claim; exact replay is call-free and "
+                    "changed payload conflicts"
+                ),
+                approval_contract=(
+                    "no approval snapshot; authenticated explicit operator intent required"
+                ),
+                cap_guard_contract=(
+                    "not applicable; refresh cannot admit or submit an order"
+                ),
+                admission_audit_contract=(
+                    "durable claimed and terminal sanitized Admin API audit required"
+                ),
+                reconciliation_contract=(
+                    "not applicable; zero exchange or order-state mutation"
+                ),
+                owning_backend_service="application/admin_api/mvp_service.py",
+                shared_command_service_method="refresh_account_reality",
+                route_inventory_refs=account_reality_refresh_surfaces,
+                backend_contract_refs=[
+                    "application/admin_api/mvp_service.py::refresh_account_reality",
+                    "external/coinbase_client.py::get_account_wallets_strict",
+                    "external/coinbase_client.py::get_products_batch",
+                    "api/v1/routes/admin.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/generated",
+                ],
+                documentation_refs=["README.admin-api.md"],
+                frontend_boundary=(
+                    "The frontend may request a refresh and display generated "
+                    "sanitized contracts only; it must not call Coinbase or "
+                    "infer trading eligibility."
+                ),
+                bff_boundary=(
+                    "BFF forwards explicit headers and body to the backend; it "
+                    "must not retry, redirect, expose credentials, or normalize "
+                    "raw Coinbase responses."
+                ),
+                route_local_boundary=(
+                    "The route may invoke only permissions, portfolio catalog, "
+                    "strict wallet pagination, batched product metadata, best "
+                    "bid/ask, and fee summary reads once per logical category; "
+                    "Futures positions, margin, orders, and exchange mutations "
+                    "are forbidden."
+                ),
+                spot_rule_boundary=(
+                    "Only the approved Test portfolio and Spot admission evidence "
+                    "may become ready; Futures risk remains explicitly blocked."
                 ),
                 approval_required=False,
                 cap_guard_required=False,

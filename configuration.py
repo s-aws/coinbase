@@ -233,6 +233,7 @@ class LazyProxy:
 
 API_KEY = getenv("COINBASE_API_KEY")
 API_SECRET = getenv("COINBASE_API_SECRET")
+COINBASE_REST_TIMEOUT_SECONDS = 10
 
 
 def _make_rest_client():
@@ -244,6 +245,7 @@ def _make_rest_client():
         api_key=API_KEY,
         api_secret=API_SECRET,
         rate_limit_headers=True,
+        timeout=COINBASE_REST_TIMEOUT_SECONDS,
     )
     return CoinbaseRestClient(_sdk)
 
