@@ -16,6 +16,7 @@ from typing import Any
 
 from core.enums import AdminApiAuthMode
 from core.operator_follow_up_intent import operator_follow_up_intent_enabled
+from core.runtime_controller import get_runtime_controller
 from tools.coinbase_live_credentials import ensure_live_coinbase_credentials
 
 
@@ -197,6 +198,29 @@ def build_uvicorn_kwargs(config: AdminApiRunConfig) -> dict[str, Any]:
     }
 
 
+def run_uvicorn_server(config: AdminApiRunConfig) -> None:
+    """Serve with a retained ingress handle for queued runtime shutdown."""
+
+    import uvicorn
+
+    kwargs = build_uvicorn_kwargs(config)
+    if config.reload:
+        # Uvicorn owns the reload supervisor and its child-process lifecycle.
+        uvicorn.run(**kwargs)
+        return
+
+    server = uvicorn.Server(uvicorn.Config(**kwargs))
+
+    def stop_admin_api_ingress() -> None:
+        server.should_exit = True
+
+    get_runtime_controller().register_stop_hook(
+        "admin_api",
+        stop_admin_api_ingress,
+    )
+    server.run()
+
+
 def _read_env_value(source: Mapping[str, str | None], key: str) -> str | None:
     value = source.get(key)
     value = value.strip() if value else ""
@@ -319,7 +343,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         f"http://{config.host}:{config.port}; controlled-live authority is "
         f"{execution_posture}."
     )
-    uvicorn.run(**build_uvicorn_kwargs(config))
+    run_uvicorn_server(config)
     return 0
 
 

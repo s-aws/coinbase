@@ -32,9 +32,9 @@ from tools.coinbase_live_credentials import ensure_live_coinbase_credentials
 from tools.run_admin_api import (
     AdminApiRunConfig,
     apply_local_environment,
-    build_uvicorn_kwargs,
     parse_run_config,
     prepare_live_coinbase_credentials,
+    run_uvicorn_server,
     startup_auth_error_message,
 )
 
@@ -195,9 +195,7 @@ def compose_canonical_operator_runtime(
 
 
 def _run_admin_server(config: AdminApiRunConfig) -> None:
-    import uvicorn
-
-    uvicorn.run(**build_uvicorn_kwargs(config))
+    run_uvicorn_server(config)
 
 
 def main(

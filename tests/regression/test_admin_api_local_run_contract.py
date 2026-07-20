@@ -11,6 +11,26 @@ from core.enums import AdminApiAuthMode
 from tools import run_admin_api
 
 
+def _retained_uvicorn_stub(calls: list[dict[str, object]]) -> SimpleNamespace:
+    class FakeConfig:
+        def __init__(self, **kwargs) -> None:
+            self.kwargs = kwargs
+
+    class FakeServer:
+        def __init__(self, config) -> None:
+            self.config = config
+            self.should_exit = False
+
+        def run(self) -> None:
+            calls.append(self.config.kwargs)
+
+    return SimpleNamespace(
+        Config=FakeConfig,
+        Server=FakeServer,
+        run=lambda **kwargs: calls.append(kwargs),
+    )
+
+
 @pytest.mark.regression
 def test_admin_api_local_runner_defaults_to_existing_fastapi_app():
     config = run_admin_api.parse_run_config([])
@@ -26,6 +46,86 @@ def test_admin_api_local_runner_defaults_to_existing_fastapi_app():
         "port": 8787,
         "reload": False,
     }
+
+
+@pytest.mark.regression
+def test_admin_api_non_reload_server_registers_ingress_as_runtime_stop_hook(
+    monkeypatch,
+):
+    from core.runtime_controller import RuntimeController
+
+    controller = RuntimeController()
+    servers: list[object] = []
+    legacy_run_calls: list[dict[str, object]] = []
+
+    class FakeConfig:
+        def __init__(self, **kwargs) -> None:
+            self.kwargs = kwargs
+
+    class FakeServer:
+        def __init__(self, config) -> None:
+            self.config = config
+            self.should_exit = False
+            self.run_calls = 0
+            servers.append(self)
+
+        def run(self) -> None:
+            self.run_calls += 1
+
+    monkeypatch.setattr(
+        run_admin_api,
+        "get_runtime_controller",
+        lambda: controller,
+        raising=False,
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "uvicorn",
+        SimpleNamespace(
+            Config=FakeConfig,
+            Server=FakeServer,
+            run=lambda **kwargs: legacy_run_calls.append(kwargs),
+        ),
+    )
+
+    run_admin_api.run_uvicorn_server(run_admin_api.parse_run_config([]))
+
+    assert legacy_run_calls == []
+    assert len(servers) == 1
+    server = servers[0]
+    assert server.config.kwargs == run_admin_api.build_uvicorn_kwargs(
+        run_admin_api.parse_run_config([])
+    )
+    assert server.run_calls == 1
+    assert server.should_exit is False
+
+    result = controller.drain_and_stop(timeout_seconds=0.01)
+
+    assert result.drained_clean is True
+    assert server.should_exit is True
+
+
+@pytest.mark.regression
+def test_admin_api_reload_server_preserves_uvicorn_reload_supervisor(monkeypatch):
+    legacy_run_calls: list[dict[str, object]] = []
+    monkeypatch.setitem(
+        sys.modules,
+        "uvicorn",
+        SimpleNamespace(
+            Config=lambda **_kwargs: pytest.fail(
+                "reload must remain owned by uvicorn.run"
+            ),
+            Server=lambda _config: pytest.fail(
+                "reload must remain owned by uvicorn.run"
+            ),
+            run=lambda **kwargs: legacy_run_calls.append(kwargs),
+        ),
+    )
+    config = run_admin_api.parse_run_config(["--reload"])
+
+    run_admin_api.run_uvicorn_server(config)
+
+    assert legacy_run_calls == [run_admin_api.build_uvicorn_kwargs(config)]
 
 
 @pytest.mark.regression
@@ -149,6 +249,8 @@ def test_admin_api_local_runner_fails_closed_when_oidc_startup_config_is_missing
 
 @pytest.mark.regression
 def test_admin_api_local_runner_starts_with_oidc_auth_without_bootstrap_token(monkeypatch):
+    from core.runtime_controller import RuntimeController
+
     uvicorn_calls: list[dict[str, object]] = []
     startup_events: list[str] = []
     monkeypatch.setenv(
@@ -166,7 +268,12 @@ def test_admin_api_local_runner_starts_with_oidc_auth_without_bootstrap_token(mo
     monkeypatch.setitem(
         sys.modules,
         "uvicorn",
-        SimpleNamespace(run=lambda **kwargs: uvicorn_calls.append(kwargs)),
+        _retained_uvicorn_stub(uvicorn_calls),
+    )
+    monkeypatch.setattr(
+        run_admin_api,
+        "get_runtime_controller",
+        lambda: RuntimeController(),
     )
     monkeypatch.setattr(
         run_admin_api,
@@ -221,6 +328,8 @@ def test_admin_api_local_runner_fails_closed_when_follow_up_intent_schema_init_f
 def test_admin_api_local_runner_skips_follow_up_intent_schema_when_feature_disabled(
     monkeypatch,
 ):
+    from core.runtime_controller import RuntimeController
+
     uvicorn_calls: list[dict[str, object]] = []
     monkeypatch.setenv("COINBASE_ADMIN_API_OPERATOR_FOLLOW_UP_INTENT_ENABLED", "0")
     monkeypatch.setenv(run_admin_api.AUTH_TOKEN_ENV, "local-test-token")
@@ -232,7 +341,12 @@ def test_admin_api_local_runner_skips_follow_up_intent_schema_when_feature_disab
     monkeypatch.setitem(
         sys.modules,
         "uvicorn",
-        SimpleNamespace(run=lambda **kwargs: uvicorn_calls.append(kwargs)),
+        _retained_uvicorn_stub(uvicorn_calls),
+    )
+    monkeypatch.setattr(
+        run_admin_api,
+        "get_runtime_controller",
+        lambda: RuntimeController(),
     )
 
     exit_code = run_admin_api.main([])

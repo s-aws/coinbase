@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import inspect
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -141,6 +142,67 @@ def test_operator_runtime_main_enters_canonical_main_only_after_preparation(
 
     assert result == 0
     assert lifecycle == ["compose", ("serve", "127.0.0.1", 8877)]
+
+
+def test_operator_server_registers_uvicorn_ingress_as_runtime_stop_hook(
+    monkeypatch,
+) -> None:
+    from core import runtime_controller as runtime_controller_module
+    from tools import run_admin_api
+
+    controller = runtime_controller_module.RuntimeController()
+    servers: list[object] = []
+    legacy_run_calls: list[dict[str, object]] = []
+
+    class FakeConfig:
+        def __init__(self, **kwargs) -> None:
+            self.kwargs = kwargs
+
+    class FakeServer:
+        def __init__(self, config) -> None:
+            self.config = config
+            self.should_exit = False
+            self.run_calls = 0
+            servers.append(self)
+
+        def run(self) -> None:
+            self.run_calls += 1
+
+    monkeypatch.setattr(
+        run_admin_api,
+        "get_runtime_controller",
+        lambda: controller,
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "uvicorn",
+        SimpleNamespace(
+            Config=FakeConfig,
+            Server=FakeServer,
+            run=lambda **kwargs: legacy_run_calls.append(kwargs),
+        ),
+    )
+    config = operator_runtime.AdminApiRunConfig(
+        app="api.v1.app:app",
+        host="127.0.0.1",
+        port=8877,
+        reload=False,
+        cors_origins=("http://127.0.0.1:3000",),
+        dev_token=None,
+    )
+
+    operator_runtime._run_admin_server(config)
+
+    assert legacy_run_calls == []
+    assert len(servers) == 1
+    server = servers[0]
+    assert server.run_calls == 1
+    assert server.should_exit is False
+
+    result = controller.drain_and_stop(timeout_seconds=0.01)
+
+    assert result.drained_clean is True
+    assert server.should_exit is True
 
 
 def test_operator_runtime_composes_dormant_canonical_dependencies_without_engine_or_bridge_loops(
