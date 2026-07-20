@@ -5,10 +5,24 @@ private model routing, private release planning, or internal research notes.
 
 ## Current Direction
 
+- `operator_spot_automation_single_child_execution_adapter_v1` is at a
+  source-gated checkpoint. One immutable `BTC-USDC` child plan, PostgreSQL
+  claim/evidence primitives, generated operator readback, and fixed cap display
+  are implemented. The installed path blocks before all Coinbase activity at
+  `automation_active_order_catalog_read_not_authorized`; all eligibility,
+  Create, and Cancel allowances remain unconsumed. The proposed continuation,
+  pending explicit operator authorization, is the consolidated canonical
+  eligibility/admission/active-order-guard/exact-child closeout work documented in
+  [the adapter checkpoint](OPERATOR_SPOT_AUTOMATION_SINGLE_CHILD_ADAPTER.md).
+  Current checkpoint gates passed backend full `1165 passed, 6 skipped`
+  parallel and `630 passed, 150 skipped` serial, frontend full `1514 passed`,
+  browser E2E `15/15`, and both independent audits with zero Coinbase
+  execution and zero notional.
+
 - Goal `operator_core_workspaces_origin_prod_alignment_v1` has Status:
   `complete`. Goal `operator_core_workspaces_origin_prod_alignment_v1` is
-  complete. Current action is
-  `complete_core_operator_workspaces_origin_prod_alignment`; default action is
+  complete. Its historical action is
+  `complete_core_operator_workspaces_origin_prod_alignment`; its historical default was
   `await_operator_direction_for_next_mvp`. It delivered the persistent
   authenticated operator shell and routed Portfolio, Spot Operations, Futures
   Operations, Orders-detail, Automation, and System Operations workspaces while

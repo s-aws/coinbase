@@ -1,5 +1,13 @@
 # Operator Automation Control Plane v1
 
+> Current successor checkpoint: the separately authorized
+> `operator_spot_automation_single_child_execution_adapter_v1` installs a typed
+> one-child `BTC-USDC` plan and operator readback, but remains
+> `SOURCE_GATED` at fixed diagnostic
+> `automation_active_order_catalog_read_not_authorized`. It made zero Coinbase
+> reads, Create calls, or Cancel calls and consumed no live allowance. See
+> [Operator Spot Automation Single-Child Adapter v1](OPERATOR_SPOT_AUTOMATION_SINGLE_CHILD_ADAPTER.md).
+
 ## Goal
 
 `operator_automation_control_plane_origin_prod_alignment_v1` adds a normal

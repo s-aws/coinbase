@@ -1,8 +1,10 @@
-"""Authenticated, PostgreSQL-backed operator automation control plane.
+"""Authenticated, PostgreSQL-backed operator Automation control plane.
 
-All routes in this module are local control-plane operations.  They do not
-construct an exchange client or dispatch a domain job.  The one-shot route
-durably records a blocked adapter-readiness result only.
+Definition, lifecycle, claim, and read routes are local.  The exact-run
+authorization route delegates only through the backend-owned single-child
+adapter.  The current source gate stops before any Coinbase call because the
+canonical active-order catalog read is outside this goal's enumerated read
+authority.
 """
 
 from __future__ import annotations
@@ -42,9 +44,11 @@ from application.admin_api.automation_models import (
     AutomationOneShotRunRequest,
     AutomationRunDetailResponse,
     AutomationRunEventListResponse,
+    AutomationRunItem,
     AutomationRunListResponse,
     AutomationRunMutationResponse,
     AutomationRunState,
+    AutomationSingleChildAuthorizationRequest,
 )
 from application.admin_api.models import AdminApiActor, AdminApiErrorResponse
 from application.admin_api.operator_automation import (
@@ -167,6 +171,10 @@ _ClaimRunIntent = Annotated[
     Literal["claim_automation_one_shot_run"],
     Header(alias="X-Operator-Intent"),
 ]
+_AuthorizeSingleChildIntent = Annotated[
+    Literal["authorize_automation_single_child_create"],
+    Header(alias="X-Operator-Intent"),
+]
 
 
 def get_operator_automation_service() -> OperatorAutomationService:
@@ -244,6 +252,31 @@ def _scope_control_item(
     )
 
 
+def _scope_run_item(
+    item: AutomationRunItem,
+    actor: AdminApiActor,
+) -> AutomationRunItem:
+    can_trigger = actor_has_permission(
+        actor, AdminApiPermission.AUTOMATION_TRIGGER
+    )
+    permissions = {
+        "AUTHORIZE_SINGLE_CHILD": can_trigger
+        and actor_has_permission(actor, AdminApiPermission.ORDER_CREATE),
+    }
+    allowed_actions = [
+        action for action in item.allowed_actions if permissions.get(action, False)
+    ]
+    can_authorize = "AUTHORIZE_SINGLE_CHILD" in allowed_actions
+    return item.model_copy(
+        update={
+            "allowed_actions": allowed_actions,
+            "live_execution_available": bool(
+                item.live_execution_available and can_authorize
+            ),
+        }
+    )
+
+
 def _scope_payload_for_actor(payload: Any, actor: AdminApiActor) -> Any:
     if isinstance(payload, AutomationControlPlaneResponse):
         return payload.model_copy(
@@ -266,6 +299,22 @@ def _scope_payload_for_actor(payload: Any, actor: AdminApiActor) -> Any:
             update={
                 "items": [
                     _scope_definition_item(item, actor) for item in payload.items
+                ]
+            }
+        )
+    if isinstance(payload, AutomationRunDetailResponse):
+        return payload.model_copy(
+            update={"run": _scope_run_item(payload.run, actor)}
+        )
+    if isinstance(payload, AutomationRunMutationResponse):
+        return payload.model_copy(
+            update={"run": _scope_run_item(payload.run, actor)}
+        )
+    if isinstance(payload, AutomationRunListResponse):
+        return payload.model_copy(
+            update={
+                "items": [
+                    _scope_run_item(item, actor) for item in payload.items
                 ]
             }
         )
@@ -850,6 +899,40 @@ def claim_one_shot_run(
     return _mutation_result(
         lambda: service.claim_one_shot_run(
             definition_id=definition_id,
+            request=body,
+            context=_context(
+                actor=actor,
+                idempotency_key=idempotency_key,
+                correlation_id=correlation_id,
+                operator_intent=operator_intent,
+            ),
+        ),
+        actor=actor,
+    )
+
+
+@router.post(
+    "/automation/runs/{run_id}/authorize-single-child",
+    response_model=AutomationRunMutationResponse,
+    responses=_MUTATION_RESPONSES,
+    operation_id="authorize_operator_automation_single_child",
+)
+def authorize_single_child(
+    request: Request,
+    body: AutomationSingleChildAuthorizationRequest,
+    run_id: _EntityId,
+    actor: _Actor,
+    service: _Service,
+    idempotency_key: _IdempotencyKey,
+    correlation_id: _CorrelationId,
+    operator_intent: _AuthorizeSingleChildIntent,
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.AUTOMATION_TRIGGER)
+    require_permission(actor, AdminApiPermission.ORDER_CREATE)
+    _require_query_shape(request, frozenset())
+    return _mutation_result(
+        lambda: service.authorize_single_child(
+            run_id=run_id,
             request=body,
             context=_context(
                 actor=actor,

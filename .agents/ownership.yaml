@@ -270,6 +270,8 @@ owners:
       - docs/FUTURES_SLICE_2R12_PREPARATION.md
       - docs/FUTURES_SLICE_2R12_TERMINAL_DIAGNOSIS.md
       - docs/FUTURES_POST_R10_COMPATIBILITY_DIRECTION.md
+      - docs/OPERATOR_AUTOMATION_CONTROL_PLANE.md
+      - docs/OPERATOR_SPOT_AUTOMATION_SINGLE_CHILD_ADAPTER.md
       - openapi/**
       - tools/export_admin_api_route_inventory.py
       - tests/regression/test_admin_api_*.py
@@ -350,6 +352,7 @@ owners:
       - database/**
       - data/**
     test_owns:
+      - tests/regression/test_operator_automation_repository.py
       - tests/regression/test_db_*.py
       - tests/regression/test_operator_follow_up_materialization_repository.py
       - tests/regression/test_reconciler_schema.py

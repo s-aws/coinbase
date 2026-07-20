@@ -9,11 +9,12 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation
 import hashlib
 import json
 import os
 import re
-from typing import Any, Generic, Mapping, TypeVar
+from typing import Any, Generic, Literal, Mapping, TypeVar
 import uuid
 
 from core.enums import (
@@ -50,6 +51,30 @@ _SPOT_JOB_KINDS = {
     OperatorAutomationJobKind.SPOT_SWEEP,
     OperatorAutomationJobKind.SPOT_LADDER,
 }
+AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES = (
+    "API_KEY_PERMISSIONS",
+    "PORTFOLIO_CATALOG",
+    "ACCOUNT_WALLET_BALANCES",
+    "PRODUCT_METADATA",
+    "BEST_BID_ASK",
+    "FEE_SUMMARY",
+    "EXACT_ORDER_RECONCILIATION",
+)
+_AUTOMATION_SPOT_ELIGIBILITY_CATEGORY_SET = frozenset(
+    AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES
+)
+_AUTOMATION_SPOT_ELIGIBILITY_OUTCOMES = frozenset(
+    {"SUCCEEDED", "REJECTED", "UNKNOWN"}
+)
+_AUTOMATION_SPOT_MUTATION_OUTCOMES = frozenset(
+    {"ACCEPTED", "REJECTED", "UNKNOWN"}
+)
+_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY = (
+    "operator_spot_automation_single_child_execution_adapter_v1"
+)
+_AUTOMATION_SPOT_CLIENT_ORDER_NAMESPACE = uuid.UUID(
+    "af243a31-5934-52e2-b540-8d7b101d82ca"
+)
 
 
 def _utc_now() -> datetime:
@@ -80,6 +105,16 @@ def _new_id() -> str:
     return str(uuid.uuid4())
 
 
+def _decimal_text(value: Any, *, code: str) -> str:
+    try:
+        parsed = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        raise AutomationStoreInvalid(code) from None
+    if not parsed.is_finite() or parsed <= 0:
+        raise AutomationStoreInvalid(code)
+    return format(parsed.normalize(), "f")
+
+
 def _validate_id(value: str, *, code: str) -> str:
     try:
         parsed = uuid.UUID(str(value))
@@ -106,6 +141,38 @@ class AutomationDefinitionCreateCommand(AutomationMutationCommand):
     job_kind: OperatorAutomationJobKind
     label: str
     product_ids: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class _AutomationSpotSingleChildPlanCreateCommand(AutomationMutationCommand):
+    definition_id: str
+    definition_revision: int
+    portfolio_id_sha256: str
+    product_id: str
+    side: str
+    base_size: str
+    limit_price: str
+    submitted_notional_usdc: str
+    possible_execution_notional_usdc: str
+    max_submitted_notional_usdc: str
+    max_possible_execution_notional_usdc: str
+    post_only: bool
+
+
+@dataclass(frozen=True)
+class AutomationSpotSingleChildPlanTerms:
+    """Identity-free immutable terms committed with a definition revision."""
+
+    portfolio_id_sha256: str
+    product_id: str
+    side: str
+    base_size: str
+    limit_price: str
+    submitted_notional_usdc: str
+    possible_execution_notional_usdc: str
+    max_submitted_notional_usdc: str
+    max_possible_execution_notional_usdc: str
+    post_only: bool
 
 
 @dataclass(frozen=True)
@@ -148,6 +215,82 @@ class AutomationRunRecord:
     create_call_count: int
     cancel_call_count: int
     claimed_at: str
+    updated_at: str
+    definition_revision: int | None = None
+
+
+@dataclass(frozen=True)
+class AutomationSpotSingleChildPlanRecord:
+    definition_id: str
+    definition_revision: int
+    portfolio_id_sha256: str
+    product_id: Literal["BTC-USDC"]
+    side: Literal["BUY", "SELL"]
+    base_size: str
+    limit_price: str
+    submitted_notional_usdc: str
+    possible_execution_notional_usdc: str
+    max_submitted_notional_usdc: str
+    max_possible_execution_notional_usdc: str
+    post_only: bool
+    plan_sha256: str
+    audit_id: str
+    correlation_id: str
+    created_at: str
+
+
+@dataclass(frozen=True)
+class AutomationSpotEligibilityAttemptRecord:
+    run_id: str
+    cycle_number: int
+    category: str
+    allowance_consumed: bool
+    outcome: Literal["SUCCEEDED", "REJECTED", "UNKNOWN"] | None
+    eligible: bool | None
+    coinbase_api_call_count: int | None
+    call_count_exact: bool
+    diagnostic_code: str
+    audit_id: str
+    correlation_id: str
+    started_at: str
+    finalized_at: str | None
+    portfolio_id_sha256: str | None = None
+
+
+@dataclass(frozen=True)
+class AutomationSpotRunExecutionRecord:
+    run_id: str
+    definition_id: str
+    definition_revision: int
+    eligibility_cycle: int
+    plan_sha256: str
+    portfolio_id_sha256: str
+    product_id: Literal["BTC-USDC"]
+    client_order_id: str
+    create_allowance_consumed: bool
+    create_outcome: Literal["ACCEPTED", "REJECTED", "UNKNOWN"] | None
+    create_call_count: int | None
+    create_call_count_exact: bool
+    cancel_allowance_consumed: bool
+    cancel_outcome: Literal["ACCEPTED", "REJECTED", "UNKNOWN"] | None
+    cancel_call_count: int | None
+    cancel_call_count_exact: bool
+    child_terminal: bool | None
+    audit_id: str
+    correlation_id: str
+    created_at: str
+    updated_at: str
+
+
+@dataclass(frozen=True)
+class AutomationSpotLiveProofGoalRecord:
+    goal_key: str
+    create_allowance_consumed: bool
+    cancel_allowance_consumed: bool
+    bound_run_id: str | None
+    client_order_id: str | None
+    create_outcome: Literal["ACCEPTED", "REJECTED", "UNKNOWN"] | None
+    cancel_outcome: Literal["ACCEPTED", "REJECTED", "UNKNOWN"] | None
     updated_at: str
 
 
@@ -299,10 +442,235 @@ class OperatorAutomationRepository:
             )
             cursor.execute(
                 f"""
+                ALTER TABLE {self._prefix}automation_run
+                ADD COLUMN IF NOT EXISTS definition_revision INTEGER
+                    CHECK (definition_revision IS NULL OR definition_revision >= 1)
+                """
+            )
+            cursor.execute(
+                f"""
                 CREATE UNIQUE INDEX IF NOT EXISTS automation_run_one_active_per_definition
                 ON {self._prefix}automation_run (definition_id)
                 WHERE state IN ({active_states})
                 """
+            )
+            cursor.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS {self._prefix}automation_spot_single_child_plan (
+                    definition_id UUID NOT NULL REFERENCES {self._prefix}automation_definition(definition_id),
+                    definition_revision INTEGER NOT NULL CHECK (definition_revision >= 1),
+                    portfolio_id_sha256 CHAR(64) NOT NULL
+                        CHECK (portfolio_id_sha256 ~ '^[0-9a-f]{{64}}$'),
+                    product_id TEXT NOT NULL CHECK (product_id = 'BTC-USDC'),
+                    side TEXT NOT NULL CHECK (side IN ('BUY','SELL')),
+                    base_size NUMERIC NOT NULL CHECK (base_size > 0),
+                    limit_price NUMERIC NOT NULL CHECK (limit_price > 0),
+                    submitted_notional_usdc NUMERIC NOT NULL
+                        CHECK (
+                            submitted_notional_usdc > 0
+                            AND submitted_notional_usdc <= 3.10
+                            AND submitted_notional_usdc = base_size * limit_price
+                        ),
+                    possible_execution_notional_usdc NUMERIC NOT NULL
+                        CHECK (
+                            possible_execution_notional_usdc > 0
+                            AND possible_execution_notional_usdc <= 1.00
+                            AND possible_execution_notional_usdc <= submitted_notional_usdc
+                        ),
+                    max_submitted_notional_usdc NUMERIC NOT NULL
+                        CHECK (max_submitted_notional_usdc = 3.10),
+                    max_possible_execution_notional_usdc NUMERIC NOT NULL
+                        CHECK (max_possible_execution_notional_usdc = 1.00),
+                    post_only BOOLEAN NOT NULL CHECK (post_only = FALSE),
+                    plan_sha256 CHAR(64) NOT NULL UNIQUE
+                        CHECK (plan_sha256 ~ '^[0-9a-f]{{64}}$'),
+                    audit_id UUID NOT NULL,
+                    correlation_id TEXT NOT NULL CHECK (char_length(correlation_id) BETWEEN 1 AND 255),
+                    created_at TIMESTAMPTZ NOT NULL,
+                    PRIMARY KEY (definition_id, definition_revision)
+                )
+                """
+            )
+            eligibility_categories = ", ".join(
+                f"'{category}'" for category in AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES
+            )
+            cursor.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS {self._prefix}automation_spot_eligibility_attempt (
+                    run_id UUID NOT NULL REFERENCES {self._prefix}automation_run(run_id),
+                    cycle_number SMALLINT NOT NULL CHECK (cycle_number BETWEEN 1 AND 10),
+                    category TEXT NOT NULL CHECK (category IN ({eligibility_categories})),
+                    allowance_consumed BOOLEAN NOT NULL CHECK (allowance_consumed),
+                    outcome TEXT CHECK (outcome IN ('SUCCEEDED','REJECTED','UNKNOWN')),
+                    eligible BOOLEAN,
+                    coinbase_api_call_count INTEGER CHECK (
+                        coinbase_api_call_count IS NULL OR coinbase_api_call_count >= 1
+                    ),
+                    call_count_exact BOOLEAN NOT NULL DEFAULT FALSE,
+                    diagnostic_code TEXT NOT NULL CHECK (char_length(diagnostic_code) BETWEEN 1 AND 96),
+                    audit_id UUID NOT NULL,
+                    correlation_id TEXT NOT NULL CHECK (char_length(correlation_id) BETWEEN 1 AND 255),
+                    started_at TIMESTAMPTZ NOT NULL,
+                    finalized_at TIMESTAMPTZ,
+                    portfolio_id_sha256 CHAR(64) CHECK (
+                        portfolio_id_sha256 IS NULL
+                        OR portfolio_id_sha256 ~ '^[0-9a-f]{{64}}$'
+                    ),
+                    PRIMARY KEY (run_id, cycle_number, category),
+                    CHECK (
+                        (outcome IS NULL AND eligible IS NULL AND coinbase_api_call_count IS NULL
+                            AND call_count_exact = FALSE AND finalized_at IS NULL)
+                        OR
+                        (outcome IS NOT NULL AND eligible IS NOT NULL AND finalized_at IS NOT NULL
+                            AND ((call_count_exact AND coinbase_api_call_count IS NOT NULL)
+                                OR (NOT call_count_exact AND coinbase_api_call_count IS NULL)))
+                    )
+                )
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_eligibility_attempt
+                ADD COLUMN IF NOT EXISTS portfolio_id_sha256 CHAR(64) CHECK (
+                    portfolio_id_sha256 IS NULL
+                    OR portfolio_id_sha256 ~ '^[0-9a-f]{{64}}$'
+                )
+                """
+            )
+            cursor.execute(
+                f"""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1
+                        FROM pg_constraint AS constraint_row
+                        JOIN pg_class AS table_row
+                          ON table_row.oid = constraint_row.conrelid
+                        JOIN pg_namespace AS namespace_row
+                          ON namespace_row.oid = table_row.relnamespace
+                        WHERE namespace_row.nspname = '{self.schema}'
+                          AND table_row.relname = 'automation_spot_eligibility_attempt'
+                          AND constraint_row.conname = 'automation_spot_eligibility_portfolio_binding_valid'
+                    ) THEN
+                        ALTER TABLE {self._prefix}automation_spot_eligibility_attempt
+                        ADD CONSTRAINT automation_spot_eligibility_portfolio_binding_valid
+                        CHECK (
+                            portfolio_id_sha256 IS NULL
+                            OR (
+                                category = 'PORTFOLIO_CATALOG'
+                                AND outcome = 'SUCCEEDED'
+                                AND eligible IS TRUE
+                                AND call_count_exact
+                                AND coinbase_api_call_count IS NOT NULL
+                                AND finalized_at IS NOT NULL
+                            )
+                        );
+                    END IF;
+                END;
+                $$
+                """
+            )
+            cursor.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS {self._prefix}automation_spot_run_execution (
+                    run_id UUID PRIMARY KEY REFERENCES {self._prefix}automation_run(run_id),
+                    definition_id UUID NOT NULL,
+                    definition_revision INTEGER NOT NULL,
+                    eligibility_cycle SMALLINT NOT NULL CHECK (eligibility_cycle BETWEEN 1 AND 10),
+                    plan_sha256 CHAR(64) NOT NULL,
+                    portfolio_id_sha256 CHAR(64) NOT NULL
+                        CHECK (portfolio_id_sha256 ~ '^[0-9a-f]{{64}}$'),
+                    product_id TEXT NOT NULL CHECK (product_id = 'BTC-USDC'),
+                    client_order_id UUID NOT NULL UNIQUE,
+                    create_allowance_consumed BOOLEAN NOT NULL CHECK (create_allowance_consumed),
+                    create_outcome TEXT CHECK (create_outcome IN ('ACCEPTED','REJECTED','UNKNOWN')),
+                    create_call_count INTEGER CHECK (
+                        create_call_count IS NULL OR create_call_count IN (0,1)
+                    ),
+                    create_call_count_exact BOOLEAN NOT NULL DEFAULT FALSE,
+                    cancel_allowance_consumed BOOLEAN NOT NULL DEFAULT FALSE,
+                    cancel_outcome TEXT CHECK (cancel_outcome IN ('ACCEPTED','REJECTED','UNKNOWN')),
+                    cancel_call_count INTEGER CHECK (
+                        cancel_call_count IS NULL OR cancel_call_count IN (0,1)
+                    ),
+                    cancel_call_count_exact BOOLEAN NOT NULL DEFAULT FALSE,
+                    child_terminal BOOLEAN,
+                    audit_id UUID NOT NULL,
+                    correlation_id TEXT NOT NULL CHECK (char_length(correlation_id) BETWEEN 1 AND 255),
+                    created_at TIMESTAMPTZ NOT NULL,
+                    updated_at TIMESTAMPTZ NOT NULL,
+                    FOREIGN KEY (definition_id, definition_revision)
+                        REFERENCES {self._prefix}automation_spot_single_child_plan(definition_id, definition_revision),
+                    CHECK (
+                        (create_outcome IS NULL AND create_call_count IS NULL
+                            AND create_call_count_exact = FALSE AND child_terminal IS NULL)
+                        OR
+                        (create_outcome = 'ACCEPTED'
+                            AND create_call_count_exact AND create_call_count = 1)
+                        OR
+                        (create_outcome = 'REJECTED'
+                            AND create_call_count_exact
+                            AND create_call_count IN (0,1))
+                        OR
+                        (create_outcome = 'UNKNOWN'
+                            AND NOT create_call_count_exact
+                            AND create_call_count IS NULL)
+                    ),
+                    CHECK (
+                        (NOT cancel_allowance_consumed AND cancel_outcome IS NULL
+                            AND cancel_call_count IS NULL AND cancel_call_count_exact = FALSE)
+                        OR cancel_allowance_consumed
+                    ),
+                    CHECK (
+                        cancel_outcome IS NULL
+                        OR (cancel_outcome = 'ACCEPTED'
+                            AND cancel_call_count_exact AND cancel_call_count = 1)
+                        OR (cancel_outcome = 'REJECTED'
+                            AND cancel_call_count_exact
+                            AND cancel_call_count IN (0,1))
+                        OR (cancel_outcome = 'UNKNOWN'
+                            AND NOT cancel_call_count_exact
+                            AND cancel_call_count IS NULL)
+                    )
+                )
+                """
+            )
+            cursor.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS {self._prefix}automation_spot_live_proof_goal (
+                    singleton SMALLINT PRIMARY KEY CHECK (singleton = 1),
+                    goal_key TEXT NOT NULL CHECK (
+                        goal_key = '{_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY}'
+                    ),
+                    create_allowance_consumed BOOLEAN NOT NULL DEFAULT FALSE,
+                    cancel_allowance_consumed BOOLEAN NOT NULL DEFAULT FALSE,
+                    bound_run_id UUID REFERENCES {self._prefix}automation_spot_run_execution(run_id),
+                    client_order_id UUID,
+                    create_outcome TEXT CHECK (create_outcome IN ('ACCEPTED','REJECTED','UNKNOWN')),
+                    cancel_outcome TEXT CHECK (cancel_outcome IN ('ACCEPTED','REJECTED','UNKNOWN')),
+                    updated_at TIMESTAMPTZ NOT NULL,
+                    CHECK (
+                        (NOT create_allowance_consumed AND bound_run_id IS NULL
+                            AND client_order_id IS NULL AND create_outcome IS NULL
+                            AND NOT cancel_allowance_consumed AND cancel_outcome IS NULL)
+                        OR
+                        (create_allowance_consumed AND bound_run_id IS NOT NULL
+                            AND client_order_id IS NOT NULL)
+                    ),
+                    CHECK (NOT cancel_allowance_consumed OR create_allowance_consumed)
+                )
+                """
+            )
+            cursor.execute(
+                f"""
+                INSERT INTO {self._prefix}automation_spot_live_proof_goal (
+                    singleton, goal_key, create_allowance_consumed,
+                    cancel_allowance_consumed, bound_run_id, client_order_id,
+                    create_outcome, cancel_outcome, updated_at
+                ) VALUES (1,%s,FALSE,FALSE,NULL,NULL,NULL,NULL,NOW())
+                ON CONFLICT (singleton) DO NOTHING
+                """,
+                (_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,),
             )
             cursor.execute(
                 f"""
@@ -370,6 +738,39 @@ class OperatorAutomationRepository:
                 FOR EACH ROW EXECUTE FUNCTION {function_name}()
                 """
             )
+            immutable_plan_function = (
+                f'"{self.schema}".reject_automation_spot_plan_mutation'
+            )
+            cursor.execute(
+                f"""
+                CREATE OR REPLACE FUNCTION {immutable_plan_function}()
+                RETURNS trigger LANGUAGE plpgsql AS $$
+                BEGIN
+                    RAISE EXCEPTION 'automation_spot_single_child_plan_is_immutable';
+                END;
+                $$
+                """
+            )
+            cursor.execute(
+                f"DROP TRIGGER IF EXISTS automation_spot_plan_no_update ON {self._prefix}automation_spot_single_child_plan"
+            )
+            cursor.execute(
+                f"""
+                CREATE TRIGGER automation_spot_plan_no_update
+                BEFORE UPDATE ON {self._prefix}automation_spot_single_child_plan
+                FOR EACH ROW EXECUTE FUNCTION {immutable_plan_function}()
+                """
+            )
+            cursor.execute(
+                f"DROP TRIGGER IF EXISTS automation_spot_plan_no_delete ON {self._prefix}automation_spot_single_child_plan"
+            )
+            cursor.execute(
+                f"""
+                CREATE TRIGGER automation_spot_plan_no_delete
+                BEFORE DELETE ON {self._prefix}automation_spot_single_child_plan
+                FOR EACH ROW EXECUTE FUNCTION {immutable_plan_function}()
+                """
+            )
 
     @staticmethod
     def _validate_command(command: AutomationMutationCommand) -> None:
@@ -429,6 +830,7 @@ class OperatorAutomationRepository:
             or row["actor_id_sha256"] != _hash(command.actor_id)
             or row["operator_intent_sha256"] != _hash(command.operator_intent)
             or row["resource_type"] != resource_type
+            or row["correlation_id"] != command.correlation_id
         ):
             raise AutomationStoreConflict("automation_idempotency_conflict")
         result = row["result_json"]
@@ -610,9 +1012,38 @@ class OperatorAutomationRepository:
             raise AutomationStoreUnavailable("automation_control_plane_unavailable")
         return self._control_from_row(rows[0])
 
+    def _lock_spot_single_child_definition_slot(
+        self,
+        cursor: Any,
+        *,
+        definition_id: str | None,
+    ) -> None:
+        """Serialize and enforce the goal-wide single plan-bearing definition."""
+
+        cursor.execute(
+            f"SELECT singleton FROM {self._prefix}automation_spot_live_proof_goal WHERE singleton = 1 FOR UPDATE"
+        )
+        if cursor.fetchone() is None:
+            raise AutomationStoreUnavailable(
+                "automation_spot_live_proof_goal_unavailable"
+            )
+        cursor.execute(
+            f"SELECT DISTINCT definition_id FROM {self._prefix}automation_spot_single_child_plan"
+        )
+        existing_definition_ids = {
+            str(row[0])
+            for row in cursor.fetchall()
+        }
+        if existing_definition_ids and existing_definition_ids != {definition_id}:
+            raise AutomationStoreConflict(
+                "automation_spot_single_child_definition_already_exists"
+            )
+
     def create_definition(
         self,
         command: AutomationDefinitionCreateCommand,
+        *,
+        spot_single_child_plan: AutomationSpotSingleChildPlanTerms | None = None,
     ) -> AutomationStoreMutation[AutomationDefinitionRecord]:
         domain = OperatorAutomationDomain(command.domain)
         job_kind = OperatorAutomationJobKind(command.job_kind)
@@ -627,6 +1058,12 @@ class OperatorAutomationRepository:
             raise AutomationStoreInvalid("automation_definition_product_scope_invalid")
         if job_kind is OperatorAutomationJobKind.FOLLOW_UP and command.product_ids:
             raise AutomationStoreInvalid("automation_follow_up_product_scope_forbidden")
+        if spot_single_child_plan is not None and (
+            domain is not OperatorAutomationDomain.SPOT
+            or job_kind is not OperatorAutomationJobKind.SPOT_CAMPAIGN
+            or tuple(command.product_ids) != ("BTC-USDC",)
+        ):
+            raise AutomationStoreInvalid("automation_spot_plan_definition_mismatch")
 
         with self.database.get_cursor() as cursor:
             replay = self._idempotency_replay(
@@ -635,11 +1072,24 @@ class OperatorAutomationRepository:
                 resource_type="definition_create",
             )
             if replay is not None:
+                replayed_record = self._definition_from_json(replay["entity"])
+                if spot_single_child_plan is not None:
+                    self._verify_atomic_spot_plan_replay(
+                        cursor,
+                        record=replayed_record,
+                        terms=spot_single_child_plan,
+                        command=command,
+                    )
                 return AutomationStoreMutation(
-                    entity=self._definition_from_json(replay["entity"]),
+                    entity=replayed_record,
                     audit_id=replay["audit_id"],
                     correlation_id=replay["correlation_id"],
                     replayed=True,
+                )
+            if spot_single_child_plan is not None:
+                self._lock_spot_single_child_definition_slot(
+                    cursor,
+                    definition_id=None,
                 )
             now = _utc_now()
             definition_id = _new_id()
@@ -670,6 +1120,22 @@ class OperatorAutomationRepository:
                 control_posture=OperatorAutomationControlPosture.ACTIVE,
                 now=now,
             )
+            if spot_single_child_plan is not None:
+                plan_values = self._validated_spot_plan_values(
+                    self._spot_plan_command_for_revision(
+                        definition_id=definition_id,
+                        definition_revision=record.revision,
+                        terms=spot_single_child_plan,
+                        command=command,
+                    )
+                )
+                self._insert_spot_single_child_plan(
+                    cursor,
+                    values=plan_values,
+                    audit_id=audit_id,
+                    correlation_id=command.correlation_id,
+                    recorded_at=now,
+                )
             self._append_event(
                 cursor,
                 definition_id=definition_id,
@@ -692,6 +1158,379 @@ class OperatorAutomationRepository:
                 recorded_at=now,
             )
             return AutomationStoreMutation(record, audit_id, command.correlation_id)
+
+    @staticmethod
+    def _spot_plan_from_row(
+        row: Mapping[str, Any],
+    ) -> AutomationSpotSingleChildPlanRecord:
+        return AutomationSpotSingleChildPlanRecord(
+            definition_id=str(row["definition_id"]),
+            definition_revision=int(row["definition_revision"]),
+            portfolio_id_sha256=row["portfolio_id_sha256"],
+            product_id=row["product_id"],
+            side=row["side"],
+            base_size=_decimal_text(
+                row["base_size"], code="automation_spot_plan_base_size_invalid"
+            ),
+            limit_price=_decimal_text(
+                row["limit_price"], code="automation_spot_plan_limit_price_invalid"
+            ),
+            submitted_notional_usdc=_decimal_text(
+                row["submitted_notional_usdc"],
+                code="automation_spot_plan_submitted_notional_invalid",
+            ),
+            possible_execution_notional_usdc=_decimal_text(
+                row["possible_execution_notional_usdc"],
+                code="automation_spot_plan_possible_execution_invalid",
+            ),
+            max_submitted_notional_usdc=_decimal_text(
+                row["max_submitted_notional_usdc"],
+                code="automation_spot_plan_submitted_cap_invalid",
+            ),
+            max_possible_execution_notional_usdc=_decimal_text(
+                row["max_possible_execution_notional_usdc"],
+                code="automation_spot_plan_execution_cap_invalid",
+            ),
+            post_only=bool(row["post_only"]),
+            plan_sha256=row["plan_sha256"],
+            audit_id=str(row["audit_id"]),
+            correlation_id=row["correlation_id"],
+            created_at=_iso(row["created_at"]) or "",
+        )
+
+    @staticmethod
+    def _validated_spot_plan_values(
+        command: _AutomationSpotSingleChildPlanCreateCommand,
+    ) -> dict[str, Any]:
+        _validate_id(
+            command.definition_id,
+            code="automation_definition_id_invalid",
+        )
+        if (
+            type(command.definition_revision) is not int
+            or command.definition_revision < 1
+        ):
+            raise AutomationStoreInvalid("automation_spot_plan_revision_invalid")
+        if _SHA256_PATTERN.fullmatch(command.portfolio_id_sha256) is None:
+            raise AutomationStoreInvalid("automation_spot_plan_portfolio_hash_invalid")
+        if command.product_id != "BTC-USDC":
+            raise AutomationStoreInvalid("automation_spot_plan_product_blocked")
+        side = str(command.side).upper()
+        if side not in {"BUY", "SELL"}:
+            raise AutomationStoreInvalid("automation_spot_plan_side_invalid")
+        if type(command.post_only) is not bool or command.post_only is not False:
+            raise AutomationStoreInvalid("automation_spot_plan_post_only_invalid")
+        base_size = _decimal_text(
+            command.base_size,
+            code="automation_spot_plan_base_size_invalid",
+        )
+        limit_price = _decimal_text(
+            command.limit_price,
+            code="automation_spot_plan_limit_price_invalid",
+        )
+        submitted = _decimal_text(
+            command.submitted_notional_usdc,
+            code="automation_spot_plan_submitted_notional_invalid",
+        )
+        possible = _decimal_text(
+            command.possible_execution_notional_usdc,
+            code="automation_spot_plan_possible_execution_invalid",
+        )
+        submitted_cap = _decimal_text(
+            command.max_submitted_notional_usdc,
+            code="automation_spot_plan_submitted_cap_invalid",
+        )
+        execution_cap = _decimal_text(
+            command.max_possible_execution_notional_usdc,
+            code="automation_spot_plan_execution_cap_invalid",
+        )
+        if Decimal(submitted_cap) != Decimal("3.10"):
+            raise AutomationStoreInvalid("automation_spot_plan_submitted_cap_invalid")
+        if Decimal(execution_cap) != Decimal("1.00"):
+            raise AutomationStoreInvalid("automation_spot_plan_execution_cap_invalid")
+        if Decimal(base_size) * Decimal(limit_price) != Decimal(submitted):
+            raise AutomationStoreInvalid("automation_spot_plan_notional_mismatch")
+        if Decimal(submitted) > Decimal("3.10"):
+            raise AutomationStoreInvalid("automation_spot_plan_submitted_cap_exceeded")
+        if (
+            Decimal(possible) > Decimal("1.00")
+            or Decimal(possible) > Decimal(submitted)
+        ):
+            raise AutomationStoreInvalid("automation_spot_plan_execution_cap_exceeded")
+        canonical = {
+            "base_size": base_size,
+            "definition_id": command.definition_id,
+            "definition_revision": command.definition_revision,
+            "limit_price": limit_price,
+            "max_possible_execution_notional_usdc": execution_cap,
+            "max_submitted_notional_usdc": submitted_cap,
+            "portfolio_id_sha256": command.portfolio_id_sha256,
+            "possible_execution_notional_usdc": possible,
+            "post_only": command.post_only,
+            "product_id": command.product_id,
+            "side": side,
+            "submitted_notional_usdc": submitted,
+        }
+        canonical["plan_sha256"] = hashlib.sha256(
+            json.dumps(
+                canonical,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+            ).encode("utf-8")
+        ).hexdigest()
+        return canonical
+
+    @staticmethod
+    def _spot_plan_command_for_revision(
+        *,
+        definition_id: str,
+        definition_revision: int,
+        terms: AutomationSpotSingleChildPlanTerms,
+        command: AutomationMutationCommand,
+    ) -> _AutomationSpotSingleChildPlanCreateCommand:
+        return _AutomationSpotSingleChildPlanCreateCommand(
+            idempotency_key=command.idempotency_key,
+            payload_sha256=command.payload_sha256,
+            actor_id=command.actor_id,
+            correlation_id=command.correlation_id,
+            operator_intent=command.operator_intent,
+            definition_id=definition_id,
+            definition_revision=definition_revision,
+            portfolio_id_sha256=terms.portfolio_id_sha256,
+            product_id=terms.product_id,
+            side=terms.side,
+            base_size=terms.base_size,
+            limit_price=terms.limit_price,
+            submitted_notional_usdc=terms.submitted_notional_usdc,
+            possible_execution_notional_usdc=(
+                terms.possible_execution_notional_usdc
+            ),
+            max_submitted_notional_usdc=terms.max_submitted_notional_usdc,
+            max_possible_execution_notional_usdc=(
+                terms.max_possible_execution_notional_usdc
+            ),
+            post_only=terms.post_only,
+        )
+
+    def _insert_spot_single_child_plan(
+        self,
+        cursor: Any,
+        *,
+        values: Mapping[str, Any],
+        audit_id: str,
+        correlation_id: str,
+        recorded_at: datetime,
+    ) -> AutomationSpotSingleChildPlanRecord:
+        """Insert one immutable plan inside its owning definition transaction."""
+
+        cursor.execute(
+            f"""
+            INSERT INTO {self._prefix}automation_spot_single_child_plan (
+                definition_id, definition_revision, portfolio_id_sha256,
+                product_id, side, base_size, limit_price,
+                submitted_notional_usdc, possible_execution_notional_usdc,
+                max_submitted_notional_usdc,
+                max_possible_execution_notional_usdc, post_only,
+                plan_sha256, audit_id, correlation_id, created_at
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            RETURNING *
+            """,
+            (
+                values["definition_id"],
+                values["definition_revision"],
+                values["portfolio_id_sha256"],
+                values["product_id"],
+                values["side"],
+                values["base_size"],
+                values["limit_price"],
+                values["submitted_notional_usdc"],
+                values["possible_execution_notional_usdc"],
+                values["max_submitted_notional_usdc"],
+                values["max_possible_execution_notional_usdc"],
+                values["post_only"],
+                values["plan_sha256"],
+                audit_id,
+                correlation_id,
+                recorded_at,
+            ),
+        )
+        row = self._row(cursor)
+        assert row is not None
+        return self._spot_plan_from_row(row)
+
+    def _spot_plan_for_revision(
+        self,
+        cursor: Any,
+        *,
+        definition_id: str,
+        definition_revision: int,
+    ) -> AutomationSpotSingleChildPlanRecord | None:
+        cursor.execute(
+            f"""
+            SELECT * FROM {self._prefix}automation_spot_single_child_plan
+            WHERE definition_id = %s AND definition_revision = %s
+            """,
+            (definition_id, definition_revision),
+        )
+        row = self._row(cursor)
+        return self._spot_plan_from_row(row) if row is not None else None
+
+    def _verify_atomic_spot_plan_replay(
+        self,
+        cursor: Any,
+        *,
+        record: AutomationDefinitionRecord,
+        terms: AutomationSpotSingleChildPlanTerms,
+        command: AutomationMutationCommand,
+    ) -> None:
+        expected = self._validated_spot_plan_values(
+            self._spot_plan_command_for_revision(
+                definition_id=record.definition_id,
+                definition_revision=record.revision,
+                terms=terms,
+                command=command,
+            )
+        )
+        persisted = self._spot_plan_for_revision(
+            cursor,
+            definition_id=record.definition_id,
+            definition_revision=record.revision,
+        )
+        if persisted is None:
+            raise AutomationStoreConflict("automation_spot_plan_missing")
+        if persisted.plan_sha256 != expected["plan_sha256"]:
+            raise AutomationStoreConflict("automation_spot_plan_replay_mismatch")
+
+    def _carry_spot_single_child_plan(
+        self,
+        cursor: Any,
+        *,
+        record: AutomationDefinitionRecord,
+        command: AutomationMutationCommand,
+        audit_id: str,
+        recorded_at: datetime,
+    ) -> AutomationSpotSingleChildPlanRecord | None:
+        if (
+            record.job_kind is not OperatorAutomationJobKind.SPOT_CAMPAIGN
+            or record.revision <= 1
+        ):
+            return None
+        previous = self._spot_plan_for_revision(
+            cursor,
+            definition_id=record.definition_id,
+            definition_revision=record.revision - 1,
+        )
+        if previous is None:
+            return None
+        self._lock_spot_single_child_definition_slot(
+            cursor,
+            definition_id=record.definition_id,
+        )
+        terms = AutomationSpotSingleChildPlanTerms(
+            portfolio_id_sha256=previous.portfolio_id_sha256,
+            product_id=previous.product_id,
+            side=previous.side,
+            base_size=previous.base_size,
+            limit_price=previous.limit_price,
+            submitted_notional_usdc=previous.submitted_notional_usdc,
+            possible_execution_notional_usdc=(
+                previous.possible_execution_notional_usdc
+            ),
+            max_submitted_notional_usdc=previous.max_submitted_notional_usdc,
+            max_possible_execution_notional_usdc=(
+                previous.max_possible_execution_notional_usdc
+            ),
+            post_only=previous.post_only,
+        )
+        values = self._validated_spot_plan_values(
+            self._spot_plan_command_for_revision(
+                definition_id=record.definition_id,
+                definition_revision=record.revision,
+                terms=terms,
+                command=command,
+            )
+        )
+        return self._insert_spot_single_child_plan(
+            cursor,
+            values=values,
+            audit_id=audit_id,
+            correlation_id=command.correlation_id,
+            recorded_at=recorded_at,
+        )
+
+    def _verify_carried_spot_plan_replay(
+        self,
+        cursor: Any,
+        *,
+        record: AutomationDefinitionRecord,
+        command: AutomationMutationCommand,
+    ) -> None:
+        if (
+            record.job_kind is not OperatorAutomationJobKind.SPOT_CAMPAIGN
+            or record.revision <= 1
+        ):
+            return
+        previous = self._spot_plan_for_revision(
+            cursor,
+            definition_id=record.definition_id,
+            definition_revision=record.revision - 1,
+        )
+        if previous is None:
+            return
+        current = self._spot_plan_for_revision(
+            cursor,
+            definition_id=record.definition_id,
+            definition_revision=record.revision,
+        )
+        if current is None:
+            raise AutomationStoreConflict("automation_spot_plan_revision_missing")
+        expected = self._validated_spot_plan_values(
+            self._spot_plan_command_for_revision(
+                definition_id=record.definition_id,
+                definition_revision=record.revision,
+                terms=AutomationSpotSingleChildPlanTerms(
+                    portfolio_id_sha256=previous.portfolio_id_sha256,
+                    product_id=previous.product_id,
+                    side=previous.side,
+                    base_size=previous.base_size,
+                    limit_price=previous.limit_price,
+                    submitted_notional_usdc=previous.submitted_notional_usdc,
+                    possible_execution_notional_usdc=(
+                        previous.possible_execution_notional_usdc
+                    ),
+                    max_submitted_notional_usdc=(
+                        previous.max_submitted_notional_usdc
+                    ),
+                    max_possible_execution_notional_usdc=(
+                        previous.max_possible_execution_notional_usdc
+                    ),
+                    post_only=previous.post_only,
+                ),
+                command=command,
+            )
+        )
+        if current.plan_sha256 != expected["plan_sha256"]:
+            raise AutomationStoreConflict(
+                "automation_spot_plan_revision_mismatch"
+            )
+
+    def get_spot_single_child_plan(
+        self,
+        definition_id: str,
+        definition_revision: int,
+    ) -> AutomationSpotSingleChildPlanRecord | None:
+        _validate_id(definition_id, code="automation_definition_id_invalid")
+        if type(definition_revision) is not int or definition_revision < 1:
+            raise AutomationStoreInvalid("automation_spot_plan_revision_invalid")
+        rows = self.database.execute_query(
+            f"""
+            SELECT * FROM {self._prefix}automation_spot_single_child_plan
+            WHERE definition_id = %s AND definition_revision = %s
+            """,
+            (definition_id, definition_revision),
+        )
+        return self._spot_plan_from_row(rows[0]) if rows else None
 
     def _current_control(self, cursor: Any, *, for_update: bool = False) -> OperatorAutomationControlPosture:
         suffix = " FOR UPDATE" if for_update else ""
@@ -816,8 +1655,14 @@ class OperatorAutomationRepository:
                 resource_type=resource_type,
             )
             if replay is not None:
+                replayed_record = self._definition_from_json(replay["entity"])
+                self._verify_carried_spot_plan_replay(
+                    cursor,
+                    record=replayed_record,
+                    command=command,
+                )
                 return AutomationStoreMutation(
-                    self._definition_from_json(replay["entity"]),
+                    replayed_record,
                     replay["audit_id"],
                     replay["correlation_id"],
                     True,
@@ -849,6 +1694,13 @@ class OperatorAutomationRepository:
                 updated,
                 control_posture=posture,
                 now=now,
+            )
+            self._carry_spot_single_child_plan(
+                cursor,
+                record=record,
+                command=command,
+                audit_id=audit_id,
+                recorded_at=now,
             )
             self._append_event(
                 cursor,
@@ -900,8 +1752,14 @@ class OperatorAutomationRepository:
                 resource_type=resource_type,
             )
             if replay is not None:
+                replayed_record = self._definition_from_json(replay["entity"])
+                self._verify_carried_spot_plan_replay(
+                    cursor,
+                    record=replayed_record,
+                    command=command,
+                )
                 return AutomationStoreMutation(
-                    self._definition_from_json(replay["entity"]),
+                    replayed_record,
                     replay["audit_id"],
                     replay["correlation_id"],
                     True,
@@ -932,6 +1790,13 @@ class OperatorAutomationRepository:
             updated = self._row(cursor)
             assert updated is not None
             record = self._definition_from_row(updated, control_posture=posture, now=now)
+            self._carry_spot_single_child_plan(
+                cursor,
+                record=record,
+                command=command,
+                audit_id=audit_id,
+                recorded_at=now,
+            )
             self._append_event(
                 cursor,
                 definition_id=definition_id,
@@ -1065,10 +1930,1318 @@ class OperatorAutomationRepository:
             )
             return AutomationStoreMutation(record, audit_id, command.correlation_id)
 
+    @staticmethod
+    def _spot_eligibility_from_row(
+        row: Mapping[str, Any],
+    ) -> AutomationSpotEligibilityAttemptRecord:
+        return AutomationSpotEligibilityAttemptRecord(
+            run_id=str(row["run_id"]),
+            cycle_number=int(row["cycle_number"]),
+            category=row["category"],
+            allowance_consumed=bool(row["allowance_consumed"]),
+            outcome=row["outcome"],
+            eligible=(
+                bool(row["eligible"]) if row.get("eligible") is not None else None
+            ),
+            coinbase_api_call_count=(
+                int(row["coinbase_api_call_count"])
+                if row.get("coinbase_api_call_count") is not None
+                else None
+            ),
+            call_count_exact=bool(row["call_count_exact"]),
+            diagnostic_code=row["diagnostic_code"],
+            audit_id=str(row["audit_id"]),
+            correlation_id=row["correlation_id"],
+            started_at=_iso(row["started_at"]) or "",
+            finalized_at=_iso(row.get("finalized_at")),
+            portfolio_id_sha256=row.get("portfolio_id_sha256"),
+        )
+
+    @staticmethod
+    def _spot_eligibility_json(
+        record: AutomationSpotEligibilityAttemptRecord,
+    ) -> dict[str, Any]:
+        return asdict(record)
+
+    @staticmethod
+    def _spot_eligibility_from_json(
+        value: Mapping[str, Any],
+    ) -> AutomationSpotEligibilityAttemptRecord:
+        return AutomationSpotEligibilityAttemptRecord(
+            run_id=value["run_id"],
+            cycle_number=int(value["cycle_number"]),
+            category=value["category"],
+            allowance_consumed=bool(value["allowance_consumed"]),
+            outcome=value.get("outcome"),
+            eligible=(
+                bool(value["eligible"])
+                if value.get("eligible") is not None
+                else None
+            ),
+            coinbase_api_call_count=(
+                int(value["coinbase_api_call_count"])
+                if value.get("coinbase_api_call_count") is not None
+                else None
+            ),
+            call_count_exact=bool(value["call_count_exact"]),
+            diagnostic_code=value["diagnostic_code"],
+            audit_id=value["audit_id"],
+            correlation_id=value["correlation_id"],
+            started_at=value["started_at"],
+            finalized_at=value.get("finalized_at"),
+            portfolio_id_sha256=value.get("portfolio_id_sha256"),
+        )
+
+    @staticmethod
+    def _validate_spot_eligibility_identity(
+        *,
+        cycle_number: int,
+        category: str,
+    ) -> None:
+        if type(cycle_number) is not int or not 1 <= cycle_number <= 10:
+            raise AutomationStoreInvalid(
+                "automation_spot_eligibility_cycle_invalid"
+            )
+        if category not in _AUTOMATION_SPOT_ELIGIBILITY_CATEGORY_SET:
+            raise AutomationStoreInvalid(
+                "automation_spot_eligibility_category_invalid"
+            )
+
+    def _require_spot_run_plan(
+        self,
+        cursor: Any,
+        *,
+        run_id: str,
+        allowed_states: frozenset[OperatorAutomationRunState],
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        cursor.execute(
+            f"SELECT * FROM {self._prefix}automation_run WHERE run_id = %s FOR UPDATE",
+            (run_id,),
+        )
+        run = self._row(cursor)
+        if run is None:
+            raise AutomationStoreNotFound("automation_run_not_found")
+        if OperatorAutomationRunState(run["state"]) not in allowed_states:
+            raise AutomationStoreConflict("automation_spot_run_state_invalid")
+        revision = run.get("definition_revision")
+        if revision is None:
+            raise AutomationStoreConflict("automation_spot_run_plan_missing")
+        cursor.execute(
+            f"""
+            SELECT * FROM {self._prefix}automation_spot_single_child_plan
+            WHERE definition_id = %s AND definition_revision = %s
+            """,
+            (str(run["definition_id"]), int(revision)),
+        )
+        plan = self._row(cursor)
+        if plan is None:
+            raise AutomationStoreConflict("automation_spot_run_plan_missing")
+        return run, plan
+
+    def start_spot_eligibility_attempt(
+        self,
+        run_id: str,
+        *,
+        cycle_number: int,
+        category: str,
+        command: AutomationMutationCommand,
+    ) -> AutomationStoreMutation[AutomationSpotEligibilityAttemptRecord]:
+        _validate_id(run_id, code="automation_run_id_invalid")
+        self._validate_spot_eligibility_identity(
+            cycle_number=cycle_number,
+            category=category,
+        )
+        resource_type = (
+            f"spot_eligibility_start_{cycle_number}_{category.lower()}"
+        )
+        with self.database.get_cursor() as cursor:
+            replay = self._idempotency_replay(
+                cursor,
+                command=command,
+                resource_type=resource_type,
+            )
+            if replay is not None:
+                return AutomationStoreMutation(
+                    self._spot_eligibility_from_json(replay["entity"]),
+                    replay["audit_id"],
+                    replay["correlation_id"],
+                    True,
+                )
+            run, _ = self._require_spot_run_plan(
+                cursor,
+                run_id=run_id,
+                allowed_states=frozenset({OperatorAutomationRunState.PREPARING}),
+            )
+            cursor.execute(
+                f"""
+                SELECT COALESCE(MAX(cycle_number), 0)
+                FROM {self._prefix}automation_spot_eligibility_attempt
+                WHERE run_id = %s
+                """,
+                (run_id,),
+            )
+            max_cycle = int(cursor.fetchone()[0])
+            if cycle_number > max_cycle + 1:
+                raise AutomationStoreConflict(
+                    "automation_spot_eligibility_cycle_sequence_invalid"
+                )
+            if cycle_number > 1:
+                cursor.execute(
+                    f"""
+                    SELECT 1
+                    FROM {self._prefix}automation_spot_eligibility_attempt
+                    WHERE run_id = %s AND cycle_number < %s AND outcome IS NULL
+                    LIMIT 1
+                    """,
+                    (run_id, cycle_number),
+                )
+                if cursor.fetchone() is not None:
+                    raise AutomationStoreConflict(
+                        "automation_spot_eligibility_prior_cycle_incomplete"
+                    )
+            cursor.execute(
+                f"""
+                SELECT 1 FROM {self._prefix}automation_spot_eligibility_attempt
+                WHERE run_id = %s AND cycle_number = %s AND category = %s
+                """,
+                (run_id, cycle_number, category),
+            )
+            if cursor.fetchone() is not None:
+                raise AutomationStoreConflict(
+                    "automation_spot_eligibility_category_consumed"
+                )
+            now = _utc_now()
+            audit_id = _new_id()
+            diagnostic = "automation_spot_eligibility_invocation_started"
+            cursor.execute(
+                f"""
+                INSERT INTO {self._prefix}automation_spot_eligibility_attempt (
+                    run_id, cycle_number, category, allowance_consumed,
+                    outcome, eligible, coinbase_api_call_count, call_count_exact,
+                    diagnostic_code, audit_id, correlation_id, started_at,
+                    finalized_at
+                ) VALUES (%s,%s,%s,TRUE,NULL,NULL,NULL,FALSE,%s,%s,%s,%s,NULL)
+                RETURNING *
+                """,
+                (
+                    run_id,
+                    cycle_number,
+                    category,
+                    diagnostic,
+                    audit_id,
+                    command.correlation_id,
+                    now,
+                ),
+            )
+            row = self._row(cursor)
+            assert row is not None
+            record = self._spot_eligibility_from_row(row)
+            self._append_event(
+                cursor,
+                definition_id=str(run["definition_id"]),
+                run_id=run_id,
+                from_state=run["state"],
+                to_state=run["state"],
+                diagnostic_code=diagnostic,
+                audit_id=audit_id,
+                idempotency_key_sha256=_hash(command.idempotency_key),
+                correlation_id=command.correlation_id,
+                recorded_at=now,
+            )
+            self._store_idempotency(
+                cursor,
+                command=command,
+                resource_type=resource_type,
+                resource_id=run_id,
+                audit_id=audit_id,
+                result=self._spot_eligibility_json(record),
+                recorded_at=now,
+            )
+            return AutomationStoreMutation(
+                record,
+                audit_id,
+                command.correlation_id,
+            )
+
+    def finalize_spot_eligibility_attempt(
+        self,
+        run_id: str,
+        *,
+        cycle_number: int,
+        category: str,
+        outcome: str,
+        eligible: bool,
+        coinbase_api_call_count: int | None,
+        call_count_exact: bool,
+        portfolio_id_sha256: str | None,
+        command: AutomationMutationCommand,
+    ) -> AutomationStoreMutation[AutomationSpotEligibilityAttemptRecord]:
+        _validate_id(run_id, code="automation_run_id_invalid")
+        self._validate_spot_eligibility_identity(
+            cycle_number=cycle_number,
+            category=category,
+        )
+        normalized_outcome = str(outcome).upper()
+        if normalized_outcome not in _AUTOMATION_SPOT_ELIGIBILITY_OUTCOMES:
+            raise AutomationStoreInvalid(
+                "automation_spot_eligibility_outcome_invalid"
+            )
+        if type(eligible) is not bool or (
+            normalized_outcome in {"REJECTED", "UNKNOWN"} and eligible
+        ):
+            raise AutomationStoreInvalid(
+                "automation_spot_eligibility_result_invalid"
+            )
+        if type(call_count_exact) is not bool:
+            raise AutomationStoreInvalid(
+                "automation_spot_eligibility_accounting_invalid"
+            )
+        if call_count_exact:
+            if (
+                type(coinbase_api_call_count) is not int
+                or coinbase_api_call_count < 1
+            ):
+                raise AutomationStoreInvalid(
+                    "automation_spot_eligibility_accounting_invalid"
+                )
+        elif coinbase_api_call_count is not None:
+            raise AutomationStoreInvalid(
+                "automation_spot_eligibility_accounting_invalid"
+            )
+        catalog_proof = bool(
+            category == "PORTFOLIO_CATALOG"
+            and normalized_outcome == "SUCCEEDED"
+            and eligible
+            and call_count_exact
+            and coinbase_api_call_count is not None
+        )
+        if catalog_proof:
+            if portfolio_id_sha256 is None:
+                raise AutomationStoreInvalid(
+                    "automation_spot_portfolio_binding_required"
+                )
+            if _SHA256_PATTERN.fullmatch(portfolio_id_sha256) is None:
+                raise AutomationStoreInvalid(
+                    "automation_spot_portfolio_binding_invalid"
+                )
+        elif portfolio_id_sha256 is not None:
+            raise AutomationStoreInvalid(
+                "automation_spot_portfolio_binding_forbidden"
+            )
+        resource_type = (
+            f"spot_eligibility_finalize_{cycle_number}_{category.lower()}"
+        )
+        with self.database.get_cursor() as cursor:
+            replay = self._idempotency_replay(
+                cursor,
+                command=command,
+                resource_type=resource_type,
+            )
+            if replay is not None:
+                return AutomationStoreMutation(
+                    self._spot_eligibility_from_json(replay["entity"]),
+                    replay["audit_id"],
+                    replay["correlation_id"],
+                    True,
+                )
+            run, plan = self._require_spot_run_plan(
+                cursor,
+                run_id=run_id,
+                allowed_states=frozenset({OperatorAutomationRunState.PREPARING}),
+            )
+            if (
+                catalog_proof
+                and portfolio_id_sha256 != plan["portfolio_id_sha256"]
+            ):
+                raise AutomationStoreConflict(
+                    "automation_spot_portfolio_binding_mismatch"
+                )
+            cursor.execute(
+                f"""
+                SELECT * FROM {self._prefix}automation_spot_eligibility_attempt
+                WHERE run_id = %s AND cycle_number = %s AND category = %s
+                FOR UPDATE
+                """,
+                (run_id, cycle_number, category),
+            )
+            attempt = self._row(cursor)
+            if attempt is None:
+                raise AutomationStoreNotFound(
+                    "automation_spot_eligibility_attempt_not_found"
+                )
+            if attempt["outcome"] is not None:
+                raise AutomationStoreConflict(
+                    "automation_spot_eligibility_already_finalized"
+                )
+            now = _utc_now()
+            audit_id = _new_id()
+            diagnostic = (
+                f"automation_spot_eligibility_{normalized_outcome.lower()}"
+            )
+            cursor.execute(
+                f"""
+                UPDATE {self._prefix}automation_spot_eligibility_attempt
+                SET outcome = %s, eligible = %s,
+                    coinbase_api_call_count = %s, call_count_exact = %s,
+                    diagnostic_code = %s, audit_id = %s,
+                    correlation_id = %s, finalized_at = %s,
+                    portfolio_id_sha256 = %s
+                WHERE run_id = %s AND cycle_number = %s AND category = %s
+                RETURNING *
+                """,
+                (
+                    normalized_outcome,
+                    eligible,
+                    coinbase_api_call_count,
+                    call_count_exact,
+                    diagnostic,
+                    audit_id,
+                    command.correlation_id,
+                    now,
+                    portfolio_id_sha256,
+                    run_id,
+                    cycle_number,
+                    category,
+                ),
+            )
+            row = self._row(cursor)
+            assert row is not None
+            record = self._spot_eligibility_from_row(row)
+            self._append_event(
+                cursor,
+                definition_id=str(run["definition_id"]),
+                run_id=run_id,
+                from_state=run["state"],
+                to_state=run["state"],
+                diagnostic_code=diagnostic,
+                audit_id=audit_id,
+                idempotency_key_sha256=_hash(command.idempotency_key),
+                correlation_id=command.correlation_id,
+                recorded_at=now,
+            )
+            self._store_idempotency(
+                cursor,
+                command=command,
+                resource_type=resource_type,
+                resource_id=run_id,
+                audit_id=audit_id,
+                result=self._spot_eligibility_json(record),
+                recorded_at=now,
+            )
+            return AutomationStoreMutation(
+                record,
+                audit_id,
+                command.correlation_id,
+            )
+
+    def list_spot_eligibility_attempts(
+        self,
+        run_id: str,
+        *,
+        cycle_number: int | None = None,
+    ) -> tuple[AutomationSpotEligibilityAttemptRecord, ...]:
+        _validate_id(run_id, code="automation_run_id_invalid")
+        if cycle_number is not None and (
+            type(cycle_number) is not int or not 1 <= cycle_number <= 10
+        ):
+            raise AutomationStoreInvalid(
+                "automation_spot_eligibility_cycle_invalid"
+            )
+        params: tuple[Any, ...]
+        where = "run_id = %s"
+        if cycle_number is None:
+            params = (run_id,)
+        else:
+            where += " AND cycle_number = %s"
+            params = (run_id, cycle_number)
+        rows = self.database.execute_query(
+            f"""
+            SELECT * FROM {self._prefix}automation_spot_eligibility_attempt
+            WHERE {where}
+            ORDER BY cycle_number, category
+            """,
+            params,
+        )
+        return tuple(self._spot_eligibility_from_row(row) for row in rows)
+
+    @staticmethod
+    def _spot_execution_from_row(
+        row: Mapping[str, Any],
+    ) -> AutomationSpotRunExecutionRecord:
+        return AutomationSpotRunExecutionRecord(
+            run_id=str(row["run_id"]),
+            definition_id=str(row["definition_id"]),
+            definition_revision=int(row["definition_revision"]),
+            eligibility_cycle=int(row["eligibility_cycle"]),
+            plan_sha256=row["plan_sha256"],
+            portfolio_id_sha256=row["portfolio_id_sha256"],
+            product_id=row["product_id"],
+            client_order_id=str(row["client_order_id"]),
+            create_allowance_consumed=bool(row["create_allowance_consumed"]),
+            create_outcome=row["create_outcome"],
+            create_call_count=(
+                int(row["create_call_count"])
+                if row.get("create_call_count") is not None
+                else None
+            ),
+            create_call_count_exact=bool(row["create_call_count_exact"]),
+            cancel_allowance_consumed=bool(row["cancel_allowance_consumed"]),
+            cancel_outcome=row["cancel_outcome"],
+            cancel_call_count=(
+                int(row["cancel_call_count"])
+                if row.get("cancel_call_count") is not None
+                else None
+            ),
+            cancel_call_count_exact=bool(row["cancel_call_count_exact"]),
+            child_terminal=(
+                bool(row["child_terminal"])
+                if row.get("child_terminal") is not None
+                else None
+            ),
+            audit_id=str(row["audit_id"]),
+            correlation_id=row["correlation_id"],
+            created_at=_iso(row["created_at"]) or "",
+            updated_at=_iso(row["updated_at"]) or "",
+        )
+
+    @staticmethod
+    def _spot_execution_json(
+        record: AutomationSpotRunExecutionRecord,
+    ) -> dict[str, Any]:
+        return asdict(record)
+
+    @staticmethod
+    def _spot_execution_from_json(
+        value: Mapping[str, Any],
+    ) -> AutomationSpotRunExecutionRecord:
+        return AutomationSpotRunExecutionRecord(
+            run_id=value["run_id"],
+            definition_id=value["definition_id"],
+            definition_revision=int(value["definition_revision"]),
+            eligibility_cycle=int(value["eligibility_cycle"]),
+            plan_sha256=value["plan_sha256"],
+            portfolio_id_sha256=value["portfolio_id_sha256"],
+            product_id=value["product_id"],
+            client_order_id=value["client_order_id"],
+            create_allowance_consumed=bool(value["create_allowance_consumed"]),
+            create_outcome=value.get("create_outcome"),
+            create_call_count=(
+                int(value["create_call_count"])
+                if value.get("create_call_count") is not None
+                else None
+            ),
+            create_call_count_exact=bool(value["create_call_count_exact"]),
+            cancel_allowance_consumed=bool(value["cancel_allowance_consumed"]),
+            cancel_outcome=value.get("cancel_outcome"),
+            cancel_call_count=(
+                int(value["cancel_call_count"])
+                if value.get("cancel_call_count") is not None
+                else None
+            ),
+            cancel_call_count_exact=bool(value["cancel_call_count_exact"]),
+            child_terminal=(
+                bool(value["child_terminal"])
+                if value.get("child_terminal") is not None
+                else None
+            ),
+            audit_id=value["audit_id"],
+            correlation_id=value["correlation_id"],
+            created_at=value["created_at"],
+            updated_at=value["updated_at"],
+        )
+
+    @staticmethod
+    def _spot_goal_from_row(
+        row: Mapping[str, Any],
+    ) -> AutomationSpotLiveProofGoalRecord:
+        return AutomationSpotLiveProofGoalRecord(
+            goal_key=row["goal_key"],
+            create_allowance_consumed=bool(row["create_allowance_consumed"]),
+            cancel_allowance_consumed=bool(row["cancel_allowance_consumed"]),
+            bound_run_id=(
+                str(row["bound_run_id"])
+                if row.get("bound_run_id") is not None
+                else None
+            ),
+            client_order_id=(
+                str(row["client_order_id"])
+                if row.get("client_order_id") is not None
+                else None
+            ),
+            create_outcome=row["create_outcome"],
+            cancel_outcome=row["cancel_outcome"],
+            updated_at=_iso(row["updated_at"]) or "",
+        )
+
+    @staticmethod
+    def deterministic_spot_client_order_id(
+        *,
+        run_id: str,
+        plan_sha256: str,
+    ) -> str:
+        _validate_id(run_id, code="automation_run_id_invalid")
+        if _SHA256_PATTERN.fullmatch(plan_sha256) is None:
+            raise AutomationStoreInvalid("automation_spot_plan_hash_invalid")
+        return str(
+            uuid.uuid5(
+                _AUTOMATION_SPOT_CLIENT_ORDER_NAMESPACE,
+                f"{_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY}:{run_id}:{plan_sha256}",
+            )
+        )
+
+    def _require_spot_eligible_cycle(
+        self,
+        cursor: Any,
+        *,
+        run_id: str,
+        cycle_number: int,
+        portfolio_id_sha256: str,
+    ) -> None:
+        cursor.execute(
+            f"""
+            SELECT category, outcome, eligible, coinbase_api_call_count,
+                   call_count_exact, portfolio_id_sha256
+            FROM {self._prefix}automation_spot_eligibility_attempt
+            WHERE run_id = %s AND cycle_number = %s
+            """,
+            (run_id, cycle_number),
+        )
+        attempts = self._rows(cursor)
+        if (
+            {row["category"] for row in attempts}
+            != _AUTOMATION_SPOT_ELIGIBILITY_CATEGORY_SET
+            or any(
+                row["outcome"] != "SUCCEEDED"
+                or not bool(row["eligible"])
+                or not bool(row["call_count_exact"])
+                or row["coinbase_api_call_count"] is None
+                or (
+                    row["category"] == "PORTFOLIO_CATALOG"
+                    and row.get("portfolio_id_sha256")
+                    != portfolio_id_sha256
+                )
+                or (
+                    row["category"] != "PORTFOLIO_CATALOG"
+                    and row.get("portfolio_id_sha256") is not None
+                )
+                for row in attempts
+            )
+        ):
+            raise AutomationStoreConflict(
+                "automation_spot_exact_eligibility_not_proven"
+            )
+
+    @staticmethod
+    def _validate_spot_mutation_result(
+        *,
+        outcome: str,
+        child_terminal: bool | None,
+        coinbase_api_call_count: int | None,
+        call_count_exact: bool,
+    ) -> str:
+        normalized = str(outcome).upper()
+        if normalized not in _AUTOMATION_SPOT_MUTATION_OUTCOMES:
+            raise AutomationStoreInvalid("automation_spot_mutation_outcome_invalid")
+        if type(call_count_exact) is not bool:
+            raise AutomationStoreInvalid(
+                "automation_spot_mutation_accounting_invalid"
+            )
+        if call_count_exact:
+            if (
+                type(coinbase_api_call_count) is not int
+                or coinbase_api_call_count not in {0, 1}
+                or (normalized == "ACCEPTED" and coinbase_api_call_count != 1)
+                or normalized == "UNKNOWN"
+            ):
+                raise AutomationStoreInvalid(
+                    "automation_spot_mutation_accounting_invalid"
+                )
+        elif coinbase_api_call_count is not None:
+            raise AutomationStoreInvalid(
+                "automation_spot_mutation_accounting_invalid"
+            )
+        if normalized == "ACCEPTED":
+            if type(child_terminal) is not bool:
+                raise AutomationStoreInvalid(
+                    "automation_spot_mutation_child_state_invalid"
+                )
+        elif normalized == "REJECTED":
+            if child_terminal is not False:
+                raise AutomationStoreInvalid(
+                    "automation_spot_mutation_child_state_invalid"
+                )
+        elif child_terminal is not None:
+            raise AutomationStoreInvalid(
+                "automation_spot_mutation_child_state_invalid"
+            )
+        return normalized
+
+    def start_spot_create_invocation(
+        self,
+        run_id: str,
+        *,
+        eligibility_cycle: int,
+        command: AutomationMutationCommand,
+    ) -> AutomationStoreMutation[AutomationSpotRunExecutionRecord]:
+        _validate_id(run_id, code="automation_run_id_invalid")
+        if type(eligibility_cycle) is not int or not 1 <= eligibility_cycle <= 10:
+            raise AutomationStoreInvalid(
+                "automation_spot_eligibility_cycle_invalid"
+            )
+        resource_type = "spot_create_invocation_start"
+        with self.database.get_cursor() as cursor:
+            replay = self._idempotency_replay(
+                cursor,
+                command=command,
+                resource_type=resource_type,
+            )
+            if replay is not None:
+                return AutomationStoreMutation(
+                    self._spot_execution_from_json(replay["entity"]),
+                    replay["audit_id"],
+                    replay["correlation_id"],
+                    True,
+                )
+            if (
+                self._current_control(cursor, for_update=True)
+                is not OperatorAutomationControlPosture.ACTIVE
+            ):
+                raise AutomationStoreConflict(
+                    "automation_control_plane_not_active"
+                )
+            cursor.execute(
+                f"""
+                SELECT * FROM {self._prefix}automation_spot_live_proof_goal
+                WHERE singleton = 1 FOR UPDATE
+                """
+            )
+            goal = self._row(cursor)
+            if goal is None:
+                raise AutomationStoreUnavailable(
+                    "automation_spot_live_proof_goal_unavailable"
+                )
+            if bool(goal["create_allowance_consumed"]):
+                raise AutomationStoreConflict(
+                    "automation_spot_create_allowance_consumed"
+                )
+            run, plan = self._require_spot_run_plan(
+                cursor,
+                run_id=run_id,
+                allowed_states=frozenset(
+                    {OperatorAutomationRunState.AWAITING_OPERATOR_AUTHORIZATION}
+                ),
+            )
+            self._require_spot_eligible_cycle(
+                cursor,
+                run_id=run_id,
+                cycle_number=eligibility_cycle,
+                portfolio_id_sha256=plan["portfolio_id_sha256"],
+            )
+            cursor.execute(
+                f"SELECT 1 FROM {self._prefix}automation_spot_run_execution WHERE run_id = %s",
+                (run_id,),
+            )
+            if cursor.fetchone() is not None:
+                raise AutomationStoreConflict(
+                    "automation_spot_run_execution_already_started"
+                )
+            client_order_id = self.deterministic_spot_client_order_id(
+                run_id=run_id,
+                plan_sha256=plan["plan_sha256"],
+            )
+            now = _utc_now()
+            audit_id = _new_id()
+            diagnostic = "automation_spot_create_invocation_started"
+            cursor.execute(
+                f"""
+                INSERT INTO {self._prefix}automation_spot_run_execution (
+                    run_id, definition_id, definition_revision,
+                    eligibility_cycle, plan_sha256, portfolio_id_sha256,
+                    product_id, client_order_id, create_allowance_consumed,
+                    create_outcome, create_call_count, create_call_count_exact,
+                    cancel_allowance_consumed, cancel_outcome,
+                    cancel_call_count, cancel_call_count_exact, child_terminal,
+                    audit_id, correlation_id, created_at, updated_at
+                ) VALUES (
+                    %s,%s,%s,%s,%s,%s,%s,%s,TRUE,NULL,NULL,FALSE,
+                    FALSE,NULL,NULL,FALSE,NULL,%s,%s,%s,%s
+                ) RETURNING *
+                """,
+                (
+                    run_id,
+                    str(run["definition_id"]),
+                    int(run["definition_revision"]),
+                    eligibility_cycle,
+                    plan["plan_sha256"],
+                    plan["portfolio_id_sha256"],
+                    plan["product_id"],
+                    client_order_id,
+                    audit_id,
+                    command.correlation_id,
+                    now,
+                    now,
+                ),
+            )
+            execution_row = self._row(cursor)
+            assert execution_row is not None
+            cursor.execute(
+                f"""
+                UPDATE {self._prefix}automation_spot_live_proof_goal
+                SET create_allowance_consumed = TRUE, bound_run_id = %s,
+                    client_order_id = %s, updated_at = %s
+                WHERE singleton = 1
+                """,
+                (run_id, client_order_id, now),
+            )
+            cursor.execute(
+                f"""
+                UPDATE {self._prefix}automation_run
+                SET state = %s, diagnostic_code = %s, audit_id = %s,
+                    correlation_id = %s, client_order_id = %s,
+                    live_attempt_consumed = TRUE,
+                    coinbase_api_call_count = coinbase_api_call_count + 1,
+                    create_call_count = create_call_count + 1,
+                    updated_at = %s
+                WHERE run_id = %s
+                """,
+                (
+                    OperatorAutomationRunState.INVOCATION_STARTED.value,
+                    diagnostic,
+                    audit_id,
+                    command.correlation_id,
+                    client_order_id,
+                    now,
+                    run_id,
+                ),
+            )
+            record = self._spot_execution_from_row(execution_row)
+            self._append_event(
+                cursor,
+                definition_id=record.definition_id,
+                run_id=run_id,
+                from_state=run["state"],
+                to_state=OperatorAutomationRunState.INVOCATION_STARTED.value,
+                diagnostic_code=diagnostic,
+                audit_id=audit_id,
+                idempotency_key_sha256=_hash(command.idempotency_key),
+                correlation_id=command.correlation_id,
+                recorded_at=now,
+            )
+            self._store_idempotency(
+                cursor,
+                command=command,
+                resource_type=resource_type,
+                resource_id=run_id,
+                audit_id=audit_id,
+                result=self._spot_execution_json(record),
+                recorded_at=now,
+            )
+            return AutomationStoreMutation(
+                record,
+                audit_id,
+                command.correlation_id,
+            )
+
+    def finalize_spot_create_invocation(
+        self,
+        run_id: str,
+        *,
+        outcome: str,
+        child_terminal: bool | None,
+        coinbase_api_call_count: int | None,
+        call_count_exact: bool,
+        command: AutomationMutationCommand,
+    ) -> AutomationStoreMutation[AutomationSpotRunExecutionRecord]:
+        _validate_id(run_id, code="automation_run_id_invalid")
+        normalized = self._validate_spot_mutation_result(
+            outcome=outcome,
+            child_terminal=child_terminal,
+            coinbase_api_call_count=coinbase_api_call_count,
+            call_count_exact=call_count_exact,
+        )
+        resource_type = "spot_create_invocation_finalize"
+        with self.database.get_cursor() as cursor:
+            replay = self._idempotency_replay(
+                cursor,
+                command=command,
+                resource_type=resource_type,
+            )
+            if replay is not None:
+                return AutomationStoreMutation(
+                    self._spot_execution_from_json(replay["entity"]),
+                    replay["audit_id"],
+                    replay["correlation_id"],
+                    True,
+                )
+            cursor.execute(
+                f"SELECT * FROM {self._prefix}automation_spot_live_proof_goal WHERE singleton = 1 FOR UPDATE"
+            )
+            goal = self._row(cursor)
+            cursor.execute(
+                f"SELECT * FROM {self._prefix}automation_run WHERE run_id = %s FOR UPDATE",
+                (run_id,),
+            )
+            run = self._row(cursor)
+            if run is None:
+                raise AutomationStoreNotFound("automation_run_not_found")
+            cursor.execute(
+                f"SELECT * FROM {self._prefix}automation_spot_run_execution WHERE run_id = %s FOR UPDATE",
+                (run_id,),
+            )
+            execution = self._row(cursor)
+            if execution is None:
+                raise AutomationStoreNotFound(
+                    "automation_spot_run_execution_not_found"
+                )
+            if (
+                goal is None
+                or str(goal.get("bound_run_id")) != run_id
+                or not bool(goal["create_allowance_consumed"])
+                or OperatorAutomationRunState(run["state"])
+                is not OperatorAutomationRunState.INVOCATION_STARTED
+            ):
+                raise AutomationStoreConflict(
+                    "automation_spot_create_invocation_not_started"
+                )
+            if execution["create_outcome"] is not None:
+                raise AutomationStoreConflict(
+                    "automation_spot_create_already_finalized"
+                )
+            if normalized == "UNKNOWN":
+                target = OperatorAutomationRunState.UNKNOWN_CONSUMED
+                diagnostic = "automation_spot_create_unknown_consumed"
+            elif normalized == "REJECTED":
+                target = OperatorAutomationRunState.TERMINAL
+                diagnostic = "automation_spot_create_rejected"
+            elif child_terminal:
+                target = OperatorAutomationRunState.TERMINAL
+                diagnostic = "automation_spot_create_accepted_terminal"
+            else:
+                target = OperatorAutomationRunState.ACTIVE
+                diagnostic = "automation_spot_create_accepted_active"
+            now = _utc_now()
+            audit_id = _new_id()
+            cursor.execute(
+                f"""
+                UPDATE {self._prefix}automation_spot_run_execution
+                SET create_outcome = %s, create_call_count = %s,
+                    create_call_count_exact = %s, child_terminal = %s,
+                    audit_id = %s, correlation_id = %s, updated_at = %s
+                WHERE run_id = %s RETURNING *
+                """,
+                (
+                    normalized,
+                    coinbase_api_call_count,
+                    call_count_exact,
+                    child_terminal,
+                    audit_id,
+                    command.correlation_id,
+                    now,
+                    run_id,
+                ),
+            )
+            execution_row = self._row(cursor)
+            assert execution_row is not None
+            cursor.execute(
+                f"""
+                UPDATE {self._prefix}automation_spot_live_proof_goal
+                SET create_outcome = %s, updated_at = %s WHERE singleton = 1
+                """,
+                (normalized, now),
+            )
+            cursor.execute(
+                f"""
+                UPDATE {self._prefix}automation_run
+                SET state = %s, diagnostic_code = %s, audit_id = %s,
+                    correlation_id = %s, updated_at = %s
+                WHERE run_id = %s
+                """,
+                (
+                    target.value,
+                    diagnostic,
+                    audit_id,
+                    command.correlation_id,
+                    now,
+                    run_id,
+                ),
+            )
+            record = self._spot_execution_from_row(execution_row)
+            self._append_event(
+                cursor,
+                definition_id=record.definition_id,
+                run_id=run_id,
+                from_state=run["state"],
+                to_state=target.value,
+                diagnostic_code=diagnostic,
+                audit_id=audit_id,
+                idempotency_key_sha256=_hash(command.idempotency_key),
+                correlation_id=command.correlation_id,
+                recorded_at=now,
+            )
+            self._store_idempotency(
+                cursor,
+                command=command,
+                resource_type=resource_type,
+                resource_id=run_id,
+                audit_id=audit_id,
+                result=self._spot_execution_json(record),
+                recorded_at=now,
+            )
+            return AutomationStoreMutation(
+                record,
+                audit_id,
+                command.correlation_id,
+            )
+
+    def start_spot_cancel_invocation(
+        self,
+        run_id: str,
+        *,
+        client_order_id: str,
+        command: AutomationMutationCommand,
+    ) -> AutomationStoreMutation[AutomationSpotRunExecutionRecord]:
+        _validate_id(run_id, code="automation_run_id_invalid")
+        _validate_id(
+            client_order_id,
+            code="automation_spot_client_order_id_invalid",
+        )
+        resource_type = "spot_cancel_invocation_start"
+        with self.database.get_cursor() as cursor:
+            replay = self._idempotency_replay(
+                cursor,
+                command=command,
+                resource_type=resource_type,
+            )
+            if replay is not None:
+                return AutomationStoreMutation(
+                    self._spot_execution_from_json(replay["entity"]),
+                    replay["audit_id"],
+                    replay["correlation_id"],
+                    True,
+                )
+            if (
+                self._current_control(cursor, for_update=True)
+                is not OperatorAutomationControlPosture.ACTIVE
+            ):
+                raise AutomationStoreConflict(
+                    "automation_control_plane_not_active"
+                )
+            cursor.execute(
+                f"SELECT * FROM {self._prefix}automation_spot_live_proof_goal WHERE singleton = 1 FOR UPDATE"
+            )
+            goal = self._row(cursor)
+            if goal is None:
+                raise AutomationStoreUnavailable(
+                    "automation_spot_live_proof_goal_unavailable"
+                )
+            if bool(goal["cancel_allowance_consumed"]):
+                raise AutomationStoreConflict(
+                    "automation_spot_cancel_allowance_consumed"
+                )
+            cursor.execute(
+                f"SELECT * FROM {self._prefix}automation_run WHERE run_id = %s FOR UPDATE",
+                (run_id,),
+            )
+            run = self._row(cursor)
+            if run is None:
+                raise AutomationStoreNotFound("automation_run_not_found")
+            cursor.execute(
+                f"SELECT * FROM {self._prefix}automation_spot_run_execution WHERE run_id = %s FOR UPDATE",
+                (run_id,),
+            )
+            execution = self._row(cursor)
+            if execution is None:
+                raise AutomationStoreNotFound(
+                    "automation_spot_run_execution_not_found"
+                )
+            if (
+                str(goal.get("bound_run_id")) != run_id
+                or goal.get("create_outcome") != "ACCEPTED"
+                or execution.get("create_outcome") != "ACCEPTED"
+                or OperatorAutomationRunState(run["state"])
+                is not OperatorAutomationRunState.ACTIVE
+                or execution.get("child_terminal") is not False
+            ):
+                raise AutomationStoreConflict(
+                    "automation_spot_cancel_not_eligible"
+                )
+            if (
+                str(execution["client_order_id"]) != client_order_id
+                or str(goal["client_order_id"]) != client_order_id
+            ):
+                raise AutomationStoreConflict(
+                    "automation_spot_cancel_child_mismatch"
+                )
+            if bool(execution["cancel_allowance_consumed"]):
+                raise AutomationStoreConflict(
+                    "automation_spot_cancel_allowance_consumed"
+                )
+            now = _utc_now()
+            audit_id = _new_id()
+            diagnostic = "automation_spot_cancel_invocation_started"
+            cursor.execute(
+                f"""
+                UPDATE {self._prefix}automation_spot_run_execution
+                SET cancel_allowance_consumed = TRUE, audit_id = %s,
+                    correlation_id = %s, updated_at = %s
+                WHERE run_id = %s RETURNING *
+                """,
+                (audit_id, command.correlation_id, now, run_id),
+            )
+            execution_row = self._row(cursor)
+            assert execution_row is not None
+            cursor.execute(
+                f"""
+                UPDATE {self._prefix}automation_spot_live_proof_goal
+                SET cancel_allowance_consumed = TRUE, updated_at = %s
+                WHERE singleton = 1
+                """,
+                (now,),
+            )
+            cursor.execute(
+                f"""
+                UPDATE {self._prefix}automation_run
+                SET diagnostic_code = %s, audit_id = %s, correlation_id = %s,
+                    coinbase_api_call_count = coinbase_api_call_count + 1,
+                    cancel_call_count = cancel_call_count + 1,
+                    updated_at = %s
+                WHERE run_id = %s
+                """,
+                (
+                    diagnostic,
+                    audit_id,
+                    command.correlation_id,
+                    now,
+                    run_id,
+                ),
+            )
+            record = self._spot_execution_from_row(execution_row)
+            self._append_event(
+                cursor,
+                definition_id=record.definition_id,
+                run_id=run_id,
+                from_state=run["state"],
+                to_state=run["state"],
+                diagnostic_code=diagnostic,
+                audit_id=audit_id,
+                idempotency_key_sha256=_hash(command.idempotency_key),
+                correlation_id=command.correlation_id,
+                recorded_at=now,
+            )
+            self._store_idempotency(
+                cursor,
+                command=command,
+                resource_type=resource_type,
+                resource_id=run_id,
+                audit_id=audit_id,
+                result=self._spot_execution_json(record),
+                recorded_at=now,
+            )
+            return AutomationStoreMutation(
+                record,
+                audit_id,
+                command.correlation_id,
+            )
+
+    def finalize_spot_cancel_invocation(
+        self,
+        run_id: str,
+        *,
+        outcome: str,
+        child_terminal: bool | None,
+        coinbase_api_call_count: int | None,
+        call_count_exact: bool,
+        command: AutomationMutationCommand,
+    ) -> AutomationStoreMutation[AutomationSpotRunExecutionRecord]:
+        _validate_id(run_id, code="automation_run_id_invalid")
+        normalized = self._validate_spot_mutation_result(
+            outcome=outcome,
+            child_terminal=child_terminal,
+            coinbase_api_call_count=coinbase_api_call_count,
+            call_count_exact=call_count_exact,
+        )
+        resource_type = "spot_cancel_invocation_finalize"
+        with self.database.get_cursor() as cursor:
+            replay = self._idempotency_replay(
+                cursor,
+                command=command,
+                resource_type=resource_type,
+            )
+            if replay is not None:
+                return AutomationStoreMutation(
+                    self._spot_execution_from_json(replay["entity"]),
+                    replay["audit_id"],
+                    replay["correlation_id"],
+                    True,
+                )
+            cursor.execute(
+                f"SELECT * FROM {self._prefix}automation_spot_live_proof_goal WHERE singleton = 1 FOR UPDATE"
+            )
+            goal = self._row(cursor)
+            cursor.execute(
+                f"SELECT * FROM {self._prefix}automation_run WHERE run_id = %s FOR UPDATE",
+                (run_id,),
+            )
+            run = self._row(cursor)
+            if run is None:
+                raise AutomationStoreNotFound("automation_run_not_found")
+            cursor.execute(
+                f"SELECT * FROM {self._prefix}automation_spot_run_execution WHERE run_id = %s FOR UPDATE",
+                (run_id,),
+            )
+            execution = self._row(cursor)
+            if execution is None:
+                raise AutomationStoreNotFound(
+                    "automation_spot_run_execution_not_found"
+                )
+            if (
+                goal is None
+                or str(goal.get("bound_run_id")) != run_id
+                or not bool(goal["cancel_allowance_consumed"])
+                or not bool(execution["cancel_allowance_consumed"])
+                or execution["cancel_outcome"] is not None
+                or OperatorAutomationRunState(run["state"])
+                is not OperatorAutomationRunState.ACTIVE
+            ):
+                raise AutomationStoreConflict(
+                    "automation_spot_cancel_invocation_not_started"
+                )
+            if normalized == "UNKNOWN":
+                target = OperatorAutomationRunState.UNKNOWN_CONSUMED
+                diagnostic = "automation_spot_cancel_unknown_consumed"
+            elif normalized == "REJECTED":
+                target = OperatorAutomationRunState.TERMINAL
+                diagnostic = "automation_spot_cancel_rejected"
+            elif child_terminal:
+                target = OperatorAutomationRunState.TERMINAL
+                diagnostic = "automation_spot_cancel_accepted_terminal"
+            else:
+                target = OperatorAutomationRunState.TERMINAL
+                diagnostic = "automation_spot_cancel_accepted_nonterminal"
+            now = _utc_now()
+            audit_id = _new_id()
+            cursor.execute(
+                f"""
+                UPDATE {self._prefix}automation_spot_run_execution
+                SET cancel_outcome = %s, cancel_call_count = %s,
+                    cancel_call_count_exact = %s, child_terminal = %s,
+                    audit_id = %s, correlation_id = %s, updated_at = %s
+                WHERE run_id = %s RETURNING *
+                """,
+                (
+                    normalized,
+                    coinbase_api_call_count,
+                    call_count_exact,
+                    child_terminal,
+                    audit_id,
+                    command.correlation_id,
+                    now,
+                    run_id,
+                ),
+            )
+            execution_row = self._row(cursor)
+            assert execution_row is not None
+            cursor.execute(
+                f"""
+                UPDATE {self._prefix}automation_spot_live_proof_goal
+                SET cancel_outcome = %s, updated_at = %s WHERE singleton = 1
+                """,
+                (normalized, now),
+            )
+            cursor.execute(
+                f"""
+                UPDATE {self._prefix}automation_run
+                SET state = %s, diagnostic_code = %s, audit_id = %s,
+                    correlation_id = %s, updated_at = %s
+                WHERE run_id = %s
+                """,
+                (
+                    target.value,
+                    diagnostic,
+                    audit_id,
+                    command.correlation_id,
+                    now,
+                    run_id,
+                ),
+            )
+            record = self._spot_execution_from_row(execution_row)
+            self._append_event(
+                cursor,
+                definition_id=record.definition_id,
+                run_id=run_id,
+                from_state=run["state"],
+                to_state=target.value,
+                diagnostic_code=diagnostic,
+                audit_id=audit_id,
+                idempotency_key_sha256=_hash(command.idempotency_key),
+                correlation_id=command.correlation_id,
+                recorded_at=now,
+            )
+            self._store_idempotency(
+                cursor,
+                command=command,
+                resource_type=resource_type,
+                resource_id=run_id,
+                audit_id=audit_id,
+                result=self._spot_execution_json(record),
+                recorded_at=now,
+            )
+            return AutomationStoreMutation(
+                record,
+                audit_id,
+                command.correlation_id,
+            )
+
+    def get_spot_run_execution(
+        self,
+        run_id: str,
+    ) -> AutomationSpotRunExecutionRecord | None:
+        _validate_id(run_id, code="automation_run_id_invalid")
+        rows = self.database.execute_query(
+            f"SELECT * FROM {self._prefix}automation_spot_run_execution WHERE run_id = %s",
+            (run_id,),
+        )
+        return self._spot_execution_from_row(rows[0]) if rows else None
+
+    def get_spot_live_proof_goal(self) -> AutomationSpotLiveProofGoalRecord:
+        rows = self.database.execute_query(
+            f"SELECT * FROM {self._prefix}automation_spot_live_proof_goal WHERE singleton = 1"
+        )
+        if len(rows) != 1:
+            raise AutomationStoreUnavailable(
+                "automation_spot_live_proof_goal_unavailable"
+            )
+        return self._spot_goal_from_row(rows[0])
+
+    def has_spot_single_child_run(self) -> bool:
+        """Return whether the goal-wide, plan-bearing run claim already exists."""
+
+        rows = self.database.execute_query(
+            f"""
+            SELECT EXISTS (
+                SELECT 1
+                FROM {self._prefix}automation_run AS run
+                JOIN {self._prefix}automation_spot_single_child_plan AS plan
+                  ON plan.definition_id = run.definition_id
+                 AND plan.definition_revision = run.definition_revision
+            ) AS claimed
+            """
+        )
+        if len(rows) != 1:
+            raise AutomationStoreUnavailable(
+                "automation_spot_live_proof_goal_unavailable"
+            )
+        return bool(rows[0]["claimed"])
+
     def _run_from_row(self, row: Mapping[str, Any]) -> AutomationRunRecord:
         return AutomationRunRecord(
             run_id=str(row["run_id"]),
             definition_id=str(row["definition_id"]),
+            definition_revision=(
+                int(row["definition_revision"])
+                if row.get("definition_revision") is not None
+                else None
+            ),
             domain=OperatorAutomationDomain(row["domain"]),
             job_kind=OperatorAutomationJobKind(row["job_kind"]),
             state=OperatorAutomationRunState(row["state"]),
@@ -1100,6 +3273,11 @@ class OperatorAutomationRepository:
         return AutomationRunRecord(
             run_id=value["run_id"],
             definition_id=value["definition_id"],
+            definition_revision=(
+                int(value["definition_revision"])
+                if value.get("definition_revision") is not None
+                else None
+            ),
             domain=OperatorAutomationDomain(value["domain"]),
             job_kind=OperatorAutomationJobKind(value["job_kind"]),
             state=OperatorAutomationRunState(value["state"]),
@@ -1152,22 +3330,58 @@ class OperatorAutomationRepository:
             )
             if cursor.fetchone() is not None:
                 raise AutomationStoreConflict("automation_run_in_progress")
+            cursor.execute(
+                f"""
+                SELECT 1
+                FROM {self._prefix}automation_spot_single_child_plan
+                WHERE definition_id = %s AND definition_revision = %s
+                """,
+                (definition_id, int(definition["revision"])),
+            )
+            if cursor.fetchone() is not None:
+                cursor.execute(
+                    f"""
+                    SELECT singleton
+                    FROM {self._prefix}automation_spot_live_proof_goal
+                    WHERE singleton = 1
+                    FOR UPDATE
+                    """
+                )
+                if cursor.fetchone() is None:
+                    raise AutomationStoreUnavailable(
+                        "automation_spot_live_proof_goal_unavailable"
+                    )
+                cursor.execute(
+                    f"""
+                    SELECT 1
+                    FROM {self._prefix}automation_run AS run
+                    JOIN {self._prefix}automation_spot_single_child_plan AS plan
+                      ON plan.definition_id = run.definition_id
+                     AND plan.definition_revision = run.definition_revision
+                    LIMIT 1
+                    """
+                )
+                if cursor.fetchone() is not None:
+                    raise AutomationStoreConflict(
+                        "automation_spot_goal_run_already_claimed"
+                    )
             now = _utc_now()
             run_id = _new_id()
             audit_id = _new_id()
             cursor.execute(
                 f"""
                 INSERT INTO {self._prefix}automation_run (
-                    run_id, definition_id, domain, job_kind, state,
+                    run_id, definition_id, definition_revision, domain, job_kind, state,
                     diagnostic_code, audit_id, correlation_id, client_order_id,
                     live_attempt_consumed, coinbase_api_call_count,
                     create_call_count, cancel_call_count, claimed_at, updated_at
-                ) VALUES (%s,%s,%s,%s,'CLAIMED','one_shot_run_claimed',%s,%s,NULL,FALSE,0,0,0,%s,%s)
+                ) VALUES (%s,%s,%s,%s,%s,'CLAIMED','one_shot_run_claimed',%s,%s,NULL,FALSE,0,0,0,%s,%s)
                 RETURNING *
                 """,
                 (
                     run_id,
                     definition_id,
+                    int(definition["revision"]),
                     definition["domain"],
                     definition["job_kind"],
                     audit_id,
@@ -1201,6 +3415,96 @@ class OperatorAutomationRepository:
                 recorded_at=now,
             )
             return AutomationStoreMutation(record, audit_id, command.correlation_id)
+
+    def audit_spot_source_gate_authorization(
+        self,
+        run_id: str,
+        *,
+        expected_plan_sha256: str,
+        command: AutomationMutationCommand,
+    ) -> AutomationStoreMutation[AutomationRunRecord]:
+        """Bind one blocked authorization request without changing run state or calls."""
+
+        _validate_id(run_id, code="automation_run_id_invalid")
+        resource_type = "spot_source_gate_authorization"
+        with self.database.get_cursor() as cursor:
+            replay = self._idempotency_replay(
+                cursor,
+                command=command,
+                resource_type=resource_type,
+            )
+            if replay is not None:
+                return AutomationStoreMutation(
+                    self._run_from_json(replay["entity"]),
+                    replay["audit_id"],
+                    replay["correlation_id"],
+                    True,
+                )
+            cursor.execute(
+                f"""
+                SELECT run.*, plan.plan_sha256
+                FROM {self._prefix}automation_run AS run
+                LEFT JOIN {self._prefix}automation_spot_single_child_plan AS plan
+                  ON plan.definition_id = run.definition_id
+                 AND plan.definition_revision = run.definition_revision
+                WHERE run.run_id = %s
+                FOR UPDATE OF run
+                """,
+                (run_id,),
+            )
+            row = self._row(cursor)
+            if row is None:
+                raise AutomationStoreNotFound("automation_run_not_found")
+            if (
+                row["job_kind"] != OperatorAutomationJobKind.SPOT_CAMPAIGN.value
+                or row.get("definition_revision") is None
+                or row.get("plan_sha256") is None
+            ):
+                raise AutomationStoreConflict(
+                    "automation_single_child_run_ineligible"
+                )
+            if expected_plan_sha256 != row["plan_sha256"]:
+                raise AutomationStoreConflict(
+                    "automation_single_child_plan_mismatch"
+                )
+            if (
+                row["state"] != OperatorAutomationRunState.BLOCKED.value
+                or row["diagnostic_code"]
+                != "automation_active_order_catalog_read_not_authorized"
+            ):
+                raise AutomationStoreConflict(
+                    "automation_single_child_run_not_authorizable"
+                )
+            record = self._run_from_row(row)
+            now = _utc_now()
+            audit_id = _new_id()
+            diagnostic = "automation_active_order_catalog_read_not_authorized"
+            self._append_event(
+                cursor,
+                definition_id=record.definition_id,
+                run_id=run_id,
+                from_state=OperatorAutomationRunState.BLOCKED.value,
+                to_state=OperatorAutomationRunState.BLOCKED.value,
+                diagnostic_code=diagnostic,
+                audit_id=audit_id,
+                idempotency_key_sha256=_hash(command.idempotency_key),
+                correlation_id=command.correlation_id,
+                recorded_at=now,
+            )
+            self._store_idempotency(
+                cursor,
+                command=command,
+                resource_type=resource_type,
+                resource_id=run_id,
+                audit_id=audit_id,
+                result=self._run_json(record),
+                recorded_at=now,
+            )
+            return AutomationStoreMutation(
+                record,
+                audit_id,
+                command.correlation_id,
+            )
 
     @staticmethod
     def _run_transition_allowed(
@@ -1529,6 +3833,30 @@ class OperatorAutomationRepository:
             rows = self._rows(cursor)
             for row in rows:
                 current = OperatorAutomationRunState(row["state"])
+                execution = None
+                if current is OperatorAutomationRunState.ACTIVE:
+                    cursor.execute(
+                        f"""
+                        SELECT *
+                        FROM {self._prefix}automation_spot_run_execution
+                        WHERE run_id = %s FOR UPDATE
+                        """,
+                        (str(row["run_id"]),),
+                    )
+                    execution = self._row(cursor)
+                    stable_accepted_child = bool(
+                        execution is not None
+                        and execution["create_outcome"] == "ACCEPTED"
+                        and execution["child_terminal"] is False
+                        and not bool(execution["cancel_allowance_consumed"])
+                        and execution["cancel_outcome"] is None
+                    )
+                    if stable_accepted_child:
+                        # ACTIVE is a durable terminal point for the Create
+                        # invocation, not an interrupted invocation.  It stays
+                        # actionable only for a separately claimed exact-child
+                        # safe closeout and must survive process restarts.
+                        continue
                 if current in _POST_INVOCATION_STATES:
                     target = OperatorAutomationRunState.UNKNOWN_CONSUMED
                     diagnostic = "restart_unknown_consumed"
@@ -1545,6 +3873,77 @@ class OperatorAutomationRepository:
                 evidence_key = _hash(
                     f"automation-restart:{row['run_id']}:{current.value}:{diagnostic}"
                 )
+                if current in _POST_INVOCATION_STATES:
+                    if execution is None:
+                        cursor.execute(
+                            f"""
+                            SELECT *
+                            FROM {self._prefix}automation_spot_run_execution
+                            WHERE run_id = %s FOR UPDATE
+                            """,
+                            (str(row["run_id"]),),
+                        )
+                        execution = self._row(cursor)
+                    if execution is not None and execution["create_outcome"] is None:
+                        cursor.execute(
+                            f"""
+                            UPDATE {self._prefix}automation_spot_run_execution
+                            SET create_outcome = 'UNKNOWN',
+                                create_call_count = NULL,
+                                create_call_count_exact = FALSE,
+                                child_terminal = NULL,
+                                audit_id = %s, correlation_id = %s,
+                                updated_at = %s
+                            WHERE run_id = %s
+                            """,
+                            (
+                                audit_id,
+                                correlation_id,
+                                now,
+                                str(row["run_id"]),
+                            ),
+                        )
+                        cursor.execute(
+                            f"""
+                            UPDATE {self._prefix}automation_spot_live_proof_goal
+                            SET create_outcome = 'UNKNOWN', updated_at = %s
+                            WHERE singleton = 1 AND bound_run_id = %s
+                              AND create_outcome IS NULL
+                            """,
+                            (now, str(row["run_id"])),
+                        )
+                    elif (
+                        execution is not None
+                        and bool(execution["cancel_allowance_consumed"])
+                        and execution["cancel_outcome"] is None
+                    ):
+                        cursor.execute(
+                            f"""
+                            UPDATE {self._prefix}automation_spot_run_execution
+                            SET cancel_outcome = 'UNKNOWN',
+                                cancel_call_count = NULL,
+                                cancel_call_count_exact = FALSE,
+                                child_terminal = NULL,
+                                audit_id = %s, correlation_id = %s,
+                                updated_at = %s
+                            WHERE run_id = %s
+                            """,
+                            (
+                                audit_id,
+                                correlation_id,
+                                now,
+                                str(row["run_id"]),
+                            ),
+                        )
+                        cursor.execute(
+                            f"""
+                            UPDATE {self._prefix}automation_spot_live_proof_goal
+                            SET cancel_outcome = 'UNKNOWN', updated_at = %s
+                            WHERE singleton = 1 AND bound_run_id = %s
+                              AND cancel_outcome IS NULL
+                            """,
+                            (now, str(row["run_id"])),
+                        )
                 cursor.execute(
                     f"""
                     UPDATE {self._prefix}automation_run

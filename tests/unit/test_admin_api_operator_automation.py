@@ -27,6 +27,10 @@ from application.admin_api.automation_models import (
     AutomationJobKind,
     AutomationMutationContext,
     AutomationOneShotRunRequest,
+    AutomationSingleChildAuthorizationRequest,
+    AutomationSingleChildEligibilityReadback,
+    AutomationSingleChildPlanReadback,
+    AutomationSpotSingleChildOrderSpec,
     AutomationPagination,
     AutomationRunEventItem,
     AutomationRunEventListResponse,
@@ -213,6 +217,15 @@ class _FakeRepository:
             replayed=self.replayed,
         )
 
+    def authorize_single_child(self, **kwargs: Any) -> AutomationRepositoryMutation:
+        self._record("authorize_single_child", **kwargs)
+        return AutomationRepositoryMutation(
+            entity=_run(),
+            audit_id=AUDIT_ID,
+            correlation_id=kwargs["context"].correlation_id,
+            replayed=self.replayed,
+        )
+
     def list_runs(self, **kwargs: Any) -> AutomationRepositoryPage:
         self._record("list_runs", **kwargs)
         return AutomationRepositoryPage(items=(_run(),), total_count=1)
@@ -323,6 +336,181 @@ def test_create_request_is_strict_and_never_accepts_a_futures_domain_or_payload(
         )
 
 
+def test_single_child_definition_spec_is_typed_btc_usdc_campaign_only():
+    spec = AutomationSpotSingleChildOrderSpec(
+        side="BUY",
+        base_size="0.00001",
+        limit_price="50000.00",
+    )
+    request = AutomationDefinitionCreateRequest(
+        display_name="One bounded BTC child",
+        job_kind=AutomationJobKind.SPOT_CAMPAIGN,
+        product_ids=["BTC-USDC"],
+        single_child_order=spec,
+    )
+
+    assert request.single_child_order == spec
+    assert request.single_child_order.order_type == "LIMIT"
+    assert request.single_child_order.time_in_force == "GOOD_UNTIL_CANCELLED"
+    assert request.single_child_order.post_only is False
+
+    for job_kind in (
+        AutomationJobKind.SPOT_SWEEP,
+        AutomationJobKind.SPOT_LADDER,
+        AutomationJobKind.FOLLOW_UP,
+    ):
+        with pytest.raises(
+            ValidationError,
+            match="automation_single_child_job_kind_blocked",
+        ):
+            AutomationDefinitionCreateRequest(
+                display_name="Unsupported single child",
+                job_kind=job_kind,
+                product_ids=(
+                    []
+                    if job_kind is AutomationJobKind.FOLLOW_UP
+                    else ["BTC-USDC"]
+                ),
+                single_child_order=spec,
+            )
+
+    with pytest.raises(ValidationError):
+        AutomationSpotSingleChildOrderSpec.model_validate(
+            {
+                "side": "BUY",
+                "base_size": "0.00001",
+                "limit_price": "50000.00",
+                "order_type": "MARKET",
+            }
+        )
+
+
+def test_exact_run_authorization_accepts_only_acknowledgements_and_plan_hash():
+    body = AutomationSingleChildAuthorizationRequest(
+        confirm_single_child_create=True,
+        confirm_unknown_consumes_allowance=True,
+        expected_plan_sha256="a" * 64,
+        reason="Authorize this exact prepared child once",
+    )
+    assert body.confirm_single_child_create is True
+    assert body.confirm_unknown_consumes_allowance is True
+
+    with pytest.raises(ValidationError):
+        AutomationSingleChildAuthorizationRequest.model_validate(
+            {
+                **body.model_dump(mode="json"),
+                "product_id": "BTC-USDC",
+                "client_order_id": RUN_ID,
+                "limit_price": "50000.00",
+            }
+        )
+
+
+def test_single_child_run_readback_is_backend_owned_and_truthful():
+    plan = AutomationSingleChildPlanReadback(
+        plan_sha256="b" * 64,
+        portfolio_scope="Test",
+        product_id="BTC-USDC",
+        side="BUY",
+        base_size="0.00001",
+        limit_price="50000.00",
+        submitted_notional_usdc="0.50",
+        possible_execution_notional_usdc="0.50",
+        max_submitted_notional_usdc="3.10",
+        max_possible_execution_notional_usdc="1.00",
+    )
+    eligibility = AutomationSingleChildEligibilityReadback(
+        cycle_number=1,
+        required_categories=[
+            "api_key_permissions",
+            "portfolio_catalog",
+            "wallet_balances",
+            "product_metadata",
+            "best_bid_ask",
+            "fee_summary",
+            "exact_order_reconciliation",
+        ],
+        completed_categories=["api_key_permissions"],
+        eligible=False,
+        blocker_code="automation_eligibility_incomplete",
+        coinbase_api_call_count=1,
+        call_count_exact=True,
+    )
+    item = AutomationRunItem.model_validate(
+        {
+            **_run(),
+            "job_kind": "SPOT_CAMPAIGN",
+            "state": "AWAITING_OPERATOR_AUTHORIZATION",
+            "diagnostic_code": "awaiting_operator_authorization",
+            "adapter_status": "AWAITING_OPERATOR_AUTHORIZATION",
+            "single_child_plan": plan.model_dump(mode="json"),
+            "eligibility": eligibility.model_dump(mode="json"),
+            "allowed_actions": [],
+        }
+    )
+
+    assert item.single_child_plan.product_id == "BTC-USDC"
+    assert item.single_child_plan.max_submitted_notional_usdc == "3.10"
+    assert item.single_child_plan.max_possible_execution_notional_usdc == "1.00"
+    assert item.eligibility.blocker_code == "automation_eligibility_incomplete"
+    assert item.live_execution_available is False
+
+
+def test_unknown_single_child_run_never_reports_an_exact_zero_call_count():
+    with pytest.raises(ValidationError, match="automation_run_unknown_call_count_invalid"):
+        AutomationRunItem.model_validate(
+            {
+                **_run(),
+                "job_kind": "SPOT_CAMPAIGN",
+                "state": "UNKNOWN_CONSUMED",
+                "diagnostic_code": "unknown_consumed",
+                "adapter_status": "UNKNOWN_CONSUMED",
+                "live_attempt_consumed": True,
+                "coinbase_api_call_count": 0,
+                "create_call_count": 0,
+                "call_count_exact": True,
+            }
+        )
+
+    item = AutomationRunItem.model_validate(
+        {
+            **_run(),
+            "job_kind": "SPOT_CAMPAIGN",
+            "state": "UNKNOWN_CONSUMED",
+            "diagnostic_code": "unknown_consumed",
+            "adapter_status": "UNKNOWN_CONSUMED",
+            "live_attempt_consumed": True,
+            "coinbase_api_call_count": None,
+            "create_call_count": None,
+            "call_count_exact": False,
+        }
+    )
+    assert item.coinbase_api_call_count is None
+    assert item.create_call_count is None
+
+
+def test_single_child_mutation_activity_can_report_one_or_unknown_truthfully():
+    from application.admin_api.automation_models import AutomationNoExchangeActivity
+
+    known = AutomationNoExchangeActivity(
+        coinbase_api_call_count=1,
+        exchange_mutation_count=1,
+        create_call_count=1,
+        cancel_call_count=0,
+        call_count_exact=True,
+    )
+    assert known.exchange_mutation_count == 1
+
+    unknown = AutomationNoExchangeActivity(
+        coinbase_api_call_count=None,
+        exchange_mutation_count=None,
+        create_call_count=None,
+        cancel_call_count=0,
+        call_count_exact=False,
+    )
+    assert unknown.coinbase_api_call_count is None
+
+
 @pytest.mark.parametrize("invalid_text", ["   ", "operator\nwithheld"])
 def test_operator_text_fields_reject_blank_or_multiline_values(invalid_text: str):
     with pytest.raises(ValidationError, match="automation_display_name_invalid"):
@@ -398,6 +586,23 @@ def test_definition_and_control_event_models_reject_impossible_source_transition
             correlation_id="automation-correlation-1",
             recorded_at=NOW,
         )
+
+
+def test_run_event_model_accepts_durable_source_gate_rejection_without_state_change():
+    event = AutomationRunEventItem(
+        event_id="218d5f34-a054-410b-9c92-ddd09dcd6b09",
+        run_id=RUN_ID,
+        sequence=3,
+        from_state="BLOCKED",
+        state="BLOCKED",
+        diagnostic_code="automation_active_order_catalog_read_not_authorized",
+        audit_id=AUDIT_ID,
+        correlation_id="automation-correlation-source-gate",
+        recorded_at=NOW,
+    )
+
+    assert event.from_state is AutomationRunState.BLOCKED
+    assert event.state is AutomationRunState.BLOCKED
 
 
 @pytest.mark.parametrize(
@@ -628,6 +833,113 @@ def test_one_shot_claim_is_terminally_blocked_and_reports_exact_zero_activity():
     assert response.activity.exchange_mutation_count == 0
 
 
+def test_single_child_authorization_forwards_only_exact_acknowledgements():
+    repository = _FakeRepository()
+    service = OperatorAutomationService(repository)
+    request = AutomationSingleChildAuthorizationRequest(
+        confirm_single_child_create=True,
+        confirm_unknown_consumes_allowance=True,
+        expected_plan_sha256="d" * 64,
+        reason="Authorize the exact prepared child",
+    )
+
+    response = service.authorize_single_child(
+        run_id=RUN_ID,
+        request=request,
+        context=_context().model_copy(
+            update={
+                "operator_intent": "authorize_automation_single_child_create"
+            }
+        ),
+    )
+
+    name, kwargs = repository.calls[-1]
+    assert name == "authorize_single_child"
+    assert kwargs["run_id"] == RUN_ID
+    assert kwargs["request"] == request.model_dump(mode="json")
+    assert response.run.client_order_id is None
+    assert response.activity.exchange_mutation_count == 0
+
+
+def test_single_child_authorization_activity_excludes_prior_eligibility_reads():
+    repository = _FakeRepository()
+    categories = [
+        "api_key_permissions",
+        "portfolio_catalog",
+        "wallet_balances",
+        "product_metadata",
+        "best_bid_ask",
+        "fee_summary",
+        "exact_order_reconciliation",
+    ]
+    plan = AutomationSingleChildPlanReadback(
+        plan_sha256="e" * 64,
+        portfolio_scope="Test",
+        product_id="BTC-USDC",
+        side="BUY",
+        base_size="0.00001",
+        limit_price="50000.00",
+        submitted_notional_usdc="0.50",
+        possible_execution_notional_usdc="0.50",
+    )
+    entity = {
+        **_run(),
+        "job_kind": "SPOT_CAMPAIGN",
+        "state": "TERMINAL",
+        "diagnostic_code": "automation_spot_create_rejected",
+        "adapter_status": "TERMINAL",
+        "live_attempt_consumed": True,
+        "coinbase_api_call_count": 8,
+        "create_call_count": 1,
+        "cancel_call_count": 0,
+        "call_count_exact": True,
+        "client_order_id": "4dc878e7-f27b-42b5-adf3-4965b2b916d9",
+        "child_terminal": False,
+        "single_child_plan": plan.model_dump(mode="json"),
+        "eligibility": {
+            "cycle_number": 1,
+            "required_categories": categories,
+            "completed_categories": categories,
+            "eligible": True,
+            "blocker_code": None,
+            "coinbase_api_call_count": 7,
+            "call_count_exact": True,
+        },
+        "allowed_actions": [],
+    }
+
+    def authorize_single_child(**kwargs: Any) -> AutomationRepositoryMutation:
+        repository._record("authorize_single_child", **kwargs)
+        return AutomationRepositoryMutation(
+            entity=entity,
+            audit_id=AUDIT_ID,
+            correlation_id=kwargs["context"].correlation_id,
+        )
+
+    repository.authorize_single_child = authorize_single_child  # type: ignore[method-assign]
+    service = OperatorAutomationService(repository)
+    response = service.authorize_single_child(
+        run_id=RUN_ID,
+        request=AutomationSingleChildAuthorizationRequest(
+            confirm_single_child_create=True,
+            confirm_unknown_consumes_allowance=True,
+            expected_plan_sha256="e" * 64,
+            reason="Authorize the exact prepared child",
+        ),
+        context=_context().model_copy(
+            update={
+                "operator_intent": "authorize_automation_single_child_create"
+            }
+        ),
+    )
+
+    assert response.run.coinbase_api_call_count == 8
+    assert response.activity.coinbase_api_call_count == 1
+    assert response.activity.create_call_count == 1
+    assert response.activity.exchange_mutation_count == 1
+    assert response.activity.call_count_exact is True
+
+
 def test_run_model_projects_restart_recovery_without_weakening_v1_call_evidence():
     initial_claim = {
         **_run(),
@@ -651,6 +963,10 @@ def test_run_model_projects_restart_recovery_without_weakening_v1_call_evidence(
         "state": AutomationRunState.UNKNOWN_CONSUMED.value,
         "diagnostic_code": "restart_unknown_consumed",
         "live_attempt_consumed": True,
+        "coinbase_api_call_count": None,
+        "create_call_count": None,
+        "cancel_call_count": None,
+        "call_count_exact": False,
     }
     quarantined_item = AutomationRunItem.model_validate(quarantined)
     assert quarantined_item.state is AutomationRunState.UNKNOWN_CONSUMED

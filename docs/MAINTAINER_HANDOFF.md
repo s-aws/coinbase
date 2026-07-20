@@ -3,6 +3,24 @@
 This guide is the backend entry point for maintainers and contextless agents
 working on the enterprise admin platform.
 
+## Current Handoff State
+
+Goal `operator_spot_automation_single_child_execution_adapter_v1` is at a
+source-gated checkpoint, not a live-ready completion. Installed claims stop at
+`automation_active_order_catalog_read_not_authorized` before every Coinbase
+read or mutation; eligibility, Create, and Cancel allowances remain unconsumed.
+The exact remaining coordinator/admission/closeout work and consolidated draft
+authorization are in
+[Operator Spot Automation Single-Child Adapter v1](OPERATOR_SPOT_AUTOMATION_SINGLE_CHILD_ADAPTER.md).
+Current checkpoint gates passed backend full `1165 passed, 6 skipped`
+parallel and `630 passed, 150 skipped` serial, frontend full `1514 passed`,
+browser E2E `15/15`, independent safety and blind-contextless audits, and the
+frontend build/security/readiness gates. All reported zero Coinbase execution
+and zero notional.
+
+Completed predecessor `operator_automation_control_plane_origin_prod_alignment_v1`
+established the PostgreSQL control plane; its historical status is `complete`.
+
 ## Scope
 
 The backend repository owns trading behavior, Coinbase integration, guard
@@ -15,10 +33,10 @@ contracts only.
 Spot is the first complete product module, not the generic model for futures,
 perpetuals, stealth orders, movement/repricing, or future modules.
 
-Status: `complete`.
-Goal `operator_core_workspaces_origin_prod_alignment_v1` is complete. Current
-action is `complete_core_operator_workspaces_origin_prod_alignment`; default
-action is `await_operator_direction_for_next_mvp`. It delivered the persistent
+Historical status: `complete`.
+Goal `operator_core_workspaces_origin_prod_alignment_v1` is complete. Its
+historical action is `complete_core_operator_workspaces_origin_prod_alignment`;
+its historical default was `await_operator_direction_for_next_mvp`. It delivered the persistent
 authenticated operator shell and routed Portfolio, Spot Operations, Futures
 Operations, Orders-detail, Automation, and System Operations workspaces while
 keeping Diagnostics separate.
@@ -28,8 +46,9 @@ sealed; its evidence is stale for live eligibility and cannot be rerun under
 this goal. No goal-scoped Create, Cancel, or live proof has run. The optional
 Spot Create and exact-order Cancel allowances remain unconsumed. Futures is
 source-disabled and call-free; its workspace exposes sanitized local evidence
-only. Automation is GET-only through one local
-`GET /api/v1/admin/capabilities`; it exposes no command or exchange action.
+only. At that predecessor closeout, the statement `Automation is GET-only`
+meant one local `GET /api/v1/admin/capabilities`; that is historical evidence,
+not current successor posture.
 
 Current validation evidence is backend full `1109 passed, 6 skipped` parallel
 and `599 passed, 150 skipped` serial, frontend full `1440 passed`, E2E
@@ -151,9 +170,9 @@ permits a live order under complete backend gates, report product, submitted
 notional, executed notional, retained inventory, reconciliation result, and
 audit ids. Expected fill status does not create a separate approval class.
 
-## Current Handoff State
+## Historical handoff records
 
-- Current goal: `operator_follow_up_operations_queue_and_single_live_proof`
+- Historical completed goal: `operator_follow_up_operations_queue_and_single_live_proof`
   has Status: `complete_zero_candidates`. Current work mode and current/default
   action are `complete_zero_candidates_all_live_allowances_unconsumed`; next
   action is `await_operator_direction_for_next_mvp`. The routed passive

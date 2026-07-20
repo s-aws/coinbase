@@ -21,10 +21,22 @@ frontend request
 -> typed response
 ```
 
-Current goal `operator_automation_control_plane_origin_prod_alignment_v1` has
-status `complete`. Current action is
-`complete_operator_automation_control_plane_origin_prod_alignment`; the
-default is `await_operator_direction_for_next_mvp`. The completed
+Current goal `operator_spot_automation_single_child_execution_adapter_v1` is at
+a source-gated checkpoint, not a live-ready completion. Current action is
+`await_consolidated_canonical_spot_adapter_continuation_authority`. Installed
+claims and authorization stop at
+`automation_active_order_catalog_read_not_authorized` before every Coinbase
+read or mutation. All eligibility, Create, and Cancel allowances are
+unconsumed. Do not ungate the adapter until the canonical eligibility,
+route-owned admission/execution scope, exact-child reconciliation, and safe
+closeout gaps in
+`docs/OPERATOR_SPOT_AUTOMATION_SINGLE_CHILD_ADAPTER.md` are resolved under
+explicit authority.
+
+Completed predecessor goal
+`operator_automation_control_plane_origin_prod_alignment_v1` has historical
+status `complete` and action
+`complete_operator_automation_control_plane_origin_prod_alignment`. The earlier
 predecessor `operator_core_workspaces_origin_prod_alignment_v1` delivered the persistent
 authenticated operator shell and routed Portfolio, Spot Operations, Futures
 Operations, Orders-detail, Automation, and System Operations workspaces while
@@ -45,8 +57,15 @@ source-disabled and call-free; its workspace exposes sanitized local evidence
 only. Automation now has a feature-gated PostgreSQL control plane with typed
 definitions, actor-scoped local lifecycle/posture/schedule mutations, terminal
 one-shot classification, restart recovery, and paginated definition/control/run
-audit routes. Its v1 domain adapters remain unavailable, it starts no recurring
-scheduler, and every current route reports zero Coinbase/exchange activity.
+audit routes. Its v1 domain adapters were unavailable at closeout, it started
+no recurring scheduler, and every predecessor route reported zero
+Coinbase/exchange activity. The current typed successor is `SOURCE_GATED` and
+still reports zero current activity.
+
+Historical core-workspaces validation evidence was backend full `1109 passed,
+6 skipped` parallel and `599 passed, 150 skipped` serial, frontend full `1440
+passed`, E2E `13 passed`, and independent safety audit `PASS`. The final blind
+re-audit is not claimed as passed for that historical checkpoint.
 
 Closeout evidence is backend full `1156 passed, 6 skipped` parallel and `609
 passed, 150 skipped` serial, frontend full `1499 passed`, browser E2E `15/15`,

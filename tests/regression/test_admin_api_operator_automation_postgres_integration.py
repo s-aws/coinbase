@@ -329,3 +329,249 @@ def test_real_postgres_route_workflow_is_durable_blocked_and_replay_safe(
                 )
         finally:
             database.disconnect()
+
+
+def test_real_postgres_single_child_adapter_is_operator_visible_and_fails_before_calls(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    schema = f"test_admin_automation_{uuid.uuid4().hex}"
+    assert _SCHEMA_PATTERN.fullmatch(schema)
+    database = _database()
+    repository = OperatorAutomationRepository(database, schema=schema)
+    repository.ensure_schema()
+    adapter = PostgresOperatorAutomationRepositoryAdapter(repository)
+    service = OperatorAutomationService(adapter)
+    monkeypatch.setenv("COINBASE_ADMIN_API_AUTH_MODE", "bootstrap_bearer")
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_BEARER_TOKEN",
+        "local-automation-integration-token",
+    )
+    monkeypatch.setenv("COINBASE_ADMIN_API_OPERATOR_AUTOMATION_ENABLED", "1")
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID",
+        "483d1403-5d4d-4ae1-9084-ae2b080902b7",
+    )
+    app = create_app()
+    app.dependency_overrides[
+        operator_automation_routes.get_operator_automation_service
+    ] = lambda: service
+
+    try:
+        with TestClient(app) as client:
+            created = client.post(
+                "/api/v1/automation/definitions",
+                json={
+                    "display_name": "One bounded BTC child",
+                    "job_kind": "SPOT_CAMPAIGN",
+                    "product_ids": ["BTC-USDC"],
+                    "single_child_order": {
+                        "side": "BUY",
+                        "base_size": "0.00001",
+                        "limit_price": "50000",
+                        "order_type": "LIMIT",
+                        "time_in_force": "GOOD_UNTIL_CANCELLED",
+                        "post_only": False,
+                    },
+                },
+                headers=_headers(
+                    key="integration-single-child-create",
+                    intent="create_automation_definition",
+                ),
+            )
+            assert created.status_code == 200, created.text
+            definition = created.json()["definition"]
+            assert definition["adapter_status"] == "SOURCE_GATED"
+            assert definition["single_child_order"]["side"] == "BUY"
+
+            enabled = client.post(
+                f"/api/v1/automation/definitions/{definition['definition_id']}/enable",
+                json={"reason": "Enable the exact one-child review"},
+                headers=_headers(
+                    key="integration-single-child-enable",
+                    intent="enable_automation_definition",
+                ),
+            )
+            assert enabled.status_code == 200, enabled.text
+
+            claim_body = {
+                "confirm_one_shot": True,
+                "reason": "Prepare the exact one-child run",
+            }
+            interrupted_context = AutomationMutationContext(
+                actor_id="operator-automation-integration",
+                roles=("trader",),
+                idempotency_key="integration-single-child-run",
+                correlation_id="correlation-integration-single-child-run",
+                operator_intent="claim_automation_one_shot_run",
+            )
+            interrupted_claim = repository.claim_one_shot_run(
+                definition["definition_id"],
+                adapter._command(
+                    context=interrupted_context,
+                    payload={
+                        "operation": "claim_one_shot_run",
+                        "definition_id": definition["definition_id"],
+                        "request": claim_body,
+                    },
+                ),
+            ).entity
+            repository.transition_run(
+                interrupted_claim.run_id,
+                OperatorAutomationRunState.PREPARING,
+                diagnostic_code="preparing",
+                command=AutomationMutationCommand(
+                    idempotency_key="integration-interrupted-preparing",
+                    payload_sha256=hashlib.sha256(
+                        b"integration-interrupted-preparing"
+                    ).hexdigest(),
+                    actor_id="operator-automation-integration",
+                    correlation_id="integration-interrupted-preparing",
+                    operator_intent="prepare_automation_single_child_run",
+                ),
+            )
+
+            claimed = client.post(
+                f"/api/v1/automation/definitions/{definition['definition_id']}/runs",
+                json=claim_body,
+                headers=_headers(
+                    key="integration-single-child-run",
+                    intent="claim_automation_one_shot_run",
+                ),
+            )
+            assert claimed.status_code == 200, claimed.text
+            assert claimed.headers["X-Idempotency-Replayed"] == "true"
+            run = claimed.json()["run"]
+            assert run["state"] == "BLOCKED"
+            assert run["diagnostic_code"] == (
+                "automation_active_order_catalog_read_not_authorized"
+            )
+            assert run["single_child_plan"]["product_id"] == "BTC-USDC"
+            assert run["single_child_plan"]["portfolio_scope"] == (
+                "CONFIGURED_UNVERIFIED"
+            )
+            assert run["single_child_plan"]["max_submitted_notional_usdc"] == "3.10"
+            assert run["single_child_plan"][
+                "max_possible_execution_notional_usdc"
+            ] == "1.00"
+            assert run["live_execution_available"] is False
+            assert run["live_attempt_consumed"] is False
+            assert run["coinbase_api_call_count"] == 0
+            assert run["create_call_count"] == 0
+
+            definition_after_claim = client.get(
+                f"/api/v1/automation/definitions/{definition['definition_id']}",
+                headers={
+                    "Authorization": "Bearer local-automation-integration-token",
+                    "X-Admin-Actor": "operator-automation-integration",
+                    "X-Admin-Roles": "trader",
+                },
+            )
+            assert definition_after_claim.status_code == 200
+            assert "RUN_ONCE" not in definition_after_claim.json()[
+                "definition"
+            ]["allowed_actions"]
+
+            authorization_body = {
+                "confirm_single_child_create": True,
+                "confirm_unknown_consumes_allowance": True,
+                "expected_plan_sha256": run["single_child_plan"][
+                    "plan_sha256"
+                ],
+                "reason": "Authorize only the exact prepared child",
+            }
+            authorization_headers = _headers(
+                key="integration-single-child-authorize",
+                intent="authorize_automation_single_child_create",
+            )
+            authorization = client.post(
+                f"/api/v1/automation/runs/{run['run_id']}/authorize-single-child",
+                json=authorization_body,
+                headers=authorization_headers,
+            )
+            assert authorization.status_code == 409
+            assert authorization.json()["message"] == (
+                "automation_active_order_catalog_read_not_authorized"
+            )
+            exact_replay = client.post(
+                f"/api/v1/automation/runs/{run['run_id']}/authorize-single-child",
+                json=authorization_body,
+                headers=authorization_headers,
+            )
+            assert exact_replay.status_code == 409
+            assert exact_replay.json()["message"] == (
+                "automation_active_order_catalog_read_not_authorized"
+            )
+            changed_correlation_headers = dict(authorization_headers)
+            changed_correlation_headers["X-Correlation-Id"] = (
+                "correlation-changed-under-same-idempotency-key"
+            )
+            changed_correlation = client.post(
+                f"/api/v1/automation/runs/{run['run_id']}/authorize-single-child",
+                json=authorization_body,
+                headers=changed_correlation_headers,
+            )
+            assert changed_correlation.status_code == 409
+            assert changed_correlation.json()["message"] == (
+                "automation_idempotency_conflict"
+            )
+            changed_payload = client.post(
+                f"/api/v1/automation/runs/{run['run_id']}/authorize-single-child",
+                json={
+                    **authorization_body,
+                    "reason": "Changed request under the same key",
+                },
+                headers=authorization_headers,
+            )
+            assert changed_payload.status_code == 409
+            assert changed_payload.json()["message"] == (
+                "automation_idempotency_conflict"
+            )
+            events = client.get(
+                f"/api/v1/automation/runs/{run['run_id']}/events",
+                headers={
+                    "Authorization": "Bearer local-automation-integration-token",
+                    "X-Admin-Actor": "operator-automation-integration",
+                    "X-Admin-Roles": "trader",
+                },
+            )
+            assert events.status_code == 200, events.text
+            assert [
+                (
+                    event["from_state"],
+                    event["state"],
+                    event["diagnostic_code"],
+                )
+                for event in events.json()["items"]
+            ][-1] == (
+                "BLOCKED",
+                "BLOCKED",
+                "automation_active_order_catalog_read_not_authorized",
+            )
+            assert events.json()["pagination"]["total_matching_count"] == 4
+            readback = client.get(
+                f"/api/v1/automation/runs/{run['run_id']}",
+                headers={
+                    "Authorization": "Bearer local-automation-integration-token",
+                    "X-Admin-Actor": "operator-automation-integration",
+                    "X-Admin-Roles": "trader",
+                },
+            )
+            assert readback.status_code == 200
+            assert readback.json()["run"]["state"] == "BLOCKED"
+            assert readback.json()["run"]["coinbase_api_call_count"] == 0
+            assert readback.json()["run"]["create_call_count"] == 0
+            assert readback.json()["run"]["cancel_call_count"] == 0
+            goal = repository.get_spot_live_proof_goal()
+            assert goal.create_allowance_consumed is False
+            assert goal.cancel_allowance_consumed is False
+    finally:
+        app.dependency_overrides.clear()
+        try:
+            with database.get_cursor() as cursor:
+                cursor.execute(
+                    sql.SQL("DROP SCHEMA {} CASCADE").format(
+                        sql.Identifier(schema)
+                    )
+                )
+        finally:
+            database.disconnect()

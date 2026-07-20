@@ -1,5 +1,34 @@
 # Coinbase Admin MVP Goal
 
+Goal ID: `operator_spot_automation_single_child_execution_adapter_v1`
+
+Last reviewed: 2026-07-20 UTC.
+
+Status: `source_gated_checkpoint`.
+
+Current action:
+`await_consolidated_canonical_spot_adapter_continuation_authority`.
+
+The installed operator path stops at fixed diagnostic
+`automation_active_order_catalog_read_not_authorized` before every Coinbase
+read, Create, or Cancel. All eligibility and mutation allowances remain
+unconsumed. This is not a live-ready completion. The exact remaining canonical
+eligibility/admission/exact-child work and consolidated draft authorization are
+recorded in
+`docs/OPERATOR_SPOT_AUTOMATION_SINGLE_CHILD_ADAPTER.md`.
+
+Current checkpoint validation passed backend full `1165 passed, 6 skipped`
+parallel and `630 passed, 150 skipped` serial, frontend full `1514 passed`,
+browser E2E `15/15`, independent safety and blind-contextless audits, and the
+frontend build/security/readiness gates. All gates reported no Coinbase
+execution and zero notional.
+
+Completed predecessor `operator_automation_control_plane_origin_prod_alignment_v1`
+established the PostgreSQL Automation control plane and is historical
+`complete` evidence.
+
+## Completed core-workspaces predecessor
+
 Goal ID: `operator_core_workspaces_origin_prod_alignment_v1`
 
 Last reviewed: 2026-07-20 UTC.
@@ -18,8 +47,9 @@ sealed; its evidence is stale for live eligibility and cannot be rerun under
 this goal. No goal-scoped Create, Cancel, or live proof has run. The optional
 Spot Create and exact-order Cancel allowances remain unconsumed. Futures is
 source-disabled and call-free; its workspace exposes sanitized local evidence
-only. Automation is GET-only through one local
-`GET /api/v1/admin/capabilities`; it exposes no command or exchange action.
+only. At that predecessor closeout, the statement `Automation is GET-only`
+meant one local `GET /api/v1/admin/capabilities`; that is historical evidence,
+not the current `SOURCE_GATED` successor posture.
 
 Current validation evidence is backend full `1109 passed, 6 skipped` parallel
 and `599 passed, 150 skipped` serial, frontend full `1440 passed`, E2E

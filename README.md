@@ -13,12 +13,34 @@ plans.
 
 ## Current MVP Goal
 
-Status: `complete`.
-Current goal `operator_automation_control_plane_origin_prod_alignment_v1`
-turns the routed Automation surface into an authenticated PostgreSQL-backed
+Current goal `operator_spot_automation_single_child_execution_adapter_v1` is
+at a source-gated checkpoint, not a live-ready completion. The typed
+PostgreSQL one-child `BTC-USDC` plan, deterministic child claim, generated
+backend/frontend readback, and durable future-coordinator persistence
+primitives are implemented. No callable or injectable production execution
+coordinator is installed.
+Installed
+production claims fail closed with
+`automation_active_order_catalog_read_not_authorized` before every Coinbase
+read, invocation claim, Create, or Cancel. All goal-scoped live allowances are
+unconsumed. Completing the canonical eligibility/admission/exact-child path
+requires the consolidated successor authority recorded in
+[the adapter checkpoint](docs/OPERATOR_SPOT_AUTOMATION_SINGLE_CHILD_ADAPTER.md).
+
+Current checkpoint validation passed backend full `1165 passed, 6 skipped`
+parallel and `630 passed, 150 skipped` serial, frontend full `1514 passed`,
+browser E2E `15/15`, independent safety and blind-contextless audits, and the
+frontend build/security/readiness gates. Every gate reported no Coinbase
+execution and `0 USDC` notional.
+
+## Completed Automation control-plane predecessor
+
+Historical status: `complete`.
+Completed goal `operator_automation_control_plane_origin_prod_alignment_v1`
+turned the routed Automation surface into an authenticated PostgreSQL-backed
 operator workflow. Current action is
 `complete_operator_automation_control_plane_origin_prod_alignment`; the
-default is `await_operator_direction_for_next_mvp`. Definitions,
+historical default was `await_operator_direction_for_next_mvp`. Definitions,
 actor-scoped lifecycle and posture controls, review-only schedules, one-shot
 local claims, restart recovery, pagination, and correlated definition/control/
 run audit history are implemented through generated Admin API contracts.
@@ -39,12 +61,19 @@ sealed; its evidence is stale for live eligibility and cannot be rerun under
 this goal. No goal-scoped Create, Cancel, or live proof has run. The optional
 Spot Create and exact-order Cancel allowances remain unconsumed. Futures is
 source-disabled and call-free; its workspace exposes sanitized local evidence
-only. Automation mutations are local PostgreSQL control-plane operations and
-make zero Coinbase calls. Its current domain adapter is explicitly unavailable,
-so one-shot claims terminate `BLOCKED`; no Automation live proof, Create, or
-Cancel has run and the goal-scoped live allowance remains unconsumed.
+only. Automation mutations from that predecessor are local PostgreSQL
+control-plane operations and make zero Coinbase calls. Its domain adapters were
+unavailable at closeout, so one-shot claims terminated `BLOCKED`; no Automation
+live proof, Create, or Cancel ran and its goal-scoped live allowance remained
+unconsumed. The installed successor is the separate `SOURCE_GATED` checkpoint
+described above.
 
-Closeout evidence is backend full `1156 passed, 6 skipped` parallel and `609
+Historical core-workspaces validation evidence was backend full `1109 passed,
+6 skipped` parallel and `599 passed, 150 skipped` serial, frontend full `1440
+passed`, E2E `13 passed`, and independent safety audit `PASS`. The final blind
+re-audit is not claimed as passed for that historical checkpoint.
+
+Historical control-plane predecessor closeout evidence is backend full `1156 passed, 6 skipped` parallel and `609
 passed, 150 skipped` serial, frontend full `1499 passed`, browser E2E `15/15`,
 independent safety and blind-contextless audits `PASS`, and the canonical
 release gate `PASS`. Packaged and installed validation includes a fresh real

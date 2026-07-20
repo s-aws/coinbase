@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import Any, Mapping
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from api.v1.app import app as _ADMIN_API_APP
@@ -14,7 +15,11 @@ from api.v1.routes import operator_automation as operator_automation_routes
 from application.admin_api.automation_models import (
     AutomationControlAction,
     AutomationDefinitionLifecycleAction,
+    AutomationRunDetailResponse,
+    AutomationRunItem,
+    AutomationRunMutationResponse,
 )
+from application.admin_api.models import AdminApiActor
 from application.admin_api.operator_automation import (
     AutomationRepositoryConflict,
     AutomationRepositoryMutation,
@@ -86,6 +91,54 @@ def _run() -> dict[str, Any]:
         "correlation_id": "automation-route-correlation",
         "claimed_at": NOW.isoformat(),
         "updated_at": NOW.isoformat(),
+    }
+
+
+def _actionable_single_child_run() -> dict[str, Any]:
+    categories = [
+        "api_key_permissions",
+        "portfolio_catalog",
+        "wallet_balances",
+        "product_metadata",
+        "best_bid_ask",
+        "fee_summary",
+        "exact_order_reconciliation",
+    ]
+    return {
+        **_run(),
+        "job_kind": "SPOT_CAMPAIGN",
+        "state": "AWAITING_OPERATOR_AUTHORIZATION",
+        "diagnostic_code": "awaiting_operator_authorization",
+        "adapter_status": "AWAITING_OPERATOR_AUTHORIZATION",
+        "live_execution_available": True,
+        "coinbase_api_call_count": 7,
+        "call_count_exact": True,
+        "child_terminal": None,
+        "single_child_plan": {
+            "plan_sha256": "a" * 64,
+            "portfolio_scope": "Test",
+            "product_id": "BTC-USDC",
+            "side": "BUY",
+            "base_size": "0.5",
+            "limit_price": "2",
+            "order_type": "LIMIT",
+            "time_in_force": "GOOD_UNTIL_CANCELLED",
+            "post_only": False,
+            "submitted_notional_usdc": "1",
+            "possible_execution_notional_usdc": "1",
+            "max_submitted_notional_usdc": "3.10",
+            "max_possible_execution_notional_usdc": "1.00",
+        },
+        "eligibility": {
+            "cycle_number": 1,
+            "required_categories": categories,
+            "completed_categories": categories,
+            "eligible": True,
+            "blocker_code": None,
+            "coinbase_api_call_count": 7,
+            "call_count_exact": True,
+        },
+        "allowed_actions": ["AUTHORIZE_SINGLE_CHILD"],
     }
 
 
@@ -457,6 +510,49 @@ def test_readback_actions_are_scoped_by_backend_rbac(
     assert definitions.json()["items"][0]["allowed_actions"] == definition_actions
 
 
+def test_single_child_live_readback_is_scoped_by_backend_rbac():
+    payload = AutomationRunDetailResponse(
+        run=AutomationRunItem.model_validate(_actionable_single_child_run())
+    )
+
+    viewer = operator_automation_routes._scope_payload_for_actor(
+        payload,
+        AdminApiActor(actor_id="viewer", roles=["viewer"]),
+    )
+    trader = operator_automation_routes._scope_payload_for_actor(
+        payload,
+        AdminApiActor(actor_id="trader", roles=["trader"]),
+    )
+
+    assert viewer.run.live_execution_available is False
+    assert viewer.run.allowed_actions == []
+    assert trader.run.live_execution_available is True
+    assert trader.run.allowed_actions == ["AUTHORIZE_SINGLE_CHILD"]
+
+
+@pytest.mark.parametrize("removed_action", ["RECONCILE_CHILD", "SAFE_CLOSEOUT_CHILD"])
+def test_run_contract_rejects_unimplemented_public_actions(removed_action: str):
+    with pytest.raises(ValueError):
+        AutomationRunItem.model_validate(
+            {
+                **_actionable_single_child_run(),
+                "allowed_actions": [removed_action],
+                "live_execution_available": False,
+            }
+        )
+
+
+def test_run_contract_rejects_authorization_action_without_live_authority():
+    with pytest.raises(ValueError):
+        AutomationRunItem.model_validate(
+            {
+                **_actionable_single_child_run(),
+                "allowed_actions": ["AUTHORIZE_SINGLE_CHILD"],
+                "live_execution_available": False,
+            }
+        )
+
+
 @pytest.mark.parametrize(
     ("path", "params"),
     [
@@ -627,6 +723,153 @@ def test_one_shot_run_is_explicit_blocked_and_never_becomes_live_authority():
     assert payload["activity"]["coinbase_api_call_count"] == 0
 
 
+def _install_authorize_single_child_probe(
+    monkeypatch: pytest.MonkeyPatch,
+    repository: _FakeRepository,
+) -> None:
+    def authorize_single_child(
+        _service: OperatorAutomationService,
+        *,
+        run_id: str,
+        request: Any,
+        context: Any,
+    ) -> AutomationRunMutationResponse:
+        repository._record(
+            "authorize_single_child",
+            run_id=run_id,
+            request=request,
+            context=context,
+        )
+        return AutomationRunMutationResponse(
+            run=AutomationRunItem.model_validate(_run()),
+            audit_id=AUDIT_ID,
+            correlation_id=context.correlation_id,
+        )
+
+    monkeypatch.setattr(
+        OperatorAutomationService,
+        "authorize_single_child",
+        authorize_single_child,
+        raising=False,
+    )
+
+
+def _authorize_single_child_body(**overrides: Any) -> dict[str, Any]:
+    body: dict[str, Any] = {
+        "confirm_single_child_create": True,
+        "confirm_unknown_consumes_allowance": True,
+        "expected_plan_sha256": "a" * 64,
+        "reason": "Authorize this exact prepared child",
+    }
+    body.update(overrides)
+    return body
+
+
+def test_authorize_single_child_route_binds_exact_run_request_and_context(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repository = _FakeRepository()
+    _install_authorize_single_child_probe(monkeypatch, repository)
+
+    response = _client(repository).post(
+        f"/api/v1/automation/runs/{RUN_ID}/authorize-single-child",
+        json=_authorize_single_child_body(),
+        headers=_headers(
+            roles="trader",
+            operator_intent="authorize_automation_single_child_create",
+            idempotency_key="automation-single-child-authorization-1",
+        ),
+    )
+
+    assert response.status_code == 200
+    assert response.headers["X-Correlation-Id"] == "automation-route-correlation"
+    assert response.json()["type"] == "automation_run_mutation"
+    assert len(repository.calls) == 1
+    name, call = repository.calls[0]
+    assert name == "authorize_single_child"
+    assert call["run_id"] == RUN_ID
+    assert call["request"].model_dump(mode="json") == (
+        _authorize_single_child_body()
+    )
+    assert call["context"].actor_id == "operator-automation-route-test"
+    assert call["context"].idempotency_key == (
+        "automation-single-child-authorization-1"
+    )
+    assert call["context"].operator_intent == (
+        "authorize_automation_single_child_create"
+    )
+
+
+def test_authorize_single_child_requires_trigger_and_order_create_before_service(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repository = _FakeRepository()
+    _install_authorize_single_child_probe(monkeypatch, repository)
+    permission_checks: list[AdminApiPermission] = []
+
+    def require_both_permissions(
+        _actor: Any,
+        permission: AdminApiPermission,
+    ) -> None:
+        permission_checks.append(permission)
+        if permission is AdminApiPermission.ORDER_CREATE:
+            raise HTTPException(status_code=403, detail="forbidden")
+
+    monkeypatch.setattr(
+        operator_automation_routes,
+        "require_permission",
+        require_both_permissions,
+    )
+
+    response = _client(repository).post(
+        f"/api/v1/automation/runs/{RUN_ID}/authorize-single-child",
+        json=_authorize_single_child_body(),
+        headers=_headers(
+            roles="trader",
+            operator_intent="authorize_automation_single_child_create",
+        ),
+    )
+
+    assert response.status_code == 403
+    assert permission_checks == [
+        AdminApiPermission.AUTOMATION_TRIGGER,
+        AdminApiPermission.ORDER_CREATE,
+    ]
+    assert repository.calls == []
+
+
+@pytest.mark.parametrize(
+    ("query", "body", "intent"),
+    [
+        ({"refresh": "true"}, _authorize_single_child_body(), (
+            "authorize_automation_single_child_create"
+        )),
+        ({}, _authorize_single_child_body(product_id="BTC-USDC"), (
+            "authorize_automation_single_child_create"
+        )),
+        ({}, _authorize_single_child_body(), "claim_automation_one_shot_run"),
+    ],
+)
+def test_authorize_single_child_rejects_query_body_or_intent_broadening(
+    monkeypatch: pytest.MonkeyPatch,
+    query: dict[str, str],
+    body: dict[str, Any],
+    intent: str,
+):
+    repository = _FakeRepository()
+    _install_authorize_single_child_probe(monkeypatch, repository)
+
+    response = _client(repository).post(
+        f"/api/v1/automation/runs/{RUN_ID}/authorize-single-child",
+        params=query,
+        json=body,
+        headers=_headers(roles="trader", operator_intent=intent),
+    )
+
+    assert response.status_code == 422
+    assert repository.calls == []
+
+
 def test_exact_replay_header_and_payload_conflict_are_mapped_without_retry():
     repository = _FakeRepository(replayed=True)
     client = _client(repository)
@@ -683,6 +926,7 @@ def test_app_openapi_and_inventory_expose_only_local_control_plane_actions():
         "/api/v1/automation/definitions/{definition_id}/runs",
         "/api/v1/automation/runs",
         "/api/v1/automation/runs/{run_id}",
+        "/api/v1/automation/runs/{run_id}/authorize-single-child",
         "/api/v1/automation/runs/{run_id}/events",
     }
     assert expected <= set(paths)
@@ -747,6 +991,10 @@ def test_app_openapi_and_inventory_expose_only_local_control_plane_actions():
         ("GET", "/api/v1/automation/runs/{run_id}"): (
             "get_operator_automation_run"
         ),
+        (
+            "POST",
+            "/api/v1/automation/runs/{run_id}/authorize-single-child",
+        ): "authorize_operator_automation_single_child",
         ("GET", "/api/v1/automation/runs/{run_id}/events"): (
             "list_operator_automation_run_events"
         ),
@@ -767,4 +1015,7 @@ def test_app_openapi_and_inventory_expose_only_local_control_plane_actions():
     assert inventory[
         "POST /api/v1/automation/definitions/{definition_id}/runs"
     ].permission == AdminApiPermission.AUTOMATION_TRIGGER
+    assert inventory[
+        "POST /api/v1/automation/runs/{run_id}/authorize-single-child"
+    ].permission == AdminApiPermission.ORDER_CREATE
     assert all("Coinbase call" in row.parity_test for row in inventory.values())

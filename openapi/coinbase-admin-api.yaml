@@ -11592,6 +11592,126 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/automation/runs/{run_id}/authorize-single-child:
+    post:
+      tags:
+      - operator-automation
+      summary: Authorize Single Child
+      operationId: authorize_operator_automation_single_child
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 36
+          maxLength: 36
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Run Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: ^[\x21-\x7e]+$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: ^[\x21-\x7e]+$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: authorize_automation_single_child_create
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutomationSingleChildAuthorizationRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationRunMutationResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Not Found
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/automation/runs:
     get:
       tags:
@@ -149263,6 +149383,10 @@ components:
           type: array
           maxItems: 100
           title: Product Ids
+        single_child_order:
+          anyOf:
+          - $ref: '#/components/schemas/AutomationSpotSingleChildOrderSpec'
+          - type: 'null'
       additionalProperties: false
       type: object
       required:
@@ -149393,11 +149517,17 @@ components:
           type: array
           maxItems: 100
           title: Product Ids
+        single_child_order:
+          anyOf:
+          - $ref: '#/components/schemas/AutomationSpotSingleChildOrderSpec'
+          - type: 'null'
         schedule:
           $ref: '#/components/schemas/AutomationDefinitionSchedule'
         adapter_status:
           type: string
-          const: UNAVAILABLE
+          enum:
+          - UNAVAILABLE
+          - SOURCE_GATED
           title: Adapter Status
           default: UNAVAILABLE
         live_execution_available:
@@ -149583,25 +149713,40 @@ components:
     AutomationNoExchangeActivity:
       properties:
         coinbase_api_call_count:
-          type: integer
-          const: 0
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
           title: Coinbase Api Call Count
           default: 0
         exchange_mutation_count:
-          type: integer
-          const: 0
+          anyOf:
+          - type: integer
+            maximum: 1.0
+            minimum: 0.0
+          - type: 'null'
           title: Exchange Mutation Count
           default: 0
         create_call_count:
-          type: integer
-          const: 0
+          anyOf:
+          - type: integer
+            maximum: 1.0
+            minimum: 0.0
+          - type: 'null'
           title: Create Call Count
           default: 0
         cancel_call_count:
-          type: integer
-          const: 0
+          anyOf:
+          - type: integer
+            maximum: 1.0
+            minimum: 0.0
+          - type: 'null'
           title: Cancel Call Count
           default: 0
+        call_count_exact:
+          type: boolean
+          title: Call Count Exact
+          default: true
         recurring_worker_started:
           type: boolean
           const: false
@@ -149610,7 +149755,8 @@ components:
       additionalProperties: false
       type: object
       title: AutomationNoExchangeActivity
-      description: Fixed current-request accounting for all v1 control-plane routes.
+      description: Truthful current-request accounting; local routes retain exact
+        zero.
     AutomationOneShotRunRequest:
       properties:
         confirm_one_shot:
@@ -149816,34 +149962,77 @@ components:
           title: Diagnostic Code
         adapter_status:
           type: string
-          const: UNAVAILABLE
+          enum:
+          - UNAVAILABLE
+          - SOURCE_GATED
+          - PREPARING
+          - AWAITING_OPERATOR_AUTHORIZATION
+          - BLOCKED
+          - INVOCATION_STARTED
+          - ACTIVE
+          - TERMINAL
+          - UNKNOWN_CONSUMED
           title: Adapter Status
           default: UNAVAILABLE
+        live_execution_available:
+          type: boolean
+          title: Live Execution Available
+          default: false
         live_attempt_consumed:
           type: boolean
           title: Live Attempt Consumed
           default: false
         coinbase_api_call_count:
-          type: integer
-          minimum: 0.0
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
           title: Coinbase Api Call Count
           default: 0
         create_call_count:
-          type: integer
-          minimum: 0.0
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
           title: Create Call Count
           default: 0
         cancel_call_count:
-          type: integer
-          minimum: 0.0
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
           title: Cancel Call Count
           default: 0
+        call_count_exact:
+          type: boolean
+          title: Call Count Exact
+          default: true
         client_order_id:
           anyOf:
           - type: string
             pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
           - type: 'null'
           title: Client Order Id
+        child_terminal:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Child Terminal
+        single_child_plan:
+          anyOf:
+          - $ref: '#/components/schemas/AutomationSingleChildPlanReadback'
+          - type: 'null'
+        eligibility:
+          anyOf:
+          - $ref: '#/components/schemas/AutomationSingleChildEligibilityReadback'
+          - type: 'null'
+        allowed_actions:
+          items:
+            type: string
+            const: AUTHORIZE_SINGLE_CHILD
+          type: array
+          maxItems: 1
+          title: Allowed Actions
         audit_id:
           type: string
           pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
@@ -149950,6 +150139,225 @@ components:
       - ONE_SHOT
       - SCHEDULE_REVIEW
       title: AutomationRunTrigger
+    AutomationSingleChildAuthorizationRequest:
+      properties:
+        confirm_single_child_create:
+          type: boolean
+          const: true
+          title: Confirm Single Child Create
+        confirm_unknown_consumes_allowance:
+          type: boolean
+          const: true
+          title: Confirm Unknown Consumes Allowance
+        expected_plan_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Expected Plan Sha256
+        reason:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Reason
+      additionalProperties: false
+      type: object
+      required:
+      - confirm_single_child_create
+      - confirm_unknown_consumes_allowance
+      - expected_plan_sha256
+      - reason
+      title: AutomationSingleChildAuthorizationRequest
+      description: Exact-run acknowledgement; trading terms remain backend-owned.
+    AutomationSingleChildEligibilityReadback:
+      properties:
+        cycle_number:
+          anyOf:
+          - type: integer
+            maximum: 10.0
+            minimum: 1.0
+          - type: 'null'
+          title: Cycle Number
+        required_categories:
+          items:
+            type: string
+            enum:
+            - api_key_permissions
+            - portfolio_catalog
+            - wallet_balances
+            - product_metadata
+            - best_bid_ask
+            - fee_summary
+            - exact_order_reconciliation
+          type: array
+          maxItems: 7
+          title: Required Categories
+        completed_categories:
+          items:
+            type: string
+            enum:
+            - api_key_permissions
+            - portfolio_catalog
+            - wallet_balances
+            - product_metadata
+            - best_bid_ask
+            - fee_summary
+            - exact_order_reconciliation
+          type: array
+          maxItems: 7
+          title: Completed Categories
+        eligible:
+          type: boolean
+          title: Eligible
+          default: false
+        blocker_code:
+          anyOf:
+          - type: string
+            maxLength: 96
+            minLength: 1
+          - type: 'null'
+          title: Blocker Code
+        coinbase_api_call_count:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Coinbase Api Call Count
+          default: 0
+        call_count_exact:
+          type: boolean
+          title: Call Count Exact
+          default: true
+      additionalProperties: false
+      type: object
+      title: AutomationSingleChildEligibilityReadback
+      description: Value-blind per-run eligibility progress and call accounting.
+    AutomationSingleChildPlanReadback:
+      properties:
+        plan_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Plan Sha256
+        portfolio_scope:
+          type: string
+          enum:
+          - CONFIGURED_UNVERIFIED
+          - Test
+          title: Portfolio Scope
+        product_id:
+          type: string
+          const: BTC-USDC
+          title: Product Id
+          default: BTC-USDC
+        side:
+          type: string
+          enum:
+          - BUY
+          - SELL
+          title: Side
+        base_size:
+          type: string
+          maxLength: 64
+          pattern: ^(0|[1-9]\d*)(\.\d+)?$
+          title: Base Size
+        limit_price:
+          type: string
+          maxLength: 64
+          pattern: ^(0|[1-9]\d*)(\.\d+)?$
+          title: Limit Price
+        order_type:
+          type: string
+          const: LIMIT
+          title: Order Type
+          default: LIMIT
+        time_in_force:
+          type: string
+          const: GOOD_UNTIL_CANCELLED
+          title: Time In Force
+          default: GOOD_UNTIL_CANCELLED
+        post_only:
+          type: boolean
+          const: false
+          title: Post Only
+          default: false
+        submitted_notional_usdc:
+          type: string
+          maxLength: 64
+          pattern: ^(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+        possible_execution_notional_usdc:
+          type: string
+          maxLength: 64
+          pattern: ^(0|[1-9]\d*)(\.\d+)?$
+          title: Possible Execution Notional Usdc
+        max_submitted_notional_usdc:
+          type: string
+          const: '3.10'
+          title: Max Submitted Notional Usdc
+          default: '3.10'
+        max_possible_execution_notional_usdc:
+          type: string
+          const: '1.00'
+          title: Max Possible Execution Notional Usdc
+          default: '1.00'
+      additionalProperties: false
+      type: object
+      required:
+      - plan_sha256
+      - portfolio_scope
+      - side
+      - base_size
+      - limit_price
+      - submitted_notional_usdc
+      - possible_execution_notional_usdc
+      title: AutomationSingleChildPlanReadback
+      description: Safe backend-owned trading terms for one immutable child plan.
+    AutomationSpotSingleChildOrderSpec:
+      properties:
+        side:
+          type: string
+          enum:
+          - BUY
+          - SELL
+          title: Side
+        base_size:
+          type: string
+          maxLength: 64
+          pattern: ^(0|[1-9]\d*)(\.\d+)?$
+          title: Base Size
+        limit_price:
+          type: string
+          maxLength: 64
+          pattern: ^(0|[1-9]\d*)(\.\d+)?$
+          title: Limit Price
+        order_type:
+          type: string
+          const: LIMIT
+          title: Order Type
+          default: LIMIT
+        time_in_force:
+          type: string
+          const: GOOD_UNTIL_CANCELLED
+          title: Time In Force
+          default: GOOD_UNTIL_CANCELLED
+        post_only:
+          type: boolean
+          const: false
+          title: Post Only
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - side
+      - base_size
+      - limit_price
+      title: AutomationSpotSingleChildOrderSpec
+      description: 'One immutable Spot LIMIT/GTC child specification.
+
+
+        The product and child identity are deliberately absent: product scope is
+
+        fixed by the owning definition and ``client_order_id`` is derived by the
+
+        backend when the run crosses its durable invocation boundary.'
     CampaignExecutionRequest:
       properties:
         campaign_id:

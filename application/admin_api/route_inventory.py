@@ -2772,12 +2772,38 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         permission=AdminApiPermission.AUTOMATION_TRIGGER,
         idempotency="required one-shot claim; exact replay only",
         approval="explicit one-shot intent; never exchange authorization",
-        caps="one definition and one blocked local run; no child",
-        audit="required durable claim and terminal blocked event",
+        caps="one definition, one run, and one immutable BTC-USDC child plan",
+        audit="required durable claim, preparation, and fixed blocker event",
         shared_method="claim_one_shot_run",
         parity_test=(
-            "adapter unavailable and terminally blocked; zero Coinbase call "
-            "or exchange mutation"
+            "single-child plan preparation is local; zero Coinbase call or "
+            "exchange mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="automation_control_plane",
+        surface=(
+            "POST /api/v1/automation/runs/{run_id}/authorize-single-child"
+        ),
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        permission=AdminApiPermission.ORDER_CREATE,
+        idempotency="required exact-run command; no alternate identity or retry",
+        approval=(
+            "required explicit single-child and unknown-consumption "
+            "acknowledgements; also requires automation:trigger"
+        ),
+        caps=(
+            "required BTC-USDC-only one-Test-portfolio-child cap guard; 3.10 "
+            "submitted and 1.00 possible-execution USDC ceilings"
+        ),
+        audit=(
+            "required revision-bound plan hash and PostgreSQL allowance "
+            "evidence; current goal fails before invocation"
+        ),
+        shared_method="authorize_single_child",
+        parity_test=(
+            "canonical active-order catalog read is outside current authority; "
+            "zero Coinbase call or exchange mutation"
         ),
     ),
     AdminApiRouteInventoryItem(

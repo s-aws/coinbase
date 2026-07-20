@@ -8,6 +8,7 @@ domain independently or use a Spot definition to imply Futures authority.
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from enum import Enum
 from typing import Literal, Self
 
@@ -29,6 +30,8 @@ _CANONICAL_UUID_PATTERN = (
     r"[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
 )
 _PRODUCT_PATTERN = r"^[A-Z0-9][A-Z0-9._-]*$"
+_POSITIVE_DECIMAL_PATTERN = r"^(0|[1-9]\d*)(\.\d+)?$"
+_SHA256_PATTERN = r"^[0-9a-f]{64}$"
 
 
 class AutomationDefinitionLifecycleAction(str, Enum):
@@ -76,14 +79,46 @@ _V1_RUN_DIAGNOSTICS = {
     AutomationRunState.CLAIMED: frozenset(
         {"one_shot_run_claimed"}
     ),
+    AutomationRunState.PREPARING: frozenset({"preparing"}),
+    AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION: frozenset(
+        {"awaiting_operator_authorization"}
+    ),
     AutomationRunState.BLOCKED: frozenset(
         {
             "automation_domain_adapter_unavailable",
+            "automation_single_child_plan_missing",
+            "automation_active_order_catalog_read_not_authorized",
             "restart_pre_invocation_blocked",
         }
     ),
     AutomationRunState.UNKNOWN_CONSUMED: frozenset(
-        {"restart_unknown_consumed"}
+        {
+            "restart_unknown_consumed",
+            "unknown_consumed",
+            "automation_spot_create_unknown_consumed",
+            "automation_spot_cancel_unknown_consumed",
+        }
+    ),
+    AutomationRunState.ABORTED: frozenset({"automation_run_aborted"}),
+    AutomationRunState.INVOCATION_STARTED: frozenset(
+        {"invocation_started", "automation_spot_create_invocation_started"}
+    ),
+    AutomationRunState.ACTIVE: frozenset(
+        {
+            "active",
+            "automation_spot_create_accepted_active",
+            "automation_spot_cancel_invocation_started",
+        }
+    ),
+    AutomationRunState.TERMINAL: frozenset(
+        {
+            "terminal",
+            "automation_spot_create_rejected",
+            "automation_spot_create_accepted_terminal",
+            "automation_spot_cancel_rejected",
+            "automation_spot_cancel_accepted_terminal",
+            "automation_spot_cancel_accepted_nonterminal",
+        }
     ),
 }
 
@@ -108,15 +143,31 @@ def domain_for_job_kind(job_kind: AutomationJobKind) -> AutomationDomain:
 
 
 class AutomationNoExchangeActivity(BaseModel):
-    """Fixed current-request accounting for all v1 control-plane routes."""
+    """Truthful current-request accounting; local routes retain exact zero."""
 
     model_config = ConfigDict(extra="forbid")
 
-    coinbase_api_call_count: Literal[0] = 0
-    exchange_mutation_count: Literal[0] = 0
-    create_call_count: Literal[0] = 0
-    cancel_call_count: Literal[0] = 0
+    coinbase_api_call_count: int | None = Field(default=0, ge=0)
+    exchange_mutation_count: int | None = Field(default=0, ge=0, le=1)
+    create_call_count: int | None = Field(default=0, ge=0, le=1)
+    cancel_call_count: int | None = Field(default=0, ge=0, le=1)
+    call_count_exact: bool = True
     recurring_worker_started: Literal[False] = False
+
+    @model_validator(mode="after")
+    def validate_call_accounting(self) -> Self:
+        any_unknown = any(
+            value is None
+            for value in (
+                self.coinbase_api_call_count,
+                self.exchange_mutation_count,
+                self.create_call_count,
+                self.cancel_call_count,
+            )
+        )
+        if self.call_count_exact is any_unknown:
+            raise ValueError("automation_activity_call_count_invalid")
+        return self
 
 
 class AutomationMutationContext(BaseModel):
@@ -165,12 +216,41 @@ class AutomationDefinitionSchedule(BaseModel):
         return self
 
 
+class AutomationSpotSingleChildOrderSpec(BaseModel):
+    """One immutable Spot LIMIT/GTC child specification.
+
+    The product and child identity are deliberately absent: product scope is
+    fixed by the owning definition and ``client_order_id`` is derived by the
+    backend when the run crosses its durable invocation boundary.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    side: Literal["BUY", "SELL"]
+    base_size: str = Field(pattern=_POSITIVE_DECIMAL_PATTERN, max_length=64)
+    limit_price: str = Field(pattern=_POSITIVE_DECIMAL_PATTERN, max_length=64)
+    order_type: Literal["LIMIT"] = "LIMIT"
+    time_in_force: Literal["GOOD_UNTIL_CANCELLED"] = "GOOD_UNTIL_CANCELLED"
+    post_only: Literal[False] = False
+
+    @model_validator(mode="after")
+    def validate_positive_values(self) -> Self:
+        try:
+            values = (Decimal(self.base_size), Decimal(self.limit_price))
+        except (InvalidOperation, ValueError):
+            raise ValueError("automation_single_child_order_semantics_invalid") from None
+        if any(not value.is_finite() or value <= 0 for value in values):
+            raise ValueError("automation_single_child_order_semantics_invalid")
+        return self
+
+
 class AutomationDefinitionCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     display_name: str = Field(min_length=1, max_length=120)
     job_kind: AutomationJobKind
     product_ids: list[str] = Field(default_factory=list, max_length=100)
+    single_child_order: AutomationSpotSingleChildOrderSpec | None = None
 
     @field_validator("display_name", mode="before")
     @classmethod
@@ -198,6 +278,11 @@ class AutomationDefinitionCreateRequest(BaseModel):
             or not set(self.product_ids).issubset(_APPROVED_SPOT_PRODUCT_SCOPE)
         ):
             raise ValueError("automation_spot_product_policy_blocked")
+        if self.single_child_order is not None and (
+            self.job_kind is not AutomationJobKind.SPOT_CAMPAIGN
+            or self.product_ids != ["BTC-USDC"]
+        ):
+            raise ValueError("automation_single_child_job_kind_blocked")
         return self
 
 
@@ -256,6 +341,112 @@ class AutomationOneShotRunRequest(BaseModel):
         return _normalized_operator_text(value, code="automation_reason_invalid")
 
 
+class AutomationSingleChildAuthorizationRequest(BaseModel):
+    """Exact-run acknowledgement; trading terms remain backend-owned."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    confirm_single_child_create: Literal[True]
+    confirm_unknown_consumes_allowance: Literal[True]
+    expected_plan_sha256: str = Field(pattern=_SHA256_PATTERN)
+    reason: str = Field(min_length=1, max_length=255)
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def normalize_reason(cls, value: object) -> object:
+        return _normalized_operator_text(value, code="automation_reason_invalid")
+
+
+AutomationEligibilityCategory = Literal[
+    "api_key_permissions",
+    "portfolio_catalog",
+    "wallet_balances",
+    "product_metadata",
+    "best_bid_ask",
+    "fee_summary",
+    "exact_order_reconciliation",
+]
+
+
+class AutomationSingleChildPlanReadback(BaseModel):
+    """Safe backend-owned trading terms for one immutable child plan."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    plan_sha256: str = Field(pattern=_SHA256_PATTERN)
+    portfolio_scope: Literal["CONFIGURED_UNVERIFIED", "Test"]
+    product_id: Literal["BTC-USDC"] = "BTC-USDC"
+    side: Literal["BUY", "SELL"]
+    base_size: str = Field(pattern=_POSITIVE_DECIMAL_PATTERN, max_length=64)
+    limit_price: str = Field(pattern=_POSITIVE_DECIMAL_PATTERN, max_length=64)
+    order_type: Literal["LIMIT"] = "LIMIT"
+    time_in_force: Literal["GOOD_UNTIL_CANCELLED"] = "GOOD_UNTIL_CANCELLED"
+    post_only: Literal[False] = False
+    submitted_notional_usdc: str = Field(
+        pattern=_POSITIVE_DECIMAL_PATTERN,
+        max_length=64,
+    )
+    possible_execution_notional_usdc: str = Field(
+        pattern=_POSITIVE_DECIMAL_PATTERN,
+        max_length=64,
+    )
+    max_submitted_notional_usdc: Literal["3.10"] = "3.10"
+    max_possible_execution_notional_usdc: Literal["1.00"] = "1.00"
+
+    @model_validator(mode="after")
+    def validate_caps(self) -> Self:
+        values = (
+            Decimal(self.base_size),
+            Decimal(self.limit_price),
+            Decimal(self.submitted_notional_usdc),
+            Decimal(self.possible_execution_notional_usdc),
+        )
+        if any(not value.is_finite() or value <= 0 for value in values):
+            raise ValueError("automation_single_child_plan_value_invalid")
+        if values[0] * values[1] != values[2] or values[3] > values[2]:
+            raise ValueError("automation_single_child_plan_notional_invalid")
+        if values[2] > Decimal("3.10") or values[3] > Decimal("1.00"):
+            raise ValueError("automation_single_child_plan_cap_exceeded")
+        return self
+
+
+class AutomationSingleChildEligibilityReadback(BaseModel):
+    """Value-blind per-run eligibility progress and call accounting."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    cycle_number: int | None = Field(default=None, ge=1, le=10)
+    required_categories: list[AutomationEligibilityCategory] = Field(
+        default_factory=list,
+        max_length=7,
+    )
+    completed_categories: list[AutomationEligibilityCategory] = Field(
+        default_factory=list,
+        max_length=7,
+    )
+    eligible: bool = False
+    blocker_code: str | None = Field(default=None, min_length=1, max_length=96)
+    coinbase_api_call_count: int | None = Field(default=0, ge=0)
+    call_count_exact: bool = True
+
+    @model_validator(mode="after")
+    def validate_progress(self) -> Self:
+        if len(self.required_categories) != len(set(self.required_categories)):
+            raise ValueError("automation_eligibility_category_duplicate")
+        if len(self.completed_categories) != len(set(self.completed_categories)):
+            raise ValueError("automation_eligibility_category_duplicate")
+        if not set(self.completed_categories).issubset(self.required_categories):
+            raise ValueError("automation_eligibility_category_unexpected")
+        if self.call_count_exact is (self.coinbase_api_call_count is None):
+            raise ValueError("automation_eligibility_call_count_invalid")
+        if self.eligible and (
+            self.blocker_code is not None
+            or self.completed_categories != self.required_categories
+        ):
+            raise ValueError("automation_eligibility_ready_invalid")
+        return self
+
+
 class AutomationControlPlaneItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -292,8 +483,12 @@ class AutomationDefinitionItem(BaseModel):
     job_kind: AutomationJobKind
     lifecycle_state: AutomationDefinitionState
     product_ids: list[str] = Field(default_factory=list, max_length=100)
+    single_child_order: AutomationSpotSingleChildOrderSpec | None = None
     schedule: AutomationDefinitionSchedule
-    adapter_status: Literal["UNAVAILABLE"] = "UNAVAILABLE"
+    adapter_status: Literal[
+        "UNAVAILABLE",
+        "SOURCE_GATED",
+    ] = "UNAVAILABLE"
     live_execution_available: Literal[False] = False
     allowed_actions: list[str] = Field(default_factory=list)
     created_at: datetime
@@ -310,6 +505,11 @@ class AutomationDefinitionItem(BaseModel):
             or not set(self.product_ids).issubset(_APPROVED_SPOT_PRODUCT_SCOPE)
         ):
             raise ValueError("automation_spot_product_policy_blocked")
+        if self.single_child_order is not None and (
+            self.job_kind is not AutomationJobKind.SPOT_CAMPAIGN
+            or self.product_ids != ["BTC-USDC"]
+        ):
+            raise ValueError("automation_single_child_job_kind_blocked")
         if any(action not in _DEFINITION_ALLOWED_ACTIONS for action in self.allowed_actions):
             raise ValueError("automation_definition_action_invalid")
         if len(self.allowed_actions) != len(set(self.allowed_actions)):
@@ -329,14 +529,33 @@ class AutomationRunItem(BaseModel):
     trigger: AutomationRunTrigger
     state: AutomationRunState
     diagnostic_code: str = Field(min_length=1, max_length=96)
-    adapter_status: Literal["UNAVAILABLE"] = "UNAVAILABLE"
+    adapter_status: Literal[
+        "UNAVAILABLE",
+        "SOURCE_GATED",
+        "PREPARING",
+        "AWAITING_OPERATOR_AUTHORIZATION",
+        "BLOCKED",
+        "INVOCATION_STARTED",
+        "ACTIVE",
+        "TERMINAL",
+        "UNKNOWN_CONSUMED",
+    ] = "UNAVAILABLE"
+    live_execution_available: bool = False
     live_attempt_consumed: bool = False
-    coinbase_api_call_count: int = Field(default=0, ge=0)
-    create_call_count: int = Field(default=0, ge=0)
-    cancel_call_count: int = Field(default=0, ge=0)
+    coinbase_api_call_count: int | None = Field(default=0, ge=0)
+    create_call_count: int | None = Field(default=0, ge=0)
+    cancel_call_count: int | None = Field(default=0, ge=0)
+    call_count_exact: bool = True
     client_order_id: str | None = Field(
         default=None,
         pattern=_CANONICAL_UUID_PATTERN,
+    )
+    child_terminal: bool | None = None
+    single_child_plan: AutomationSingleChildPlanReadback | None = None
+    eligibility: AutomationSingleChildEligibilityReadback | None = None
+    allowed_actions: list[Literal["AUTHORIZE_SINGLE_CHILD"]] = Field(
+        default_factory=list,
+        max_length=1,
     )
     audit_id: str = Field(pattern=_CANONICAL_UUID_PATTERN)
     correlation_id: str = Field(
@@ -348,27 +567,51 @@ class AutomationRunItem(BaseModel):
     updated_at: datetime
 
     @model_validator(mode="after")
-    def validate_v1_run_readback(self) -> Self:
+    def validate_run_readback(self) -> Self:
         if self.domain is not domain_for_job_kind(self.job_kind):
             raise ValueError("automation_run_domain_kind_mismatch")
         diagnostics = _V1_RUN_DIAGNOSTICS.get(self.state)
-        if diagnostics is None:
-            raise ValueError("automation_v1_run_state_not_readable")
-        if self.diagnostic_code not in diagnostics:
+        if diagnostics is None or self.diagnostic_code not in diagnostics:
             raise ValueError("automation_v1_run_diagnostic_invalid")
-        expected_consumed = self.state is AutomationRunState.UNKNOWN_CONSUMED
-        if self.live_attempt_consumed is not expected_consumed:
-            raise ValueError("automation_v1_run_consumption_invalid")
-        if any(
-            (
-                self.coinbase_api_call_count,
-                self.create_call_count,
-                self.cancel_call_count,
-            )
+        if self.call_count_exact is (
+            self.coinbase_api_call_count is None
+            or self.create_call_count is None
+            or self.cancel_call_count is None
         ):
-            raise ValueError("automation_v1_run_call_evidence_invalid")
-        if self.client_order_id is not None:
-            raise ValueError("automation_v1_run_child_forbidden")
+            raise ValueError("automation_run_call_count_invalid")
+        if self.state is AutomationRunState.UNKNOWN_CONSUMED:
+            if not self.live_attempt_consumed or self.call_count_exact:
+                raise ValueError("automation_run_unknown_call_count_invalid")
+        post_invocation = self.state in {
+            AutomationRunState.INVOCATION_STARTED,
+            AutomationRunState.ACTIVE,
+            AutomationRunState.TERMINAL,
+            AutomationRunState.UNKNOWN_CONSUMED,
+        }
+        if self.live_attempt_consumed is not post_invocation:
+            raise ValueError("automation_run_consumption_invalid")
+        if self.job_kind is not AutomationJobKind.SPOT_CAMPAIGN:
+            if any(
+                (
+                    self.coinbase_api_call_count,
+                    self.create_call_count,
+                    self.cancel_call_count,
+                )
+            ):
+                raise ValueError("automation_v1_run_call_evidence_invalid")
+            if self.client_order_id is not None:
+                raise ValueError("automation_v1_run_child_forbidden")
+            if self.single_child_plan is not None or self.eligibility is not None:
+                raise ValueError("automation_single_child_readback_forbidden")
+        if self.live_execution_available and (
+            self.state is not AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
+            or self.eligibility is None
+            or not self.eligibility.eligible
+            or "AUTHORIZE_SINGLE_CHILD" not in self.allowed_actions
+        ):
+            raise ValueError("automation_live_execution_availability_invalid")
+        if not self.live_execution_available and self.allowed_actions:
+            raise ValueError("automation_live_execution_action_invalid")
         if self.updated_at < self.claimed_at:
             raise ValueError("automation_run_timestamp_invalid")
         return self
@@ -453,6 +696,73 @@ class AutomationRunEventItem(BaseModel):
             },
             "automation_domain_adapter_unavailable": {
                 (AutomationRunState.CLAIMED, AutomationRunState.BLOCKED),
+            },
+            "automation_single_child_plan_missing": {
+                (AutomationRunState.CLAIMED, AutomationRunState.BLOCKED),
+            },
+            "automation_active_order_catalog_read_not_authorized": {
+                (AutomationRunState.PREPARING, AutomationRunState.BLOCKED),
+                (AutomationRunState.BLOCKED, AutomationRunState.BLOCKED),
+            },
+            "automation_spot_eligibility_invocation_started": {
+                (AutomationRunState.PREPARING, AutomationRunState.PREPARING),
+            },
+            "automation_spot_eligibility_succeeded": {
+                (AutomationRunState.PREPARING, AutomationRunState.PREPARING),
+            },
+            "automation_spot_eligibility_rejected": {
+                (AutomationRunState.PREPARING, AutomationRunState.PREPARING),
+            },
+            "automation_spot_eligibility_unknown": {
+                (AutomationRunState.PREPARING, AutomationRunState.PREPARING),
+            },
+            "automation_spot_create_invocation_started": {
+                (
+                    AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION,
+                    AutomationRunState.INVOCATION_STARTED,
+                ),
+            },
+            "automation_spot_create_accepted_active": {
+                (
+                    AutomationRunState.INVOCATION_STARTED,
+                    AutomationRunState.ACTIVE,
+                ),
+            },
+            "automation_spot_create_accepted_terminal": {
+                (
+                    AutomationRunState.INVOCATION_STARTED,
+                    AutomationRunState.TERMINAL,
+                ),
+            },
+            "automation_spot_create_rejected": {
+                (
+                    AutomationRunState.INVOCATION_STARTED,
+                    AutomationRunState.TERMINAL,
+                ),
+            },
+            "automation_spot_create_unknown_consumed": {
+                (
+                    AutomationRunState.INVOCATION_STARTED,
+                    AutomationRunState.UNKNOWN_CONSUMED,
+                ),
+            },
+            "automation_spot_cancel_invocation_started": {
+                (AutomationRunState.ACTIVE, AutomationRunState.ACTIVE),
+            },
+            "automation_spot_cancel_accepted_terminal": {
+                (AutomationRunState.ACTIVE, AutomationRunState.TERMINAL),
+            },
+            "automation_spot_cancel_accepted_nonterminal": {
+                (AutomationRunState.ACTIVE, AutomationRunState.TERMINAL),
+            },
+            "automation_spot_cancel_rejected": {
+                (AutomationRunState.ACTIVE, AutomationRunState.TERMINAL),
+            },
+            "automation_spot_cancel_unknown_consumed": {
+                (
+                    AutomationRunState.ACTIVE,
+                    AutomationRunState.UNKNOWN_CONSUMED,
+                ),
             },
             "restart_pre_invocation_blocked": {
                 (AutomationRunState.CLAIMED, AutomationRunState.BLOCKED),

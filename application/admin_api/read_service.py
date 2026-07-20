@@ -8486,6 +8486,15 @@ class AdminApiReadService:
             "POST /api/v1/automation/control-plane/drain",
             "POST /api/v1/automation/control-plane/shutdown",
             "POST /api/v1/automation/definitions/{definition_id}/runs",
+            "POST /api/v1/automation/runs/{run_id}/authorize-single-child",
+        ]
+        operator_automation_live_command_surfaces = [
+            "POST /api/v1/automation/runs/{run_id}/authorize-single-child",
+        ]
+        operator_automation_local_command_surfaces = [
+            surface
+            for surface in operator_automation_command_surfaces
+            if surface not in operator_automation_live_command_surfaces
         ]
         functionality_inventory = [
             functionality_item(
@@ -9145,7 +9154,7 @@ class AdminApiReadService:
                 admin_api_exposed=True,
                 frontend_exposed=True,
                 command_capable=True,
-                live_designated=False,
+                live_designated=True,
                 live_enabled=False,
                 read_routes=operator_automation_read_surfaces,
                 command_routes=operator_automation_command_surfaces,
@@ -9164,11 +9173,15 @@ class AdminApiReadService:
                     "docs/OPERATOR_AUTOMATION_CONTROL_PLANE.md",
                 ],
                 required_next_contract=(
-                    "Each future executable job kind requires a separately reviewed "
-                    "typed domain adapter that revalidates domain policy and exchange "
-                    "authority; the control plane alone grants none."
+                    "The source-gated Spot child route requires the explicitly "
+                    "authorized account-wide active-order catalog guard and a "
+                    "canonical route-owned execution coordinator before it can "
+                    "become live-enabled; the control plane alone grants none."
                 ),
-                blockers=["automation_domain_adapters_unavailable"],
+                blockers=[
+                    "automation_active_order_catalog_read_not_authorized",
+                    "automation_spot_execution_coordinator_unavailable",
+                ],
                 frontend_boundary=(
                     "Render generated backend authority and forward explicit local "
                     "operator intent only; never infer eligibility or call a domain "
@@ -10066,9 +10079,9 @@ class AdminApiReadService:
             route_inventory_item(surface)
             for surface in usdc_pair_snapshot_allowlist_live_handoff_surfaces
         ]
-        operator_automation_command_rows = [
+        operator_automation_local_command_rows = [
             route_inventory_item(surface)
-            for surface in operator_automation_command_surfaces
+            for surface in operator_automation_local_command_surfaces
         ]
         mutation_taxonomy = [
             mutation_taxonomy_item(
@@ -10083,7 +10096,7 @@ class AdminApiReadService:
                     "Backend-owned local PostgreSQL automation definitions, control "
                     "posture, review schedules, and one-shot claim classification."
                 ),
-                command_surfaces=operator_automation_command_surfaces,
+                command_surfaces=operator_automation_local_command_surfaces,
                 action_classes=[AdminApiActionClass.LOCAL_STATE_MUTATION],
                 required_permissions=[
                     AdminApiPermission.AUTOMATION_CONFIGURE,
@@ -10125,7 +10138,7 @@ class AdminApiReadService:
                     "OperatorAutomationService"
                 ),
                 route_inventory_refs=[
-                    row.surface for row in operator_automation_command_rows
+                    row.surface for row in operator_automation_local_command_rows
                 ],
                 backend_contract_refs=[
                     "api/v1/routes/operator_automation.py",
@@ -10165,6 +10178,112 @@ class AdminApiReadService:
                 cap_guard_required=False,
                 reconciliation_required=False,
                 live_adapter_required=False,
+            ),
+            mutation_taxonomy_item(
+                mutation_id="automation.spot_single_child_execution",
+                mutation_family=AdminApiMutationFamilyType.SPOT_CAMPAIGN_EXECUTION,
+                workflow_id="automation.operator_control_plane",
+                module_id="automation",
+                module="Automation",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED
+                ),
+                support_status=(
+                    AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
+                ),
+                summary=(
+                    "One explicitly operator-triggered BTC-USDC automation child "
+                    "authorization route; installed execution is source-gated "
+                    "before every Coinbase read or mutation."
+                ),
+                command_surfaces=operator_automation_live_command_surfaces,
+                action_classes=[AdminApiActionClass.LIVE_EXCHANGE_PLACE],
+                required_permissions=[
+                    AdminApiPermission.AUTOMATION_TRIGGER,
+                    AdminApiPermission.ORDER_CREATE,
+                ],
+                identity_keys=[
+                    "definition_id",
+                    "run_id",
+                    "client_order_id",
+                    "plan_sha256",
+                ],
+                payload_binding_fields=[
+                    "route",
+                    "actor",
+                    "operator_intent",
+                    "run_id",
+                    "expected_plan_sha256",
+                    "body",
+                    "idempotency_key",
+                    "correlation_id",
+                ],
+                idempotency_contract=(
+                    "required exact-run durable claim or durable source-gate "
+                    "rejection; changed payload reuse is rejected"
+                ),
+                approval_contract=(
+                    "explicit single-child and unknown-consumption acknowledgements "
+                    "plus backend RBAC; no prior acknowledgement is reused"
+                ),
+                cap_guard_contract=(
+                    "BTC-USDC only; submitted notional at most 3.10 USDC and "
+                    "possible-execution notional at most 1.00 USDC"
+                ),
+                admission_audit_contract=(
+                    "revision-bound plan, configured portfolio hash, exact run, "
+                    "idempotency, correlation, and fixed diagnostic evidence"
+                ),
+                reconciliation_contract=(
+                    "fresh exact-child and canonical account-wide active-order "
+                    "evidence are mandatory before Create or safe closeout"
+                ),
+                owning_backend_service=(
+                    "application/admin_api/operator_automation.py::"
+                    "OperatorAutomationService"
+                ),
+                route_inventory_refs=operator_automation_live_command_surfaces,
+                backend_contract_refs=[
+                    "api/v1/routes/operator_automation.py",
+                    "application/admin_api/operator_automation.py",
+                    "database/operator_automation.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    "src/features/operator-read-models/automation",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_SPOT_AUTOMATION_SINGLE_CHILD_ADAPTER.md",
+                ],
+                required_next_contract=(
+                    "Explicit authority for the canonical account-wide active-order "
+                    "catalog read and a route-owned canonical Spot coordinator."
+                ),
+                blockers=[
+                    "automation_active_order_catalog_read_not_authorized",
+                    "automation_spot_execution_coordinator_unavailable",
+                ],
+                frontend_boundary=(
+                    "Render exact generated backend authority and forward one "
+                    "acknowledgement-only request; never derive eligibility or call "
+                    "Coinbase from the browser."
+                ),
+                bff_boundary=(
+                    "The same-origin BFF forwards only the generated exact-run route "
+                    "with server-held authentication and performs no retry."
+                ),
+                route_local_boundary=(
+                    "The installed route remains source-gated before eligibility, "
+                    "invocation claims, coordinator construction, or Coinbase."
+                ),
+                spot_rule_boundary=(
+                    "BTC-USDC wallet, inventory, cap, and child rules are Spot-only "
+                    "and must not become Futures or generic automation policy."
+                ),
+                approval_required=True,
+                cap_guard_required=True,
+                reconciliation_required=True,
+                live_adapter_required=True,
             ),
             mutation_taxonomy_item(
                 mutation_id="admin.approval_lifecycle",

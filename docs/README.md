@@ -4,10 +4,27 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 
 ## Project Entry
 
-Status: `complete`.
-Goal `operator_core_workspaces_origin_prod_alignment_v1` is complete. Current
-action is `complete_core_operator_workspaces_origin_prod_alignment`; default
-action is `await_operator_direction_for_next_mvp`. The completed lane delivered
+Current goal `operator_spot_automation_single_child_execution_adapter_v1` is a
+source-gated checkpoint. The one-child `BTC-USDC` operator contracts and
+PostgreSQL evidence are implemented, while installed execution stops at
+`automation_active_order_catalog_read_not_authorized` before every Coinbase
+read or mutation. Create and Cancel allowances remain unconsumed. See
+[Operator Spot Automation Single-Child Adapter v1](OPERATOR_SPOT_AUTOMATION_SINGLE_CHILD_ADAPTER.md).
+Current checkpoint gates passed backend full `1165 passed, 6 skipped`
+parallel and `630 passed, 150 skipped` serial, frontend full `1514 passed`,
+browser E2E `15/15`, and both independent audits with no Coinbase execution
+or notional.
+
+Completed predecessor `operator_automation_control_plane_origin_prod_alignment_v1`
+established the PostgreSQL Automation control plane; its historical status is
+`complete`.
+
+## Completed core-workspaces predecessor
+
+Historical Status: `complete`.
+Goal `operator_core_workspaces_origin_prod_alignment_v1` is complete. Its
+historical action is `complete_core_operator_workspaces_origin_prod_alignment`;
+its historical default was `await_operator_direction_for_next_mvp`. The lane delivered
 a persistent authenticated operator shell and routed Portfolio, Spot
 Operations, Futures Operations, Orders-detail, Automation, and System
 Operations workspaces while keeping Diagnostics separate.
@@ -17,8 +34,9 @@ sealed; its evidence is stale for live eligibility and cannot be rerun under
 this goal. No goal-scoped Create, Cancel, or live proof has run. The optional
 Spot Create and exact-order Cancel allowances remain unconsumed. Futures is
 source-disabled and call-free; its workspace exposes sanitized local evidence
-only. Automation is GET-only through one local
-`GET /api/v1/admin/capabilities`; it exposes no command or exchange action.
+only. At that predecessor closeout, the statement `Automation is GET-only`
+meant one local `GET /api/v1/admin/capabilities`; it is historical and does not
+replace the current `SOURCE_GATED` successor readback above.
 
 Current validation evidence is backend full `1109 passed, 6 skipped` parallel
 and `599 passed, 150 skipped` serial, frontend full `1440 passed`, E2E
