@@ -13,6 +13,23 @@ plans.
 
 ## Current MVP Goal
 
+Goal
+`operator_spot_automation_preview_explainability_and_successor_proof_v4_v6`
+is complete at `complete_no_documented_successor_correction`. Current action:
+`complete_preview_explainability_v4_v6_allowances_unconsumed`. Default action:
+`await_operator_policy_decision`.
+
+The backend exact-allowlists Coinbase's documented Preview `errs` enum and
+persists/projects only fixed sanitized rejection codes. Goal-global V4-V6
+eligibility cycles are `0/10`; Preview/Create/Cancel calls `0/0/0`; all
+successor allowances remain unconsumed. The authorized terminal boundary is
+`no documented correction remains`: V3 has no recoverable exact enum and its
+standing BUY cannot move near market without broadening installed policy. No
+Coinbase call or exchange mutation occurred in this goal. See
+[the V4-V6 explainability closeout](docs/OPERATOR_SPOT_AUTOMATION_PREVIEW_EXPLAINABILITY_V4_V6.md).
+
+### V3 predecessor terminal record
+
 Goal `operator_spot_automation_documented_market_freshness_successor_v3` is
 complete and terminal. V3 uses Coinbase's documented exact-product Get
 Market Trades snapshot, requires its matching trade event time to satisfy the

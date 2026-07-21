@@ -794,6 +794,30 @@ class AutomationRunItem(BaseModel):
         "RESPONSE_SCHEMA_INVALID",
         "TRANSPORT_UNKNOWN",
     ] | None = None
+    preview_rejection_code: Literal[
+        "UNKNOWN_DOCUMENTED",
+        "INSUFFICIENT_FUNDS",
+        "SIZE_PRECISION",
+        "PRICE_PRECISION",
+        "BASE_SIZE_TOO_LARGE",
+        "BASE_SIZE_TOO_SMALL",
+        "QUOTE_SIZE_PRECISION",
+        "QUOTE_SIZE_TOO_LARGE",
+        "QUOTE_SIZE_TOO_SMALL",
+        "PRICE_TOO_LARGE",
+        "POST_ONLY_LIMIT_PRICE",
+        "LIMIT_PRICE",
+        "NO_LIQUIDITY",
+        "PRODUCT_PRICE_BOOK_MISSING",
+        "MARKET_TRADE_DATA_MISSING",
+        "PRODUCT_INVALID",
+        "PRODUCT_UNTRADABLE",
+        "MARKET_STATE",
+        "ORDER_CONFIGURATION",
+        "POLICY",
+        "OTHER_DOCUMENTED",
+        "MULTIPLE_DOCUMENTED",
+    ] | None = None
     preview_warning_present: bool | None = None
     preview_identity_retention: Literal[
         "UNAVAILABLE",
@@ -898,6 +922,7 @@ class AutomationRunItem(BaseModel):
                         self.preview_outcome is not None
                         or self.preview_call_count != 0
                         or self.preview_failure_class is not None
+                        or self.preview_rejection_code is not None
                         or self.preview_warning_present is not None
                         or self.preview_identity_retention != "UNAVAILABLE"
                     )
@@ -910,6 +935,7 @@ class AutomationRunItem(BaseModel):
                         != "automation_spot_preview_invocation_started"
                         or self.preview_call_count is not None
                         or self.preview_failure_class is not None
+                        or self.preview_rejection_code is not None
                         or self.preview_warning_present is not None
                         or self.preview_identity_retention != "UNAVAILABLE"
                     )
@@ -925,6 +951,14 @@ class AutomationRunItem(BaseModel):
                         "DOCUMENTED_REJECTION",
                         "UNCLASSIFIED_REJECTION",
                     }
+                )
+                or (
+                    self.preview_rejection_code is not None
+                    and (
+                        self.preview_outcome != "REJECTED"
+                        or self.preview_failure_class
+                        != "DOCUMENTED_REJECTION"
+                    )
                 )
                 or (
                     self.preview_outcome == "UNKNOWN"
@@ -950,6 +984,7 @@ class AutomationRunItem(BaseModel):
             self.preview_allowance_consumed
             or self.preview_outcome is not None
             or self.preview_failure_class is not None
+            or self.preview_rejection_code is not None
             or self.preview_warning_present is not None
             or self.preview_identity_retention != "UNAVAILABLE"
             or self.preview_call_count != 0

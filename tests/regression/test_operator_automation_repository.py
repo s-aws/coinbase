@@ -3385,6 +3385,7 @@ def test_documented_market_freshness_v3_requires_terminal_v2_and_preserves_it(
         v3_run.run_id,
         outcome="REJECTED",
         failure_class="DOCUMENTED_REJECTION",
+        rejection_code=None,
         warning_present=False,
         preview_id_sha256=None,
         preview_call_count=1,
@@ -3456,6 +3457,7 @@ def test_preview_claim_is_single_use_and_rejection_leaves_create_unconsumed(
         run.run_id,
         outcome="REJECTED",
         failure_class="DOCUMENTED_REJECTION",
+        rejection_code="INSUFFICIENT_FUNDS",
         warning_present=False,
         preview_id_sha256=None,
         preview_call_count=1,
@@ -3464,6 +3466,7 @@ def test_preview_claim_is_single_use_and_rejection_leaves_create_unconsumed(
     )
     assert finalized.entity.preview_outcome == "REJECTED"
     assert finalized.entity.preview_failure_class == "DOCUMENTED_REJECTION"
+    assert finalized.entity.preview_rejection_code == "INSUFFICIENT_FUNDS"
     assert finalized.entity.create_allowance_consumed is False
     assert finalized.entity.bound_run_id == run.run_id
     terminal = repository.get_run(run.run_id)
@@ -3471,6 +3474,54 @@ def test_preview_claim_is_single_use_and_rejection_leaves_create_unconsumed(
     assert terminal.state is OperatorAutomationRunState.TERMINAL
     assert terminal.diagnostic_code == "automation_spot_preview_rejected"
     assert terminal.create_call_count == 0
+
+
+def test_preview_rejection_code_rejects_unallowlisted_values(
+    repository_harness: _Harness,
+):
+    repository = repository_harness.repository()
+    _seal_rejected_predecessor(repository, "preview-code-predecessor")
+    definition = repository.create_definition(
+        _definition_command("preview-code-successor", product_ids=("BTC-USDC",)),
+        spot_single_child_plan=_spot_plan_terms(),
+        spot_goal_key=AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+    ).entity
+    enabled = repository.transition_definition(
+        definition.definition_id,
+        "enable",
+        _mutation("preview-code-enable"),
+    ).entity
+    run = repository.claim_one_shot_run(
+        enabled.definition_id,
+        _mutation("preview-code-run"),
+    ).entity
+    repository.transition_run(
+        run.run_id,
+        OperatorAutomationRunState.PREPARING,
+        diagnostic_code="preparing",
+        command=_mutation("preview-code-preparing"),
+    )
+    _complete_eligible_cycle(repository, run.run_id, "preview-code-cycle")
+    repository.start_spot_preview_invocation(
+        run.run_id,
+        eligibility_cycle=1,
+        command=_mutation("preview-code-start"),
+    )
+
+    with pytest.raises(AutomationStoreInvalid) as error:
+        repository.finalize_spot_preview_invocation(
+            run.run_id,
+            outcome="REJECTED",
+            failure_class="DOCUMENTED_REJECTION",
+            rejection_code="PRIVATE_RAW_REASON",
+            warning_present=False,
+            preview_id_sha256=None,
+            preview_call_count=1,
+            call_count_exact=True,
+            command=_mutation("preview-code-finish"),
+        )
+
+    assert error.value.code == "automation_spot_preview_result_invalid"
 
 
 def test_accepted_preview_unlocks_only_v2_create_allowance(
@@ -3512,6 +3563,7 @@ def test_accepted_preview_unlocks_only_v2_create_allowance(
         run.run_id,
         outcome="ACCEPTED",
         failure_class="NONE",
+        rejection_code=None,
         warning_present=True,
         preview_id_sha256="a" * 64,
         preview_call_count=1,

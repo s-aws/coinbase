@@ -5,14 +5,25 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 ## Project Entry
 
 The active successor goal is
-`operator_spot_automation_documented_market_freshness_successor_v3`. Its
-Coinbase-documented exact-product Get Market Trades market-event freshness
-contract is recorded
-in
-[`OPERATOR_SPOT_AUTOMATION_DOCUMENTED_MARKET_FRESHNESS_V3.md`](OPERATOR_SPOT_AUTOMATION_DOCUMENTED_MARKET_FRESHNESS_V3.md).
-Status: `complete_terminal_preview_rejected`.
-Current action: `complete_v3_terminal_preview_rejected_create_cancel_unconsumed`.
-Default action: `await_operator_direction_for_next_mvp`.
+`operator_spot_automation_preview_explainability_and_successor_proof_v4_v6`.
+Its exact allowlisted Preview classification and no-correction terminal boundary
+are recorded in
+[`OPERATOR_SPOT_AUTOMATION_PREVIEW_EXPLAINABILITY_V4_V6.md`](OPERATOR_SPOT_AUTOMATION_PREVIEW_EXPLAINABILITY_V4_V6.md).
+Status: `complete_no_documented_successor_correction`.
+Current action: `complete_preview_explainability_v4_v6_allowances_unconsumed`.
+Default action: `await_operator_policy_decision`.
+
+The classifier, PostgreSQL readback, OpenAPI, generated client, and operator UI
+now retain only fixed sanitized rejection codes. V3 retained no exact error
+enum, and its `10,000 USDC` standing BUY limit cannot be moved near market
+without broadening the installed policy. The backend exact-allowlists
+Coinbase's documented Preview `errs` enum. Goal-global V4-V6 eligibility cycles
+are `0/10`; Preview/Create/Cancel calls `0/0/0`; all successor allowances
+remain unconsumed. The stop boundary is `no documented correction remains`.
+No Coinbase call or exchange mutation occurred in this goal.
+The V3 predecessor used the documented exact-product Get Market Trades source.
+
+### V3 predecessor terminal record
 
 The authenticated operator workflow completed one distinct V3 candidate.
 Eight no-retry eligibility cycles used `58` exact reads with distribution

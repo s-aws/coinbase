@@ -306,6 +306,7 @@ class _ExecutionRepository:
             preview_allowance_consumed=False,
             preview_outcome=None,
             preview_failure_class=None,
+            preview_rejection_code=None,
             preview_warning_present=None,
             preview_id_sha256=None,
             preview_call_count=None,
@@ -380,6 +381,7 @@ class _ExecutionRepository:
             self.preview_goal,
             preview_outcome=outcome,
             preview_failure_class=str(kwargs["failure_class"]),
+            preview_rejection_code=kwargs["rejection_code"],
             preview_warning_present=bool(kwargs["warning_present"]),
             preview_id_sha256=kwargs["preview_id_sha256"],
             preview_call_count=kwargs["preview_call_count"],
@@ -1142,7 +1144,11 @@ class _PreviewInvoker:
                 "order_total": "0.5005",
                 "commission_total": "0.0005",
                 "errs": (
-                    [] if self.mode == "accepted" else ["PREVIEW_REJECTED"]
+                    []
+                    if self.mode == "accepted"
+                    else ["PREVIEW_INSUFFICIENT_FUND"]
+                    if self.mode == "documented_rejected"
+                    else ["PREVIEW_REJECTED"]
                 ),
                 "warning": [],
                 "quote_size": (
@@ -1403,6 +1409,7 @@ def test_authorize_orchestrates_one_fresh_cycle_claim_and_canonical_create(
     ("preview_mode", "expected_state", "expected_exact"),
     [
         ("rejected", OperatorAutomationRunState.TERMINAL, True),
+        ("documented_rejected", OperatorAutomationRunState.TERMINAL, True),
         ("malformed", OperatorAutomationRunState.UNKNOWN_CONSUMED, True),
         (
             "economics_mismatch",
@@ -1444,6 +1451,11 @@ def test_preview_gated_rejection_or_unknown_never_enters_create(
     assert response.run.state is expected_state
     assert response.run.preview_allowance_consumed is True
     assert response.run.create_allowance_consumed is False
+    assert response.run.preview_rejection_code == (
+        "INSUFFICIENT_FUNDS"
+        if preview_mode == "documented_rejected"
+        else None
+    )
     assert response.activity.operation == "PREVIEW_GATED_CREATE"
     assert response.activity.call_count_exact is expected_exact
     assert response.activity.preview_call_count == (1 if expected_exact else None)

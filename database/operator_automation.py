@@ -77,6 +77,32 @@ _AUTOMATION_SPOT_ELIGIBILITY_CYCLE_STATES = frozenset(
 _AUTOMATION_SPOT_MUTATION_OUTCOMES = frozenset(
     {"ACCEPTED", "REJECTED", "UNKNOWN"}
 )
+_AUTOMATION_SPOT_PREVIEW_REJECTION_CODES = frozenset(
+    {
+        "UNKNOWN_DOCUMENTED",
+        "INSUFFICIENT_FUNDS",
+        "SIZE_PRECISION",
+        "PRICE_PRECISION",
+        "BASE_SIZE_TOO_LARGE",
+        "BASE_SIZE_TOO_SMALL",
+        "QUOTE_SIZE_PRECISION",
+        "QUOTE_SIZE_TOO_LARGE",
+        "QUOTE_SIZE_TOO_SMALL",
+        "PRICE_TOO_LARGE",
+        "POST_ONLY_LIMIT_PRICE",
+        "LIMIT_PRICE",
+        "NO_LIQUIDITY",
+        "PRODUCT_PRICE_BOOK_MISSING",
+        "MARKET_TRADE_DATA_MISSING",
+        "PRODUCT_INVALID",
+        "PRODUCT_UNTRADABLE",
+        "MARKET_STATE",
+        "ORDER_CONFIGURATION",
+        "POLICY",
+        "OTHER_DOCUMENTED",
+        "MULTIPLE_DOCUMENTED",
+    }
+)
 AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY = (
     "operator_spot_automation_single_child_execution_adapter_v1"
 )
@@ -386,6 +412,7 @@ class AutomationSpotPreviewGatedGoalRecord:
     preview_allowance_consumed: bool
     preview_outcome: Literal["ACCEPTED", "REJECTED", "UNKNOWN"] | None
     preview_failure_class: str | None
+    preview_rejection_code: str | None
     preview_warning_present: bool | None
     preview_id_sha256: str | None
     preview_call_count: int | None
@@ -486,6 +513,10 @@ class OperatorAutomationRepository:
         preview_goal_keys = ", ".join(
             f"'{goal_key}'"
             for goal_key in sorted(_AUTOMATION_SPOT_PREVIEW_GOAL_KEYS)
+        )
+        preview_rejection_codes = ", ".join(
+            f"'{code}'"
+            for code in sorted(_AUTOMATION_SPOT_PREVIEW_REJECTION_CODES)
         )
         with self.database.get_cursor() as cursor:
             cursor.execute(f'CREATE SCHEMA IF NOT EXISTS "{self.schema}"')
@@ -1615,6 +1646,9 @@ class OperatorAutomationRepository:
                             'RESPONSE_SCHEMA_INVALID', 'TRANSPORT_UNKNOWN'
                         )
                     ),
+                    preview_rejection_code TEXT CHECK (
+                        preview_rejection_code IN ({preview_rejection_codes})
+                    ),
                     preview_warning_present BOOLEAN,
                     preview_id_sha256 CHAR(64) CHECK (
                         preview_id_sha256 IS NULL
@@ -1645,6 +1679,7 @@ class OperatorAutomationRepository:
                             AND NOT preview_allowance_consumed
                             AND preview_outcome IS NULL
                             AND preview_failure_class IS NULL
+                            AND preview_rejection_code IS NULL
                             AND preview_warning_present IS NULL
                             AND preview_id_sha256 IS NULL
                             AND preview_call_count IS NULL
@@ -1683,6 +1718,13 @@ class OperatorAutomationRepository:
                         )
                     ),
                     CHECK (
+                        preview_rejection_code IS NULL
+                        OR (
+                            preview_outcome = 'REJECTED'
+                            AND preview_failure_class = 'DOCUMENTED_REJECTION'
+                        )
+                    ),
+                    CHECK (
                         preview_id_sha256 IS NULL
                         OR preview_outcome = 'ACCEPTED'
                     ),
@@ -1697,6 +1739,33 @@ class OperatorAutomationRepository:
                     CHECK (
                         NOT cancel_allowance_consumed
                         OR create_allowance_consumed
+                    )
+                )
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_preview_gated_goal
+                ADD COLUMN IF NOT EXISTS preview_rejection_code TEXT
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_preview_gated_goal
+                DROP CONSTRAINT IF EXISTS
+                    automation_spot_preview_rejection_code_check
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_preview_gated_goal
+                ADD CONSTRAINT automation_spot_preview_rejection_code_check
+                CHECK (
+                    preview_rejection_code IS NULL
+                    OR (
+                        preview_rejection_code IN ({preview_rejection_codes})
+                        AND preview_outcome = 'REJECTED'
+                        AND preview_failure_class = 'DOCUMENTED_REJECTION'
                     )
                 )
                 """
@@ -4236,6 +4305,7 @@ class OperatorAutomationRepository:
             ),
             preview_outcome=row.get("preview_outcome"),
             preview_failure_class=row.get("preview_failure_class"),
+            preview_rejection_code=row.get("preview_rejection_code"),
             preview_warning_present=(
                 bool(row["preview_warning_present"])
                 if row.get("preview_warning_present") is not None
@@ -4396,6 +4466,7 @@ class OperatorAutomationRepository:
             ),
             preview_outcome=value.get("preview_outcome"),
             preview_failure_class=value.get("preview_failure_class"),
+            preview_rejection_code=value.get("preview_rejection_code"),
             preview_warning_present=value.get("preview_warning_present"),
             preview_id_sha256=value.get("preview_id_sha256"),
             preview_call_count=(
@@ -4557,6 +4628,7 @@ class OperatorAutomationRepository:
         *,
         outcome: str,
         failure_class: str,
+        rejection_code: str | None,
         warning_present: bool,
         preview_id_sha256: str | None,
         preview_call_count: int | None,
@@ -4577,6 +4649,11 @@ class OperatorAutomationRepository:
         if (
             normalized not in _AUTOMATION_SPOT_MUTATION_OUTCOMES
             or failure_class not in allowed_failures
+            or (
+                rejection_code is not None
+                and rejection_code
+                not in _AUTOMATION_SPOT_PREVIEW_REJECTION_CODES
+            )
             or type(warning_present) is not bool
             or type(call_count_exact) is not bool
             or (
@@ -4591,6 +4668,13 @@ class OperatorAutomationRepository:
                 )
             )
             or (normalized == "ACCEPTED" and failure_class != "NONE")
+            or (
+                rejection_code is not None
+                and (
+                    normalized != "REJECTED"
+                    or failure_class != "DOCUMENTED_REJECTION"
+                )
+            )
             or (normalized == "REJECTED" and failure_class not in {
                 "DOCUMENTED_REJECTION",
                 "UNCLASSIFIED_REJECTION",
@@ -4661,6 +4745,7 @@ class OperatorAutomationRepository:
                 f"""
                 UPDATE {self._prefix}automation_spot_preview_gated_goal
                 SET preview_outcome = %s, preview_failure_class = %s,
+                    preview_rejection_code = %s,
                     preview_warning_present = %s, preview_id_sha256 = %s,
                     preview_call_count = %s,
                     preview_call_count_exact = %s, updated_at = %s
@@ -4670,6 +4755,7 @@ class OperatorAutomationRepository:
                 (
                     normalized,
                     failure_class,
+                    rejection_code,
                     warning_present,
                     preview_id_sha256,
                     preview_call_count,

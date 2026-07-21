@@ -1,15 +1,27 @@
 # Coinbase Admin MVP Goal
 
-Goal ID: `operator_spot_automation_documented_market_freshness_successor_v3`
+Goal ID:
+`operator_spot_automation_preview_explainability_and_successor_proof_v4_v6`
 
 Last reviewed: 2026-07-21 UTC.
 
-Status: `complete_terminal_preview_rejected`.
+Status: `complete_no_documented_successor_correction`.
 
 Current action:
-`complete_v3_terminal_preview_rejected_create_cancel_unconsumed`.
+`complete_preview_explainability_v4_v6_allowances_unconsumed`.
 
-Default action: `await_operator_direction_for_next_mvp`.
+Default action: `await_operator_policy_decision`.
+
+The backend exact-allowlists Coinbase's documented Preview `errs` enum and
+persists/projects only fixed sanitized rejection codes. Goal-global V4-V6
+eligibility cycles are `0/10`; Preview/Create/Cancel calls `0/0/0`; all
+successor allowances remain unconsumed. The authorized terminal boundary is
+`no documented correction remains`: V3 has no recoverable exact enum and its
+standing BUY cannot move near market without broadening installed policy. No
+Coinbase call or exchange mutation occurred in this goal.
+The authorized eight-category proof budget therefore remained unused.
+
+## V3 predecessor terminal record
 
 V3 is a distinct exact `BTC-USDC` / approved-Test-portfolio successor under
 the unchanged 3.10/1.00 USDC caps. It uses Coinbase's documented authenticated

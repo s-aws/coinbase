@@ -5,6 +5,29 @@ working on the enterprise admin platform.
 
 ## Current Handoff State
 
+Goal
+`operator_spot_automation_preview_explainability_and_successor_proof_v4_v6`
+is complete at `complete_no_documented_successor_correction`. The Preview
+classifier now exact-allowlists Coinbase's documented Preview `errs` values and
+persists/projects only fixed sanitized rejection categories through
+PostgreSQL, OpenAPI, the generated frontend client, and operator readback. See
+[Operator Spot Automation Preview Explainability V4-V6](OPERATOR_SPOT_AUTOMATION_PREVIEW_EXPLAINABILITY_V4_V6.md).
+Current action: `complete_preview_explainability_v4_v6_allowances_unconsumed`.
+
+V3 retained only its broad documented-rejection class, so the exact enum is
+not recoverable without prohibited raw-response access. Its sanitized
+`10,000 USDC` BUY limit also cannot be moved near market without changing the
+installed standing-price policy. Goal-global V4-V6 eligibility cycles are
+`0/10`; Preview/Create/Cancel calls `0/0/0`; all successor allowances remain
+unconsumed. The stop boundary is `no documented correction remains`. No
+Coinbase call or exchange mutation occurred in this goal. Default action:
+`await_operator_policy_decision`.
+
+The active eight-category proof budget remained unused (`0/10`) because the
+stop condition applied before candidate creation.
+
+### V3 predecessor terminal record
+
 Goal `operator_spot_automation_documented_market_freshness_successor_v3` is
 complete and terminal. The V3 market category is one no-retry authenticated
 Get Market Trades request for exact `BTC-USDC`, `limit=1`; the matching trade's

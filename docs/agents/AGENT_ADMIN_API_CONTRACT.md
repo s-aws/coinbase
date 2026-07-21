@@ -21,6 +21,26 @@ frontend request
 -> typed response
 ```
 
+Goal
+`operator_spot_automation_preview_explainability_and_successor_proof_v4_v6`
+is complete at `complete_no_documented_successor_correction`, the authorized
+`no documented correction remains` stop.
+Current action:
+`complete_preview_explainability_v4_v6_allowances_unconsumed`.
+Default action: `await_operator_policy_decision`.
+
+The canonical Preview boundary exact-allowlists Coinbase's documented Preview `errs`
+enum and emits only a fixed sanitized rejection code. PostgreSQL, OpenAPI, the
+generated frontend client, strict frontend validation, and Automation run
+detail readback share that enum. Existing V1-V3 records are not rewritten; V3
+has no recoverable exact enum. Its standing BUY terms also cannot be moved near
+market without broadening the installed policy. Goal-global V4-V6 eligibility
+cycles are `0/10`; Preview/Create/Cancel calls `0/0/0`; all successor
+allowances remain unconsumed. The stop boundary is `no documented correction
+remains`. No Coinbase call or exchange mutation occurred in this goal.
+
+### V3 predecessor terminal record
+
 Goal `operator_spot_automation_documented_market_freshness_successor_v3` is
 complete and terminal. Status: `complete_terminal_preview_rejected`.
 Current action: `complete_v3_terminal_preview_rejected_create_cancel_unconsumed`.

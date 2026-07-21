@@ -8,6 +8,7 @@ from coinbase.rest.types.orders_types import PreviewOrderResponse
 from application.admin_api.operator_spot_automation_preview import (
     SpotAutomationPreviewFailureClass,
     SpotAutomationPreviewOutcome,
+    SpotAutomationPreviewRejectionCode,
     classify_spot_automation_preview_response,
     unknown_spot_automation_preview_classification,
 )
@@ -83,8 +84,82 @@ def test_documented_error_is_fixed_value_rejection_without_raw_value() -> None:
         result.failure_class
         is SpotAutomationPreviewFailureClass.DOCUMENTED_REJECTION
     )
+    assert (
+        result.rejection_code
+        is SpotAutomationPreviewRejectionCode.INSUFFICIENT_FUNDS
+    )
     assert result.preview_id_sha256 is None
+    assert "PREVIEW_INSUFFICIENT_FUND" not in repr(result)
+
+
+def test_documented_candidate_term_errors_use_fixed_actionable_codes() -> None:
+    expected = {
+        "PREVIEW_INVALID_SIZE_PRECISION": (
+            SpotAutomationPreviewRejectionCode.SIZE_PRECISION
+        ),
+        "PREVIEW_INVALID_PRICE_PRECISION": (
+            SpotAutomationPreviewRejectionCode.PRICE_PRECISION
+        ),
+        "PREVIEW_INVALID_BASE_SIZE_TOO_SMALL": (
+            SpotAutomationPreviewRejectionCode.BASE_SIZE_TOO_SMALL
+        ),
+        "PREVIEW_INVALID_QUOTE_SIZE_TOO_SMALL": (
+            SpotAutomationPreviewRejectionCode.QUOTE_SIZE_TOO_SMALL
+        ),
+        "PREVIEW_INVALID_LIMIT_PRICE_POST_ONLY": (
+            SpotAutomationPreviewRejectionCode.POST_ONLY_LIMIT_PRICE
+        ),
+        "PREVIEW_MISSING_MARKET_TRADE_DATA": (
+            SpotAutomationPreviewRejectionCode.MARKET_TRADE_DATA_MISSING
+        ),
+    }
+
+    for documented_error, rejection_code in expected.items():
+        result = classify_spot_automation_preview_response(
+            _preview_response(errs=[documented_error]),
+            expected_base_size="0.00001",
+            expected_quote_size="0.5",
+        )
+
+        assert result.outcome is SpotAutomationPreviewOutcome.REJECTED
+        assert result.rejection_code is rejection_code
+        assert documented_error not in repr(result)
+
+
+def test_multiple_documented_errors_are_value_blind_and_not_actionable() -> None:
+    result = classify_spot_automation_preview_response(
+        _preview_response(
+            errs=[
+                "PREVIEW_INVALID_SIZE_PRECISION",
+                "PREVIEW_INSUFFICIENT_FUND",
+            ]
+        ),
+        expected_base_size="0.00001",
+        expected_quote_size="0.5",
+    )
+
+    assert result.outcome is SpotAutomationPreviewOutcome.REJECTED
+    assert (
+        result.rejection_code
+        is SpotAutomationPreviewRejectionCode.MULTIPLE_DOCUMENTED
+    )
+    assert "PRECISION" not in repr(result)
     assert "INSUFFICIENT" not in repr(result)
+
+
+def test_undocumented_preview_shaped_error_is_not_documented() -> None:
+    result = classify_spot_automation_preview_response(
+        _preview_response(errs=["PREVIEW_PRIVATE_FUTURE_REASON"]),
+        expected_base_size="0.00001",
+        expected_quote_size="0.5",
+    )
+
+    assert result.outcome is SpotAutomationPreviewOutcome.REJECTED
+    assert (
+        result.failure_class
+        is SpotAutomationPreviewFailureClass.UNCLASSIFIED_REJECTION
+    )
+    assert result.rejection_code is None
 
 
 def test_unrecognized_error_is_sanitized_rejection_without_echoing_input() -> None:
@@ -99,6 +174,7 @@ def test_unrecognized_error_is_sanitized_rejection_without_echoing_input() -> No
         result.failure_class
         is SpotAutomationPreviewFailureClass.UNCLASSIFIED_REJECTION
     )
+    assert result.rejection_code is None
     assert "withheld" not in repr(result)
 
 

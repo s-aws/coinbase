@@ -1351,6 +1351,11 @@ class PostgresOperatorAutomationRepositoryAdapter:
             if preview_goal is not None
             else None
         )
+        preview_rejection_code = (
+            preview_goal.preview_rejection_code
+            if preview_goal is not None
+            else None
+        )
         preview_warning_present = (
             preview_goal.preview_warning_present
             if preview_goal is not None
@@ -1561,6 +1566,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
             "preview_allowance_consumed": preview_allowance_consumed,
             "preview_outcome": preview_outcome,
             "preview_failure_class": preview_failure_class,
+            "preview_rejection_code": preview_rejection_code,
             "preview_warning_present": preview_warning_present,
             "preview_identity_retention": preview_identity_retention,
             "preview_call_count": preview_call_count,
@@ -2482,6 +2488,11 @@ class PostgresOperatorAutomationRepositoryAdapter:
                     "failure_class": (
                         preview_classification.failure_class.value
                     ),
+                    "rejection_code": (
+                        preview_classification.rejection_code.value
+                        if preview_classification.rejection_code is not None
+                        else None
+                    ),
                     "warning_present": (
                         preview_classification.warning_present
                     ),
@@ -2504,6 +2515,11 @@ class PostgresOperatorAutomationRepositoryAdapter:
                         outcome=preview_classification.outcome.value,
                         failure_class=(
                             preview_classification.failure_class.value
+                        ),
+                        rejection_code=(
+                            preview_classification.rejection_code.value
+                            if preview_classification.rejection_code is not None
+                            else None
                         ),
                         warning_present=(
                             preview_classification.warning_present
