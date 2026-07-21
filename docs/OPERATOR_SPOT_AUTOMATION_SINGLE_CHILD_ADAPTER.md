@@ -2,27 +2,33 @@
 
 ## Current status
 
-Goal `operator_spot_automation_single_child_execution_adapter_v1` is complete.
+Goal `operator_spot_automation_operator_candidate_and_single_live_proof_v1` is complete.
 Status: `complete`.
-Current action: `complete_zero_candidate_all_live_allowances_unconsumed`.
-Default action: `await_operator_direction_for_next_mvp`.
+Current action: `complete_terminal_coinbase_create_explicitly_rejected`.
+Default action: `await_authorization_for_preview_gated_successor_candidate`.
 
-The Eight-category single-child adapter remains installed behind backend-owned
-authority. Aggregate primary evidence: definitions `0`, plans `0`, runs `0`, eligibility cycles `0`, claims `0`, and candidates `0`.
-State-refresh cycles consumed: `0/10`.
-Coinbase Create calls: `0`; Coinbase Cancel calls: `0`.
-All live allowances remain unconsumed.
+The authenticated Automation UI created, reviewed, enabled, and ran exactly one
+backend-owned `BTC-USDC` single-child definition against the approved Test
+portfolio. Aggregate primary evidence: definitions `1`, immutable plan revisions `2`,
+runs `1`, run claims `1`, candidates `1`, and eligibility cycles `4/10`.
+The four bounded no-retry cycles invoked `28` exact reads across the approved
+Eight-category contract; cycles 2-4 succeeded and cycle 1 stopped after four
+reads at the product-schema compatibility boundary.
 
-Validation evidence: backend full `1179 passed, 6 skipped` parallel and `664 passed, 150 skipped` serial; focused backend `367 passed`; frontend full `1555 passed`; E2E `15/15`; focused frontend `177 passed`; independent safety audit `PASS`; blind-contextless audit `PASS`.
+Durable terminal accounting is exact: eligibility reads `28`, Coinbase Create
+calls `1`, Coinbase Cancel calls `0`, and total Coinbase API calls `29`.
+Run state is `TERMINAL` with fixed diagnostic
+`automation_spot_create_rejected`. The Create allowance is consumed; the
+Cancel allowance is unconsumed and ineligible because Coinbase explicitly
+rejected the Create and accepted no child. The private exchange reason is not
+persisted, reconstructed, or exposed, so no narrower rejection cause is
+claimed. No retry, fallback, redirect, alternate identity, second child, or
+Cancel occurred.
+
+Validation evidence: backend full `1179 passed, 6 skipped` parallel and `664 passed, 150 skipped` serial; focused compatibility and execution suites passed; frontend full `1555 passed`; E2E `15/15`; focused session-gate tests `55 passed`; independent safety audit `PASS`; blind-contextless audit `PASS`.
 Release/deployment gate: `PASS` (canonical rerun complete).
-No Coinbase API call or exchange mutation was made for this closeout. Every immutable
-R1-R12 artifact byte and documented hash remains preserved, and R8 content and
-hash remain inaccessible.
-
-No definition or immutable plan existed in the authoritative primary evidence;
-therefore no run, eligibility cycle, final-authorization cycle, or claim was
-created and no candidate existed. The authorized proof ended without consuming
-any of its ten refresh cycles or its Create/Cancel allowances.
+Every immutable R1-R12 artifact byte and documented hash remains preserved,
+and R8 content and hash remain inaccessible.
 
 ## Historical pre-closeout implementation checkpoint
 
