@@ -742,8 +742,8 @@ class CoinbaseApprovedSpotEligibilityReader:
             set(rows) == {SPOT_ELIGIBILITY_PRODUCT_ID}
             and row.get("product_id") == SPOT_ELIGIBILITY_PRODUCT_ID
             and str(row.get("product_type") or "").strip().upper() == "SPOT"
-            and str(row.get("base_currency") or "").strip().upper() == "BTC"
-            and str(row.get("quote_currency") or "").strip().upper() == "USDC"
+            and str(row.get("base_currency_id") or "").strip().upper() == "BTC"
+            and str(row.get("quote_currency_id") or "").strip().upper() == "USDC"
             and str(row.get("status") or "").strip().upper() == "ONLINE"
             and not any(
                 row.get(flag) is True

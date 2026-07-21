@@ -109,8 +109,8 @@ class _StrictClient:
         row = {
             "product_id": "BTC-USDC",
             "product_type": "SPOT",
-            "base_currency": "BTC",
-            "quote_currency": "USDC",
+            "base_currency_id": "BTC",
+            "quote_currency_id": "USDC",
             "status": "ONLINE",
             "base_increment": "0.00001",
             "quote_increment": "0.01",
@@ -313,6 +313,12 @@ def test_reader_rejects_insufficient_wallet_with_exact_page_accounting():
         {"trading_disabled": True},
         {"price_increment": "0.03"},
         {"base_min_size": "1"},
+        {
+            "base_currency_id": None,
+            "quote_currency_id": None,
+            "base_currency": "BTC",
+            "quote_currency": "USDC",
+        },
     ],
 )
 def test_reader_rejects_product_scope_or_plan_increment_mismatch(override):
