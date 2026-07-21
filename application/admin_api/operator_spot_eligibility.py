@@ -17,10 +17,14 @@ SPOT_ELIGIBILITY_CREATE_ONLY_GOAL_KEY = (
 SPOT_ELIGIBILITY_PREVIEW_GATED_GOAL_KEY = (
     "operator_spot_automation_preview_gated_successor_candidate_v2"
 )
+SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY = (
+    "operator_spot_automation_documented_market_freshness_successor_v3"
+)
 _SPOT_ELIGIBILITY_GOAL_KEYS = frozenset(
     {
         SPOT_ELIGIBILITY_CREATE_ONLY_GOAL_KEY,
         SPOT_ELIGIBILITY_PREVIEW_GATED_GOAL_KEY,
+        SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
     }
 )
 _SPOT_ELIGIBILITY_CLIENT_ORDER_NAMESPACE = UUID(
@@ -30,6 +34,7 @@ _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _DIAGNOSTIC_PATTERN = re.compile(r"^[a-z0-9_]+$")
 _DEFAULT_FRESHNESS = timedelta(seconds=60)
 _BEST_BID_ASK_FRESHNESS = timedelta(seconds=30)
+_DOCUMENTED_MARKET_CLOCK_SKEW_TOLERANCE = timedelta(seconds=1)
 _ACTIVE_ORDER_CATALOG_FRESHNESS = timedelta(seconds=30)
 
 
@@ -247,7 +252,7 @@ class SpotEligibilityReadResult:
     logical_call_count: int
     http_request_count: int | None
     call_count_exact: bool
-    observed_at: datetime
+    observed_at: datetime | None
     evidence_sha256: str | None = None
 
     def __post_init__(self) -> None:
@@ -259,10 +264,11 @@ class SpotEligibilityReadResult:
             raise ValueError("spot_eligibility_logical_call_count_invalid")
         if type(self.call_count_exact) is not bool:
             raise ValueError("spot_eligibility_call_count_exact_invalid")
-        _require_aware(
-            self.observed_at,
-            code="spot_eligibility_observed_at_invalid",
-        )
+        if self.observed_at is not None:
+            _require_aware(
+                self.observed_at,
+                code="spot_eligibility_observed_at_invalid",
+            )
         if self.evidence_sha256 is not None:
             _require_sha256(
                 self.evidence_sha256,
@@ -287,10 +293,13 @@ class SpotEligibilityReadResult:
             if (
                 not self.eligible
                 or self.http_request_count < 1
+                or self.observed_at is None
                 or self.evidence_sha256 is None
             ):
                 raise ValueError("spot_eligibility_read_result_invalid")
-        elif self.eligible:
+        elif self.eligible or (
+            self.observed_at is None and self.evidence_sha256 is not None
+        ):
             raise ValueError("spot_eligibility_read_result_invalid")
 
 
@@ -323,7 +332,7 @@ class SpotEligibilityCategoryResult:
     logical_call_count: int
     http_request_count: int | None
     call_count_exact: bool
-    observed_at: datetime
+    observed_at: datetime | None
     fresh_until: datetime | None
     evidence_sha256: str | None
     diagnostic_code: str
@@ -339,10 +348,11 @@ class SpotEligibilityCategoryResult:
             raise ValueError("spot_eligibility_logical_call_count_invalid")
         if type(self.call_count_exact) is not bool:
             raise ValueError("spot_eligibility_call_count_exact_invalid")
-        _require_aware(
-            self.observed_at,
-            code="spot_eligibility_observed_at_invalid",
-        )
+        if self.observed_at is not None:
+            _require_aware(
+                self.observed_at,
+                code="spot_eligibility_observed_at_invalid",
+            )
         if self.fresh_until is not None:
             _require_aware(
                 self.fresh_until,
@@ -378,11 +388,18 @@ class SpotEligibilityCategoryResult:
             if (
                 not self.eligible
                 or self.http_request_count < 1
+                or self.observed_at is None
                 or self.fresh_until is None
                 or self.evidence_sha256 is None
             ):
                 raise ValueError("spot_eligibility_result_invalid")
         elif self.eligible:
+            raise ValueError("spot_eligibility_result_invalid")
+        elif self.observed_at is None and (
+            self.category is not ApprovedSpotEligibilityCategory.BEST_BID_ASK
+            or self.fresh_until is not None
+            or self.evidence_sha256 is not None
+        ):
             raise ValueError("spot_eligibility_result_invalid")
 
 
@@ -793,6 +810,7 @@ class SpotEligibilityCoordinator:
                 category=category,
                 read_result=read_result,
                 now=now,
+                goal_key=read_context.goal_key,
             )
         except Exception:
             return self._unknown_result(category=category, claim=claim)
@@ -824,6 +842,7 @@ class SpotEligibilityCoordinator:
         category: ApprovedSpotEligibilityCategory,
         read_result: SpotEligibilityReadResult,
         now: datetime,
+        goal_key: str,
     ) -> SpotEligibilityCategoryResult:
         suffix = read_result.outcome.value.lower()
         outcome = read_result.outcome
@@ -844,7 +863,39 @@ class SpotEligibilityCoordinator:
                     f"automation_spot_eligibility_{category.value.lower()}_unknown"
                 ),
             )
-        if read_result.observed_at > now:
+        if read_result.observed_at is None:
+            if (
+                goal_key
+                != SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY
+                or category is not ApprovedSpotEligibilityCategory.BEST_BID_ASK
+                or read_result.outcome is not SpotEligibilityReadOutcome.REJECTED
+                or read_result.evidence_sha256 is not None
+            ):
+                raise ValueError("spot_eligibility_observed_at_invalid")
+            return SpotEligibilityCategoryResult(
+                category=category,
+                outcome=SpotEligibilityReadOutcome.REJECTED,
+                eligible=False,
+                logical_call_count=read_result.logical_call_count,
+                http_request_count=read_result.http_request_count,
+                call_count_exact=read_result.call_count_exact,
+                observed_at=None,
+                fresh_until=None,
+                evidence_sha256=None,
+                diagnostic_code=(
+                    "automation_spot_eligibility_best_bid_ask_rejected"
+                ),
+            )
+        observed_in_future = read_result.observed_at > now
+        bounded_documented_market_skew = bool(
+            observed_in_future
+            and goal_key
+            == SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY
+            and category is ApprovedSpotEligibilityCategory.BEST_BID_ASK
+            and read_result.observed_at - now
+            <= _DOCUMENTED_MARKET_CLOCK_SKEW_TOLERANCE
+        )
+        if observed_in_future and not bounded_documented_market_skew:
             return SpotEligibilityCategoryResult(
                 category=category,
                 outcome=SpotEligibilityReadOutcome.REJECTED,
@@ -861,7 +912,10 @@ class SpotEligibilityCoordinator:
             )
 
         freshness = self._freshness_for(category)
-        fresh_until = read_result.observed_at + freshness
+        fresh_until = min(
+            read_result.observed_at + freshness,
+            now + freshness,
+        )
         if now >= fresh_until:
             suffix = "stale"
             outcome = SpotEligibilityReadOutcome.REJECTED
@@ -927,7 +981,11 @@ class SpotEligibilityCoordinator:
         )
         fresh_until = (
             min(fresh_values)
-            if fresh_values and outcome is not SpotEligibilityReadOutcome.UNKNOWN
+            if (
+                fresh_values
+                and terminal.fresh_until is not None
+                and outcome is not SpotEligibilityReadOutcome.UNKNOWN
+            )
             else None
         )
         diagnostic = (

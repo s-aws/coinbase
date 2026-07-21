@@ -12,6 +12,7 @@ import pytest
 
 from application.admin_api.operator_spot_eligibility import (
     APPROVED_SPOT_ELIGIBILITY_ORDER,
+    SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
     SPOT_ELIGIBILITY_PRODUCT_ID,
     ApprovedSpotEligibilityCategory,
     ApprovedSpotEligibilityReader,
@@ -37,7 +38,10 @@ PLAN_SHA256 = "a" * 64
 PORTFOLIO_SHA256 = "b" * 64
 
 
-def _context() -> SpotEligibilityRunContext:
+def _context(
+    *,
+    goal_key: str | None = None,
+) -> SpotEligibilityRunContext:
     return SpotEligibilityRunContext(
         run_id=RUN_ID,
         definition_id=DEFINITION_ID,
@@ -45,6 +49,7 @@ def _context() -> SpotEligibilityRunContext:
         plan_sha256=PLAN_SHA256,
         portfolio_id_sha256=PORTFOLIO_SHA256,
         correlation_id="operator-spot-eligibility-test",
+        **({"goal_key": goal_key} if goal_key is not None else {}),
     )
 
 
@@ -81,6 +86,7 @@ class _FakeLedger(SpotEligibilityLedger):
             client_order_id=derive_spot_eligibility_client_order_id(
                 run_id=context.run_id,
                 plan_sha256=context.plan_sha256,
+                goal_key=context.goal_key,
             ),
             started_at=NOW,
         )
@@ -459,6 +465,93 @@ def test_future_observation_is_rejected_with_fixed_diagnostic():
     )
     assert result.eligible is False
     assert len(reader.calls) == 1
+
+
+def test_v3_missing_market_event_time_is_rejected_without_freshness_proxy():
+    category = ApprovedSpotEligibilityCategory.BEST_BID_ASK
+    ledger = _FakeLedger()
+    reader = _FakeReader(
+        results={
+            category: SpotEligibilityReadResult(
+                outcome=SpotEligibilityReadOutcome.REJECTED,
+                eligible=False,
+                logical_call_count=1,
+                http_request_count=1,
+                call_count_exact=True,
+                observed_at=None,
+                evidence_sha256=None,
+            )
+        }
+    )
+
+    result = _coordinator(ledger, reader).run(
+        _context(
+            goal_key=SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+        )
+    )
+
+    terminal = ledger.finalized[-1]
+    assert terminal.category is category
+    assert terminal.outcome is SpotEligibilityReadOutcome.REJECTED
+    assert terminal.eligible is False
+    assert terminal.http_request_count == 1
+    assert terminal.call_count_exact is True
+    assert terminal.observed_at is None
+    assert terminal.fresh_until is None
+    assert terminal.evidence_sha256 is None
+    assert terminal.diagnostic_code == (
+        "automation_spot_eligibility_best_bid_ask_rejected"
+    )
+    assert result.outcome is SpotEligibilityReadOutcome.REJECTED
+    assert result.fresh_until is None
+
+
+def test_v3_bounded_trade_clock_skew_preserves_source_time_and_clamps_expiry():
+    category = ApprovedSpotEligibilityCategory.BEST_BID_ASK
+    ledger = _FakeLedger()
+    reader = _FakeReader(
+        results={
+            category: _success(
+                observed_at=NOW + timedelta(milliseconds=250),
+            )
+        }
+    )
+
+    result = _coordinator(ledger, reader).run(
+        _context(
+            goal_key=SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+        )
+    )
+
+    market = next(item for item in ledger.finalized if item.category is category)
+    assert market.outcome is SpotEligibilityReadOutcome.SUCCEEDED
+    assert market.eligible is True
+    assert market.observed_at == NOW + timedelta(milliseconds=250)
+    assert market.fresh_until == NOW + timedelta(seconds=30)
+    assert result.eligible is True
+
+
+def test_v3_excessive_trade_clock_skew_remains_rejected():
+    category = ApprovedSpotEligibilityCategory.BEST_BID_ASK
+    ledger = _FakeLedger()
+    reader = _FakeReader(
+        results={
+            category: _success(
+                observed_at=NOW + timedelta(milliseconds=1001),
+            )
+        }
+    )
+
+    result = _coordinator(ledger, reader).run(
+        _context(
+            goal_key=SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+        )
+    )
+
+    assert result.eligible is False
+    assert result.diagnostic_code == (
+        "automation_spot_eligibility_best_bid_ask_future"
+    )
 
 
 def test_extreme_future_observation_cannot_escape_sanitized_finalization():

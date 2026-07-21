@@ -149752,7 +149752,9 @@ components:
         spot_execution_mode:
           anyOf:
           - type: string
-            const: PREVIEW_GATED_V2
+            enum:
+            - PREVIEW_GATED_V2
+            - DOCUMENTED_MARKET_FRESHNESS_V3
           - type: 'null'
           title: Spot Execution Mode
         single_child_order:
@@ -149895,6 +149897,7 @@ components:
             enum:
             - CREATE_ONLY_V1
             - PREVIEW_GATED_V2
+            - DOCUMENTED_MARKET_FRESHNESS_V3
           - type: 'null'
           title: Spot Execution Mode
         single_child_order:
@@ -150513,6 +150516,7 @@ components:
             enum:
             - CREATE_ONLY_V1
             - PREVIEW_GATED_V2
+            - DOCUMENTED_MARKET_FRESHNESS_V3
           - type: 'null'
           title: Spot Execution Mode
         preview_allowance_consumed:

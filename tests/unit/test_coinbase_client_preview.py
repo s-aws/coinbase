@@ -31,6 +31,7 @@ class _PreviewSdk:
         self.base_url = "api.coinbase.com"
         self.timeout: object = 10
         self.preview_calls: list[dict[str, object]] = []
+        self.market_trade_calls: list[dict[str, object]] = []
 
     def preview_order(self, **kwargs: object) -> PreviewOrderResponse:
         self.preview_calls.append(dict(kwargs))
@@ -48,6 +49,21 @@ class _PreviewSdk:
                 "preview_id": "private-preview-identity",
             }
         )
+
+    def get_market_trades(self, **kwargs: object) -> dict[str, object]:
+        self.market_trade_calls.append(dict(kwargs))
+        return {
+            "trades": [
+                {
+                    "product_id": "BTC-USDC",
+                    "price": "100.50",
+                    "size": "0.01",
+                    "time": "2026-07-21T10:00:00Z",
+                }
+            ],
+            "best_bid": "100",
+            "best_ask": "101",
+        }
 
 
 def test_preview_order_hardens_transport_and_calls_sdk_once_without_legacy_portfolio_override() -> None:
@@ -126,3 +142,29 @@ def test_preview_order_revalidates_bounded_transport_before_wire_call(
         )
 
     assert sdk.preview_calls == []
+
+
+def test_market_trades_hardens_transport_and_calls_exact_product_once() -> None:
+    sdk = _PreviewSdk()
+    client = CoinbaseRestClient(sdk)  # type: ignore[arg-type]
+
+    response = client.get_market_trades(product_id="BTC-USDC", limit=1)
+
+    assert response == {
+        "trades": [
+            {
+                "product_id": "BTC-USDC",
+                "price": "100.50",
+                "size": "0.01",
+                "time": "2026-07-21T10:00:00Z",
+            }
+        ],
+        "best_bid": "100",
+        "best_ask": "101",
+    }
+    assert sdk.market_trade_calls == [
+        {"product_id": "BTC-USDC", "limit": 1}
+    ]
+    assert sdk.session.max_redirects == 0
+    assert sdk.session.trust_env is False
+    assert sdk.session.proxies == {}

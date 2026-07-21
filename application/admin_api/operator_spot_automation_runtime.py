@@ -494,7 +494,7 @@ def build_spot_automation_create_admission(
                 _field(market_attempt, "fresh_until"),
                 code="spot_automation_market_binding_mismatch",
             ),
-            source="coinbase_rest_best_bid",
+            source=snapshot.market_reference.source,
             evidence_sha256=str(_field(market_attempt, "evidence_sha256")),
         ),
         zero_active_order_evidence=SpotAutomationZeroActiveOrderEvidence(

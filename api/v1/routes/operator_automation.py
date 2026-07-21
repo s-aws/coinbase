@@ -352,6 +352,13 @@ def _scope_run_item(
             AdminApiPermission.ACCOUNT_REALITY_REFRESH,
         )
         and actor_has_permission(actor, AdminApiPermission.ORDER_CREATE),
+        "AUTHORIZE_PREVIEW_GATED_SINGLE_CHILD": can_trigger
+        and actor_has_permission(actor, AdminApiPermission.AUTOMATION_RESUME)
+        and actor_has_permission(
+            actor,
+            AdminApiPermission.ACCOUNT_REALITY_REFRESH,
+        )
+        and actor_has_permission(actor, AdminApiPermission.ORDER_CREATE),
         "SAFE_CLOSEOUT_CHILD": can_trigger
         and actor_has_permission(actor, AdminApiPermission.ORDER_CANCEL),
     }
@@ -362,7 +369,11 @@ def _scope_run_item(
         and _operator_automation_live_action_ready(action)
     ]
     can_live_execute = bool(
-        {"AUTHORIZE_SINGLE_CHILD", "SAFE_CLOSEOUT_CHILD"}
+        {
+            "AUTHORIZE_SINGLE_CHILD",
+            "AUTHORIZE_PREVIEW_GATED_SINGLE_CHILD",
+            "SAFE_CLOSEOUT_CHILD",
+        }
         & set(allowed_actions)
     )
     return item.model_copy(

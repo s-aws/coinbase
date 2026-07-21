@@ -216,6 +216,45 @@ def test_spot_standing_price_limit_rejects_stale_or_missing_ticker_time():
     assert future["blocker"] == "live_ticker_timestamp_future"
 
 
+@pytest.mark.regression
+def test_documented_coinbase_trade_time_allows_only_bounded_clock_skew():
+    evaluated_at = datetime(2026, 7, 11, 12, 0, tzinfo=timezone.utc)
+
+    bounded = evaluate_spot_standing_price_limit(
+        side=OrderSide.BUY.value,
+        limit_price="50",
+        best_bid="100",
+        market_source="coinbase_rest_market_trade_snapshot",
+        market_observed_at=evaluated_at + timedelta(milliseconds=250),
+        evaluated_at=evaluated_at,
+    )
+    excessive = evaluate_spot_standing_price_limit(
+        side=OrderSide.BUY.value,
+        limit_price="50",
+        best_bid="100",
+        market_source="coinbase_rest_market_trade_snapshot",
+        market_observed_at=evaluated_at + timedelta(milliseconds=1001),
+        evaluated_at=evaluated_at,
+    )
+    stale = evaluate_spot_standing_price_limit(
+        side=OrderSide.BUY.value,
+        limit_price="50",
+        best_bid="100",
+        market_source="coinbase_rest_market_trade_snapshot",
+        market_observed_at=evaluated_at - timedelta(milliseconds=30001),
+        evaluated_at=evaluated_at,
+    )
+
+    assert bounded["allowed"] is True
+    assert bounded["market_observed_at"] == (
+        evaluated_at + timedelta(milliseconds=250)
+    ).isoformat()
+    assert excessive["allowed"] is False
+    assert excessive["blocker"] == "live_ticker_timestamp_future"
+    assert stale["allowed"] is False
+    assert stale["blocker"] == "live_ticker_bid_stale"
+
+
 @pytest.mark.parametrize(
     ("side", "limit_price", "best_bid", "expected_blocker"),
     [

@@ -83,11 +83,20 @@ AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY = (
 AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY = (
     "operator_spot_automation_preview_gated_successor_candidate_v2"
 )
+AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY = (
+    "operator_spot_automation_documented_market_freshness_successor_v3"
+)
 _AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY = AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY
+_AUTOMATION_SPOT_PREVIEW_GOAL_KEYS = frozenset(
+    {
+        AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+        AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+    }
+)
 _AUTOMATION_SPOT_GOAL_KEYS = frozenset(
     {
         AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
-        AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+        *_AUTOMATION_SPOT_PREVIEW_GOAL_KEYS,
     }
 )
 _AUTOMATION_SPOT_CLIENT_ORDER_NAMESPACE = uuid.UUID(
@@ -364,7 +373,8 @@ class AutomationSpotLiveProofGoalRecord:
 @dataclass(frozen=True)
 class AutomationSpotPreviewGatedGoalRecord:
     goal_key: Literal[
-        "operator_spot_automation_preview_gated_successor_candidate_v2"
+        "operator_spot_automation_preview_gated_successor_candidate_v2",
+        "operator_spot_automation_documented_market_freshness_successor_v3",
     ]
     definition_id: str | None
     bound_run_id: str | None
@@ -472,6 +482,10 @@ class OperatorAutomationRepository:
         active_states = ", ".join(f"'{state.value}'" for state in _ACTIVE_RUN_STATES)
         spot_goal_keys = ", ".join(
             f"'{goal_key}'" for goal_key in sorted(_AUTOMATION_SPOT_GOAL_KEYS)
+        )
+        preview_goal_keys = ", ".join(
+            f"'{goal_key}'"
+            for goal_key in sorted(_AUTOMATION_SPOT_PREVIEW_GOAL_KEYS)
         )
         with self.database.get_cursor() as cursor:
             cursor.execute(f'CREATE SCHEMA IF NOT EXISTS "{self.schema}"')
@@ -613,6 +627,19 @@ class OperatorAutomationRepository:
                 )
                 """,
                 (AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,),
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_plan_goal
+                DROP CONSTRAINT IF EXISTS automation_spot_plan_goal_goal_key_check
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_plan_goal
+                ADD CONSTRAINT automation_spot_plan_goal_goal_key_check
+                CHECK (goal_key IN ({spot_goal_keys}))
+                """
             )
             eligibility_categories = ", ".join(
                 f"'{category}'" for category in AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES
@@ -784,8 +811,19 @@ class OperatorAutomationRepository:
                             AND call_count_exact
                             AND coinbase_api_call_count IS NOT NULL
                             AND finalized_at IS NOT NULL
-                            AND observed_at IS NOT NULL
-                            AND (fresh_until IS NULL OR fresh_until > observed_at))
+                            AND (
+                                (observed_at IS NOT NULL AND (
+                                    fresh_until IS NULL
+                                    OR fresh_until > observed_at
+                                ))
+                                OR (
+                                    goal_key = '{AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY}'
+                                    AND category = 'BEST_BID_ASK'
+                                    AND observed_at IS NULL
+                                    AND fresh_until IS NULL
+                                    AND evidence_sha256 IS NULL
+                                )
+                            ))
                         OR
                         (outcome = 'UNKNOWN' AND eligible IS FALSE
                             AND NOT call_count_exact
@@ -902,7 +940,20 @@ class OperatorAutomationRepository:
                         'automation_spot_eligibility_legacy_evidence_unknown',
                     observed_at = NULL, fresh_until = NULL,
                     evidence_sha256 = NULL, portfolio_id_sha256 = NULL
-                WHERE outcome IS NOT NULL AND observed_at IS NULL
+                WHERE outcome IS NOT NULL
+                  AND observed_at IS NULL
+                  AND NOT (
+                      goal_key = '{AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY}'
+                      AND category = 'BEST_BID_ASK'
+                      AND outcome = 'REJECTED'
+                      AND eligible IS FALSE
+                      AND call_count_exact
+                      AND coinbase_api_call_count IS NOT NULL
+                      AND finalized_at IS NOT NULL
+                      AND fresh_until IS NULL
+                      AND evidence_sha256 IS NULL
+                      AND portfolio_id_sha256 IS NULL
+                  )
                 """
             )
             cursor.execute(
@@ -955,8 +1006,19 @@ class OperatorAutomationRepository:
                         AND call_count_exact
                         AND coinbase_api_call_count IS NOT NULL
                         AND finalized_at IS NOT NULL
-                        AND observed_at IS NOT NULL
-                        AND (fresh_until IS NULL OR fresh_until > observed_at))
+                        AND (
+                            (observed_at IS NOT NULL AND (
+                                fresh_until IS NULL
+                                OR fresh_until > observed_at
+                            ))
+                            OR (
+                                goal_key = '{AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY}'
+                                AND category = 'BEST_BID_ASK'
+                                AND observed_at IS NULL
+                                AND fresh_until IS NULL
+                                AND evidence_sha256 IS NULL
+                            )
+                        ))
                     OR
                     (outcome = 'UNKNOWN' AND eligible IS FALSE
                         AND NOT call_count_exact
@@ -1520,7 +1582,7 @@ class OperatorAutomationRepository:
                 f"""
                 CREATE TABLE IF NOT EXISTS {self._prefix}automation_spot_preview_gated_goal (
                     goal_key TEXT PRIMARY KEY CHECK (
-                        goal_key = '{AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY}'
+                        goal_key IN ({preview_goal_keys})
                     ),
                     definition_id UUID UNIQUE REFERENCES
                         {self._prefix}automation_definition(definition_id),
@@ -1641,13 +1703,29 @@ class OperatorAutomationRepository:
             )
             cursor.execute(
                 f"""
-                INSERT INTO {self._prefix}automation_spot_preview_gated_goal (
-                    goal_key, updated_at
-                ) VALUES (%s, NOW())
-                ON CONFLICT (goal_key) DO NOTHING
-                """,
-                (AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,),
+                ALTER TABLE {self._prefix}automation_spot_preview_gated_goal
+                DROP CONSTRAINT IF EXISTS
+                    automation_spot_preview_gated_goal_goal_key_check
+                """
             )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_preview_gated_goal
+                ADD CONSTRAINT
+                    automation_spot_preview_gated_goal_goal_key_check
+                CHECK (goal_key IN ({preview_goal_keys}))
+                """
+            )
+            for preview_goal_key in sorted(_AUTOMATION_SPOT_PREVIEW_GOAL_KEYS):
+                cursor.execute(
+                    f"""
+                    INSERT INTO {self._prefix}automation_spot_preview_gated_goal (
+                        goal_key, updated_at
+                    ) VALUES (%s, NOW())
+                    ON CONFLICT (goal_key) DO NOTHING
+                    """,
+                    (preview_goal_key,),
+                )
             cursor.execute(
                 f"""
                 CREATE TABLE IF NOT EXISTS {self._prefix}automation_idempotency (
@@ -2167,16 +2245,17 @@ class OperatorAutomationRepository:
             raise AutomationStoreUnavailable(
                 "automation_spot_live_proof_goal_unavailable"
             )
-        cursor.execute(
-            f"SELECT * FROM {self._prefix}automation_spot_preview_gated_goal "
-            "WHERE goal_key = %s FOR UPDATE",
-            (AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,),
-        )
-        successor_goal = self._row(cursor)
-        if successor_goal is None:
-            raise AutomationStoreUnavailable(
-                "automation_spot_preview_gated_goal_unavailable"
+        if goal_key in _AUTOMATION_SPOT_PREVIEW_GOAL_KEYS:
+            cursor.execute(
+                f"SELECT * FROM {self._prefix}automation_spot_preview_gated_goal "
+                "WHERE goal_key = %s FOR UPDATE",
+                (goal_key,),
             )
+            successor_goal = self._row(cursor)
+            if successor_goal is None:
+                raise AutomationStoreUnavailable(
+                    "automation_spot_preview_gated_goal_unavailable"
+                )
         cursor.execute(
             f"SELECT definition_id FROM {self._prefix}automation_spot_plan_goal "
             "WHERE goal_key = %s",
@@ -2186,11 +2265,63 @@ class OperatorAutomationRepository:
         if existing is not None and str(existing["definition_id"]) != definition_id:
             code = (
                 "automation_spot_preview_successor_definition_already_exists"
-                if goal_key == AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY
+                if goal_key in _AUTOMATION_SPOT_PREVIEW_GOAL_KEYS
                 else "automation_spot_single_child_definition_already_exists"
             )
             raise AutomationStoreConflict(code)
         if goal_key == AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY:
+            return
+
+        if goal_key == AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY:
+            cursor.execute(
+                f"""
+                SELECT definition_id
+                FROM {self._prefix}automation_spot_preview_gated_goal
+                WHERE goal_key = %s
+                FOR UPDATE
+                """,
+                (AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,),
+            )
+            predecessor_goal = self._row(cursor)
+            predecessor = None
+            if (
+                predecessor_goal is not None
+                and predecessor_goal.get("definition_id") is not None
+            ):
+                cursor.execute(
+                    f"""
+                    SELECT state, diagnostic_code
+                    FROM {self._prefix}automation_run
+                    WHERE definition_id = %s
+                    ORDER BY claimed_at DESC
+                    LIMIT 1
+                    FOR UPDATE
+                    """,
+                    (str(predecessor_goal["definition_id"]),),
+                )
+                predecessor = self._row(cursor)
+            predecessor_terminal = bool(
+                predecessor_goal is not None
+                and predecessor_goal.get("definition_id") is not None
+                and predecessor is not None
+                and (
+                    predecessor.get("state")
+                    in {
+                        OperatorAutomationRunState.TERMINAL.value,
+                        OperatorAutomationRunState.UNKNOWN_CONSUMED.value,
+                    }
+                    or (
+                        predecessor.get("state")
+                        == OperatorAutomationRunState.BLOCKED.value
+                        and predecessor.get("diagnostic_code")
+                        == "automation_run_blocked"
+                    )
+                )
+            )
+            if not predecessor_terminal:
+                raise AutomationStoreConflict(
+                    "automation_spot_documented_freshness_predecessor_not_terminal"
+                )
             return
 
         cursor.execute(
@@ -2350,7 +2481,7 @@ class OperatorAutomationRepository:
                     """,
                     (definition_id, spot_goal_key, now),
                 )
-                if spot_goal_key == AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY:
+                if spot_goal_key in _AUTOMATION_SPOT_PREVIEW_GOAL_KEYS:
                     cursor.execute(
                         f"""
                         UPDATE {self._prefix}automation_spot_preview_gated_goal
@@ -2360,7 +2491,7 @@ class OperatorAutomationRepository:
                         (
                             definition_id,
                             now,
-                            AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+                            spot_goal_key,
                         ),
                     )
                     if cursor.rowcount != 1:
@@ -3602,8 +3733,19 @@ class OperatorAutomationRepository:
             and fresh_until is None
             and evidence_sha256 is None
         )
+        missing_market_observation_rejection = (
+            normalized_outcome == "REJECTED"
+            and category == "BEST_BID_ASK"
+            and eligible is False
+            and call_count_exact is True
+            and type(coinbase_api_call_count) is int
+            and coinbase_api_call_count >= 0
+            and observed_at is None
+            and fresh_until is None
+            and evidence_sha256 is None
+        )
         if type(eligible) is not bool or type(call_count_exact) is not bool or not (
-            known_result or unknown_result
+            known_result or unknown_result or missing_market_observation_rejection
         ):
             raise AutomationStoreInvalid(
                 "automation_spot_eligibility_result_invalid"
@@ -3639,6 +3781,14 @@ class OperatorAutomationRepository:
                 cursor,
                 run_id=run_id,
             )
+            if (
+                missing_market_observation_rejection
+                and goal_key
+                != AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY
+            ):
+                raise AutomationStoreInvalid(
+                    "automation_spot_eligibility_result_invalid"
+                )
             if replay is not None:
                 return AutomationStoreMutation(
                     self._spot_eligibility_from_json(replay["entity"]),
@@ -4297,7 +4447,7 @@ class OperatorAutomationRepository:
                     replay["correlation_id"],
                     True,
                 )
-            if goal_key != AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY:
+            if goal_key not in _AUTOMATION_SPOT_PREVIEW_GOAL_KEYS:
                 raise AutomationStoreConflict(
                     "automation_spot_preview_goal_mismatch"
                 )
@@ -4348,7 +4498,7 @@ class OperatorAutomationRepository:
                     plan["portfolio_id_sha256"],
                     plan["product_id"],
                     now,
-                    AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+                    goal_key,
                 ),
             )
             goal_row = self._row(cursor)
@@ -4485,7 +4635,7 @@ class OperatorAutomationRepository:
             )
             run = self._row(cursor)
             if (
-                goal_key != AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY
+                goal_key not in _AUTOMATION_SPOT_PREVIEW_GOAL_KEYS
                 or run is None
                 or str(goal.get("bound_run_id")) != run_id
                 or not bool(goal["preview_allowance_consumed"])
@@ -4525,7 +4675,7 @@ class OperatorAutomationRepository:
                     preview_call_count,
                     call_count_exact,
                     now,
-                    AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+                    goal_key,
                 ),
             )
             goal_row = self._row(cursor)
@@ -4711,7 +4861,7 @@ class OperatorAutomationRepository:
                     {OperatorAutomationRunState.AWAITING_OPERATOR_AUTHORIZATION}
                 ),
             )
-            if goal_key == AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY and (
+            if goal_key in _AUTOMATION_SPOT_PREVIEW_GOAL_KEYS and (
                 goal.get("preview_outcome") != "ACCEPTED"
                 or str(goal.get("bound_run_id")) != run_id
                 or goal.get("plan_sha256") != plan["plan_sha256"]
@@ -4796,7 +4946,7 @@ class OperatorAutomationRepository:
                     WHERE goal_key = %s AND preview_outcome = 'ACCEPTED'
                       AND create_allowance_consumed = FALSE
                     """,
-                    (now, AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY),
+                    (now, goal_key),
                 )
                 if cursor.rowcount != 1:
                     raise AutomationStoreConflict(
@@ -4984,7 +5134,7 @@ class OperatorAutomationRepository:
                     (
                         normalized,
                         now,
-                        AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+                        goal_key,
                     ),
                 )
             cursor.execute(
@@ -5180,7 +5330,7 @@ class OperatorAutomationRepository:
                     WHERE goal_key = %s
                       AND cancel_allowance_consumed = FALSE
                     """,
-                    (now, AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY),
+                    (now, goal_key),
                 )
                 if cursor.rowcount != 1:
                     raise AutomationStoreConflict(
@@ -5357,7 +5507,7 @@ class OperatorAutomationRepository:
                     (
                         normalized,
                         now,
-                        AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+                        goal_key,
                     ),
                 )
             cursor.execute(
@@ -5450,11 +5600,15 @@ class OperatorAutomationRepository:
 
     def get_spot_preview_gated_goal(
         self,
+        *,
+        goal_key: str = AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
     ) -> AutomationSpotPreviewGatedGoalRecord:
+        if goal_key not in _AUTOMATION_SPOT_PREVIEW_GOAL_KEYS:
+            raise AutomationStoreInvalid("automation_spot_goal_key_invalid")
         rows = self.database.execute_query(
             f"SELECT * FROM {self._prefix}automation_spot_preview_gated_goal "
             "WHERE goal_key = %s",
-            (AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,),
+            (goal_key,),
         )
         if len(rows) != 1:
             raise AutomationStoreUnavailable(
@@ -5606,7 +5760,10 @@ class OperatorAutomationRepository:
                 if goal_key == AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY:
                     self._lock_spot_live_goal_cursor(cursor)
                 else:
-                    successor_goal = self._lock_spot_preview_goal_cursor(cursor)
+                    successor_goal = self._lock_spot_preview_goal_cursor(
+                        cursor,
+                        goal_key=goal_key,
+                    )
                     if str(successor_goal.get("definition_id")) != definition_id:
                         raise AutomationStoreConflict(
                             "automation_spot_preview_candidate_mismatch"
@@ -5787,7 +5944,14 @@ class OperatorAutomationRepository:
             )
         return goal
 
-    def _lock_spot_preview_goal_cursor(self, cursor: Any) -> dict[str, Any]:
+    def _lock_spot_preview_goal_cursor(
+        self,
+        cursor: Any,
+        *,
+        goal_key: str,
+    ) -> dict[str, Any]:
+        if goal_key not in _AUTOMATION_SPOT_PREVIEW_GOAL_KEYS:
+            raise AutomationStoreInvalid("automation_spot_goal_key_invalid")
         cursor.execute(
             f"""
             SELECT *
@@ -5795,7 +5959,7 @@ class OperatorAutomationRepository:
             WHERE goal_key = %s
             FOR UPDATE
             """,
-            (AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,),
+            (goal_key,),
         )
         goal = self._row(cursor)
         if goal is None:
@@ -5816,7 +5980,10 @@ class OperatorAutomationRepository:
         )
         if goal_key == AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY:
             return goal_key, self._lock_spot_live_goal_cursor(cursor)
-        return goal_key, self._lock_spot_preview_goal_cursor(cursor)
+        return goal_key, self._lock_spot_preview_goal_cursor(
+            cursor,
+            goal_key=goal_key,
+        )
 
     def _insert_spot_eligibility_cycle_cursor(
         self,
@@ -6517,7 +6684,11 @@ class OperatorAutomationRepository:
         recovered: list[AutomationRunRecord] = []
         with self.database.get_cursor() as cursor:
             self._lock_spot_live_goal_cursor(cursor)
-            self._lock_spot_preview_goal_cursor(cursor)
+            for preview_goal_key in sorted(_AUTOMATION_SPOT_PREVIEW_GOAL_KEYS):
+                self._lock_spot_preview_goal_cursor(
+                    cursor,
+                    goal_key=preview_goal_key,
+                )
             cursor.execute(
                 f"""
                 SELECT * FROM {self._prefix}automation_run
@@ -6545,14 +6716,14 @@ class OperatorAutomationRepository:
                 execution = None
                 open_eligibility_cycle = None
                 preview_inflight = bool(
-                    goal_key == AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY
+                    goal_key in _AUTOMATION_SPOT_PREVIEW_GOAL_KEYS
                     and current
                     is OperatorAutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
                     and row.get("diagnostic_code")
                     == "automation_spot_preview_invocation_started"
                 )
                 if (
-                    goal_key == AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY
+                    goal_key in _AUTOMATION_SPOT_PREVIEW_GOAL_KEYS
                     and current
                     is OperatorAutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
                     and row.get("diagnostic_code")
@@ -6706,7 +6877,7 @@ class OperatorAutomationRepository:
                         """,
                         (
                             now,
-                            AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+                            goal_key,
                             str(row["run_id"]),
                         ),
                     )
@@ -6746,7 +6917,7 @@ class OperatorAutomationRepository:
                                 str(row["run_id"]),
                             ),
                         )
-                        if goal_key == AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY:
+                        if goal_key in _AUTOMATION_SPOT_PREVIEW_GOAL_KEYS:
                             cursor.execute(
                                 f"""
                                 UPDATE {self._prefix}automation_spot_preview_gated_goal
@@ -6756,7 +6927,7 @@ class OperatorAutomationRepository:
                                 """,
                                 (
                                     now,
-                                    AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+                                    goal_key,
                                     str(row["run_id"]),
                                 ),
                             )
@@ -6795,7 +6966,7 @@ class OperatorAutomationRepository:
                                 str(row["run_id"]),
                             ),
                         )
-                        if goal_key == AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY:
+                        if goal_key in _AUTOMATION_SPOT_PREVIEW_GOAL_KEYS:
                             cursor.execute(
                                 f"""
                                 UPDATE {self._prefix}automation_spot_preview_gated_goal
@@ -6805,7 +6976,7 @@ class OperatorAutomationRepository:
                                 """,
                                 (
                                     now,
-                                    AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+                                    goal_key,
                                     str(row["run_id"]),
                                 ),
                             )

@@ -12,6 +12,7 @@ from typing import Any
 import pytest
 
 from application.admin_api.operator_spot_eligibility import (
+    SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
     SpotEligibilityReadContext,
     SpotEligibilityReadOutcome,
     SpotEligibilityRunContext,
@@ -59,6 +60,8 @@ class _StrictClient:
     best_bid: str = "100"
     best_ask: str = "101"
     market_time: datetime = NOW
+    market_trade_product_id: str = "BTC-USDC"
+    market_trades_override: Any = None
     order_rows: list[dict[str, Any]] = field(default_factory=list)
     active_order_pages: list[list[dict[str, Any]]] = field(
         default_factory=lambda: [[]]
@@ -141,6 +144,26 @@ class _StrictClient:
             ]
         }
 
+    def get_market_trades(self, *, product_id: str, limit: int) -> dict[str, Any]:
+        self._record("get_market_trades", product_id=product_id, limit=limit)
+        if self.market_trades_override is not None:
+            return self.market_trades_override
+        return {
+            "trades": [
+                {
+                    "product_id": self.market_trade_product_id,
+                    "price": "100.50",
+                    "size": "0.01",
+                    "time": self.market_time.isoformat(),
+                    "private_extension": "withheld-private-trade-value",
+                }
+            ],
+            "best_bid": self.best_bid,
+            "best_ask": self.best_ask,
+            "time": NOW.isoformat(),
+            "private_extension": "withheld-private-market-value",
+        }
+
     def get_spot_transaction_summary(self) -> dict[str, Any]:
         self._record("get_spot_transaction_summary")
         return {
@@ -177,7 +200,10 @@ class _StrictClient:
         raise AssertionError("Cancel is outside eligibility-reader authority")
 
 
-def _run_context() -> SpotEligibilityRunContext:
+def _run_context(
+    *,
+    goal_key: str | None = None,
+) -> SpotEligibilityRunContext:
     return SpotEligibilityRunContext(
         run_id=RUN_ID,
         definition_id=DEFINITION_ID,
@@ -185,11 +211,15 @@ def _run_context() -> SpotEligibilityRunContext:
         plan_sha256=PLAN_SHA256,
         portfolio_id_sha256=PORTFOLIO_SHA256,
         correlation_id="eligibility-reader-test",
+        **({"goal_key": goal_key} if goal_key is not None else {}),
     )
 
 
-def _read_context() -> SpotEligibilityReadContext:
-    context = _run_context()
+def _read_context(
+    *,
+    goal_key: str | None = None,
+) -> SpotEligibilityReadContext:
+    context = _run_context(goal_key=goal_key)
     return SpotEligibilityReadContext(
         run_id=context.run_id,
         definition_id=context.definition_id,
@@ -202,7 +232,9 @@ def _read_context() -> SpotEligibilityReadContext:
         client_order_id=derive_spot_eligibility_client_order_id(
             run_id=RUN_ID,
             plan_sha256=PLAN_SHA256,
+            goal_key=context.goal_key,
         ),
+        goal_key=context.goal_key,
     )
 
 
@@ -225,10 +257,11 @@ def _reader(
     client: _StrictClient,
     *,
     plan: SpotEligibilityPlanTerms | None = None,
+    goal_key: str | None = None,
 ) -> CoinbaseApprovedSpotEligibilityReader:
     return CoinbaseApprovedSpotEligibilityReader(
         rest_client=client,
-        expected_context=_run_context(),
+        expected_context=_run_context(goal_key=goal_key),
         approved_portfolio_id=PORTFOLIO_ID,
         approved_portfolio_label="Test",
         plan=plan or _plan(),
@@ -365,6 +398,161 @@ def test_reader_rejects_future_book_timestamp_even_when_quotes_match():
     assert result.outcome is SpotEligibilityReadOutcome.REJECTED
     assert result.eligible is False
     assert result.http_request_count == 1
+
+
+def test_v3_reader_uses_exact_product_market_trade_time_and_same_snapshot_quotes():
+    client = _StrictClient()
+    reader = _reader(
+        client,
+        goal_key=SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+    )
+    context = _read_context(
+        goal_key=SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+    )
+
+    result = reader.read_best_bid_ask(context)
+
+    assert result.outcome is SpotEligibilityReadOutcome.SUCCEEDED
+    assert result.eligible is True
+    assert result.observed_at == NOW
+    assert result.http_request_count == 1
+    assert client.calls == [
+        ("get_market_trades", {"product_id": "BTC-USDC", "limit": 1})
+    ]
+
+
+def test_v3_reader_rejects_stale_or_wrong_product_trade_without_receipt_time_substitution():
+    client = _StrictClient(
+        market_time=NOW - timedelta(minutes=5),
+        market_trade_product_id="ETH-USDC",
+    )
+    reader = _reader(
+        client,
+        goal_key=SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+    )
+    context = _read_context(
+        goal_key=SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+    )
+
+    result = reader.read_best_bid_ask(context)
+
+    assert result.outcome is SpotEligibilityReadOutcome.REJECTED
+    assert result.eligible is False
+    assert result.observed_at == NOW - timedelta(minutes=5)
+    assert result.http_request_count == 1
+    assert client.calls == [
+        ("get_market_trades", {"product_id": "BTC-USDC", "limit": 1})
+    ]
+
+
+@pytest.mark.parametrize(
+    "snapshot",
+    [
+        {"trades": [], "best_bid": "100", "best_ask": "101", "time": NOW.isoformat()},
+        {
+            "trades": [
+                {"product_id": "BTC-USDC", "time": NOW.isoformat()},
+                {"product_id": "BTC-USDC", "time": NOW.isoformat()},
+            ],
+            "best_bid": "100",
+            "best_ask": "101",
+            "time": NOW.isoformat(),
+        },
+        {
+            "trades": [{"product_id": "BTC-USDC"}],
+            "best_bid": "100",
+            "best_ask": "101",
+            "time": NOW.isoformat(),
+        },
+        {
+            "trades": [{"product_id": "BTC-USDC", "time": "not-a-time"}],
+            "best_bid": "100",
+            "best_ask": "101",
+            "time": NOW.isoformat(),
+        },
+    ],
+)
+def test_v3_reader_rejects_missing_or_ambiguous_trade_time_without_proxy_timestamp(
+    snapshot,
+):
+    client = _StrictClient(market_trades_override=snapshot)
+    reader = _reader(
+        client,
+        goal_key=SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+    )
+
+    result = reader.read_best_bid_ask(
+        _read_context(
+            goal_key=SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+        )
+    )
+
+    assert result.outcome is SpotEligibilityReadOutcome.REJECTED
+    assert result.eligible is False
+    assert result.observed_at is None
+    assert result.http_request_count == 1
+    assert client.calls == [
+        ("get_market_trades", {"product_id": "BTC-USDC", "limit": 1})
+    ]
+
+
+def test_v3_reader_rejects_excessive_future_trade_time_without_replacing_source_timestamp():
+    client = _StrictClient(market_time=NOW + timedelta(milliseconds=1001))
+    reader = _reader(
+        client,
+        goal_key=SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+    )
+
+    result = reader.read_best_bid_ask(
+        _read_context(
+            goal_key=SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+        )
+    )
+
+    assert result.outcome is SpotEligibilityReadOutcome.REJECTED
+    assert result.eligible is False
+    assert result.observed_at == NOW + timedelta(milliseconds=1001)
+    assert result.http_request_count == 1
+
+
+def test_v3_reader_accepts_bounded_trade_clock_skew_without_replacing_source_timestamp():
+    client = _StrictClient(market_time=NOW + timedelta(milliseconds=250))
+    reader = _reader(
+        client,
+        goal_key=SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+    )
+
+    result = reader.read_best_bid_ask(
+        _read_context(
+            goal_key=SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+        )
+    )
+
+    assert result.outcome is SpotEligibilityReadOutcome.SUCCEEDED
+    assert result.eligible is True
+    assert result.observed_at == NOW + timedelta(milliseconds=250)
+    assert result.http_request_count == 1
+
+
+def test_v3_reader_missing_market_trade_method_has_no_proxy_timestamp():
+    client = _StrictClient()
+    client.get_market_trades = None
+    reader = _reader(
+        client,
+        goal_key=SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+    )
+
+    result = reader.read_best_bid_ask(
+        _read_context(
+            goal_key=SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+        )
+    )
+
+    assert result.outcome is SpotEligibilityReadOutcome.REJECTED
+    assert result.eligible is False
+    assert result.observed_at is None
+    assert result.http_request_count == 0
+    assert client.calls == []
 
 
 def test_reader_rejects_existing_exact_child_without_active_catalog_query():

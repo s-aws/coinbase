@@ -28,6 +28,7 @@ from core.enums import (
 )
 from database.database import PostgresDB
 from database.operator_automation import (
+    AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
     AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
     AutomationDefinitionCreateCommand,
     AutomationMutationCommand,
@@ -1367,6 +1368,72 @@ def _complete_eligible_cycle(
     assert current is not None
     assert current.state is OperatorAutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
     assert current.diagnostic_code == "awaiting_operator_authorization"
+
+
+def _reject_v3_cycle_for_missing_market_observation(
+    repository: OperatorAutomationRepository,
+    run_id: str,
+    seed: str,
+) -> None:
+    run = repository.get_run(run_id)
+    assert run is not None and run.definition_revision is not None
+    plan = repository.get_spot_single_child_plan(
+        run.definition_id,
+        run.definition_revision,
+    )
+    assert plan is not None
+    _, cycle = _allocate_spot_eligibility_cycle(
+        repository,
+        run_id,
+        plan.plan_sha256,
+        seed,
+    )
+    for index, category in enumerate(AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES):
+        repository.start_spot_eligibility_attempt(
+            run_id,
+            category=category,
+            command=_mutation(f"{seed}-{index}-start"),
+        )
+        if category == "BEST_BID_ASK":
+            rejected = repository.finalize_spot_eligibility_attempt(
+                run_id,
+                category=category,
+                outcome="REJECTED",
+                eligible=False,
+                coinbase_api_call_count=1,
+                call_count_exact=True,
+                portfolio_id_sha256=None,
+                observed_at=None,
+                fresh_until=None,
+                evidence_sha256=None,
+                command=_mutation(f"{seed}-{index}-finish"),
+            ).entity
+            assert rejected.observed_at is None
+            assert rejected.fresh_until is None
+            assert rejected.evidence_sha256 is None
+            break
+        repository.finalize_spot_eligibility_attempt(
+            run_id,
+            category=category,
+            outcome="SUCCEEDED",
+            eligible=True,
+            coinbase_api_call_count=1,
+            call_count_exact=True,
+            portfolio_id_sha256=(
+                plan.portfolio_id_sha256
+                if category == "PORTFOLIO_CATALOG"
+                else None
+            ),
+            **_eligibility_evidence(f"{seed}-{index}", "SUCCEEDED"),
+            command=_mutation(f"{seed}-{index}-finish"),
+        )
+    persisted = repository.list_spot_eligibility_cycles(
+        goal_key=AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+    )[-1]
+    assert persisted.cycle_number == cycle.cycle_number
+    assert persisted.state == "REJECTED"
+    assert persisted.call_count_exact is True
+    assert persisted.fresh_until is None
 
 
 def _await_spot_authorization(
@@ -3141,6 +3208,199 @@ def test_preview_gated_successor_uses_distinct_goal_and_preserves_predecessor_ro
     assert second_successor.value.code == (
         "automation_spot_preview_successor_definition_already_exists"
     )
+
+
+def test_documented_market_freshness_v3_requires_terminal_v2_and_preserves_it(
+    repository_harness: _Harness,
+):
+    repository = repository_harness.repository()
+    _seal_rejected_predecessor(repository, "documented-freshness-v1")
+    v2 = repository.create_definition(
+        _definition_command(
+            "documented-freshness-v2",
+            product_ids=("BTC-USDC",),
+        ),
+        spot_single_child_plan=_spot_plan_terms(),
+        spot_goal_key=AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+    ).entity
+
+    with pytest.raises(AutomationStoreConflict) as premature:
+        repository.create_definition(
+            _definition_command(
+                "documented-freshness-v3-premature",
+                product_ids=("BTC-USDC",),
+            ),
+            spot_single_child_plan=_spot_plan_terms(
+                base_size="0.00001",
+                submitted_notional_usdc="0.50",
+                possible_execution_notional_usdc="0.50",
+            ),
+            spot_goal_key=AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+        )
+    assert premature.value.code == (
+        "automation_spot_documented_freshness_predecessor_not_terminal"
+    )
+
+    enabled = repository.transition_definition(
+        v2.definition_id,
+        "enable",
+        _mutation("documented-freshness-v2-enable"),
+    ).entity
+    v2_run = repository.claim_one_shot_run(
+        enabled.definition_id,
+        _mutation("documented-freshness-v2-run"),
+    ).entity
+    repository.transition_run(
+        v2_run.run_id,
+        OperatorAutomationRunState.BLOCKED,
+        diagnostic_code="automation_run_blocked",
+        command=_mutation("documented-freshness-v2-terminal"),
+    )
+    preserved_tables = (
+        "automation_definition",
+        "automation_spot_single_child_plan",
+        "automation_spot_plan_goal",
+        "automation_run",
+        "automation_spot_preview_gated_goal",
+        "automation_event_outbox",
+    )
+    before = {
+        table: repository_harness.rows(
+            f'SELECT * FROM "{repository_harness.schema}".{table}'
+            + (
+                " WHERE goal_key <> %s"
+                if table == "automation_spot_preview_gated_goal"
+                else ""
+            )
+            + " ORDER BY 1",
+            (
+                (AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,)
+                if table == "automation_spot_preview_gated_goal"
+                else ()
+            ),
+        )
+        for table in preserved_tables
+    }
+
+    v3 = repository.create_definition(
+        _definition_command(
+            "documented-freshness-v3",
+            product_ids=("BTC-USDC",),
+        ),
+        spot_single_child_plan=_spot_plan_terms(
+            base_size="0.00001",
+            submitted_notional_usdc="0.50",
+            possible_execution_notional_usdc="0.50",
+        ),
+        spot_goal_key=AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+    ).entity
+
+    assert v3.definition_id != v2.definition_id
+    assert repository.get_spot_goal_key_for_definition(v3.definition_id) == (
+        AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY
+    )
+    v2_goal = repository.get_spot_preview_gated_goal(
+        goal_key=AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+    )
+    v3_goal = repository.get_spot_preview_gated_goal(
+        goal_key=AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+    )
+    assert v2_goal.definition_id == v2.definition_id
+    assert v3_goal.definition_id == v3.definition_id
+    assert v3_goal.preview_allowance_consumed is False
+    assert v3_goal.create_allowance_consumed is False
+    assert v3_goal.cancel_allowance_consumed is False
+    for table, rows in before.items():
+        current = repository_harness.rows(
+            f'SELECT * FROM "{repository_harness.schema}".{table}'
+            + (
+                " WHERE goal_key <> %s"
+                if table == "automation_spot_preview_gated_goal"
+                else ""
+            )
+            + " ORDER BY 1",
+            (
+                (AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,)
+                if table == "automation_spot_preview_gated_goal"
+                else ()
+            ),
+        )
+        assert all(row in current for row in rows)
+
+    v2_goal_before_v3_attempt = repository.get_spot_preview_gated_goal(
+        goal_key=AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+    )
+    enabled_v3 = repository.transition_definition(
+        v3.definition_id,
+        "enable",
+        _mutation("documented-freshness-v3-enable"),
+    ).entity
+    v3_run = repository.claim_one_shot_run(
+        enabled_v3.definition_id,
+        _mutation("documented-freshness-v3-run"),
+    ).entity
+    repository.transition_run(
+        v3_run.run_id,
+        OperatorAutomationRunState.PREPARING,
+        diagnostic_code="preparing",
+        command=_mutation("documented-freshness-v3-preparing"),
+    )
+    _reject_v3_cycle_for_missing_market_observation(
+        repository,
+        v3_run.run_id,
+        "documented-freshness-v3-missing-market-time",
+    )
+    repository = repository_harness.repository()
+    persisted_v3_cycle = repository.list_spot_eligibility_cycles(
+        goal_key=AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+    )[-1]
+    persisted_v3_market_attempt = next(
+        attempt
+        for attempt in repository.list_spot_eligibility_attempts(
+            v3_run.run_id,
+            cycle_number=persisted_v3_cycle.cycle_number,
+        )
+        if attempt.category == "BEST_BID_ASK"
+    )
+    assert persisted_v3_cycle.state == "REJECTED"
+    assert persisted_v3_cycle.call_count_exact is True
+    assert persisted_v3_cycle.fresh_until is None
+    assert persisted_v3_market_attempt.outcome == "REJECTED"
+    assert persisted_v3_market_attempt.coinbase_api_call_count == 1
+    assert persisted_v3_market_attempt.call_count_exact is True
+    assert persisted_v3_market_attempt.observed_at is None
+    assert persisted_v3_market_attempt.fresh_until is None
+    assert persisted_v3_market_attempt.evidence_sha256 is None
+    _complete_eligible_cycle(
+        repository,
+        v3_run.run_id,
+        "documented-freshness-v3-cycle",
+    )
+    repository.start_spot_preview_invocation(
+        v3_run.run_id,
+        eligibility_cycle=2,
+        command=_mutation("documented-freshness-v3-preview-start"),
+    )
+    terminal_v3_goal = repository.finalize_spot_preview_invocation(
+        v3_run.run_id,
+        outcome="REJECTED",
+        failure_class="DOCUMENTED_REJECTION",
+        warning_present=False,
+        preview_id_sha256=None,
+        preview_call_count=1,
+        call_count_exact=True,
+        command=_mutation("documented-freshness-v3-preview-finish"),
+    ).entity
+
+    assert terminal_v3_goal.goal_key == (
+        AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY
+    )
+    assert terminal_v3_goal.preview_allowance_consumed is True
+    assert terminal_v3_goal.preview_outcome == "REJECTED"
+    assert terminal_v3_goal.create_allowance_consumed is False
+    assert repository.get_spot_preview_gated_goal(
+        goal_key=AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+    ) == v2_goal_before_v3_attempt
 
 
 def test_preview_claim_is_single_use_and_rejection_leaves_create_unconsumed(

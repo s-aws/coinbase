@@ -74,6 +74,7 @@ from core.enums import (
     OperatorAutomationRunState,
 )
 from database.operator_automation import (
+    AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
     AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
     AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
     AutomationMutationCommand,
@@ -226,7 +227,10 @@ def _cycle_result() -> SpotEligibilityCycleResult:
     )
 
 
-def _read_snapshot() -> SpotEligibilityReadSnapshot:
+def _read_snapshot(
+    *,
+    market_source: str = "coinbase_rest_best_bid",
+) -> SpotEligibilityReadSnapshot:
     return SpotEligibilityReadSnapshot(
         cycle_number=1,
         plan_sha256=PLAN_SHA256,
@@ -255,6 +259,7 @@ def _read_snapshot() -> SpotEligibilityReadSnapshot:
             best_bid=Decimal("49999"),
             best_ask=Decimal("50000"),
             observed_at=NOW,
+            source=market_source,
         ),
         exact_order_absence=SpotEligibilityExactOrderAbsenceSnapshot(
             client_order_id=CLIENT_ORDER_ID,
@@ -320,7 +325,10 @@ class _ExecutionRepository:
 
     def get_spot_preview_gated_goal(
         self,
+        *,
+        goal_key: str = AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
     ) -> AutomationSpotPreviewGatedGoalRecord:
+        assert goal_key == self.goal_key
         return self.preview_goal
 
     def start_spot_preview_invocation(
@@ -330,7 +338,7 @@ class _ExecutionRepository:
         eligibility_cycle: int,
         command: AutomationMutationCommand,
     ) -> AutomationStoreMutation[AutomationSpotPreviewGatedGoalRecord]:
-        assert self.goal_key == AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY
+        assert self.goal_key != AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY
         assert run_id == RUN_ID
         assert eligibility_cycle == 1
         self.events.append("start_preview")
@@ -562,7 +570,7 @@ class _ExecutionRepository:
                 "replayed": False,
             }
         )
-        if self.goal_key == AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY:
+        if self.goal_key != AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY:
             assert self.preview_goal.preview_outcome == "ACCEPTED"
             self.preview_goal = replace(
                 self.preview_goal,
@@ -602,7 +610,7 @@ class _ExecutionRepository:
             create_read_call_count_exact=kwargs["read_call_count_exact"],
             child_terminal=child_terminal,
         )
-        if self.goal_key == AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY:
+        if self.goal_key != AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY:
             self.preview_goal = replace(
                 self.preview_goal,
                 create_outcome=outcome,
@@ -894,7 +902,14 @@ class _EligibilityRunner:
         self.repository.install_fresh_cycle(result)
         return SpotAutomationEligibilityExecutionBundle(
             cycle=result,
-            snapshot=_read_snapshot(),
+            snapshot=_read_snapshot(
+                market_source=(
+                    "coinbase_rest_market_trade_snapshot"
+                    if self.repository.goal_key
+                    == AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY
+                    else "coinbase_rest_best_bid"
+                )
+            ),
             attempts=self.repository.attempts,
         )
 
@@ -1262,6 +1277,11 @@ def _harness(
     events: list[str] = []
     repository = _ExecutionRepository(events)
     repository.goal_key = goal_key
+    if goal_key != AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY:
+        repository.preview_goal = replace(
+            repository.preview_goal,
+            goal_key=goal_key,
+        )
     repository.control_posture = control_posture
     coordinator = _TrackedProfileCoordinator(events, tmp_path)
     runner = _EligibilityRunner(
@@ -1440,14 +1460,22 @@ def test_preview_gated_rejection_or_unknown_never_enters_create(
     assert len(harness.preview.calls) == 1
 
 
+@pytest.mark.parametrize(
+    "goal_key",
+    [
+        AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+        AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+    ],
+)
 def test_preview_gated_acceptance_previews_then_creates_the_identical_candidate(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    goal_key: str,
 ) -> None:
     successor_client_order_id = derive_spot_eligibility_client_order_id(
         run_id=RUN_ID,
         plan_sha256=PLAN_SHA256,
-        goal_key=AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+        goal_key=goal_key,
     )
     monkeypatch.setattr(
         sys.modules[__name__],
@@ -1456,7 +1484,7 @@ def test_preview_gated_acceptance_previews_then_creates_the_identical_candidate(
     )
     harness = _harness(
         tmp_path,
-        goal_key=AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+        goal_key=goal_key,
         preview_mode="accepted",
     )
 
@@ -1478,6 +1506,11 @@ def test_preview_gated_acceptance_previews_then_creates_the_identical_candidate(
     assert response.activity.create_call_count == 1
     assert len(harness.preview.calls if harness.preview is not None else []) == 1
     assert len(harness.commands.place_calls) == 1
+    assert harness.commands.place_calls[0][1].market_evidence.source == (
+        "coinbase_rest_market_trade_snapshot"
+        if goal_key == AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY
+        else "coinbase_rest_best_bid"
+    )
     assert harness.events == [
         "lease_enter",
         "eligibility_cycle",
@@ -1938,6 +1971,13 @@ def test_safe_closeout_canonical_cancel_accounts_two_reads_and_one_cancel(
 ) -> None:
     harness = _harness(tmp_path, cancel_mode="accepted")
     harness.repository.seed_create_success()
+    original_list_cycles = harness.repository.list_spot_eligibility_cycles
+
+    def list_cycles_with_explicit_goal(*, goal_key):
+        assert goal_key == harness.repository.goal_key
+        return original_list_cycles(goal_key=goal_key)
+
+    harness.repository.list_spot_eligibility_cycles = list_cycles_with_explicit_goal
     harness.events.clear()
 
     response = harness.service.safe_closeout_single_child(

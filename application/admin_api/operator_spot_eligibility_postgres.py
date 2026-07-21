@@ -67,44 +67,87 @@ class PostgresSpotEligibilityLedger:
             raise ValueError("spot_eligibility_repository_unavailable")
         if not isinstance(mutation_context, AutomationMutationContext):
             raise ValueError("spot_eligibility_mutation_context_invalid")
-        expected_fields = (
-            {
-                "confirm_single_child_create",
-                "confirm_final_eligibility_refresh",
-                "confirm_account_wide_active_spot_order_catalog_read",
-                "confirm_unknown_consumes_allowance",
-                "expected_plan_sha256",
-                "reason",
-            }
-            if authorization_cycle
-            else {
-                "confirm_approved_eligibility_reads",
-                "confirm_account_wide_active_spot_order_catalog_read",
-                "confirm_unknown_consumes_cycle",
-                "expected_plan_sha256",
-                "reason",
-            }
-        )
-        required_confirmations = (
+        request_shapes = (
             (
-                "confirm_single_child_create",
-                "confirm_final_eligibility_refresh",
-                "confirm_account_wide_active_spot_order_catalog_read",
-                "confirm_unknown_consumes_allowance",
+                (
+                    frozenset(
+                        {
+                            "confirm_single_child_create",
+                            "confirm_final_eligibility_refresh",
+                            "confirm_account_wide_active_spot_order_catalog_read",
+                            "confirm_unknown_consumes_allowance",
+                            "expected_plan_sha256",
+                            "reason",
+                        }
+                    ),
+                    (
+                        "confirm_single_child_create",
+                        "confirm_final_eligibility_refresh",
+                        "confirm_account_wide_active_spot_order_catalog_read",
+                        "confirm_unknown_consumes_allowance",
+                    ),
+                ),
+                (
+                    frozenset(
+                        {
+                            "confirm_single_preview",
+                            "confirm_conditional_single_child_create",
+                            "confirm_final_eligibility_refresh",
+                            "confirm_account_wide_active_spot_order_catalog_read",
+                            "confirm_preview_unknown_consumes_allowance",
+                            "confirm_create_unknown_consumes_allowance",
+                            "expected_plan_sha256",
+                            "reason",
+                        }
+                    ),
+                    (
+                        "confirm_single_preview",
+                        "confirm_conditional_single_child_create",
+                        "confirm_final_eligibility_refresh",
+                        "confirm_account_wide_active_spot_order_catalog_read",
+                        "confirm_preview_unknown_consumes_allowance",
+                        "confirm_create_unknown_consumes_allowance",
+                    ),
+                ),
             )
             if authorization_cycle
             else (
-                "confirm_approved_eligibility_reads",
-                "confirm_account_wide_active_spot_order_catalog_read",
-                "confirm_unknown_consumes_cycle",
+                (
+                    frozenset(
+                        {
+                            "confirm_approved_eligibility_reads",
+                            "confirm_account_wide_active_spot_order_catalog_read",
+                            "confirm_unknown_consumes_cycle",
+                            "expected_plan_sha256",
+                            "reason",
+                        }
+                    ),
+                    (
+                        "confirm_approved_eligibility_reads",
+                        "confirm_account_wide_active_spot_order_catalog_read",
+                        "confirm_unknown_consumes_cycle",
+                    ),
+                ),
             )
+        )
+        matching_shape = (
+            next(
+                (
+                    confirmations
+                    for fields, confirmations in request_shapes
+                    if set(request_payload) == fields
+                ),
+                None,
+            )
+            if isinstance(request_payload, Mapping)
+            else None
         )
         if (
             not isinstance(request_payload, Mapping)
-            or set(request_payload) != expected_fields
+            or matching_shape is None
             or any(
                 request_payload.get(field_name) is not True
-                for field_name in required_confirmations
+                for field_name in matching_shape
             )
             or not isinstance(request_payload.get("expected_plan_sha256"), str)
             or not isinstance(request_payload.get("reason"), str)
@@ -311,7 +354,9 @@ class PostgresSpotEligibilityLedger:
                 result.http_request_count if known else None
             ),
             "observed_at": (
-                result.observed_at.isoformat() if known else None
+                result.observed_at.isoformat()
+                if known and result.observed_at is not None
+                else None
             ),
             "fresh_until": (
                 result.fresh_until.isoformat()

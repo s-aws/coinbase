@@ -36,9 +36,11 @@ SPOT_STANDING_BUY_LIMIT_RATIO = Decimal("0.5")
 SPOT_STANDING_SELL_LIMIT_RATIO = Decimal("1.5")
 SPOT_STANDING_MARKET_MAX_AGE_SECONDS = 30
 SPOT_STANDING_MARKET_FUTURE_TOLERANCE_SECONDS = 0
+SPOT_STANDING_COINBASE_TRADE_CLOCK_SKEW_TOLERANCE_SECONDS = 1
 SPOT_STANDING_MARKET_SOURCES = frozenset({
     "ticker",
     "coinbase_rest_best_bid",
+    "coinbase_rest_market_trade_snapshot",
 })
 
 
@@ -105,6 +107,11 @@ def evaluate_spot_standing_price_limit(
         if observed_at is not None
         else None
     )
+    future_tolerance_seconds = (
+        SPOT_STANDING_COINBASE_TRADE_CLOCK_SKEW_TOLERANCE_SECONDS
+        if source == "coinbase_rest_market_trade_snapshot"
+        else SPOT_STANDING_MARKET_FUTURE_TOLERANCE_SECONDS
+    )
     valid_bid = bid.is_finite() and bid > 0
     valid_requested_price = requested.is_finite() and requested > 0
     maximum_buy_price = (
@@ -119,7 +126,7 @@ def evaluate_spot_standing_price_limit(
         blocker = "live_ticker_bid_unavailable"
     elif observed_at is None or market_age_seconds is None:
         blocker = "live_ticker_timestamp_unavailable"
-    elif market_age_seconds < -SPOT_STANDING_MARKET_FUTURE_TOLERANCE_SECONDS:
+    elif market_age_seconds < -future_tolerance_seconds:
         blocker = "live_ticker_timestamp_future"
     elif market_age_seconds > SPOT_STANDING_MARKET_MAX_AGE_SECONDS:
         blocker = "live_ticker_bid_stale"

@@ -59,10 +59,21 @@ from .automation_models import (
     AutomationRunState,
     domain_for_job_kind,
 )
+from .operator_spot_eligibility import (
+    SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+    SPOT_ELIGIBILITY_PREVIEW_GATED_GOAL_KEY,
+)
 
 
 AUTOMATION_UNAVAILABLE = "automation_control_plane_unavailable"
 AUTOMATION_NOT_FOUND = "automation_resource_not_found"
+_SPOT_PREVIEW_MODE_BY_GOAL = {
+    SPOT_ELIGIBILITY_PREVIEW_GATED_GOAL_KEY: "PREVIEW_GATED_V2",
+    SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY: (
+        "DOCUMENTED_MARKET_FRESHNESS_V3"
+    ),
+}
+_SPOT_PREVIEW_GOAL_KEYS = frozenset(_SPOT_PREVIEW_MODE_BY_GOAL)
 
 
 @dataclass(frozen=True)
@@ -594,15 +605,11 @@ class PostgresOperatorAutomationRepositoryAdapter:
         plan_sha256: str,
         context: AutomationMutationContext,
     ) -> Any | None:
-        """Durably block a V2 preliminary checkpoint that has no final cycle."""
-
-        from database.operator_automation import (
-            AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
-        )
+        """Durably block a preview successor after its tenth preliminary cycle."""
 
         if not (
             cycle_number == 10
-            and goal_key == AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY
+            and goal_key in _SPOT_PREVIEW_GOAL_KEYS
             and record.state
             is AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
             and record.diagnostic_code == "awaiting_operator_authorization"
@@ -1032,10 +1039,8 @@ class PostgresOperatorAutomationRepositoryAdapter:
             "lifecycle_state": state.value,
             "product_ids": list(record.product_ids),
             "spot_execution_mode": (
-                "PREVIEW_GATED_V2"
-                if plan is not None
-                and spot_goal_key
-                == "operator_spot_automation_preview_gated_successor_candidate_v2"
+                _SPOT_PREVIEW_MODE_BY_GOAL.get(spot_goal_key)
+                if plan is not None and spot_goal_key in _SPOT_PREVIEW_GOAL_KEYS
                 else "CREATE_ONLY_V1"
                 if plan is not None
                 else None
@@ -1102,11 +1107,11 @@ class PostgresOperatorAutomationRepositoryAdapter:
             execution = self._call(
                 lambda: self.repository.get_spot_run_execution(record.run_id)
             )
-            if spot_goal_key == (
-                "operator_spot_automation_preview_gated_successor_candidate_v2"
-            ):
+            if spot_goal_key in _SPOT_PREVIEW_GOAL_KEYS:
                 preview_goal = self._call(
-                    self.repository.get_spot_preview_gated_goal
+                    lambda: self.repository.get_spot_preview_gated_goal(
+                        goal_key=spot_goal_key,
+                    )
                 )
             eligibility_lifetime_call_count_exact = all(
                 attempt.call_count_exact for attempt in attempts
@@ -1547,7 +1552,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
             "live_execution_available": live_execution_available,
             "live_attempt_consumed": record.live_attempt_consumed,
             "spot_execution_mode": (
-                "PREVIEW_GATED_V2"
+                _SPOT_PREVIEW_MODE_BY_GOAL.get(spot_goal_key)
                 if preview_goal is not None
                 else "CREATE_ONLY_V1"
                 if plan is not None
@@ -1755,6 +1760,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
         plan = None
         if single_child is not None:
             from database.operator_automation import (
+                AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
                 AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
                 AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
                 AutomationSpotSingleChildPlanTerms,
@@ -1781,7 +1787,10 @@ class PostgresOperatorAutomationRepositoryAdapter:
                     command,
                     spot_single_child_plan=plan_terms,
                     spot_goal_key=(
-                        AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY
+                        AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY
+                        if definition.get("spot_execution_mode")
+                        == "DOCUMENTED_MARKET_FRESHNESS_V3"
+                        else AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY
                         if definition.get("spot_execution_mode")
                         == "PREVIEW_GATED_V2"
                         else AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY
@@ -2117,23 +2126,27 @@ class PostgresOperatorAutomationRepositoryAdapter:
 
         from database.operator_automation import (
             AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
-            AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
         )
 
         goal_key = self._call(
             lambda: self.repository.get_spot_goal_key_for_run(run_id)
         )
-        expected_goal_key = (
-            AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY
-            if preview_gated
-            else AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY
-        )
-        if goal_key != expected_goal_key:
+        if (
+            preview_gated
+            and goal_key not in _SPOT_PREVIEW_GOAL_KEYS
+        ) or (
+            not preview_gated
+            and goal_key != AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY
+        ):
             raise AutomationRepositoryConflict(
                 "automation_spot_execution_goal_mismatch"
             )
         preview_goal = (
-            self._call(self.repository.get_spot_preview_gated_goal)
+            self._call(
+                lambda: self.repository.get_spot_preview_gated_goal(
+                    goal_key=goal_key,
+                )
+            )
             if preview_gated
             else None
         )
@@ -2907,7 +2920,14 @@ class PostgresOperatorAutomationRepositoryAdapter:
             raise AutomationRepositoryUnavailable(
                 "automation_spot_portfolio_not_configured"
             )
-        cycles = self._call(self.repository.list_spot_eligibility_cycles)
+        spot_goal_key = self._call(
+            lambda: self.repository.get_spot_goal_key_for_run(run_id)
+        )
+        cycles = self._call(
+            lambda: self.repository.list_spot_eligibility_cycles(
+                goal_key=spot_goal_key
+            )
+        )
         cycle_matches = tuple(
             cycle
             for cycle in cycles
@@ -3205,7 +3225,11 @@ class PostgresOperatorAutomationRepositoryAdapter:
         )
         if closeout is not None:
             current = closeout.entity
-        cycles = self._call(self.repository.list_spot_eligibility_cycles)
+        cycles = self._call(
+            lambda: self.repository.list_spot_eligibility_cycles(
+                goal_key=run_context.goal_key
+            )
+        )
         matches = tuple(
             cycle
             for cycle in cycles
@@ -3246,8 +3270,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
         terminal_exhaustion_applied = bool(
             cycle_result.cycle_number == 10
             and cycle_result.outcome.value == "SUCCEEDED"
-            and run_context.goal_key
-            == "operator_spot_automation_preview_gated_successor_candidate_v2"
+            and run_context.goal_key in _SPOT_PREVIEW_GOAL_KEYS
             and current.state is AutomationRunState.BLOCKED
             and current.diagnostic_code == "automation_run_blocked"
         )

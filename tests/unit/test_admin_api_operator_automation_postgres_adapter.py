@@ -40,6 +40,7 @@ from core.enums import (
     OperatorAutomationScheduleKind,
 )
 from database.operator_automation import (
+    AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
     AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES,
     AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
     AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
@@ -520,6 +521,37 @@ def test_adapter_binds_preview_successor_to_the_distinct_v2_goal(monkeypatch):
     )
 
 
+def test_adapter_binds_documented_market_freshness_successor_to_distinct_v3_goal(
+    monkeypatch,
+):
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID", PORTFOLIO_ID)
+    raw = _RawRepository()
+    adapter = PostgresOperatorAutomationRepositoryAdapter(raw)
+
+    adapter.create_definition(
+        definition={
+            "display_name": "Documented market freshness BTC candidate",
+            "domain": "SPOT",
+            "job_kind": "SPOT_CAMPAIGN",
+            "product_ids": ["BTC-USDC"],
+            "spot_execution_mode": "DOCUMENTED_MARKET_FRESHNESS_V3",
+            "single_child_order": {
+                "side": "BUY",
+                "base_size": "0.00001",
+                "limit_price": "50000",
+                "order_type": "LIMIT",
+                "time_in_force": "GOOD_UNTIL_CANCELLED",
+                "post_only": False,
+            },
+        },
+        context=_context(),
+    )
+
+    assert raw.calls[0][2]["spot_goal_key"] == (
+        AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY
+    )
+
+
 def test_adapter_rejects_noncanonical_portfolio_before_definition_persistence(
     monkeypatch,
 ):
@@ -944,6 +976,13 @@ def test_adapter_runs_one_eight_category_cycle_and_exposes_authorization():
         job_kind=OperatorAutomationJobKind.SPOT_CAMPAIGN,
     )
     raw.cycles = ()
+    original_list_cycles = raw.list_spot_eligibility_cycles
+
+    def list_cycles_with_explicit_goal(*, goal_key):
+        assert goal_key == raw.spot_goal_key
+        return original_list_cycles(goal_key=goal_key)
+
+    raw.list_spot_eligibility_cycles = list_cycles_with_explicit_goal
     attempts: list[AutomationSpotEligibilityAttemptRecord] = []
     client_order_id = derive_spot_eligibility_client_order_id(
         run_id=RUN_ID,

@@ -588,6 +588,29 @@ class CoinbaseRestClient:
         data = coinbase_sdk_response_to_dict(response)
         return data if isinstance(data, dict) else {}
 
+    def get_market_trades(
+        self,
+        *,
+        product_id: str,
+        limit: int,
+    ) -> Dict[str, Any]:
+        """Return one product-scoped Coinbase market snapshot.
+
+        Coinbase documents this response as the latest trades together with
+        best bid/ask. Callers must validate the exchange trade timestamp; this
+        wrapper never adds a local receipt timestamp.
+        """
+
+        if product_id != "BTC-USDC" or type(limit) is not int or limit != 1:
+            raise ValueError("market_trades_scope_invalid")
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
+        response = self._client.get_market_trades(
+            product_id=product_id,
+            limit=limit,
+        )
+        data = coinbase_sdk_response_to_dict(response)
+        return data if isinstance(data, dict) else {}
+
     def preview_order(
         self,
         *,

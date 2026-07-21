@@ -604,6 +604,10 @@ def test_single_child_live_readback_is_scoped_by_backend_rbac(
             "/api/v1/automation/runs/{run_id}/authorize-single-child",
         ),
         (
+            "AUTHORIZE_PREVIEW_GATED_SINGLE_CHILD",
+            "/api/v1/automation/runs/{run_id}/authorize-preview-gated-single-child",
+        ),
+        (
             "SAFE_CLOSEOUT_CHILD",
             "/api/v1/automation/runs/{run_id}/safe-closeout-child",
         ),
@@ -615,7 +619,14 @@ def test_live_run_actions_require_exact_route_service_and_runtime_readiness(
     route: str,
 ):
     payload = _actionable_single_child_run()
-    if action == "SAFE_CLOSEOUT_CHILD":
+    if action == "AUTHORIZE_PREVIEW_GATED_SINGLE_CHILD":
+        payload.update(
+            {
+                "spot_execution_mode": "DOCUMENTED_MARKET_FRESHNESS_V3",
+                "allowed_actions": [action],
+            }
+        )
+    elif action == "SAFE_CLOSEOUT_CHILD":
         payload.update(
             {
                 "state": "ACTIVE",

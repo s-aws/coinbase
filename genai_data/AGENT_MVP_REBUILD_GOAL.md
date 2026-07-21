@@ -1,8 +1,51 @@
 # Coinbase Admin MVP Goal
 
-Goal ID: `operator_spot_automation_preview_gated_successor_candidate_v2`
+Goal ID: `operator_spot_automation_documented_market_freshness_successor_v3`
 
 Last reviewed: 2026-07-21 UTC.
+
+Status: `complete_terminal_preview_rejected`.
+
+Current action:
+`complete_v3_terminal_preview_rejected_create_cancel_unconsumed`.
+
+Default action: `await_operator_direction_for_next_mvp`.
+
+V3 is a distinct exact `BTC-USDC` / approved-Test-portfolio successor under
+the unchanged 3.10/1.00 USDC caps. It uses Coinbase's documented authenticated
+Get Market Trades snapshot, requires the exact-product trade event `time` to
+pass the unchanged 30-second guard with only the V3-specific one-second
+Coinbase-to-host skew bound, preserves the original trade time with a clamped
+30-second expiry, and binds bid/ask from that
+same response. Receipt time and unrelated proxy fields are forbidden. V1/V2
+rows, identities, call records, allowances, artifacts, and hashes remain
+sealed.
+
+The authenticated operator path created exactly one V3 candidate. Its eight
+no-retry eligibility cycles used `8, 8, 8, 5, 8, 5, 8, 8` calls (`58` exact
+eligibility reads), and cycle 8 proved exact eligibility. Exactly one Preview
+was then claimed and invoked. It terminated as
+`automation_spot_preview_rejected` with sanitized `REJECTED` /
+`DOCUMENTED_REJECTION` evidence and warning-present readback. Preview identity
+retention is `UNAVAILABLE`; no raw response, secret, private identifier, or
+withheld exception text was persisted or exposed. Create and Cancel were not
+reached. Canonical V3 accounting is total Coinbase calls `59`,
+Preview/Create/Cancel `1/0/0`, allowances
+`consumed/unconsumed/unconsumed`, no child, and no remaining action.
+Canonical terminal marker: V3 eligibility cycles `8/10`; exact Coinbase reads
+`58`; Preview/Create/Cancel calls `1/0/0`; allowances
+`consumed/unconsumed/unconsumed`; allowed actions `0`.
+
+V3 validation evidence: backend full `1182 passed, 6 skipped` parallel and
+`669 passed, 150 skipped` serial; frontend full `1565 passed`; E2E `15/15`;
+build, typecheck, lint, generated-contract, command-security, and release gates
+`PASS`; independent safety and blind-contextless audits `PASS`.
+V3 release/deployment gate: `PASS` (canonical rerun complete). All validation
+and deployment-smoke phases reported no live Coinbase execution.
+
+## V2 predecessor terminal record
+
+Goal ID: `operator_spot_automation_preview_gated_successor_candidate_v2`
 
 Status: `complete_terminal_eligibility_cycles_exhausted`.
 

@@ -491,7 +491,11 @@ class SpotAutomationMarketEvidence:
         )
         if self.fresh_until <= self.observed_at:
             raise ValueError("spot_automation_market_freshness_invalid")
-        if self.source not in {"coinbase_rest_best_bid", "ticker"}:
+        if self.source not in {
+            "coinbase_rest_best_bid",
+            "coinbase_rest_market_trade_snapshot",
+            "ticker",
+        }:
             raise ValueError("spot_automation_market_source_invalid")
         _require_automation_sha256(
             self.evidence_sha256,

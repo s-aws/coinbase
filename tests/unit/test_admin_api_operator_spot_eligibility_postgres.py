@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any
@@ -12,6 +12,7 @@ import pytest
 from application.admin_api.automation_models import AutomationMutationContext
 from application.admin_api.operator_spot_eligibility import (
     APPROVED_SPOT_ELIGIBILITY_ORDER,
+    SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
     ApprovedSpotEligibilityCategory,
     SpotEligibilityCategoryResult,
     SpotEligibilityCoordinator,
@@ -72,6 +73,19 @@ def _authorization_request() -> dict[str, Any]:
         "confirm_unknown_consumes_allowance": True,
         "expected_plan_sha256": PLAN_SHA256,
         "reason": "Authorize this exact child after a fresh final cycle",
+    }
+
+
+def _preview_authorization_request() -> dict[str, Any]:
+    return {
+        "confirm_single_preview": True,
+        "confirm_conditional_single_child_create": True,
+        "confirm_final_eligibility_refresh": True,
+        "confirm_account_wide_active_spot_order_catalog_read": True,
+        "confirm_preview_unknown_consumes_allowance": True,
+        "confirm_create_unknown_consumes_allowance": True,
+        "expected_plan_sha256": PLAN_SHA256,
+        "reason": "Preview once and conditionally create this exact child",
     }
 
 
@@ -314,6 +328,54 @@ def test_ledger_allocates_one_cycle_and_maps_one_category_with_fixed_commands():
     assert finalize["portfolio_id_sha256"] is None
 
 
+def test_ledger_persists_v3_missing_market_time_as_null_without_freshness_proxy():
+    raw = _RawRepository()
+    raw.cycle.goal_key = SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY
+    raw.cycle.client_order_id = derive_spot_eligibility_client_order_id(
+        run_id=RUN_ID,
+        plan_sha256=PLAN_SHA256,
+        goal_key=SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+    )
+    ledger = PostgresSpotEligibilityLedger(
+        repository=raw,
+        mutation_context=_mutation_context(),
+        request_payload=_request(),
+    )
+    context = replace(
+        _run_context(),
+        goal_key=SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+    )
+    ledger.claim_or_resume_cycle(context)
+    category = ApprovedSpotEligibilityCategory.BEST_BID_ASK
+    claim = ledger.claim_category(context, category)
+
+    ledger.finalize_category(
+        context,
+        claim,
+        SpotEligibilityCategoryResult(
+            category=category,
+            outcome=SpotEligibilityReadOutcome.REJECTED,
+            eligible=False,
+            logical_call_count=1,
+            http_request_count=1,
+            call_count_exact=True,
+            observed_at=None,
+            fresh_until=None,
+            evidence_sha256=None,
+            diagnostic_code=(
+                "automation_spot_eligibility_best_bid_ask_rejected"
+            ),
+        ),
+    )
+
+    finalize = raw.calls[-1][1]
+    assert finalize["coinbase_api_call_count"] == 1
+    assert finalize["call_count_exact"] is True
+    assert finalize["observed_at"] is None
+    assert finalize["fresh_until"] is None
+    assert finalize["evidence_sha256"] is None
+
+
 class _ExplodingReader:
     calls = 0
 
@@ -432,3 +494,20 @@ def test_authorization_cycle_uses_a_distinct_typed_repository_transition():
     ]
     command = raw.calls[0][1]["command"]
     assert command.idempotency_key == "eligibility-request-1"
+
+
+def test_preview_authorization_cycle_uses_the_same_typed_final_refresh_boundary():
+    raw = _RawRepository()
+    ledger = PostgresSpotEligibilityLedger(
+        repository=raw,
+        mutation_context=_mutation_context(),
+        request_payload=_preview_authorization_request(),
+        authorization_cycle=True,
+    )
+
+    claim = ledger.claim_or_resume_cycle(_run_context())
+
+    assert claim.replayed is False
+    assert [name for name, _kwargs in raw.calls] == [
+        "allocate_spot_authorization_cycle"
+    ]

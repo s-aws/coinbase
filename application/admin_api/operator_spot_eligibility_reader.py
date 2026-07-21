@@ -17,6 +17,7 @@ from application.admin_api.command_service import (
     read_authoritative_coinbase_orders,
 )
 from application.admin_api.operator_spot_eligibility import (
+    SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
     SPOT_ELIGIBILITY_PRODUCT_ID,
     SpotEligibilityReadContext,
     SpotEligibilityReadOutcome,
@@ -219,6 +220,7 @@ class SpotEligibilityMarketReferenceSnapshot:
     best_bid: Decimal
     best_ask: Decimal
     observed_at: datetime
+    source: str = "coinbase_rest_best_bid"
 
     def __post_init__(self) -> None:
         if (
@@ -232,6 +234,11 @@ class SpotEligibilityMarketReferenceSnapshot:
             or not isinstance(self.observed_at, datetime)
             or self.observed_at.tzinfo is None
             or self.observed_at.utcoffset() is None
+            or self.source
+            not in {
+                "coinbase_rest_best_bid",
+                "coinbase_rest_market_trade_snapshot",
+            }
         ):
             raise ValueError("spot_eligibility_snapshot_market_invalid")
 
@@ -521,6 +528,7 @@ class CoinbaseApprovedSpotEligibilityReader:
         *,
         request_count: int,
         observed_at: datetime | None = None,
+        substitute_observed_at: bool = True,
     ) -> SpotEligibilityReadResult:
         return SpotEligibilityReadResult(
             outcome=SpotEligibilityReadOutcome.REJECTED,
@@ -528,7 +536,11 @@ class CoinbaseApprovedSpotEligibilityReader:
             logical_call_count=1,
             http_request_count=request_count,
             call_count_exact=True,
-            observed_at=observed_at or self._now(),
+            observed_at=(
+                observed_at
+                if observed_at is not None
+                else self._now() if substitute_observed_at else None
+            ),
         )
 
     def _unknown(
@@ -787,33 +799,63 @@ class CoinbaseApprovedSpotEligibilityReader:
     ) -> SpotEligibilityReadResult:
         self._validate_context(context)
         self._market_reference = None
-        method = self._method("get_best_bid_ask")
+        documented_market_freshness = (
+            context.goal_key
+            == SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY
+        )
+        method = self._method(
+            "get_market_trades"
+            if documented_market_freshness
+            else "get_best_bid_ask"
+        )
         if method is None:
-            return self._rejected(request_count=0)
-        value = method(product_ids=[SPOT_ELIGIBILITY_PRODUCT_ID])
-        pricebooks = _mapping(value).get("pricebooks")
-        if not isinstance(pricebooks, list) or len(pricebooks) != 1:
-            return self._rejected(request_count=1)
-        row = _mapping(pricebooks[0])
-        bids = row.get("bids")
-        asks = row.get("asks")
-        bid = (
-            _decimal(_mapping(bids[0]).get("price"))
-            if isinstance(bids, list) and bids
-            else None
-        )
-        ask = (
-            _decimal(_mapping(asks[0]).get("price"))
-            if isinstance(asks, list) and asks
-            else None
-        )
-        book_timestamp = _aware_utc(row.get("time"))
-        observed_at = book_timestamp
+            return self._rejected(
+                request_count=0,
+                substitute_observed_at=not documented_market_freshness,
+            )
+        if documented_market_freshness:
+            value = method(product_id=SPOT_ELIGIBILITY_PRODUCT_ID, limit=1)
+            snapshot = _mapping(value)
+            trades = snapshot.get("trades")
+            if not isinstance(trades, list) or len(trades) != 1:
+                return self._rejected(
+                    request_count=1,
+                    substitute_observed_at=False,
+                )
+            trade = _mapping(trades[0])
+            row = {
+                "product_id": trade.get("product_id"),
+            }
+            bid = _decimal(snapshot.get("best_bid"))
+            ask = _decimal(snapshot.get("best_ask"))
+            market_timestamp = _aware_utc(trade.get("time"))
+            market_source = "coinbase_rest_market_trade_snapshot"
+        else:
+            value = method(product_ids=[SPOT_ELIGIBILITY_PRODUCT_ID])
+            pricebooks = _mapping(value).get("pricebooks")
+            if not isinstance(pricebooks, list) or len(pricebooks) != 1:
+                return self._rejected(request_count=1)
+            row = _mapping(pricebooks[0])
+            bids = row.get("bids")
+            asks = row.get("asks")
+            bid = (
+                _decimal(_mapping(bids[0]).get("price"))
+                if isinstance(bids, list) and bids
+                else None
+            )
+            ask = (
+                _decimal(_mapping(asks[0]).get("price"))
+                if isinstance(asks, list) and asks
+                else None
+            )
+            market_timestamp = _aware_utc(row.get("time"))
+            market_source = "coinbase_rest_best_bid"
+        observed_at = market_timestamp
         standing = evaluate_spot_standing_price_limit(
             side=self._plan.side,
             limit_price=self._plan.limit_price,
             best_bid=bid,
-            market_source="coinbase_rest_best_bid",
+            market_source=market_source,
             market_observed_at=observed_at,
             evaluated_at=self._now(),
         )
@@ -823,13 +865,14 @@ class CoinbaseApprovedSpotEligibilityReader:
             and ask is not None
             and bid > 0
             and ask >= bid
-            and book_timestamp is not None
+            and market_timestamp is not None
             and standing.get("allowed") is True
         )
         if not ready:
             return self._rejected(
                 request_count=1,
                 observed_at=observed_at,
+                substitute_observed_at=not documented_market_freshness,
             )
         result = self._succeeded(
             "BEST_BID_ASK",
@@ -847,6 +890,7 @@ class CoinbaseApprovedSpotEligibilityReader:
             best_bid=bid,
             best_ask=ask,
             observed_at=observed_at,
+            source=market_source,
         )
         return result
 

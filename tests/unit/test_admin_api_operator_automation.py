@@ -559,6 +559,29 @@ def test_preview_gated_successor_mode_requires_an_exact_single_child_plan():
         )
 
 
+def test_documented_market_freshness_v3_mode_requires_an_exact_single_child_plan():
+    request = AutomationDefinitionCreateRequest(
+        display_name="Documented-freshness BTC candidate",
+        job_kind=AutomationJobKind.SPOT_CAMPAIGN,
+        product_ids=["BTC-USDC"],
+        spot_execution_mode="DOCUMENTED_MARKET_FRESHNESS_V3",
+        single_child_order=AutomationSpotSingleChildOrderSpec(
+            side="BUY",
+            base_size="0.00001",
+            limit_price="50000.00",
+        ),
+    )
+
+    assert request.spot_execution_mode == "DOCUMENTED_MARKET_FRESHNESS_V3"
+    with pytest.raises(ValidationError):
+        AutomationDefinitionCreateRequest(
+            display_name="Invalid documented-freshness candidate",
+            job_kind=AutomationJobKind.SPOT_CAMPAIGN,
+            product_ids=["BTC-USDC"],
+            spot_execution_mode="DOCUMENTED_MARKET_FRESHNESS_V3",
+        )
+
+
 def test_exact_run_authorization_accepts_only_acknowledgements_and_plan_hash():
     body = AutomationSingleChildAuthorizationRequest(
         confirm_single_child_create=True,

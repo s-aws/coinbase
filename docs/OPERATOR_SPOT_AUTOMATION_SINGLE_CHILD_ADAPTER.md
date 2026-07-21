@@ -2,6 +2,35 @@
 
 ## Current status
 
+Goal `operator_spot_automation_documented_market_freshness_successor_v3` is
+complete and terminal. The documented-market-freshness contract is specified in
+[`OPERATOR_SPOT_AUTOMATION_DOCUMENTED_MARKET_FRESHNESS_V3.md`](OPERATOR_SPOT_AUTOMATION_DOCUMENTED_MARKET_FRESHNESS_V3.md).
+Status: `complete_terminal_preview_rejected`.
+Current action: `complete_v3_terminal_preview_rejected_create_cancel_unconsumed`.
+Default action: `await_operator_direction_for_next_mvp`.
+
+V3 uses the documented exact-product Get Market Trades source in the
+eight-category backend flow. Eight no-retry cycles made `58` eligibility reads
+with distribution `8, 8, 8, 5, 8, 5, 8, 8`; cycle 8 proved exact eligibility.
+Exactly one Preview then terminated as
+`automation_spot_preview_rejected` with sanitized `REJECTED` /
+`DOCUMENTED_REJECTION` evidence. No raw response or withheld text was exposed.
+Create and Cancel were not reached, no child exists, and no action remains.
+Canonical terminal marker: V3 eligibility cycles `8/10`; exact Coinbase reads
+`58`; Preview/Create/Cancel calls `1/0/0`; allowances
+`consumed/unconsumed/unconsumed`; allowed actions `0`.
+
+V3 validation evidence: backend full `1182 passed, 6 skipped` parallel and
+`669 passed, 150 skipped` serial; frontend full `1565 passed`; E2E `15/15`;
+build, typecheck, lint, generated-contract, command-security, and release gates
+`PASS`; independent safety and blind-contextless audits `PASS`.
+V3 release/deployment gate: `PASS` (canonical rerun complete). All validation
+and deployment-smoke phases reported no live Coinbase execution.
+
+V3 preserves all V1/V2 evidence and replaces no predecessor row or allowance.
+
+### V2 predecessor terminal record
+
 Goal `operator_spot_automation_preview_gated_successor_candidate_v2` is complete.
 Status: `complete_terminal_eligibility_cycles_exhausted`.
 Current action: `complete_terminal_eligibility_exhausted_preview_create_cancel_unconsumed`.

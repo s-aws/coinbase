@@ -415,7 +415,10 @@ class AutomationDefinitionCreateRequest(BaseModel):
     display_name: str = Field(min_length=1, max_length=120)
     job_kind: AutomationJobKind
     product_ids: list[str] = Field(default_factory=list, max_length=100)
-    spot_execution_mode: Literal["PREVIEW_GATED_V2"] | None = None
+    spot_execution_mode: Literal[
+        "PREVIEW_GATED_V2",
+        "DOCUMENTED_MARKET_FRESHNESS_V3",
+    ] | None = None
     single_child_order: AutomationSpotSingleChildOrderSpec | None = None
 
     @field_validator("display_name", mode="before")
@@ -450,7 +453,10 @@ class AutomationDefinitionCreateRequest(BaseModel):
         ):
             raise ValueError("automation_single_child_job_kind_blocked")
         if (
-            self.spot_execution_mode == "PREVIEW_GATED_V2"
+            self.spot_execution_mode in {
+                "PREVIEW_GATED_V2",
+                "DOCUMENTED_MARKET_FRESHNESS_V3",
+            }
             and self.single_child_order is None
         ):
             raise ValueError("automation_preview_gated_plan_required")
@@ -713,6 +719,7 @@ class AutomationDefinitionItem(BaseModel):
     spot_execution_mode: Literal[
         "CREATE_ONLY_V1",
         "PREVIEW_GATED_V2",
+        "DOCUMENTED_MARKET_FRESHNESS_V3",
     ] | None = None
     single_child_order: AutomationSpotSingleChildOrderSpec | None = None
     schedule: AutomationDefinitionSchedule
@@ -776,6 +783,7 @@ class AutomationRunItem(BaseModel):
     spot_execution_mode: Literal[
         "CREATE_ONLY_V1",
         "PREVIEW_GATED_V2",
+        "DOCUMENTED_MARKET_FRESHNESS_V3",
     ] | None = None
     preview_allowance_consumed: bool = False
     preview_outcome: Literal["ACCEPTED", "REJECTED", "UNKNOWN"] | None = None
@@ -835,7 +843,10 @@ class AutomationRunItem(BaseModel):
         exhausted_preview_terminal = bool(
             self.state is AutomationRunState.BLOCKED
             and self.diagnostic_code == "automation_run_blocked"
-            and self.spot_execution_mode == "PREVIEW_GATED_V2"
+            and self.spot_execution_mode in {
+                "PREVIEW_GATED_V2",
+                "DOCUMENTED_MARKET_FRESHNESS_V3",
+            }
         )
         if diagnostics is None or (
             self.diagnostic_code not in diagnostics
@@ -862,7 +873,10 @@ class AutomationRunItem(BaseModel):
             )
         ):
             raise ValueError("automation_run_allowance_invalid")
-        preview_gated = self.spot_execution_mode == "PREVIEW_GATED_V2"
+        preview_gated = self.spot_execution_mode in {
+            "PREVIEW_GATED_V2",
+            "DOCUMENTED_MARKET_FRESHNESS_V3",
+        }
         if self.state is AutomationRunState.UNKNOWN_CONSUMED:
             if (
                 not self.live_attempt_consumed
