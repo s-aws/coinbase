@@ -77,8 +77,18 @@ _AUTOMATION_SPOT_ELIGIBILITY_CYCLE_STATES = frozenset(
 _AUTOMATION_SPOT_MUTATION_OUTCOMES = frozenset(
     {"ACCEPTED", "REJECTED", "UNKNOWN"}
 )
-_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY = (
+AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY = (
     "operator_spot_automation_single_child_execution_adapter_v1"
+)
+AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY = (
+    "operator_spot_automation_preview_gated_successor_candidate_v2"
+)
+_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY = AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY
+_AUTOMATION_SPOT_GOAL_KEYS = frozenset(
+    {
+        AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
+        AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+    }
 )
 _AUTOMATION_SPOT_CLIENT_ORDER_NAMESPACE = uuid.UUID(
     "af243a31-5934-52e2-b540-8d7b101d82ca"
@@ -352,6 +362,32 @@ class AutomationSpotLiveProofGoalRecord:
 
 
 @dataclass(frozen=True)
+class AutomationSpotPreviewGatedGoalRecord:
+    goal_key: Literal[
+        "operator_spot_automation_preview_gated_successor_candidate_v2"
+    ]
+    definition_id: str | None
+    bound_run_id: str | None
+    client_order_id: str | None
+    eligibility_cycle: int | None
+    plan_sha256: str | None
+    portfolio_id_sha256: str | None
+    product_id: Literal["BTC-USDC"] | None
+    preview_allowance_consumed: bool
+    preview_outcome: Literal["ACCEPTED", "REJECTED", "UNKNOWN"] | None
+    preview_failure_class: str | None
+    preview_warning_present: bool | None
+    preview_id_sha256: str | None
+    preview_call_count: int | None
+    preview_call_count_exact: bool
+    create_allowance_consumed: bool
+    create_outcome: Literal["ACCEPTED", "REJECTED", "UNKNOWN"] | None
+    cancel_allowance_consumed: bool
+    cancel_outcome: Literal["ACCEPTED", "REJECTED", "UNKNOWN"] | None
+    updated_at: str
+
+
+@dataclass(frozen=True)
 class AutomationRunEventRecord:
     event_id: str
     run_id: str
@@ -434,6 +470,9 @@ class OperatorAutomationRepository:
         """Install the additive schema and immutable event guard idempotently."""
 
         active_states = ", ".join(f"'{state.value}'" for state in _ACTIVE_RUN_STATES)
+        spot_goal_keys = ", ".join(
+            f"'{goal_key}'" for goal_key in sorted(_AUTOMATION_SPOT_GOAL_KEYS)
+        )
         with self.database.get_cursor() as cursor:
             cursor.execute(f'CREATE SCHEMA IF NOT EXISTS "{self.schema}"')
             cursor.execute(
@@ -548,6 +587,33 @@ class OperatorAutomationRepository:
                 )
                 """
             )
+            cursor.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS {self._prefix}automation_spot_plan_goal (
+                    definition_id UUID PRIMARY KEY REFERENCES
+                        {self._prefix}automation_definition(definition_id),
+                    goal_key TEXT NOT NULL UNIQUE CHECK (
+                        goal_key IN ({spot_goal_keys})
+                    ),
+                    created_at TIMESTAMPTZ NOT NULL
+                )
+                """
+            )
+            cursor.execute(
+                f"""
+                INSERT INTO {self._prefix}automation_spot_plan_goal (
+                    definition_id, goal_key, created_at
+                )
+                SELECT DISTINCT plan.definition_id, %s, NOW()
+                FROM {self._prefix}automation_spot_single_child_plan AS plan
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM {self._prefix}automation_spot_plan_goal AS binding
+                    WHERE binding.definition_id = plan.definition_id
+                )
+                """,
+                (AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,),
+            )
             eligibility_categories = ", ".join(
                 f"'{category}'" for category in AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES
             )
@@ -555,7 +621,7 @@ class OperatorAutomationRepository:
                 f"""
                 CREATE TABLE IF NOT EXISTS {self._prefix}automation_spot_eligibility_cycle (
                     goal_key TEXT NOT NULL CHECK (
-                        goal_key = '{_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY}'
+                        goal_key IN ({spot_goal_keys})
                     ),
                     cycle_number SMALLINT NOT NULL CHECK (cycle_number BETWEEN 1 AND 10),
                     policy_revision SMALLINT NOT NULL DEFAULT 2
@@ -665,7 +731,7 @@ class OperatorAutomationRepository:
                 CREATE TABLE IF NOT EXISTS {self._prefix}automation_spot_eligibility_attempt (
                     run_id UUID NOT NULL REFERENCES {self._prefix}automation_run(run_id),
                     goal_key TEXT NOT NULL DEFAULT '{_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY}'
-                        CHECK (goal_key = '{_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY}'),
+                        CHECK (goal_key IN ({spot_goal_keys})),
                     cycle_number SMALLINT NOT NULL CHECK (cycle_number BETWEEN 1 AND 10),
                     category TEXT NOT NULL CONSTRAINT
                         automation_spot_eligibility_attempt_category_check
@@ -736,9 +802,26 @@ class OperatorAutomationRepository:
                 ALTER TABLE {self._prefix}automation_spot_eligibility_attempt
                 ADD COLUMN IF NOT EXISTS goal_key TEXT NOT NULL
                     DEFAULT '{_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY}'
-                    CHECK (goal_key = '{_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY}')
+                    CHECK (goal_key IN ({spot_goal_keys}))
                 """
             )
+            for table_name in (
+                "automation_spot_eligibility_cycle",
+                "automation_spot_eligibility_attempt",
+            ):
+                cursor.execute(
+                    f"""
+                    ALTER TABLE {self._prefix}{table_name}
+                    DROP CONSTRAINT IF EXISTS {table_name}_goal_key_check
+                    """
+                )
+                cursor.execute(
+                    f"""
+                    ALTER TABLE {self._prefix}{table_name}
+                    ADD CONSTRAINT {table_name}_goal_key_check
+                    CHECK (goal_key IN ({spot_goal_keys}))
+                    """
+                )
             cursor.execute(
                 f"""
                 ALTER TABLE {self._prefix}automation_spot_eligibility_attempt
@@ -984,7 +1067,7 @@ class OperatorAutomationRepository:
                     )
                     """,
                     (
-                        _AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
+                        goal_key,
                         int(orphan["cycle_number"]),
                         str(orphan["run_id"]),
                         str(orphan["definition_id"]),
@@ -1435,6 +1518,138 @@ class OperatorAutomationRepository:
             )
             cursor.execute(
                 f"""
+                CREATE TABLE IF NOT EXISTS {self._prefix}automation_spot_preview_gated_goal (
+                    goal_key TEXT PRIMARY KEY CHECK (
+                        goal_key = '{AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY}'
+                    ),
+                    definition_id UUID UNIQUE REFERENCES
+                        {self._prefix}automation_definition(definition_id),
+                    bound_run_id UUID UNIQUE REFERENCES
+                        {self._prefix}automation_run(run_id),
+                    client_order_id UUID,
+                    eligibility_cycle SMALLINT CHECK (
+                        eligibility_cycle IS NULL
+                        OR eligibility_cycle BETWEEN 1 AND 10
+                    ),
+                    plan_sha256 CHAR(64) CHECK (
+                        plan_sha256 IS NULL
+                        OR plan_sha256 ~ '^[0-9a-f]{{64}}$'
+                    ),
+                    portfolio_id_sha256 CHAR(64) CHECK (
+                        portfolio_id_sha256 IS NULL
+                        OR portfolio_id_sha256 ~ '^[0-9a-f]{{64}}$'
+                    ),
+                    product_id TEXT CHECK (
+                        product_id IS NULL OR product_id = 'BTC-USDC'
+                    ),
+                    preview_allowance_consumed BOOLEAN NOT NULL DEFAULT FALSE,
+                    preview_outcome TEXT CHECK (
+                        preview_outcome IN ('ACCEPTED','REJECTED','UNKNOWN')
+                    ),
+                    preview_failure_class TEXT CHECK (
+                        preview_failure_class IN (
+                            'NONE', 'DOCUMENTED_REJECTION',
+                            'UNCLASSIFIED_REJECTION',
+                            'RESPONSE_SCHEMA_INVALID', 'TRANSPORT_UNKNOWN'
+                        )
+                    ),
+                    preview_warning_present BOOLEAN,
+                    preview_id_sha256 CHAR(64) CHECK (
+                        preview_id_sha256 IS NULL
+                        OR preview_id_sha256 ~ '^[0-9a-f]{{64}}$'
+                    ),
+                    preview_call_count INTEGER CHECK (
+                        preview_call_count IS NULL
+                        OR preview_call_count = 1
+                    ),
+                    preview_call_count_exact BOOLEAN NOT NULL DEFAULT FALSE,
+                    create_allowance_consumed BOOLEAN NOT NULL DEFAULT FALSE,
+                    create_outcome TEXT CHECK (
+                        create_outcome IN ('ACCEPTED','REJECTED','UNKNOWN')
+                    ),
+                    cancel_allowance_consumed BOOLEAN NOT NULL DEFAULT FALSE,
+                    cancel_outcome TEXT CHECK (
+                        cancel_outcome IN ('ACCEPTED','REJECTED','UNKNOWN')
+                    ),
+                    updated_at TIMESTAMPTZ NOT NULL,
+                    CHECK (
+                        definition_id IS NOT NULL
+                        OR (
+                            bound_run_id IS NULL AND client_order_id IS NULL
+                            AND eligibility_cycle IS NULL
+                            AND plan_sha256 IS NULL
+                            AND portfolio_id_sha256 IS NULL
+                            AND product_id IS NULL
+                            AND NOT preview_allowance_consumed
+                            AND preview_outcome IS NULL
+                            AND preview_failure_class IS NULL
+                            AND preview_warning_present IS NULL
+                            AND preview_id_sha256 IS NULL
+                            AND preview_call_count IS NULL
+                            AND NOT preview_call_count_exact
+                            AND NOT create_allowance_consumed
+                            AND create_outcome IS NULL
+                            AND NOT cancel_allowance_consumed
+                            AND cancel_outcome IS NULL
+                        )
+                    ),
+                    CHECK (
+                        NOT preview_allowance_consumed
+                        OR (
+                            bound_run_id IS NOT NULL
+                            AND client_order_id IS NOT NULL
+                            AND eligibility_cycle IS NOT NULL
+                            AND plan_sha256 IS NOT NULL
+                            AND portfolio_id_sha256 IS NOT NULL
+                            AND product_id = 'BTC-USDC'
+                        )
+                    ),
+                    CHECK (
+                        preview_outcome IS NULL
+                        OR (
+                            preview_allowance_consumed
+                            AND preview_failure_class IS NOT NULL
+                            AND preview_warning_present IS NOT NULL
+                            AND (
+                                (preview_call_count_exact
+                                    AND preview_call_count = 1)
+                                OR
+                                (NOT preview_call_count_exact
+                                    AND preview_call_count IS NULL
+                                    AND preview_outcome = 'UNKNOWN')
+                            )
+                        )
+                    ),
+                    CHECK (
+                        preview_id_sha256 IS NULL
+                        OR preview_outcome = 'ACCEPTED'
+                    ),
+                    CHECK (
+                        NOT create_allowance_consumed
+                        OR preview_outcome = 'ACCEPTED'
+                    ),
+                    CHECK (
+                        preview_outcome NOT IN ('REJECTED','UNKNOWN')
+                        OR NOT create_allowance_consumed
+                    ),
+                    CHECK (
+                        NOT cancel_allowance_consumed
+                        OR create_allowance_consumed
+                    )
+                )
+                """
+            )
+            cursor.execute(
+                f"""
+                INSERT INTO {self._prefix}automation_spot_preview_gated_goal (
+                    goal_key, updated_at
+                ) VALUES (%s, NOW())
+                ON CONFLICT (goal_key) DO NOTHING
+                """,
+                (AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,),
+            )
+            cursor.execute(
+                f"""
                 CREATE TABLE IF NOT EXISTS {self._prefix}automation_idempotency (
                     idempotency_key_sha256 CHAR(64) PRIMARY KEY,
                     payload_sha256 CHAR(64) NOT NULL,
@@ -1530,6 +1745,41 @@ class OperatorAutomationRepository:
                 CREATE TRIGGER automation_spot_plan_no_delete
                 BEFORE DELETE ON {self._prefix}automation_spot_single_child_plan
                 FOR EACH ROW EXECUTE FUNCTION {immutable_plan_function}()
+                """
+            )
+            immutable_goal_binding_function = (
+                f'"{self.schema}".reject_automation_spot_goal_binding_mutation'
+            )
+            cursor.execute(
+                f"""
+                CREATE OR REPLACE FUNCTION {immutable_goal_binding_function}()
+                RETURNS trigger LANGUAGE plpgsql AS $$
+                BEGIN
+                    RAISE EXCEPTION 'automation_spot_plan_goal_is_immutable';
+                END;
+                $$
+                """
+            )
+            cursor.execute(
+                f"DROP TRIGGER IF EXISTS automation_spot_plan_goal_no_update "
+                f"ON {self._prefix}automation_spot_plan_goal"
+            )
+            cursor.execute(
+                f"""
+                CREATE TRIGGER automation_spot_plan_goal_no_update
+                BEFORE UPDATE ON {self._prefix}automation_spot_plan_goal
+                FOR EACH ROW EXECUTE FUNCTION {immutable_goal_binding_function}()
+                """
+            )
+            cursor.execute(
+                f"DROP TRIGGER IF EXISTS automation_spot_plan_goal_no_delete "
+                f"ON {self._prefix}automation_spot_plan_goal"
+            )
+            cursor.execute(
+                f"""
+                CREATE TRIGGER automation_spot_plan_goal_no_delete
+                BEFORE DELETE ON {self._prefix}automation_spot_plan_goal
+                FOR EACH ROW EXECUTE FUNCTION {immutable_goal_binding_function}()
                 """
             )
             immutable_cycle_binding_function = (
@@ -1822,13 +2072,93 @@ class OperatorAutomationRepository:
             raise AutomationStoreUnavailable("automation_control_plane_unavailable")
         return self._control_from_row(rows[0])
 
+    def _spot_goal_key_for_definition_cursor(
+        self,
+        cursor: Any,
+        *,
+        definition_id: str,
+    ) -> str:
+        cursor.execute(
+            f"SELECT goal_key FROM {self._prefix}automation_spot_plan_goal "
+            "WHERE definition_id = %s",
+            (definition_id,),
+        )
+        row = self._row(cursor)
+        if row is None or row.get("goal_key") not in _AUTOMATION_SPOT_GOAL_KEYS:
+            raise AutomationStoreUnavailable(
+                "automation_spot_goal_binding_unavailable"
+            )
+        return str(row["goal_key"])
+
+    def _spot_goal_key_for_run_cursor(
+        self,
+        cursor: Any,
+        *,
+        run_id: str,
+    ) -> str:
+        cursor.execute(
+            f"""
+            SELECT binding.goal_key
+            FROM {self._prefix}automation_run AS run
+            JOIN {self._prefix}automation_spot_plan_goal AS binding
+              ON binding.definition_id = run.definition_id
+            WHERE run.run_id = %s
+            """,
+            (run_id,),
+        )
+        row = self._row(cursor)
+        if row is None or row.get("goal_key") not in _AUTOMATION_SPOT_GOAL_KEYS:
+            raise AutomationStoreUnavailable(
+                "automation_spot_goal_binding_unavailable"
+            )
+        return str(row["goal_key"])
+
+    def get_spot_goal_key_for_definition(self, definition_id: str) -> str:
+        _validate_id(definition_id, code="automation_definition_id_invalid")
+        rows = self.database.execute_query(
+            f"SELECT goal_key FROM {self._prefix}automation_spot_plan_goal "
+            "WHERE definition_id = %s",
+            (definition_id,),
+        )
+        if len(rows) != 1 or rows[0].get("goal_key") not in (
+            _AUTOMATION_SPOT_GOAL_KEYS
+        ):
+            raise AutomationStoreNotFound(
+                "automation_spot_goal_binding_not_found"
+            )
+        return str(rows[0]["goal_key"])
+
+    def get_spot_goal_key_for_run(self, run_id: str) -> str:
+        _validate_id(run_id, code="automation_run_id_invalid")
+        rows = self.database.execute_query(
+            f"""
+            SELECT binding.goal_key
+            FROM {self._prefix}automation_run AS run
+            JOIN {self._prefix}automation_spot_plan_goal AS binding
+              ON binding.definition_id = run.definition_id
+            WHERE run.run_id = %s
+            """,
+            (run_id,),
+        )
+        if len(rows) != 1 or rows[0].get("goal_key") not in (
+            _AUTOMATION_SPOT_GOAL_KEYS
+        ):
+            raise AutomationStoreNotFound(
+                "automation_spot_goal_binding_not_found"
+            )
+        return str(rows[0]["goal_key"])
+
     def _lock_spot_single_child_definition_slot(
         self,
         cursor: Any,
         *,
         definition_id: str | None,
+        goal_key: str,
     ) -> None:
-        """Serialize and enforce the goal-wide single plan-bearing definition."""
+        """Serialize one immutable plan-bearing definition per durable goal."""
+
+        if goal_key not in _AUTOMATION_SPOT_GOAL_KEYS:
+            raise AutomationStoreInvalid("automation_spot_goal_key_invalid")
 
         cursor.execute(
             f"SELECT singleton FROM {self._prefix}automation_spot_live_proof_goal WHERE singleton = 1 FOR UPDATE"
@@ -1838,15 +2168,65 @@ class OperatorAutomationRepository:
                 "automation_spot_live_proof_goal_unavailable"
             )
         cursor.execute(
-            f"SELECT DISTINCT definition_id FROM {self._prefix}automation_spot_single_child_plan"
+            f"SELECT * FROM {self._prefix}automation_spot_preview_gated_goal "
+            "WHERE goal_key = %s FOR UPDATE",
+            (AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,),
         )
-        existing_definition_ids = {
-            str(row[0])
-            for row in cursor.fetchall()
-        }
-        if existing_definition_ids and existing_definition_ids != {definition_id}:
+        successor_goal = self._row(cursor)
+        if successor_goal is None:
+            raise AutomationStoreUnavailable(
+                "automation_spot_preview_gated_goal_unavailable"
+            )
+        cursor.execute(
+            f"SELECT definition_id FROM {self._prefix}automation_spot_plan_goal "
+            "WHERE goal_key = %s",
+            (goal_key,),
+        )
+        existing = self._row(cursor)
+        if existing is not None and str(existing["definition_id"]) != definition_id:
+            code = (
+                "automation_spot_preview_successor_definition_already_exists"
+                if goal_key == AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY
+                else "automation_spot_single_child_definition_already_exists"
+            )
+            raise AutomationStoreConflict(code)
+        if goal_key == AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY:
+            return
+
+        cursor.execute(
+            f"SELECT * FROM {self._prefix}automation_spot_live_proof_goal "
+            "WHERE singleton = 1"
+        )
+        predecessor_goal = self._row(cursor)
+        predecessor_run_id = (
+            str(predecessor_goal["bound_run_id"])
+            if predecessor_goal is not None
+            and predecessor_goal.get("bound_run_id") is not None
+            else None
+        )
+        predecessor_terminal = False
+        if predecessor_run_id is not None:
+            cursor.execute(
+                f"SELECT state FROM {self._prefix}automation_run WHERE run_id = %s",
+                (predecessor_run_id,),
+            )
+            predecessor_run = self._row(cursor)
+            predecessor_terminal = bool(
+                predecessor_run is not None
+                and predecessor_run["state"]
+                in {
+                    OperatorAutomationRunState.TERMINAL.value,
+                    OperatorAutomationRunState.UNKNOWN_CONSUMED.value,
+                }
+            )
+        if (
+            predecessor_goal is None
+            or not bool(predecessor_goal["create_allowance_consumed"])
+            or predecessor_goal.get("create_outcome") is None
+            or not predecessor_terminal
+        ):
             raise AutomationStoreConflict(
-                "automation_spot_single_child_definition_already_exists"
+                "automation_spot_preview_predecessor_not_terminal"
             )
 
     def create_definition(
@@ -1854,6 +2234,7 @@ class OperatorAutomationRepository:
         command: AutomationDefinitionCreateCommand,
         *,
         spot_single_child_plan: AutomationSpotSingleChildPlanTerms | None = None,
+        spot_goal_key: str = AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
     ) -> AutomationStoreMutation[AutomationDefinitionRecord]:
         domain = OperatorAutomationDomain(command.domain)
         job_kind = OperatorAutomationJobKind(command.job_kind)
@@ -1874,6 +2255,10 @@ class OperatorAutomationRepository:
             or tuple(command.product_ids) != ("BTC-USDC",)
         ):
             raise AutomationStoreInvalid("automation_spot_plan_definition_mismatch")
+        if spot_single_child_plan is not None and spot_goal_key not in (
+            _AUTOMATION_SPOT_GOAL_KEYS
+        ):
+            raise AutomationStoreInvalid("automation_spot_goal_key_invalid")
 
         with self.database.get_cursor() as cursor:
             replay = self._idempotency_replay(
@@ -1890,6 +2275,16 @@ class OperatorAutomationRepository:
                         terms=spot_single_child_plan,
                         command=command,
                     )
+                    if (
+                        self._spot_goal_key_for_definition_cursor(
+                            cursor,
+                            definition_id=replayed_record.definition_id,
+                        )
+                        != spot_goal_key
+                    ):
+                        raise AutomationStoreConflict(
+                            "automation_spot_goal_binding_mismatch"
+                        )
                 return AutomationStoreMutation(
                     entity=replayed_record,
                     audit_id=replay["audit_id"],
@@ -1900,6 +2295,7 @@ class OperatorAutomationRepository:
                 self._lock_spot_single_child_definition_slot(
                     cursor,
                     definition_id=None,
+                    goal_key=spot_goal_key,
                 )
             now = _utc_now()
             definition_id = _new_id()
@@ -1946,6 +2342,31 @@ class OperatorAutomationRepository:
                     correlation_id=command.correlation_id,
                     recorded_at=now,
                 )
+                cursor.execute(
+                    f"""
+                    INSERT INTO {self._prefix}automation_spot_plan_goal (
+                        definition_id, goal_key, created_at
+                    ) VALUES (%s,%s,%s)
+                    """,
+                    (definition_id, spot_goal_key, now),
+                )
+                if spot_goal_key == AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY:
+                    cursor.execute(
+                        f"""
+                        UPDATE {self._prefix}automation_spot_preview_gated_goal
+                        SET definition_id = %s, updated_at = %s
+                        WHERE goal_key = %s AND definition_id IS NULL
+                        """,
+                        (
+                            definition_id,
+                            now,
+                            AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+                        ),
+                    )
+                    if cursor.rowcount != 1:
+                        raise AutomationStoreConflict(
+                            "automation_spot_preview_successor_definition_already_exists"
+                        )
             self._append_event(
                 cursor,
                 definition_id=definition_id,
@@ -2236,6 +2657,10 @@ class OperatorAutomationRepository:
         self._lock_spot_single_child_definition_slot(
             cursor,
             definition_id=record.definition_id,
+            goal_key=self._spot_goal_key_for_definition_cursor(
+                cursor,
+                definition_id=record.definition_id,
+            ),
         )
         terms = AutomationSpotSingleChildPlanTerms(
             portfolio_id_sha256=previous.portfolio_id_sha256,
@@ -2807,7 +3232,11 @@ class OperatorAutomationRepository:
 
     def list_spot_eligibility_cycles(
         self,
+        *,
+        goal_key: str = AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
     ) -> tuple[AutomationSpotEligibilityCycleRecord, ...]:
+        if goal_key not in _AUTOMATION_SPOT_GOAL_KEYS:
+            raise AutomationStoreInvalid("automation_spot_goal_key_invalid")
         rows = self.database.execute_query(
             f"""
             SELECT *
@@ -2815,7 +3244,7 @@ class OperatorAutomationRepository:
             WHERE goal_key = %s
             ORDER BY cycle_number
             """,
-            (_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,),
+            (goal_key,),
         )
         return tuple(
             self._spot_eligibility_cycle_from_row(row) for row in rows
@@ -2904,6 +3333,10 @@ class OperatorAutomationRepository:
         run: Mapping[str, Any],
         plan: Mapping[str, Any],
     ) -> dict[str, Any]:
+        goal_key = self._spot_goal_key_for_definition_cursor(
+            cursor,
+            definition_id=str(run["definition_id"]),
+        )
         cursor.execute(
             f"""
             SELECT *
@@ -2911,7 +3344,7 @@ class OperatorAutomationRepository:
             WHERE goal_key = %s AND state = 'OPEN'
             FOR UPDATE
             """,
-            (_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,),
+            (goal_key,),
         )
         cycle = self._row(cursor)
         if cycle is None:
@@ -2921,6 +3354,7 @@ class OperatorAutomationRepository:
         expected_client_order_id = self.deterministic_spot_client_order_id(
             run_id=str(run["run_id"]),
             plan_sha256=plan["plan_sha256"],
+            goal_key=goal_key,
         )
         if (
             str(cycle["run_id"]) != str(run["run_id"])
@@ -2945,6 +3379,10 @@ class OperatorAutomationRepository:
         run_id: str,
         cycle_number: int,
     ) -> list[dict[str, Any]]:
+        goal_key = self._spot_goal_key_for_run_cursor(
+            cursor,
+            run_id=run_id,
+        )
         cursor.execute(
             f"""
             SELECT *
@@ -2954,7 +3392,7 @@ class OperatorAutomationRepository:
             """,
             (
                 run_id,
-                _AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
+                goal_key,
                 cycle_number,
             ),
         )
@@ -3015,7 +3453,10 @@ class OperatorAutomationRepository:
                 command=command,
                 resource_type=resource_type,
             )
-            self._lock_spot_live_goal_cursor(cursor)
+            goal_key, _goal = self._lock_spot_goal_for_run_cursor(
+                cursor,
+                run_id=run_id,
+            )
             if replay is not None:
                 return AutomationStoreMutation(
                     self._spot_eligibility_from_json(replay["entity"]),
@@ -3059,7 +3500,7 @@ class OperatorAutomationRepository:
                 """,
                 (
                     run_id,
-                    _AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
+                    goal_key,
                     cycle_number,
                     category,
                     diagnostic,
@@ -3194,7 +3635,10 @@ class OperatorAutomationRepository:
                 command=command,
                 resource_type=resource_type,
             )
-            self._lock_spot_live_goal_cursor(cursor)
+            goal_key, _goal = self._lock_spot_goal_for_run_cursor(
+                cursor,
+                run_id=run_id,
+            )
             if replay is not None:
                 return AutomationStoreMutation(
                     self._spot_eligibility_from_json(replay["entity"]),
@@ -3358,7 +3802,7 @@ class OperatorAutomationRepository:
                         audit_id,
                         command.correlation_id,
                         now,
-                        _AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
+                        goal_key,
                         cycle_number,
                     ),
                 )
@@ -3609,18 +4053,78 @@ class OperatorAutomationRepository:
         )
 
     @staticmethod
+    def _spot_preview_goal_from_row(
+        row: Mapping[str, Any],
+    ) -> AutomationSpotPreviewGatedGoalRecord:
+        return AutomationSpotPreviewGatedGoalRecord(
+            goal_key=row["goal_key"],
+            definition_id=(
+                str(row["definition_id"])
+                if row.get("definition_id") is not None
+                else None
+            ),
+            bound_run_id=(
+                str(row["bound_run_id"])
+                if row.get("bound_run_id") is not None
+                else None
+            ),
+            client_order_id=(
+                str(row["client_order_id"])
+                if row.get("client_order_id") is not None
+                else None
+            ),
+            eligibility_cycle=(
+                int(row["eligibility_cycle"])
+                if row.get("eligibility_cycle") is not None
+                else None
+            ),
+            plan_sha256=row.get("plan_sha256"),
+            portfolio_id_sha256=row.get("portfolio_id_sha256"),
+            product_id=row.get("product_id"),
+            preview_allowance_consumed=bool(
+                row["preview_allowance_consumed"]
+            ),
+            preview_outcome=row.get("preview_outcome"),
+            preview_failure_class=row.get("preview_failure_class"),
+            preview_warning_present=(
+                bool(row["preview_warning_present"])
+                if row.get("preview_warning_present") is not None
+                else None
+            ),
+            preview_id_sha256=row.get("preview_id_sha256"),
+            preview_call_count=(
+                int(row["preview_call_count"])
+                if row.get("preview_call_count") is not None
+                else None
+            ),
+            preview_call_count_exact=bool(row["preview_call_count_exact"]),
+            create_allowance_consumed=bool(
+                row["create_allowance_consumed"]
+            ),
+            create_outcome=row.get("create_outcome"),
+            cancel_allowance_consumed=bool(
+                row["cancel_allowance_consumed"]
+            ),
+            cancel_outcome=row.get("cancel_outcome"),
+            updated_at=_iso(row["updated_at"]) or "",
+        )
+
+    @staticmethod
     def deterministic_spot_client_order_id(
         *,
         run_id: str,
         plan_sha256: str,
+        goal_key: str = AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
     ) -> str:
         _validate_id(run_id, code="automation_run_id_invalid")
         if _SHA256_PATTERN.fullmatch(plan_sha256) is None:
             raise AutomationStoreInvalid("automation_spot_plan_hash_invalid")
+        if goal_key not in _AUTOMATION_SPOT_GOAL_KEYS:
+            raise AutomationStoreInvalid("automation_spot_goal_key_invalid")
         return str(
             uuid.uuid5(
                 _AUTOMATION_SPOT_CLIENT_ORDER_NAMESPACE,
-                f"{_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY}:{run_id}:{plan_sha256}",
+                f"{goal_key}:{run_id}:{plan_sha256}",
             )
         )
 
@@ -3633,6 +4137,10 @@ class OperatorAutomationRepository:
         cycle_number: int,
     ) -> None:
         run_id = str(run["run_id"])
+        goal_key = self._spot_goal_key_for_definition_cursor(
+            cursor,
+            definition_id=str(run["definition_id"]),
+        )
         cursor.execute(
             f"""
             SELECT *
@@ -3640,7 +4148,7 @@ class OperatorAutomationRepository:
             WHERE goal_key = %s AND cycle_number = %s
             FOR UPDATE
             """,
-            (_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY, cycle_number),
+            (goal_key, cycle_number),
         )
         cycle = self._row(cursor)
         cycle_fresh_until = (
@@ -3651,6 +4159,7 @@ class OperatorAutomationRepository:
         expected_client_order_id = self.deterministic_spot_client_order_id(
             run_id=run_id,
             plan_sha256=plan["plan_sha256"],
+            goal_key=goal_key,
         )
         if (
             cycle is None
@@ -3682,11 +4191,7 @@ class OperatorAutomationRepository:
             WHERE run_id = %s AND goal_key = %s AND cycle_number = %s
             FOR UPDATE
             """,
-            (
-                run_id,
-                _AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
-                cycle_number,
-            ),
+            (run_id, goal_key, cycle_number),
         )
         attempts = self._rows(cursor)
         if (
@@ -3713,6 +4218,369 @@ class OperatorAutomationRepository:
                 "automation_spot_exact_eligibility_not_proven"
             )
 
+    @staticmethod
+    def _spot_preview_goal_json(
+        record: AutomationSpotPreviewGatedGoalRecord,
+    ) -> dict[str, Any]:
+        return asdict(record)
+
+    @staticmethod
+    def _spot_preview_goal_from_json(
+        value: Mapping[str, Any],
+    ) -> AutomationSpotPreviewGatedGoalRecord:
+        return AutomationSpotPreviewGatedGoalRecord(
+            goal_key=value["goal_key"],
+            definition_id=value.get("definition_id"),
+            bound_run_id=value.get("bound_run_id"),
+            client_order_id=value.get("client_order_id"),
+            eligibility_cycle=(
+                int(value["eligibility_cycle"])
+                if value.get("eligibility_cycle") is not None
+                else None
+            ),
+            plan_sha256=value.get("plan_sha256"),
+            portfolio_id_sha256=value.get("portfolio_id_sha256"),
+            product_id=value.get("product_id"),
+            preview_allowance_consumed=bool(
+                value["preview_allowance_consumed"]
+            ),
+            preview_outcome=value.get("preview_outcome"),
+            preview_failure_class=value.get("preview_failure_class"),
+            preview_warning_present=value.get("preview_warning_present"),
+            preview_id_sha256=value.get("preview_id_sha256"),
+            preview_call_count=(
+                int(value["preview_call_count"])
+                if value.get("preview_call_count") is not None
+                else None
+            ),
+            preview_call_count_exact=bool(value["preview_call_count_exact"]),
+            create_allowance_consumed=bool(
+                value["create_allowance_consumed"]
+            ),
+            create_outcome=value.get("create_outcome"),
+            cancel_allowance_consumed=bool(
+                value["cancel_allowance_consumed"]
+            ),
+            cancel_outcome=value.get("cancel_outcome"),
+            updated_at=value["updated_at"],
+        )
+
+    def start_spot_preview_invocation(
+        self,
+        run_id: str,
+        *,
+        eligibility_cycle: int,
+        command: AutomationMutationCommand,
+    ) -> AutomationStoreMutation[AutomationSpotPreviewGatedGoalRecord]:
+        """Durably consume the V2 Preview allowance before network I/O."""
+
+        _validate_id(run_id, code="automation_run_id_invalid")
+        if type(eligibility_cycle) is not int or not 1 <= eligibility_cycle <= 10:
+            raise AutomationStoreInvalid(
+                "automation_spot_eligibility_cycle_invalid"
+            )
+        resource_type = "spot_preview_invocation_start"
+        with self.database.get_cursor() as cursor:
+            replay = self._idempotency_replay(
+                cursor,
+                command=command,
+                resource_type=resource_type,
+            )
+            goal_key, goal = self._lock_spot_goal_for_run_cursor(
+                cursor,
+                run_id=run_id,
+            )
+            if replay is not None:
+                return AutomationStoreMutation(
+                    self._spot_preview_goal_from_json(replay["entity"]),
+                    replay["audit_id"],
+                    replay["correlation_id"],
+                    True,
+                )
+            if goal_key != AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY:
+                raise AutomationStoreConflict(
+                    "automation_spot_preview_goal_mismatch"
+                )
+            if bool(goal["preview_allowance_consumed"]):
+                raise AutomationStoreConflict(
+                    "automation_spot_preview_allowance_consumed"
+                )
+            run, plan = self._require_spot_run_plan(
+                cursor,
+                run_id=run_id,
+                allowed_states=frozenset(
+                    {OperatorAutomationRunState.AWAITING_OPERATOR_AUTHORIZATION}
+                ),
+            )
+            if str(goal.get("definition_id")) != str(run["definition_id"]):
+                raise AutomationStoreConflict(
+                    "automation_spot_preview_candidate_mismatch"
+                )
+            self._require_spot_eligible_cycle(
+                cursor,
+                run=run,
+                plan=plan,
+                cycle_number=eligibility_cycle,
+            )
+            client_order_id = self.deterministic_spot_client_order_id(
+                run_id=run_id,
+                plan_sha256=plan["plan_sha256"],
+                goal_key=goal_key,
+            )
+            now = _utc_now()
+            audit_id = _new_id()
+            diagnostic = "automation_spot_preview_invocation_started"
+            cursor.execute(
+                f"""
+                UPDATE {self._prefix}automation_spot_preview_gated_goal
+                SET bound_run_id = %s, client_order_id = %s,
+                    eligibility_cycle = %s, plan_sha256 = %s,
+                    portfolio_id_sha256 = %s, product_id = %s,
+                    preview_allowance_consumed = TRUE, updated_at = %s
+                WHERE goal_key = %s AND preview_allowance_consumed = FALSE
+                RETURNING *
+                """,
+                (
+                    run_id,
+                    client_order_id,
+                    eligibility_cycle,
+                    plan["plan_sha256"],
+                    plan["portfolio_id_sha256"],
+                    plan["product_id"],
+                    now,
+                    AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+                ),
+            )
+            goal_row = self._row(cursor)
+            if goal_row is None:
+                raise AutomationStoreConflict(
+                    "automation_spot_preview_allowance_consumed"
+                )
+            cursor.execute(
+                f"""
+                UPDATE {self._prefix}automation_run
+                SET diagnostic_code = %s, audit_id = %s,
+                    correlation_id = %s, client_order_id = %s,
+                    live_attempt_consumed = TRUE, updated_at = %s
+                WHERE run_id = %s
+                """,
+                (
+                    diagnostic,
+                    audit_id,
+                    command.correlation_id,
+                    client_order_id,
+                    now,
+                    run_id,
+                ),
+            )
+            record = self._spot_preview_goal_from_row(goal_row)
+            self._append_event(
+                cursor,
+                definition_id=str(run["definition_id"]),
+                run_id=run_id,
+                from_state=run["state"],
+                to_state=run["state"],
+                diagnostic_code=diagnostic,
+                audit_id=audit_id,
+                idempotency_key_sha256=_hash(command.idempotency_key),
+                correlation_id=command.correlation_id,
+                recorded_at=now,
+            )
+            self._store_idempotency(
+                cursor,
+                command=command,
+                resource_type=resource_type,
+                resource_id=run_id,
+                audit_id=audit_id,
+                result=self._spot_preview_goal_json(record),
+                recorded_at=now,
+            )
+            return AutomationStoreMutation(
+                record,
+                audit_id,
+                command.correlation_id,
+            )
+
+    def finalize_spot_preview_invocation(
+        self,
+        run_id: str,
+        *,
+        outcome: str,
+        failure_class: str,
+        warning_present: bool,
+        preview_id_sha256: str | None,
+        preview_call_count: int | None,
+        call_count_exact: bool,
+        command: AutomationMutationCommand,
+    ) -> AutomationStoreMutation[AutomationSpotPreviewGatedGoalRecord]:
+        """Persist only allowlisted Preview classification and accounting."""
+
+        _validate_id(run_id, code="automation_run_id_invalid")
+        normalized = str(outcome).upper()
+        allowed_failures = {
+            "NONE",
+            "DOCUMENTED_REJECTION",
+            "UNCLASSIFIED_REJECTION",
+            "RESPONSE_SCHEMA_INVALID",
+            "TRANSPORT_UNKNOWN",
+        }
+        if (
+            normalized not in _AUTOMATION_SPOT_MUTATION_OUTCOMES
+            or failure_class not in allowed_failures
+            or type(warning_present) is not bool
+            or type(call_count_exact) is not bool
+            or (
+                call_count_exact
+                and preview_call_count != 1
+            )
+            or (
+                not call_count_exact
+                and (
+                    preview_call_count is not None
+                    or normalized != "UNKNOWN"
+                )
+            )
+            or (normalized == "ACCEPTED" and failure_class != "NONE")
+            or (normalized == "REJECTED" and failure_class not in {
+                "DOCUMENTED_REJECTION",
+                "UNCLASSIFIED_REJECTION",
+            })
+            or (normalized == "UNKNOWN" and failure_class not in {
+                "RESPONSE_SCHEMA_INVALID",
+                "TRANSPORT_UNKNOWN",
+            })
+            or (
+                preview_id_sha256 is not None
+                and (
+                    normalized != "ACCEPTED"
+                    or _SHA256_PATTERN.fullmatch(preview_id_sha256) is None
+                )
+            )
+        ):
+            raise AutomationStoreInvalid(
+                "automation_spot_preview_result_invalid"
+            )
+        resource_type = "spot_preview_invocation_finalize"
+        with self.database.get_cursor() as cursor:
+            replay = self._idempotency_replay(
+                cursor,
+                command=command,
+                resource_type=resource_type,
+            )
+            goal_key, goal = self._lock_spot_goal_for_run_cursor(
+                cursor,
+                run_id=run_id,
+            )
+            if replay is not None:
+                return AutomationStoreMutation(
+                    self._spot_preview_goal_from_json(replay["entity"]),
+                    replay["audit_id"],
+                    replay["correlation_id"],
+                    True,
+                )
+            cursor.execute(
+                f"SELECT * FROM {self._prefix}automation_run "
+                "WHERE run_id = %s FOR UPDATE",
+                (run_id,),
+            )
+            run = self._row(cursor)
+            if (
+                goal_key != AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY
+                or run is None
+                or str(goal.get("bound_run_id")) != run_id
+                or not bool(goal["preview_allowance_consumed"])
+                or goal.get("preview_outcome") is not None
+                or run.get("diagnostic_code")
+                != "automation_spot_preview_invocation_started"
+            ):
+                raise AutomationStoreConflict(
+                    "automation_spot_preview_invocation_not_started"
+                )
+            if normalized == "ACCEPTED":
+                target = OperatorAutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
+                diagnostic = "automation_spot_preview_accepted_create_ready"
+            elif normalized == "REJECTED":
+                target = OperatorAutomationRunState.TERMINAL
+                diagnostic = "automation_spot_preview_rejected"
+            else:
+                target = OperatorAutomationRunState.UNKNOWN_CONSUMED
+                diagnostic = "automation_spot_preview_unknown_consumed"
+            now = _utc_now()
+            audit_id = _new_id()
+            cursor.execute(
+                f"""
+                UPDATE {self._prefix}automation_spot_preview_gated_goal
+                SET preview_outcome = %s, preview_failure_class = %s,
+                    preview_warning_present = %s, preview_id_sha256 = %s,
+                    preview_call_count = %s,
+                    preview_call_count_exact = %s, updated_at = %s
+                WHERE goal_key = %s AND preview_outcome IS NULL
+                RETURNING *
+                """,
+                (
+                    normalized,
+                    failure_class,
+                    warning_present,
+                    preview_id_sha256,
+                    preview_call_count,
+                    call_count_exact,
+                    now,
+                    AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+                ),
+            )
+            goal_row = self._row(cursor)
+            if goal_row is None:
+                raise AutomationStoreConflict(
+                    "automation_spot_preview_already_finalized"
+                )
+            cursor.execute(
+                f"""
+                UPDATE {self._prefix}automation_run
+                SET state = %s, diagnostic_code = %s, audit_id = %s,
+                    correlation_id = %s,
+                    coinbase_api_call_count = coinbase_api_call_count + %s,
+                    updated_at = %s
+                WHERE run_id = %s
+                """,
+                (
+                    target.value,
+                    diagnostic,
+                    audit_id,
+                    command.correlation_id,
+                    preview_call_count
+                    if call_count_exact and preview_call_count is not None
+                    else 0,
+                    now,
+                    run_id,
+                ),
+            )
+            record = self._spot_preview_goal_from_row(goal_row)
+            self._append_event(
+                cursor,
+                definition_id=str(run["definition_id"]),
+                run_id=run_id,
+                from_state=run["state"],
+                to_state=target.value,
+                diagnostic_code=diagnostic,
+                audit_id=audit_id,
+                idempotency_key_sha256=_hash(command.idempotency_key),
+                correlation_id=command.correlation_id,
+                recorded_at=now,
+            )
+            self._store_idempotency(
+                cursor,
+                command=command,
+                resource_type=resource_type,
+                resource_id=run_id,
+                audit_id=audit_id,
+                result=self._spot_preview_goal_json(record),
+                recorded_at=now,
+            )
+            return AutomationStoreMutation(
+                record,
+                audit_id,
+                command.correlation_id,
+            )
     @staticmethod
     def _validate_spot_mutation_result(
         *,
@@ -3828,17 +4696,10 @@ class OperatorAutomationRepository:
                 raise AutomationStoreConflict(
                     "automation_control_plane_not_active"
                 )
-            cursor.execute(
-                f"""
-                SELECT * FROM {self._prefix}automation_spot_live_proof_goal
-                WHERE singleton = 1 FOR UPDATE
-                """
+            goal_key, goal = self._lock_spot_goal_for_run_cursor(
+                cursor,
+                run_id=run_id,
             )
-            goal = self._row(cursor)
-            if goal is None:
-                raise AutomationStoreUnavailable(
-                    "automation_spot_live_proof_goal_unavailable"
-                )
             if bool(goal["create_allowance_consumed"]):
                 raise AutomationStoreConflict(
                     "automation_spot_create_allowance_consumed"
@@ -3850,6 +4711,19 @@ class OperatorAutomationRepository:
                     {OperatorAutomationRunState.AWAITING_OPERATOR_AUTHORIZATION}
                 ),
             )
+            if goal_key == AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY and (
+                goal.get("preview_outcome") != "ACCEPTED"
+                or str(goal.get("bound_run_id")) != run_id
+                or goal.get("plan_sha256") != plan["plan_sha256"]
+                or goal.get("portfolio_id_sha256")
+                != plan["portfolio_id_sha256"]
+                or goal.get("product_id") != plan["product_id"]
+                or run.get("diagnostic_code")
+                != "automation_spot_preview_accepted_create_ready"
+            ):
+                raise AutomationStoreConflict(
+                    "automation_spot_preview_acceptance_not_proven"
+                )
             self._require_spot_eligible_cycle(
                 cursor,
                 run=run,
@@ -3867,6 +4741,7 @@ class OperatorAutomationRepository:
             client_order_id = self.deterministic_spot_client_order_id(
                 run_id=run_id,
                 plan_sha256=plan["plan_sha256"],
+                goal_key=goal_key,
             )
             now = _utc_now()
             audit_id = _new_id()
@@ -3903,15 +4778,30 @@ class OperatorAutomationRepository:
             )
             execution_row = self._row(cursor)
             assert execution_row is not None
-            cursor.execute(
-                f"""
-                UPDATE {self._prefix}automation_spot_live_proof_goal
-                SET create_allowance_consumed = TRUE, bound_run_id = %s,
-                    client_order_id = %s, updated_at = %s
-                WHERE singleton = 1
-                """,
-                (run_id, client_order_id, now),
-            )
+            if goal_key == AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY:
+                cursor.execute(
+                    f"""
+                    UPDATE {self._prefix}automation_spot_live_proof_goal
+                    SET create_allowance_consumed = TRUE, bound_run_id = %s,
+                        client_order_id = %s, updated_at = %s
+                    WHERE singleton = 1
+                    """,
+                    (run_id, client_order_id, now),
+                )
+            else:
+                cursor.execute(
+                    f"""
+                    UPDATE {self._prefix}automation_spot_preview_gated_goal
+                    SET create_allowance_consumed = TRUE, updated_at = %s
+                    WHERE goal_key = %s AND preview_outcome = 'ACCEPTED'
+                      AND create_allowance_consumed = FALSE
+                    """,
+                    (now, AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY),
+                )
+                if cursor.rowcount != 1:
+                    raise AutomationStoreConflict(
+                        "automation_spot_create_allowance_consumed"
+                    )
             cursor.execute(
                 f"""
                 UPDATE {self._prefix}automation_run
@@ -3998,10 +4888,10 @@ class OperatorAutomationRepository:
                     replay["correlation_id"],
                     True,
                 )
-            cursor.execute(
-                f"SELECT * FROM {self._prefix}automation_spot_live_proof_goal WHERE singleton = 1 FOR UPDATE"
+            goal_key, goal = self._lock_spot_goal_for_run_cursor(
+                cursor,
+                run_id=run_id,
             )
-            goal = self._row(cursor)
             cursor.execute(
                 f"SELECT * FROM {self._prefix}automation_run WHERE run_id = %s FOR UPDATE",
                 (run_id,),
@@ -4019,8 +4909,7 @@ class OperatorAutomationRepository:
                     "automation_spot_run_execution_not_found"
                 )
             if (
-                goal is None
-                or str(goal.get("bound_run_id")) != run_id
+                str(goal.get("bound_run_id")) != run_id
                 or not bool(goal["create_allowance_consumed"])
                 or OperatorAutomationRunState(run["state"])
                 is not OperatorAutomationRunState.INVOCATION_STARTED
@@ -4076,13 +4965,28 @@ class OperatorAutomationRepository:
             )
             execution_row = self._row(cursor)
             assert execution_row is not None
-            cursor.execute(
-                f"""
-                UPDATE {self._prefix}automation_spot_live_proof_goal
-                SET create_outcome = %s, updated_at = %s WHERE singleton = 1
-                """,
-                (normalized, now),
-            )
+            if goal_key == AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY:
+                cursor.execute(
+                    f"""
+                    UPDATE {self._prefix}automation_spot_live_proof_goal
+                    SET create_outcome = %s, updated_at = %s
+                    WHERE singleton = 1
+                    """,
+                    (normalized, now),
+                )
+            else:
+                cursor.execute(
+                    f"""
+                    UPDATE {self._prefix}automation_spot_preview_gated_goal
+                    SET create_outcome = %s, updated_at = %s
+                    WHERE goal_key = %s
+                    """,
+                    (
+                        normalized,
+                        now,
+                        AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+                    ),
+                )
             cursor.execute(
                 f"""
                 UPDATE {self._prefix}automation_run
@@ -4189,14 +5093,10 @@ class OperatorAutomationRepository:
                 raise AutomationStoreConflict(
                     "automation_control_plane_not_active"
                 )
-            cursor.execute(
-                f"SELECT * FROM {self._prefix}automation_spot_live_proof_goal WHERE singleton = 1 FOR UPDATE"
+            goal_key, goal = self._lock_spot_goal_for_run_cursor(
+                cursor,
+                run_id=run_id,
             )
-            goal = self._row(cursor)
-            if goal is None:
-                raise AutomationStoreUnavailable(
-                    "automation_spot_live_proof_goal_unavailable"
-                )
             if bool(goal["cancel_allowance_consumed"]):
                 raise AutomationStoreConflict(
                     "automation_spot_cancel_allowance_consumed"
@@ -4263,14 +5163,29 @@ class OperatorAutomationRepository:
             )
             execution_row = self._row(cursor)
             assert execution_row is not None
-            cursor.execute(
-                f"""
-                UPDATE {self._prefix}automation_spot_live_proof_goal
-                SET cancel_allowance_consumed = TRUE, updated_at = %s
-                WHERE singleton = 1
-                """,
-                (now,),
-            )
+            if goal_key == AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY:
+                cursor.execute(
+                    f"""
+                    UPDATE {self._prefix}automation_spot_live_proof_goal
+                    SET cancel_allowance_consumed = TRUE, updated_at = %s
+                    WHERE singleton = 1
+                    """,
+                    (now,),
+                )
+            else:
+                cursor.execute(
+                    f"""
+                    UPDATE {self._prefix}automation_spot_preview_gated_goal
+                    SET cancel_allowance_consumed = TRUE, updated_at = %s
+                    WHERE goal_key = %s
+                      AND cancel_allowance_consumed = FALSE
+                    """,
+                    (now, AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY),
+                )
+                if cursor.rowcount != 1:
+                    raise AutomationStoreConflict(
+                        "automation_spot_cancel_allowance_consumed"
+                    )
             cursor.execute(
                 f"""
                 UPDATE {self._prefix}automation_run
@@ -4353,10 +5268,10 @@ class OperatorAutomationRepository:
                     replay["correlation_id"],
                     True,
                 )
-            cursor.execute(
-                f"SELECT * FROM {self._prefix}automation_spot_live_proof_goal WHERE singleton = 1 FOR UPDATE"
+            goal_key, goal = self._lock_spot_goal_for_run_cursor(
+                cursor,
+                run_id=run_id,
             )
-            goal = self._row(cursor)
             cursor.execute(
                 f"SELECT * FROM {self._prefix}automation_run WHERE run_id = %s FOR UPDATE",
                 (run_id,),
@@ -4374,8 +5289,7 @@ class OperatorAutomationRepository:
                     "automation_spot_run_execution_not_found"
                 )
             if (
-                goal is None
-                or str(goal.get("bound_run_id")) != run_id
+                str(goal.get("bound_run_id")) != run_id
                 or not bool(goal["cancel_allowance_consumed"])
                 or not bool(execution["cancel_allowance_consumed"])
                 or execution["cancel_outcome"] is not None
@@ -4424,13 +5338,28 @@ class OperatorAutomationRepository:
             )
             execution_row = self._row(cursor)
             assert execution_row is not None
-            cursor.execute(
-                f"""
-                UPDATE {self._prefix}automation_spot_live_proof_goal
-                SET cancel_outcome = %s, updated_at = %s WHERE singleton = 1
-                """,
-                (normalized, now),
-            )
+            if goal_key == AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY:
+                cursor.execute(
+                    f"""
+                    UPDATE {self._prefix}automation_spot_live_proof_goal
+                    SET cancel_outcome = %s, updated_at = %s
+                    WHERE singleton = 1
+                    """,
+                    (normalized, now),
+                )
+            else:
+                cursor.execute(
+                    f"""
+                    UPDATE {self._prefix}automation_spot_preview_gated_goal
+                    SET cancel_outcome = %s, updated_at = %s
+                    WHERE goal_key = %s
+                    """,
+                    (
+                        normalized,
+                        now,
+                        AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+                    ),
+                )
             cursor.execute(
                 f"""
                 UPDATE {self._prefix}automation_run
@@ -4519,8 +5448,29 @@ class OperatorAutomationRepository:
             )
         return self._spot_goal_from_row(rows[0])
 
-    def has_spot_single_child_run(self) -> bool:
-        """Return whether the goal-wide, plan-bearing run claim already exists."""
+    def get_spot_preview_gated_goal(
+        self,
+    ) -> AutomationSpotPreviewGatedGoalRecord:
+        rows = self.database.execute_query(
+            f"SELECT * FROM {self._prefix}automation_spot_preview_gated_goal "
+            "WHERE goal_key = %s",
+            (AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,),
+        )
+        if len(rows) != 1:
+            raise AutomationStoreUnavailable(
+                "automation_spot_preview_gated_goal_unavailable"
+            )
+        return self._spot_preview_goal_from_row(rows[0])
+
+    def has_spot_single_child_run(
+        self,
+        *,
+        goal_key: str = AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
+    ) -> bool:
+        """Return whether one plan-bearing run is claimed for this goal."""
+
+        if goal_key not in _AUTOMATION_SPOT_GOAL_KEYS:
+            raise AutomationStoreInvalid("automation_spot_goal_key_invalid")
 
         rows = self.database.execute_query(
             f"""
@@ -4530,8 +5480,12 @@ class OperatorAutomationRepository:
                 JOIN {self._prefix}automation_spot_single_child_plan AS plan
                   ON plan.definition_id = run.definition_id
                  AND plan.definition_revision = run.definition_revision
+                JOIN {self._prefix}automation_spot_plan_goal AS binding
+                  ON binding.definition_id = run.definition_id
+                WHERE binding.goal_key = %s
             ) AS claimed
-            """
+            """,
+            (goal_key,),
         )
         if len(rows) != 1:
             raise AutomationStoreUnavailable(
@@ -4645,18 +5599,18 @@ class OperatorAutomationRepository:
                 (definition_id, int(definition["revision"])),
             )
             if cursor.fetchone() is not None:
-                cursor.execute(
-                    f"""
-                    SELECT singleton
-                    FROM {self._prefix}automation_spot_live_proof_goal
-                    WHERE singleton = 1
-                    FOR UPDATE
-                    """
+                goal_key = self._spot_goal_key_for_definition_cursor(
+                    cursor,
+                    definition_id=definition_id,
                 )
-                if cursor.fetchone() is None:
-                    raise AutomationStoreUnavailable(
-                        "automation_spot_live_proof_goal_unavailable"
-                    )
+                if goal_key == AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY:
+                    self._lock_spot_live_goal_cursor(cursor)
+                else:
+                    successor_goal = self._lock_spot_preview_goal_cursor(cursor)
+                    if str(successor_goal.get("definition_id")) != definition_id:
+                        raise AutomationStoreConflict(
+                            "automation_spot_preview_candidate_mismatch"
+                        )
                 cursor.execute(
                     f"""
                     SELECT 1
@@ -4664,8 +5618,10 @@ class OperatorAutomationRepository:
                     JOIN {self._prefix}automation_spot_single_child_plan AS plan
                       ON plan.definition_id = run.definition_id
                      AND plan.definition_revision = run.definition_revision
+                    WHERE run.definition_id = %s
                     LIMIT 1
-                    """
+                    """,
+                    (definition_id,),
                 )
                 if cursor.fetchone() is not None:
                     raise AutomationStoreConflict(
@@ -4831,6 +5787,37 @@ class OperatorAutomationRepository:
             )
         return goal
 
+    def _lock_spot_preview_goal_cursor(self, cursor: Any) -> dict[str, Any]:
+        cursor.execute(
+            f"""
+            SELECT *
+            FROM {self._prefix}automation_spot_preview_gated_goal
+            WHERE goal_key = %s
+            FOR UPDATE
+            """,
+            (AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,),
+        )
+        goal = self._row(cursor)
+        if goal is None:
+            raise AutomationStoreUnavailable(
+                "automation_spot_preview_gated_goal_unavailable"
+            )
+        return goal
+
+    def _lock_spot_goal_for_run_cursor(
+        self,
+        cursor: Any,
+        *,
+        run_id: str,
+    ) -> tuple[str, dict[str, Any]]:
+        goal_key = self._spot_goal_key_for_run_cursor(
+            cursor,
+            run_id=run_id,
+        )
+        if goal_key == AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY:
+            return goal_key, self._lock_spot_live_goal_cursor(cursor)
+        return goal_key, self._lock_spot_preview_goal_cursor(cursor)
+
     def _insert_spot_eligibility_cycle_cursor(
         self,
         cursor: Any,
@@ -4842,9 +5829,14 @@ class OperatorAutomationRepository:
         correlation_id: str,
         recorded_at: datetime,
     ) -> AutomationSpotEligibilityCycleRecord:
+        goal_key = self._spot_goal_key_for_definition_cursor(
+            cursor,
+            definition_id=str(run["definition_id"]),
+        )
         client_order_id = self.deterministic_spot_client_order_id(
             run_id=str(run["run_id"]),
             plan_sha256=plan["plan_sha256"],
+            goal_key=goal_key,
         )
         cursor.execute(
             f"""
@@ -4861,7 +5853,7 @@ class OperatorAutomationRepository:
             RETURNING *
             """,
             (
-                _AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
+                goal_key,
                 cycle_number,
                 _AUTOMATION_SPOT_ELIGIBILITY_POLICY_REVISION,
                 str(run["run_id"]),
@@ -4929,6 +5921,11 @@ class OperatorAutomationRepository:
                 "automation_single_child_run_not_resumable"
             )
 
+        goal_key = self._spot_goal_key_for_definition_cursor(
+            cursor,
+            definition_id=str(row["definition_id"]),
+        )
+
         cursor.execute(
             f"""
             SELECT *
@@ -4937,7 +5934,7 @@ class OperatorAutomationRepository:
             ORDER BY cycle_number
             FOR UPDATE
             """,
-            (_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,),
+            (goal_key,),
         )
         cycles = self._rows(cursor)
         if any(cycle["state"] == "OPEN" for cycle in cycles):
@@ -5016,7 +6013,10 @@ class OperatorAutomationRepository:
                 command=command,
                 resource_type=resource_type,
             )
-            self._lock_spot_live_goal_cursor(cursor)
+            goal_key, _goal = self._lock_spot_goal_for_run_cursor(
+                cursor,
+                run_id=run_id,
+            )
             if replay is not None:
                 identity = replay["entity"]
                 replay_run_id = identity.get("run_id")
@@ -5047,7 +6047,7 @@ class OperatorAutomationRepository:
                     FOR UPDATE
                     """,
                     (
-                        _AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
+                        goal_key,
                         replay_cycle_number,
                     ),
                 )
@@ -5097,7 +6097,7 @@ class OperatorAutomationRepository:
                         WHERE goal_key = %s AND state = 'OPEN'
                         FOR UPDATE
                         """,
-                        (_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,),
+                        (goal_key,),
                     )
                     open_cycles = self._rows(cursor)
                     replay_during_newer_cycle = bool(
@@ -5517,6 +6517,7 @@ class OperatorAutomationRepository:
         recovered: list[AutomationRunRecord] = []
         with self.database.get_cursor() as cursor:
             self._lock_spot_live_goal_cursor(cursor)
+            self._lock_spot_preview_goal_cursor(cursor)
             cursor.execute(
                 f"""
                 SELECT * FROM {self._prefix}automation_run
@@ -5529,8 +6530,39 @@ class OperatorAutomationRepository:
             rows = self._rows(cursor)
             for row in rows:
                 current = OperatorAutomationRunState(row["state"])
+                cursor.execute(
+                    f"SELECT goal_key FROM {self._prefix}automation_spot_plan_goal "
+                    "WHERE definition_id = %s",
+                    (str(row["definition_id"]),),
+                )
+                binding = self._row(cursor)
+                goal_key = (
+                    str(binding["goal_key"])
+                    if binding is not None
+                    and binding.get("goal_key") in _AUTOMATION_SPOT_GOAL_KEYS
+                    else None
+                )
                 execution = None
                 open_eligibility_cycle = None
+                preview_inflight = bool(
+                    goal_key == AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY
+                    and current
+                    is OperatorAutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
+                    and row.get("diagnostic_code")
+                    == "automation_spot_preview_invocation_started"
+                )
+                if (
+                    goal_key == AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY
+                    and current
+                    is OperatorAutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
+                    and row.get("diagnostic_code")
+                    == "automation_spot_preview_accepted_create_ready"
+                ):
+                    # A finalized accepted Preview is a durable, known
+                    # checkpoint.  It may resume only through the separately
+                    # claimed V2 Create allowance and must not be consumed by
+                    # process restart.
+                    continue
                 if current is OperatorAutomationRunState.ACTIVE:
                     cursor.execute(
                         f"""
@@ -5566,7 +6598,7 @@ class OperatorAutomationRepository:
                         FOR UPDATE
                         """,
                         (
-                            _AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
+                            goal_key or _AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
                             str(row["run_id"]),
                         ),
                     )
@@ -5579,7 +6611,11 @@ class OperatorAutomationRepository:
                                 open_eligibility_cycle["cycle_number"]
                             ),
                         )
-                if current in _POST_INVOCATION_STATES:
+                if preview_inflight:
+                    target = OperatorAutomationRunState.UNKNOWN_CONSUMED
+                    diagnostic = "automation_spot_preview_unknown_consumed"
+                    live_consumed = True
+                elif current in _POST_INVOCATION_STATES:
                     target = OperatorAutomationRunState.UNKNOWN_CONSUMED
                     diagnostic = "restart_unknown_consumed"
                     live_consumed = True
@@ -5624,7 +6660,7 @@ class OperatorAutomationRepository:
                             correlation_id,
                             now,
                             str(row["run_id"]),
-                            _AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
+                            goal_key or _AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
                             cycle_number,
                         ),
                     )
@@ -5645,13 +6681,38 @@ class OperatorAutomationRepository:
                             audit_id,
                             correlation_id,
                             now,
-                            _AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
+                            goal_key or _AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
                             cycle_number,
                         ),
                     )
                     if cursor.rowcount != 1:
                         raise AutomationStoreUnavailable(
                             "automation_spot_eligibility_cycle_recovery_failed"
+                        )
+                if preview_inflight:
+                    cursor.execute(
+                        f"""
+                        UPDATE {self._prefix}automation_spot_preview_gated_goal
+                        SET preview_outcome = 'UNKNOWN',
+                            preview_failure_class = 'TRANSPORT_UNKNOWN',
+                            preview_warning_present = FALSE,
+                            preview_id_sha256 = NULL,
+                            preview_call_count = NULL,
+                            preview_call_count_exact = FALSE,
+                            updated_at = %s
+                        WHERE goal_key = %s AND bound_run_id = %s
+                          AND preview_allowance_consumed
+                          AND preview_outcome IS NULL
+                        """,
+                        (
+                            now,
+                            AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+                            str(row["run_id"]),
+                        ),
+                    )
+                    if cursor.rowcount != 1:
+                        raise AutomationStoreUnavailable(
+                            "automation_spot_preview_recovery_failed"
                         )
                 if current in _POST_INVOCATION_STATES:
                     if execution is None:
@@ -5685,15 +6746,30 @@ class OperatorAutomationRepository:
                                 str(row["run_id"]),
                             ),
                         )
-                        cursor.execute(
-                            f"""
-                            UPDATE {self._prefix}automation_spot_live_proof_goal
-                            SET create_outcome = 'UNKNOWN', updated_at = %s
-                            WHERE singleton = 1 AND bound_run_id = %s
-                              AND create_outcome IS NULL
-                            """,
-                            (now, str(row["run_id"])),
-                        )
+                        if goal_key == AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY:
+                            cursor.execute(
+                                f"""
+                                UPDATE {self._prefix}automation_spot_preview_gated_goal
+                                SET create_outcome = 'UNKNOWN', updated_at = %s
+                                WHERE goal_key = %s AND bound_run_id = %s
+                                  AND create_outcome IS NULL
+                                """,
+                                (
+                                    now,
+                                    AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+                                    str(row["run_id"]),
+                                ),
+                            )
+                        else:
+                            cursor.execute(
+                                f"""
+                                UPDATE {self._prefix}automation_spot_live_proof_goal
+                                SET create_outcome = 'UNKNOWN', updated_at = %s
+                                WHERE singleton = 1 AND bound_run_id = %s
+                                  AND create_outcome IS NULL
+                                """,
+                                (now, str(row["run_id"])),
+                            )
                     elif (
                         execution is not None
                         and bool(execution["cancel_allowance_consumed"])
@@ -5719,15 +6795,30 @@ class OperatorAutomationRepository:
                                 str(row["run_id"]),
                             ),
                         )
-                        cursor.execute(
-                            f"""
-                            UPDATE {self._prefix}automation_spot_live_proof_goal
-                            SET cancel_outcome = 'UNKNOWN', updated_at = %s
-                            WHERE singleton = 1 AND bound_run_id = %s
-                              AND cancel_outcome IS NULL
-                            """,
-                            (now, str(row["run_id"])),
-                        )
+                        if goal_key == AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY:
+                            cursor.execute(
+                                f"""
+                                UPDATE {self._prefix}automation_spot_preview_gated_goal
+                                SET cancel_outcome = 'UNKNOWN', updated_at = %s
+                                WHERE goal_key = %s AND bound_run_id = %s
+                                  AND cancel_outcome IS NULL
+                                """,
+                                (
+                                    now,
+                                    AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+                                    str(row["run_id"]),
+                                ),
+                            )
+                        else:
+                            cursor.execute(
+                                f"""
+                                UPDATE {self._prefix}automation_spot_live_proof_goal
+                                SET cancel_outcome = 'UNKNOWN', updated_at = %s
+                                WHERE singleton = 1 AND bound_run_id = %s
+                                  AND cancel_outcome IS NULL
+                                """,
+                                (now, str(row["run_id"])),
+                            )
                 cursor.execute(
                     f"""
                     UPDATE {self._prefix}automation_run

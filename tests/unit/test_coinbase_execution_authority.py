@@ -597,6 +597,7 @@ def test_legacy_admin_mvp_runtime_cannot_enable_exchange_mutations(
     assert production_hits == ["application/admin_api/mvp_service.py"]
     assert sorted(canonical_scope_hits) == [
         "api/v1/routes/orders.py",
+        "application/admin_api/operator_automation.py",
         "application/admin_api/operator_follow_up_materialization_runtime.py",
         "core/coinbase_execution_authority.py",
     ]

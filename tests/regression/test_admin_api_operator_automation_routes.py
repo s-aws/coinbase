@@ -951,6 +951,60 @@ def _authorize_single_child_body(**overrides: Any) -> dict[str, Any]:
     return body
 
 
+def _authorize_preview_gated_single_child_body(
+    **overrides: Any,
+) -> dict[str, Any]:
+    body: dict[str, Any] = {
+        "confirm_single_preview": True,
+        "confirm_conditional_single_child_create": True,
+        "confirm_final_eligibility_refresh": True,
+        "confirm_account_wide_active_spot_order_catalog_read": True,
+        "confirm_preview_unknown_consumes_allowance": True,
+        "confirm_create_unknown_consumes_allowance": True,
+        "expected_plan_sha256": "a" * 64,
+        "reason": "Preview then conditionally create this exact candidate",
+    }
+    body.update(overrides)
+    return body
+
+
+def _install_authorize_preview_gated_probe(
+    monkeypatch: pytest.MonkeyPatch,
+    repository: _FakeRepository,
+) -> None:
+    monkeypatch.setattr(
+        operator_automation_routes,
+        "_operator_automation_live_action_ready",
+        lambda _action: True,
+    )
+
+    def authorize_preview_gated_single_child(
+        _service: OperatorAutomationService,
+        *,
+        run_id: str,
+        request: Any,
+        context: Any,
+    ) -> AutomationRunMutationResponse:
+        repository._record(
+            "authorize_preview_gated_single_child",
+            run_id=run_id,
+            request=request,
+            context=context,
+        )
+        return AutomationRunMutationResponse(
+            run=AutomationRunItem.model_validate(_run()),
+            audit_id=AUDIT_ID,
+            correlation_id=context.correlation_id,
+        )
+
+    monkeypatch.setattr(
+        OperatorAutomationService,
+        "authorize_preview_gated_single_child",
+        authorize_preview_gated_single_child,
+        raising=False,
+    )
+
+
 def _install_refresh_eligibility_probe(
     monkeypatch: pytest.MonkeyPatch,
     repository: _FakeRepository,
@@ -1168,6 +1222,41 @@ def test_authorize_single_child_route_binds_exact_run_request_and_context(
     )
     assert call["context"].operator_intent == (
         "authorize_automation_single_child_create"
+    )
+
+
+def test_preview_gated_route_binds_distinct_acknowledgements_and_context(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repository = _FakeRepository()
+    _install_authorize_preview_gated_probe(monkeypatch, repository)
+
+    response = _client(repository).post(
+        f"/api/v1/automation/runs/{RUN_ID}/"
+        "authorize-preview-gated-single-child",
+        json=_authorize_preview_gated_single_child_body(),
+        headers=_headers(
+            roles="trader",
+            operator_intent=(
+                "authorize_automation_preview_gated_single_child"
+            ),
+            idempotency_key="automation-preview-gated-authorization-1",
+        ),
+    )
+
+    assert response.status_code == 200
+    assert len(repository.calls) == 1
+    name, call = repository.calls[0]
+    assert name == "authorize_preview_gated_single_child"
+    assert call["run_id"] == RUN_ID
+    assert call["request"].model_dump(mode="json") == (
+        _authorize_preview_gated_single_child_body()
+    )
+    assert call["context"].idempotency_key == (
+        "automation-preview-gated-authorization-1"
+    )
+    assert call["context"].operator_intent == (
+        "authorize_automation_preview_gated_single_child"
     )
 
 

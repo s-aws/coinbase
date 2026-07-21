@@ -5,33 +5,33 @@ working on the enterprise admin platform.
 
 ## Current Handoff State
 
-Goal `operator_spot_automation_operator_candidate_and_single_live_proof_v1` is complete.
-Status: `complete`.
-Current action: `complete_terminal_coinbase_create_explicitly_rejected`.
-Default action: `await_authorization_for_preview_gated_successor_candidate`.
+Goal `operator_spot_automation_preview_gated_successor_candidate_v2` is complete.
+Status: `complete_terminal_eligibility_cycles_exhausted`.
+Current action: `complete_terminal_eligibility_exhausted_preview_create_cancel_unconsumed`.
+Default action: `await_operator_direction_for_next_mvp`.
 
-The authenticated Automation UI created, reviewed, enabled, and ran exactly one
-backend-owned `BTC-USDC` single-child definition against the approved Test
-portfolio. Aggregate primary evidence: definitions `1`, immutable plan revisions `2`,
-runs `1`, run claims `1`, candidates `1`, and eligibility cycles `4/10`.
-The four bounded no-retry cycles invoked `28` exact reads across the approved
-Eight-category contract; cycles 2-4 succeeded and cycle 1 stopped after four
-reads at the product-schema compatibility boundary.
+The distinct V2 candidate exhausted all ten no-retry Eight-category cycles
+with exact distribution `8, 5, 5, 4, 5, 5, 5, 5, 5, 8`. Durable accounting is
+`55` Coinbase reads and zero Preview/Create/Cancel calls. Terminal readback is
+`BLOCKED` / `automation_run_blocked`, no actions, no Preview claim, and all
+live allowances unconsumed.
 
-Durable terminal accounting is exact: eligibility reads `28`, Coinbase Create
-calls `1`, Coinbase Cancel calls `0`, and total Coinbase API calls `29`.
-Run state is `TERMINAL` with fixed diagnostic
-`automation_spot_create_rejected`. The Create allowance is consumed; the
-Cancel allowance is unconsumed and ineligible because Coinbase explicitly
-rejected the Create and accepted no child. The private exchange reason is not
-persisted, reconstructed, or exposed, so no narrower rejection cause is
-claimed. No retry, fallback, redirect, alternate identity, second child, or
-Cancel occurred.
+The sanitized boundary is Coinbase Best Bid/Ask source-time freshness under
+the unchanged 30-second guard. Do not substitute receipt time, Product fields,
+or an eleventh cycle without a separately bounded successor decision. V1 and
+all predecessor evidence remain sealed.
 
-Validation evidence: backend full `1179 passed, 6 skipped` parallel and `664 passed, 150 skipped` serial; focused compatibility and execution suites passed; frontend full `1555 passed`; E2E `15/15`; focused session-gate tests `55 passed`; independent safety audit `PASS`; blind-contextless audit `PASS`.
+Validation evidence: backend full `1180 passed, 6 skipped` parallel and
+`668 passed, 150 skipped` serial; focused backend `240 passed`; frontend full
+`1563 passed`; E2E `15/15`; build, typecheck, lint, generated-contract, and
+command-security gates `PASS`; independent safety and blind-contextless audits
+`PASS`.
 Release/deployment gate: `PASS` (canonical rerun complete).
-Every immutable R1-R12 artifact byte and documented hash remains preserved,
-and R8 content and hash remain inaccessible.
+Every immutable R1-R12 and predecessor artifact byte and documented hash
+remains preserved, and R8 content and hash remain inaccessible.
+Canonical terminal marker: V2 eligibility cycles `10/10`; exact Coinbase reads
+`55`; Preview/Create/Cancel calls `0/0/0`; allowances
+`unconsumed/unconsumed/unconsumed`; allowed actions `0`.
 
 ### Historical pre-closeout handoff checkpoint
 

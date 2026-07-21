@@ -28,6 +28,7 @@ from core.enums import (
 )
 from database.database import PostgresDB
 from database.operator_automation import (
+    AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
     AutomationDefinitionCreateCommand,
     AutomationMutationCommand,
     AutomationSpotSingleChildPlanTerms,
@@ -213,6 +214,8 @@ def test_schema_is_idempotent_and_persists_only_hashed_key_and_actor(
         "automation_spot_eligibility_cycle",
         "automation_spot_eligibility_attempt",
         "automation_spot_live_proof_goal",
+        "automation_spot_plan_goal",
+        "automation_spot_preview_gated_goal",
         "automation_spot_run_execution",
         "automation_spot_single_child_plan",
     }
@@ -1296,7 +1299,8 @@ def _allocate_spot_eligibility_cycle(
         expected_plan_sha256=plan_sha256,
         command=_mutation(f"{seed}-cycle"),
     )
-    cycles = repository.list_spot_eligibility_cycles()
+    goal_key = repository.get_spot_goal_key_for_run(run_id)
+    cycles = repository.list_spot_eligibility_cycles(goal_key=goal_key)
     assert cycles[-1].state == "OPEN"
     assert resumed.entity.run.state is OperatorAutomationRunState.PREPARING
     assert resumed.entity.cycle == cycles[-1]
@@ -1315,7 +1319,8 @@ def _complete_eligible_cycle(
         run.definition_revision,
     )
     assert plan is not None
-    cycles = repository.list_spot_eligibility_cycles()
+    goal_key = repository.get_spot_goal_key_for_run(run_id)
+    cycles = repository.list_spot_eligibility_cycles(goal_key=goal_key)
     if not cycles or cycles[-1].state != "OPEN":
         _allocate_spot_eligibility_cycle(
             repository,
@@ -1323,7 +1328,7 @@ def _complete_eligible_cycle(
             plan.plan_sha256,
             seed,
         )
-        cycles = repository.list_spot_eligibility_cycles()
+        cycles = repository.list_spot_eligibility_cycles(goal_key=goal_key)
     cycle_number = cycles[-1].cycle_number
     for index, category in enumerate(AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES):
         started = repository.start_spot_eligibility_attempt(
@@ -1351,7 +1356,7 @@ def _complete_eligible_cycle(
         assert finalized.entity.outcome == "SUCCEEDED"
         assert finalized.entity.eligible is True
         assert finalized.entity.cycle_number == cycle_number
-    cycle = repository.list_spot_eligibility_cycles()[-1]
+    cycle = repository.list_spot_eligibility_cycles(goal_key=goal_key)[-1]
     assert cycle.state == "SUCCEEDED"
     assert cycle.coinbase_api_call_count == len(
         AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES
@@ -3032,3 +3037,331 @@ def test_spot_active_child_survives_restart_until_exact_cancel_starts(
     assert execution.cancel_outcome == "UNKNOWN"
     assert execution.cancel_call_count is None
     assert execution.cancel_call_count_exact is False
+
+
+def _seal_rejected_predecessor(
+    repository: OperatorAutomationRepository,
+    seed: str,
+):
+    definition, plan, run = _prepare_spot_run(repository, seed)
+    _complete_eligible_cycle(repository, run.run_id, f"{seed}-eligibility")
+    repository.start_spot_create_invocation(
+        run.run_id,
+        eligibility_cycle=1,
+        command=_mutation(f"{seed}-create-start"),
+    )
+    repository.finalize_spot_create_invocation(
+        run.run_id,
+        outcome="REJECTED",
+        child_terminal=False,
+        coinbase_api_call_count=1,
+        call_count_exact=True,
+        read_call_count=0,
+        read_call_count_exact=True,
+        command=_mutation(f"{seed}-create-finish"),
+    )
+    return definition, plan, run
+
+
+def test_preview_gated_successor_uses_distinct_goal_and_preserves_predecessor_rows(
+    repository_harness: _Harness,
+):
+    repository = repository_harness.repository()
+    predecessor = _seal_rejected_predecessor(repository, "preview-successor")
+    predecessor_tables = (
+        "automation_definition",
+        "automation_spot_single_child_plan",
+        "automation_run",
+        "automation_spot_eligibility_cycle",
+        "automation_spot_eligibility_attempt",
+        "automation_spot_run_execution",
+        "automation_spot_live_proof_goal",
+        "automation_event_outbox",
+    )
+    before = {
+        table: repository_harness.rows(
+            f'SELECT * FROM "{repository_harness.schema}".{table} ORDER BY 1'
+        )
+        for table in predecessor_tables
+    }
+
+    successor = repository.create_definition(
+        _definition_command(
+            "preview-successor-v2",
+            product_ids=("BTC-USDC",),
+        ),
+        spot_single_child_plan=_spot_plan_terms(),
+        spot_goal_key=AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+    ).entity
+
+    assert successor.definition_id != predecessor[0].definition_id
+    assert repository.has_spot_single_child_run() is True
+    assert repository.has_spot_single_child_run(
+        goal_key=AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY
+    ) is False
+    assert repository.get_spot_goal_key_for_definition(successor.definition_id) == (
+        AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY
+    )
+    assert repository.get_spot_goal_key_for_definition(
+        predecessor[0].definition_id
+    ) != AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY
+    goal = repository.get_spot_preview_gated_goal()
+    assert goal.definition_id == successor.definition_id
+    assert goal.preview_allowance_consumed is False
+    assert goal.create_allowance_consumed is False
+    assert goal.cancel_allowance_consumed is False
+
+    enabled = repository.transition_definition(
+        successor.definition_id,
+        "enable",
+        _mutation("preview-successor-v2-enable"),
+    ).entity
+    repository.claim_one_shot_run(
+        enabled.definition_id,
+        _mutation("preview-successor-v2-run"),
+    )
+    assert repository.has_spot_single_child_run(
+        goal_key=AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY
+    ) is True
+    for table, rows in before.items():
+        current = repository_harness.rows(
+            f'SELECT * FROM "{repository_harness.schema}".{table} ORDER BY 1'
+        )
+        assert all(row in current for row in rows)
+
+    with pytest.raises(AutomationStoreConflict) as second_successor:
+        repository.create_definition(
+            _definition_command(
+                "preview-successor-v2-duplicate",
+                product_ids=("BTC-USDC",),
+            ),
+            spot_single_child_plan=_spot_plan_terms(),
+            spot_goal_key=AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+        )
+    assert second_successor.value.code == (
+        "automation_spot_preview_successor_definition_already_exists"
+    )
+
+
+def test_preview_claim_is_single_use_and_rejection_leaves_create_unconsumed(
+    repository_harness: _Harness,
+):
+    repository = repository_harness.repository()
+    _seal_rejected_predecessor(repository, "preview-claim-predecessor")
+    definition = repository.create_definition(
+        _definition_command(
+            "preview-claim-successor",
+            product_ids=("BTC-USDC",),
+        ),
+        spot_single_child_plan=_spot_plan_terms(),
+        spot_goal_key=AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+    ).entity
+    enabled = repository.transition_definition(
+        definition.definition_id,
+        "enable",
+        _mutation("preview-claim-enable"),
+    ).entity
+    run = repository.claim_one_shot_run(
+        enabled.definition_id,
+        _mutation("preview-claim-run"),
+    ).entity
+    repository.transition_run(
+        run.run_id,
+        OperatorAutomationRunState.PREPARING,
+        diagnostic_code="preparing",
+        command=_mutation("preview-claim-preparing"),
+    )
+    _complete_eligible_cycle(repository, run.run_id, "preview-claim-cycle")
+    cycle = repository.list_spot_eligibility_cycles(
+        goal_key=AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY
+    )[0]
+
+    started = repository.start_spot_preview_invocation(
+        run.run_id,
+        eligibility_cycle=cycle.cycle_number,
+        command=_mutation("preview-claim-start"),
+    )
+    assert started.entity.preview_allowance_consumed is True
+    assert started.entity.preview_outcome is None
+    assert repository.get_spot_run_execution(run.run_id) is None
+    with pytest.raises(AutomationStoreConflict) as duplicate:
+        repository.start_spot_preview_invocation(
+            run.run_id,
+            eligibility_cycle=cycle.cycle_number,
+            command=_mutation("preview-claim-second"),
+        )
+    assert duplicate.value.code == "automation_spot_preview_allowance_consumed"
+
+    finalized = repository.finalize_spot_preview_invocation(
+        run.run_id,
+        outcome="REJECTED",
+        failure_class="DOCUMENTED_REJECTION",
+        warning_present=False,
+        preview_id_sha256=None,
+        preview_call_count=1,
+        call_count_exact=True,
+        command=_mutation("preview-claim-finish"),
+    )
+    assert finalized.entity.preview_outcome == "REJECTED"
+    assert finalized.entity.preview_failure_class == "DOCUMENTED_REJECTION"
+    assert finalized.entity.create_allowance_consumed is False
+    assert finalized.entity.bound_run_id == run.run_id
+    terminal = repository.get_run(run.run_id)
+    assert terminal is not None
+    assert terminal.state is OperatorAutomationRunState.TERMINAL
+    assert terminal.diagnostic_code == "automation_spot_preview_rejected"
+    assert terminal.create_call_count == 0
+
+
+def test_accepted_preview_unlocks_only_v2_create_allowance(
+    repository_harness: _Harness,
+):
+    repository = repository_harness.repository()
+    _seal_rejected_predecessor(repository, "preview-create-predecessor")
+    predecessor_goal = repository.get_spot_live_proof_goal()
+    definition = repository.create_definition(
+        _definition_command(
+            "preview-create-successor",
+            product_ids=("BTC-USDC",),
+        ),
+        spot_single_child_plan=_spot_plan_terms(),
+        spot_goal_key=AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+    ).entity
+    enabled = repository.transition_definition(
+        definition.definition_id,
+        "enable",
+        _mutation("preview-create-enable"),
+    ).entity
+    run = repository.claim_one_shot_run(
+        enabled.definition_id,
+        _mutation("preview-create-run"),
+    ).entity
+    repository.transition_run(
+        run.run_id,
+        OperatorAutomationRunState.PREPARING,
+        diagnostic_code="preparing",
+        command=_mutation("preview-create-preparing"),
+    )
+    _complete_eligible_cycle(repository, run.run_id, "preview-create-cycle")
+    repository.start_spot_preview_invocation(
+        run.run_id,
+        eligibility_cycle=1,
+        command=_mutation("preview-create-preview-start"),
+    )
+    repository.finalize_spot_preview_invocation(
+        run.run_id,
+        outcome="ACCEPTED",
+        failure_class="NONE",
+        warning_present=True,
+        preview_id_sha256="a" * 64,
+        preview_call_count=1,
+        call_count_exact=True,
+        command=_mutation("preview-create-preview-finish"),
+    )
+
+    started = repository.start_spot_create_invocation(
+        run.run_id,
+        eligibility_cycle=1,
+        command=_mutation("preview-create-start"),
+    )
+    assert started.entity.create_allowance_consumed is True
+    assert repository.get_spot_live_proof_goal() == predecessor_goal
+    successor_goal = repository.get_spot_preview_gated_goal()
+    assert successor_goal.preview_outcome == "ACCEPTED"
+    assert successor_goal.create_allowance_consumed is True
+    assert successor_goal.create_outcome is None
+
+    repository.finalize_spot_create_invocation(
+        run.run_id,
+        outcome="ACCEPTED",
+        child_terminal=False,
+        coinbase_api_call_count=1,
+        call_count_exact=True,
+        read_call_count=1,
+        read_call_count_exact=True,
+        command=_mutation("preview-create-finish"),
+    )
+    active_goal = repository.get_spot_preview_gated_goal()
+    assert active_goal.create_outcome == "ACCEPTED"
+    assert active_goal.cancel_allowance_consumed is False
+    active_run = repository.get_run(run.run_id)
+    assert active_run is not None
+    assert active_run.state is OperatorAutomationRunState.ACTIVE
+
+    repository.start_spot_cancel_invocation(
+        run.run_id,
+        client_order_id=started.entity.client_order_id,
+        command=_mutation("preview-create-cancel-start"),
+    )
+    repository.finalize_spot_cancel_invocation(
+        run.run_id,
+        outcome="ACCEPTED",
+        child_terminal=True,
+        coinbase_api_call_count=1,
+        call_count_exact=True,
+        read_call_count=2,
+        read_call_count_exact=True,
+        command=_mutation("preview-create-cancel-finish"),
+    )
+    terminal_goal = repository.get_spot_preview_gated_goal()
+    assert terminal_goal.cancel_allowance_consumed is True
+    assert terminal_goal.cancel_outcome == "ACCEPTED"
+    terminal_run = repository.get_run(run.run_id)
+    assert terminal_run is not None
+    assert terminal_run.state is OperatorAutomationRunState.TERMINAL
+    assert terminal_run.coinbase_api_call_count == 6
+    assert terminal_run.create_call_count == 1
+    assert terminal_run.cancel_call_count == 1
+
+
+def test_preview_claim_restart_is_unknown_consumed_without_create(
+    repository_harness: _Harness,
+):
+    repository = repository_harness.repository()
+    _seal_rejected_predecessor(repository, "preview-restart-predecessor")
+    definition = repository.create_definition(
+        _definition_command(
+            "preview-restart-successor",
+            product_ids=("BTC-USDC",),
+        ),
+        spot_single_child_plan=_spot_plan_terms(),
+        spot_goal_key=AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+    ).entity
+    enabled = repository.transition_definition(
+        definition.definition_id,
+        "enable",
+        _mutation("preview-restart-enable"),
+    ).entity
+    run = repository.claim_one_shot_run(
+        enabled.definition_id,
+        _mutation("preview-restart-run"),
+    ).entity
+    repository.transition_run(
+        run.run_id,
+        OperatorAutomationRunState.PREPARING,
+        diagnostic_code="preparing",
+        command=_mutation("preview-restart-preparing"),
+    )
+    _complete_eligible_cycle(repository, run.run_id, "preview-restart-cycle")
+    repository.start_spot_preview_invocation(
+        run.run_id,
+        eligibility_cycle=1,
+        command=_mutation("preview-restart-start"),
+    )
+
+    restarted = repository_harness.repository()
+    recovered = restarted.recover_runs_after_restart()
+
+    assert [item.run_id for item in recovered] == [run.run_id]
+    assert recovered[0].state is OperatorAutomationRunState.UNKNOWN_CONSUMED
+    assert recovered[0].diagnostic_code == (
+        "automation_spot_preview_unknown_consumed"
+    )
+    goal = restarted.get_spot_preview_gated_goal()
+    assert goal.preview_allowance_consumed is True
+    assert goal.preview_outcome == "UNKNOWN"
+    assert goal.preview_failure_class == "TRANSPORT_UNKNOWN"
+    assert goal.preview_call_count is None
+    assert goal.preview_call_count_exact is False
+    assert goal.create_allowance_consumed is False
+    assert restarted.recover_runs_after_restart() == ()

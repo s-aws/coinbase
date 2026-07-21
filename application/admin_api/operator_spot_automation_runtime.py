@@ -270,6 +270,9 @@ def build_spot_automation_create_admission(
     configured_portfolio_id: str,
     planned_budget: Mapping[str, Any],
     now: datetime,
+    goal_key: str = (
+        "operator_spot_automation_single_child_execution_adapter_v1"
+    ),
 ) -> ValidatedSpotAutomationAdmissionEvidence:
     """Join one fresh request-local eight-read cycle to canonical admission."""
 
@@ -299,6 +302,7 @@ def build_spot_automation_create_admission(
     expected_client_order_id = derive_spot_eligibility_client_order_id(
         run_id=run_id,
         plan_sha256=plan_sha256,
+        goal_key=goal_key,
     )
     expected_categories = tuple(APPROVED_SPOT_ELIGIBILITY_ORDER)
     base_size = _decimal(

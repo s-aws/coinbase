@@ -110,7 +110,11 @@ _V1_RUN_DIAGNOSTICS = {
         }
     ),
     AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION: frozenset(
-        {"awaiting_operator_authorization"}
+        {
+            "awaiting_operator_authorization",
+            "automation_spot_preview_invocation_started",
+            "automation_spot_preview_accepted_create_ready",
+        }
     ),
     AutomationRunState.BLOCKED: frozenset(
         {
@@ -129,6 +133,7 @@ _V1_RUN_DIAGNOSTICS = {
             "unknown_consumed",
             "automation_spot_create_unknown_consumed",
             "automation_spot_cancel_unknown_consumed",
+            "automation_spot_preview_unknown_consumed",
         }
     )
     | AUTOMATION_SPOT_SINGLE_CHILD_SUCCESSOR_DIAGNOSTICS[
@@ -159,6 +164,7 @@ _V1_RUN_DIAGNOSTICS = {
             "automation_spot_cancel_rejected",
             "automation_spot_cancel_accepted_terminal",
             "automation_spot_cancel_accepted_nonterminal",
+            "automation_spot_preview_rejected",
         }
     )
     | AUTOMATION_SPOT_SINGLE_CHILD_SUCCESSOR_DIAGNOSTICS[
@@ -223,10 +229,16 @@ class AutomationRunMutationActivity(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    operation: Literal["LOCAL", "CREATE", "SAFE_CLOSEOUT"] = (
+    operation: Literal[
+        "LOCAL",
+        "CREATE",
+        "PREVIEW_GATED_CREATE",
+        "SAFE_CLOSEOUT",
+    ] = (
         "LOCAL"
     )
     coinbase_api_call_count: int | None = Field(default=0, ge=0)
+    preview_call_count: int | None = Field(default=0, ge=0, le=1)
     read_call_count: int | None = Field(default=0, ge=0)
     exchange_mutation_count: int | None = Field(default=0, ge=0, le=1)
     create_call_count: int | None = Field(default=0, ge=0, le=1)
@@ -238,6 +250,7 @@ class AutomationRunMutationActivity(BaseModel):
     def validate_call_accounting(self) -> Self:
         counts = (
             self.coinbase_api_call_count,
+            self.preview_call_count,
             self.read_call_count,
             self.exchange_mutation_count,
             self.create_call_count,
@@ -249,33 +262,42 @@ class AutomationRunMutationActivity(BaseModel):
                 raise ValueError("automation_run_mutation_activity_invalid")
             total = cast(int, self.coinbase_api_call_count)
             reads = cast(int, self.read_call_count)
+            preview = cast(int, self.preview_call_count)
             exchange = cast(int, self.exchange_mutation_count)
             create = cast(int, self.create_call_count)
             cancel = cast(int, self.cancel_call_count)
-            if total != reads + exchange:
+            if total != preview + reads + exchange:
                 raise ValueError("automation_run_mutation_activity_invalid")
             if exchange != create + cancel:
                 raise ValueError("automation_run_mutation_activity_invalid")
             if self.operation == "LOCAL" and (
-                reads != 0 or create != 0 or cancel != 0
+                preview != 0 or reads != 0 or create != 0 or cancel != 0
             ):
                 raise ValueError("automation_run_mutation_activity_invalid")
             if self.operation == "CREATE" and (
-                create not in {0, 1} or cancel != 0
+                preview != 0 or create not in {0, 1} or cancel != 0
+            ):
+                raise ValueError("automation_run_mutation_activity_invalid")
+            if self.operation == "PREVIEW_GATED_CREATE" and (
+                preview not in {0, 1}
+                or create not in {0, 1}
+                or cancel != 0
             ):
                 raise ValueError("automation_run_mutation_activity_invalid")
             if self.operation == "SAFE_CLOSEOUT" and (
-                create != 0 or cancel not in {0, 1}
+                preview != 0 or create != 0 or cancel not in {0, 1}
             ):
                 raise ValueError("automation_run_mutation_activity_invalid")
             return self
 
         if not any_unknown or self.operation == "LOCAL":
             raise ValueError("automation_run_mutation_activity_invalid")
-        total, reads, exchange, create, cancel = counts
+        total, preview, reads, exchange, create, cancel = counts
         if total is not None:
             raise ValueError("automation_run_mutation_activity_invalid")
         if self.operation == "CREATE" and (
+            preview != 0
+            or
             cancel != 0
             or create not in {0, 1, None}
             or exchange not in {0, 1, None}
@@ -286,8 +308,21 @@ class AutomationRunMutationActivity(BaseModel):
             )
         ):
             raise ValueError("automation_run_mutation_activity_invalid")
+        if self.operation == "PREVIEW_GATED_CREATE" and (
+            cancel != 0
+            or preview not in {0, 1, None}
+            or create not in {0, 1, None}
+            or exchange not in {0, 1, None}
+            or (
+                create is not None
+                and exchange is not None
+                and create != exchange
+            )
+        ):
+            raise ValueError("automation_run_mutation_activity_invalid")
         if self.operation == "SAFE_CLOSEOUT" and (
-            create != 0
+            preview != 0
+            or create != 0
             or cancel not in {0, 1, None}
             or exchange not in {0, 1, None}
             or (
@@ -380,6 +415,7 @@ class AutomationDefinitionCreateRequest(BaseModel):
     display_name: str = Field(min_length=1, max_length=120)
     job_kind: AutomationJobKind
     product_ids: list[str] = Field(default_factory=list, max_length=100)
+    spot_execution_mode: Literal["PREVIEW_GATED_V2"] | None = None
     single_child_order: AutomationSpotSingleChildOrderSpec | None = None
 
     @field_validator("display_name", mode="before")
@@ -413,6 +449,11 @@ class AutomationDefinitionCreateRequest(BaseModel):
             or self.product_ids != ["BTC-USDC"]
         ):
             raise ValueError("automation_single_child_job_kind_blocked")
+        if (
+            self.spot_execution_mode == "PREVIEW_GATED_V2"
+            and self.single_child_order is None
+        ):
+            raise ValueError("automation_preview_gated_plan_required")
         return self
 
 
@@ -480,6 +521,26 @@ class AutomationSingleChildAuthorizationRequest(BaseModel):
     confirm_final_eligibility_refresh: Literal[True]
     confirm_account_wide_active_spot_order_catalog_read: Literal[True]
     confirm_unknown_consumes_allowance: Literal[True]
+    expected_plan_sha256: str = Field(pattern=_SHA256_PATTERN)
+    reason: str = Field(min_length=1, max_length=255)
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def normalize_reason(cls, value: object) -> object:
+        return _normalized_operator_text(value, code="automation_reason_invalid")
+
+
+class AutomationPreviewGatedSingleChildAuthorizationRequest(BaseModel):
+    """Preview-first exact-run acknowledgements; terms remain backend-owned."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    confirm_single_preview: Literal[True]
+    confirm_conditional_single_child_create: Literal[True]
+    confirm_final_eligibility_refresh: Literal[True]
+    confirm_account_wide_active_spot_order_catalog_read: Literal[True]
+    confirm_preview_unknown_consumes_allowance: Literal[True]
+    confirm_create_unknown_consumes_allowance: Literal[True]
     expected_plan_sha256: str = Field(pattern=_SHA256_PATTERN)
     reason: str = Field(min_length=1, max_length=255)
 
@@ -649,6 +710,10 @@ class AutomationDefinitionItem(BaseModel):
     job_kind: AutomationJobKind
     lifecycle_state: AutomationDefinitionState
     product_ids: list[str] = Field(default_factory=list, max_length=100)
+    spot_execution_mode: Literal[
+        "CREATE_ONLY_V1",
+        "PREVIEW_GATED_V2",
+    ] | None = None
     single_child_order: AutomationSpotSingleChildOrderSpec | None = None
     schedule: AutomationDefinitionSchedule
     adapter_status: Literal[
@@ -708,6 +773,26 @@ class AutomationRunItem(BaseModel):
     ] = "UNAVAILABLE"
     live_execution_available: bool = False
     live_attempt_consumed: bool = False
+    spot_execution_mode: Literal[
+        "CREATE_ONLY_V1",
+        "PREVIEW_GATED_V2",
+    ] | None = None
+    preview_allowance_consumed: bool = False
+    preview_outcome: Literal["ACCEPTED", "REJECTED", "UNKNOWN"] | None = None
+    preview_failure_class: Literal[
+        "NONE",
+        "DOCUMENTED_REJECTION",
+        "UNCLASSIFIED_REJECTION",
+        "RESPONSE_SCHEMA_INVALID",
+        "TRANSPORT_UNKNOWN",
+    ] | None = None
+    preview_warning_present: bool | None = None
+    preview_identity_retention: Literal[
+        "UNAVAILABLE",
+        "HASHED",
+        "WITHHELD",
+    ] = "UNAVAILABLE"
+    preview_call_count: int | None = Field(default=0, ge=0, le=1)
     coinbase_api_call_count: int | None = Field(default=0, ge=0)
     create_call_count: int | None = Field(default=0, ge=0, le=1)
     cancel_call_count: int | None = Field(default=0, ge=0, le=1)
@@ -726,6 +811,7 @@ class AutomationRunItem(BaseModel):
         Literal[
             "REFRESH_ELIGIBILITY",
             "AUTHORIZE_SINGLE_CHILD",
+            "AUTHORIZE_PREVIEW_GATED_SINGLE_CHILD",
             "SAFE_CLOSEOUT_CHILD",
         ]
     ] = Field(
@@ -746,18 +832,24 @@ class AutomationRunItem(BaseModel):
         if self.domain is not domain_for_job_kind(self.job_kind):
             raise ValueError("automation_run_domain_kind_mismatch")
         diagnostics = _V1_RUN_DIAGNOSTICS.get(self.state)
-        if diagnostics is None or self.diagnostic_code not in diagnostics:
+        exhausted_preview_terminal = bool(
+            self.state is AutomationRunState.BLOCKED
+            and self.diagnostic_code == "automation_run_blocked"
+            and self.spot_execution_mode == "PREVIEW_GATED_V2"
+        )
+        if diagnostics is None or (
+            self.diagnostic_code not in diagnostics
+            and not exhausted_preview_terminal
+        ):
             raise ValueError("automation_v1_run_diagnostic_invalid")
         if self.call_count_exact is (
             self.coinbase_api_call_count is None
+            or self.preview_call_count is None
             or self.create_call_count is None
             or self.cancel_call_count is None
             or self.reconciliation_call_count is None
         ):
             raise ValueError("automation_run_call_count_invalid")
-        if self.state is AutomationRunState.UNKNOWN_CONSUMED:
-            if not self.live_attempt_consumed or self.call_count_exact:
-                raise ValueError("automation_run_unknown_call_count_invalid")
         if self.job_kind is AutomationJobKind.SPOT_CAMPAIGN and (
             (self.cancel_allowance_consumed and not self.create_allowance_consumed)
             or (
@@ -770,6 +862,85 @@ class AutomationRunItem(BaseModel):
             )
         ):
             raise ValueError("automation_run_allowance_invalid")
+        preview_gated = self.spot_execution_mode == "PREVIEW_GATED_V2"
+        if self.state is AutomationRunState.UNKNOWN_CONSUMED:
+            if (
+                not self.live_attempt_consumed
+                or (
+                    self.call_count_exact
+                    and not (
+                        preview_gated
+                        and self.preview_outcome == "UNKNOWN"
+                        and self.preview_call_count == 1
+                    )
+                )
+            ):
+                raise ValueError("automation_run_unknown_call_count_invalid")
+        if preview_gated:
+            if (
+                (
+                    not self.preview_allowance_consumed
+                    and (
+                        self.preview_outcome is not None
+                        or self.preview_call_count != 0
+                        or self.preview_failure_class is not None
+                        or self.preview_warning_present is not None
+                        or self.preview_identity_retention != "UNAVAILABLE"
+                    )
+                )
+                or (
+                    self.preview_allowance_consumed
+                    and self.preview_outcome is None
+                    and (
+                        self.diagnostic_code
+                        != "automation_spot_preview_invocation_started"
+                        or self.preview_call_count is not None
+                        or self.preview_failure_class is not None
+                        or self.preview_warning_present is not None
+                        or self.preview_identity_retention != "UNAVAILABLE"
+                    )
+                )
+                or (
+                    self.preview_outcome == "ACCEPTED"
+                    and self.preview_failure_class != "NONE"
+                )
+                or (
+                    self.preview_outcome == "REJECTED"
+                    and self.preview_failure_class
+                    not in {
+                        "DOCUMENTED_REJECTION",
+                        "UNCLASSIFIED_REJECTION",
+                    }
+                )
+                or (
+                    self.preview_outcome == "UNKNOWN"
+                    and self.preview_failure_class
+                    not in {"RESPONSE_SCHEMA_INVALID", "TRANSPORT_UNKNOWN"}
+                )
+                or (
+                    self.preview_identity_retention == "HASHED"
+                    and self.preview_outcome != "ACCEPTED"
+                )
+                or (
+                    self.preview_identity_retention == "WITHHELD"
+                    and self.preview_outcome != "ACCEPTED"
+                )
+                or (
+                    self.preview_outcome == "ACCEPTED"
+                    and self.preview_identity_retention
+                    not in {"HASHED", "WITHHELD"}
+                )
+            ):
+                raise ValueError("automation_run_preview_evidence_invalid")
+        elif (
+            self.preview_allowance_consumed
+            or self.preview_outcome is not None
+            or self.preview_failure_class is not None
+            or self.preview_warning_present is not None
+            or self.preview_identity_retention != "UNAVAILABLE"
+            or self.preview_call_count != 0
+        ):
+            raise ValueError("automation_run_preview_evidence_forbidden")
         if (
             self.job_kind is AutomationJobKind.SPOT_CAMPAIGN
             and self.call_count_exact
@@ -778,8 +949,9 @@ class AutomationRunItem(BaseModel):
             create = cast(int, self.create_call_count)
             cancel = cast(int, self.cancel_call_count)
             reconciliation = cast(int, self.reconciliation_call_count)
+            preview = cast(int, self.preview_call_count)
             if (
-                total < create + cancel + reconciliation
+                total < preview + create + cancel + reconciliation
             ):
                 raise ValueError("automation_run_allowance_invalid")
         post_invocation = self.state in {
@@ -788,17 +960,29 @@ class AutomationRunItem(BaseModel):
             AutomationRunState.TERMINAL,
             AutomationRunState.UNKNOWN_CONSUMED,
         }
-        if self.live_attempt_consumed is not post_invocation:
+        attempt_consumed = (
+            self.preview_allowance_consumed if preview_gated else post_invocation
+        )
+        if self.live_attempt_consumed is not attempt_consumed:
             raise ValueError("automation_run_consumption_invalid")
         if (
             self.job_kind is AutomationJobKind.SPOT_CAMPAIGN
-            and self.create_allowance_consumed is not post_invocation
+            and self.create_allowance_consumed
+            is not (
+                post_invocation
+                and self.diagnostic_code
+                not in {
+                    "automation_spot_preview_rejected",
+                    "automation_spot_preview_unknown_consumed",
+                }
+            )
         ):
             raise ValueError("automation_run_consumption_invalid")
         if self.job_kind is not AutomationJobKind.SPOT_CAMPAIGN:
             if any(
                 (
                     self.coinbase_api_call_count,
+                    self.preview_call_count,
                     self.create_call_count,
                     self.cancel_call_count,
                     self.reconciliation_call_count,
@@ -855,6 +1039,42 @@ class AutomationRunItem(BaseModel):
                 and not self.create_allowance_consumed
                 and not self.cancel_allowance_consumed
                 and self.reconciliation_call_count == 0
+                and not preview_gated
+            )
+        elif action == "AUTHORIZE_PREVIEW_GATED_SINGLE_CHILD":
+            preliminary_authorization_available = bool(
+                self.eligibility is not None
+                and (
+                    self.eligibility.eligible
+                    or (
+                        self.eligibility.blocker_code
+                        == "automation_spot_eligibility_stale"
+                        and self.eligibility.call_count_exact
+                        and self.eligibility.cycle_number is not None
+                        and self.eligibility.completed_categories
+                        == self.eligibility.required_categories
+                    )
+                )
+            )
+            valid = (
+                preview_gated
+                and self.live_execution_available
+                and self.state
+                is AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
+                and self.diagnostic_code
+                in {
+                    "awaiting_operator_authorization",
+                    "automation_spot_preview_accepted_create_ready",
+                }
+                and preliminary_authorization_available
+                and self.single_child_plan is not None
+                and not self.create_allowance_consumed
+                and not self.cancel_allowance_consumed
+                and self.reconciliation_call_count == 0
+                and (
+                    not self.preview_allowance_consumed
+                    or self.preview_outcome == "ACCEPTED"
+                )
             )
         elif action == "SAFE_CLOSEOUT_CHILD":
             valid = (
@@ -994,6 +1214,30 @@ class AutomationRunEventItem(BaseModel):
                 (
                     AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION,
                     AutomationRunState.INVOCATION_STARTED,
+                ),
+            },
+            "automation_spot_preview_invocation_started": {
+                (
+                    AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION,
+                    AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION,
+                ),
+            },
+            "automation_spot_preview_accepted_create_ready": {
+                (
+                    AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION,
+                    AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION,
+                ),
+            },
+            "automation_spot_preview_rejected": {
+                (
+                    AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION,
+                    AutomationRunState.TERMINAL,
+                ),
+            },
+            "automation_spot_preview_unknown_consumed": {
+                (
+                    AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION,
+                    AutomationRunState.UNKNOWN_CONSUMED,
                 ),
             },
             "automation_spot_create_accepted_active": {

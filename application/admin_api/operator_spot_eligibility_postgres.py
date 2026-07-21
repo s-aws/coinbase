@@ -152,6 +152,7 @@ class PostgresSpotEligibilityLedger:
         expected_client_order_id = derive_spot_eligibility_client_order_id(
             run_id=context.run_id,
             plan_sha256=context.plan_sha256,
+            goal_key=context.goal_key,
         )
         if (
             int(getattr(cycle, "cycle_number", 0)) not in range(1, 11)

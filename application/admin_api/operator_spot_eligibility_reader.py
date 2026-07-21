@@ -449,6 +449,7 @@ class CoinbaseApprovedSpotEligibilityReader:
         expected_client_order_id = derive_spot_eligibility_client_order_id(
             run_id=expected.run_id,
             plan_sha256=expected.plan_sha256,
+            goal_key=expected.goal_key,
         )
         if (
             not isinstance(context, SpotEligibilityReadContext)
@@ -458,6 +459,7 @@ class CoinbaseApprovedSpotEligibilityReader:
             or context.plan_sha256 != expected.plan_sha256
             or context.portfolio_id_sha256 != expected.portfolio_id_sha256
             or context.correlation_id != expected.correlation_id
+            or context.goal_key != expected.goal_key
             or context.product_id != SPOT_ELIGIBILITY_PRODUCT_ID
             or context.client_order_id != expected_client_order_id
             or (
@@ -805,7 +807,8 @@ class CoinbaseApprovedSpotEligibilityReader:
             if isinstance(asks, list) and asks
             else None
         )
-        observed_at = _aware_utc(row.get("time"))
+        book_timestamp = _aware_utc(row.get("time"))
+        observed_at = book_timestamp
         standing = evaluate_spot_standing_price_limit(
             side=self._plan.side,
             limit_price=self._plan.limit_price,
@@ -820,7 +823,7 @@ class CoinbaseApprovedSpotEligibilityReader:
             and ask is not None
             and bid > 0
             and ask >= bid
-            and observed_at is not None
+            and book_timestamp is not None
             and standing.get("allowed") is True
         )
         if not ready:

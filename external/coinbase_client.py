@@ -613,6 +613,7 @@ class CoinbaseRestClient:
             kwargs["leverage"] = leverage
         if margin_type is not None:
             kwargs["margin_type"] = margin_type
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
         # The R11 Preview boundary must inspect the SDK's shallow raw envelope
         # before any recursive ``to_dict`` conversion.  Older producer
         # generations still normalize this return value themselves, so keeping

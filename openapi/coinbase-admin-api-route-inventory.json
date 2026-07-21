@@ -2932,6 +2932,22 @@
     },
     {
       "module_id": "automation_control_plane",
+      "surface": "POST /api/v1/automation/runs/{run_id}/authorize-preview-gated-single-child",
+      "method": "POST",
+      "path": "/api/v1/automation/runs/{run_id}/authorize-preview-gated-single-child",
+      "action_class": "live_exchange_place",
+      "permission": "order:create",
+      "idempotency": "required distinct exact-run Preview and conditional Create claims; zero retries or alternate identity",
+      "approval": "required separate one-use Preview, conditional Create, final eligibility, active-order-catalog, and both unknown-consumption acknowledgements; also requires automation:trigger, automation:resume, and account_reality:refresh",
+      "caps": "required BTC-USDC-only one-Test-portfolio-child cap guard; 3.10 submitted and 1.00 possible-execution USDC ceilings",
+      "audit": "required revision-bound plan hash, distinct PostgreSQL Preview/Create allowances, sanitized Preview classification, canonical admission, and operation-local Preview/read/Create accounting",
+      "shared_method": "authorize_preview_gated_single_child",
+      "parity_test": "one final eight-category eligibility refresh before exactly one Coinbase call for Preview; only an error-free accepted Preview permits at most one identical canonical Create",
+      "compatibility_mode": null,
+      "command_contract": true
+    },
+    {
+      "module_id": "automation_control_plane",
       "surface": "GET /api/v1/automation/runs",
       "method": "GET",
       "path": "/api/v1/automation/runs",

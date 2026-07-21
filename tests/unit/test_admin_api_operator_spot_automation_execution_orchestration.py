@@ -13,13 +13,16 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import hashlib
 from pathlib import Path
+import sys
 from types import SimpleNamespace
 from typing import Any, Iterator
 
 import pytest
+from coinbase.rest.types.orders_types import PreviewOrderResponse
 
 from application.admin_api.automation_models import (
     AutomationMutationContext,
+    AutomationPreviewGatedSingleChildAuthorizationRequest,
     AutomationSingleChildAuthorizationRequest,
     AutomationSingleChildSafeCloseoutRequest,
 )
@@ -58,6 +61,7 @@ from application.admin_api.operator_spot_eligibility_reader import (
 from core.coinbase_execution_authority import (
     COINBASE_EXECUTION_SCOPE_SPOT_CANCEL,
     COINBASE_EXECUTION_SCOPE_SPOT_PLACE,
+    COINBASE_EXECUTION_SCOPE_SPOT_PREVIEW,
 )
 from core.enums import (
     AdminApiActionClass,
@@ -70,10 +74,13 @@ from core.enums import (
     OperatorAutomationRunState,
 )
 from database.operator_automation import (
+    AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
+    AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
     AutomationMutationCommand,
     AutomationRunRecord,
     AutomationSpotEligibilityAttemptRecord,
     AutomationSpotEligibilityCycleRecord,
+    AutomationSpotPreviewGatedGoalRecord,
     AutomationSpotRunExecutionRecord,
     AutomationSpotSingleChildPlanRecord,
     AutomationStoreMutation,
@@ -121,6 +128,20 @@ def _authorization_request() -> AutomationSingleChildAuthorizationRequest:
         confirm_unknown_consumes_allowance=True,
         expected_plan_sha256=PLAN_SHA256,
         reason="authorize the exact bounded child",
+    )
+
+
+def _preview_authorization_request(
+) -> AutomationPreviewGatedSingleChildAuthorizationRequest:
+    return AutomationPreviewGatedSingleChildAuthorizationRequest(
+        confirm_single_preview=True,
+        confirm_conditional_single_child_create=True,
+        confirm_final_eligibility_refresh=True,
+        confirm_account_wide_active_spot_order_catalog_read=True,
+        confirm_preview_unknown_consumes_allowance=True,
+        confirm_create_unknown_consumes_allowance=True,
+        expected_plan_sha256=PLAN_SHA256,
+        reason="preview and conditionally create the exact bounded child",
     )
 
 
@@ -267,6 +288,118 @@ class _ExecutionRepository:
         self.finalize_create_calls: list[dict[str, Any]] = []
         self.start_cancel_calls: list[dict[str, Any]] = []
         self.finalize_cancel_calls: list[dict[str, Any]] = []
+        self.goal_key = AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY
+        self.preview_goal = AutomationSpotPreviewGatedGoalRecord(
+            goal_key=AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+            definition_id=DEFINITION_ID,
+            bound_run_id=None,
+            client_order_id=None,
+            eligibility_cycle=None,
+            plan_sha256=None,
+            portfolio_id_sha256=None,
+            product_id=None,
+            preview_allowance_consumed=False,
+            preview_outcome=None,
+            preview_failure_class=None,
+            preview_warning_present=None,
+            preview_id_sha256=None,
+            preview_call_count=None,
+            preview_call_count_exact=False,
+            create_allowance_consumed=False,
+            create_outcome=None,
+            cancel_allowance_consumed=False,
+            cancel_outcome=None,
+            updated_at=NOW_TEXT,
+        )
+        self.start_preview_calls: list[dict[str, Any]] = []
+        self.finalize_preview_calls: list[dict[str, Any]] = []
+
+    def get_spot_goal_key_for_run(self, run_id: str) -> str:
+        assert run_id == RUN_ID
+        return self.goal_key
+
+    def get_spot_preview_gated_goal(
+        self,
+    ) -> AutomationSpotPreviewGatedGoalRecord:
+        return self.preview_goal
+
+    def start_spot_preview_invocation(
+        self,
+        run_id: str,
+        *,
+        eligibility_cycle: int,
+        command: AutomationMutationCommand,
+    ) -> AutomationStoreMutation[AutomationSpotPreviewGatedGoalRecord]:
+        assert self.goal_key == AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY
+        assert run_id == RUN_ID
+        assert eligibility_cycle == 1
+        self.events.append("start_preview")
+        self.start_preview_calls.append(
+            {"eligibility_cycle": eligibility_cycle, "command": command}
+        )
+        self.preview_goal = replace(
+            self.preview_goal,
+            bound_run_id=RUN_ID,
+            client_order_id=CLIENT_ORDER_ID,
+            eligibility_cycle=1,
+            plan_sha256=PLAN_SHA256,
+            portfolio_id_sha256=PORTFOLIO_SHA256,
+            product_id="BTC-USDC",
+            preview_allowance_consumed=True,
+        )
+        self.current_run = replace(
+            self.current_run,
+            diagnostic_code="automation_spot_preview_invocation_started",
+            client_order_id=CLIENT_ORDER_ID,
+            live_attempt_consumed=True,
+        )
+        return AutomationStoreMutation(
+            self.preview_goal,
+            AUDIT_ID,
+            command.correlation_id,
+        )
+
+    def finalize_spot_preview_invocation(
+        self,
+        run_id: str,
+        **kwargs: Any,
+    ) -> AutomationStoreMutation[AutomationSpotPreviewGatedGoalRecord]:
+        assert run_id == RUN_ID
+        self.events.append("finalize_preview")
+        self.finalize_preview_calls.append(dict(kwargs))
+        outcome = str(kwargs["outcome"])
+        self.preview_goal = replace(
+            self.preview_goal,
+            preview_outcome=outcome,
+            preview_failure_class=str(kwargs["failure_class"]),
+            preview_warning_present=bool(kwargs["warning_present"]),
+            preview_id_sha256=kwargs["preview_id_sha256"],
+            preview_call_count=kwargs["preview_call_count"],
+            preview_call_count_exact=bool(kwargs["call_count_exact"]),
+        )
+        if outcome == "ACCEPTED":
+            state = OperatorAutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
+            diagnostic = "automation_spot_preview_accepted_create_ready"
+        elif outcome == "REJECTED":
+            state = OperatorAutomationRunState.TERMINAL
+            diagnostic = "automation_spot_preview_rejected"
+        else:
+            state = OperatorAutomationRunState.UNKNOWN_CONSUMED
+            diagnostic = "automation_spot_preview_unknown_consumed"
+        self.current_run = replace(
+            self.current_run,
+            state=state,
+            diagnostic_code=diagnostic,
+            coinbase_api_call_count=(
+                int(kwargs["preview_call_count"] or 0)
+            ),
+        )
+        command = kwargs["command"]
+        return AutomationStoreMutation(
+            self.preview_goal,
+            AUDIT_ID,
+            command.correlation_id,
+        )
 
     def get_control_posture(self) -> SimpleNamespace:
         return SimpleNamespace(posture=self.control_posture)
@@ -305,7 +438,10 @@ class _ExecutionRepository:
 
     def list_spot_eligibility_cycles(
         self,
+        *,
+        goal_key: str = AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
     ) -> tuple[AutomationSpotEligibilityCycleRecord, ...]:
+        assert goal_key == self.goal_key
         return self.cycles
 
     def install_fresh_cycle(self, result: SpotEligibilityCycleResult) -> None:
@@ -313,7 +449,7 @@ class _ExecutionRepository:
         self.cycles = (
             AutomationSpotEligibilityCycleRecord(
                 goal_key=(
-                    "operator_spot_automation_single_child_execution_adapter_v1"
+                    self.goal_key
                 ),
                 cycle_number=result.cycle_number,
                 policy_revision=2,
@@ -426,6 +562,12 @@ class _ExecutionRepository:
                 "replayed": False,
             }
         )
+        if self.goal_key == AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY:
+            assert self.preview_goal.preview_outcome == "ACCEPTED"
+            self.preview_goal = replace(
+                self.preview_goal,
+                create_allowance_consumed=True,
+            )
         self.execution = _execution_record()
         self.current_run = replace(
             self.current_run,
@@ -460,6 +602,11 @@ class _ExecutionRepository:
             create_read_call_count_exact=kwargs["read_call_count_exact"],
             child_terminal=child_terminal,
         )
+        if self.goal_key == AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY:
+            self.preview_goal = replace(
+                self.preview_goal,
+                create_outcome=outcome,
+            )
         if outcome == "UNKNOWN":
             state = OperatorAutomationRunState.UNKNOWN_CONSUMED
             diagnostic = "automation_spot_create_unknown_consumed"
@@ -932,6 +1079,7 @@ class _ScopeFactory:
         assert scope in {
             COINBASE_EXECUTION_SCOPE_SPOT_PLACE,
             COINBASE_EXECUTION_SCOPE_SPOT_CANCEL,
+            COINBASE_EXECUTION_SCOPE_SPOT_PREVIEW,
         }
         self.active = scope
         self.events.append(f"scope_enter:{scope}")
@@ -940,6 +1088,58 @@ class _ScopeFactory:
         finally:
             self.events.append(f"scope_exit:{scope}")
             self.active = None
+
+
+class _PreviewInvoker:
+    def __init__(
+        self,
+        scopes: _ScopeFactory,
+        events: list[str],
+        *,
+        mode: str,
+    ) -> None:
+        self.scopes = scopes
+        self.events = events
+        self.mode = mode
+        self.calls: list[dict[str, Any]] = []
+
+    def __call__(self, **kwargs: Any) -> Any:
+        assert self.scopes.active == COINBASE_EXECUTION_SCOPE_SPOT_PREVIEW
+        assert kwargs == {
+            "product_id": "BTC-USDC",
+            "side": "BUY",
+            "order_configuration": {
+                "limit_limit_gtc": {
+                    "base_size": "0.00001",
+                    "limit_price": "50000",
+                    "post_only": False,
+                }
+            },
+        }
+        self.events.append("canonical_preview")
+        self.calls.append(dict(kwargs))
+        if self.mode == "raise":
+            raise RuntimeError("withheld preview exception")
+        if self.mode == "malformed":
+            return SimpleNamespace(errs=[])
+        return PreviewOrderResponse(
+            {
+                "order_total": "0.5005",
+                "commission_total": "0.0005",
+                "errs": (
+                    [] if self.mode == "accepted" else ["PREVIEW_REJECTED"]
+                ),
+                "warning": [],
+                "quote_size": (
+                    "0.6" if self.mode == "economics_mismatch" else "0.5"
+                ),
+                "base_size": "0.00001",
+                "best_bid": "49999",
+                "best_ask": "50000",
+                "is_max": False,
+                "preview_id": "withheld-preview-identity",
+            }
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -1044,6 +1244,7 @@ class _Harness:
     proofs: _ProofChainRecorder
     admission: _LiveAdmissionEvaluator
     commands: _CanonicalCommandService
+    preview: _PreviewInvoker | None
     events: list[str]
 
 
@@ -1055,9 +1256,12 @@ def _harness(
     cancel_mode: str = "accepted",
     eligibility_mode: str = "eligible",
     control_posture: str = "ACTIVE",
+    goal_key: str = AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
+    preview_mode: str | None = None,
 ) -> _Harness:
     events: list[str] = []
     repository = _ExecutionRepository(events)
+    repository.goal_key = goal_key
     repository.control_posture = control_posture
     coordinator = _TrackedProfileCoordinator(events, tmp_path)
     runner = _EligibilityRunner(
@@ -1076,6 +1280,11 @@ def _harness(
         create_mode=create_mode,
         cancel_mode=cancel_mode,
     )
+    preview = (
+        _PreviewInvoker(scopes, events, mode=preview_mode)
+        if preview_mode is not None
+        else None
+    )
     adapter = PostgresOperatorAutomationRepositoryAdapter(
         repository,
         spot_profile_admission_coordinator=coordinator,
@@ -1083,6 +1292,7 @@ def _harness(
         spot_proof_chain_recorder=proofs,
         spot_live_admission_evaluator=admission,
         spot_command_service=commands,
+        spot_preview_invoker=preview,
         spot_execution_scope_factory=scopes,
         now_factory=lambda: NOW,
     )
@@ -1094,6 +1304,7 @@ def _harness(
         proofs=proofs,
         admission=admission,
         commands=commands,
+        preview=preview,
         events=events,
     )
 
@@ -1166,6 +1377,184 @@ def test_authorize_orchestrates_one_fresh_cycle_claim_and_canonical_create(
         "finalize_create",
         "lease_exit",
     ]
+
+
+@pytest.mark.parametrize(
+    ("preview_mode", "expected_state", "expected_exact"),
+    [
+        ("rejected", OperatorAutomationRunState.TERMINAL, True),
+        ("malformed", OperatorAutomationRunState.UNKNOWN_CONSUMED, True),
+        (
+            "economics_mismatch",
+            OperatorAutomationRunState.UNKNOWN_CONSUMED,
+            True,
+        ),
+        ("raise", OperatorAutomationRunState.UNKNOWN_CONSUMED, False),
+    ],
+)
+def test_preview_gated_rejection_or_unknown_never_enters_create(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    preview_mode: str,
+    expected_state: OperatorAutomationRunState,
+    expected_exact: bool,
+) -> None:
+    successor_client_order_id = derive_spot_eligibility_client_order_id(
+        run_id=RUN_ID,
+        plan_sha256=PLAN_SHA256,
+        goal_key=AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+    )
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "CLIENT_ORDER_ID",
+        successor_client_order_id,
+    )
+    harness = _harness(
+        tmp_path,
+        goal_key=AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+        preview_mode=preview_mode,
+    )
+
+    response = harness.service.authorize_preview_gated_single_child(
+        run_id=RUN_ID,
+        request=_preview_authorization_request(),
+        context=_context(),
+    )
+
+    assert response.run.state is expected_state
+    assert response.run.preview_allowance_consumed is True
+    assert response.run.create_allowance_consumed is False
+    assert response.activity.operation == "PREVIEW_GATED_CREATE"
+    assert response.activity.call_count_exact is expected_exact
+    assert response.activity.preview_call_count == (1 if expected_exact else None)
+    assert response.activity.read_call_count == 8
+    assert response.activity.coinbase_api_call_count == (
+        9 if expected_exact else None
+    )
+    assert response.activity.create_call_count == 0
+    assert len(harness.repository.start_preview_calls) == 1
+    assert len(harness.repository.finalize_preview_calls) == 1
+    assert harness.repository.start_create_calls == []
+    assert harness.commands.place_calls == []
+    assert harness.preview is not None
+    assert len(harness.preview.calls) == 1
+
+
+def test_preview_gated_acceptance_previews_then_creates_the_identical_candidate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    successor_client_order_id = derive_spot_eligibility_client_order_id(
+        run_id=RUN_ID,
+        plan_sha256=PLAN_SHA256,
+        goal_key=AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+    )
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "CLIENT_ORDER_ID",
+        successor_client_order_id,
+    )
+    harness = _harness(
+        tmp_path,
+        goal_key=AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+        preview_mode="accepted",
+    )
+
+    response = harness.service.authorize_preview_gated_single_child(
+        run_id=RUN_ID,
+        request=_preview_authorization_request(),
+        context=_context(),
+    )
+
+    assert response.run.state is OperatorAutomationRunState.ACTIVE
+    assert response.run.client_order_id == successor_client_order_id
+    assert response.run.preview_outcome == "ACCEPTED"
+    assert response.run.preview_identity_retention == "HASHED"
+    assert response.run.create_allowance_consumed is True
+    assert response.activity.operation == "PREVIEW_GATED_CREATE"
+    assert response.activity.coinbase_api_call_count == 11
+    assert response.activity.preview_call_count == 1
+    assert response.activity.read_call_count == 9
+    assert response.activity.create_call_count == 1
+    assert len(harness.preview.calls if harness.preview is not None else []) == 1
+    assert len(harness.commands.place_calls) == 1
+    assert harness.events == [
+        "lease_enter",
+        "eligibility_cycle",
+        "proof_create",
+        "admission_create",
+        f"scope_enter:{COINBASE_EXECUTION_SCOPE_SPOT_PREVIEW}",
+        "start_preview",
+        "canonical_preview",
+        f"scope_exit:{COINBASE_EXECUTION_SCOPE_SPOT_PREVIEW}",
+        "finalize_preview",
+        "start_create",
+        f"scope_enter:{COINBASE_EXECUTION_SCOPE_SPOT_PLACE}",
+        "canonical_place",
+        f"scope_exit:{COINBASE_EXECUTION_SCOPE_SPOT_PLACE}",
+        "finalize_create",
+        "lease_exit",
+    ]
+
+
+def test_accepted_preview_checkpoint_resumes_create_without_second_preview(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    successor_client_order_id = derive_spot_eligibility_client_order_id(
+        run_id=RUN_ID,
+        plan_sha256=PLAN_SHA256,
+        goal_key=AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+    )
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "CLIENT_ORDER_ID",
+        successor_client_order_id,
+    )
+    harness = _harness(
+        tmp_path,
+        goal_key=AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+        preview_mode="accepted",
+    )
+    harness.repository.preview_goal = replace(
+        harness.repository.preview_goal,
+        bound_run_id=RUN_ID,
+        client_order_id=successor_client_order_id,
+        eligibility_cycle=1,
+        plan_sha256=PLAN_SHA256,
+        portfolio_id_sha256=PORTFOLIO_SHA256,
+        product_id="BTC-USDC",
+        preview_allowance_consumed=True,
+        preview_outcome="ACCEPTED",
+        preview_failure_class="NONE",
+        preview_warning_present=False,
+        preview_id_sha256="f" * 64,
+        preview_call_count=1,
+        preview_call_count_exact=True,
+    )
+    harness.repository.current_run = replace(
+        harness.repository.current_run,
+        diagnostic_code="automation_spot_preview_accepted_create_ready",
+        client_order_id=successor_client_order_id,
+        live_attempt_consumed=True,
+        coinbase_api_call_count=1,
+    )
+
+    response = harness.service.authorize_preview_gated_single_child(
+        run_id=RUN_ID,
+        request=_preview_authorization_request(),
+        context=_context().model_copy(
+            update={"idempotency_key": "resume-after-preview-acceptance"}
+        ),
+    )
+
+    assert response.run.state is OperatorAutomationRunState.ACTIVE
+    assert response.activity.preview_call_count == 0
+    assert response.activity.coinbase_api_call_count == 10
+    assert response.activity.read_call_count == 9
+    assert harness.repository.start_preview_calls == []
+    assert harness.preview is not None and harness.preview.calls == []
+    assert len(harness.commands.place_calls) == 1
 
 
 def test_authorize_replay_has_no_reader_proof_admission_or_command_call(

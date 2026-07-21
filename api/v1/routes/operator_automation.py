@@ -31,6 +31,7 @@ from application.admin_api.live_execution import (
 )
 from application.admin_api.operator_mvp_policy import (
     OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_CREATE_ROUTE,
+    OPERATOR_MVP_AUTOMATION_PREVIEW_GATED_SINGLE_CHILD_ROUTE,
     OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_SAFE_CLOSEOUT_ROUTE,
 )
 from application.admin_api.automation_models import (
@@ -56,6 +57,7 @@ from application.admin_api.automation_models import (
     AutomationJobKind,
     AutomationMutationContext,
     AutomationOneShotRunRequest,
+    AutomationPreviewGatedSingleChildAuthorizationRequest,
     AutomationRunDetailResponse,
     AutomationRunEventListResponse,
     AutomationRunItem,
@@ -92,6 +94,10 @@ _AUTOMATION_LIVE_ACTION_ROUTES = {
     "AUTHORIZE_SINGLE_CHILD": (
         "POST",
         OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_CREATE_ROUTE,
+    ),
+    "AUTHORIZE_PREVIEW_GATED_SINGLE_CHILD": (
+        "POST",
+        OPERATOR_MVP_AUTOMATION_PREVIEW_GATED_SINGLE_CHILD_ROUTE,
     ),
     "SAFE_CLOSEOUT_CHILD": (
         "POST",
@@ -234,6 +240,10 @@ _ClaimRunIntent = Annotated[
 ]
 _AuthorizeSingleChildIntent = Annotated[
     Literal["authorize_automation_single_child_create"],
+    Header(alias="X-Operator-Intent"),
+]
+_AuthorizePreviewGatedSingleChildIntent = Annotated[
+    Literal["authorize_automation_preview_gated_single_child"],
     Header(alias="X-Operator-Intent"),
 ]
 _RefreshEligibilityIntent = Annotated[
@@ -1063,6 +1073,45 @@ def authorize_single_child(
     _require_operator_automation_action_ready("AUTHORIZE_SINGLE_CHILD")
     return _mutation_result(
         lambda: service.authorize_single_child(
+            run_id=run_id,
+            request=body,
+            context=_context(
+                actor=actor,
+                idempotency_key=idempotency_key,
+                correlation_id=correlation_id,
+                operator_intent=operator_intent,
+            ),
+        ),
+        actor=actor,
+    )
+
+
+@router.post(
+    "/automation/runs/{run_id}/authorize-preview-gated-single-child",
+    response_model=AutomationRunMutationResponse,
+    responses=_MUTATION_RESPONSES,
+    operation_id="authorize_operator_automation_preview_gated_single_child",
+)
+def authorize_preview_gated_single_child(
+    request: Request,
+    body: AutomationPreviewGatedSingleChildAuthorizationRequest,
+    run_id: _EntityId,
+    actor: _Actor,
+    service: _Service,
+    idempotency_key: _IdempotencyKey,
+    correlation_id: _CorrelationId,
+    operator_intent: _AuthorizePreviewGatedSingleChildIntent,
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.AUTOMATION_TRIGGER)
+    require_permission(actor, AdminApiPermission.AUTOMATION_RESUME)
+    require_permission(actor, AdminApiPermission.ACCOUNT_REALITY_REFRESH)
+    require_permission(actor, AdminApiPermission.ORDER_CREATE)
+    _require_query_shape(request, frozenset())
+    _require_operator_automation_action_ready(
+        "AUTHORIZE_PREVIEW_GATED_SINGLE_CHILD"
+    )
+    return _mutation_result(
+        lambda: service.authorize_preview_gated_single_child(
             run_id=run_id,
             request=body,
             context=_context(

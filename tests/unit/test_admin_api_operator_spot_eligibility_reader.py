@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import ast
 from dataclasses import dataclass, field, replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import inspect
 from typing import Any
@@ -58,6 +58,7 @@ class _StrictClient:
     product_overrides: dict[str, Any] = field(default_factory=dict)
     best_bid: str = "100"
     best_ask: str = "101"
+    market_time: datetime = NOW
     order_rows: list[dict[str, Any]] = field(default_factory=list)
     active_order_pages: list[list[dict[str, Any]]] = field(
         default_factory=lambda: [[]]
@@ -134,7 +135,7 @@ class _StrictClient:
                     "product_id": "BTC-USDC",
                     "bids": [{"price": self.best_bid, "size": "1"}],
                     "asks": [{"price": self.best_ask, "size": "1"}],
-                    "time": NOW.isoformat(),
+                    "time": self.market_time.isoformat(),
                     "private_extension": "withheld-private-market-value",
                 }
             ]
@@ -334,11 +335,35 @@ def test_reader_rejects_product_scope_or_plan_increment_mismatch(override):
 def test_reader_rejects_standing_price_outside_existing_backend_policy():
     client = _StrictClient(best_bid="99", best_ask="100")
     reader = _reader(client)
+    assert reader.read_product_metadata(_read_context()).eligible is True
 
     result = reader.read_best_bid_ask(_read_context())
 
     assert result.outcome is SpotEligibilityReadOutcome.REJECTED
     assert result.observed_at == NOW
+    assert result.http_request_count == 1
+
+
+def test_reader_rejects_book_whose_source_timestamp_is_stale():
+    client = _StrictClient(market_time=NOW - timedelta(minutes=5))
+    reader = _reader(client)
+
+    result = reader.read_best_bid_ask(_read_context())
+
+    assert result.outcome is SpotEligibilityReadOutcome.REJECTED
+    assert result.eligible is False
+    assert result.observed_at == NOW - timedelta(minutes=5)
+    assert result.http_request_count == 1
+
+
+def test_reader_rejects_future_book_timestamp_even_when_quotes_match():
+    client = _StrictClient(market_time=NOW + timedelta(seconds=1))
+    reader = _reader(client)
+
+    result = reader.read_best_bid_ask(_read_context())
+
+    assert result.outcome is SpotEligibilityReadOutcome.REJECTED
+    assert result.eligible is False
     assert result.http_request_count == 1
 
 

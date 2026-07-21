@@ -44,6 +44,7 @@ from .automation_models import (
     AutomationJobKind,
     AutomationMutationContext,
     AutomationOneShotRunRequest,
+    AutomationPreviewGatedSingleChildAuthorizationRequest,
     AutomationSingleChildAuthorizationRequest,
     AutomationSingleChildSafeCloseoutRequest,
     AutomationPagination,
@@ -186,6 +187,14 @@ class OperatorAutomationRepository(Protocol):
     ) -> AutomationRepositoryMutation: ...
 
     def authorize_single_child(
+        self,
+        *,
+        run_id: str,
+        request: Mapping[str, Any],
+        context: AutomationMutationContext,
+    ) -> AutomationRepositoryMutation: ...
+
+    def authorize_preview_gated_single_child(
         self,
         *,
         run_id: str,
@@ -338,6 +347,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
         spot_profile_admission_coordinator: Any | None = None,
         spot_execution_eligibility_runner: Callable[..., Any] | None = None,
         spot_command_service: Any | None = None,
+        spot_preview_invoker: Callable[..., Any] | None = None,
         spot_execution_scope_factory: Callable[[str], Any] | None = None,
         spot_proof_chain_recorder: Callable[..., Mapping[str, Any]] | None = None,
         spot_live_admission_evaluator: Callable[..., Any] | None = None,
@@ -352,6 +362,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
             spot_execution_eligibility_runner
         )
         self._spot_command_service = spot_command_service
+        self._spot_preview_invoker = spot_preview_invoker
         self._spot_execution_scope_factory = spot_execution_scope_factory
         self._spot_proof_chain_recorder = spot_proof_chain_recorder
         self._spot_live_admission_evaluator = spot_live_admission_evaluator
@@ -518,6 +529,33 @@ class PostgresOperatorAutomationRepositoryAdapter:
             self._spot_command_service = build_admin_api_command_service()
         return self._spot_command_service
 
+    def _invoke_spot_preview(
+        self,
+        *,
+        command_service: Any,
+        plan: Any,
+    ) -> Any:
+        invoker = self._spot_preview_invoker
+        if invoker is None:
+            dependencies = getattr(command_service, "dependencies", None)
+            rest_client = getattr(dependencies, "rest_client", None)
+            if not bool(getattr(dependencies, "rest_client_available", False)):
+                raise RuntimeError("automation_spot_preview_client_unavailable")
+            invoker = getattr(rest_client, "preview_order", None)
+        if not callable(invoker):
+            raise RuntimeError("automation_spot_preview_client_unavailable")
+        return invoker(
+            product_id=plan.product_id,
+            side=plan.side,
+            order_configuration={
+                "limit_limit_gtc": {
+                    "base_size": plan.base_size,
+                    "limit_price": plan.limit_price,
+                    "post_only": False,
+                }
+            },
+        )
+
     def _resolve_spot_profile_coordinator(self, command_service: Any) -> Any:
         coordinator = self._spot_profile_admission_coordinator
         service_coordinator = getattr(
@@ -546,6 +584,63 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 canonical_coinbase_execution_scope
             )
         return self._spot_execution_scope_factory
+
+    def _close_exhausted_preliminary_eligibility(
+        self,
+        *,
+        record: Any,
+        cycle_number: int,
+        goal_key: str,
+        plan_sha256: str,
+        context: AutomationMutationContext,
+    ) -> Any | None:
+        """Durably block a V2 preliminary checkpoint that has no final cycle."""
+
+        from database.operator_automation import (
+            AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+        )
+
+        if not (
+            cycle_number == 10
+            and goal_key == AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY
+            and record.state
+            is AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
+            and record.diagnostic_code == "awaiting_operator_authorization"
+            and not record.live_attempt_consumed
+        ):
+            return None
+        idempotency_key = (
+            "automation-internal-eligibility-exhausted-"
+            + hashlib.sha256(
+                (
+                    f"{context.idempotency_key}:{record.run_id}:"
+                    f"{plan_sha256}:{cycle_number}"
+                ).encode("utf-8")
+            ).hexdigest()
+        )
+        command = self._command(
+            context=context,
+            idempotency_key=idempotency_key,
+            operator_intent=(
+                "close_exhausted_preview_preliminary_eligibility"
+            ),
+            payload={
+                "operation": (
+                    "close_exhausted_preview_preliminary_eligibility"
+                ),
+                "run_id": record.run_id,
+                "plan_sha256": plan_sha256,
+                "cycle_number": cycle_number,
+            },
+        )
+        return self._call(
+            lambda: self.repository.transition_run(
+                record.run_id,
+                AutomationRunState.BLOCKED,
+                diagnostic_code="automation_run_blocked",
+                command=command,
+            )
+        )
 
     def _resolve_spot_proof_stores(self) -> tuple[Any, Any, Any, Any]:
         if self._spot_proof_stores is None:
@@ -775,6 +870,11 @@ class PostgresOperatorAutomationRepositoryAdapter:
             plan_sha256=plan.plan_sha256,
             portfolio_id_sha256=plan.portfolio_id_sha256,
             correlation_id=context.correlation_id,
+            goal_key=self._call(
+                lambda: self.repository.get_spot_goal_key_for_run(
+                    record.run_id
+                )
+            ),
         )
         reader_holder: list[Any] = []
 
@@ -890,6 +990,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
         plan: Any | None = None,
         *,
         spot_goal_run_claimed: bool = False,
+        spot_goal_key: str | None = None,
     ) -> Mapping[str, Any]:
         state = AutomationDefinitionState(
             str(getattr(record.lifecycle_state, "value", record.lifecycle_state))
@@ -930,6 +1031,15 @@ class PostgresOperatorAutomationRepositoryAdapter:
             "job_kind": str(getattr(record.job_kind, "value", record.job_kind)),
             "lifecycle_state": state.value,
             "product_ids": list(record.product_ids),
+            "spot_execution_mode": (
+                "PREVIEW_GATED_V2"
+                if plan is not None
+                and spot_goal_key
+                == "operator_spot_automation_preview_gated_successor_candidate_v2"
+                else "CREATE_ONLY_V1"
+                if plan is not None
+                else None
+            ),
             "single_child_order": single_child_order,
             "schedule": {
                 "mode": schedule_mode,
@@ -958,6 +1068,8 @@ class PostgresOperatorAutomationRepositoryAdapter:
         attempts: tuple[Any, ...] = ()
         cycles: tuple[Any, ...] = ()
         execution = None
+        spot_goal_key: str | None = None
+        preview_goal = None
         eligibility_lifetime_call_count: int | None = 0
         eligibility_lifetime_call_count_exact = True
         if (
@@ -971,6 +1083,11 @@ class PostgresOperatorAutomationRepositoryAdapter:
                     record.definition_revision,
                 )
             )
+            spot_goal_key = self._call(
+                lambda: self.repository.get_spot_goal_key_for_run(
+                    record.run_id
+                )
+            )
             attempts = self._call(
                 lambda: self.repository.list_spot_eligibility_attempts(
                     record.run_id,
@@ -978,11 +1095,19 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 )
             )
             cycles = self._call(
-                self.repository.list_spot_eligibility_cycles
+                lambda: self.repository.list_spot_eligibility_cycles(
+                    goal_key=spot_goal_key
+                )
             )
             execution = self._call(
                 lambda: self.repository.get_spot_run_execution(record.run_id)
             )
+            if spot_goal_key == (
+                "operator_spot_automation_preview_gated_successor_candidate_v2"
+            ):
+                preview_goal = self._call(
+                    self.repository.get_spot_preview_gated_goal
+                )
             eligibility_lifetime_call_count_exact = all(
                 attempt.call_count_exact for attempt in attempts
             )
@@ -1209,11 +1334,55 @@ class PostgresOperatorAutomationRepositoryAdapter:
         )
         if plan is None:
             adapter_status = "UNAVAILABLE"
-        call_count_exact = eligibility_lifetime_call_count_exact
+        preview_allowance_consumed = bool(
+            preview_goal is not None
+            and preview_goal.preview_allowance_consumed
+        )
+        preview_outcome = (
+            preview_goal.preview_outcome if preview_goal is not None else None
+        )
+        preview_failure_class = (
+            preview_goal.preview_failure_class
+            if preview_goal is not None
+            else None
+        )
+        preview_warning_present = (
+            preview_goal.preview_warning_present
+            if preview_goal is not None
+            else None
+        )
+        preview_identity_retention = (
+            "HASHED"
+            if preview_goal is not None
+            and preview_goal.preview_id_sha256 is not None
+            else "WITHHELD"
+            if preview_outcome == "ACCEPTED"
+            else "UNAVAILABLE"
+        )
+        preview_call_count: int | None = (
+            preview_goal.preview_call_count
+            if preview_allowance_consumed
+            else 0
+        )
+        preview_call_count_exact = bool(
+            preview_goal is None
+            or not preview_allowance_consumed
+            or preview_goal.preview_call_count_exact
+        )
+        call_count_exact = bool(
+            eligibility_lifetime_call_count_exact
+            and preview_call_count_exact
+        )
         coinbase_api_call_count: int | None = (
-            eligibility_lifetime_call_count
+            int(eligibility_lifetime_call_count or 0)
+            + int(preview_call_count or 0)
             if plan is not None
+            and call_count_exact
+            and eligibility_lifetime_call_count is not None
+            and preview_call_count is not None
             else record.coinbase_api_call_count
+            if plan is None
+            else None
         )
         create_call_count: int | None = record.create_call_count
         cancel_call_count: int | None = record.cancel_call_count
@@ -1243,6 +1412,8 @@ class PostgresOperatorAutomationRepositoryAdapter:
             call_count_exact = bool(
                 eligibility_lifetime_call_count_exact
                 and eligibility_lifetime_call_count is not None
+                and preview_call_count_exact
+                and preview_call_count is not None
                 and execution.create_call_count_exact
                 and cancel_call_count_exact
                 and create_read_call_count_exact
@@ -1257,6 +1428,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
             )
             coinbase_api_call_count = (
                 int(eligibility_lifetime_call_count or 0)
+                + int(preview_call_count or 0)
                 + int(execution.create_call_count or 0)
                 + int(execution.cancel_call_count or 0)
                 + int(reconciliation_call_count or 0)
@@ -1268,6 +1440,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
         elif (
             record.state is AutomationRunState.UNKNOWN_CONSUMED
             and execution is None
+            and preview_goal is None
         ):
             call_count_exact = False
             coinbase_api_call_count = None
@@ -1292,16 +1465,40 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 )
             )
         )
+        preview_gated = preview_goal is not None
+        authorization_checkpoint_ready = bool(
+            (
+                not preview_gated
+                and record.diagnostic_code == "awaiting_operator_authorization"
+                and not record.live_attempt_consumed
+            )
+            or (
+                preview_gated
+                and (
+                    (
+                        not preview_allowance_consumed
+                        and record.diagnostic_code
+                        == "awaiting_operator_authorization"
+                        and not record.live_attempt_consumed
+                    )
+                    or (
+                        preview_outcome == "ACCEPTED"
+                        and record.diagnostic_code
+                        == "automation_spot_preview_accepted_create_ready"
+                        and record.live_attempt_consumed
+                    )
+                )
+            )
+        )
         authorize_execution_available = bool(
             control_posture_active
             and plan is not None
             and execution is None
             and record.state
             is AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
-            and record.diagnostic_code == "awaiting_operator_authorization"
+            and authorization_checkpoint_ready
             and eligibility is not None
             and preliminary_authorization_available
-            and not record.live_attempt_consumed
         )
         safe_closeout_execution_available = bool(
             control_posture_allows_safe_closeout
@@ -1333,6 +1530,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
             }
             and execution is None
             and not record.live_attempt_consumed
+            and not preview_allowance_consumed
             and len(cycles) < 10
             and not any(cycle.state == "OPEN" for cycle in cycles)
         )
@@ -1348,6 +1546,19 @@ class PostgresOperatorAutomationRepositoryAdapter:
             "adapter_status": adapter_status,
             "live_execution_available": live_execution_available,
             "live_attempt_consumed": record.live_attempt_consumed,
+            "spot_execution_mode": (
+                "PREVIEW_GATED_V2"
+                if preview_goal is not None
+                else "CREATE_ONLY_V1"
+                if plan is not None
+                else None
+            ),
+            "preview_allowance_consumed": preview_allowance_consumed,
+            "preview_outcome": preview_outcome,
+            "preview_failure_class": preview_failure_class,
+            "preview_warning_present": preview_warning_present,
+            "preview_identity_retention": preview_identity_retention,
+            "preview_call_count": preview_call_count,
             "coinbase_api_call_count": coinbase_api_call_count,
             "create_call_count": create_call_count,
             "cancel_call_count": cancel_call_count,
@@ -1355,10 +1566,16 @@ class PostgresOperatorAutomationRepositoryAdapter:
             "client_order_id": client_order_id,
             "reconciliation_call_count": reconciliation_call_count,
             "create_allowance_consumed": bool(
-                execution is not None and execution.create_allowance_consumed
+                preview_goal.create_allowance_consumed
+                if preview_goal is not None
+                else execution is not None
+                and execution.create_allowance_consumed
             ),
             "cancel_allowance_consumed": bool(
-                execution is not None and execution.cancel_allowance_consumed
+                preview_goal.cancel_allowance_consumed
+                if preview_goal is not None
+                else execution is not None
+                and execution.cancel_allowance_consumed
             ),
             "child_terminal": child_terminal,
             "single_child_plan": plan_readback,
@@ -1366,7 +1583,11 @@ class PostgresOperatorAutomationRepositoryAdapter:
             "allowed_actions": (
                 ["SAFE_CLOSEOUT_CHILD"]
                 if safe_closeout_execution_available
-                else ["AUTHORIZE_SINGLE_CHILD"]
+                else [
+                    "AUTHORIZE_PREVIEW_GATED_SINGLE_CHILD"
+                    if preview_gated
+                    else "AUTHORIZE_SINGLE_CHILD"
+                ]
                 if authorize_execution_available
                 else (["REFRESH_ELIGIBILITY"] if refresh_available else [])
             ),
@@ -1433,8 +1654,6 @@ class PostgresOperatorAutomationRepositoryAdapter:
     def _definition_with_plan(
         self,
         record: Any,
-        *,
-        spot_goal_run_claimed: bool,
     ) -> Mapping[str, Any]:
         plan = None
         if record.job_kind is AutomationJobKind.SPOT_CAMPAIGN:
@@ -1444,10 +1663,24 @@ class PostgresOperatorAutomationRepositoryAdapter:
                     record.revision,
                 )
             )
+        spot_goal_key = None
+        spot_goal_run_claimed = False
+        if plan is not None:
+            spot_goal_key = self._call(
+                lambda: self.repository.get_spot_goal_key_for_definition(
+                    record.definition_id
+                )
+            )
+            spot_goal_run_claimed = self._call(
+                lambda: self.repository.has_spot_single_child_run(
+                    goal_key=spot_goal_key
+                )
+            )
         return self._definition(
             record,
             plan,
             spot_goal_run_claimed=spot_goal_run_claimed,
+            spot_goal_key=spot_goal_key,
         )
 
     def get_control_posture(self) -> Mapping[str, Any]:
@@ -1463,9 +1696,6 @@ class PostgresOperatorAutomationRepositoryAdapter:
         limit: int,
         offset: int,
     ) -> AutomationRepositoryPage:
-        spot_goal_run_claimed = self._call(
-            self.repository.has_spot_single_child_run
-        )
         page = self._call(
             lambda: self.repository.list_definitions(
                 domain=AutomationDomain(domain) if domain is not None else None,
@@ -1483,10 +1713,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
         )
         return AutomationRepositoryPage(
             items=tuple(
-                self._definition_with_plan(
-                    item,
-                    spot_goal_run_claimed=spot_goal_run_claimed,
-                )
+                self._definition_with_plan(item)
                 for item in page.items
             ),
             total_count=page.total_count,
@@ -1496,12 +1723,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
         record = self._call(lambda: self.repository.get_definition(definition_id))
         if record is None:
             return None
-        return self._definition_with_plan(
-            record,
-            spot_goal_run_claimed=self._call(
-                self.repository.has_spot_single_child_run
-            ),
-        )
+        return self._definition_with_plan(record)
 
     def create_definition(
         self,
@@ -1533,6 +1755,8 @@ class PostgresOperatorAutomationRepositoryAdapter:
         plan = None
         if single_child is not None:
             from database.operator_automation import (
+                AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
+                AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
                 AutomationSpotSingleChildPlanTerms,
             )
 
@@ -1556,21 +1780,18 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 lambda: self.repository.create_definition(
                     command,
                     spot_single_child_plan=plan_terms,
+                    spot_goal_key=(
+                        AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY
+                        if definition.get("spot_execution_mode")
+                        == "PREVIEW_GATED_V2"
+                        else AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY
+                    ),
                 )
             )
-            plan = self._spot_plan_for_record(result.entity)
         else:
             result = self._call(lambda: self.repository.create_definition(command))
         return AutomationRepositoryMutation(
-            entity=self._definition(
-                result.entity,
-                plan,
-                spot_goal_run_claimed=(
-                    self._call(self.repository.has_spot_single_child_run)
-                    if plan is not None
-                    else False
-                ),
-            ),
+            entity=self._definition_with_plan(result.entity),
             audit_id=result.audit_id,
             correlation_id=result.correlation_id,
             replayed=result.replayed,
@@ -1600,17 +1821,8 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 command,
             )
         )
-        plan = self._spot_plan_for_record(result.entity)
         return AutomationRepositoryMutation(
-            entity=self._definition(
-                result.entity,
-                plan,
-                spot_goal_run_claimed=(
-                    self._call(self.repository.has_spot_single_child_run)
-                    if plan is not None
-                    else False
-                ),
-            ),
+            entity=self._definition_with_plan(result.entity),
             audit_id=result.audit_id,
             correlation_id=result.correlation_id,
             replayed=result.replayed,
@@ -1646,17 +1858,8 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 command=command,
             )
         )
-        plan = self._spot_plan_for_record(result.entity)
         return AutomationRepositoryMutation(
-            entity=self._definition(
-                result.entity,
-                plan,
-                spot_goal_run_claimed=(
-                    self._call(self.repository.has_spot_single_child_run)
-                    if plan is not None
-                    else False
-                ),
-            ),
+            entity=self._definition_with_plan(result.entity),
             audit_id=result.audit_id,
             correlation_id=result.correlation_id,
             replayed=result.replayed,
@@ -1680,17 +1883,8 @@ class PostgresOperatorAutomationRepositoryAdapter:
         result = self._call(
             lambda: self.repository.clear_schedule(definition_id, command)
         )
-        plan = self._spot_plan_for_record(result.entity)
         return AutomationRepositoryMutation(
-            entity=self._definition(
-                result.entity,
-                plan,
-                spot_goal_run_claimed=(
-                    self._call(self.repository.has_spot_single_child_run)
-                    if plan is not None
-                    else False
-                ),
-            ),
+            entity=self._definition_with_plan(result.entity),
             audit_id=result.audit_id,
             correlation_id=result.correlation_id,
             replayed=result.replayed,
@@ -1864,7 +2058,36 @@ class PostgresOperatorAutomationRepositoryAdapter:
         request: Mapping[str, Any],
         context: AutomationMutationContext,
     ) -> AutomationRepositoryMutation:
-        """Run one fresh exact cycle, claim once, and enter canonical Spot Create."""
+        return self._authorize_single_child_workflow(
+            run_id=run_id,
+            request=request,
+            context=context,
+            preview_gated=False,
+        )
+
+    def authorize_preview_gated_single_child(
+        self,
+        *,
+        run_id: str,
+        request: Mapping[str, Any],
+        context: AutomationMutationContext,
+    ) -> AutomationRepositoryMutation:
+        return self._authorize_single_child_workflow(
+            run_id=run_id,
+            request=request,
+            context=context,
+            preview_gated=True,
+        )
+
+    def _authorize_single_child_workflow(
+        self,
+        *,
+        run_id: str,
+        request: Mapping[str, Any],
+        context: AutomationMutationContext,
+        preview_gated: bool,
+    ) -> AutomationRepositoryMutation:
+        """Run fresh exact eligibility, then the goal-owned live boundary."""
 
         self._require_active_control_posture()
         record = self._call(lambda: self.repository.get_run(run_id))
@@ -1890,6 +2113,45 @@ class PostgresOperatorAutomationRepositoryAdapter:
         if request.get("expected_plan_sha256") != plan.plan_sha256:
             raise AutomationRepositoryConflict(
                 "automation_single_child_plan_mismatch"
+            )
+
+        from database.operator_automation import (
+            AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
+            AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+        )
+
+        goal_key = self._call(
+            lambda: self.repository.get_spot_goal_key_for_run(run_id)
+        )
+        expected_goal_key = (
+            AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY
+            if preview_gated
+            else AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY
+        )
+        if goal_key != expected_goal_key:
+            raise AutomationRepositoryConflict(
+                "automation_spot_execution_goal_mismatch"
+            )
+        preview_goal = (
+            self._call(self.repository.get_spot_preview_gated_goal)
+            if preview_gated
+            else None
+        )
+        if preview_goal is not None and preview_goal.preview_outcome in {
+            "REJECTED",
+            "UNKNOWN",
+        }:
+            current = self._call(lambda: self.repository.get_run(run_id))
+            if current is None or preview_goal.bound_run_id != run_id:
+                raise AutomationRepositoryUnavailable(
+                    "automation_spot_preview_result_unavailable"
+                )
+            return AutomationRepositoryMutation(
+                entity=self._run(current),
+                audit_id=current.audit_id,
+                correlation_id=current.correlation_id,
+                replayed=True,
+                activity=AutomationRunMutationActivity(),
             )
 
         from application.admin_api.operator_spot_automation_runtime import (
@@ -1964,11 +2226,23 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 replayed=True,
                 activity=AutomationRunMutationActivity(),
             )
-        if (
-            record.state is not AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
-            or record.diagnostic_code != "awaiting_operator_authorization"
-            or record.live_attempt_consumed
-        ):
+        initial_checkpoint = bool(
+            record.state is AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
+            and record.diagnostic_code == "awaiting_operator_authorization"
+            and not record.live_attempt_consumed
+        )
+        accepted_preview_checkpoint = bool(
+            preview_gated
+            and preview_goal is not None
+            and preview_goal.preview_outcome == "ACCEPTED"
+            and preview_goal.bound_run_id == run_id
+            and record.state
+            is AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
+            and record.diagnostic_code
+            == "automation_spot_preview_accepted_create_ready"
+            and record.live_attempt_consumed
+        )
+        if not (initial_checkpoint or accepted_preview_checkpoint):
             raise AutomationRepositoryConflict(
                 "automation_single_child_run_not_authorizable"
             )
@@ -1985,6 +2259,13 @@ class PostgresOperatorAutomationRepositoryAdapter:
         )
         from core.coinbase_execution_authority import (
             COINBASE_EXECUTION_SCOPE_SPOT_PLACE,
+            COINBASE_EXECUTION_SCOPE_SPOT_PREVIEW,
+            require_coinbase_execution_authority,
+        )
+        from application.admin_api.operator_spot_automation_preview import (
+            SpotAutomationPreviewOutcome,
+            classify_spot_automation_preview_response,
+            unknown_spot_automation_preview_classification,
         )
 
         command_service = self._resolve_spot_command_service()
@@ -2023,6 +2304,12 @@ class PostgresOperatorAutomationRepositoryAdapter:
                     context=eligibility_context,
                     lease=lease,
                 )
+                eligibility_read_call_count = (
+                    bundle.cycle.coinbase_api_call_count
+                )
+                eligibility_read_call_count_exact = bool(
+                    bundle.cycle.call_count_exact
+                )
                 planned_budget_fetcher = getattr(
                     getattr(command_service, "dependencies", None),
                     "planned_budget_fetcher",
@@ -2043,6 +2330,11 @@ class PostgresOperatorAutomationRepositoryAdapter:
                     configured_portfolio_id=configured_portfolio_id,
                     planned_budget=planned_budget,
                     now=self._now_factory(),
+                    goal_key=self._call(
+                        lambda: self.repository.get_spot_goal_key_for_run(
+                            run_id
+                        )
+                    ),
                 )
                 prepared = prepare_spot_automation_create_command(
                     run=record,
@@ -2080,6 +2372,209 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 raise AutomationRepositoryConflict(
                     "automation_spot_create_admission_failed"
                 ) from None
+
+            preview_call_count_this_request: int | None = 0
+            preview_call_count_exact_this_request = True
+            if (
+                preview_gated
+                and preview_goal is not None
+                and preview_goal.preview_outcome != "ACCEPTED"
+            ):
+                preview_start_command = self._spot_invocation_start_command(
+                    context=context,
+                    request=request,
+                    run_id=run_id,
+                    eligibility_cycle=bundle.cycle.cycle_number,
+                    plan_sha256=plan.plan_sha256,
+                    client_order_id=admission.client_order_id,
+                    command_payload_sha256=prepared.proof_context[
+                        "payload_hash"
+                    ],
+                    operation="start_automation_spot_preview",
+                    phase="preview-start",
+                    operator_intent=(
+                        "claim_automation_spot_single_child_preview"
+                    ),
+                )
+                try:
+                    with self._resolve_spot_execution_scope_factory()(
+                        COINBASE_EXECUTION_SCOPE_SPOT_PREVIEW
+                    ):
+                        if self._spot_preview_invoker is None:
+                            require_coinbase_execution_authority(
+                                expected_scope=(
+                                    COINBASE_EXECUTION_SCOPE_SPOT_PREVIEW
+                                )
+                            )
+                        started_preview = self._call(
+                            lambda: self.repository.start_spot_preview_invocation(
+                                run_id,
+                                eligibility_cycle=bundle.cycle.cycle_number,
+                                command=preview_start_command,
+                            )
+                        )
+                        started_goal = started_preview.entity
+                        if (
+                            started_goal.bound_run_id != run_id
+                            or started_goal.eligibility_cycle
+                            != bundle.cycle.cycle_number
+                            or started_goal.plan_sha256 != plan.plan_sha256
+                            or started_goal.portfolio_id_sha256
+                            != plan.portfolio_id_sha256
+                            or started_goal.product_id != plan.product_id
+                            or started_goal.client_order_id
+                            != admission.client_order_id
+                            or not started_goal.preview_allowance_consumed
+                            or started_goal.create_allowance_consumed
+                        ):
+                            raise AutomationRepositoryUnavailable(
+                                "automation_spot_preview_claim_invalid"
+                            )
+                        if started_preview.replayed:
+                            preview_classification = (
+                                unknown_spot_automation_preview_classification(
+                                    transport_unknown=True
+                                )
+                            )
+                        else:
+                            try:
+                                raw_preview = self._invoke_spot_preview(
+                                    command_service=command_service,
+                                    plan=plan,
+                                )
+                                preview_classification = (
+                                    classify_spot_automation_preview_response(
+                                        raw_preview,
+                                        expected_base_size=plan.base_size,
+                                        expected_quote_size=(
+                                            plan.submitted_notional_usdc
+                                        ),
+                                    )
+                                )
+                            except Exception:
+                                preview_classification = (
+                                    unknown_spot_automation_preview_classification(
+                                        transport_unknown=True
+                                    )
+                                )
+                except AutomationRepositoryError:
+                    raise
+
+                preview_finalize_payload = {
+                    "operation": "finalize_automation_spot_preview",
+                    "run_id": run_id,
+                    "plan_sha256": plan.plan_sha256,
+                    "client_order_id": admission.client_order_id,
+                    "outcome": preview_classification.outcome.value,
+                    "failure_class": (
+                        preview_classification.failure_class.value
+                    ),
+                    "warning_present": (
+                        preview_classification.warning_present
+                    ),
+                    "preview_id_retained": (
+                        "HASHED"
+                        if preview_classification.preview_id_sha256
+                        is not None
+                        else "WITHHELD"
+                    ),
+                    "preview_call_count": (
+                        preview_classification.preview_call_count
+                    ),
+                    "call_count_exact": (
+                        preview_classification.preview_call_count_exact
+                    ),
+                }
+                finalized_preview = self._call(
+                    lambda: self.repository.finalize_spot_preview_invocation(
+                        run_id,
+                        outcome=preview_classification.outcome.value,
+                        failure_class=(
+                            preview_classification.failure_class.value
+                        ),
+                        warning_present=(
+                            preview_classification.warning_present
+                        ),
+                        preview_id_sha256=(
+                            preview_classification.preview_id_sha256
+                        ),
+                        preview_call_count=(
+                            preview_classification.preview_call_count
+                        ),
+                        call_count_exact=(
+                            preview_classification.preview_call_count_exact
+                        ),
+                        command=self._command(
+                            context=context,
+                            idempotency_key=derive_spot_automation_phase_key(
+                                outer_idempotency_key=(
+                                    context.idempotency_key
+                                ),
+                                run_id=run_id,
+                                plan_sha256=plan.plan_sha256,
+                                phase="preview-finalize",
+                            ),
+                            operator_intent=(
+                                "finalize_automation_spot_single_child_preview"
+                            ),
+                            payload=preview_finalize_payload,
+                        ),
+                    )
+                )
+                preview_goal = finalized_preview.entity
+                preview_call_count_this_request = (
+                    preview_classification.preview_call_count
+                )
+                preview_call_count_exact_this_request = bool(
+                    preview_classification.preview_call_count_exact
+                )
+                if (
+                    preview_classification.outcome
+                    is not SpotAutomationPreviewOutcome.ACCEPTED
+                ):
+                    current = self._call(
+                        lambda: self.repository.get_run(run_id)
+                    )
+                    if current is None:
+                        raise AutomationRepositoryUnavailable(
+                            "automation_spot_preview_result_unavailable"
+                        )
+                    exact = bool(
+                        eligibility_read_call_count_exact
+                        and preview_classification.preview_call_count_exact
+                    )
+                    return AutomationRepositoryMutation(
+                        entity=self._run(current),
+                        audit_id=finalized_preview.audit_id,
+                        correlation_id=(
+                            finalized_preview.correlation_id
+                        ),
+                        replayed=False,
+                        activity=AutomationRunMutationActivity(
+                            operation="PREVIEW_GATED_CREATE",
+                            coinbase_api_call_count=(
+                                int(eligibility_read_call_count or 0)
+                                + int(
+                                    preview_classification.preview_call_count
+                                    or 0
+                                )
+                                if exact
+                                else None
+                            ),
+                            preview_call_count=(
+                                preview_classification.preview_call_count
+                            ),
+                            read_call_count=(
+                                eligibility_read_call_count
+                                if eligibility_read_call_count_exact
+                                else None
+                            ),
+                            exchange_mutation_count=0,
+                            create_call_count=0,
+                            cancel_call_count=0,
+                            call_count_exact=exact,
+                        ),
+                    )
 
             start_command = self._spot_invocation_start_command(
                 context=context,
@@ -2209,15 +2704,58 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 raise AutomationRepositoryUnavailable(
                     "automation_spot_create_result_unavailable"
                 )
+            if preview_gated:
+                request_read_call_count_exact = bool(
+                    eligibility_read_call_count_exact
+                    and classification.read_call_count_exact
+                )
+                request_read_call_count = (
+                    int(eligibility_read_call_count or 0)
+                    + int(classification.read_call_count or 0)
+                    if request_read_call_count_exact
+                    else None
+                )
+                create_exact = bool(
+                    eligibility_read_call_count_exact
+                    and preview_call_count_exact_this_request
+                    and classification.mutation_call_count_exact
+                    and classification.read_call_count_exact
+                )
+                activity = AutomationRunMutationActivity(
+                    operation="PREVIEW_GATED_CREATE",
+                    coinbase_api_call_count=(
+                        int(preview_call_count_this_request or 0)
+                        + int(classification.mutation_call_count or 0)
+                        + int(request_read_call_count or 0)
+                        if create_exact
+                        else None
+                    ),
+                    preview_call_count=preview_call_count_this_request,
+                    read_call_count=request_read_call_count,
+                    exchange_mutation_count=(
+                        classification.mutation_call_count
+                        if classification.mutation_call_count_exact
+                        else None
+                    ),
+                    create_call_count=(
+                        classification.mutation_call_count
+                        if classification.mutation_call_count_exact
+                        else None
+                    ),
+                    cancel_call_count=0,
+                    call_count_exact=create_exact,
+                )
+            else:
+                activity = self._activity_from_classification(
+                    classification,
+                    operation="CREATE",
+                )
             return AutomationRepositoryMutation(
                 entity=self._run(current),
                 audit_id=finalized.audit_id,
                 correlation_id=finalized.correlation_id,
                 replayed=False,
-                activity=self._activity_from_classification(
-                    classification,
-                    operation="CREATE",
-                ),
+                activity=activity,
             )
 
     def safe_closeout_single_child(
@@ -2623,6 +3161,11 @@ class PostgresOperatorAutomationRepositoryAdapter:
             plan_sha256=plan.plan_sha256,
             portfolio_id_sha256=plan.portfolio_id_sha256,
             correlation_id=context.correlation_id,
+            goal_key=self._call(
+                lambda: self.repository.get_spot_goal_key_for_run(
+                    record.run_id
+                )
+            ),
         )
         def build_reader() -> Any:
             if self._spot_eligibility_reader_factory is None:
@@ -2653,6 +3196,15 @@ class PostgresOperatorAutomationRepositoryAdapter:
             raise AutomationRepositoryUnavailable(
                 "automation_spot_eligibility_result_unavailable"
             )
+        closeout = self._close_exhausted_preliminary_eligibility(
+            record=current,
+            cycle_number=cycle_result.cycle_number,
+            goal_key=run_context.goal_key,
+            plan_sha256=plan.plan_sha256,
+            context=context,
+        )
+        if closeout is not None:
+            current = closeout.entity
         cycles = self._call(self.repository.list_spot_eligibility_cycles)
         matches = tuple(
             cycle
@@ -2691,12 +3243,21 @@ class PostgresOperatorAutomationRepositoryAdapter:
             and int(open_cycles[0].cycle_number) > cycle_result.cycle_number
             and open_cycles[0].plan_sha256 == plan.plan_sha256
         )
+        terminal_exhaustion_applied = bool(
+            cycle_result.cycle_number == 10
+            and cycle_result.outcome.value == "SUCCEEDED"
+            and run_context.goal_key
+            == "operator_spot_automation_preview_gated_successor_candidate_v2"
+            and current.state is AutomationRunState.BLOCKED
+            and current.diagnostic_code == "automation_run_blocked"
+        )
         if (
             len(matches) != 1
             or matches[0].state != cycle_result.outcome.value
             or not (
                 terminal_result_applied
                 or terminal_result_during_newer_cycle
+                or terminal_exhaustion_applied
             )
         ):
             raise AutomationRepositoryUnavailable(
@@ -2708,8 +3269,16 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 current,
                 eligibility_cycle_number=cycle_result.cycle_number,
             ),
-            audit_id=cycle.audit_id,
-            correlation_id=cycle.correlation_id,
+            audit_id=(
+                current.audit_id
+                if terminal_exhaustion_applied
+                else cycle.audit_id
+            ),
+            correlation_id=(
+                current.correlation_id
+                if terminal_exhaustion_applied
+                else cycle.correlation_id
+            ),
             replayed=cycle_result.replayed,
             coinbase_api_call_count=cycle_result.coinbase_api_call_count,
             call_count_exact=cycle_result.call_count_exact,
@@ -3138,6 +3707,39 @@ class OperatorAutomationService:
         except Exception as exc:
             raise self._translate_error(exc) from None
 
+    def authorize_preview_gated_single_child(
+        self,
+        *,
+        run_id: str,
+        request: AutomationPreviewGatedSingleChildAuthorizationRequest,
+        context: AutomationMutationContext,
+    ) -> AutomationRunMutationResponse:
+        try:
+            result = self.repository.authorize_preview_gated_single_child(
+                run_id=run_id,
+                request=request.model_dump(mode="json"),
+                context=context,
+            )
+            run = AutomationRunItem.model_validate(result.entity)
+            return AutomationRunMutationResponse(
+                run=run,
+                replayed=result.replayed,
+                audit_id=result.audit_id,
+                correlation_id=result.correlation_id,
+                activity=(
+                    result.activity
+                    or self._run_mutation_activity(
+                        run=run,
+                        replayed=result.replayed,
+                        operation="PREVIEW_GATED_CREATE",
+                    )
+                ),
+            )
+        except OperatorAutomationError:
+            raise
+        except Exception as exc:
+            raise self._translate_error(exc) from None
+
     def safe_closeout_single_child(
         self,
         *,
@@ -3213,11 +3815,20 @@ class OperatorAutomationService:
         if replayed:
             return AutomationRunMutationActivity()
 
-        create_count = run.create_call_count if operation == "CREATE" else 0
+        preview_count = (
+            run.preview_call_count
+            if operation == "PREVIEW_GATED_CREATE"
+            else 0
+        )
+        create_count = (
+            run.create_call_count
+            if operation in {"CREATE", "PREVIEW_GATED_CREATE"}
+            else 0
+        )
         cancel_count = (
             run.cancel_call_count if operation == "SAFE_CLOSEOUT" else 0
         )
-        if operation == "CREATE":
+        if operation in {"CREATE", "PREVIEW_GATED_CREATE"}:
             read_count = run.reconciliation_call_count
         else:
             read_count = (
@@ -3233,12 +3844,15 @@ class OperatorAutomationService:
             )
             total_count = (
                 None
-                if exchange_count is None or read_count is None
-                else exchange_count + read_count
+                if exchange_count is None
+                or read_count is None
+                or preview_count is None
+                else exchange_count + read_count + preview_count
             )
             return AutomationRunMutationActivity(
                 operation=operation,
                 coinbase_api_call_count=total_count,
+                preview_call_count=preview_count,
                 read_call_count=read_count,
                 exchange_mutation_count=exchange_count,
                 create_call_count=create_count,
@@ -3254,6 +3868,7 @@ class OperatorAutomationService:
         return AutomationRunMutationActivity(
             operation=operation,
             coinbase_api_call_count=None,
+            preview_call_count=preview_count,
             read_call_count=read_count,
             exchange_mutation_count=exchange_count,
             create_call_count=create_count,

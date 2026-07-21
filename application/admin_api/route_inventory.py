@@ -2871,6 +2871,39 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="automation_control_plane",
+        surface=(
+            "POST /api/v1/automation/runs/{run_id}/"
+            "authorize-preview-gated-single-child"
+        ),
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        permission=AdminApiPermission.ORDER_CREATE,
+        idempotency=(
+            "required distinct exact-run Preview and conditional Create claims; "
+            "zero retries or alternate identity"
+        ),
+        approval=(
+            "required separate one-use Preview, conditional Create, final eligibility, "
+            "active-order-catalog, and both unknown-consumption acknowledgements; also "
+            "requires automation:trigger, automation:resume, and account_reality:refresh"
+        ),
+        caps=(
+            "required BTC-USDC-only one-Test-portfolio-child cap guard; 3.10 "
+            "submitted and 1.00 possible-execution USDC ceilings"
+        ),
+        audit=(
+            "required revision-bound plan hash, distinct PostgreSQL Preview/Create "
+            "allowances, sanitized Preview classification, canonical admission, and "
+            "operation-local Preview/read/Create accounting"
+        ),
+        shared_method="authorize_preview_gated_single_child",
+        parity_test=(
+            "one final eight-category eligibility refresh before exactly one Coinbase "
+            "call for Preview; only an error-free accepted Preview permits at most one identical "
+            "canonical Create"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="automation_control_plane",
         surface="GET /api/v1/automation/runs",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.AUTOMATION_READ,

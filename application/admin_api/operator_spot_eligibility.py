@@ -11,8 +11,17 @@ from uuid import UUID, uuid5
 
 
 SPOT_ELIGIBILITY_PRODUCT_ID = "BTC-USDC"
-_SPOT_ELIGIBILITY_GOAL_KEY = (
+SPOT_ELIGIBILITY_CREATE_ONLY_GOAL_KEY = (
     "operator_spot_automation_single_child_execution_adapter_v1"
+)
+SPOT_ELIGIBILITY_PREVIEW_GATED_GOAL_KEY = (
+    "operator_spot_automation_preview_gated_successor_candidate_v2"
+)
+_SPOT_ELIGIBILITY_GOAL_KEYS = frozenset(
+    {
+        SPOT_ELIGIBILITY_CREATE_ONLY_GOAL_KEY,
+        SPOT_ELIGIBILITY_PREVIEW_GATED_GOAL_KEY,
+    }
 )
 _SPOT_ELIGIBILITY_CLIENT_ORDER_NAMESPACE = UUID(
     "af243a31-5934-52e2-b540-8d7b101d82ca"
@@ -137,12 +146,15 @@ def derive_spot_eligibility_client_order_id(
     *,
     run_id: str,
     plan_sha256: str,
+    goal_key: str = SPOT_ELIGIBILITY_CREATE_ONLY_GOAL_KEY,
 ) -> str:
     """Derive the single stable child identity for an approved plan."""
 
     _require_canonical_uuid(run_id, code="spot_eligibility_run_id_invalid")
     _require_sha256(plan_sha256, code="spot_eligibility_plan_hash_invalid")
-    identity = f"{_SPOT_ELIGIBILITY_GOAL_KEY}:{run_id}:{plan_sha256}"
+    if goal_key not in _SPOT_ELIGIBILITY_GOAL_KEYS:
+        raise ValueError("spot_eligibility_goal_key_invalid")
+    identity = f"{goal_key}:{run_id}:{plan_sha256}"
     return str(uuid5(_SPOT_ELIGIBILITY_CLIENT_ORDER_NAMESPACE, identity))
 
 
@@ -156,6 +168,7 @@ class SpotEligibilityRunContext:
     plan_sha256: str
     portfolio_id_sha256: str
     correlation_id: str
+    goal_key: str = SPOT_ELIGIBILITY_CREATE_ONLY_GOAL_KEY
 
     def __post_init__(self) -> None:
         _require_canonical_uuid(
@@ -179,6 +192,8 @@ class SpotEligibilityRunContext:
             self.portfolio_id_sha256,
             code="spot_eligibility_portfolio_hash_invalid",
         )
+        if self.goal_key not in _SPOT_ELIGIBILITY_GOAL_KEYS:
+            raise ValueError("spot_eligibility_goal_key_invalid")
         if (
             not isinstance(self.correlation_id, str)
             or not self.correlation_id.strip()
@@ -201,6 +216,7 @@ class SpotEligibilityReadContext:
     cycle_number: int
     product_id: str
     client_order_id: str
+    goal_key: str = SPOT_ELIGIBILITY_CREATE_ONLY_GOAL_KEY
 
     def __post_init__(self) -> None:
         SpotEligibilityRunContext(
@@ -210,6 +226,7 @@ class SpotEligibilityReadContext:
             plan_sha256=self.plan_sha256,
             portfolio_id_sha256=self.portfolio_id_sha256,
             correlation_id=self.correlation_id,
+            goal_key=self.goal_key,
         )
         if type(self.cycle_number) is not int or self.cycle_number < 1:
             raise ValueError("spot_eligibility_cycle_number_invalid")
@@ -617,6 +634,7 @@ class SpotEligibilityCoordinator:
         client_order_id = derive_spot_eligibility_client_order_id(
             run_id=context.run_id,
             plan_sha256=context.plan_sha256,
+            goal_key=context.goal_key,
         )
         if cycle.client_order_id != client_order_id:
             raise ValueError("spot_eligibility_cycle_claim_mismatch")
@@ -689,6 +707,7 @@ class SpotEligibilityCoordinator:
             cycle_number=cycle.cycle_number,
             product_id=SPOT_ELIGIBILITY_PRODUCT_ID,
             client_order_id=client_order_id,
+            goal_key=context.goal_key,
         )
         operations = (
             (

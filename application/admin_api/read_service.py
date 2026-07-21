@@ -1054,6 +1054,10 @@ CONTROLLED_LIVE_MVP_ROUTES = {
     ),
     (
         "POST",
+        "/api/v1/automation/runs/{run_id}/authorize-preview-gated-single-child",
+    ),
+    (
+        "POST",
         "/api/v1/automation/runs/{run_id}/safe-closeout-child",
     ),
 }
@@ -8487,6 +8491,7 @@ class AdminApiReadService:
             "POST /api/v1/automation/definitions/{definition_id}/runs",
             "POST /api/v1/automation/runs/{run_id}/eligibility-cycles",
             "POST /api/v1/automation/runs/{run_id}/authorize-single-child",
+            "POST /api/v1/automation/runs/{run_id}/authorize-preview-gated-single-child",
             "POST /api/v1/automation/runs/{run_id}/safe-closeout-child",
         ]
         operator_automation_eligibility_command_surfaces = [
@@ -8494,6 +8499,7 @@ class AdminApiReadService:
         ]
         operator_automation_live_command_surfaces = [
             "POST /api/v1/automation/runs/{run_id}/authorize-single-child",
+            "POST /api/v1/automation/runs/{run_id}/authorize-preview-gated-single-child",
             "POST /api/v1/automation/runs/{run_id}/safe-closeout-child",
         ]
         operator_automation_local_command_surfaces = [

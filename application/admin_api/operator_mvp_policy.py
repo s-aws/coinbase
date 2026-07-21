@@ -26,6 +26,9 @@ OPERATOR_MVP_FOLLOW_UP_SAFE_CLOSEOUT_ROUTE = (
 OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_CREATE_ROUTE = (
     "/api/v1/automation/runs/{run_id}/authorize-single-child"
 )
+OPERATOR_MVP_AUTOMATION_PREVIEW_GATED_SINGLE_CHILD_ROUTE = (
+    "/api/v1/automation/runs/{run_id}/authorize-preview-gated-single-child"
+)
 OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_SAFE_CLOSEOUT_ROUTE = (
     "/api/v1/automation/runs/{run_id}/safe-closeout-child"
 )
@@ -38,6 +41,10 @@ OPERATOR_MVP_SUPPORTED_LIVE_ROUTES = frozenset(
         ("POST", OPERATOR_MVP_FOLLOW_UP_MATERIALIZATION_ROUTE),
         ("POST", OPERATOR_MVP_FOLLOW_UP_SAFE_CLOSEOUT_ROUTE),
         ("POST", OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_CREATE_ROUTE),
+        (
+            "POST",
+            OPERATOR_MVP_AUTOMATION_PREVIEW_GATED_SINGLE_CHILD_ROUTE,
+        ),
         (
             "POST",
             OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_SAFE_CLOSEOUT_ROUTE,

@@ -318,6 +318,28 @@ def test_reader_context_uses_fixed_product_and_deterministic_exact_child_identit
         assert read_context.portfolio_id_sha256 == PORTFOLIO_SHA256
 
 
+def test_successor_goal_derives_a_distinct_stable_child_identity():
+    successor_goal = (
+        "operator_spot_automation_preview_gated_successor_candidate_v2"
+    )
+    predecessor = derive_spot_eligibility_client_order_id(
+        run_id=RUN_ID,
+        plan_sha256=PLAN_SHA256,
+    )
+    successor = derive_spot_eligibility_client_order_id(
+        run_id=RUN_ID,
+        plan_sha256=PLAN_SHA256,
+        goal_key=successor_goal,
+    )
+
+    assert successor != predecessor
+    assert successor == derive_spot_eligibility_client_order_id(
+        run_id=RUN_ID,
+        plan_sha256=PLAN_SHA256,
+        goal_key=successor_goal,
+    )
+
+
 def test_clock_and_both_freshness_windows_are_injected():
     ledger = _FakeLedger()
     reader = _FakeReader()

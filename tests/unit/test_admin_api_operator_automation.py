@@ -32,6 +32,7 @@ from application.admin_api.automation_models import (
     AutomationJobKind,
     AutomationMutationContext,
     AutomationOneShotRunRequest,
+    AutomationPreviewGatedSingleChildAuthorizationRequest,
     AutomationSingleChildAuthorizationRequest,
     AutomationSingleChildSafeCloseoutRequest,
     AutomationSingleChildEligibilityReadback,
@@ -535,6 +536,29 @@ def test_single_child_definition_spec_is_typed_btc_usdc_campaign_only():
         )
 
 
+def test_preview_gated_successor_mode_requires_an_exact_single_child_plan():
+    request = AutomationDefinitionCreateRequest(
+        display_name="Preview-gated BTC candidate",
+        job_kind=AutomationJobKind.SPOT_CAMPAIGN,
+        product_ids=["BTC-USDC"],
+        spot_execution_mode="PREVIEW_GATED_V2",
+        single_child_order=AutomationSpotSingleChildOrderSpec(
+            side="BUY",
+            base_size="0.00001",
+            limit_price="50000.00",
+        ),
+    )
+
+    assert request.spot_execution_mode == "PREVIEW_GATED_V2"
+    with pytest.raises(ValidationError):
+        AutomationDefinitionCreateRequest(
+            display_name="Invalid preview-gated candidate",
+            job_kind=AutomationJobKind.SPOT_CAMPAIGN,
+            product_ids=["BTC-USDC"],
+            spot_execution_mode="PREVIEW_GATED_V2",
+        )
+
+
 def test_exact_run_authorization_accepts_only_acknowledgements_and_plan_hash():
     body = AutomationSingleChildAuthorizationRequest(
         confirm_single_child_create=True,
@@ -549,12 +573,35 @@ def test_exact_run_authorization_accepts_only_acknowledgements_and_plan_hash():
     assert body.confirm_account_wide_active_spot_order_catalog_read is True
     assert body.confirm_unknown_consumes_allowance is True
 
+
+def test_preview_gated_authorization_requires_separate_preview_and_create_acknowledgements():
+    body = AutomationPreviewGatedSingleChildAuthorizationRequest(
+        confirm_single_preview=True,
+        confirm_conditional_single_child_create=True,
+        confirm_final_eligibility_refresh=True,
+        confirm_account_wide_active_spot_order_catalog_read=True,
+        confirm_preview_unknown_consumes_allowance=True,
+        confirm_create_unknown_consumes_allowance=True,
+        expected_plan_sha256="a" * 64,
+        reason="Preview and conditionally create this exact candidate once",
+    )
+
+    assert body.confirm_single_preview is True
+    assert body.confirm_conditional_single_child_create is True
+    with pytest.raises(ValidationError):
+        AutomationPreviewGatedSingleChildAuthorizationRequest.model_validate(
+            {
+                **body.model_dump(mode="json"),
+                "confirm_single_preview": False,
+            }
+        )
+
     for field_name in (
         "confirm_final_eligibility_refresh",
         "confirm_account_wide_active_spot_order_catalog_read",
     ):
         with pytest.raises(ValidationError):
-            AutomationSingleChildAuthorizationRequest.model_validate(
+            AutomationPreviewGatedSingleChildAuthorizationRequest.model_validate(
                 {
                     key: value
                     for key, value in body.model_dump(mode="json").items()
@@ -563,7 +610,7 @@ def test_exact_run_authorization_accepts_only_acknowledgements_and_plan_hash():
             )
 
     with pytest.raises(ValidationError):
-        AutomationSingleChildAuthorizationRequest.model_validate(
+        AutomationPreviewGatedSingleChildAuthorizationRequest.model_validate(
             {
                 **body.model_dump(mode="json"),
                 "confirm_exact_child_safe_closeout_cancel": True,
@@ -571,7 +618,7 @@ def test_exact_run_authorization_accepts_only_acknowledgements_and_plan_hash():
         )
 
     with pytest.raises(ValidationError):
-        AutomationSingleChildAuthorizationRequest.model_validate(
+        AutomationPreviewGatedSingleChildAuthorizationRequest.model_validate(
             {
                 **body.model_dump(mode="json"),
                 "product_id": "BTC-USDC",
@@ -821,6 +868,71 @@ def test_source_gated_single_child_run_exposes_only_offline_eligibility_refresh(
                 "diagnostic_code": "automation_spot_source_gate_resumed",
             }
         )
+
+
+def test_exhausted_preview_gated_run_is_terminally_blocked_without_actions():
+    categories = [
+        "api_key_permissions",
+        "portfolio_catalog",
+        "wallet_balances",
+        "product_metadata",
+        "best_bid_ask",
+        "fee_summary",
+        "exact_order_reconciliation",
+        "active_order_catalog",
+    ]
+
+    item = AutomationRunItem.model_validate(
+        {
+            **_run(),
+            "job_kind": "SPOT_CAMPAIGN",
+            "state": "BLOCKED",
+            "diagnostic_code": "automation_run_blocked",
+            "adapter_status": "BLOCKED",
+            "spot_execution_mode": "PREVIEW_GATED_V2",
+            "live_execution_available": False,
+            "live_attempt_consumed": False,
+            "preview_allowance_consumed": False,
+            "preview_call_count": 0,
+            "coinbase_api_call_count": 55,
+            "create_allowance_consumed": False,
+            "create_call_count": 0,
+            "cancel_allowance_consumed": False,
+            "cancel_call_count": 0,
+            "reconciliation_call_count": 0,
+            "call_count_exact": True,
+            "single_child_plan": {
+                "plan_sha256": "b" * 64,
+                "portfolio_scope": "Test",
+                "product_id": "BTC-USDC",
+                "side": "BUY",
+                "base_size": "0.0001",
+                "limit_price": "10000",
+                "submitted_notional_usdc": "1.00",
+                "possible_execution_notional_usdc": "1.00",
+                "max_submitted_notional_usdc": "3.10",
+                "max_possible_execution_notional_usdc": "1.00",
+            },
+            "eligibility": {
+                "cycle_number": 10,
+                "required_categories": categories,
+                "completed_categories": categories,
+                "eligible": False,
+                "blocker_code": "automation_spot_eligibility_stale",
+                "coinbase_api_call_count": 8,
+                "call_count_exact": True,
+            },
+            "allowed_actions": [],
+        }
+    )
+
+    assert item.state is AutomationRunState.BLOCKED
+    assert item.diagnostic_code == "automation_run_blocked"
+    assert item.allowed_actions == []
+    assert item.live_execution_available is False
+    assert item.preview_allowance_consumed is False
+    assert item.create_allowance_consumed is False
+    assert item.cancel_allowance_consumed is False
 
 
 def test_create_only_action_requires_refresh_and_create_but_not_cancel_permission(
@@ -1647,6 +1759,9 @@ def test_adapter_projects_eighth_category_and_authorize_action_without_reconcile
         def get_control_posture(self) -> SimpleNamespace:
             return SimpleNamespace(posture=self.control_posture)
 
+        def get_spot_goal_key_for_run(self, run_id: str) -> str:
+            return "operator_spot_automation_single_child_execution_adapter_v1"
+
         def get_spot_single_child_plan(
             self,
             definition_id: str,
@@ -1706,8 +1821,14 @@ def test_adapter_projects_eighth_category_and_authorize_action_without_reconcile
                 for category in categories
             )
 
-        def list_spot_eligibility_cycles(self) -> tuple[Any, ...]:
-            self.calls.append(("list_spot_eligibility_cycles", (), {}))
+        def list_spot_eligibility_cycles(
+            self,
+            *,
+            goal_key: str,
+        ) -> tuple[Any, ...]:
+            self.calls.append(
+                ("list_spot_eligibility_cycles", (), {"goal_key": goal_key})
+            )
             return (
                 SimpleNamespace(
                     run_id=RUN_ID,
@@ -1820,7 +1941,15 @@ def test_adapter_projects_eighth_category_and_authorize_action_without_reconcile
             (RUN_ID,),
             {"cycle_number": None},
         ),
-        ("list_spot_eligibility_cycles", (), {}),
+        (
+            "list_spot_eligibility_cycles",
+            (),
+            {
+                "goal_key": (
+                    "operator_spot_automation_single_child_execution_adapter_v1"
+                )
+            },
+        ),
         ("get_spot_run_execution", (RUN_ID,), {}),
         ("get_spot_single_child_plan", (DEFINITION_ID, 1), {}),
         (
@@ -1828,7 +1957,15 @@ def test_adapter_projects_eighth_category_and_authorize_action_without_reconcile
             (RUN_ID,),
             {"cycle_number": None},
         ),
-        ("list_spot_eligibility_cycles", (), {}),
+        (
+            "list_spot_eligibility_cycles",
+            (),
+            {
+                "goal_key": (
+                    "operator_spot_automation_single_child_execution_adapter_v1"
+                )
+            },
+        ),
         ("get_spot_run_execution", (RUN_ID,), {}),
         ("get_spot_single_child_plan", (DEFINITION_ID, 1), {}),
         (
@@ -1836,7 +1973,15 @@ def test_adapter_projects_eighth_category_and_authorize_action_without_reconcile
             (RUN_ID,),
             {"cycle_number": None},
         ),
-        ("list_spot_eligibility_cycles", (), {}),
+        (
+            "list_spot_eligibility_cycles",
+            (),
+            {
+                "goal_key": (
+                    "operator_spot_automation_single_child_execution_adapter_v1"
+                )
+            },
+        ),
         ("get_spot_run_execution", (RUN_ID,), {}),
         ("get_spot_single_child_plan", (DEFINITION_ID, 1), {}),
         (
@@ -1844,7 +1989,15 @@ def test_adapter_projects_eighth_category_and_authorize_action_without_reconcile
             (RUN_ID,),
             {"cycle_number": None},
         ),
-        ("list_spot_eligibility_cycles", (), {}),
+        (
+            "list_spot_eligibility_cycles",
+            (),
+            {
+                "goal_key": (
+                    "operator_spot_automation_single_child_execution_adapter_v1"
+                )
+            },
+        ),
         ("get_spot_run_execution", (RUN_ID,), {}),
     ]
 
