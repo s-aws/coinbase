@@ -1,10 +1,11 @@
-"""Strict production reader for the seven approved Spot eligibility categories."""
+"""Strict production reader for the eight approved Spot eligibility categories."""
 
 from __future__ import annotations
 
 import ast
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
+from decimal import Decimal
 import inspect
 from typing import Any
 
@@ -19,6 +20,7 @@ from application.admin_api.operator_spot_eligibility import (
 from application.admin_api.operator_spot_eligibility_reader import (
     CoinbaseApprovedSpotEligibilityReader,
     SpotEligibilityPlanTerms,
+    SpotEligibilityReadSnapshot,
 )
 
 
@@ -57,6 +59,9 @@ class _StrictClient:
     best_bid: str = "100"
     best_ask: str = "101"
     order_rows: list[dict[str, Any]] = field(default_factory=list)
+    active_order_pages: list[list[dict[str, Any]]] = field(
+        default_factory=lambda: [[]]
+    )
 
     def _record(self, name: str, **kwargs: Any) -> None:
         self.calls.append((name, kwargs))
@@ -148,6 +153,16 @@ class _StrictClient:
 
     def list_orders(self, **kwargs: Any) -> dict[str, Any]:
         self._record("list_orders", **kwargs)
+        if kwargs.get("order_status") == ["OPEN"]:
+            cursor = kwargs.get("cursor")
+            index = 0 if cursor is None else int(str(cursor).removeprefix("active-page-"))
+            rows = list(self.active_order_pages[index])
+            has_next = index + 1 < len(self.active_order_pages)
+            return {
+                "orders": rows,
+                "has_next": has_next,
+                "cursor": f"active-page-{index + 1}" if has_next else "",
+            }
         return {
             "orders": list(self.order_rows),
             "has_next": False,
@@ -233,11 +248,12 @@ def test_reader_executes_only_exact_category_methods_with_sanitized_evidence():
         reader.read_best_bid_ask(context),
         reader.read_fee_summary(context),
         reader.read_exact_order_reconciliation(context),
+        reader.read_account_active_spot_order_catalog(context),
     ]
 
     assert all(result.outcome is SpotEligibilityReadOutcome.SUCCEEDED for result in results)
     assert all(result.eligible is True for result in results)
-    assert [result.http_request_count for result in results] == [1, 1, 2, 1, 1, 1, 1]
+    assert [result.http_request_count for result in results] == [1, 1, 2, 1, 1, 1, 1, 1]
     assert all(result.evidence_sha256 is not None for result in results)
     assert [name for name, _kwargs in client.calls] == [
         "get_api_key_permissions",
@@ -247,6 +263,7 @@ def test_reader_executes_only_exact_category_methods_with_sanitized_evidence():
         "get_best_bid_ask",
         "get_spot_transaction_summary",
         "list_orders",
+        "list_orders",
     ]
     assert client.calls[3][1] == {"product_ids": ["BTC-USDC"]}
     assert client.calls[4][1] == {"product_ids": ["BTC-USDC"]}
@@ -254,6 +271,13 @@ def test_reader_executes_only_exact_category_methods_with_sanitized_evidence():
         "limit": 100,
         "product_ids": ["BTC-USDC"],
         "product_type": "SPOT",
+        "retail_portfolio_id": PORTFOLIO_ID,
+    }
+    assert client.calls[7][1] == {
+        "limit": 100,
+        "order_status": ["OPEN"],
+        "product_type": "SPOT",
+        "retail_portfolio_id": PORTFOLIO_ID,
     }
     serialized = repr(results)
     for forbidden in (
@@ -335,6 +359,154 @@ def test_reader_rejects_existing_exact_child_without_active_catalog_query():
     assert "withheld-exchange-id" not in repr(result)
 
 
+def _complete_reader_cycle(
+    reader: CoinbaseApprovedSpotEligibilityReader,
+    context: SpotEligibilityReadContext,
+) -> list[Any]:
+    return [
+        reader.read_api_key_permissions(context),
+        reader.read_portfolio_catalog(context),
+        reader.read_account_wallet_balances(context),
+        reader.read_product_metadata(context),
+        reader.read_best_bid_ask(context),
+        reader.read_fee_summary(context),
+        reader.read_exact_order_reconciliation(context),
+        reader.read_account_active_spot_order_catalog(context),
+    ]
+
+
+def test_active_catalog_is_account_wide_portfolio_scoped_and_counts_each_page_once():
+    client = _StrictClient(active_order_pages=[[], []])
+    reader = _reader(client)
+    context = _read_context()
+
+    results = _complete_reader_cycle(reader, context)
+
+    terminal = results[-1]
+    assert terminal.outcome is SpotEligibilityReadOutcome.SUCCEEDED
+    assert terminal.eligible is True
+    assert terminal.logical_call_count == 1
+    assert terminal.http_request_count == 2
+    catalog_calls = [kwargs for name, kwargs in client.calls if name == "list_orders"][-2:]
+    assert catalog_calls == [
+        {
+            "limit": 100,
+            "order_status": ["OPEN"],
+            "product_type": "SPOT",
+            "retail_portfolio_id": PORTFOLIO_ID,
+        },
+        {
+            "limit": 100,
+            "order_status": ["OPEN"],
+            "product_type": "SPOT",
+            "retail_portfolio_id": PORTFOLIO_ID,
+            "cursor": "active-page-1",
+        },
+    ]
+    assert all("product_ids" not in call for call in catalog_calls)
+
+
+def test_active_catalog_rejects_any_row_without_retaining_private_identity():
+    secret_order_id = "withheld-active-exchange-id"
+    client = _StrictClient(
+        active_order_pages=[
+            [
+                {
+                    "client_order_id": "withheld-active-client-id",
+                    "order_id": secret_order_id,
+                    "status": "PENDING",
+                }
+            ]
+        ]
+    )
+    reader = _reader(client)
+    context = _read_context()
+    assert reader.read_api_key_permissions(context).eligible is True
+    assert reader.read_portfolio_catalog(context).eligible is True
+
+    result = reader.read_account_active_spot_order_catalog(context)
+
+    assert result.outcome is SpotEligibilityReadOutcome.REJECTED
+    assert result.eligible is False
+    assert result.logical_call_count == 1
+    assert result.http_request_count == 1
+    assert result.evidence_sha256 is None
+    assert secret_order_id not in repr(result)
+    with pytest.raises(ValueError, match="spot_eligibility_reader_snapshot_incomplete"):
+        reader.execution_snapshot()
+
+
+def test_active_catalog_exception_is_fixed_unknown_and_never_retried():
+    secret = "withheld-active-catalog-failure"
+
+    class _FailingActiveCatalogClient(_StrictClient):
+        def list_orders(self, **kwargs: Any) -> dict[str, Any]:
+            self._record("list_orders", **kwargs)
+            if kwargs.get("order_status") == ["OPEN"]:
+                raise RuntimeError(secret)
+            return {
+                "orders": list(self.order_rows),
+                "has_next": False,
+                "cursor": "",
+            }
+
+    client = _FailingActiveCatalogClient()
+    reader = _reader(client)
+    context = _read_context()
+    assert reader.read_api_key_permissions(context).eligible is True
+    assert reader.read_portfolio_catalog(context).eligible is True
+
+    result = reader.read_account_active_spot_order_catalog(context)
+
+    assert result.outcome is SpotEligibilityReadOutcome.UNKNOWN
+    assert result.eligible is False
+    assert result.logical_call_count == 1
+    assert result.http_request_count is None
+    assert result.call_count_exact is False
+    active_calls = [
+        kwargs
+        for name, kwargs in client.calls
+        if name == "list_orders" and kwargs.get("order_status") == ["OPEN"]
+    ]
+    assert len(active_calls) == 1
+    assert secret not in repr(result)
+
+
+def test_transient_execution_snapshot_is_typed_read_only_and_value_blind_in_repr():
+    client = _StrictClient(active_order_pages=[[], []])
+    reader = _reader(client)
+    context = _read_context()
+
+    with pytest.raises(ValueError, match="spot_eligibility_reader_snapshot_incomplete"):
+        reader.execution_snapshot()
+    assert all(result.eligible for result in _complete_reader_cycle(reader, context))
+
+    snapshot = reader.execution_snapshot()
+
+    assert isinstance(snapshot, SpotEligibilityReadSnapshot)
+    assert snapshot.cycle_number == 1
+    assert snapshot.plan_sha256 == PLAN_SHA256
+    assert snapshot.portfolio.portfolio_id_sha256 == PORTFOLIO_SHA256
+    assert snapshot.portfolio.retail_portfolio_id == PORTFOLIO_ID
+    assert snapshot.wallets["USDC"].available_balance == Decimal("10")
+    assert snapshot.market_reference.best_bid == Decimal("100")
+    assert snapshot.market_reference.best_ask == Decimal("101")
+    assert snapshot.exact_order_absence.page_count == 1
+    assert snapshot.active_order_catalog_absence.page_count == 2
+    with pytest.raises(TypeError):
+        snapshot.wallets["USDC"] = snapshot.wallets["USDC"]  # type: ignore[index]
+    serialized = repr(snapshot)
+    for forbidden in (
+        PORTFOLIO_ID,
+        PLAN_SHA256,
+        "10",
+        "100",
+        "101",
+        context.client_order_id,
+    ):
+        assert forbidden not in serialized
+
+
 def test_reader_fails_closed_on_context_or_plan_binding_drift_before_call():
     client = _StrictClient()
     reader = _reader(client)
@@ -350,19 +522,19 @@ def test_reader_fails_closed_on_context_or_plan_binding_drift_before_call():
     assert client.calls == []
 
 
-def test_reader_module_has_no_active_catalog_or_exchange_mutation_capability():
+def test_reader_module_has_no_exchange_mutation_or_generic_execution_gateway():
     import application.admin_api.operator_spot_eligibility_reader as module
 
     source = inspect.getsource(module)
     tree = ast.parse(source)
     forbidden_identifiers = {
-        "COINBASE_ACTIVE_SPOT_ORDER_QUERY",
         "canonical_coinbase_execution_scope",
         "AdminApiCommandService",
         "create_order",
         "cancel_order",
         "cancel_orders",
-        "order_status",
+        "execute",
+        "execution_gateway",
     }
     observed_names = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
     observed_attributes = {
@@ -388,3 +560,4 @@ def test_reader_module_has_no_active_catalog_or_exchange_mutation_capability():
         for forbidden in forbidden_identifiers
         for value in observed_strings
     )
+    assert "read_authoritative_coinbase_orders" in observed_names

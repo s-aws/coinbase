@@ -13,28 +13,51 @@ plans.
 
 ## Current MVP Goal
 
-Current goal `operator_spot_automation_single_child_execution_adapter_v1` is
-at an eligibility-coordinator-complete, source-gated checkpoint, not a
-live-ready completion. The typed PostgreSQL one-child `BTC-USDC` plan,
-deterministic child claim, goal-global ten-cycle eligibility ledger, strict
-seven-category reader, generated backend/frontend readback, and explicit
-operator refresh are implemented. Navigation is call-free; a refresh is
-backend-owned, fixed-order, no-retry, freshness-bound, and value-blind.
+Goal `operator_spot_automation_single_child_execution_adapter_v1` is complete.
+Status: `complete`.
+Current action: `complete_zero_candidate_all_live_allowances_unconsumed`.
+Default action: `await_operator_direction_for_next_mvp`.
 
-Installed production claims fail closed with
-`automation_active_order_catalog_read_not_authorized` before the canonical
-account-wide active-order guard, invocation claim, Create, or Cancel. No live
-eligibility refresh was exercised during implementation, and all goal-scoped
-read, Create, and Cancel allowances are unconsumed. Completing the canonical
-admission/exact-child execution path requires the consolidated successor
-authority recorded in
-[the adapter checkpoint](docs/OPERATOR_SPOT_AUTOMATION_SINGLE_CHILD_ADAPTER.md).
+The Eight-category single-child adapter remains installed behind backend-owned
+authority. Aggregate primary evidence: definitions `0`, plans `0`, runs `0`, eligibility cycles `0`, claims `0`, and candidates `0`.
+State-refresh cycles consumed: `0/10`.
+Coinbase Create calls: `0`; Coinbase Cancel calls: `0`.
+All live allowances remain unconsumed.
 
-Current checkpoint validation passed backend full `1170 passed, 6 skipped`
-parallel and `651 passed, 150 skipped` serial, frontend full `1536 passed`,
-browser E2E `15/15`, independent safety and blind-contextless audits, and the
-frontend build/security/readiness gates. Every gate reported no Coinbase
-execution and `0 USDC` notional.
+Validation evidence: backend full `1179 passed, 6 skipped` parallel and `664 passed, 150 skipped` serial; focused backend `367 passed`; frontend full `1555 passed`; E2E `15/15`; focused frontend `177 passed`; independent safety audit `PASS`; blind-contextless audit `PASS`.
+Release/deployment gate: `PASS` (canonical rerun complete).
+No Coinbase API call or exchange mutation was made for this closeout. Every immutable
+R1-R12 artifact byte and documented hash remains preserved, and R8 content and
+hash remain inaccessible.
+
+### Historical pre-closeout implementation checkpoint
+
+Before terminal closeout, goal
+`operator_spot_automation_single_child_execution_adapter_v1` was
+at a canonical-single-child-execution-implemented, validation-pending
+checkpoint. Durable PostgreSQL plan/run binding, a goal-global ten-cycle
+ledger, the fixed no-retry Eight-category eligibility coordinator (including
+the account-wide active Spot-order catalog), generated readback, and the
+explicit operator refresh are implemented. Navigation remains call-free.
+
+Exact-run authorization owns a separate final authorization refresh of the
+same bound eight categories before its durable Create claim. The canonical
+domain-owned one-child Create coordinator and the distinct
+exact-child safe-closeout Cancel coordinator delegate through the existing
+Spot command service with typed admission, RBAC, caps, idempotency,
+reconciliation, and fixed sanitized call accounting. No bare enablement flag,
+untyped gateway, alternate placement path, retry, scheduler, or fan-out was
+added.
+
+Historical checkpoint status was `canonical_single_child_execution_implemented_validation_pending`;
+its action was
+`complete_validation_audits_deployment_and_bounded_live_proof`. No goal-scoped
+Coinbase call has run. Eligibility-cycle, final-authorization-read, Create, and
+Cancel allowances remain unconsumed. Full validation, independent audits,
+installed deployment validation, and the bounded live proof remained pending.
+The previous source-gated checkpoint and its gate counts remain historical
+evidence. See
+[the adapter record](docs/OPERATOR_SPOT_AUTOMATION_SINGLE_CHILD_ADAPTER.md).
 
 ## Completed Automation control-plane predecessor
 

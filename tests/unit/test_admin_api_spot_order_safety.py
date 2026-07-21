@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from contextlib import contextmanager, nullcontext
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
+import hashlib
 from threading import Event, Lock, Thread
 from types import SimpleNamespace
 from typing import Any, Callable, Mapping
@@ -12,7 +14,13 @@ from core.enums import OrderStatus
 from application.admin_api.command_service import (
     AdminApiCommandDependencies,
     AdminApiCommandService,
+    SpotAutomationMarketEvidence,
+    SpotAutomationWalletEvidence,
+    SpotAutomationZeroActiveOrderEvidence,
+    SpotProfileAdmissionLeaseError,
     SpotProfileOrderAdmissionCoordinator,
+    ValidatedSpotAutomationAdmissionEvidence,
+    ValidatedSpotAutomationOwnershipEvidence,
 )
 from application.admin_api.models import (
     AdminApiActor,
@@ -25,6 +33,9 @@ from application.admin_api.models import (
     ManualOrderRequest,
     ReconcileOrderCommand,
     ReconcileOrderRequest,
+)
+from application.admin_api.spot_portfolio_binding import (
+    SpotPortfolioBindingEvidence,
 )
 
 
@@ -71,10 +82,27 @@ class _RootRegistrar:
         self.exchange_status_calls: list[dict[str, Any]] = []
 
     def register_manual_spot_root(self, **kwargs: Any) -> dict[str, Any]:
+        return self._register_spot_root(
+            ownership_provenance="ADMIN_MANUAL_ROOT",
+            **kwargs,
+        )
+
+    def register_automation_spot_root(self, **kwargs: Any) -> dict[str, Any]:
+        return self._register_spot_root(
+            ownership_provenance="ADMIN_AUTOMATION_ROOT",
+            **kwargs,
+        )
+
+    def _register_spot_root(
+        self,
+        *,
+        ownership_provenance: str,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
         row = {
             **kwargs,
             "parent_order_id": None,
-            "ownership_provenance": "ADMIN_MANUAL_ROOT",
+            "ownership_provenance": ownership_provenance,
             "status": "PENDING",
         }
         self.rows[str(kwargs["client_order_id"])] = row
@@ -82,7 +110,7 @@ class _RootRegistrar:
             "registered": True,
             "client_order_id": kwargs["client_order_id"],
             "retail_portfolio_id": kwargs["retail_portfolio_id"],
-            "ownership_provenance": "ADMIN_MANUAL_ROOT",
+            "ownership_provenance": ownership_provenance,
             "target_movement": kwargs.get("target_movement_override"),
             "target_movement_source": (
                 "fee_aware_intentional_fill_target"
@@ -137,6 +165,21 @@ class _RootRegistrar:
             for row in self.rows.values()
             if row.get("retail_portfolio_id") == retail_portfolio_id
             and row.get("ownership_provenance") == "ADMIN_MANUAL_ROOT"
+            and row.get("parent_order_id") is None
+            and row.get("status") not in terminal
+        ]
+
+    def get_unresolved_admin_spot_root_submissions(
+        self,
+        retail_portfolio_id: str,
+    ) -> list[dict[str, Any]]:
+        terminal = {"FILLED", "CANCELLED", "EXPIRED", "FAILED"}
+        return [
+            dict(row)
+            for row in self.rows.values()
+            if row.get("retail_portfolio_id") == retail_portfolio_id
+            and row.get("ownership_provenance")
+            in {"ADMIN_MANUAL_ROOT", "ADMIN_AUTOMATION_ROOT"}
             and row.get("parent_order_id") is None
             and row.get("status") not in terminal
         ]
@@ -1143,6 +1186,427 @@ def _registered_root(
     }
 
 
+AUTOMATION_RUN_ID = "7c8ca6b1-f3cf-4a02-b65b-d16966a39e28"
+AUTOMATION_DEFINITION_ID = "f15c025a-8b1c-412a-8be6-88848d1bc5e2"
+AUTOMATION_PLAN_SHA256 = "a" * 64
+
+
+def _automation_portfolio_binding() -> SpotPortfolioBindingEvidence:
+    return SpotPortfolioBindingEvidence(
+        ready=True,
+        blocker=None,
+        expected_portfolio_id=TEST_PORTFOLIO_ID,
+        expected_portfolio_label="Test",
+        expected_portfolio_type="CONSUMER",
+        observed_portfolio_id=TEST_PORTFOLIO_ID,
+        observed_portfolio_label="Test",
+        observed_portfolio_type="CONSUMER",
+        can_view=True,
+        can_trade=True,
+    )
+
+
+def _automation_ownership(
+    lease: object,
+    *,
+    fresh_until: datetime | None = None,
+    client_order_id: str = "22daf1ea-4c57-4c03-98c5-e74459576228",
+) -> ValidatedSpotAutomationOwnershipEvidence:
+    return ValidatedSpotAutomationOwnershipEvidence(
+        run_id=AUTOMATION_RUN_ID,
+        definition_id=AUTOMATION_DEFINITION_ID,
+        definition_revision=1,
+        plan_sha256=AUTOMATION_PLAN_SHA256,
+        client_order_id=client_order_id,
+        product_id="BTC-USDC",
+        side="BUY",
+        base_size=Decimal("0.02"),
+        limit_price=Decimal("50.00"),
+        portfolio_id_sha256=hashlib.sha256(
+            TEST_PORTFOLIO_ID.encode("utf-8")
+        ).hexdigest(),
+        fresh_until=fresh_until
+        or datetime.now(timezone.utc) + timedelta(seconds=30),
+        portfolio_binding=_automation_portfolio_binding(),
+        lease=lease,
+    )
+
+
+def _automation_admission(
+    lease: object,
+    *,
+    fresh_until: datetime | None = None,
+    client_order_id: str = "22daf1ea-4c57-4c03-98c5-e74459576228",
+) -> ValidatedSpotAutomationAdmissionEvidence:
+    now = datetime.now(timezone.utc)
+    expires = fresh_until or now + timedelta(seconds=30)
+    transient_expires = max(expires, now + timedelta(seconds=30))
+    ownership = _automation_ownership(
+        lease,
+        fresh_until=expires,
+        client_order_id=client_order_id,
+    )
+    return ValidatedSpotAutomationAdmissionEvidence(
+        **{
+            field: getattr(ownership, field)
+            for field in ownership.__dataclass_fields__
+        },
+        wallet_evidence=SpotAutomationWalletEvidence(
+            required_currency="USDC",
+            available_balance=Decimal("10.00"),
+            planned_commitment=Decimal("0"),
+            known_inventory_available=True,
+            known_inventory_base_size=Decimal("0.02"),
+            observed_at=now,
+            fresh_until=transient_expires,
+            source="coinbase_account_wallet_refresh",
+            evidence_sha256="b" * 64,
+        ),
+        market_evidence=SpotAutomationMarketEvidence(
+            best_bid=Decimal("100.00"),
+            best_ask=Decimal("100.01"),
+            observed_at=now,
+            fresh_until=transient_expires,
+            source="coinbase_rest_best_bid",
+            evidence_sha256="c" * 64,
+        ),
+        zero_active_order_evidence=SpotAutomationZeroActiveOrderEvidence(
+            authoritative=True,
+            open_order_count=0,
+            logical_call_count=1,
+            http_request_count=1,
+            call_count_exact=True,
+            pagination_complete=True,
+            page_count=1,
+            observed_at=now,
+            fresh_until=transient_expires,
+            evidence_sha256="d" * 64,
+        ),
+    )
+
+
+def test_profile_admission_claim_yields_exact_thread_bound_expiring_lease() -> None:
+    coordinator = SpotProfileOrderAdmissionCoordinator()
+    thread_result: list[str] = []
+
+    with coordinator.claim(TEST_PORTFOLIO_ID) as lease:
+        coordinator.require_active_lease(
+            lease,
+            retail_portfolio_id=TEST_PORTFOLIO_ID,
+        )
+
+        def validate_from_other_thread() -> None:
+            try:
+                coordinator.require_active_lease(
+                    lease,
+                    retail_portfolio_id=TEST_PORTFOLIO_ID,
+                )
+            except SpotProfileAdmissionLeaseError as exc:
+                thread_result.append(str(exc))
+
+        worker = Thread(target=validate_from_other_thread)
+        worker.start()
+        worker.join(timeout=2)
+
+    assert thread_result == ["spot_profile_admission_lease_thread_mismatch"]
+    with pytest.raises(
+        SpotProfileAdmissionLeaseError,
+        match="spot_profile_admission_lease_inactive",
+    ):
+        coordinator.require_active_lease(
+            lease,
+            retail_portfolio_id=TEST_PORTFOLIO_ID,
+        )
+
+
+def test_automation_submit_reuses_evidence_without_duplicate_reads_and_registers_provenance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import configuration
+
+    monkeypatch.setattr(
+        configuration,
+        "ACTION_CONDITION_GUARDS",
+        {"wallet_available": True, "limits": []},
+        raising=False,
+    )
+    monkeypatch.setattr(
+        configuration,
+        "rest_get_account_wallets",
+        lambda: (_ for _ in ()).throw(AssertionError("duplicate wallet read")),
+        raising=False,
+    )
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+    rest_client = _SpotRestClient()
+    rest_client.history = [
+        {
+            "client_order_id": client_order_id,
+            "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
+            "status": "OPEN",
+        }
+    ]
+    registrar = _RootRegistrar()
+    coordinator = SpotProfileOrderAdmissionCoordinator()
+    service = _service(rest_client, registrar, coordinator=coordinator)
+    service.dependencies.spot_market_reference_getter = lambda _product_id: (
+        (_ for _ in ()).throw(AssertionError("duplicate market read"))
+    )
+
+    with coordinator.claim(TEST_PORTFOLIO_ID) as lease:
+        response = service.place_manual_order(
+            _manual_command(
+                client_order_id,
+                approval_snapshot_id="approval-automation-1",
+                max_submitted_notional_usdc="3.10",
+                max_executed_notional_usdc="1.00",
+            ),
+            automation_admission=_automation_admission(lease),
+        )
+
+    assert response.status == AdminApiCommandStatus.ACCEPTED, (
+        response.failure_stage,
+        response.message,
+        response.data,
+    )
+    assert response.live_coinbase_read_call_count == 1
+    assert rest_client.api_key_permission_calls == 0
+    assert rest_client.portfolio_calls == 0
+    assert rest_client.list_calls == []
+    assert len(rest_client.create_calls) == 1
+    assert rest_client.get_calls == ["exchange-order-1"]
+    assert registrar.rows[client_order_id]["ownership_provenance"] == (
+        "ADMIN_AUTOMATION_ROOT"
+    )
+
+
+def test_manual_submit_after_restart_blocks_on_unresolved_automation_root() -> None:
+    automation_client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+    manual_client_order_id = "0ba18a83-b30c-4c71-ad01-8f4e439d8f70"
+
+    class _CrossPathRegistrar(_RootRegistrar):
+        def __init__(self) -> None:
+            super().__init__()
+            self.manual_unresolved_reads = 0
+            self.spot_unresolved_reads = 0
+
+        def get_unresolved_admin_manual_root_submissions(
+            self,
+            retail_portfolio_id: str,
+        ) -> list[dict[str, Any]]:
+            self.manual_unresolved_reads += 1
+            return super().get_unresolved_admin_manual_root_submissions(
+                retail_portfolio_id,
+            )
+
+        def get_unresolved_admin_spot_root_submissions(
+            self,
+            retail_portfolio_id: str,
+        ) -> list[dict[str, Any]]:
+            self.spot_unresolved_reads += 1
+            return super().get_unresolved_admin_spot_root_submissions(
+                retail_portfolio_id,
+            )
+
+    rest_client = _SpotRestClient()
+    rest_client.history = [
+        {
+            "client_order_id": manual_client_order_id,
+            "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
+            "status": "OPEN",
+        }
+    ]
+    registrar = _CrossPathRegistrar()
+    _registered_root(
+        registrar,
+        automation_client_order_id,
+        provenance="ADMIN_AUTOMATION_ROOT",
+    )
+
+    response = _service(
+        rest_client,
+        registrar,
+        coordinator=SpotProfileOrderAdmissionCoordinator(),
+    ).place_manual_order(_manual_command(manual_client_order_id))
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "submission_uncertainty"
+    assert response.data["runtime_submission_uncertainties"] == []
+    assert len(response.data["durable_unresolved_roots"]) == 1
+    assert response.data["durable_unresolved_roots"][0][
+        "ownership_provenance"
+    ] == "ADMIN_AUTOMATION_ROOT"
+    assert registrar.manual_unresolved_reads == 0
+    assert registrar.spot_unresolved_reads == 1
+    assert rest_client.create_calls == []
+
+
+@pytest.mark.parametrize("mode", ["expired", "unlocked", "wrong_coordinator"])
+def test_automation_submit_rejects_invalid_typed_evidence_before_any_call(
+    mode: str,
+) -> None:
+    rest_client = _SpotRestClient()
+    registrar = _RootRegistrar()
+    coordinator = SpotProfileOrderAdmissionCoordinator()
+    service = _service(rest_client, registrar, coordinator=coordinator)
+    issuer = (
+        SpotProfileOrderAdmissionCoordinator()
+        if mode == "wrong_coordinator"
+        else coordinator
+    )
+    with issuer.claim(TEST_PORTFOLIO_ID) as lease:
+        evidence = _automation_admission(
+            lease,
+            fresh_until=(
+                datetime.now(timezone.utc) - timedelta(seconds=1)
+                if mode == "expired"
+                else None
+            ),
+        )
+        if mode != "unlocked":
+            response = service.place_manual_order(
+                _manual_command(
+                    max_submitted_notional_usdc="3.10",
+                    max_executed_notional_usdc="1.00",
+                ),
+                automation_admission=evidence,
+            )
+    if mode == "unlocked":
+        response = service.place_manual_order(
+            _manual_command(
+                max_submitted_notional_usdc="3.10",
+                max_executed_notional_usdc="1.00",
+            ),
+            automation_admission=evidence,
+        )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "automation_admission"
+    assert response.live_coinbase_read_call_count == 0
+    assert rest_client.api_key_permission_calls == 0
+    assert rest_client.portfolio_calls == 0
+    assert rest_client.list_calls == []
+    assert rest_client.get_calls == []
+    assert rest_client.create_calls == []
+    assert registrar.rows == {}
+
+
+def test_automation_reconcile_and_cancel_reuse_typed_ownership_without_portfolio_reads() -> None:
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+
+    class _TerminalizingCancelClient(_SpotRestClient):
+        def cancel_order(self, *args: Any, **kwargs: Any) -> Any:
+            result = super().cancel_order(*args, **kwargs)
+            self.history[0]["status"] = "CANCELLED"
+            return result
+
+    rest_client = _TerminalizingCancelClient()
+    rest_client.history = [
+        {
+            "client_order_id": client_order_id,
+            "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
+            "status": "OPEN",
+        }
+    ]
+    registrar = _RootRegistrar()
+    _registered_root(
+        registrar,
+        client_order_id,
+        provenance="ADMIN_AUTOMATION_ROOT",
+    )
+    registrar.rows[client_order_id]["exchange_order_id"] = "exchange-order-1"
+    coordinator = SpotProfileOrderAdmissionCoordinator()
+    service = _service(rest_client, registrar, coordinator=coordinator)
+
+    with coordinator.claim(TEST_PORTFOLIO_ID) as lease:
+        ownership = _automation_ownership(lease)
+        reconciled = service.reconcile_order_by_client_order_id(
+            _reconcile_command(client_order_id),
+            automation_ownership=ownership,
+        )
+        cancelled = service.cancel_order_by_client_order_id(
+            _cancel_command(client_order_id),
+            automation_ownership=ownership,
+        )
+
+    assert reconciled.status == AdminApiCommandStatus.ACCEPTED
+    assert cancelled.status == AdminApiCommandStatus.ACCEPTED
+    assert reconciled.live_coinbase_read_call_count == 1
+    assert cancelled.live_coinbase_read_call_count == 2
+    assert rest_client.api_key_permission_calls == 0
+    assert rest_client.portfolio_calls == 0
+    assert rest_client.cancel_exchange_calls == ["exchange-order-1"]
+
+
+def test_automation_cancel_counts_two_page_pre_read_and_one_page_post_read() -> None:
+    """Create persistence loss must not undercount list-based safe closeout reads."""
+
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+
+    class _TwoPagePreReadTerminalizingCancelClient(_SpotRestClient):
+        def list_orders(self, **kwargs: Any) -> dict[str, Any]:
+            self.list_calls.append(dict(kwargs))
+            if kwargs.get("cursor") is None:
+                return {
+                    "orders": [
+                        {
+                            "client_order_id": "unrelated-client-order",
+                            "order_id": "unrelated-exchange-order",
+                            "product_id": "BTC-USDC",
+                            "status": "OPEN",
+                        }
+                    ],
+                    "has_next": True,
+                    "cursor": "pre-read-page-2",
+                }
+            assert kwargs["cursor"] == "pre-read-page-2"
+            return {
+                "orders": [dict(self.history[0])],
+                "has_next": False,
+            }
+
+        def cancel_order(self, *args: Any, **kwargs: Any) -> Any:
+            result = super().cancel_order(*args, **kwargs)
+            self.history[0]["status"] = "CANCELLED"
+            return result
+
+    rest_client = _TwoPagePreReadTerminalizingCancelClient()
+    rest_client.history = [
+        {
+            "client_order_id": client_order_id,
+            "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
+            "status": "OPEN",
+        }
+    ]
+    registrar = _RootRegistrar()
+    _registered_root(
+        registrar,
+        client_order_id,
+        provenance="ADMIN_AUTOMATION_ROOT",
+    )
+    assert "exchange_order_id" not in registrar.rows[client_order_id]
+    coordinator = SpotProfileOrderAdmissionCoordinator()
+    service = _service(rest_client, registrar, coordinator=coordinator)
+
+    with coordinator.claim(TEST_PORTFOLIO_ID) as lease:
+        response = service.cancel_order_by_client_order_id(
+            _cancel_command(client_order_id),
+            automation_ownership=_automation_ownership(lease),
+        )
+
+    assert response.status == AdminApiCommandStatus.ACCEPTED
+    assert response.live_coinbase_read_call_count == 3
+    cancellation = response.data["cancellation_readback"]
+    assert cancellation["pre_cancel_read_page_count"] == 2
+    assert cancellation["authoritative_readback"]["page_count"] == 1
+    assert len(rest_client.list_calls) == 2
+    assert rest_client.get_calls == ["exchange-order-1"]
+    assert rest_client.cancel_exchange_calls == ["exchange-order-1"]
+
+
 def test_submit_rejects_off_tick_price_before_root_or_coinbase_boundary() -> None:
     rest_client = _SpotRestClient()
     registrar = _RootRegistrar()
@@ -1232,6 +1696,7 @@ def test_submit_preserves_on_tick_price_through_root_and_coinbase_boundary() -> 
 
     assert response.status == AdminApiCommandStatus.ACCEPTED
     assert response.live_coinbase_read_ran is True
+    assert response.live_coinbase_read_call_count is None
     assert registrar.rows[client_order_id]["limit_price"] == "50.00"
     assert rest_client.create_calls[0]["order_configuration"] == {
         "limit_limit_gtc": {

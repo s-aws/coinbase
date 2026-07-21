@@ -1,0 +1,1666 @@
+"""Synthetic orchestration contract for the one-child Spot Automation adapter.
+
+These tests deliberately inject every boundary that could otherwise reach
+Coinbase.  The PostgreSQL adapter remains responsible for ordering the durable
+claim/finalize transitions around the canonical Admin command service.
+"""
+
+from __future__ import annotations
+
+from contextlib import contextmanager
+from dataclasses import dataclass, replace
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
+import hashlib
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any, Iterator
+
+import pytest
+
+from application.admin_api.automation_models import (
+    AutomationMutationContext,
+    AutomationSingleChildAuthorizationRequest,
+    AutomationSingleChildSafeCloseoutRequest,
+)
+from application.admin_api.command_service import (
+    SpotProfileOrderAdmissionCoordinator,
+    ValidatedSpotAutomationAdmissionEvidence,
+    ValidatedSpotAutomationOwnershipEvidence,
+)
+from application.admin_api.models import (
+    AdminApiCommandResponse,
+    AdminLiveAdmissionDecisionEvidence,
+    CancelOrderCommand,
+    ManualOrderCommand,
+)
+from application.admin_api.operator_automation import (
+    AutomationRepositoryConflict,
+    OperatorAutomationService,
+    PostgresOperatorAutomationRepositoryAdapter,
+    SpotAutomationEligibilityExecutionBundle,
+)
+from application.admin_api.operator_spot_eligibility import (
+    APPROVED_SPOT_ELIGIBILITY_ORDER,
+    ApprovedSpotEligibilityCategory,
+    SpotEligibilityCycleResult,
+    SpotEligibilityReadOutcome,
+    derive_spot_eligibility_client_order_id,
+)
+from application.admin_api.operator_spot_eligibility_reader import (
+    SpotEligibilityActiveOrderCatalogAbsenceSnapshot,
+    SpotEligibilityExactOrderAbsenceSnapshot,
+    SpotEligibilityMarketReferenceSnapshot,
+    SpotEligibilityPortfolioBindingSnapshot,
+    SpotEligibilityReadSnapshot,
+    SpotEligibilityWalletSnapshot,
+)
+from core.coinbase_execution_authority import (
+    COINBASE_EXECUTION_SCOPE_SPOT_CANCEL,
+    COINBASE_EXECUTION_SCOPE_SPOT_PLACE,
+)
+from core.enums import (
+    AdminApiActionClass,
+    AdminApiCommandStatus,
+    AdminApiGateStatus,
+    AdminApiLiveExecutionStatus,
+    AdminApiPermission,
+    OperatorAutomationDomain,
+    OperatorAutomationJobKind,
+    OperatorAutomationRunState,
+)
+from database.operator_automation import (
+    AutomationMutationCommand,
+    AutomationRunRecord,
+    AutomationSpotEligibilityAttemptRecord,
+    AutomationSpotEligibilityCycleRecord,
+    AutomationSpotRunExecutionRecord,
+    AutomationSpotSingleChildPlanRecord,
+    AutomationStoreMutation,
+    AutomationStoreConflict,
+)
+
+
+NOW = datetime.now(timezone.utc)
+FRESH_UNTIL = NOW + timedelta(minutes=5)
+NOW_TEXT = NOW.isoformat()
+FRESH_UNTIL_TEXT = FRESH_UNTIL.isoformat()
+DEFINITION_ID = "f15c025a-8b1c-412a-8be6-88848d1bc5e2"
+RUN_ID = "7c8ca6b1-f3cf-4a02-b65b-d16966a39e28"
+PORTFOLIO_ID = "483d1403-5d4d-4ae1-9084-ae2b080902b7"
+PORTFOLIO_SHA256 = hashlib.sha256(PORTFOLIO_ID.encode("utf-8")).hexdigest()
+PLAN_SHA256 = "a" * 64
+CLIENT_ORDER_ID = derive_spot_eligibility_client_order_id(
+    run_id=RUN_ID,
+    plan_sha256=PLAN_SHA256,
+)
+AUDIT_ID = "26371b41-f16e-4dad-83cc-946055440c62"
+CANCEL_AUDIT_ID = "645c91fe-9186-4207-80a9-2e6a595fc2df"
+
+
+@pytest.fixture(autouse=True)
+def _configured_test_portfolio(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID", PORTFOLIO_ID)
+
+
+def _context() -> AutomationMutationContext:
+    return AutomationMutationContext(
+        actor_id="operator-automation-test",
+        roles=("trader",),
+        idempotency_key="automation-execution-idempotency-1",
+        correlation_id="automation-execution-correlation-1",
+        operator_intent="authorize_exact_spot_automation_child",
+    )
+
+
+def _authorization_request() -> AutomationSingleChildAuthorizationRequest:
+    return AutomationSingleChildAuthorizationRequest(
+        confirm_single_child_create=True,
+        confirm_final_eligibility_refresh=True,
+        confirm_account_wide_active_spot_order_catalog_read=True,
+        confirm_unknown_consumes_allowance=True,
+        expected_plan_sha256=PLAN_SHA256,
+        reason="authorize the exact bounded child",
+    )
+
+
+def _closeout_request() -> AutomationSingleChildSafeCloseoutRequest:
+    return AutomationSingleChildSafeCloseoutRequest(
+        confirm_exact_child_safe_closeout_cancel=True,
+        confirm_unknown_consumes_allowance=True,
+        expected_plan_sha256=PLAN_SHA256,
+        reason="safely close the exact bounded child",
+    )
+
+
+def _run_record(
+    *,
+    state: OperatorAutomationRunState = (
+        OperatorAutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
+    ),
+    diagnostic_code: str = "awaiting_operator_authorization",
+    client_order_id: str | None = None,
+    live_attempt_consumed: bool = False,
+    coinbase_api_call_count: int = 0,
+    create_call_count: int = 0,
+    cancel_call_count: int = 0,
+) -> AutomationRunRecord:
+    return AutomationRunRecord(
+        run_id=RUN_ID,
+        definition_id=DEFINITION_ID,
+        domain=OperatorAutomationDomain.SPOT,
+        job_kind=OperatorAutomationJobKind.SPOT_CAMPAIGN,
+        state=state,
+        diagnostic_code=diagnostic_code,
+        audit_id=AUDIT_ID,
+        correlation_id=_context().correlation_id,
+        client_order_id=client_order_id,
+        live_attempt_consumed=live_attempt_consumed,
+        coinbase_api_call_count=coinbase_api_call_count,
+        create_call_count=create_call_count,
+        cancel_call_count=cancel_call_count,
+        claimed_at=NOW_TEXT,
+        updated_at=NOW_TEXT,
+        definition_revision=1,
+    )
+
+
+def _plan_record() -> AutomationSpotSingleChildPlanRecord:
+    return AutomationSpotSingleChildPlanRecord(
+        definition_id=DEFINITION_ID,
+        definition_revision=1,
+        portfolio_id_sha256=PORTFOLIO_SHA256,
+        product_id="BTC-USDC",
+        side="BUY",
+        base_size="0.00001",
+        limit_price="50000",
+        submitted_notional_usdc="0.5",
+        possible_execution_notional_usdc="0.5",
+        # PostgreSQL NUMERIC readback is value-canonical rather than
+        # presentation-canonical; the runtime must compare Decimal values.
+        max_submitted_notional_usdc="3.1",
+        max_possible_execution_notional_usdc="1",
+        post_only=False,
+        plan_sha256=PLAN_SHA256,
+        audit_id=AUDIT_ID,
+        correlation_id=_context().correlation_id,
+        created_at=NOW_TEXT,
+    )
+
+
+def _cycle_result() -> SpotEligibilityCycleResult:
+    return SpotEligibilityCycleResult(
+        cycle_number=1,
+        outcome=SpotEligibilityReadOutcome.SUCCEEDED,
+        eligible=True,
+        attempted_categories=APPROVED_SPOT_ELIGIBILITY_ORDER,
+        completed_categories=APPROVED_SPOT_ELIGIBILITY_ORDER,
+        logical_call_count=len(APPROVED_SPOT_ELIGIBILITY_ORDER),
+        coinbase_api_call_count=len(APPROVED_SPOT_ELIGIBILITY_ORDER),
+        call_count_exact=True,
+        fresh_until=FRESH_UNTIL,
+        client_order_id=CLIENT_ORDER_ID,
+        diagnostic_code="automation_spot_eligibility_cycle_succeeded",
+        replayed=False,
+    )
+
+
+def _read_snapshot() -> SpotEligibilityReadSnapshot:
+    return SpotEligibilityReadSnapshot(
+        cycle_number=1,
+        plan_sha256=PLAN_SHA256,
+        portfolio=SpotEligibilityPortfolioBindingSnapshot(
+            retail_portfolio_id=PORTFOLIO_ID,
+            portfolio_id_sha256=PORTFOLIO_SHA256,
+            label="Test",
+            portfolio_type="CONSUMER",
+            can_view=True,
+            can_trade=True,
+        ),
+        wallets={
+            "BTC": SpotEligibilityWalletSnapshot(
+                currency="BTC",
+                available_balance=Decimal("1"),
+                total_balance=Decimal("1"),
+            ),
+            "USDC": SpotEligibilityWalletSnapshot(
+                currency="USDC",
+                available_balance=Decimal("10"),
+                total_balance=Decimal("10"),
+            ),
+        },
+        market_reference=SpotEligibilityMarketReferenceSnapshot(
+            product_id="BTC-USDC",
+            best_bid=Decimal("49999"),
+            best_ask=Decimal("50000"),
+            observed_at=NOW,
+        ),
+        exact_order_absence=SpotEligibilityExactOrderAbsenceSnapshot(
+            client_order_id=CLIENT_ORDER_ID,
+            product_id="BTC-USDC",
+            page_count=1,
+            evidence_sha256="d" * 64,
+        ),
+        active_order_catalog_absence=(
+            SpotEligibilityActiveOrderCatalogAbsenceSnapshot(
+                portfolio_id_sha256=PORTFOLIO_SHA256,
+                product_type="SPOT",
+                page_count=1,
+                evidence_sha256="d" * 64,
+            )
+        ),
+    )
+
+
+class _ExecutionRepository:
+    """In-memory fake for durable ordering only; it performs no I/O."""
+
+    def __init__(self, events: list[str]) -> None:
+        self.events = events
+        self.control_posture = "ACTIVE"
+        self.current_run = _run_record()
+        self.plan = _plan_record()
+        self.execution: AutomationSpotRunExecutionRecord | None = None
+        self.cycles: tuple[AutomationSpotEligibilityCycleRecord, ...] = ()
+        self.attempts: tuple[AutomationSpotEligibilityAttemptRecord, ...] = ()
+        self.start_create_calls: list[dict[str, Any]] = []
+        self.finalize_create_calls: list[dict[str, Any]] = []
+        self.start_cancel_calls: list[dict[str, Any]] = []
+        self.finalize_cancel_calls: list[dict[str, Any]] = []
+
+    def get_control_posture(self) -> SimpleNamespace:
+        return SimpleNamespace(posture=self.control_posture)
+
+    def get_run(self, run_id: str) -> AutomationRunRecord | None:
+        return self.current_run if run_id == RUN_ID else None
+
+    def get_spot_single_child_plan(
+        self,
+        definition_id: str,
+        definition_revision: int,
+    ) -> AutomationSpotSingleChildPlanRecord | None:
+        if (definition_id, definition_revision) != (DEFINITION_ID, 1):
+            return None
+        return self.plan
+
+    def get_spot_run_execution(
+        self,
+        run_id: str,
+    ) -> AutomationSpotRunExecutionRecord | None:
+        return self.execution if run_id == RUN_ID else None
+
+    def list_spot_eligibility_attempts(
+        self,
+        run_id: str,
+        cycle_number: int | None = None,
+    ) -> tuple[AutomationSpotEligibilityAttemptRecord, ...]:
+        assert run_id == RUN_ID
+        if cycle_number is None:
+            return self.attempts
+        return tuple(
+            attempt
+            for attempt in self.attempts
+            if attempt.cycle_number == cycle_number
+        )
+
+    def list_spot_eligibility_cycles(
+        self,
+    ) -> tuple[AutomationSpotEligibilityCycleRecord, ...]:
+        return self.cycles
+
+    def install_fresh_cycle(self, result: SpotEligibilityCycleResult) -> None:
+        assert result.replayed is False
+        self.cycles = (
+            AutomationSpotEligibilityCycleRecord(
+                goal_key=(
+                    "operator_spot_automation_single_child_execution_adapter_v1"
+                ),
+                cycle_number=result.cycle_number,
+                policy_revision=2,
+                run_id=RUN_ID,
+                definition_id=DEFINITION_ID,
+                definition_revision=1,
+                plan_sha256=PLAN_SHA256,
+                portfolio_id_sha256=PORTFOLIO_SHA256,
+                product_id="BTC-USDC",
+                client_order_id=CLIENT_ORDER_ID,
+                state="SUCCEEDED",
+                coinbase_api_call_count=result.coinbase_api_call_count,
+                call_count_exact=True,
+                fresh_until=FRESH_UNTIL_TEXT,
+                diagnostic_code=result.diagnostic_code,
+                audit_id=AUDIT_ID,
+                correlation_id=_context().correlation_id,
+                started_at=NOW_TEXT,
+                finalized_at=NOW_TEXT,
+            ),
+        )
+        self.attempts = tuple(
+            AutomationSpotEligibilityAttemptRecord(
+                run_id=RUN_ID,
+                cycle_number=1,
+                category=category.value,
+                allowance_consumed=True,
+                outcome="SUCCEEDED",
+                eligible=True,
+                coinbase_api_call_count=1,
+                call_count_exact=True,
+                observed_at=NOW_TEXT,
+                fresh_until=FRESH_UNTIL_TEXT,
+                evidence_sha256="d" * 64,
+                diagnostic_code=(
+                    "automation_spot_eligibility_"
+                    f"{category.value.lower()}_succeeded"
+                ),
+                audit_id=AUDIT_ID,
+                correlation_id=_context().correlation_id,
+                started_at=NOW_TEXT,
+                finalized_at=NOW_TEXT,
+                portfolio_id_sha256=(
+                    PORTFOLIO_SHA256
+                    if category
+                    is ApprovedSpotEligibilityCategory.PORTFOLIO_CATALOG
+                    else None
+                ),
+            )
+            for category in APPROVED_SPOT_ELIGIBILITY_ORDER
+        )
+
+    def audit_spot_source_gate_authorization(
+        self,
+        run_id: str,
+        *,
+        expected_plan_sha256: str,
+        command: AutomationMutationCommand,
+    ) -> AutomationStoreMutation[AutomationRunRecord]:
+        assert run_id == RUN_ID
+        assert expected_plan_sha256 == PLAN_SHA256
+        return AutomationStoreMutation(
+            self.current_run,
+            AUDIT_ID,
+            command.correlation_id,
+        )
+
+    def start_spot_create_invocation(
+        self,
+        run_id: str,
+        *,
+        eligibility_cycle: int,
+        command: AutomationMutationCommand,
+    ) -> AutomationStoreMutation[AutomationSpotRunExecutionRecord]:
+        assert run_id == RUN_ID
+        assert eligibility_cycle == 1
+        if self.execution is not None:
+            if not self.start_create_calls:
+                raise AutomationStoreConflict(
+                    "automation_spot_create_allowance_consumed"
+                )
+            original = self.start_create_calls[0]
+            if original["command"].idempotency_key != command.idempotency_key:
+                raise AutomationStoreConflict(
+                    "automation_spot_create_allowance_consumed"
+                )
+            if (
+                original["eligibility_cycle"] != eligibility_cycle
+                or original["command"] != command
+            ):
+                raise AutomationStoreConflict("automation_idempotency_conflict")
+            self.start_create_calls.append(
+                {
+                    "eligibility_cycle": eligibility_cycle,
+                    "command": command,
+                    "replayed": True,
+                }
+            )
+            return AutomationStoreMutation(
+                self.execution,
+                AUDIT_ID,
+                command.correlation_id,
+                True,
+            )
+        self.events.append("start_create")
+        self.start_create_calls.append(
+            {
+                "eligibility_cycle": eligibility_cycle,
+                "command": command,
+                "replayed": False,
+            }
+        )
+        self.execution = _execution_record()
+        self.current_run = replace(
+            self.current_run,
+            state=OperatorAutomationRunState.INVOCATION_STARTED,
+            diagnostic_code="automation_spot_create_invocation_started",
+            client_order_id=CLIENT_ORDER_ID,
+            live_attempt_consumed=True,
+        )
+        return AutomationStoreMutation(
+            self.execution,
+            AUDIT_ID,
+            command.correlation_id,
+        )
+
+    def finalize_spot_create_invocation(
+        self,
+        run_id: str,
+        **kwargs: Any,
+    ) -> AutomationStoreMutation[AutomationSpotRunExecutionRecord]:
+        assert run_id == RUN_ID
+        assert self.execution is not None
+        self.events.append("finalize_create")
+        self.finalize_create_calls.append(dict(kwargs))
+        outcome = str(getattr(kwargs["outcome"], "value", kwargs["outcome"]))
+        child_terminal = kwargs["child_terminal"]
+        self.execution = replace(
+            self.execution,
+            create_outcome=outcome,
+            create_call_count=kwargs["coinbase_api_call_count"],
+            create_call_count_exact=kwargs["call_count_exact"],
+            create_read_call_count=kwargs["read_call_count"],
+            create_read_call_count_exact=kwargs["read_call_count_exact"],
+            child_terminal=child_terminal,
+        )
+        if outcome == "UNKNOWN":
+            state = OperatorAutomationRunState.UNKNOWN_CONSUMED
+            diagnostic = "automation_spot_create_unknown_consumed"
+        elif outcome == "ACCEPTED" and child_terminal is False:
+            state = OperatorAutomationRunState.ACTIVE
+            diagnostic = "automation_spot_safe_closeout_ready"
+        else:
+            state = OperatorAutomationRunState.TERMINAL
+            diagnostic = "automation_spot_create_terminal"
+        self.current_run = replace(
+            self.current_run,
+            state=state,
+            diagnostic_code=diagnostic,
+            coinbase_api_call_count=(
+                int(kwargs["coinbase_api_call_count"] or 0)
+                + int(kwargs["read_call_count"] or 0)
+            ),
+            create_call_count=int(kwargs["coinbase_api_call_count"] or 0),
+        )
+        command = kwargs["command"]
+        return AutomationStoreMutation(
+            self.execution,
+            AUDIT_ID,
+            command.correlation_id,
+        )
+
+    def start_spot_cancel_invocation(
+        self,
+        run_id: str,
+        *,
+        client_order_id: str,
+        command: AutomationMutationCommand,
+    ) -> AutomationStoreMutation[AutomationSpotRunExecutionRecord]:
+        assert run_id == RUN_ID
+        assert client_order_id == CLIENT_ORDER_ID
+        assert self.execution is not None
+        if self.execution.cancel_allowance_consumed:
+            if not self.start_cancel_calls:
+                raise AutomationStoreConflict(
+                    "automation_spot_cancel_allowance_consumed"
+                )
+            original = self.start_cancel_calls[0]
+            if original["command"].idempotency_key != command.idempotency_key:
+                raise AutomationStoreConflict(
+                    "automation_spot_cancel_allowance_consumed"
+                )
+            if (
+                original["client_order_id"] != client_order_id
+                or original["command"] != command
+            ):
+                raise AutomationStoreConflict("automation_idempotency_conflict")
+            self.start_cancel_calls.append(
+                {
+                    "client_order_id": client_order_id,
+                    "command": command,
+                    "replayed": True,
+                }
+            )
+            return AutomationStoreMutation(
+                self.execution,
+                AUDIT_ID,
+                command.correlation_id,
+                True,
+            )
+        self.events.append("start_cancel")
+        self.start_cancel_calls.append(
+            {
+                "client_order_id": client_order_id,
+                "command": command,
+                "replayed": False,
+            }
+        )
+        self.execution = replace(
+            self.execution,
+            cancel_allowance_consumed=True,
+        )
+        return AutomationStoreMutation(
+            self.execution,
+            AUDIT_ID,
+            command.correlation_id,
+        )
+
+    def finalize_spot_cancel_invocation(
+        self,
+        run_id: str,
+        **kwargs: Any,
+    ) -> AutomationStoreMutation[AutomationSpotRunExecutionRecord]:
+        assert run_id == RUN_ID
+        assert self.execution is not None
+        self.events.append("finalize_cancel")
+        self.finalize_cancel_calls.append(dict(kwargs))
+        outcome = str(getattr(kwargs["outcome"], "value", kwargs["outcome"]))
+        self.execution = replace(
+            self.execution,
+            cancel_outcome=outcome,
+            cancel_call_count=kwargs["coinbase_api_call_count"],
+            cancel_call_count_exact=kwargs["call_count_exact"],
+            cancel_read_call_count=kwargs["read_call_count"],
+            cancel_read_call_count_exact=kwargs["read_call_count_exact"],
+            child_terminal=kwargs["child_terminal"],
+        )
+        state = (
+            OperatorAutomationRunState.UNKNOWN_CONSUMED
+            if outcome == "UNKNOWN"
+            else OperatorAutomationRunState.TERMINAL
+        )
+        self.current_run = replace(
+            self.current_run,
+            state=state,
+            diagnostic_code=(
+                "automation_spot_safe_closeout_unknown_consumed"
+                if outcome == "UNKNOWN"
+                else "automation_spot_safe_closeout_accepted_terminal"
+            ),
+            coinbase_api_call_count=(
+                self.current_run.coinbase_api_call_count
+                + int(kwargs["coinbase_api_call_count"] or 0)
+                + int(kwargs["read_call_count"] or 0)
+            ),
+            cancel_call_count=int(kwargs["coinbase_api_call_count"] or 0),
+            audit_id=CANCEL_AUDIT_ID,
+            correlation_id=kwargs["command"].correlation_id,
+        )
+        command = kwargs["command"]
+        return AutomationStoreMutation(
+            self.execution,
+            CANCEL_AUDIT_ID,
+            command.correlation_id,
+        )
+
+    def seed_create_success(self) -> None:
+        self.install_fresh_cycle(_cycle_result())
+        self.execution = replace(
+            _execution_record(),
+            create_outcome="ACCEPTED",
+            create_call_count=1,
+            create_call_count_exact=True,
+            create_read_call_count=1,
+            create_read_call_count_exact=True,
+            child_terminal=False,
+        )
+        self.current_run = _run_record(
+            state=OperatorAutomationRunState.ACTIVE,
+            diagnostic_code="automation_spot_safe_closeout_ready",
+            client_order_id=CLIENT_ORDER_ID,
+            live_attempt_consumed=True,
+            coinbase_api_call_count=2,
+            create_call_count=1,
+        )
+
+    def seed_cancel_success(self) -> None:
+        self.seed_create_success()
+        assert self.execution is not None
+        self.execution = replace(
+            self.execution,
+            cancel_allowance_consumed=True,
+            cancel_outcome="ACCEPTED",
+            cancel_call_count=1,
+            cancel_call_count_exact=True,
+            cancel_read_call_count=2,
+            cancel_read_call_count_exact=True,
+            child_terminal=True,
+        )
+        self.current_run = replace(
+            self.current_run,
+            state=OperatorAutomationRunState.TERMINAL,
+            diagnostic_code="automation_spot_safe_closeout_accepted_terminal",
+            coinbase_api_call_count=5,
+            cancel_call_count=1,
+        )
+
+
+def _execution_record() -> AutomationSpotRunExecutionRecord:
+    return AutomationSpotRunExecutionRecord(
+        run_id=RUN_ID,
+        policy_revision=2,
+        definition_id=DEFINITION_ID,
+        definition_revision=1,
+        eligibility_cycle=1,
+        plan_sha256=PLAN_SHA256,
+        portfolio_id_sha256=PORTFOLIO_SHA256,
+        product_id="BTC-USDC",
+        client_order_id=CLIENT_ORDER_ID,
+        create_allowance_consumed=True,
+        create_outcome=None,
+        create_call_count=None,
+        create_call_count_exact=False,
+        create_read_call_count=None,
+        create_read_call_count_exact=False,
+        cancel_allowance_consumed=False,
+        cancel_outcome=None,
+        cancel_call_count=None,
+        cancel_call_count_exact=False,
+        cancel_read_call_count=None,
+        cancel_read_call_count_exact=False,
+        child_terminal=None,
+        audit_id=AUDIT_ID,
+        correlation_id=_context().correlation_id,
+        created_at=NOW_TEXT,
+        updated_at=NOW_TEXT,
+    )
+
+
+class _TrackedProfileCoordinator:
+    def __init__(self, events: list[str], lock_root: Path) -> None:
+        self.events = events
+        self.inner = SpotProfileOrderAdmissionCoordinator(lock_root=lock_root)
+        self.active_lease: object | None = None
+
+    @contextmanager
+    def claim(self, portfolio_id: str) -> Iterator[object]:
+        assert portfolio_id == PORTFOLIO_ID
+        self.events.append("lease_enter")
+        try:
+            with self.inner.claim(portfolio_id) as lease:
+                self.active_lease = lease
+                try:
+                    yield lease
+                finally:
+                    self.active_lease = None
+        finally:
+            self.events.append("lease_exit")
+
+    def require_active(self, lease: object) -> None:
+        assert lease is self.active_lease
+        self.inner.require_active_lease(
+            lease,  # type: ignore[arg-type]
+            retail_portfolio_id=PORTFOLIO_ID,
+        )
+
+
+class _EligibilityRunner:
+    def __init__(
+        self,
+        repository: _ExecutionRepository,
+        coordinator: _TrackedProfileCoordinator,
+        events: list[str],
+        *,
+        mode: str = "eligible",
+    ) -> None:
+        self.repository = repository
+        self.coordinator = coordinator
+        self.events = events
+        self.mode = mode
+        self.calls: list[dict[str, Any]] = []
+        self.reader_calls: list[ApprovedSpotEligibilityCategory] = []
+        self.completed_phase_keys: set[str] = set()
+
+    def __call__(self, **kwargs: Any) -> SpotAutomationEligibilityExecutionBundle:
+        lease = kwargs["lease"]
+        self.coordinator.require_active(lease)
+        assert kwargs["record"].run_id == RUN_ID
+        assert kwargs["plan"].plan_sha256 == PLAN_SHA256
+        phase_key = kwargs["context"].idempotency_key
+        if phase_key in self.completed_phase_keys:
+            raise AutomationRepositoryConflict(
+                "automation_spot_fresh_eligibility_required"
+            )
+        self.events.append("eligibility_cycle")
+        self.calls.append(dict(kwargs))
+        self.reader_calls.extend(APPROVED_SPOT_ELIGIBILITY_ORDER)
+        self.completed_phase_keys.add(phase_key)
+        if self.mode == "unknown":
+            result = SpotEligibilityCycleResult(
+                cycle_number=1,
+                outcome=SpotEligibilityReadOutcome.UNKNOWN,
+                eligible=False,
+                attempted_categories=APPROVED_SPOT_ELIGIBILITY_ORDER[:1],
+                completed_categories=(),
+                logical_call_count=1,
+                coinbase_api_call_count=None,
+                call_count_exact=False,
+                fresh_until=None,
+                client_order_id=CLIENT_ORDER_ID,
+                diagnostic_code="automation_spot_eligibility_cycle_unknown",
+                replayed=False,
+            )
+            return SpotAutomationEligibilityExecutionBundle(
+                cycle=result,
+                snapshot=_read_snapshot(),
+                attempts=(),
+            )
+        assert self.mode == "eligible"
+        result = _cycle_result()
+        self.repository.install_fresh_cycle(result)
+        return SpotAutomationEligibilityExecutionBundle(
+            cycle=result,
+            snapshot=_read_snapshot(),
+            attempts=self.repository.attempts,
+        )
+
+
+class _ProofChainRecorder:
+    def __init__(self, events: list[str]) -> None:
+        self.events = events
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+
+    def __call__(self, **kwargs: Any) -> dict[str, Any]:
+        command_kind = kwargs["command_kind"]
+        assert command_kind in {"manual", "cancel"}
+        operation = "CREATE" if command_kind == "manual" else "SAFE_CLOSEOUT"
+        self.events.append(
+            "proof_create" if command_kind == "manual" else "proof_cancel"
+        )
+        self.calls.append((operation, dict(kwargs)))
+        prefix = "automation" if command_kind == "manual" else "automation-cancel"
+        return {
+            "required": True,
+            "status": "passed",
+            "source": "synthetic_typed_proof_stores",
+            "approval": {"approval_id": f"{prefix}-approval-proof"},
+            "admission_audit": {
+                "audit_id": f"{prefix}-admission-proof"
+            },
+            "cap_guard": {"decision_id": f"{prefix}-cap-proof"},
+            "reconciliation_plan": {
+                "plan_id": f"{prefix}-reconciliation-proof"
+            },
+            "live_exchange_submitted": False,
+        }
+
+
+class _LiveAdmissionEvaluator:
+    def __init__(
+        self, events: list[str], *, admission_mode: str = "allowed"
+    ) -> None:
+        self.events = events
+        self.admission_mode = admission_mode
+        self.calls: list[dict[str, Any]] = []
+
+    def __call__(self, **kwargs: Any) -> AdminLiveAdmissionDecisionEvidence:
+        proof_context = kwargs["proof_context"]
+        proof_chain = kwargs["proof_chain"]
+        manual = proof_context["service_method"] == "place_manual_order"
+        self.events.append("admission_create" if manual else "admission_cancel")
+        self.calls.append(dict(kwargs))
+        if self.admission_mode == "raise":
+            raise RuntimeError("private admission detail must be withheld")
+        allowed = self.admission_mode in {"allowed", "mismatched_action"}
+        approval = proof_chain["approval"]
+        audit = proof_chain["admission_audit"]
+        cap = proof_chain["cap_guard"]
+        reconciliation = proof_chain["reconciliation_plan"]
+        return AdminLiveAdmissionDecisionEvidence(
+            status=(
+                AdminApiGateStatus.PASSED
+                if allowed
+                else AdminApiGateStatus.BLOCKED
+            ),
+            allowed=allowed,
+            route=str(proof_context["route"]),
+            method=str(proof_context["method"]),
+            module_id=str(proof_context["module_id"]),
+            identity_key=str(proof_context["identity_key"]),
+            identity_value=str(proof_context["identity_value"]),
+            action_class=(
+                AdminApiActionClass.LIVE_EXCHANGE_CANCEL
+                if self.admission_mode == "mismatched_action"
+                else AdminApiActionClass(str(proof_context["action_class"]))
+            ),
+            required_permission=AdminApiPermission(
+                str(proof_context["required_permission"])
+            ),
+            service_method=str(proof_context["service_method"]),
+            actor_id=str(proof_context["actor_id"]),
+            idempotency_key=str(proof_context["command_idempotency_key"]),
+            operator_intent=str(proof_context["operator_intent"]),
+            payload_hash=str(proof_context["payload_hash"]),
+            approval_snapshot_present=True,
+            approval_snapshot_id=str(approval["approval_id"]),
+            approval_snapshot_source="synthetic_typed_store",
+            admission_audit_present=True,
+            admission_audit_id=str(audit["audit_id"]),
+            admission_audit_source="synthetic_typed_store",
+            cap_guard_present=True,
+            cap_guard_decision_id=str(cap["decision_id"]),
+            cap_guard_source="synthetic_typed_store",
+            reconciliation_plan_present=True,
+            reconciliation_plan_id=str(reconciliation["plan_id"]),
+            reconciliation_plan_source="synthetic_typed_store",
+            live_execution_service_present=True,
+            live_execution_service_status=(
+                AdminApiLiveExecutionStatus.COMPLETED
+            ),
+            live_execution_service_source="synthetic_backend_service",
+            live_execution_service_missing_reason=None,
+            browser_authority="backend_admin_api" if allowed else "rejected",
+            live_exchange_submitted=False,
+            blockers=[],
+            evidence=["synthetic_exact_binding"],
+            detail=(
+                "Synthetic exact backend admission passed."
+                if allowed
+                else "Synthetic exact backend admission blocked."
+            ),
+        )
+
+
+class _CanonicalCommandService:
+    def __init__(
+        self,
+        coordinator: _TrackedProfileCoordinator,
+        scopes: "_ScopeFactory",
+        events: list[str],
+        *,
+        create_mode: str = "accepted",
+        cancel_mode: str = "accepted",
+    ) -> None:
+        self.coordinator = coordinator
+        self.scopes = scopes
+        self.events = events
+        self.create_mode = create_mode
+        self.cancel_mode = cancel_mode
+        self.place_calls: list[tuple[ManualOrderCommand, object]] = []
+        self.cancel_calls: list[tuple[CancelOrderCommand, object]] = []
+        self.dependencies = _CommandDependencies(
+            spot_order_admission_coordinator=coordinator,
+        )
+
+    def place_manual_order(
+        self,
+        command: ManualOrderCommand,
+        *,
+        automation_admission: ValidatedSpotAutomationAdmissionEvidence,
+    ) -> AdminApiCommandResponse:
+        self.events.append("canonical_place")
+        assert self.scopes.active == COINBASE_EXECUTION_SCOPE_SPOT_PLACE
+        self.coordinator.require_active(automation_admission.lease)
+        assert command.request.client_order_id == CLIENT_ORDER_ID
+        assert command.request.product_id == "BTC-USDC"
+        assert command.request.side.value == "BUY"
+        assert command.request.base_size == "0.00001"
+        assert command.request.limit_price == "50000"
+        assert command.request.manual_live_acknowledgement is True
+        assert command.allow_live_execution is True
+        assert command.admin_max_submitted_notional_usdc == "3.10"
+        assert command.admin_max_executed_notional_usdc == "1.00"
+        assert command.admin_approval_snapshot_id == "automation-approval-proof"
+        assert command.admin_cap_guard_decision_id == "automation-cap-proof"
+        assert command.admission_audit_id == "automation-admission-proof"
+        self.place_calls.append((command, automation_admission))
+        if self.create_mode == "raise":
+            raise RuntimeError("private command exception must be withheld")
+        return _create_response()
+
+    def cancel_order_by_client_order_id(
+        self,
+        command: CancelOrderCommand,
+        *,
+        automation_ownership: ValidatedSpotAutomationOwnershipEvidence,
+    ) -> AdminApiCommandResponse:
+        self.events.append("canonical_cancel")
+        assert self.scopes.active == COINBASE_EXECUTION_SCOPE_SPOT_CANCEL
+        self.coordinator.require_active(automation_ownership.lease)
+        assert command.client_order_id == CLIENT_ORDER_ID
+        assert command.request.manual_live_acknowledgement is True
+        assert command.allow_live_execution is True
+        self.cancel_calls.append((command, automation_ownership))
+        return _cancel_response(mode=self.cancel_mode)
+
+
+class _ScopeFactory:
+    def __init__(self, events: list[str]) -> None:
+        self.events = events
+        self.active: str | None = None
+
+    @contextmanager
+    def __call__(self, scope: str) -> Iterator[None]:
+        assert self.active is None
+        assert scope in {
+            COINBASE_EXECUTION_SCOPE_SPOT_PLACE,
+            COINBASE_EXECUTION_SCOPE_SPOT_CANCEL,
+        }
+        self.active = scope
+        self.events.append(f"scope_enter:{scope}")
+        try:
+            yield
+        finally:
+            self.events.append(f"scope_exit:{scope}")
+            self.active = None
+
+
+@dataclass(frozen=True, slots=True)
+class _CommandDependencies:
+    spot_order_admission_coordinator: _TrackedProfileCoordinator
+
+    @staticmethod
+    def planned_budget_fetcher() -> dict[str, float]:
+        return {}
+
+
+def _create_response() -> AdminApiCommandResponse:
+    return AdminApiCommandResponse(
+        status=AdminApiCommandStatus.ACCEPTED,
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        service_method="place_manual_order",
+        message="canonical create completed",
+        client_order_id=CLIENT_ORDER_ID,
+        live_exchange_submitted=True,
+        live_coinbase_orders_ran=True,
+        live_coinbase_read_ran=True,
+        live_coinbase_read_call_count=1,
+        data={
+            "submission_attempt": {
+                "rest_invocation_attempted": True,
+                "outcome": "accepted",
+                "authoritative_readback_confirmed": True,
+                "authoritative_status": "OPEN",
+                "readback": {
+                    "authoritative": True,
+                    "exact_identity_match": True,
+                    "authoritative_status": "OPEN",
+                },
+            }
+        },
+    )
+
+
+def _cancel_response(*, mode: str) -> AdminApiCommandResponse:
+    if mode == "already_terminal":
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.REJECTED,
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+            required_permission=AdminApiPermission.ORDER_CANCEL,
+            service_method="cancel_order_by_client_order_id",
+            message="exact child was already terminal",
+            client_order_id=CLIENT_ORDER_ID,
+            live_coinbase_orders_ran=False,
+            live_coinbase_read_ran=True,
+            live_coinbase_read_call_count=1,
+            failure_stage="cancellation_preflight_terminal_status",
+            data={
+                "cancellation_readback": {
+                    "canonical_cancel_attempted": False,
+                    "pre_cancel_read_attempted": True,
+                    "pre_cancel_reconciled": True,
+                    "terminal_status_proven": True,
+                    "authoritative_status": "FILLED",
+                    "authoritative_readback": {
+                        "authoritative": True,
+                        "exact_identity_match": True,
+                        "authoritative_status": "FILLED",
+                    },
+                }
+            },
+        )
+    assert mode == "accepted"
+    return AdminApiCommandResponse(
+        status=AdminApiCommandStatus.ACCEPTED,
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        required_permission=AdminApiPermission.ORDER_CANCEL,
+        service_method="cancel_order_by_client_order_id",
+        message="canonical cancel completed",
+        client_order_id=CLIENT_ORDER_ID,
+        live_coinbase_orders_ran=True,
+        live_coinbase_read_ran=True,
+        live_coinbase_read_call_count=2,
+        data={
+            "cancellation_readback": {
+                "canonical_cancel_attempted": True,
+                "canonical_cancel_accepted": True,
+                "canonical_cancel_explicitly_rejected": False,
+                "terminal_status_proven": True,
+                "authoritative_status": "CANCELLED",
+                "authoritative_readback": {
+                    "authoritative": True,
+                    "exact_identity_match": True,
+                    "authoritative_status": "CANCELLED",
+                },
+            }
+        },
+    )
+
+
+@dataclass
+class _Harness:
+    repository: _ExecutionRepository
+    adapter: PostgresOperatorAutomationRepositoryAdapter
+    service: OperatorAutomationService
+    runner: _EligibilityRunner
+    proofs: _ProofChainRecorder
+    admission: _LiveAdmissionEvaluator
+    commands: _CanonicalCommandService
+    events: list[str]
+
+
+def _harness(
+    tmp_path: Path,
+    *,
+    admission_mode: str = "allowed",
+    create_mode: str = "accepted",
+    cancel_mode: str = "accepted",
+    eligibility_mode: str = "eligible",
+    control_posture: str = "ACTIVE",
+) -> _Harness:
+    events: list[str] = []
+    repository = _ExecutionRepository(events)
+    repository.control_posture = control_posture
+    coordinator = _TrackedProfileCoordinator(events, tmp_path)
+    runner = _EligibilityRunner(
+        repository,
+        coordinator,
+        events,
+        mode=eligibility_mode,
+    )
+    proofs = _ProofChainRecorder(events)
+    admission = _LiveAdmissionEvaluator(events, admission_mode=admission_mode)
+    scopes = _ScopeFactory(events)
+    commands = _CanonicalCommandService(
+        coordinator,
+        scopes,
+        events,
+        create_mode=create_mode,
+        cancel_mode=cancel_mode,
+    )
+    adapter = PostgresOperatorAutomationRepositoryAdapter(
+        repository,
+        spot_profile_admission_coordinator=coordinator,
+        spot_execution_eligibility_runner=runner,
+        spot_proof_chain_recorder=proofs,
+        spot_live_admission_evaluator=admission,
+        spot_command_service=commands,
+        spot_execution_scope_factory=scopes,
+        now_factory=lambda: NOW,
+    )
+    return _Harness(
+        repository=repository,
+        adapter=adapter,
+        service=OperatorAutomationService(adapter),
+        runner=runner,
+        proofs=proofs,
+        admission=admission,
+        commands=commands,
+        events=events,
+    )
+
+
+@pytest.mark.parametrize("control_posture", ["PAUSED", "DRAINING"])
+def test_non_active_control_posture_blocks_before_final_eligibility_reader(
+    tmp_path: Path,
+    control_posture: str,
+) -> None:
+    harness = _harness(tmp_path, control_posture=control_posture)
+
+    with pytest.raises(AutomationRepositoryConflict) as blocked:
+        harness.adapter.authorize_single_child(
+            run_id=RUN_ID,
+            request=_authorization_request().model_dump(mode="json"),
+            context=_context(),
+        )
+
+    assert blocked.value.code == "automation_control_plane_not_active"
+    assert harness.runner.calls == []
+    assert harness.runner.reader_calls == []
+    assert harness.repository.cycles == ()
+    assert harness.repository.attempts == ()
+    assert harness.repository.start_create_calls == []
+    assert harness.commands.place_calls == []
+    assert harness.events == []
+
+
+def test_authorize_orchestrates_one_fresh_cycle_claim_and_canonical_create(
+    tmp_path: Path,
+) -> None:
+    harness = _harness(tmp_path)
+
+    response = harness.service.authorize_single_child(
+        run_id=RUN_ID,
+        request=_authorization_request(),
+        context=_context(),
+    )
+
+    assert response.replayed is False
+    assert response.run.state is OperatorAutomationRunState.ACTIVE
+    assert response.run.client_order_id == CLIENT_ORDER_ID
+    assert response.activity.operation == "CREATE"
+    assert response.activity.coinbase_api_call_count == 2
+    assert response.activity.read_call_count == 1
+    assert response.activity.exchange_mutation_count == 1
+    assert response.activity.create_call_count == 1
+    assert response.activity.cancel_call_count == 0
+    assert response.activity.call_count_exact is True
+    assert len(harness.runner.calls) == 1
+    assert harness.runner.calls[0]["lease"] is harness.commands.place_calls[0][1].lease
+    assert len(harness.repository.start_create_calls) == 1
+    assert len(harness.repository.finalize_create_calls) == 1
+    finalized = harness.repository.finalize_create_calls[0]
+    assert finalized["outcome"] == "ACCEPTED"
+    assert finalized["child_terminal"] is False
+    assert finalized["coinbase_api_call_count"] == 1
+    assert finalized["call_count_exact"] is True
+    assert finalized["read_call_count"] == 1
+    assert finalized["read_call_count_exact"] is True
+    assert harness.events == [
+        "lease_enter",
+        "eligibility_cycle",
+        "proof_create",
+        "admission_create",
+        "start_create",
+        f"scope_enter:{COINBASE_EXECUTION_SCOPE_SPOT_PLACE}",
+        "canonical_place",
+        f"scope_exit:{COINBASE_EXECUTION_SCOPE_SPOT_PLACE}",
+        "finalize_create",
+        "lease_exit",
+    ]
+
+
+def test_authorize_replay_has_no_reader_proof_admission_or_command_call(
+    tmp_path: Path,
+) -> None:
+    harness = _harness(tmp_path)
+    first = harness.service.authorize_single_child(
+        run_id=RUN_ID,
+        request=_authorization_request(),
+        context=_context(),
+    )
+    assert first.replayed is False
+    harness.events.clear()
+    harness.runner.calls.clear()
+    harness.proofs.calls.clear()
+    harness.commands.place_calls.clear()
+
+    response = harness.service.authorize_single_child(
+        run_id=RUN_ID,
+        request=_authorization_request(),
+        context=_context(),
+    )
+
+    assert response.replayed is True
+    assert response.activity.operation == "LOCAL"
+    assert response.activity.coinbase_api_call_count == 0
+    assert harness.events == []
+    assert harness.runner.calls == []
+    assert harness.proofs.calls == []
+    assert harness.commands.place_calls == []
+    assert len(harness.repository.start_create_calls) == 2
+    assert harness.repository.start_create_calls[-1]["replayed"] is True
+    assert len(harness.repository.finalize_create_calls) == 1
+
+
+def test_authorize_replay_after_closeout_returns_original_create_envelope(
+    tmp_path: Path,
+) -> None:
+    harness = _harness(tmp_path)
+    create_context = _context()
+    first = harness.service.authorize_single_child(
+        run_id=RUN_ID,
+        request=_authorization_request(),
+        context=create_context,
+    )
+    closeout_context = _context().model_copy(
+        update={
+            "idempotency_key": "automation-closeout-idempotency-1",
+            "correlation_id": "automation-closeout-correlation-1",
+            "operator_intent": "safe_closeout_exact_automation_child",
+        }
+    )
+    closed = harness.service.safe_closeout_single_child(
+        run_id=RUN_ID,
+        request=_closeout_request(),
+        context=closeout_context,
+    )
+    assert closed.correlation_id == closeout_context.correlation_id
+    assert closed.audit_id == CANCEL_AUDIT_ID
+    harness.events.clear()
+    harness.runner.calls.clear()
+    harness.proofs.calls.clear()
+    harness.commands.place_calls.clear()
+    harness.commands.cancel_calls.clear()
+
+    replay = harness.service.authorize_single_child(
+        run_id=RUN_ID,
+        request=_authorization_request(),
+        context=create_context,
+    )
+
+    assert replay.replayed is True
+    assert replay.audit_id == first.audit_id
+    assert replay.correlation_id == first.correlation_id
+    assert replay.correlation_id == create_context.correlation_id
+    assert replay.activity.operation == "LOCAL"
+    assert replay.activity.coinbase_api_call_count == 0
+    assert harness.events == []
+    assert harness.runner.calls == []
+    assert harness.proofs.calls == []
+    assert harness.commands.place_calls == []
+    assert harness.commands.cancel_calls == []
+    assert len(harness.repository.start_create_calls) == 2
+    assert harness.repository.start_create_calls[-1]["replayed"] is True
+    assert len(harness.repository.finalize_create_calls) == 1
+    assert len(harness.repository.finalize_cancel_calls) == 1
+
+
+@pytest.mark.parametrize(
+    "changed_field",
+    [
+        "idempotency_key",
+        "reason",
+        "roles",
+        "actor_id",
+        "correlation_id",
+        "operator_intent",
+    ],
+)
+def test_authorize_consumed_allowance_rejects_nonidentical_replay_without_calls(
+    tmp_path: Path,
+    changed_field: str,
+) -> None:
+    harness = _harness(tmp_path)
+    first = harness.service.authorize_single_child(
+        run_id=RUN_ID,
+        request=_authorization_request(),
+        context=_context(),
+    )
+    assert first.replayed is False
+    harness.events.clear()
+    harness.runner.calls.clear()
+    harness.proofs.calls.clear()
+    harness.commands.place_calls.clear()
+    request = _authorization_request()
+    context = _context()
+    if changed_field == "idempotency_key":
+        context = context.model_copy(
+            update={"idempotency_key": "automation-execution-idempotency-2"}
+        )
+    elif changed_field == "reason":
+        request = request.model_copy(update={"reason": "different reason"})
+    elif changed_field == "roles":
+        context = context.model_copy(update={"roles": ("admin", "trader")})
+    else:
+        context = context.model_copy(
+            update={changed_field: f"different-{changed_field}"}
+        )
+
+    with pytest.raises(AutomationRepositoryConflict) as raised:
+        harness.adapter.authorize_single_child(
+            run_id=RUN_ID,
+            request=request.model_dump(mode="json"),
+            context=context,
+        )
+
+    assert raised.value.code == (
+        "automation_spot_create_allowance_consumed"
+        if changed_field == "idempotency_key"
+        else "automation_idempotency_conflict"
+    )
+    assert harness.events == []
+    assert harness.runner.calls == []
+    assert harness.proofs.calls == []
+    assert harness.commands.place_calls == []
+    assert len(harness.repository.start_create_calls) == 1
+    assert len(harness.repository.finalize_create_calls) == 1
+
+
+@pytest.mark.parametrize(
+    ("admission_mode", "expected_code"),
+    [
+        ("blocked", "automation_spot_live_admission_blocked"),
+        ("mismatched_action", "automation_spot_live_admission_blocked"),
+        ("raise", "automation_spot_create_admission_failed"),
+    ],
+)
+def test_admission_failure_before_durable_claim_leaves_create_unconsumed(
+    tmp_path: Path,
+    admission_mode: str,
+    expected_code: str,
+) -> None:
+    harness = _harness(tmp_path, admission_mode=admission_mode)
+
+    with pytest.raises(AutomationRepositoryConflict) as raised:
+        harness.adapter.authorize_single_child(
+            run_id=RUN_ID,
+            request=_authorization_request().model_dump(mode="json"),
+            context=_context(),
+        )
+
+    assert raised.value.code == expected_code
+    assert "private" not in str(raised.value)
+    assert harness.repository.execution is None
+    assert harness.repository.start_create_calls == []
+    assert harness.repository.finalize_create_calls == []
+    assert harness.commands.place_calls == []
+    assert harness.events == [
+        "lease_enter",
+        "eligibility_cycle",
+        "proof_create",
+        "admission_create",
+        "lease_exit",
+    ]
+
+
+def test_exact_authorization_retry_after_post_cycle_failure_is_reader_free(
+    tmp_path: Path,
+) -> None:
+    harness = _harness(tmp_path, admission_mode="raise")
+    request = _authorization_request().model_dump(mode="json")
+    context = _context()
+
+    with pytest.raises(AutomationRepositoryConflict) as first:
+        harness.adapter.authorize_single_child(
+            run_id=RUN_ID,
+            request=request,
+            context=context,
+        )
+
+    assert first.value.code == "automation_spot_create_admission_failed"
+    reader_calls_after_first = tuple(harness.runner.reader_calls)
+    assert reader_calls_after_first == APPROVED_SPOT_ELIGIBILITY_ORDER
+    assert len(harness.runner.calls) == 1
+    assert harness.repository.execution is None
+    assert harness.repository.start_create_calls == []
+    assert harness.commands.place_calls == []
+    harness.events.clear()
+
+    with pytest.raises(AutomationRepositoryConflict) as replay:
+        harness.adapter.authorize_single_child(
+            run_id=RUN_ID,
+            request=request,
+            context=context,
+        )
+
+    assert replay.value.code == "automation_spot_fresh_eligibility_required"
+    assert tuple(harness.runner.reader_calls) == reader_calls_after_first
+    assert len(harness.runner.calls) == 1
+    assert harness.repository.execution is None
+    assert harness.repository.start_create_calls == []
+    assert harness.repository.finalize_create_calls == []
+    assert harness.commands.place_calls == []
+    assert harness.events == ["lease_enter", "lease_exit"]
+
+
+def test_unknown_final_eligibility_cycle_leaves_create_allowance_unconsumed(
+    tmp_path: Path,
+) -> None:
+    harness = _harness(tmp_path, eligibility_mode="unknown")
+
+    with pytest.raises(AutomationRepositoryConflict) as raised:
+        harness.adapter.authorize_single_child(
+            run_id=RUN_ID,
+            request=_authorization_request().model_dump(mode="json"),
+            context=_context(),
+        )
+
+    assert raised.value.code == "automation_spot_create_admission_failed"
+    assert harness.repository.execution is None
+    assert harness.repository.start_create_calls == []
+    assert harness.repository.finalize_create_calls == []
+    assert harness.commands.place_calls == []
+    assert harness.proofs.calls == []
+    assert harness.admission.calls == []
+    assert harness.events == [
+        "lease_enter",
+        "eligibility_cycle",
+        "lease_exit",
+    ]
+
+
+def test_exception_after_durable_claim_finalizes_unknown_consumed(
+    tmp_path: Path,
+) -> None:
+    harness = _harness(tmp_path, create_mode="raise")
+
+    response = harness.service.authorize_single_child(
+        run_id=RUN_ID,
+        request=_authorization_request(),
+        context=_context(),
+    )
+
+    assert response.run.state is OperatorAutomationRunState.UNKNOWN_CONSUMED
+    assert response.activity.operation == "CREATE"
+    assert response.activity.coinbase_api_call_count is None
+    assert response.activity.call_count_exact is False
+    assert len(harness.repository.start_create_calls) == 1
+    assert len(harness.repository.finalize_create_calls) == 1
+    finalized = harness.repository.finalize_create_calls[0]
+    assert finalized["outcome"] == "UNKNOWN"
+    assert finalized["child_terminal"] is None
+    assert finalized["coinbase_api_call_count"] is None
+    assert finalized["call_count_exact"] is False
+    assert finalized["read_call_count"] is None
+    assert finalized["read_call_count_exact"] is False
+    assert "private" not in response.run.diagnostic_code
+    assert harness.events[-2:] == ["finalize_create", "lease_exit"]
+
+
+def test_safe_closeout_already_terminal_accounts_one_read_and_zero_cancel(
+    tmp_path: Path,
+) -> None:
+    harness = _harness(tmp_path, cancel_mode="already_terminal")
+    harness.repository.seed_create_success()
+    harness.events.clear()
+
+    response = harness.service.safe_closeout_single_child(
+        run_id=RUN_ID,
+        request=_closeout_request(),
+        context=_context(),
+    )
+
+    assert response.replayed is False
+    assert response.run.state is OperatorAutomationRunState.TERMINAL
+    assert response.run.child_terminal is True
+    assert response.activity.operation == "SAFE_CLOSEOUT"
+    assert response.activity.coinbase_api_call_count == 1
+    assert response.activity.read_call_count == 1
+    assert response.activity.exchange_mutation_count == 0
+    assert response.activity.cancel_call_count == 0
+    finalized = harness.repository.finalize_cancel_calls[0]
+    assert finalized["outcome"] == "ACCEPTED"
+    assert finalized["child_terminal"] is True
+    assert finalized["coinbase_api_call_count"] == 0
+    assert finalized["read_call_count"] == 1
+    assert harness.events == [
+        "lease_enter",
+        "proof_cancel",
+        "admission_cancel",
+        "start_cancel",
+        f"scope_enter:{COINBASE_EXECUTION_SCOPE_SPOT_CANCEL}",
+        "canonical_cancel",
+        f"scope_exit:{COINBASE_EXECUTION_SCOPE_SPOT_CANCEL}",
+        "finalize_cancel",
+        "lease_exit",
+    ]
+
+
+@pytest.mark.parametrize("control_posture", ["PAUSED", "DRAINING"])
+def test_risk_reducing_safe_closeout_remains_available_while_not_active(
+    tmp_path: Path,
+    control_posture: str,
+) -> None:
+    harness = _harness(
+        tmp_path,
+        cancel_mode="accepted",
+        control_posture=control_posture,
+    )
+    harness.repository.seed_create_success()
+    harness.events.clear()
+
+    projected = harness.adapter._run(harness.repository.current_run)
+    assert projected["live_execution_available"] is True
+    assert projected["allowed_actions"] == ["SAFE_CLOSEOUT_CHILD"]
+
+    response = harness.service.safe_closeout_single_child(
+        run_id=RUN_ID,
+        request=_closeout_request(),
+        context=_context(),
+    )
+
+    assert response.run.state is OperatorAutomationRunState.TERMINAL
+    assert response.activity.exchange_mutation_count == 1
+    assert response.activity.cancel_call_count == 1
+    assert len(harness.repository.start_cancel_calls) == 1
+    assert len(harness.commands.cancel_calls) == 1
+
+
+def test_shutdown_suppresses_and_blocks_safe_closeout_before_proof_or_call(
+    tmp_path: Path,
+) -> None:
+    harness = _harness(
+        tmp_path,
+        cancel_mode="accepted",
+        control_posture="SHUTDOWN",
+    )
+    harness.repository.seed_create_success()
+    harness.events.clear()
+
+    projected = harness.adapter._run(harness.repository.current_run)
+    assert projected["live_execution_available"] is False
+    assert projected["allowed_actions"] == []
+
+    with pytest.raises(AutomationRepositoryConflict) as blocked:
+        harness.adapter.safe_closeout_single_child(
+            run_id=RUN_ID,
+            request=_closeout_request().model_dump(mode="json"),
+            context=_context(),
+        )
+
+    assert blocked.value.code == "automation_control_plane_shutdown"
+    assert harness.repository.start_cancel_calls == []
+    assert harness.proofs.calls == []
+    assert harness.commands.cancel_calls == []
+    assert harness.events == []
+
+
+def test_safe_closeout_canonical_cancel_accounts_two_reads_and_one_cancel(
+    tmp_path: Path,
+) -> None:
+    harness = _harness(tmp_path, cancel_mode="accepted")
+    harness.repository.seed_create_success()
+    harness.events.clear()
+
+    response = harness.service.safe_closeout_single_child(
+        run_id=RUN_ID,
+        request=_closeout_request(),
+        context=_context(),
+    )
+
+    assert response.run.state is OperatorAutomationRunState.TERMINAL
+    assert response.run.child_terminal is True
+    assert response.activity.coinbase_api_call_count == 3
+    assert response.activity.read_call_count == 2
+    assert response.activity.exchange_mutation_count == 1
+    assert response.activity.cancel_call_count == 1
+    finalized = harness.repository.finalize_cancel_calls[0]
+    assert finalized["outcome"] == "ACCEPTED"
+    assert finalized["coinbase_api_call_count"] == 1
+    assert finalized["read_call_count"] == 2
+    assert len(harness.commands.cancel_calls) == 1
+
+
+def test_safe_closeout_replay_has_no_profile_reader_or_command_call(
+    tmp_path: Path,
+) -> None:
+    harness = _harness(tmp_path)
+    harness.repository.seed_create_success()
+    first = harness.service.safe_closeout_single_child(
+        run_id=RUN_ID,
+        request=_closeout_request(),
+        context=_context(),
+    )
+    assert first.replayed is False
+    harness.events.clear()
+    harness.runner.calls.clear()
+    harness.proofs.calls.clear()
+    harness.commands.cancel_calls.clear()
+
+    response = harness.service.safe_closeout_single_child(
+        run_id=RUN_ID,
+        request=_closeout_request(),
+        context=_context(),
+    )
+
+    assert response.replayed is True
+    assert response.activity.operation == "LOCAL"
+    assert response.activity.coinbase_api_call_count == 0
+    assert harness.events == []
+    assert harness.runner.calls == []
+    assert harness.proofs.calls == []
+    assert harness.commands.cancel_calls == []
+    assert len(harness.repository.start_cancel_calls) == 2
+    assert harness.repository.start_cancel_calls[-1]["replayed"] is True
+    assert len(harness.repository.finalize_cancel_calls) == 1
+
+
+@pytest.mark.parametrize(
+    "changed_field",
+    [
+        "idempotency_key",
+        "reason",
+        "roles",
+        "actor_id",
+        "correlation_id",
+        "operator_intent",
+    ],
+)
+def test_safe_closeout_consumed_allowance_rejects_nonidentical_replay_without_calls(
+    tmp_path: Path,
+    changed_field: str,
+) -> None:
+    harness = _harness(tmp_path)
+    harness.repository.seed_create_success()
+    first = harness.service.safe_closeout_single_child(
+        run_id=RUN_ID,
+        request=_closeout_request(),
+        context=_context(),
+    )
+    assert first.replayed is False
+    harness.events.clear()
+    harness.runner.calls.clear()
+    harness.proofs.calls.clear()
+    harness.commands.cancel_calls.clear()
+    request = _closeout_request()
+    context = _context()
+    if changed_field == "idempotency_key":
+        context = context.model_copy(
+            update={"idempotency_key": "automation-execution-idempotency-2"}
+        )
+    elif changed_field == "reason":
+        request = request.model_copy(update={"reason": "different reason"})
+    elif changed_field == "roles":
+        context = context.model_copy(update={"roles": ("admin", "trader")})
+    else:
+        context = context.model_copy(
+            update={changed_field: f"different-{changed_field}"}
+        )
+
+    with pytest.raises(AutomationRepositoryConflict) as raised:
+        harness.adapter.safe_closeout_single_child(
+            run_id=RUN_ID,
+            request=request.model_dump(mode="json"),
+            context=context,
+        )
+
+    assert raised.value.code == (
+        "automation_spot_cancel_allowance_consumed"
+        if changed_field == "idempotency_key"
+        else "automation_idempotency_conflict"
+    )
+    assert harness.events == []
+    assert harness.runner.calls == []
+    assert harness.proofs.calls == []
+    assert harness.commands.cancel_calls == []
+    assert len(harness.repository.start_cancel_calls) == 1
+    assert len(harness.repository.finalize_cancel_calls) == 1

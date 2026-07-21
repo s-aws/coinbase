@@ -7,10 +7,15 @@ from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 import hashlib
 import json
+from types import MappingProxyType
 from typing import Any, Callable, Mapping
 from uuid import UUID
 
-from application.admin_api.command_service import exact_coinbase_order_readback
+from application.admin_api.command_service import (
+    COINBASE_ACTIVE_SPOT_ORDER_QUERY,
+    exact_coinbase_order_readback,
+    read_authoritative_coinbase_orders,
+)
 from application.admin_api.operator_spot_eligibility import (
     SPOT_ELIGIBILITY_PRODUCT_ID,
     SpotEligibilityReadContext,
@@ -25,6 +30,7 @@ from core.action_condition_guard import evaluate_spot_standing_price_limit
 _MAX_SUBMITTED_NOTIONAL_USDC = Decimal("3.10")
 _MAX_POSSIBLE_EXECUTION_NOTIONAL_USDC = Decimal("1.00")
 _MAX_EXACT_ORDER_PAGES = 100
+_MAX_ACTIVE_ORDER_PAGES = 100
 
 
 def _utc_now() -> datetime:
@@ -146,17 +152,230 @@ class SpotEligibilityPlanTerms:
             raise ValueError("spot_eligibility_reader_plan_values_invalid")
 
 
+@dataclass(frozen=True, slots=True, repr=False)
+class SpotEligibilityPortfolioBindingSnapshot:
+    """Transient exact Test-portfolio binding; never serialize or persist it."""
+
+    retail_portfolio_id: str
+    portfolio_id_sha256: str
+    label: str
+    portfolio_type: str
+    can_view: bool
+    can_trade: bool
+
+    def __post_init__(self) -> None:
+        try:
+            parsed = UUID(self.retail_portfolio_id)
+        except (AttributeError, TypeError, ValueError):
+            raise ValueError("spot_eligibility_snapshot_portfolio_invalid") from None
+        if (
+            str(parsed) != self.retail_portfolio_id
+            or not isinstance(self.portfolio_id_sha256, str)
+            or len(self.portfolio_id_sha256) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in self.portfolio_id_sha256
+            )
+            or self.label != "Test"
+            or self.portfolio_type != "CONSUMER"
+            or self.can_view is not True
+            or self.can_trade is not True
+        ):
+            raise ValueError("spot_eligibility_snapshot_portfolio_invalid")
+
+    def __repr__(self) -> str:
+        return "SpotEligibilityPortfolioBindingSnapshot(values=withheld)"
+
+
+@dataclass(frozen=True, slots=True, repr=False)
+class SpotEligibilityWalletSnapshot:
+    """One immutable wallet balance retained only inside the request."""
+
+    currency: str
+    available_balance: Decimal
+    total_balance: Decimal
+
+    def __post_init__(self) -> None:
+        if (
+            self.currency not in {"BTC", "USDC"}
+            or not isinstance(self.available_balance, Decimal)
+            or not isinstance(self.total_balance, Decimal)
+            or not self.available_balance.is_finite()
+            or not self.total_balance.is_finite()
+            or self.available_balance < 0
+            or self.total_balance < self.available_balance
+        ):
+            raise ValueError("spot_eligibility_snapshot_wallet_invalid")
+
+    def __repr__(self) -> str:
+        return "SpotEligibilityWalletSnapshot(values=withheld)"
+
+
+@dataclass(frozen=True, slots=True, repr=False)
+class SpotEligibilityMarketReferenceSnapshot:
+    """Typed BTC-USDC best-market evidence retained only for admission."""
+
+    product_id: str
+    best_bid: Decimal
+    best_ask: Decimal
+    observed_at: datetime
+
+    def __post_init__(self) -> None:
+        if (
+            self.product_id != SPOT_ELIGIBILITY_PRODUCT_ID
+            or not isinstance(self.best_bid, Decimal)
+            or not isinstance(self.best_ask, Decimal)
+            or not self.best_bid.is_finite()
+            or not self.best_ask.is_finite()
+            or self.best_bid <= 0
+            or self.best_ask < self.best_bid
+            or not isinstance(self.observed_at, datetime)
+            or self.observed_at.tzinfo is None
+            or self.observed_at.utcoffset() is None
+        ):
+            raise ValueError("spot_eligibility_snapshot_market_invalid")
+
+    def __repr__(self) -> str:
+        return "SpotEligibilityMarketReferenceSnapshot(values=withheld)"
+
+
+@dataclass(frozen=True, slots=True, repr=False)
+class SpotEligibilityExactOrderAbsenceSnapshot:
+    """Typed proof that the deterministic child identity is absent."""
+
+    client_order_id: str
+    product_id: str
+    page_count: int
+    evidence_sha256: str
+
+    def __post_init__(self) -> None:
+        try:
+            parsed = UUID(self.client_order_id)
+        except (AttributeError, TypeError, ValueError):
+            raise ValueError("spot_eligibility_snapshot_exact_absence_invalid") from None
+        if (
+            str(parsed) != self.client_order_id
+            or self.product_id != SPOT_ELIGIBILITY_PRODUCT_ID
+            or type(self.page_count) is not int
+            or self.page_count < 1
+            or not isinstance(self.evidence_sha256, str)
+            or len(self.evidence_sha256) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in self.evidence_sha256
+            )
+        ):
+            raise ValueError("spot_eligibility_snapshot_exact_absence_invalid")
+
+    def __repr__(self) -> str:
+        return "SpotEligibilityExactOrderAbsenceSnapshot(values=withheld)"
+
+
+@dataclass(frozen=True, slots=True, repr=False)
+class SpotEligibilityActiveOrderCatalogAbsenceSnapshot:
+    """Typed proof of one complete account-wide zero-active-order catalog."""
+
+    portfolio_id_sha256: str
+    product_type: str
+    page_count: int
+    evidence_sha256: str
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.portfolio_id_sha256, str)
+            or len(self.portfolio_id_sha256) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in self.portfolio_id_sha256
+            )
+            or self.product_type != "SPOT"
+            or type(self.page_count) is not int
+            or self.page_count < 1
+            or not isinstance(self.evidence_sha256, str)
+            or len(self.evidence_sha256) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in self.evidence_sha256
+            )
+        ):
+            raise ValueError("spot_eligibility_snapshot_active_catalog_invalid")
+
+    def __repr__(self) -> str:
+        return "SpotEligibilityActiveOrderCatalogAbsenceSnapshot(values=withheld)"
+
+
+@dataclass(frozen=True, slots=True, repr=False)
+class SpotEligibilityReadSnapshot:
+    """Read-only transient facts; this is evidence, not an execution gateway."""
+
+    cycle_number: int
+    plan_sha256: str
+    portfolio: SpotEligibilityPortfolioBindingSnapshot
+    wallets: Mapping[str, SpotEligibilityWalletSnapshot]
+    market_reference: SpotEligibilityMarketReferenceSnapshot
+    exact_order_absence: SpotEligibilityExactOrderAbsenceSnapshot
+    active_order_catalog_absence: SpotEligibilityActiveOrderCatalogAbsenceSnapshot
+
+    def __post_init__(self) -> None:
+        if (
+            type(self.cycle_number) is not int
+            or not 1 <= self.cycle_number <= 10
+            or not isinstance(self.plan_sha256, str)
+            or len(self.plan_sha256) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in self.plan_sha256
+            )
+            or not isinstance(self.portfolio, SpotEligibilityPortfolioBindingSnapshot)
+            or not isinstance(
+                self.market_reference,
+                SpotEligibilityMarketReferenceSnapshot,
+            )
+            or not isinstance(
+                self.exact_order_absence,
+                SpotEligibilityExactOrderAbsenceSnapshot,
+            )
+            or not isinstance(
+                self.active_order_catalog_absence,
+                SpotEligibilityActiveOrderCatalogAbsenceSnapshot,
+            )
+            or self.portfolio.portfolio_id_sha256
+            != self.active_order_catalog_absence.portfolio_id_sha256
+        ):
+            raise ValueError("spot_eligibility_reader_snapshot_invalid")
+        wallet_copy = dict(self.wallets)
+        if (
+            not wallet_copy
+            or any(
+                not isinstance(wallet, SpotEligibilityWalletSnapshot)
+                or currency != wallet.currency
+                for currency, wallet in wallet_copy.items()
+            )
+        ):
+            raise ValueError("spot_eligibility_reader_snapshot_invalid")
+        object.__setattr__(self, "wallets", MappingProxyType(wallet_copy))
+
+    def __repr__(self) -> str:
+        return "SpotEligibilityReadSnapshot(values=withheld)"
+
+
 class CoinbaseApprovedSpotEligibilityReader:
     """One request-scoped, fail-closed adapter over the canonical REST client."""
 
     __slots__ = (
+        "_active_order_catalog_absence",
         "_approved_portfolio_id",
         "_approved_portfolio_label",
+        "_cycle_number",
+        "_exact_order_absence",
         "_expected_context",
+        "_market_reference",
         "_now_factory",
         "_permission_scope_ready",
         "_plan",
+        "_portfolio_binding",
         "_rest_client",
+        "_wallets",
     )
 
     def __init__(
@@ -199,6 +418,20 @@ class CoinbaseApprovedSpotEligibilityReader:
         self._plan = plan
         self._now_factory = now_factory
         self._permission_scope_ready = False
+        self._cycle_number: int | None = None
+        self._portfolio_binding: SpotEligibilityPortfolioBindingSnapshot | None = (
+            None
+        )
+        self._wallets: Mapping[str, SpotEligibilityWalletSnapshot] | None = None
+        self._market_reference: SpotEligibilityMarketReferenceSnapshot | None = (
+            None
+        )
+        self._exact_order_absence: (
+            SpotEligibilityExactOrderAbsenceSnapshot | None
+        ) = None
+        self._active_order_catalog_absence: (
+            SpotEligibilityActiveOrderCatalogAbsenceSnapshot | None
+        ) = None
 
     def __repr__(self) -> str:
         return "CoinbaseApprovedSpotEligibilityReader(scope=withheld)"
@@ -227,8 +460,37 @@ class CoinbaseApprovedSpotEligibilityReader:
             or context.correlation_id != expected.correlation_id
             or context.product_id != SPOT_ELIGIBILITY_PRODUCT_ID
             or context.client_order_id != expected_client_order_id
+            or (
+                self._cycle_number is not None
+                and context.cycle_number != self._cycle_number
+            )
         ):
             raise ValueError("spot_eligibility_reader_context_mismatch")
+        if self._cycle_number is None:
+            self._cycle_number = context.cycle_number
+
+    def execution_snapshot(self) -> SpotEligibilityReadSnapshot:
+        """Return complete transient typed facts without a serialization path."""
+
+        if (
+            not self._permission_scope_ready
+            or self._cycle_number is None
+            or self._portfolio_binding is None
+            or self._wallets is None
+            or self._market_reference is None
+            or self._exact_order_absence is None
+            or self._active_order_catalog_absence is None
+        ):
+            raise ValueError("spot_eligibility_reader_snapshot_incomplete")
+        return SpotEligibilityReadSnapshot(
+            cycle_number=self._cycle_number,
+            plan_sha256=self._plan.plan_sha256,
+            portfolio=self._portfolio_binding,
+            wallets=self._wallets,
+            market_reference=self._market_reference,
+            exact_order_absence=self._exact_order_absence,
+            active_order_catalog_absence=self._active_order_catalog_absence,
+        )
 
     def _method(self, name: str) -> Callable[..., Any] | None:
         value = getattr(self._rest_client, name, None)
@@ -267,6 +529,20 @@ class CoinbaseApprovedSpotEligibilityReader:
             observed_at=observed_at or self._now(),
         )
 
+    def _unknown(
+        self,
+        *,
+        observed_at: datetime | None = None,
+    ) -> SpotEligibilityReadResult:
+        return SpotEligibilityReadResult(
+            outcome=SpotEligibilityReadOutcome.UNKNOWN,
+            eligible=False,
+            logical_call_count=1,
+            http_request_count=None,
+            call_count_exact=False,
+            observed_at=observed_at or self._now(),
+        )
+
     def read_api_key_permissions(
         self,
         context: SpotEligibilityReadContext,
@@ -289,6 +565,8 @@ class CoinbaseApprovedSpotEligibilityReader:
         )
         self._permission_scope_ready = ready
         if not ready:
+            self._portfolio_binding = None
+        if not ready:
             return self._rejected(request_count=1)
         return self._succeeded(
             "API_KEY_PERMISSIONS",
@@ -306,6 +584,7 @@ class CoinbaseApprovedSpotEligibilityReader:
         context: SpotEligibilityReadContext,
     ) -> SpotEligibilityReadResult:
         self._validate_context(context)
+        self._portfolio_binding = None
         method = self._method("list_portfolios")
         if method is None:
             return self._rejected(request_count=0)
@@ -332,7 +611,7 @@ class CoinbaseApprovedSpotEligibilityReader:
         )
         if not ready:
             return self._rejected(request_count=1)
-        return self._succeeded(
+        result = self._succeeded(
             "PORTFOLIO_CATALOG",
             request_count=1,
             facts={
@@ -341,12 +620,22 @@ class CoinbaseApprovedSpotEligibilityReader:
                 "portfolio_type": "CONSUMER",
             },
         )
+        self._portfolio_binding = SpotEligibilityPortfolioBindingSnapshot(
+            retail_portfolio_id=self._approved_portfolio_id,
+            portfolio_id_sha256=context.portfolio_id_sha256,
+            label=self._approved_portfolio_label,
+            portfolio_type="CONSUMER",
+            can_view=True,
+            can_trade=True,
+        )
+        return result
 
     def read_account_wallet_balances(
         self,
         context: SpotEligibilityReadContext,
     ) -> SpotEligibilityReadResult:
         self._validate_context(context)
+        self._wallets = None
         method = self._method("get_account_wallets_strict")
         if method is None:
             return self._rejected(request_count=0)
@@ -392,7 +681,7 @@ class CoinbaseApprovedSpotEligibilityReader:
         )
         if not ready:
             return self._rejected(request_count=request_count)
-        return self._succeeded(
+        result = self._succeeded(
             "ACCOUNT_WALLET_BALANCES",
             request_count=request_count,
             facts={
@@ -402,6 +691,26 @@ class CoinbaseApprovedSpotEligibilityReader:
                 "sufficient": True,
             },
         )
+        wallet_snapshots: dict[str, SpotEligibilityWalletSnapshot] = {}
+        for currency in ("BTC", "USDC"):
+            wallet = wallet_map.get(currency)
+            available_value = _decimal(_field(wallet, "available_balance"))
+            total_value = _decimal(_field(wallet, "total_balance"))
+            observed_currency = str(_field(wallet, "currency") or "").upper()
+            if (
+                observed_currency == currency
+                and available_value is not None
+                and total_value is not None
+                and available_value >= 0
+                and total_value >= available_value
+            ):
+                wallet_snapshots[currency] = SpotEligibilityWalletSnapshot(
+                    currency=currency,
+                    available_balance=available_value,
+                    total_balance=total_value,
+                )
+        self._wallets = MappingProxyType(wallet_snapshots)
+        return result
 
     def read_product_metadata(
         self,
@@ -475,6 +784,7 @@ class CoinbaseApprovedSpotEligibilityReader:
         context: SpotEligibilityReadContext,
     ) -> SpotEligibilityReadResult:
         self._validate_context(context)
+        self._market_reference = None
         method = self._method("get_best_bid_ask")
         if method is None:
             return self._rejected(request_count=0)
@@ -518,7 +828,7 @@ class CoinbaseApprovedSpotEligibilityReader:
                 request_count=1,
                 observed_at=observed_at,
             )
-        return self._succeeded(
+        result = self._succeeded(
             "BEST_BID_ASK",
             request_count=1,
             observed_at=observed_at,
@@ -528,6 +838,14 @@ class CoinbaseApprovedSpotEligibilityReader:
                 "standing_price_allowed": True,
             },
         )
+        assert bid is not None and ask is not None and observed_at is not None
+        self._market_reference = SpotEligibilityMarketReferenceSnapshot(
+            product_id=SPOT_ELIGIBILITY_PRODUCT_ID,
+            best_bid=bid,
+            best_ask=ask,
+            observed_at=observed_at,
+        )
+        return result
 
     def read_fee_summary(
         self,
@@ -560,6 +878,7 @@ class CoinbaseApprovedSpotEligibilityReader:
         context: SpotEligibilityReadContext,
     ) -> SpotEligibilityReadResult:
         self._validate_context(context)
+        self._exact_order_absence = None
         value = exact_coinbase_order_readback(
             self._rest_client,
             client_order_id=context.client_order_id,
@@ -580,7 +899,7 @@ class CoinbaseApprovedSpotEligibilityReader:
         )
         if not ready:
             return self._rejected(request_count=page_count)
-        return self._succeeded(
+        result = self._succeeded(
             "EXACT_ORDER_RECONCILIATION",
             request_count=page_count,
             facts={
@@ -588,5 +907,80 @@ class CoinbaseApprovedSpotEligibilityReader:
                 "pagination_complete": True,
                 "confirmed_absent": True,
                 "page_count": page_count,
+                "plan_sha256": context.plan_sha256,
+                "portfolio_id_sha256": context.portfolio_id_sha256,
             },
         )
+        assert result.evidence_sha256 is not None
+        self._exact_order_absence = SpotEligibilityExactOrderAbsenceSnapshot(
+            client_order_id=context.client_order_id,
+            product_id=SPOT_ELIGIBILITY_PRODUCT_ID,
+            page_count=page_count,
+            evidence_sha256=result.evidence_sha256,
+        )
+        return result
+
+    def read_account_active_spot_order_catalog(
+        self,
+        context: SpotEligibilityReadContext,
+    ) -> SpotEligibilityReadResult:
+        """Prove zero active Spot orders across the exact approved portfolio."""
+
+        self._validate_context(context)
+        self._active_order_catalog_absence = None
+        if (
+            not self._permission_scope_ready
+            or self._portfolio_binding is None
+            or self._method("list_orders") is None
+        ):
+            return self._rejected(request_count=0)
+        observed_at = self._now()
+        try:
+            rows, pagination = read_authoritative_coinbase_orders(
+                self._rest_client,
+                order_status=list(COINBASE_ACTIVE_SPOT_ORDER_QUERY),
+                product_type="SPOT",
+                retail_portfolio_id=self._approved_portfolio_id,
+                maximum_pages=_MAX_ACTIVE_ORDER_PAGES,
+            )
+        except Exception:
+            return self._unknown(observed_at=observed_at)
+        page_count = pagination.get("page_count")
+        authoritative = bool(
+            pagination.get("authoritative") is True
+            and pagination.get("pagination_complete") is True
+            and type(page_count) is int
+            and page_count >= 1
+            and pagination.get("order_count") == len(rows)
+        )
+        if not authoritative:
+            return self._unknown(observed_at=observed_at)
+        if rows:
+            return self._rejected(
+                request_count=page_count,
+                observed_at=observed_at,
+            )
+        result = self._succeeded(
+            "ACCOUNT_ACTIVE_SPOT_ORDER_CATALOG",
+            request_count=page_count,
+            observed_at=observed_at,
+            facts={
+                "authoritative": True,
+                "pagination_complete": True,
+                "page_count": page_count,
+                "active_order_count": 0,
+                "product_type": "SPOT",
+                "plan_sha256": context.plan_sha256,
+                "portfolio_id_sha256": context.portfolio_id_sha256,
+            },
+        )
+        assert result.evidence_sha256 is not None
+        self._active_order_catalog_absence = (
+            SpotEligibilityActiveOrderCatalogAbsenceSnapshot(
+                portfolio_id_sha256=context.portfolio_id_sha256,
+                product_type="SPOT",
+                page_count=page_count,
+                evidence_sha256=result.evidence_sha256,
+            )
+        )
+        return result

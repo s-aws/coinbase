@@ -2,65 +2,102 @@
 
 ## Current status
 
-Goal `operator_spot_automation_single_child_execution_adapter_v1` is at an
-eligibility-coordinator-complete, source-gated checkpoint. It is not a
-live-ready completion.
+Goal `operator_spot_automation_single_child_execution_adapter_v1` is complete.
+Status: `complete`.
+Current action: `complete_zero_candidate_all_live_allowances_unconsumed`.
+Default action: `await_operator_direction_for_next_mvp`.
+
+The Eight-category single-child adapter remains installed behind backend-owned
+authority. Aggregate primary evidence: definitions `0`, plans `0`, runs `0`, eligibility cycles `0`, claims `0`, and candidates `0`.
+State-refresh cycles consumed: `0/10`.
+Coinbase Create calls: `0`; Coinbase Cancel calls: `0`.
+All live allowances remain unconsumed.
+
+Validation evidence: backend full `1179 passed, 6 skipped` parallel and `664 passed, 150 skipped` serial; focused backend `367 passed`; frontend full `1555 passed`; E2E `15/15`; focused frontend `177 passed`; independent safety audit `PASS`; blind-contextless audit `PASS`.
+Release/deployment gate: `PASS` (canonical rerun complete).
+No Coinbase API call or exchange mutation was made for this closeout. Every immutable
+R1-R12 artifact byte and documented hash remains preserved, and R8 content and
+hash remain inaccessible.
+
+No definition or immutable plan existed in the authoritative primary evidence;
+therefore no run, eligibility cycle, final-authorization cycle, or claim was
+created and no candidate existed. The authorized proof ended without consuming
+any of its ten refresh cycles or its Create/Cancel allowances.
+
+## Historical pre-closeout implementation checkpoint
+
+Before terminal closeout, goal
+`operator_spot_automation_single_child_execution_adapter_v1` was at an
+eight-category, canonical-single-child-execution-implemented,
+validation-pending checkpoint. Its status was
+`canonical_single_child_execution_implemented_validation_pending`; its
+checkpoint action was `complete_validation_audits_deployment_and_bounded_live_proof`. It
+was not yet an operator-ready completion.
 
 The PostgreSQL control plane can store one immutable `BTC-USDC` LIMIT/GTC
 single-child plan, carry it across definition revisions, claim one explicit
 operator run, derive one deterministic `client_order_id`, reserve one durable
 Create allowance, and project backend-owned plan, eligibility, cap, child,
 audit, and call-accounting evidence through generated contracts. The routed UI
-can create and review the definition and displays the fixed blocker on the run.
+can create and review the definition, request eligibility, authorize one exact
+child, and request exact-child safe closeout only when backend readback exposes
+the corresponding action.
 The goal-wide plan-bearing definition slot is singleton and race-safe:
 definition plus plan creation commits in one transaction, revision carry is
 atomic, exact replay verifies the persisted plan, and any partial write rolls
 back. Generic planless control-plane definitions remain unaffected.
 
-The installed application adapter now includes a typed, route-owned eligibility
-coordinator for the seven approved read categories: API-key permissions,
+The installed application adapter includes a typed, route-owned eligibility
+coordinator for the eight approved read categories: API-key permissions,
 portfolio catalog, account/wallet balances, product metadata, best bid/ask,
-fee summary, and exact-order reconciliation. An authenticated operator must
-explicitly acknowledge both the approved reads and unknown-outcome cycle
-consumption before starting a cycle. Ordinary page loading and navigation are
-call-free. The coordinator claims a goal-global PostgreSQL cycle before it
-constructs the strict Coinbase reader, invokes categories once in fixed order
-with no application retry, fails short, persists only sanitized hashes and
-fixed diagnostics, and replays terminal evidence without constructing a
-reader. Up to ten cycles may be consumed across the goal; restart recovery and
-idempotency cannot reopen a consumed category or cycle.
+fee summary, exact-order reconciliation, and one logical account-wide active
+Spot-order catalog. An authenticated operator must explicitly acknowledge the
+approved reads, the active-order catalog, and unknown-outcome cycle consumption
+before starting a cycle. Ordinary page loading and navigation are call-free.
+The coordinator claims a goal-global PostgreSQL cycle, invokes each category
+once in fixed order with no application or page retry, fails short, persists
+only sanitized hashes and fixed diagnostics, and replays terminal evidence
+without constructing a reader. Up to ten cycles may be consumed across the
+goal; restart recovery and idempotency cannot reopen a consumed category or
+cycle.
 
-The adapter still exposes no gateway or boolean override that can enable
-execution. An exact campaign claim therefore transitions locally from
-`CLAIMED` through `PREPARING` to `BLOCKED` with
-`automation_active_order_catalog_read_not_authorized`. Eligibility refresh may
-update the same blocked run's sanitized evidence and actionability, but it
-cannot create an invocation claim, compose the command runtime, read the
-account-wide active-order catalog, call Create, or mutate the exchange.
-Authorization of the blocked run continues to return the fixed source-gate
-conflict before those boundaries. Its durable actor, payload, idempotency, and
-correlation bindings remain fail-closed on drift.
+Exact-run authorization owns a separate final authorization refresh. That
+request allocates its own durable cycle and re-proves the same exact plan
+revision, configured approved-Test portfolio hash, freshness, and eight
+category outcomes before any Create claim. Missing, stale, ambiguous,
+mismatched, or ineligible evidence fails closed without a Create.
+
+The canonical domain-owned one-child Create coordinator resolves typed
+approval, cap, admission, and live-service evidence, enters only the existing
+canonical Spot execution scope, durably claims the exact deterministic child,
+and delegates to the existing command service. Its response classification and
+call accounting are sanitized and value-blind. The distinct
+exact-child safe-closeout Cancel coordinator reconciles the backend-selected
+child, claims its one-use Cancel allowance, and delegates to the existing
+canonical exact-order cancel scope. Unknown outcomes consume the applicable
+allowance and cannot be retried. No gateway or boolean override can bypass
+these boundaries.
 
 The one-run boundary is goal-global and durable: the singleton goal row
 serializes concurrent plan-bearing claims, and the first claim permanently
-uses the run slot even when its source-gated terminal state is `BLOCKED`.
+uses the run slot even when its initial source-gated state is `BLOCKED`.
 Definition readback removes `RUN_ONCE` for every plan-bearing definition after
 that claim. Planless generic control-plane definitions retain their historical
 per-definition behavior and receive no Spot execution authority.
 
-`adapter_status=SOURCE_GATED` now means the typed plan/run contract, production
-eligibility coordinator, strict reader, durable cycle ledger, and generated
-operator readback are installed, but the account-wide active-order guard and
-canonical application execution coordinator are not authorized or callable.
-It is not an execution-ready domain boundary and must not be described as
-available or operator-authorized. Earlier direct command-service and
-injectable-gateway prototypes remain removed because they bypassed the
-canonical route-owned admission and execution scope.
+Runtime `adapter_status` is backend evidence for the selected run, not a goal
+completion label. The implementation may expose `REFRESH_ELIGIBILITY`,
+`AUTHORIZE_SINGLE_CHILD`, or `SAFE_CLOSEOUT_CHILD` only from exact backend
+state and actor permission. It must not be described as operator-ready until
+full validation, independent audits, and installed deployment validation pass.
+Earlier direct command-service and injectable-gateway prototypes remain
+removed because they bypassed the canonical route-owned admission and
+execution scope.
 
 ## Preserved invariants
 
 - persistence stores only the configured portfolio's SHA-256 binding and
-  revalidates current configuration before a future invocation boundary;
+  revalidates current configuration at every invocation boundary;
   readback says `CONFIGURED_UNVERIFIED` unless the latest eligibility cycle has
   exact successful portfolio-catalog evidence durably hash-bound to the same
   plan portfolio, and only then may it display `Test`; this binding is not a
@@ -88,56 +125,45 @@ canonical route-owned admission and execution scope.
 - no recurring scheduler, unattended activation, ladder, sweep, fan-out,
   Futures action, alternate product, or browser-side Coinbase path exists.
 
-## Why the live proof did not run
+## Live-proof status
 
-The canonical domain-owned Spot placement service enforces zero active Test
-portfolio orders by completing one account-wide paginated `OPEN` order read
-immediately before Create. The current authorization enumerates exact-order
-reconciliation but not this account-wide active-order catalog category.
-Skipping the guard would weaken installed policy; relabeling it as exact-order
-reconciliation would make endpoint accounting false.
-
-The source gate therefore closes after the separately authorized eligibility
-coordinator and before the account-wide active-order read, invocation claim,
-Create, or exact-child Cancel. The implementation and validation work used
-synthetic sanitized readers only and made no live eligibility reads. All
-eligibility-cycle, Create, and exact-child Cancel allowances remain unconsumed.
+No goal-scoped Coinbase call has run. Eligibility-cycle,
+final-authorization-read, Create, and exact-child Cancel allowances remain
+unconsumed. The implementation work has not treated synthetic fixtures, local tests, old
+source-gated evidence, or ordinary page reads as live proof. The authorized
+bounded proof may be considered only after focused and full gates, independent
+safety and blind-contextless audits, and installed deployment validation pass.
 
 ## Validation evidence
 
-The checkpoint passed backend full regression with `1170 passed, 6 skipped`
-in the parallel partition and `651 passed, 150 skipped` in the serial
+The previous source-gated checkpoint passed backend full regression with
+`1170 passed, 6 skipped` in the parallel partition and `651 passed, 150 skipped` in the serial
 partition. Frontend validation passed 89 files and `1536` tests, browser E2E
 passed `15/15`, and independent safety plus blind-contextless audits returned
 `PASS` with no P0, P1, or P2 finding. Generated-contract, typecheck, lint,
 build, command-security, and release-readiness checks passed. The managed
 browser and regression runners reported no Coinbase execution and `0 USDC`
-notional.
+notional. Those counts are historical and do not validate the current
+implementation increment. Full validation, both independent audits, installed
+deployment validation, and the bounded live proof remain pending.
 
-## Required successor work
+## Remaining closeout work
 
-A separately authorized continuation must remediate and validate the remaining
-canonical admission and execution path together:
+The authorized continuation has implemented the previously required canonical
+path. Before operator-ready closeout it must:
 
-1. add exactly one account-wide active Spot order catalog read category, with
-   required cursor pagination and no page retry, solely for the canonical
-   zero-active-order guard;
-2. resolve real typed approval, cap, admission-audit, and live-service evidence
-   through the canonical domain service and enter its canonical Spot mutation
-   scope only after the durable invocation claim; synthetic proof identifiers
-   are forbidden;
-3. reuse the installed eligibility coordinator without duplicate reads and
-   account truthfully for every read,
-   Create, reconciliation, and Cancel boundary;
-4. prove the configured canonical portfolio UUID is the approved Test
-   portfolio through coordinator-owned current portfolio-catalog evidence
-   rather than relying on a display label or caller-finalized row; wire
-   exact-child reconciliation and the one-use canonical Cancel safe closeout
-   route; and
-5. repeat focused/full validation, installed deployment checks, safety audit,
-   and blind-contextless audit before considering one Create.
+1. finish focused remediation and generated OpenAPI/frontend synchronization;
+2. pass full backend/frontend gates and browser E2E without a Coinbase call;
+3. pass independent safety and blind-contextless audits;
+4. validate and install the Controlled-live operator deployment; and
+5. only then evaluate the exact eligible run for the authorized one-Create and
+   optional exact-child safe-closeout proof, leaving allowances unconsumed when
+   no exact eligible candidate exists.
 
-## Consolidated successor authorization wording
+## Historical consolidated successor authorization wording
+
+The following wording is preserved as the authorization record that enabled
+the current implementation. It is not the current status or next action.
 
 > I authorize one bounded continuation of
 > `operator_spot_automation_single_child_execution_adapter_v1`. It preserves
@@ -178,8 +204,9 @@ canonical admission and execution path together:
 > operator stack running. Stop only if proceeding would change the portfolio,
 > product, caps, child count, enumerated endpoint set, or exchange-call limits.
 
-The quoted continuation is a draft only. It grants no authority unless the
-operator explicitly supplies it.
+The operator explicitly supplied that continuation. It defines the current
+bounded scope, but it does not waive the pending validation/audit/deployment
+gates or grant any extra Coinbase call, product, child, retry, or fan-out.
 
 ## Historical comparison
 

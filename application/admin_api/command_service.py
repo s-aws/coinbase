@@ -10,8 +10,9 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from decimal import Decimal
+import hashlib
 from pathlib import Path
-from threading import RLock
+from threading import RLock, get_ident
 from typing import Any, Callable, Iterator, Mapping
 import os
 import time
@@ -63,6 +64,10 @@ from .approval import FileAdminApiApprovalStore, evaluate_live_execution_gate
 from .audit import FileAdminApiAuditStore
 from .cap_guard import FileAdminApiCapGuardStore
 from .live_execution import coinbase_execution_authority_enabled
+from .operator_mvp_policy import (
+    OPERATOR_MVP_MAX_EXECUTED_NOTIONAL_USDC,
+    OPERATOR_MVP_MAX_SUBMITTED_NOTIONAL_USDC,
+)
 from .idempotency import hashed_interprocess_lock, resolve_idempotency_store_path
 from .reconciliation import FileAdminApiReconciliationStore
 from .models import (
@@ -124,6 +129,7 @@ from .root_child_cancel import (
 )
 from .spot_portfolio_binding import (
     DEFAULT_SPOT_PORTFOLIO_LABEL,
+    SpotPortfolioBindingEvidence,
     evaluate_spot_test_portfolio_binding,
     serialize_public_spot_portfolio_scope,
 )
@@ -322,6 +328,472 @@ def _update_order_parent_status(client_order_id: str, status: str) -> Any:
     return update_order_parent_status(client_order_id, status)
 
 
+class SpotProfileAdmissionLeaseError(RuntimeError):
+    """Fail-closed classification for an invalid profile admission lease."""
+
+
+class SpotAutomationAdmissionError(RuntimeError):
+    """Fixed, value-blind rejection for invalid typed Automation evidence."""
+
+
+@dataclass(frozen=True, slots=True, repr=False)
+class SpotProfileAdmissionLease:
+    """Unforgeable, thread-bound capability for one active profile claim."""
+
+    _issuer_token: object = field(repr=False, compare=False)
+    _portfolio_id_sha256: str = field(repr=False)
+    _thread_id: int = field(repr=False)
+
+    def __repr__(self) -> str:
+        return "SpotProfileAdmissionLease(scope=withheld)"
+
+
+def _require_aware_automation_datetime(value: datetime, *, code: str) -> None:
+    if (
+        not isinstance(value, datetime)
+        or value.tzinfo is None
+        or value.utcoffset() is None
+    ):
+        raise ValueError(code)
+
+
+def _require_automation_uuid(value: str, *, code: str) -> None:
+    try:
+        parsed = uuid.UUID(value)
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise ValueError(code) from exc
+    if str(parsed) != value:
+        raise ValueError(code)
+
+
+def _require_automation_sha256(value: str, *, code: str) -> None:
+    if (
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise ValueError(code)
+
+
+def _require_positive_automation_decimal(value: Decimal, *, code: str) -> None:
+    if not isinstance(value, Decimal) or not value.is_finite() or value <= 0:
+        raise ValueError(code)
+
+
+@dataclass(frozen=True, slots=True)
+class SpotAutomationWalletEvidence:
+    """Fresh wallet/inventory facts consumed without another account read."""
+
+    required_currency: str
+    available_balance: Decimal
+    planned_commitment: Decimal
+    known_inventory_available: bool
+    known_inventory_base_size: Decimal
+    observed_at: datetime
+    fresh_until: datetime
+    source: str
+    evidence_sha256: str
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.required_currency, str)
+            or not self.required_currency
+            or self.required_currency != self.required_currency.upper()
+        ):
+            raise ValueError("spot_automation_wallet_currency_invalid")
+        if (
+            not isinstance(self.available_balance, Decimal)
+            or not self.available_balance.is_finite()
+            or self.available_balance < 0
+            or not isinstance(self.planned_commitment, Decimal)
+            or not self.planned_commitment.is_finite()
+            or self.planned_commitment < 0
+            or not isinstance(self.known_inventory_base_size, Decimal)
+            or not self.known_inventory_base_size.is_finite()
+            or self.known_inventory_base_size < 0
+            or type(self.known_inventory_available) is not bool
+        ):
+            raise ValueError("spot_automation_wallet_evidence_invalid")
+        _require_aware_automation_datetime(
+            self.observed_at,
+            code="spot_automation_wallet_observed_at_invalid",
+        )
+        _require_aware_automation_datetime(
+            self.fresh_until,
+            code="spot_automation_wallet_fresh_until_invalid",
+        )
+        if self.fresh_until <= self.observed_at:
+            raise ValueError("spot_automation_wallet_freshness_invalid")
+        if not isinstance(self.source, str) or not self.source.strip():
+            raise ValueError("spot_automation_wallet_source_invalid")
+        _require_automation_sha256(
+            self.evidence_sha256,
+            code="spot_automation_wallet_hash_invalid",
+        )
+
+    def wallet_snapshot(self) -> dict[str, Any]:
+        return {
+            self.required_currency: {
+                "available_balance": {"value": str(self.available_balance)}
+            }
+        }
+
+    def planned_budget_snapshot(self) -> dict[str, float]:
+        return {self.required_currency: float(self.planned_commitment)}
+
+    def inventory_decision(self, *, requested_size: Any) -> dict[str, Any]:
+        try:
+            size = Decimal(str(requested_size))
+        except (ArithmeticError, TypeError, ValueError):
+            size = Decimal("-1")
+        allowed = bool(
+            self.known_inventory_available
+            and size.is_finite()
+            and size > 0
+            and self.known_inventory_base_size >= size
+        )
+        return {
+            "allowed": allowed,
+            "source": "typed_spot_automation_wallet_evidence",
+            "evidence_sha256": self.evidence_sha256,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class SpotAutomationMarketEvidence:
+    """Fresh top-of-book facts consumed without another market read."""
+
+    best_bid: Decimal
+    best_ask: Decimal
+    observed_at: datetime
+    fresh_until: datetime
+    source: str
+    evidence_sha256: str
+
+    def __post_init__(self) -> None:
+        _require_positive_automation_decimal(
+            self.best_bid,
+            code="spot_automation_market_bid_invalid",
+        )
+        _require_positive_automation_decimal(
+            self.best_ask,
+            code="spot_automation_market_ask_invalid",
+        )
+        if self.best_ask < self.best_bid:
+            raise ValueError("spot_automation_market_spread_invalid")
+        _require_aware_automation_datetime(
+            self.observed_at,
+            code="spot_automation_market_observed_at_invalid",
+        )
+        _require_aware_automation_datetime(
+            self.fresh_until,
+            code="spot_automation_market_fresh_until_invalid",
+        )
+        if self.fresh_until <= self.observed_at:
+            raise ValueError("spot_automation_market_freshness_invalid")
+        if self.source not in {"coinbase_rest_best_bid", "ticker"}:
+            raise ValueError("spot_automation_market_source_invalid")
+        _require_automation_sha256(
+            self.evidence_sha256,
+            code="spot_automation_market_hash_invalid",
+        )
+
+    def market_reference(self, *, product_id: str) -> dict[str, Any]:
+        return {
+            "product_id": product_id,
+            "best_bid": str(self.best_bid),
+            "best_ask": str(self.best_ask),
+            "source": self.source,
+            "observed_at": self.observed_at,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class SpotAutomationZeroActiveOrderEvidence:
+    """One complete account-wide Spot catalog proof with zero active rows."""
+
+    authoritative: bool
+    open_order_count: int
+    logical_call_count: int
+    http_request_count: int
+    call_count_exact: bool
+    pagination_complete: bool
+    page_count: int
+    observed_at: datetime
+    fresh_until: datetime
+    evidence_sha256: str
+
+    def __post_init__(self) -> None:
+        if (
+            self.authoritative is not True
+            or type(self.open_order_count) is not int
+            or self.open_order_count != 0
+            or type(self.logical_call_count) is not int
+            or self.logical_call_count != 1
+            or type(self.http_request_count) is not int
+            or self.http_request_count < 1
+            or self.call_count_exact is not True
+            or self.pagination_complete is not True
+            or type(self.page_count) is not int
+            or self.page_count < 1
+            or self.page_count != self.http_request_count
+        ):
+            raise ValueError("spot_automation_zero_active_order_evidence_invalid")
+        _require_aware_automation_datetime(
+            self.observed_at,
+            code="spot_automation_active_orders_observed_at_invalid",
+        )
+        _require_aware_automation_datetime(
+            self.fresh_until,
+            code="spot_automation_active_orders_fresh_until_invalid",
+        )
+        if self.fresh_until <= self.observed_at:
+            raise ValueError("spot_automation_active_orders_freshness_invalid")
+        _require_automation_sha256(
+            self.evidence_sha256,
+            code="spot_automation_active_orders_hash_invalid",
+        )
+
+    def public_guard_evidence(self) -> dict[str, Any]:
+        return {
+            "allowed": True,
+            "open_order_count": 0,
+            "open_client_order_ids": [],
+            "cancel_before_next": True,
+            "blocker": None,
+            "authoritative": True,
+            "page_count": self.page_count,
+            "order_count": 0,
+            "pagination_complete": True,
+            "source": "typed_spot_automation_active_order_catalog",
+            "evidence_sha256": self.evidence_sha256,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ValidatedSpotAutomationOwnershipEvidence:
+    """Exact durable Automation root ownership and live profile capability."""
+
+    run_id: str
+    definition_id: str
+    definition_revision: int
+    plan_sha256: str
+    client_order_id: str
+    product_id: str
+    side: str
+    base_size: Decimal
+    limit_price: Decimal
+    portfolio_id_sha256: str
+    fresh_until: datetime
+    portfolio_binding: SpotPortfolioBindingEvidence
+    lease: SpotProfileAdmissionLease
+
+    def __post_init__(self) -> None:
+        _require_automation_uuid(self.run_id, code="spot_automation_run_id_invalid")
+        _require_automation_uuid(
+            self.definition_id,
+            code="spot_automation_definition_id_invalid",
+        )
+        _require_automation_uuid(
+            self.client_order_id,
+            code="spot_automation_client_order_id_invalid",
+        )
+        if type(self.definition_revision) is not int or self.definition_revision < 1:
+            raise ValueError("spot_automation_definition_revision_invalid")
+        _require_automation_sha256(
+            self.plan_sha256,
+            code="spot_automation_plan_hash_invalid",
+        )
+        _require_automation_sha256(
+            self.portfolio_id_sha256,
+            code="spot_automation_portfolio_hash_invalid",
+        )
+        if self.product_id != "BTC-USDC":
+            raise ValueError("spot_automation_product_invalid")
+        if self.side not in {OrderSide.BUY.value, OrderSide.SELL.value}:
+            raise ValueError("spot_automation_side_invalid")
+        _require_positive_automation_decimal(
+            self.base_size,
+            code="spot_automation_base_size_invalid",
+        )
+        _require_positive_automation_decimal(
+            self.limit_price,
+            code="spot_automation_limit_price_invalid",
+        )
+        _require_aware_automation_datetime(
+            self.fresh_until,
+            code="spot_automation_fresh_until_invalid",
+        )
+        binding = self.portfolio_binding
+        if (
+            not isinstance(binding, SpotPortfolioBindingEvidence)
+            or binding.ready is not True
+            or binding.blocker is not None
+            or not binding.expected_portfolio_id
+            or binding.expected_portfolio_id != binding.observed_portfolio_id
+            or binding.expected_portfolio_label != "Test"
+            or binding.observed_portfolio_label != "Test"
+            or binding.expected_portfolio_type != "CONSUMER"
+            or binding.observed_portfolio_type != "CONSUMER"
+            or binding.can_view is not True
+            or binding.can_trade is not True
+            or binding.request_portfolio_override_allowed is not False
+        ):
+            raise ValueError("spot_automation_portfolio_binding_invalid")
+        observed_hash = hashlib.sha256(
+            binding.observed_portfolio_id.encode("utf-8")
+        ).hexdigest()
+        if observed_hash != self.portfolio_id_sha256:
+            raise ValueError("spot_automation_portfolio_binding_hash_mismatch")
+        if not isinstance(self.lease, SpotProfileAdmissionLease):
+            raise ValueError("spot_automation_profile_lease_invalid")
+
+
+@dataclass(frozen=True, slots=True)
+class ValidatedSpotAutomationAdmissionEvidence(
+    ValidatedSpotAutomationOwnershipEvidence
+):
+    """Complete transient evidence bundle for the canonical Spot Create path."""
+
+    wallet_evidence: SpotAutomationWalletEvidence
+    market_evidence: SpotAutomationMarketEvidence
+    zero_active_order_evidence: SpotAutomationZeroActiveOrderEvidence
+
+    def __post_init__(self) -> None:
+        super(ValidatedSpotAutomationAdmissionEvidence, self).__post_init__()
+        if not isinstance(self.wallet_evidence, SpotAutomationWalletEvidence):
+            raise ValueError("spot_automation_wallet_evidence_invalid")
+        if not isinstance(self.market_evidence, SpotAutomationMarketEvidence):
+            raise ValueError("spot_automation_market_evidence_invalid")
+        if not isinstance(
+            self.zero_active_order_evidence,
+            SpotAutomationZeroActiveOrderEvidence,
+        ):
+            raise ValueError("spot_automation_active_order_evidence_invalid")
+        if any(
+            evidence.fresh_until < self.fresh_until
+            for evidence in (
+                self.wallet_evidence,
+                self.market_evidence,
+                self.zero_active_order_evidence,
+            )
+        ):
+            raise ValueError("spot_automation_evidence_freshness_mismatch")
+
+
+def _require_current_spot_automation_ownership(
+    evidence: ValidatedSpotAutomationOwnershipEvidence,
+    *,
+    coordinator: SpotProfileOrderAdmissionCoordinator,
+    configured_portfolio_id: str | None,
+    configured_portfolio_label: str,
+    client_order_id: str,
+    product_id: str | None = None,
+) -> None:
+    if not isinstance(evidence, ValidatedSpotAutomationOwnershipEvidence):
+        raise SpotAutomationAdmissionError("spot_automation_ownership_invalid")
+    now = datetime.now(timezone.utc)
+    binding = evidence.portfolio_binding
+    configured_id = str(configured_portfolio_id or "").strip()
+    if (
+        evidence.fresh_until <= now
+        or not configured_id
+        or binding.expected_portfolio_id != configured_id
+        or binding.observed_portfolio_id != configured_id
+        or binding.expected_portfolio_label != configured_portfolio_label
+        or evidence.client_order_id != client_order_id
+        or (product_id is not None and evidence.product_id != product_id)
+    ):
+        raise SpotAutomationAdmissionError("spot_automation_ownership_mismatch")
+    try:
+        coordinator.require_active_lease(
+            evidence.lease,
+            retail_portfolio_id=configured_id,
+        )
+    except SpotProfileAdmissionLeaseError as exc:
+        raise SpotAutomationAdmissionError(str(exc)) from exc
+
+
+def _require_current_spot_automation_admission(
+    evidence: ValidatedSpotAutomationAdmissionEvidence,
+    *,
+    coordinator: SpotProfileOrderAdmissionCoordinator,
+    configured_portfolio_id: str | None,
+    configured_portfolio_label: str,
+    client_order_id: str,
+    product_id: str,
+    side: str,
+    base_size: Any,
+    limit_price: Any,
+    command: ManualOrderCommand,
+) -> None:
+    if not isinstance(evidence, ValidatedSpotAutomationAdmissionEvidence):
+        raise SpotAutomationAdmissionError("spot_automation_admission_invalid")
+    _require_current_spot_automation_ownership(
+        evidence,
+        coordinator=coordinator,
+        configured_portfolio_id=configured_portfolio_id,
+        configured_portfolio_label=configured_portfolio_label,
+        client_order_id=client_order_id,
+        product_id=product_id,
+    )
+    now = datetime.now(timezone.utc)
+    if any(
+        item.fresh_until <= now
+        for item in (
+            evidence.wallet_evidence,
+            evidence.market_evidence,
+            evidence.zero_active_order_evidence,
+        )
+    ):
+        raise SpotAutomationAdmissionError("spot_automation_admission_stale")
+    try:
+        requested_size = Decimal(str(base_size))
+        requested_price = Decimal(str(limit_price))
+        submitted_cap = Decimal(str(command.admin_max_submitted_notional_usdc))
+        executed_cap = Decimal(str(command.admin_max_executed_notional_usdc))
+    except (ArithmeticError, TypeError, ValueError) as exc:
+        raise SpotAutomationAdmissionError(
+            "spot_automation_order_binding_invalid"
+        ) from exc
+    normalized_side = str(side or "").upper()
+    if (
+        command.order_configuration_override is not None
+        or evidence.side != normalized_side
+        or evidence.base_size != requested_size
+        or evidence.limit_price != requested_price
+        or submitted_cap != OPERATOR_MVP_MAX_SUBMITTED_NOTIONAL_USDC
+        or executed_cap != OPERATOR_MVP_MAX_EXECUTED_NOTIONAL_USDC
+        or not command.admin_approval_snapshot_id
+        or not command.admin_cap_guard_decision_id
+        or not command.admission_audit_id
+    ):
+        raise SpotAutomationAdmissionError("spot_automation_order_binding_mismatch")
+    base_currency, _, quote_currency = product_id.partition("-")
+    required_currency = (
+        quote_currency if normalized_side == OrderSide.BUY.value else base_currency
+    )
+    required_amount = (
+        requested_size * requested_price
+        if normalized_side == OrderSide.BUY.value
+        else requested_size
+    )
+    wallet = evidence.wallet_evidence
+    if (
+        not required_currency
+        or wallet.required_currency != required_currency
+        or wallet.available_balance - wallet.planned_commitment < required_amount
+        or (
+            normalized_side == OrderSide.SELL.value
+            and (
+                not wallet.known_inventory_available
+                or wallet.known_inventory_base_size < requested_size
+            )
+        )
+    ):
+        raise SpotAutomationAdmissionError("spot_automation_wallet_binding_mismatch")
+
+
 class SpotProfileOrderAdmissionCoordinator:
     """Serialize Spot submit/cancel decisions and retain runtime uncertainty.
 
@@ -337,6 +809,8 @@ class SpotProfileOrderAdmissionCoordinator:
         self._registry_lock = RLock()
         self._profile_locks: dict[str, RLock] = {}
         self._uncertain_submissions: dict[str, dict[str, str]] = {}
+        self._lease_issuer_token = object()
+        self._active_leases: dict[int, SpotProfileAdmissionLease] = {}
         self._lock_root = (
             Path(lock_root).resolve()
             if lock_root is not None
@@ -348,7 +822,7 @@ class SpotProfileOrderAdmissionCoordinator:
             return self._profile_locks.setdefault(retail_portfolio_id, RLock())
 
     @contextmanager
-    def claim(self, retail_portfolio_id: str) -> Iterator[None]:
+    def claim(self, retail_portfolio_id: str) -> Iterator[SpotProfileAdmissionLease]:
         portfolio_id = str(retail_portfolio_id or "").strip()
         if not portfolio_id:
             raise ValueError("spot_portfolio_id_missing_for_admission_claim")
@@ -359,7 +833,56 @@ class SpotProfileOrderAdmissionCoordinator:
                 namespace="spot-profile-order-admission",
                 identity=portfolio_id,
             ):
-                yield
+                lease = SpotProfileAdmissionLease(
+                    _issuer_token=self._lease_issuer_token,
+                    _portfolio_id_sha256=hashlib.sha256(
+                        portfolio_id.encode("utf-8")
+                    ).hexdigest(),
+                    _thread_id=get_ident(),
+                )
+                with self._registry_lock:
+                    self._active_leases[id(lease)] = lease
+                try:
+                    yield lease
+                finally:
+                    with self._registry_lock:
+                        self._active_leases.pop(id(lease), None)
+
+    def require_active_lease(
+        self,
+        lease: SpotProfileAdmissionLease,
+        *,
+        retail_portfolio_id: str,
+    ) -> None:
+        """Require the exact active lease issued for this thread and portfolio."""
+
+        if not isinstance(lease, SpotProfileAdmissionLease):
+            raise SpotProfileAdmissionLeaseError(
+                "spot_profile_admission_lease_invalid"
+            )
+        with self._registry_lock:
+            active = self._active_leases.get(id(lease))
+        if active is not lease:
+            raise SpotProfileAdmissionLeaseError(
+                "spot_profile_admission_lease_inactive"
+            )
+        if lease._issuer_token is not self._lease_issuer_token:
+            raise SpotProfileAdmissionLeaseError(
+                "spot_profile_admission_lease_issuer_mismatch"
+            )
+        if lease._thread_id != get_ident():
+            raise SpotProfileAdmissionLeaseError(
+                "spot_profile_admission_lease_thread_mismatch"
+            )
+        portfolio_id = str(retail_portfolio_id or "").strip()
+        if (
+            not portfolio_id
+            or hashlib.sha256(portfolio_id.encode("utf-8")).hexdigest()
+            != lease._portfolio_id_sha256
+        ):
+            raise SpotProfileAdmissionLeaseError(
+                "spot_profile_admission_lease_portfolio_mismatch"
+            )
 
     def record_uncertainty(
         self,
@@ -1619,6 +2142,7 @@ def read_authoritative_coinbase_orders(
     order_ids: list[str] | None = None,
     product_ids: list[str] | None = None,
     product_type: str | None = None,
+    retail_portfolio_id: str | None = None,
     maximum_pages: int = 100,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Read and validate every Coinbase order page for an exact decision.
@@ -1659,6 +2183,8 @@ def read_authoritative_coinbase_orders(
             kwargs["product_ids"] = list(product_ids)
         if product_type is not None:
             kwargs["product_type"] = product_type
+        if retail_portfolio_id is not None:
+            kwargs["retail_portfolio_id"] = retail_portfolio_id
         if cursor is not None:
             kwargs["cursor"] = cursor
 
@@ -1786,6 +2312,7 @@ def exact_coinbase_order_readback(
             rest_client,
             product_ids=[product_id] if product_id else None,
             product_type=product_type,
+            retail_portfolio_id=expected_retail_portfolio_id,
             maximum_pages=maximum_list_pages,
         )
     matches = [
@@ -3494,6 +4021,95 @@ def _fill_follow_up_trigger_pre_execution_blockers(
     return blockers
 
 
+def _exact_read_page_count(value: Any) -> int | None:
+    """Return a sanitized exact HTTP page count, never a truthy coercion."""
+
+    if type(value) is int and value >= 1:
+        return value
+    return None
+
+
+def _automation_operation_read_call_count(
+    response: AdminApiCommandResponse,
+    *,
+    operation: str,
+) -> int | None:
+    """Derive an operation-local Coinbase read count from sanitized evidence.
+
+    Automation callers must account for reads performed inside this command
+    boundary.  A zero means no read boundary was crossed.  Successful bounded
+    readbacks expose exact paginator page counts.  If a read was attempted but
+    the sanitized response cannot prove how many HTTP calls occurred, ``None``
+    preserves that ambiguity instead of inventing a count.
+    """
+
+    if response.live_coinbase_read_ran is not True:
+        return 0
+    if not isinstance(response.data, Mapping):
+        return None
+
+    if operation == "place":
+        submission_attempt = response.data.get("submission_attempt")
+        if not isinstance(submission_attempt, Mapping):
+            return None
+        readback = submission_attempt.get("readback")
+        if not isinstance(readback, Mapping):
+            return None
+        return _exact_read_page_count(readback.get("page_count"))
+
+    if operation == "reconcile":
+        readback = response.data.get("readback")
+        if not isinstance(readback, Mapping):
+            # Manual reconciliation performs portfolio reads before durable
+            # ownership validation and historically marks those early exits
+            # as read-running.  Typed Automation ownership reuses its binding,
+            # so absence of exact-order readback here truthfully means zero.
+            return 0
+        order_pages = _exact_read_page_count(readback.get("page_count"))
+        if order_pages is None:
+            return None
+        fill_readback = response.data.get("fill_readback")
+        if fill_readback is None:
+            return order_pages
+        if not isinstance(fill_readback, Mapping):
+            return None
+        fill_pages = _exact_read_page_count(fill_readback.get("page_count"))
+        if fill_pages is None:
+            return None
+        return order_pages + fill_pages
+
+    if operation == "cancel":
+        cancellation = response.data.get("cancellation_readback")
+        if not isinstance(cancellation, Mapping):
+            return None
+        pre_read_pages = _exact_read_page_count(
+            cancellation.get("pre_cancel_read_page_count")
+        )
+        if pre_read_pages is None:
+            return None
+        if not bool(cancellation.get("canonical_cancel_attempted")):
+            return pre_read_pages
+        # The retained authoritative readback is overwritten by the post-read
+        # after a proven Cancel outcome, so preserve the sanitized pre-read
+        # paginator count separately and sum both exact boundaries here.
+        if bool(
+            cancellation.get("canonical_cancel_accepted")
+            or cancellation.get("canonical_cancel_explicitly_rejected")
+        ):
+            readback = cancellation.get("authoritative_readback")
+            if not isinstance(readback, Mapping):
+                return None
+            post_read_pages = _exact_read_page_count(readback.get("page_count"))
+            if post_read_pages is None:
+                return None
+            return pre_read_pages + post_read_pages
+        # An unknown mutation outcome returns before attempting a post-read;
+        # only the exact pre-read count contributes to this operation.
+        return pre_read_pages
+
+    return None
+
+
 class AdminApiCommandService:
     """Shared command-service boundary for enterprise API work."""
 
@@ -3922,7 +4538,37 @@ class AdminApiCommandService:
             **self._command_runtime_evidence(),
         )
 
-    def place_manual_order(self, command: ManualOrderCommand) -> AdminApiCommandResponse:
+    def place_manual_order(
+        self,
+        command: ManualOrderCommand,
+        *,
+        automation_admission: ValidatedSpotAutomationAdmissionEvidence | None = None,
+    ) -> AdminApiCommandResponse:
+        """Place through the canonical path with Automation-local accounting."""
+
+        response = self._place_manual_order(
+            command,
+            automation_admission=automation_admission,
+        )
+        if automation_admission is None:
+            return response
+        return response.model_copy(
+            update={
+                "live_coinbase_read_call_count": (
+                    _automation_operation_read_call_count(
+                        response,
+                        operation="place",
+                    )
+                )
+            }
+        )
+
+    def _place_manual_order(
+        self,
+        command: ManualOrderCommand,
+        *,
+        automation_admission: ValidatedSpotAutomationAdmissionEvidence | None = None,
+    ) -> AdminApiCommandResponse:
         """Place a manual order through the existing guarded REST path."""
 
         execution_authority_missing = bool(
@@ -4034,6 +4680,29 @@ class AdminApiCommandService:
                     failure_stage="product_capability",
                 )
 
+            if automation_admission is not None:
+                try:
+                    _require_current_spot_automation_admission(
+                        automation_admission,
+                        coordinator=deps.spot_order_admission_coordinator,
+                        configured_portfolio_id=deps.spot_portfolio_id,
+                        configured_portfolio_label=deps.spot_portfolio_label,
+                        client_order_id=client_order_id,
+                        product_id=str(product_id or ""),
+                        side=str(order_params.get("side") or ""),
+                        base_size=raw_size,
+                        limit_price=raw_price,
+                        command=command,
+                    )
+                except SpotAutomationAdmissionError as exc:
+                    return self._place_rejected(
+                        command=command,
+                        client_order_id=client_order_id,
+                        message="Typed Spot Automation admission evidence is invalid.",
+                        data={"blocker": str(exc)},
+                        failure_stage="automation_admission",
+                    )
+
             if (
                 capability.product_type == ProductType.SPOT.value
                 and raw_price is not None
@@ -4092,10 +4761,14 @@ class AdminApiCommandService:
                     failure_stage="portfolio_scope",
                 )
             if capability.product_type == ProductType.SPOT.value:
-                portfolio_binding = evaluate_spot_test_portfolio_binding(
-                    rest_client=deps.rest_client,
-                    expected_portfolio_id=deps.spot_portfolio_id,
-                    expected_portfolio_label=deps.spot_portfolio_label,
+                portfolio_binding = (
+                    automation_admission.portfolio_binding
+                    if automation_admission is not None
+                    else evaluate_spot_test_portfolio_binding(
+                        rest_client=deps.rest_client,
+                        expected_portfolio_id=deps.spot_portfolio_id,
+                        expected_portfolio_label=deps.spot_portfolio_label,
+                    )
                 )
                 spot_portfolio_scope = serialize_public_spot_portfolio_scope(
                     portfolio_binding
@@ -4233,10 +4906,35 @@ class AdminApiCommandService:
                 quote_size = quote_check.size
 
             if approved_base_size is not None or quote_size is not None:
+                automation_wallet = (
+                    automation_admission.wallet_evidence
+                    if automation_admission is not None
+                    else None
+                )
                 action_guard = ActionConditionGuard(
                     policy=manual_order_action_guard_policy(command),
-                    planned_budget_fetcher=deps.planned_budget_fetcher,
-                    lot_authority_evaluator=deps.lot_authority_evaluator_getter(),
+                    wallet_fetcher=(
+                        automation_wallet.wallet_snapshot
+                        if automation_wallet is not None
+                        else None
+                    ),
+                    credentials_configured=(
+                        (lambda: True) if automation_wallet is not None else None
+                    ),
+                    planned_budget_fetcher=(
+                        automation_wallet.planned_budget_snapshot
+                        if automation_wallet is not None
+                        else deps.planned_budget_fetcher
+                    ),
+                    lot_authority_evaluator=(
+                        (
+                            lambda **kwargs: automation_wallet.inventory_decision(
+                                requested_size=kwargs.get("size")
+                            )
+                        )
+                        if automation_wallet is not None
+                        else deps.lot_authority_evaluator_getter()
+                    ),
                 )
                 if capability.product_type == ProductType.SPOT.value:
                     if not action_guard.has_applicable_notional_cap(
@@ -4341,7 +5039,13 @@ class AdminApiCommandService:
 
             submission_event_publisher = None
             if capability.product_type == ProductType.SPOT.value:
-                market_reference = deps.spot_market_reference_getter(product_id)
+                market_reference = (
+                    automation_admission.market_evidence.market_reference(
+                        product_id=product_id
+                    )
+                    if automation_admission is not None
+                    else deps.spot_market_reference_getter(product_id)
+                )
                 standing_price_limit_evidence = (
                     evaluate_spot_standing_price_limit(
                         side=order_params.get("side"),
@@ -4412,14 +5116,23 @@ class AdminApiCommandService:
                     )
 
                 root_registrar = deps.order_root_registrar_getter()
+                expected_root_provenance = (
+                    OrderOwnershipProvenance.ADMIN_AUTOMATION_ROOT.value
+                    if automation_admission is not None
+                    else OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+                )
                 register_root = getattr(
                     root_registrar,
-                    "register_manual_spot_root",
+                    (
+                        "register_automation_spot_root"
+                        if automation_admission is not None
+                        else "register_manual_spot_root"
+                    ),
                     None,
                 )
                 read_unresolved_roots = getattr(
                     root_registrar,
-                    "get_unresolved_admin_manual_root_submissions",
+                    "get_unresolved_admin_spot_root_submissions",
                     None,
                 )
                 if not callable(register_root) or not callable(read_unresolved_roots):
@@ -4438,10 +5151,36 @@ class AdminApiCommandService:
                 profile_id = str(
                     portfolio_binding.observed_portfolio_id or ""
                 )
-                profile_admission_claim = (
-                    deps.spot_order_admission_coordinator.claim(profile_id)
-                )
-                profile_admission_claim.__enter__()
+                if automation_admission is not None:
+                    try:
+                        _require_current_spot_automation_admission(
+                            automation_admission,
+                            coordinator=deps.spot_order_admission_coordinator,
+                            configured_portfolio_id=deps.spot_portfolio_id,
+                            configured_portfolio_label=deps.spot_portfolio_label,
+                            client_order_id=client_order_id,
+                            product_id=str(product_id or ""),
+                            side=str(order_params.get("side") or ""),
+                            base_size=raw_size,
+                            limit_price=raw_price,
+                            command=command,
+                        )
+                    except SpotAutomationAdmissionError as exc:
+                        return self._place_rejected(
+                            command=command,
+                            client_order_id=client_order_id,
+                            message=(
+                                "Typed Spot Automation admission lease is no "
+                                "longer current."
+                            ),
+                            data={"blocker": str(exc)},
+                            failure_stage="automation_admission",
+                        )
+                else:
+                    profile_admission_claim = (
+                        deps.spot_order_admission_coordinator.claim(profile_id)
+                    )
+                    profile_admission_claim.__enter__()
                 runtime_uncertainties = (
                     deps.spot_order_admission_coordinator.uncertainty_snapshot(
                         profile_id
@@ -4497,40 +5236,46 @@ class AdminApiCommandService:
                         failure_stage="submission_uncertainty",
                     )
 
-                try:
-                    active_orders, pagination = read_authoritative_coinbase_orders(
-                        deps.rest_client,
-                        order_status=list(COINBASE_ACTIVE_SPOT_ORDER_QUERY),
-                        product_type=ProductType.SPOT.value,
+                if automation_admission is not None:
+                    active_order_limit_evidence = (
+                        automation_admission.zero_active_order_evidence
+                        .public_guard_evidence()
                     )
-                    active_order_limit_evidence = {
-                        "allowed": len(active_orders) == 0,
-                        "open_order_count": len(active_orders),
-                        "open_client_order_ids": [
-                            str(item["client_order_id"]) for item in active_orders
-                        ],
-                        "cancel_before_next": True,
-                        "blocker": (
-                            None
-                            if not active_orders
-                            else "existing_open_order_requires_cancel"
-                        ),
-                        **pagination,
-                    }
-                except CoinbaseOrderReadbackError as exc:
-                    active_order_limit_evidence = {
-                        "allowed": False,
-                        "open_order_count": None,
-                        "cancel_before_next": True,
-                        "blocker": (
-                            "open_order_read_malformed"
-                            if exc.blocker.startswith("order_read_malformed")
-                            else exc.blocker.replace("order_", "open_order_", 1)
-                        ),
-                        "detail": exc.detail,
-                        "authoritative": False,
-                        "pagination_complete": False,
-                    }
+                else:
+                    try:
+                        active_orders, pagination = read_authoritative_coinbase_orders(
+                            deps.rest_client,
+                            order_status=list(COINBASE_ACTIVE_SPOT_ORDER_QUERY),
+                            product_type=ProductType.SPOT.value,
+                        )
+                        active_order_limit_evidence = {
+                            "allowed": len(active_orders) == 0,
+                            "open_order_count": len(active_orders),
+                            "open_client_order_ids": [
+                                str(item["client_order_id"]) for item in active_orders
+                            ],
+                            "cancel_before_next": True,
+                            "blocker": (
+                                None
+                                if not active_orders
+                                else "existing_open_order_requires_cancel"
+                            ),
+                            **pagination,
+                        }
+                    except CoinbaseOrderReadbackError as exc:
+                        active_order_limit_evidence = {
+                            "allowed": False,
+                            "open_order_count": None,
+                            "cancel_before_next": True,
+                            "blocker": (
+                                "open_order_read_malformed"
+                                if exc.blocker.startswith("order_read_malformed")
+                                else exc.blocker.replace("order_", "open_order_", 1)
+                            ),
+                            "detail": exc.detail,
+                            "authoritative": False,
+                            "pagination_complete": False,
+                        }
                 if not active_order_limit_evidence["allowed"]:
                     reason = (
                         "Direct Spot order requires zero existing active orders "
@@ -4705,6 +5450,7 @@ class AdminApiCommandService:
                             ),
                             submission_attempt=submission_attempt,
                             recovery_kind="known_not_attempted",
+                            ownership_provenance=expected_root_provenance,
                         )
                     )
                     reason = (
@@ -4747,7 +5493,7 @@ class AdminApiCommandService:
                     and str(root_registration.get("retail_portfolio_id") or "")
                     == str(portfolio_binding.observed_portfolio_id or "")
                     and str(root_registration.get("ownership_provenance") or "")
-                    == OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+                    == expected_root_provenance
                     and target_registration_matches
                 ):
                     submission_attempt["root_recovery"] = (
@@ -4760,6 +5506,7 @@ class AdminApiCommandService:
                             ),
                             submission_attempt=submission_attempt,
                             recovery_kind="known_not_attempted",
+                            ownership_provenance=expected_root_provenance,
                         )
                     )
                     return self._place_rejected(
@@ -4779,6 +5526,48 @@ class AdminApiCommandService:
                             "submission_attempt": submission_attempt,
                         },
                         failure_stage="order_root_registration",
+                    )
+
+            if automation_admission is not None:
+                try:
+                    _require_current_spot_automation_admission(
+                        automation_admission,
+                        coordinator=deps.spot_order_admission_coordinator,
+                        configured_portfolio_id=deps.spot_portfolio_id,
+                        configured_portfolio_label=deps.spot_portfolio_label,
+                        client_order_id=client_order_id,
+                        product_id=str(product_id or ""),
+                        side=str(order_params.get("side") or ""),
+                        base_size=raw_size,
+                        limit_price=raw_price,
+                        command=command,
+                    )
+                except SpotAutomationAdmissionError as exc:
+                    submission_attempt["root_recovery"] = (
+                        self._recover_manual_root_known_no_live_outcome(
+                            root_registrar=root_registrar,
+                            client_order_id=client_order_id,
+                            product_id=product_id,
+                            retail_portfolio_id=str(
+                                portfolio_binding.observed_portfolio_id or ""
+                            ),
+                            submission_attempt=submission_attempt,
+                            recovery_kind="known_not_attempted",
+                            ownership_provenance=expected_root_provenance,
+                        )
+                    )
+                    return self._place_rejected(
+                        command=command,
+                        client_order_id=client_order_id,
+                        message=(
+                            "Typed Spot Automation admission expired before "
+                            "the Coinbase boundary."
+                        ),
+                        data={
+                            "blocker": str(exc),
+                            "submission_attempt": submission_attempt,
+                        },
+                        failure_stage="automation_admission",
                     )
 
             controller = deps.runtime_controller_factory()
@@ -4911,6 +5700,7 @@ class AdminApiCommandService:
                         ),
                         submission_attempt=submission_attempt,
                         recovery_kind="explicit_rejection",
+                        ownership_provenance=expected_root_provenance,
                     )
                 )
                 return self._place_rejected(
@@ -5235,6 +6025,33 @@ class AdminApiCommandService:
     def reconcile_order_by_client_order_id(
         self,
         command: ReconcileOrderCommand,
+        *,
+        automation_ownership: ValidatedSpotAutomationOwnershipEvidence | None = None,
+    ) -> AdminApiCommandResponse:
+        """Reconcile with Automation-local Coinbase read accounting."""
+
+        response = self._reconcile_order_by_client_order_id(
+            command,
+            automation_ownership=automation_ownership,
+        )
+        if automation_ownership is None:
+            return response
+        return response.model_copy(
+            update={
+                "live_coinbase_read_call_count": (
+                    _automation_operation_read_call_count(
+                        response,
+                        operation="reconcile",
+                    )
+                )
+            }
+        )
+
+    def _reconcile_order_by_client_order_id(
+        self,
+        command: ReconcileOrderCommand,
+        *,
+        automation_ownership: ValidatedSpotAutomationOwnershipEvidence | None = None,
     ) -> AdminApiCommandResponse:
         """Synchronize one durable Admin Spot root from exact Coinbase readback."""
 
@@ -5269,11 +6086,30 @@ class AdminApiCommandService:
                 failure_stage="rest_client",
             )
 
-        portfolio_binding = evaluate_spot_test_portfolio_binding(
-            rest_client=deps.rest_client,
-            expected_portfolio_id=deps.spot_portfolio_id,
-            expected_portfolio_label=deps.spot_portfolio_label,
-        )
+        if automation_ownership is not None:
+            try:
+                _require_current_spot_automation_ownership(
+                    automation_ownership,
+                    coordinator=deps.spot_order_admission_coordinator,
+                    configured_portfolio_id=deps.spot_portfolio_id,
+                    configured_portfolio_label=deps.spot_portfolio_label,
+                    client_order_id=client_order_id,
+                    product_id=automation_ownership.product_id,
+                )
+            except SpotAutomationAdmissionError as exc:
+                return self._reconcile_order_rejected(
+                    command=command,
+                    message="Typed Spot Automation ownership evidence is invalid.",
+                    data={"blocker": str(exc)},
+                    failure_stage="automation_admission",
+                )
+            portfolio_binding = automation_ownership.portfolio_binding
+        else:
+            portfolio_binding = evaluate_spot_test_portfolio_binding(
+                rest_client=deps.rest_client,
+                expected_portfolio_id=deps.spot_portfolio_id,
+                expected_portfolio_label=deps.spot_portfolio_label,
+            )
         portfolio_scope = serialize_public_spot_portfolio_scope(portfolio_binding)
         if not portfolio_binding.ready:
             return self._reconcile_order_rejected(
@@ -5319,14 +6155,24 @@ class AdminApiCommandService:
                 failure_stage="order_ownership",
                 live_coinbase_read_ran=True,
             )
+        expected_root_provenance = (
+            OrderOwnershipProvenance.ADMIN_AUTOMATION_ROOT.value
+            if automation_ownership is not None
+            else OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+        )
         local_order_is_admin_direct_root = bool(
             isinstance(local_order, Mapping)
             and str(local_order.get("client_order_id") or "") == client_order_id
             and str(local_order.get("retail_portfolio_id") or "")
             == str(portfolio_binding.observed_portfolio_id or "")
             and str(local_order.get("ownership_provenance") or "")
-            == OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+            == expected_root_provenance
             and local_order.get("parent_order_id") is None
+            and (
+                automation_ownership is None
+                or str(local_order.get("product_id") or "")
+                == automation_ownership.product_id
+            )
         )
         if not local_order_is_admin_direct_root:
             return self._reconcile_order_rejected(
@@ -5351,10 +6197,32 @@ class AdminApiCommandService:
             OrderStatus.EXPIRED.value,
             OrderStatus.FAILED.value,
         }
-        profile_claim = deps.spot_order_admission_coordinator.claim(profile_id)
-        profile_claim.__enter__()
+        profile_claim = None
+        if automation_ownership is None:
+            profile_claim = deps.spot_order_admission_coordinator.claim(profile_id)
+            profile_claim.__enter__()
         reconciliation_started_at = datetime.now(timezone.utc).isoformat()
         try:
+            if automation_ownership is not None:
+                try:
+                    _require_current_spot_automation_ownership(
+                        automation_ownership,
+                        coordinator=deps.spot_order_admission_coordinator,
+                        configured_portfolio_id=deps.spot_portfolio_id,
+                        configured_portfolio_label=deps.spot_portfolio_label,
+                        client_order_id=client_order_id,
+                        product_id=product_id,
+                    )
+                except SpotAutomationAdmissionError as exc:
+                    return self._reconcile_order_rejected(
+                        command=command,
+                        message=(
+                            "Typed Spot Automation ownership lease is no "
+                            "longer current."
+                        ),
+                        data={"blocker": str(exc)},
+                        failure_stage="automation_admission",
+                    )
             try:
                 claimed_local_order = read_registered_order(client_order_id)
             except Exception as exc:
@@ -5389,7 +6257,7 @@ class AdminApiCommandService:
                 and str(claimed_local_order.get("retail_portfolio_id") or "")
                 == profile_id
                 and str(claimed_local_order.get("ownership_provenance") or "")
-                == OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+                == expected_root_provenance
                 and claimed_local_order.get("parent_order_id") is None
                 and str(claimed_local_order.get("product_id") or "")
                 == product_id
@@ -5736,11 +6604,39 @@ class AdminApiCommandService:
                 **self._command_runtime_evidence(),
             )
         finally:
-            profile_claim.__exit__(None, None, None)
+            if profile_claim is not None:
+                profile_claim.__exit__(None, None, None)
 
     def cancel_order_by_client_order_id(
         self,
         command: CancelOrderCommand,
+        *,
+        automation_ownership: ValidatedSpotAutomationOwnershipEvidence | None = None,
+    ) -> AdminApiCommandResponse:
+        """Cancel with Automation-local Coinbase read accounting."""
+
+        response = self._cancel_order_by_client_order_id(
+            command,
+            automation_ownership=automation_ownership,
+        )
+        if automation_ownership is None:
+            return response
+        return response.model_copy(
+            update={
+                "live_coinbase_read_call_count": (
+                    _automation_operation_read_call_count(
+                        response,
+                        operation="cancel",
+                    )
+                )
+            }
+        )
+
+    def _cancel_order_by_client_order_id(
+        self,
+        command: CancelOrderCommand,
+        *,
+        automation_ownership: ValidatedSpotAutomationOwnershipEvidence | None = None,
     ) -> AdminApiCommandResponse:
         """Cancel one proven order through the canonical verified-ID wrapper."""
 
@@ -5872,11 +6768,30 @@ class AdminApiCommandService:
                 failure_stage="cancellation_uncertainty",
             )
 
-        portfolio_binding = evaluate_spot_test_portfolio_binding(
-            rest_client=deps.rest_client,
-            expected_portfolio_id=deps.spot_portfolio_id,
-            expected_portfolio_label=deps.spot_portfolio_label,
-        )
+        if automation_ownership is not None:
+            try:
+                _require_current_spot_automation_ownership(
+                    automation_ownership,
+                    coordinator=deps.spot_order_admission_coordinator,
+                    configured_portfolio_id=deps.spot_portfolio_id,
+                    configured_portfolio_label=deps.spot_portfolio_label,
+                    client_order_id=client_order_id,
+                    product_id=automation_ownership.product_id,
+                )
+            except SpotAutomationAdmissionError as exc:
+                return self._cancel_rejected(
+                    command=command,
+                    message="Typed Spot Automation ownership evidence is invalid.",
+                    data={"blocker": str(exc)},
+                    failure_stage="automation_admission",
+                )
+            portfolio_binding = automation_ownership.portfolio_binding
+        else:
+            portfolio_binding = evaluate_spot_test_portfolio_binding(
+                rest_client=deps.rest_client,
+                expected_portfolio_id=deps.spot_portfolio_id,
+                expected_portfolio_label=deps.spot_portfolio_label,
+            )
         portfolio_scope = serialize_public_spot_portfolio_scope(portfolio_binding)
         if not portfolio_binding.ready:
             return self._cancel_rejected(
@@ -5888,14 +6803,24 @@ class AdminApiCommandService:
                 data={"portfolio_scope": portfolio_scope},
                 failure_stage="portfolio_scope",
             )
+        expected_root_provenance = (
+            OrderOwnershipProvenance.ADMIN_AUTOMATION_ROOT.value
+            if automation_ownership is not None
+            else OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+        )
         local_order_is_admin_direct_root = bool(
             isinstance(local_order, Mapping)
             and str(local_order.get("client_order_id") or "") == client_order_id
             and str(local_order.get("retail_portfolio_id") or "")
             == str(portfolio_binding.observed_portfolio_id or "")
             and str(local_order.get("ownership_provenance") or "")
-            == OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+            == expected_root_provenance
             and local_order.get("parent_order_id") is None
+            and (
+                automation_ownership is None
+                or str(local_order.get("product_id") or "")
+                == automation_ownership.product_id
+            )
         )
         if not local_order_is_admin_direct_root:
             return self._cancel_rejected(
@@ -5997,9 +6922,31 @@ class AdminApiCommandService:
             )
             cancellation_readback["safe_to_submit_another_root"] = False
 
-        profile_claim = deps.spot_order_admission_coordinator.claim(profile_id)
-        profile_claim.__enter__()
+        profile_claim = None
+        if automation_ownership is None:
+            profile_claim = deps.spot_order_admission_coordinator.claim(profile_id)
+            profile_claim.__enter__()
         try:
+            if automation_ownership is not None:
+                try:
+                    _require_current_spot_automation_ownership(
+                        automation_ownership,
+                        coordinator=deps.spot_order_admission_coordinator,
+                        configured_portfolio_id=deps.spot_portfolio_id,
+                        configured_portfolio_label=deps.spot_portfolio_label,
+                        client_order_id=client_order_id,
+                        product_id=product_id,
+                    )
+                except SpotAutomationAdmissionError as exc:
+                    return self._cancel_rejected(
+                        command=command,
+                        message=(
+                            "Typed Spot Automation ownership lease is no "
+                            "longer current."
+                        ),
+                        data={"blocker": str(exc)},
+                        failure_stage="automation_admission",
+                    )
             # The ownership read above intentionally precedes Coinbase profile
             # verification, but it is stale after waiting for another worker's
             # profile claim. Re-read under the cross-worker claim before any
@@ -6051,7 +6998,7 @@ class AdminApiCommandService:
                 and str(claimed_local_order.get("retail_portfolio_id") or "")
                 == profile_id
                 and str(claimed_local_order.get("ownership_provenance") or "")
-                == OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+                == expected_root_provenance
                 and claimed_local_order.get("parent_order_id") is None
                 and str(claimed_local_order.get("product_id") or "")
                 == product_id
@@ -6102,6 +7049,9 @@ class AdminApiCommandService:
                     failure_stage="cancellation_preflight_readback",
                 )
 
+            cancellation_readback["pre_cancel_read_page_count"] = (
+                _exact_read_page_count(pre_cancel_readback.get("page_count"))
+            )
             cancellation_readback["authoritative_readback"] = pre_cancel_readback
             cancellation_readback["confirmed_absent"] = bool(
                 pre_cancel_readback.get("confirmed_absent")
@@ -6208,6 +7158,31 @@ class AdminApiCommandService:
                     },
                     failure_stage="cancellation_preflight_readback",
                 )
+
+            if automation_ownership is not None:
+                try:
+                    _require_current_spot_automation_ownership(
+                        automation_ownership,
+                        coordinator=deps.spot_order_admission_coordinator,
+                        configured_portfolio_id=deps.spot_portfolio_id,
+                        configured_portfolio_label=deps.spot_portfolio_label,
+                        client_order_id=client_order_id,
+                        product_id=product_id,
+                    )
+                except SpotAutomationAdmissionError as exc:
+                    return self._cancel_rejected(
+                        command=command,
+                        message=(
+                            "Typed Spot Automation ownership lease expired "
+                            "before the Cancel boundary."
+                        ),
+                        data={
+                            "blocker": str(exc),
+                            "portfolio_scope": portfolio_scope,
+                            "cancellation_readback": cancellation_readback,
+                        },
+                        failure_stage="automation_admission",
+                    )
 
             controller = deps.runtime_controller_factory()
             cancellation_readback["durable_cancel_claim_persisted"] = False
@@ -6533,7 +7508,8 @@ class AdminApiCommandService:
                 failure_stage="cancellation_rejected",
             )
         finally:
-            profile_claim.__exit__(None, None, None)
+            if profile_claim is not None:
+                profile_claim.__exit__(None, None, None)
 
     def build_order_fill_follow_up_child_cancel_readiness(
         self,
@@ -13111,6 +14087,7 @@ class AdminApiCommandService:
         retail_portfolio_id: str,
         submission_attempt: Mapping[str, Any],
         recovery_kind: str,
+        ownership_provenance: str = OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value,
     ) -> dict[str, Any]:
         """Terminalize only an exactly owned root with a proven no-live outcome.
 
@@ -13184,7 +14161,7 @@ class AdminApiCommandService:
                 and str(row.get("retail_portfolio_id") or "")
                 == retail_portfolio_id
                 and str(row.get("ownership_provenance") or "")
-                == OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+                == ownership_provenance
                 and "parent_order_id" in row
                 and row.get("parent_order_id") is None
             )

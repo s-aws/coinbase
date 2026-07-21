@@ -9,7 +9,7 @@ boundary because one canonical read lacks goal authority.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import hashlib
 import json
@@ -45,6 +45,7 @@ from .automation_models import (
     AutomationMutationContext,
     AutomationOneShotRunRequest,
     AutomationSingleChildAuthorizationRequest,
+    AutomationSingleChildSafeCloseoutRequest,
     AutomationPagination,
     AutomationRunDetailResponse,
     AutomationRunEventItem,
@@ -79,6 +80,7 @@ class AutomationRepositoryMutation:
     audit_id: str
     correlation_id: str
     replayed: bool = False
+    activity: AutomationRunMutationActivity | None = None
 
 
 @dataclass(frozen=True)
@@ -87,6 +89,15 @@ class AutomationEligibilityRepositoryMutation(AutomationRepositoryMutation):
 
     coinbase_api_call_count: int | None = 0
     call_count_exact: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class SpotAutomationEligibilityExecutionBundle:
+    """Request-local eligibility facts retained only until canonical admission."""
+
+    cycle: Any
+    snapshot: Any
+    attempts: tuple[Any, ...]
 
 
 class AutomationRepositoryError(RuntimeError):
@@ -175,6 +186,14 @@ class OperatorAutomationRepository(Protocol):
     ) -> AutomationRepositoryMutation: ...
 
     def authorize_single_child(
+        self,
+        *,
+        run_id: str,
+        request: Mapping[str, Any],
+        context: AutomationMutationContext,
+    ) -> AutomationRepositoryMutation: ...
+
+    def safe_closeout_single_child(
         self,
         *,
         run_id: str,
@@ -316,9 +335,30 @@ class PostgresOperatorAutomationRepositoryAdapter:
         repository: Any,
         *,
         spot_eligibility_reader_factory: Callable[..., Any] | None = None,
+        spot_profile_admission_coordinator: Any | None = None,
+        spot_execution_eligibility_runner: Callable[..., Any] | None = None,
+        spot_command_service: Any | None = None,
+        spot_execution_scope_factory: Callable[[str], Any] | None = None,
+        spot_proof_chain_recorder: Callable[..., Mapping[str, Any]] | None = None,
+        spot_live_admission_evaluator: Callable[..., Any] | None = None,
+        now_factory: Callable[[], datetime] | None = None,
     ) -> None:
         self.repository = repository
         self._spot_eligibility_reader_factory = spot_eligibility_reader_factory
+        self._spot_profile_admission_coordinator = (
+            spot_profile_admission_coordinator
+        )
+        self._spot_execution_eligibility_runner = (
+            spot_execution_eligibility_runner
+        )
+        self._spot_command_service = spot_command_service
+        self._spot_execution_scope_factory = spot_execution_scope_factory
+        self._spot_proof_chain_recorder = spot_proof_chain_recorder
+        self._spot_live_admission_evaluator = spot_live_admission_evaluator
+        self._spot_proof_stores: tuple[Any, Any, Any, Any] | None = None
+        self._now_factory = now_factory or (
+            lambda: datetime.now(timezone.utc)
+        )
 
     @staticmethod
     def _call(operation: Any) -> Any:
@@ -343,6 +383,39 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 raise AutomationRepositoryUnavailable(exc.code) from None
             raise
 
+    def _control_posture_value(self) -> str | None:
+        getter = getattr(self.repository, "get_control_posture", None)
+        if not callable(getter):
+            return None
+        record = self._call(getter)
+        return str(
+            getattr(
+                getattr(record, "posture", None),
+                "value",
+                getattr(record, "posture", None),
+            )
+        )
+
+    def _control_posture_active(self) -> bool:
+        return self._control_posture_value() == "ACTIVE"
+
+    def _require_active_control_posture(self) -> None:
+        if not self._control_posture_active():
+            raise AutomationRepositoryConflict(
+                "automation_control_plane_not_active"
+            )
+
+    def _require_safe_closeout_control_posture(self) -> None:
+        posture = self._control_posture_value()
+        if posture == "SHUTDOWN":
+            raise AutomationRepositoryConflict(
+                "automation_control_plane_shutdown"
+            )
+        if posture not in {"ACTIVE", "PAUSED", "DRAINING"}:
+            raise AutomationRepositoryConflict(
+                "automation_control_plane_not_active"
+            )
+
     @staticmethod
     def _command(
         *,
@@ -359,6 +432,441 @@ class PostgresOperatorAutomationRepositoryAdapter:
             actor_id=context.actor_id,
             correlation_id=context.correlation_id,
             operator_intent=operator_intent or context.operator_intent,
+        )
+
+    @classmethod
+    def _spot_invocation_start_command(
+        cls,
+        *,
+        context: AutomationMutationContext,
+        request: Mapping[str, Any],
+        run_id: str,
+        eligibility_cycle: int,
+        plan_sha256: str,
+        client_order_id: str,
+        command_payload_sha256: str,
+        operation: str,
+        phase: str,
+        operator_intent: str,
+    ) -> Any:
+        from application.admin_api.operator_spot_automation_runtime import (
+            derive_spot_automation_phase_key,
+        )
+
+        return cls._command(
+            context=context,
+            idempotency_key=derive_spot_automation_phase_key(
+                outer_idempotency_key=context.idempotency_key,
+                run_id=run_id,
+                plan_sha256=plan_sha256,
+                phase=phase,
+            ),
+            operator_intent=operator_intent,
+            payload={
+                "operation": operation,
+                "run_id": run_id,
+                "eligibility_cycle": eligibility_cycle,
+                "plan_sha256": plan_sha256,
+                "client_order_id": client_order_id,
+                "command_payload_sha256": command_payload_sha256,
+                "operator_request_sha256": _payload_sha256(request),
+                "actor_roles_sha256": _payload_sha256(
+                    {"roles": sorted(set(context.roles))}
+                ),
+                "outer_operator_intent_sha256": _payload_sha256(
+                    {"operator_intent": context.operator_intent}
+                ),
+            },
+        )
+
+    @staticmethod
+    def _spot_execution_binding_matches(
+        execution: Any,
+        *,
+        record: Any,
+        plan: Any,
+        eligibility_cycle: int,
+        client_order_id: str,
+        require_cancel_allowance: bool = False,
+    ) -> bool:
+        try:
+            return bool(
+                execution.run_id == record.run_id
+                and execution.policy_revision == 2
+                and execution.definition_id == record.definition_id
+                and execution.definition_revision == record.definition_revision
+                and execution.eligibility_cycle == eligibility_cycle
+                and execution.plan_sha256 == plan.plan_sha256
+                and execution.portfolio_id_sha256 == plan.portfolio_id_sha256
+                and execution.product_id == plan.product_id
+                and execution.client_order_id == client_order_id
+                and execution.create_allowance_consumed
+                and (
+                    not require_cancel_allowance
+                    or execution.cancel_allowance_consumed
+                )
+            )
+        except (AttributeError, TypeError, ValueError):
+            return False
+
+    def _resolve_spot_command_service(self) -> Any:
+        if self._spot_command_service is None:
+            from application.admin_api.command_runtime import (
+                build_admin_api_command_service,
+            )
+
+            self._spot_command_service = build_admin_api_command_service()
+        return self._spot_command_service
+
+    def _resolve_spot_profile_coordinator(self, command_service: Any) -> Any:
+        coordinator = self._spot_profile_admission_coordinator
+        service_coordinator = getattr(
+            getattr(command_service, "dependencies", None),
+            "spot_order_admission_coordinator",
+            None,
+        )
+        if coordinator is None:
+            coordinator = service_coordinator
+        if coordinator is None or (
+            service_coordinator is not None
+            and coordinator is not service_coordinator
+        ):
+            raise AutomationRepositoryUnavailable(
+                "automation_spot_profile_coordinator_mismatch"
+            )
+        return coordinator
+
+    def _resolve_spot_execution_scope_factory(self) -> Callable[[str], Any]:
+        if self._spot_execution_scope_factory is None:
+            from core.coinbase_execution_authority import (
+                canonical_coinbase_execution_scope,
+            )
+
+            self._spot_execution_scope_factory = (
+                canonical_coinbase_execution_scope
+            )
+        return self._spot_execution_scope_factory
+
+    def _resolve_spot_proof_stores(self) -> tuple[Any, Any, Any, Any]:
+        if self._spot_proof_stores is None:
+            from application.admin_api.approval import FileAdminApiApprovalStore
+            from application.admin_api.audit import FileAdminApiAuditStore
+            from application.admin_api.cap_guard import FileAdminApiCapGuardStore
+            from application.admin_api.reconciliation import (
+                FileAdminApiReconciliationStore,
+            )
+
+            self._spot_proof_stores = (
+                FileAdminApiApprovalStore(),
+                FileAdminApiAuditStore(),
+                FileAdminApiCapGuardStore(),
+                FileAdminApiReconciliationStore(),
+            )
+        return self._spot_proof_stores
+
+    def _record_spot_proof_chain(
+        self,
+        *,
+        proof_context: Mapping[str, Any],
+        command_kind: str,
+        roles: tuple[str, ...],
+        wallet_available_notional_usdc: Decimal,
+    ) -> Mapping[str, Any]:
+        if self._spot_proof_chain_recorder is not None:
+            result = self._spot_proof_chain_recorder(
+                proof_context=proof_context,
+                command_kind=command_kind,
+                roles=roles,
+                wallet_available_notional_usdc=(
+                    wallet_available_notional_usdc
+                ),
+            )
+        else:
+            from application.admin_api.mvp_service import get_admin_mvp_service
+
+            approval, audit, cap, reconciliation = (
+                self._resolve_spot_proof_stores()
+            )
+            result = get_admin_mvp_service().record_typed_spot_command_proof_chain(
+                proof_context=proof_context,
+                command_kind=command_kind,
+                roles=roles,
+                wallet_available_notional_usdc=(
+                    wallet_available_notional_usdc
+                ),
+                approval_store=approval,
+                audit_store=audit,
+                cap_guard_store=cap,
+                reconciliation_store=reconciliation,
+            )
+        if not isinstance(result, Mapping):
+            raise AutomationRepositoryUnavailable(
+                "automation_spot_proof_chain_invalid"
+            )
+        return result
+
+    def _evaluate_spot_live_admission(
+        self,
+        *,
+        proof_context: Mapping[str, Any],
+        proof_chain: Mapping[str, Any],
+    ) -> Any:
+        if self._spot_live_admission_evaluator is not None:
+            decision = self._spot_live_admission_evaluator(
+                proof_context=proof_context,
+                proof_chain=proof_chain,
+            )
+        else:
+            from application.admin_api.approval import (
+                evaluate_command_live_admission,
+            )
+            from application.admin_api.live_execution import (
+                get_decision_backed_live_execution_service,
+            )
+
+            approval, audit, cap, reconciliation = (
+                self._resolve_spot_proof_stores()
+            )
+            decision = evaluate_command_live_admission(
+                route=str(proof_context["route"]),
+                method=str(proof_context["method"]),
+                module_id=str(proof_context["module_id"]),
+                identity_key=str(proof_context["identity_key"]),
+                identity_value=str(proof_context["identity_value"]),
+                action_class=str(proof_context["action_class"]),
+                required_permission=str(
+                    proof_context["required_permission"]
+                ),
+                service_method=str(proof_context["service_method"]),
+                actor_id=str(proof_context["actor_id"]),
+                idempotency_key=str(
+                    proof_context["command_idempotency_key"]
+                ),
+                operator_intent=str(proof_context["operator_intent"]),
+                payload_hash=str(proof_context["payload_hash"]),
+                approval_store=approval,
+                audit_store=audit,
+                cap_guard_store=cap,
+                reconciliation_store=reconciliation,
+                live_execution_service=(
+                    get_decision_backed_live_execution_service()
+                ),
+                cap_guard_product_scope=str(
+                    proof_context["product_scope"]
+                ),
+            )
+        approval_record = proof_chain.get("approval")
+        audit_record = proof_chain.get("admission_audit")
+        cap_record = proof_chain.get("cap_guard")
+        reconciliation_record = proof_chain.get("reconciliation_plan")
+        exact = bool(
+            getattr(decision, "allowed", False) is True
+            and getattr(getattr(decision, "status", None), "value", None)
+            == "passed"
+            and getattr(decision, "live_exchange_submitted", None) is False
+            and getattr(
+                getattr(decision, "action_class", None),
+                "value",
+                getattr(decision, "action_class", None),
+            )
+            == proof_context["action_class"]
+            and getattr(
+                getattr(decision, "required_permission", None),
+                "value",
+                getattr(decision, "required_permission", None),
+            )
+            == proof_context["required_permission"]
+            and all(
+                getattr(decision, field_name, None)
+                == proof_context[context_name]
+                for field_name, context_name in (
+                    ("route", "route"),
+                    ("method", "method"),
+                    ("module_id", "module_id"),
+                    ("identity_key", "identity_key"),
+                    ("identity_value", "identity_value"),
+                    ("service_method", "service_method"),
+                    ("actor_id", "actor_id"),
+                    ("idempotency_key", "command_idempotency_key"),
+                    ("operator_intent", "operator_intent"),
+                    ("payload_hash", "payload_hash"),
+                )
+            )
+            and isinstance(approval_record, Mapping)
+            and isinstance(audit_record, Mapping)
+            and isinstance(cap_record, Mapping)
+            and isinstance(reconciliation_record, Mapping)
+            and getattr(decision, "approval_snapshot_id", None)
+            == approval_record.get("approval_id")
+            and getattr(decision, "admission_audit_id", None)
+            == audit_record.get("audit_id")
+            and getattr(decision, "cap_guard_decision_id", None)
+            == cap_record.get("decision_id")
+            and getattr(decision, "reconciliation_plan_id", None)
+            == reconciliation_record.get("plan_id")
+        )
+        if not exact:
+            raise AutomationRepositoryConflict(
+                "automation_spot_live_admission_blocked"
+            )
+        return decision
+
+    @staticmethod
+    def _spot_plan_terms(plan: Any) -> Any:
+        from application.admin_api.operator_spot_eligibility_reader import (
+            SpotEligibilityPlanTerms,
+        )
+
+        return SpotEligibilityPlanTerms(
+            plan_sha256=plan.plan_sha256,
+            product_id=plan.product_id,
+            side=plan.side,
+            base_size=plan.base_size,
+            limit_price=plan.limit_price,
+            submitted_notional_usdc=plan.submitted_notional_usdc,
+            possible_execution_notional_usdc=(
+                plan.possible_execution_notional_usdc
+            ),
+            max_submitted_notional_usdc=(
+                plan.max_submitted_notional_usdc
+            ),
+            max_possible_execution_notional_usdc=(
+                plan.max_possible_execution_notional_usdc
+            ),
+            post_only=plan.post_only,
+        )
+
+    def _run_spot_execution_eligibility(
+        self,
+        *,
+        record: Any,
+        plan: Any,
+        request: Mapping[str, Any],
+        context: AutomationMutationContext,
+        lease: Any,
+    ) -> SpotAutomationEligibilityExecutionBundle:
+        if self._spot_execution_eligibility_runner is not None:
+            result = self._spot_execution_eligibility_runner(
+                record=record,
+                plan=plan,
+                request=request,
+                context=context,
+                lease=lease,
+            )
+            if not isinstance(result, SpotAutomationEligibilityExecutionBundle):
+                raise AutomationRepositoryUnavailable(
+                    "automation_spot_eligibility_bundle_invalid"
+                )
+            return result
+
+        from application.admin_api.operator_spot_eligibility import (
+            SpotEligibilityCoordinator,
+            SpotEligibilityCoordinatorConflict,
+            SpotEligibilityRunContext,
+        )
+        from application.admin_api.operator_spot_eligibility_postgres import (
+            PostgresSpotEligibilityLedger,
+        )
+
+        run_context = SpotEligibilityRunContext(
+            run_id=str(record.run_id),
+            definition_id=str(record.definition_id),
+            definition_revision=int(record.definition_revision),
+            plan_sha256=plan.plan_sha256,
+            portfolio_id_sha256=plan.portfolio_id_sha256,
+            correlation_id=context.correlation_id,
+        )
+        reader_holder: list[Any] = []
+
+        def build_reader() -> Any:
+            if self._spot_eligibility_reader_factory is None or reader_holder:
+                raise RuntimeError(
+                    "automation_spot_eligibility_reader_unavailable"
+                )
+            reader = self._spot_eligibility_reader_factory(
+                expected_context=run_context,
+                plan=self._spot_plan_terms(plan),
+            )
+            reader_holder.append(reader)
+            return reader
+
+        ledger = PostgresSpotEligibilityLedger(
+            repository=self.repository,
+            mutation_context=context,
+            request_payload=request,
+            authorization_cycle=True,
+        )
+        try:
+            cycle = self._call(
+                lambda: SpotEligibilityCoordinator(
+                    ledger=ledger,
+                    reader_factory=build_reader,
+                ).run(run_context)
+            )
+        except SpotEligibilityCoordinatorConflict as exc:
+            raise AutomationRepositoryConflict(exc.code) from None
+        if cycle.replayed or len(reader_holder) != 1:
+            raise AutomationRepositoryConflict(
+                "automation_spot_fresh_eligibility_required"
+            )
+        snapshot = reader_holder[0].execution_snapshot()
+        attempts = self._call(
+            lambda: self.repository.list_spot_eligibility_attempts(
+                record.run_id,
+                cycle_number=cycle.cycle_number,
+            )
+        )
+        return SpotAutomationEligibilityExecutionBundle(
+            cycle=cycle,
+            snapshot=snapshot,
+            attempts=tuple(attempts),
+        )
+
+    @staticmethod
+    def _activity_from_classification(
+        classification: Any,
+        *,
+        operation: str,
+    ) -> AutomationRunMutationActivity:
+        mutation_count = classification.mutation_call_count
+        read_count = classification.read_call_count
+        exact = bool(
+            classification.mutation_call_count_exact
+            and classification.read_call_count_exact
+        )
+        total = (
+            mutation_count + read_count
+            if exact
+            and mutation_count is not None
+            and read_count is not None
+            else None
+        )
+        return AutomationRunMutationActivity(
+            operation=operation,
+            coinbase_api_call_count=total,
+            read_call_count=(
+                read_count
+                if classification.read_call_count_exact
+                else None
+            ),
+            exchange_mutation_count=(
+                mutation_count
+                if classification.mutation_call_count_exact
+                else None
+            ),
+            create_call_count=(
+                mutation_count
+                if operation == "CREATE"
+                and classification.mutation_call_count_exact
+                else (0 if operation != "CREATE" else None)
+            ),
+            cancel_call_count=(
+                mutation_count
+                if operation == "SAFE_CLOSEOUT"
+                and classification.mutation_call_count_exact
+                else (0 if operation != "SAFE_CLOSEOUT" else None)
+            ),
+            call_count_exact=exact,
         )
 
     @staticmethod
@@ -486,6 +994,15 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 if eligibility_lifetime_call_count_exact
                 else None
             )
+        control_posture = (
+            self._control_posture_value() if plan is not None else None
+        )
+        control_posture_active = control_posture == "ACTIVE"
+        control_posture_allows_safe_closeout = control_posture in {
+            "ACTIVE",
+            "PAUSED",
+            "DRAINING",
+        }
 
         run_cycles = tuple(
             cycle
@@ -610,6 +1127,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 "BEST_BID_ASK": "best_bid_ask",
                 "FEE_SUMMARY": "fee_summary",
                 "EXACT_ORDER_RECONCILIATION": "exact_order_reconciliation",
+                "ACCOUNT_ACTIVE_SPOT_ORDER_CATALOG": "active_order_catalog",
             }
 
             successful_categories = {
@@ -699,6 +1217,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
         )
         create_call_count: int | None = record.create_call_count
         cancel_call_count: int | None = record.cancel_call_count
+        reconciliation_call_count: int | None = 0
         child_terminal = None
         client_order_id = record.client_order_id
         if execution is not None:
@@ -713,16 +1232,34 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 if execution.cancel_allowance_consumed
                 else True
             )
+            create_read_call_count_exact = bool(
+                execution.create_read_call_count_exact
+            )
+            cancel_read_call_count_exact = (
+                bool(execution.cancel_read_call_count_exact)
+                if execution.cancel_allowance_consumed
+                else True
+            )
             call_count_exact = bool(
                 eligibility_lifetime_call_count_exact
                 and eligibility_lifetime_call_count is not None
                 and execution.create_call_count_exact
                 and cancel_call_count_exact
+                and create_read_call_count_exact
+                and cancel_read_call_count_exact
+            )
+            reconciliation_call_count = (
+                int(execution.create_read_call_count or 0)
+                + int(execution.cancel_read_call_count or 0)
+                if create_read_call_count_exact
+                and cancel_read_call_count_exact
+                else None
             )
             coinbase_api_call_count = (
                 int(eligibility_lifetime_call_count or 0)
                 + int(execution.create_call_count or 0)
                 + int(execution.cancel_call_count or 0)
+                + int(reconciliation_call_count or 0)
                 if call_count_exact
                 else None
             )
@@ -736,13 +1273,64 @@ class PostgresOperatorAutomationRepositoryAdapter:
             coinbase_api_call_count = None
             create_call_count = None
             cancel_call_count = 0
+            reconciliation_call_count = None
 
-        live_execution_available = False
+        preliminary_authorization_available = bool(
+            eligibility is not None
+            and (
+                eligibility["eligible"] is True
+                or (
+                    eligibility["eligible"] is False
+                    and eligibility["blocker_code"]
+                    == "automation_spot_eligibility_stale"
+                    and eligibility["call_count_exact"] is True
+                    and eligibility["cycle_number"] is not None
+                    and eligibility["completed_categories"]
+                    == eligibility["required_categories"]
+                    and latest_cycle_record is not None
+                    and latest_cycle_record.state == "SUCCEEDED"
+                )
+            )
+        )
+        authorize_execution_available = bool(
+            control_posture_active
+            and plan is not None
+            and execution is None
+            and record.state
+            is AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
+            and record.diagnostic_code == "awaiting_operator_authorization"
+            and eligibility is not None
+            and preliminary_authorization_available
+            and not record.live_attempt_consumed
+        )
+        safe_closeout_execution_available = bool(
+            control_posture_allows_safe_closeout
+            and plan is not None
+            and execution is not None
+            and record.state is AutomationRunState.ACTIVE
+            and record.diagnostic_code
+            == "automation_spot_safe_closeout_ready"
+            and execution.create_allowance_consumed
+            and not execution.cancel_allowance_consumed
+            and execution.create_read_call_count_exact
+            and execution.create_read_call_count is not None
+            and execution.create_read_call_count >= 1
+            and execution.child_terminal is False
+        )
+        live_execution_available = bool(
+            authorize_execution_available
+            or safe_closeout_execution_available
+        )
         refresh_available = bool(
-            plan is not None
+            control_posture_active
+            and plan is not None
             and record.state is AutomationRunState.BLOCKED
             and record.diagnostic_code
-            == "automation_active_order_catalog_read_not_authorized"
+            in {
+                "automation_active_order_catalog_read_not_authorized",
+                "automation_spot_eligibility_refresh_required",
+                "restart_pre_invocation_blocked",
+            }
             and execution is None
             and not record.live_attempt_consumed
             and len(cycles) < 10
@@ -765,12 +1353,21 @@ class PostgresOperatorAutomationRepositoryAdapter:
             "cancel_call_count": cancel_call_count,
             "call_count_exact": call_count_exact,
             "client_order_id": client_order_id,
+            "reconciliation_call_count": reconciliation_call_count,
+            "create_allowance_consumed": bool(
+                execution is not None and execution.create_allowance_consumed
+            ),
+            "cancel_allowance_consumed": bool(
+                execution is not None and execution.cancel_allowance_consumed
+            ),
             "child_terminal": child_terminal,
             "single_child_plan": plan_readback,
             "eligibility": eligibility,
             "allowed_actions": (
-                ["AUTHORIZE_SINGLE_CHILD"]
-                if live_execution_available
+                ["SAFE_CLOSEOUT_CHILD"]
+                if safe_closeout_execution_available
+                else ["AUTHORIZE_SINGLE_CHILD"]
+                if authorize_execution_available
                 else (["REFRESH_ELIGIBILITY"] if refresh_available else [])
             ),
             "audit_id": record.audit_id,
@@ -1267,14 +1864,9 @@ class PostgresOperatorAutomationRepositoryAdapter:
         request: Mapping[str, Any],
         context: AutomationMutationContext,
     ) -> AutomationRepositoryMutation:
-        """Fail closed before any invocation when the canonical read is out of scope.
+        """Run one fresh exact cycle, claim once, and enter canonical Spot Create."""
 
-        The domain-owned Spot placement service retains its account-wide open-order
-        guard.  This goal's enumerated read authority does not include that catalog
-        read, so an exact authorization can be validated but cannot cross the
-        exchange-call boundary.
-        """
-
+        self._require_active_control_posture()
         record = self._call(lambda: self.repository.get_run(run_id))
         if record is None:
             raise AutomationRepositoryNotFound(AUTOMATION_NOT_FOUND)
@@ -1295,26 +1887,690 @@ class PostgresOperatorAutomationRepositoryAdapter:
             raise AutomationRepositoryConflict(
                 "automation_single_child_plan_missing"
             )
-        audit_command = self._command(
-            context=context,
-            payload={
-                "operation": "audit_automation_spot_source_gate_authorization",
-                "run_id": run_id,
-                "request": request,
-            },
+        if request.get("expected_plan_sha256") != plan.plan_sha256:
+            raise AutomationRepositoryConflict(
+                "automation_single_child_plan_mismatch"
+            )
+
+        from application.admin_api.operator_spot_automation_runtime import (
+            SpotAutomationRuntimeBindingError,
+            derive_spot_automation_phase_key,
+            prepare_spot_automation_create_command,
         )
-        self._call(
-            lambda: self.repository.audit_spot_source_gate_authorization(
-                run_id,
-                expected_plan_sha256=str(
-                    request.get("expected_plan_sha256", "")
+
+        existing_execution = self._call(
+            lambda: self.repository.get_spot_run_execution(run_id)
+        )
+        if existing_execution is not None:
+            try:
+                prepared_replay = prepare_spot_automation_create_command(
+                    run=record,
+                    plan=plan,
+                    client_order_id=existing_execution.client_order_id,
+                    actor_id=context.actor_id,
+                    roles=context.roles,
+                    correlation_id=context.correlation_id,
+                    operator_intent=context.operator_intent,
+                    outer_idempotency_key=context.idempotency_key,
+                )
+            except SpotAutomationRuntimeBindingError:
+                raise AutomationRepositoryUnavailable(
+                    "automation_spot_execution_replay_invalid"
+                ) from None
+            replay = self._call(
+                lambda: self.repository.start_spot_create_invocation(
+                    run_id,
+                    eligibility_cycle=existing_execution.eligibility_cycle,
+                    command=self._spot_invocation_start_command(
+                        context=context,
+                        request=request,
+                        run_id=run_id,
+                        eligibility_cycle=existing_execution.eligibility_cycle,
+                        plan_sha256=plan.plan_sha256,
+                        client_order_id=existing_execution.client_order_id,
+                        command_payload_sha256=prepared_replay.proof_context[
+                            "payload_hash"
+                        ],
+                        operation="start_automation_spot_create",
+                        phase="create-start",
+                        operator_intent=(
+                            "claim_automation_spot_single_child_create"
+                        ),
+                    ),
+                )
+            )
+            if (
+                not replay.replayed
+                or not self._spot_execution_binding_matches(
+                    replay.entity,
+                    record=record,
+                    plan=plan,
+                    eligibility_cycle=existing_execution.eligibility_cycle,
+                    client_order_id=existing_execution.client_order_id,
+                )
+            ):
+                raise AutomationRepositoryUnavailable(
+                    "automation_spot_execution_replay_invalid"
+                )
+            current = self._call(lambda: self.repository.get_run(run_id))
+            if current is None:
+                raise AutomationRepositoryUnavailable(
+                    "automation_spot_execution_replay_unavailable"
+                )
+            return AutomationRepositoryMutation(
+                entity=self._run(current),
+                audit_id=replay.audit_id,
+                correlation_id=replay.correlation_id,
+                replayed=True,
+                activity=AutomationRunMutationActivity(),
+            )
+        if (
+            record.state is not AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
+            or record.diagnostic_code != "awaiting_operator_authorization"
+            or record.live_attempt_consumed
+        ):
+            raise AutomationRepositoryConflict(
+                "automation_single_child_run_not_authorizable"
+            )
+
+        from application.admin_api.operator_spot_automation_execution import (
+            OperatorSpotAutomationExecutionClassification,
+            OperatorSpotAutomationExecutionOperation,
+            OperatorSpotAutomationExecutionOutcome,
+            classify_canonical_spot_automation_create_response,
+        )
+        from application.admin_api.operator_spot_automation_runtime import (
+            bind_spot_automation_create_command,
+            build_spot_automation_create_admission,
+        )
+        from core.coinbase_execution_authority import (
+            COINBASE_EXECUTION_SCOPE_SPOT_PLACE,
+        )
+
+        command_service = self._resolve_spot_command_service()
+        profile_coordinator = self._resolve_spot_profile_coordinator(
+            command_service
+        )
+        configured_portfolio_id = str(
+            os.environ.get("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID") or ""
+        ).strip()
+        if not configured_portfolio_id:
+            raise AutomationRepositoryUnavailable(
+                "automation_spot_portfolio_not_configured"
+            )
+        eligibility_context = context.model_copy(
+            update={
+                "idempotency_key": derive_spot_automation_phase_key(
+                    outer_idempotency_key=context.idempotency_key,
+                    run_id=run_id,
+                    plan_sha256=plan.plan_sha256,
+                    # The durable allocator owns both the goal-global cycle
+                    # number and ten-cycle limit.  Keep this phase identity
+                    # stable so an exact outer retry replays the completed
+                    # cycle before reader construction instead of allocating
+                    # another set of approved reads.
+                    phase="authorization-cycle",
+                )
+            }
+        )
+
+        with profile_coordinator.claim(configured_portfolio_id) as lease:
+            try:
+                bundle = self._run_spot_execution_eligibility(
+                    record=record,
+                    plan=plan,
+                    request=request,
+                    context=eligibility_context,
+                    lease=lease,
+                )
+                planned_budget_fetcher = getattr(
+                    getattr(command_service, "dependencies", None),
+                    "planned_budget_fetcher",
+                    None,
+                )
+                if not callable(planned_budget_fetcher):
+                    raise SpotAutomationRuntimeBindingError(
+                        "spot_automation_planned_budget_invalid"
+                    )
+                planned_budget = planned_budget_fetcher()
+                admission = build_spot_automation_create_admission(
+                    run=record,
+                    plan=plan,
+                    cycle=bundle.cycle,
+                    snapshot=bundle.snapshot,
+                    attempts=bundle.attempts,
+                    lease=lease,
+                    configured_portfolio_id=configured_portfolio_id,
+                    planned_budget=planned_budget,
+                    now=self._now_factory(),
+                )
+                prepared = prepare_spot_automation_create_command(
+                    run=record,
+                    plan=plan,
+                    client_order_id=admission.client_order_id,
+                    actor_id=context.actor_id,
+                    roles=context.roles,
+                    correlation_id=context.correlation_id,
+                    operator_intent=context.operator_intent,
+                    outer_idempotency_key=context.idempotency_key,
+                )
+                wallet_notional = (
+                    admission.wallet_evidence.available_balance
+                    if admission.wallet_evidence.required_currency == "USDC"
+                    else admission.wallet_evidence.available_balance
+                    * admission.limit_price
+                )
+                proof_chain = self._record_spot_proof_chain(
+                    proof_context=prepared.proof_context,
+                    command_kind="manual",
+                    roles=context.roles,
+                    wallet_available_notional_usdc=wallet_notional,
+                )
+                self._evaluate_spot_live_admission(
+                    proof_context=prepared.proof_context,
+                    proof_chain=proof_chain,
+                )
+                command = bind_spot_automation_create_command(
+                    prepared=prepared,
+                    proof_chain=proof_chain,
+                )
+            except AutomationRepositoryConflict:
+                raise
+            except Exception:
+                raise AutomationRepositoryConflict(
+                    "automation_spot_create_admission_failed"
+                ) from None
+
+            start_command = self._spot_invocation_start_command(
+                context=context,
+                request=request,
+                run_id=run_id,
+                eligibility_cycle=bundle.cycle.cycle_number,
+                plan_sha256=plan.plan_sha256,
+                client_order_id=admission.client_order_id,
+                command_payload_sha256=prepared.proof_context["payload_hash"],
+                operation="start_automation_spot_create",
+                phase="create-start",
+                operator_intent="claim_automation_spot_single_child_create",
+            )
+            started = self._call(
+                lambda: self.repository.start_spot_create_invocation(
+                    run_id,
+                    eligibility_cycle=bundle.cycle.cycle_number,
+                    command=start_command,
+                )
+            )
+            started_execution = started.entity
+            if not self._spot_execution_binding_matches(
+                started_execution,
+                record=record,
+                plan=plan,
+                eligibility_cycle=bundle.cycle.cycle_number,
+                client_order_id=admission.client_order_id,
+            ):
+                raise AutomationRepositoryUnavailable(
+                    "automation_spot_create_claim_invalid"
+                )
+            if started.replayed:
+                current = self._call(lambda: self.repository.get_run(run_id))
+                if current is None:
+                    raise AutomationRepositoryUnavailable(
+                        "automation_spot_execution_replay_unavailable"
+                    )
+                return AutomationRepositoryMutation(
+                    entity=self._run(current),
+                    audit_id=started.audit_id,
+                    correlation_id=started.correlation_id,
+                    replayed=True,
+                    activity=AutomationRunMutationActivity(),
+                )
+
+            try:
+                with self._resolve_spot_execution_scope_factory()(
+                    COINBASE_EXECUTION_SCOPE_SPOT_PLACE
+                ):
+                    response = command_service.place_manual_order(
+                        command,
+                        automation_admission=admission,
+                    )
+                if response.client_order_id != admission.client_order_id:
+                    raise RuntimeError(
+                        "automation_spot_create_response_identity_mismatch"
+                    )
+                classification = (
+                    classify_canonical_spot_automation_create_response(
+                        response
+                    )
+                )
+            except Exception:
+                classification = OperatorSpotAutomationExecutionClassification(
+                    operation=OperatorSpotAutomationExecutionOperation.CREATE,
+                    outcome=OperatorSpotAutomationExecutionOutcome.UNKNOWN,
+                    child_terminal=None,
+                    mutation_call_count=None,
+                    mutation_call_count_exact=False,
+                    read_call_count=None,
+                    read_call_count_exact=False,
+                )
+
+            finalize_payload = {
+                "operation": "finalize_automation_spot_create",
+                "run_id": run_id,
+                "plan_sha256": plan.plan_sha256,
+                "client_order_id": admission.client_order_id,
+                "outcome": classification.outcome.value,
+                "mutation_call_count": classification.mutation_call_count,
+                "mutation_call_count_exact": (
+                    classification.mutation_call_count_exact
                 ),
-                command=audit_command,
+                "read_call_count": classification.read_call_count,
+                "read_call_count_exact": (
+                    classification.read_call_count_exact
+                ),
+                "child_terminal": classification.child_terminal,
+            }
+            finalized = self._call(
+                lambda: self.repository.finalize_spot_create_invocation(
+                    run_id,
+                    outcome=classification.outcome.value,
+                    child_terminal=(
+                        False
+                        if classification.outcome
+                        is OperatorSpotAutomationExecutionOutcome.REJECTED
+                        else classification.child_terminal
+                    ),
+                    coinbase_api_call_count=(
+                        classification.mutation_call_count
+                    ),
+                    call_count_exact=(
+                        classification.mutation_call_count_exact
+                    ),
+                    read_call_count=classification.read_call_count,
+                    read_call_count_exact=(
+                        classification.read_call_count_exact
+                    ),
+                    command=self._command(
+                        context=context,
+                        idempotency_key=derive_spot_automation_phase_key(
+                            outer_idempotency_key=context.idempotency_key,
+                            run_id=run_id,
+                            plan_sha256=plan.plan_sha256,
+                            phase="create-finalize",
+                        ),
+                        operator_intent=(
+                            "finalize_automation_spot_single_child_create"
+                        ),
+                        payload=finalize_payload,
+                    ),
+                )
+            )
+            current = self._call(lambda: self.repository.get_run(run_id))
+            if current is None:
+                raise AutomationRepositoryUnavailable(
+                    "automation_spot_create_result_unavailable"
+                )
+            return AutomationRepositoryMutation(
+                entity=self._run(current),
+                audit_id=finalized.audit_id,
+                correlation_id=finalized.correlation_id,
+                replayed=False,
+                activity=self._activity_from_classification(
+                    classification,
+                    operation="CREATE",
+                ),
+            )
+
+    def safe_closeout_single_child(
+        self,
+        *,
+        run_id: str,
+        request: Mapping[str, Any],
+        context: AutomationMutationContext,
+    ) -> AutomationRepositoryMutation:
+        """Claim once and invoke only canonical exact-child safe closeout."""
+
+        self._require_safe_closeout_control_posture()
+        record = self._call(lambda: self.repository.get_run(run_id))
+        if record is None:
+            raise AutomationRepositoryNotFound(AUTOMATION_NOT_FOUND)
+        if (
+            record.job_kind is not AutomationJobKind.SPOT_CAMPAIGN
+            or record.definition_revision is None
+        ):
+            raise AutomationRepositoryConflict(
+                "automation_single_child_run_ineligible"
+            )
+        plan = self._call(
+            lambda: self.repository.get_spot_single_child_plan(
+                record.definition_id,
+                record.definition_revision,
             )
         )
-        raise AutomationRepositoryConflict(
-            "automation_active_order_catalog_read_not_authorized"
+        if plan is None:
+            raise AutomationRepositoryConflict(
+                "automation_single_child_plan_missing"
+            )
+        if request.get("expected_plan_sha256") != plan.plan_sha256:
+            raise AutomationRepositoryConflict(
+                "automation_single_child_plan_mismatch"
+            )
+
+        from application.admin_api.operator_spot_automation_runtime import (
+            SpotAutomationRuntimeBindingError,
+            derive_spot_automation_phase_key,
+            prepare_spot_automation_cancel_command,
         )
+
+        execution = self._call(
+            lambda: self.repository.get_spot_run_execution(run_id)
+        )
+        if execution is None:
+            raise AutomationRepositoryConflict(
+                "automation_spot_safe_closeout_not_eligible"
+            )
+        if execution.cancel_allowance_consumed:
+            try:
+                prepared_replay = prepare_spot_automation_cancel_command(
+                    run=record,
+                    plan=plan,
+                    client_order_id=execution.client_order_id,
+                    actor_id=context.actor_id,
+                    roles=context.roles,
+                    correlation_id=context.correlation_id,
+                    operator_intent=context.operator_intent,
+                    outer_idempotency_key=context.idempotency_key,
+                    reason=str(request.get("reason") or ""),
+                )
+            except SpotAutomationRuntimeBindingError:
+                raise AutomationRepositoryUnavailable(
+                    "automation_spot_execution_replay_invalid"
+                ) from None
+            replay = self._call(
+                lambda: self.repository.start_spot_cancel_invocation(
+                    run_id,
+                    client_order_id=execution.client_order_id,
+                    command=self._spot_invocation_start_command(
+                        context=context,
+                        request=request,
+                        run_id=run_id,
+                        eligibility_cycle=execution.eligibility_cycle,
+                        plan_sha256=plan.plan_sha256,
+                        client_order_id=execution.client_order_id,
+                        command_payload_sha256=prepared_replay.proof_context[
+                            "payload_hash"
+                        ],
+                        operation="start_automation_spot_safe_closeout",
+                        phase="cancel-start",
+                        operator_intent=(
+                            "claim_automation_spot_exact_child_safe_closeout"
+                        ),
+                    ),
+                )
+            )
+            if (
+                not replay.replayed
+                or not self._spot_execution_binding_matches(
+                    replay.entity,
+                    record=record,
+                    plan=plan,
+                    eligibility_cycle=execution.eligibility_cycle,
+                    client_order_id=execution.client_order_id,
+                    require_cancel_allowance=True,
+                )
+            ):
+                raise AutomationRepositoryUnavailable(
+                    "automation_spot_execution_replay_invalid"
+                )
+            current = self._call(lambda: self.repository.get_run(run_id))
+            if current is None:
+                raise AutomationRepositoryUnavailable(
+                    "automation_spot_execution_replay_unavailable"
+                )
+            return AutomationRepositoryMutation(
+                entity=self._run(current),
+                audit_id=replay.audit_id,
+                correlation_id=replay.correlation_id,
+                replayed=True,
+                activity=AutomationRunMutationActivity(),
+            )
+        if (
+            record.state is not AutomationRunState.ACTIVE
+            or record.diagnostic_code != "automation_spot_safe_closeout_ready"
+            or execution.create_outcome != "ACCEPTED"
+            or execution.child_terminal is not False
+            or not execution.create_allowance_consumed
+        ):
+            raise AutomationRepositoryConflict(
+                "automation_spot_safe_closeout_not_eligible"
+            )
+
+        from application.admin_api.operator_spot_automation_execution import (
+            OperatorSpotAutomationExecutionClassification,
+            OperatorSpotAutomationExecutionOperation,
+            OperatorSpotAutomationExecutionOutcome,
+            classify_canonical_spot_automation_cancel_response,
+        )
+        from application.admin_api.operator_spot_automation_runtime import (
+            bind_spot_automation_cancel_command,
+            build_spot_automation_cancel_ownership,
+        )
+        from core.coinbase_execution_authority import (
+            COINBASE_EXECUTION_SCOPE_SPOT_CANCEL,
+        )
+
+        command_service = self._resolve_spot_command_service()
+        profile_coordinator = self._resolve_spot_profile_coordinator(
+            command_service
+        )
+        configured_portfolio_id = str(
+            os.environ.get("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID") or ""
+        ).strip()
+        if not configured_portfolio_id:
+            raise AutomationRepositoryUnavailable(
+                "automation_spot_portfolio_not_configured"
+            )
+        cycles = self._call(self.repository.list_spot_eligibility_cycles)
+        cycle_matches = tuple(
+            cycle
+            for cycle in cycles
+            if str(cycle.run_id) == run_id
+            and int(cycle.cycle_number) == execution.eligibility_cycle
+        )
+        if len(cycle_matches) != 1:
+            raise AutomationRepositoryUnavailable(
+                "automation_spot_safe_closeout_eligibility_missing"
+            )
+        attempts = self._call(
+            lambda: self.repository.list_spot_eligibility_attempts(
+                run_id,
+                cycle_number=execution.eligibility_cycle,
+            )
+        )
+
+        with profile_coordinator.claim(configured_portfolio_id) as lease:
+            try:
+                ownership = build_spot_automation_cancel_ownership(
+                    run=record,
+                    plan=plan,
+                    execution=execution,
+                    eligibility_cycle=cycle_matches[0],
+                    attempts=attempts,
+                    lease=lease,
+                    configured_portfolio_id=configured_portfolio_id,
+                    now=self._now_factory(),
+                )
+                prepared = prepare_spot_automation_cancel_command(
+                    run=record,
+                    plan=plan,
+                    client_order_id=execution.client_order_id,
+                    actor_id=context.actor_id,
+                    roles=context.roles,
+                    correlation_id=context.correlation_id,
+                    operator_intent=context.operator_intent,
+                    outer_idempotency_key=context.idempotency_key,
+                    reason=str(request.get("reason") or ""),
+                )
+                proof_chain = self._record_spot_proof_chain(
+                    proof_context=prepared.proof_context,
+                    command_kind="cancel",
+                    roles=context.roles,
+                    wallet_available_notional_usdc=Decimal("0"),
+                )
+                self._evaluate_spot_live_admission(
+                    proof_context=prepared.proof_context,
+                    proof_chain=proof_chain,
+                )
+                command = bind_spot_automation_cancel_command(
+                    prepared=prepared,
+                    proof_chain=proof_chain,
+                )
+            except AutomationRepositoryConflict:
+                raise
+            except Exception:
+                raise AutomationRepositoryConflict(
+                    "automation_spot_safe_closeout_admission_failed"
+                ) from None
+
+            started = self._call(
+                lambda: self.repository.start_spot_cancel_invocation(
+                    run_id,
+                    client_order_id=execution.client_order_id,
+                    command=self._spot_invocation_start_command(
+                        context=context,
+                        request=request,
+                        run_id=run_id,
+                        eligibility_cycle=execution.eligibility_cycle,
+                        plan_sha256=plan.plan_sha256,
+                        client_order_id=execution.client_order_id,
+                        command_payload_sha256=prepared.proof_context[
+                            "payload_hash"
+                        ],
+                        operation="start_automation_spot_safe_closeout",
+                        phase="cancel-start",
+                        operator_intent=(
+                            "claim_automation_spot_exact_child_safe_closeout"
+                        ),
+                    ),
+                )
+            )
+            if not self._spot_execution_binding_matches(
+                started.entity,
+                record=record,
+                plan=plan,
+                eligibility_cycle=execution.eligibility_cycle,
+                client_order_id=execution.client_order_id,
+                require_cancel_allowance=True,
+            ):
+                raise AutomationRepositoryUnavailable(
+                    "automation_spot_cancel_claim_invalid"
+                )
+            if started.replayed:
+                current = self._call(lambda: self.repository.get_run(run_id))
+                if current is None:
+                    raise AutomationRepositoryUnavailable(
+                        "automation_spot_execution_replay_unavailable"
+                    )
+                return AutomationRepositoryMutation(
+                    entity=self._run(current),
+                    audit_id=started.audit_id,
+                    correlation_id=started.correlation_id,
+                    replayed=True,
+                    activity=AutomationRunMutationActivity(),
+                )
+            try:
+                with self._resolve_spot_execution_scope_factory()(
+                    COINBASE_EXECUTION_SCOPE_SPOT_CANCEL
+                ):
+                    response = command_service.cancel_order_by_client_order_id(
+                        command,
+                        automation_ownership=ownership,
+                    )
+                if response.client_order_id != execution.client_order_id:
+                    raise RuntimeError(
+                        "automation_spot_cancel_response_identity_mismatch"
+                    )
+                classification = (
+                    classify_canonical_spot_automation_cancel_response(
+                        response
+                    )
+                )
+            except Exception:
+                classification = OperatorSpotAutomationExecutionClassification(
+                    operation=OperatorSpotAutomationExecutionOperation.CANCEL,
+                    outcome=OperatorSpotAutomationExecutionOutcome.UNKNOWN,
+                    child_terminal=None,
+                    mutation_call_count=None,
+                    mutation_call_count_exact=False,
+                    read_call_count=None,
+                    read_call_count_exact=False,
+                )
+
+            finalize_payload = {
+                "operation": "finalize_automation_spot_safe_closeout",
+                "run_id": run_id,
+                "plan_sha256": plan.plan_sha256,
+                "client_order_id": execution.client_order_id,
+                "outcome": classification.outcome.value,
+                "mutation_call_count": classification.mutation_call_count,
+                "mutation_call_count_exact": (
+                    classification.mutation_call_count_exact
+                ),
+                "read_call_count": classification.read_call_count,
+                "read_call_count_exact": (
+                    classification.read_call_count_exact
+                ),
+                "child_terminal": classification.child_terminal,
+            }
+            finalized = self._call(
+                lambda: self.repository.finalize_spot_cancel_invocation(
+                    run_id,
+                    outcome=classification.outcome.value,
+                    child_terminal=(
+                        False
+                        if classification.outcome
+                        is OperatorSpotAutomationExecutionOutcome.REJECTED
+                        else classification.child_terminal
+                    ),
+                    coinbase_api_call_count=(
+                        classification.mutation_call_count
+                    ),
+                    call_count_exact=(
+                        classification.mutation_call_count_exact
+                    ),
+                    read_call_count=classification.read_call_count,
+                    read_call_count_exact=(
+                        classification.read_call_count_exact
+                    ),
+                    command=self._command(
+                        context=context,
+                        idempotency_key=derive_spot_automation_phase_key(
+                            outer_idempotency_key=context.idempotency_key,
+                            run_id=run_id,
+                            plan_sha256=plan.plan_sha256,
+                            phase="cancel-finalize",
+                        ),
+                        operator_intent=(
+                            "finalize_automation_spot_exact_child_safe_closeout"
+                        ),
+                        payload=finalize_payload,
+                    ),
+                )
+            )
+            current = self._call(lambda: self.repository.get_run(run_id))
+            if current is None:
+                raise AutomationRepositoryUnavailable(
+                    "automation_spot_safe_closeout_result_unavailable"
+                )
+            return AutomationRepositoryMutation(
+                entity=self._run(current),
+                audit_id=finalized.audit_id,
+                correlation_id=finalized.correlation_id,
+                replayed=False,
+                activity=self._activity_from_classification(
+                    classification,
+                    operation="SAFE_CLOSEOUT",
+                ),
+            )
 
     def refresh_spot_eligibility(
         self,
@@ -1323,24 +2579,15 @@ class PostgresOperatorAutomationRepositoryAdapter:
         request: Mapping[str, Any],
         context: AutomationMutationContext,
     ) -> AutomationEligibilityRepositoryMutation:
-        """Run one exact seven-category cycle and restore the source gate."""
+        """Run one exact eight-category cycle with bounded call accounting."""
 
+        self._require_active_control_posture()
         record = self._call(lambda: self.repository.get_run(run_id))
         if record is None:
             raise AutomationRepositoryNotFound(AUTOMATION_NOT_FOUND)
-        source_gate_restored = bool(
-            record.state is AutomationRunState.BLOCKED
-            and record.diagnostic_code
-            == "automation_active_order_catalog_read_not_authorized"
-        )
-        newer_cycle_in_progress = bool(
-            record.state is AutomationRunState.PREPARING
-            and record.diagnostic_code == "automation_spot_source_gate_resumed"
-        )
         if (
             record.job_kind is not AutomationJobKind.SPOT_CAMPAIGN
             or record.definition_revision is None
-            or not (source_gate_restored or newer_cycle_in_progress)
             or record.live_attempt_consumed
         ):
             raise AutomationRepositoryConflict(
@@ -1368,9 +2615,6 @@ class PostgresOperatorAutomationRepositoryAdapter:
         from application.admin_api.operator_spot_eligibility_postgres import (
             PostgresSpotEligibilityLedger,
         )
-        from application.admin_api.operator_spot_eligibility_reader import (
-            SpotEligibilityPlanTerms,
-        )
 
         run_context = SpotEligibilityRunContext(
             run_id=str(record.run_id),
@@ -1380,24 +2624,6 @@ class PostgresOperatorAutomationRepositoryAdapter:
             portfolio_id_sha256=plan.portfolio_id_sha256,
             correlation_id=context.correlation_id,
         )
-        plan_terms = SpotEligibilityPlanTerms(
-            plan_sha256=plan.plan_sha256,
-            product_id=plan.product_id,
-            side=plan.side,
-            base_size=plan.base_size,
-            limit_price=plan.limit_price,
-            submitted_notional_usdc=plan.submitted_notional_usdc,
-            possible_execution_notional_usdc=(
-                plan.possible_execution_notional_usdc
-            ),
-            max_submitted_notional_usdc=(
-                plan.max_submitted_notional_usdc
-            ),
-            max_possible_execution_notional_usdc=(
-                plan.max_possible_execution_notional_usdc
-            ),
-            post_only=plan.post_only,
-        )
         def build_reader() -> Any:
             if self._spot_eligibility_reader_factory is None:
                 raise RuntimeError(
@@ -1405,7 +2631,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 )
             return self._spot_eligibility_reader_factory(
                 expected_context=run_context,
-                plan=plan_terms,
+                plan=self._spot_plan_terms(plan),
             )
         ledger = PostgresSpotEligibilityLedger(
             repository=self.repository,
@@ -1439,14 +2665,27 @@ class PostgresOperatorAutomationRepositoryAdapter:
             for cycle in cycles
             if cycle.state == "OPEN"
         )
-        source_gate_restored = bool(
-            current.state is AutomationRunState.BLOCKED
-            and current.diagnostic_code
-            == "automation_active_order_catalog_read_not_authorized"
+        terminal_result_applied = bool(
+            (
+                cycle_result.outcome.value == "SUCCEEDED"
+                and current.state
+                is AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
+                and current.diagnostic_code == "awaiting_operator_authorization"
+            )
+            or (
+                cycle_result.outcome.value in {"REJECTED", "UNKNOWN"}
+                and current.state is AutomationRunState.BLOCKED
+                and current.diagnostic_code
+                == "automation_spot_eligibility_refresh_required"
+            )
         )
         terminal_result_during_newer_cycle = bool(
             current.state is AutomationRunState.PREPARING
-            and current.diagnostic_code == "automation_spot_source_gate_resumed"
+            and current.diagnostic_code
+            in {
+                "automation_spot_source_gate_resumed",
+                "automation_spot_final_admission_started",
+            }
             and len(open_cycles) == 1
             and str(open_cycles[0].run_id) == run_id
             and int(open_cycles[0].cycle_number) > cycle_result.cycle_number
@@ -1455,7 +2694,10 @@ class PostgresOperatorAutomationRepositoryAdapter:
         if (
             len(matches) != 1
             or matches[0].state != cycle_result.outcome.value
-            or not (source_gate_restored or terminal_result_during_newer_cycle)
+            or not (
+                terminal_result_applied
+                or terminal_result_during_newer_cycle
+            )
         ):
             raise AutomationRepositoryUnavailable(
                 "automation_spot_eligibility_result_unavailable"
@@ -1586,7 +2828,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
         )
 
 
-@dataclass(frozen=True)
+@dataclass
 class OperatorAutomationError(RuntimeError):
     """Value-blind public error classification."""
 
@@ -1882,9 +3124,46 @@ class OperatorAutomationService:
                 replayed=result.replayed,
                 audit_id=result.audit_id,
                 correlation_id=result.correlation_id,
-                activity=self._run_mutation_activity(
-                    run=run,
-                    replayed=result.replayed,
+                activity=(
+                    result.activity
+                    or self._run_mutation_activity(
+                        run=run,
+                        replayed=result.replayed,
+                        operation="CREATE",
+                    )
+                ),
+            )
+        except OperatorAutomationError:
+            raise
+        except Exception as exc:
+            raise self._translate_error(exc) from None
+
+    def safe_closeout_single_child(
+        self,
+        *,
+        run_id: str,
+        request: AutomationSingleChildSafeCloseoutRequest,
+        context: AutomationMutationContext,
+    ) -> AutomationRunMutationResponse:
+        try:
+            result = self.repository.safe_closeout_single_child(
+                run_id=run_id,
+                request=request.model_dump(mode="json"),
+                context=context,
+            )
+            run = AutomationRunItem.model_validate(result.entity)
+            return AutomationRunMutationResponse(
+                run=run,
+                replayed=result.replayed,
+                audit_id=result.audit_id,
+                correlation_id=result.correlation_id,
+                activity=(
+                    result.activity
+                    or self._run_mutation_activity(
+                        run=run,
+                        replayed=result.replayed,
+                        operation="SAFE_CLOSEOUT",
+                    )
                 ),
             )
         except OperatorAutomationError:
@@ -1929,20 +3208,38 @@ class OperatorAutomationService:
         *,
         run: AutomationRunItem,
         replayed: bool,
+        operation: str,
     ) -> AutomationRunMutationActivity:
         if replayed:
             return AutomationRunMutationActivity()
 
-        create_count = run.create_call_count
-        cancel_count = run.cancel_call_count
+        create_count = run.create_call_count if operation == "CREATE" else 0
+        cancel_count = (
+            run.cancel_call_count if operation == "SAFE_CLOSEOUT" else 0
+        )
+        if operation == "CREATE":
+            read_count = run.reconciliation_call_count
+        else:
+            read_count = (
+                None
+                if run.reconciliation_call_count is None
+                else max(run.reconciliation_call_count - 1, 0)
+            )
         if run.call_count_exact:
             exchange_count = (
                 None
                 if create_count is None or cancel_count is None
                 else create_count + cancel_count
             )
+            total_count = (
+                None
+                if exchange_count is None or read_count is None
+                else exchange_count + read_count
+            )
             return AutomationRunMutationActivity(
-                coinbase_api_call_count=exchange_count,
+                operation=operation,
+                coinbase_api_call_count=total_count,
+                read_call_count=read_count,
                 exchange_mutation_count=exchange_count,
                 create_call_count=create_count,
                 cancel_call_count=cancel_count,
@@ -1955,7 +3252,9 @@ class OperatorAutomationService:
             else create_count + cancel_count
         )
         return AutomationRunMutationActivity(
+            operation=operation,
             coinbase_api_call_count=None,
+            read_call_count=read_count,
             exchange_mutation_count=exchange_count,
             create_call_count=create_count,
             cancel_call_count=cancel_count,

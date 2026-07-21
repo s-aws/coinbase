@@ -2200,6 +2200,44 @@ def get_unresolved_admin_manual_root_submissions(
     )
 
 
+def get_unresolved_admin_spot_root_submissions(
+    retail_portfolio_id: str,
+) -> List[Dict[str, Any]]:
+    """Return every nonterminal Admin-owned direct Spot root for a portfolio."""
+
+    _require_uuid_text(
+        retail_portfolio_id,
+        "retail_portfolio_id",
+        client_order_id=retail_portfolio_id,
+    )
+    terminal_statuses = (
+        OrderStatus.FILLED.value,
+        OrderStatus.CANCELLED.value,
+        OrderStatus.EXPIRED.value,
+        OrderStatus.FAILED.value,
+    )
+    query = """
+    SELECT client_order_id, product_id, side, size, price, status,
+           ownership_provenance, retail_portfolio_id,
+           correlation_id, audit_id, created_at
+    FROM order_parent
+    WHERE retail_portfolio_id = %s
+      AND ownership_provenance IN (%s, %s)
+      AND parent_order_id IS NULL
+      AND UPPER(status) NOT IN (%s, %s, %s, %s)
+    ORDER BY created_at ASC, id ASC
+    """
+    return DB_CLIENT.execute_query(
+        query,
+        (
+            retail_portfolio_id,
+            OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value,
+            OrderOwnershipProvenance.ADMIN_AUTOMATION_ROOT.value,
+            *terminal_statuses,
+        ),
+    )
+
+
 def has_unresolved_admin_manual_root_submission(
     retail_portfolio_id: str,
 ) -> bool:

@@ -21,18 +21,43 @@ frontend request
 -> typed response
 ```
 
-Current goal `operator_spot_automation_single_child_execution_adapter_v1` is at
-an eligibility-coordinator-complete, source-gated checkpoint, not a live-ready
-completion. Current action is
-`await_active_order_catalog_and_canonical_execution_authority`. The durable
-seven-category operator refresh is installed, while production execution stops
-at `automation_active_order_catalog_read_not_authorized` before the canonical
-account-wide active-order guard, invocation claim, Create, or mutation. No live
-refresh ran; all read, Create, and Cancel allowances are unconsumed. Do not
-ungate the adapter until the route-owned admission/execution scope, exact-child
-reconciliation, and safe closeout gaps in
-`docs/OPERATOR_SPOT_AUTOMATION_SINGLE_CHILD_ADAPTER.md` are resolved under
-explicit authority.
+Goal `operator_spot_automation_single_child_execution_adapter_v1` is complete.
+Status: `complete`.
+Current action: `complete_zero_candidate_all_live_allowances_unconsumed`.
+Default action: `await_operator_direction_for_next_mvp`.
+
+The Eight-category single-child adapter remains installed behind backend-owned
+authority. Aggregate primary evidence: definitions `0`, plans `0`, runs `0`, eligibility cycles `0`, claims `0`, and candidates `0`.
+State-refresh cycles consumed: `0/10`.
+Coinbase Create calls: `0`; Coinbase Cancel calls: `0`.
+All live allowances remain unconsumed.
+
+Validation evidence: backend full `1179 passed, 6 skipped` parallel and `664 passed, 150 skipped` serial; focused backend `367 passed`; frontend full `1555 passed`; E2E `15/15`; focused frontend `177 passed`; independent safety audit `PASS`; blind-contextless audit `PASS`.
+Release/deployment gate: `PASS` (canonical rerun complete).
+No Coinbase API call or exchange mutation was made for this closeout. Every immutable
+R1-R12 artifact byte and documented hash remains preserved, and R8 content and
+hash remain inaccessible.
+
+## Historical pre-closeout contract checkpoint
+
+Before terminal closeout, goal
+`operator_spot_automation_single_child_execution_adapter_v1` was at
+an eight-category, canonical-single-child-execution-implemented,
+validation-pending checkpoint. Its status was
+`canonical_single_child_execution_implemented_validation_pending`; its
+checkpoint action was `complete_validation_audits_deployment_and_bounded_live_proof`. The
+durable operator refresh includes the account-wide active Spot-order catalog;
+exact-run authorization owns a separate final authorization refresh of the
+same bound evidence before any Create claim.
+
+The canonical domain-owned one-child Create and exact-child safe-closeout
+Cancel coordinators are installed through typed route-owned admission and the
+existing Spot command service. At that checkpoint they could not be described
+as operator-ready until full validation, independent audits, and installed
+deployment validation passed. No goal-scoped Coinbase call had run; eligibility-cycle,
+final-authorization-read, Create, and Cancel allowances remain unconsumed. The
+former source-gated checkpoint is historical. See
+`docs/OPERATOR_SPOT_AUTOMATION_SINGLE_CHILD_ADAPTER.md`.
 
 Completed predecessor goal
 `operator_automation_control_plane_origin_prod_alignment_v1` has historical

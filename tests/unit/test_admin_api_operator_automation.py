@@ -6,12 +6,14 @@ import ast
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import inspect
+from types import SimpleNamespace
 from typing import Any, Mapping
 
 import pytest
 from pydantic import ValidationError
 
 from application.admin_api.automation_models import (
+    AUTOMATION_SPOT_SINGLE_CHILD_SUCCESSOR_DIAGNOSTICS,
     AutomationControlAction,
     AutomationControlEventItem,
     AutomationControlPlaneItem,
@@ -31,6 +33,7 @@ from application.admin_api.automation_models import (
     AutomationMutationContext,
     AutomationOneShotRunRequest,
     AutomationSingleChildAuthorizationRequest,
+    AutomationSingleChildSafeCloseoutRequest,
     AutomationSingleChildEligibilityReadback,
     AutomationSingleChildPlanReadback,
     AutomationSpotSingleChildOrderSpec,
@@ -48,6 +51,7 @@ from application.admin_api.operator_automation import (
     AutomationRepositoryPage,
     OperatorAutomationError,
     OperatorAutomationService,
+    PostgresOperatorAutomationRepositoryAdapter,
 )
 
 
@@ -122,6 +126,7 @@ def _single_child_run(
     cancel_call_count: int | None,
     call_count_exact: bool,
     child_terminal: bool | None,
+    reconciliation_call_count: int | None = 0,
 ) -> dict[str, Any]:
     categories = [
         "api_key_permissions",
@@ -131,6 +136,7 @@ def _single_child_run(
         "best_bid_ask",
         "fee_summary",
         "exact_order_reconciliation",
+        "active_order_catalog",
     ]
     return {
         **_run(),
@@ -142,6 +148,9 @@ def _single_child_run(
         "coinbase_api_call_count": coinbase_api_call_count,
         "create_call_count": create_call_count,
         "cancel_call_count": cancel_call_count,
+        "reconciliation_call_count": reconciliation_call_count,
+        "create_allowance_consumed": True,
+        "cancel_allowance_consumed": cancel_call_count == 1,
         "call_count_exact": call_count_exact,
         "client_order_id": "4dc878e7-f27b-42b5-adf3-4965b2b916d9",
         "child_terminal": child_terminal,
@@ -161,7 +170,7 @@ def _single_child_run(
             "completed_categories": categories,
             "eligible": True,
             "blocker_code": None,
-            "coinbase_api_call_count": 7,
+            "coinbase_api_call_count": 8,
             "call_count_exact": True,
         },
         "allowed_actions": [],
@@ -183,6 +192,7 @@ def _source_gated_single_child_run(
         "best_bid_ask",
         "fee_summary",
         "exact_order_reconciliation",
+        "active_order_catalog",
     ]
     return {
         **_run(),
@@ -326,6 +336,18 @@ class _FakeRepository:
 
     def authorize_single_child(self, **kwargs: Any) -> AutomationRepositoryMutation:
         self._record("authorize_single_child", **kwargs)
+        return AutomationRepositoryMutation(
+            entity=_run(),
+            audit_id=AUDIT_ID,
+            correlation_id=kwargs["context"].correlation_id,
+            replayed=self.replayed,
+        )
+
+    def safe_closeout_single_child(
+        self,
+        **kwargs: Any,
+    ) -> AutomationRepositoryMutation:
+        self._record("safe_closeout_single_child", **kwargs)
         return AutomationRepositoryMutation(
             entity=_run(),
             audit_id=AUDIT_ID,
@@ -516,21 +538,35 @@ def test_single_child_definition_spec_is_typed_btc_usdc_campaign_only():
 def test_exact_run_authorization_accepts_only_acknowledgements_and_plan_hash():
     body = AutomationSingleChildAuthorizationRequest(
         confirm_single_child_create=True,
-        confirm_exact_child_safe_closeout_cancel=True,
+        confirm_final_eligibility_refresh=True,
+        confirm_account_wide_active_spot_order_catalog_read=True,
         confirm_unknown_consumes_allowance=True,
         expected_plan_sha256="a" * 64,
         reason="Authorize this exact prepared child once",
     )
     assert body.confirm_single_child_create is True
-    assert body.confirm_exact_child_safe_closeout_cancel is True
+    assert body.confirm_final_eligibility_refresh is True
+    assert body.confirm_account_wide_active_spot_order_catalog_read is True
     assert body.confirm_unknown_consumes_allowance is True
+
+    for field_name in (
+        "confirm_final_eligibility_refresh",
+        "confirm_account_wide_active_spot_order_catalog_read",
+    ):
+        with pytest.raises(ValidationError):
+            AutomationSingleChildAuthorizationRequest.model_validate(
+                {
+                    key: value
+                    for key, value in body.model_dump(mode="json").items()
+                    if key != field_name
+                }
+            )
 
     with pytest.raises(ValidationError):
         AutomationSingleChildAuthorizationRequest.model_validate(
             {
-                key: value
-                for key, value in body.model_dump(mode="json").items()
-                if key != "confirm_exact_child_safe_closeout_cancel"
+                **body.model_dump(mode="json"),
+                "confirm_exact_child_safe_closeout_cancel": True,
             }
         )
 
@@ -545,9 +581,65 @@ def test_exact_run_authorization_accepts_only_acknowledgements_and_plan_hash():
         )
 
 
-def test_spot_eligibility_refresh_request_requires_both_consumption_acknowledgements():
+def test_safe_closeout_request_is_exact_run_only():
+    closeout = AutomationSingleChildSafeCloseoutRequest(
+        confirm_exact_child_safe_closeout_cancel=True,
+        confirm_unknown_consumes_allowance=True,
+        expected_plan_sha256="a" * 64,
+        reason="Close out this exact prepared child",
+    )
+
+    assert set(closeout.model_dump(mode="json")) == {
+        "confirm_exact_child_safe_closeout_cancel",
+        "confirm_unknown_consumes_allowance",
+        "expected_plan_sha256",
+        "reason",
+    }
+    payload = closeout.model_dump(mode="json")
+    with pytest.raises(ValidationError):
+        AutomationSingleChildSafeCloseoutRequest.model_validate(
+            {
+                key: value
+                for key, value in payload.items()
+                if key != "confirm_exact_child_safe_closeout_cancel"
+            }
+        )
+    with pytest.raises(ValidationError):
+        AutomationSingleChildSafeCloseoutRequest.model_validate(
+            {**payload, "client_order_id": RUN_ID}
+        )
+
+
+def test_successor_diagnostic_vocabulary_is_fixed_and_value_blind():
+    assert AUTOMATION_SPOT_SINGLE_CHILD_SUCCESSOR_DIAGNOSTICS == {
+        AutomationRunState.BLOCKED: frozenset(
+            {"automation_spot_eligibility_refresh_required"}
+        ),
+        AutomationRunState.ACTIVE: frozenset(
+            {
+                "automation_spot_safe_closeout_ready",
+                "automation_spot_safe_closeout_invocation_started",
+            }
+        ),
+        AutomationRunState.TERMINAL: frozenset(
+            {
+                "automation_spot_safe_closeout_accepted_terminal",
+                "automation_spot_safe_closeout_accepted_nonterminal",
+                "automation_spot_safe_closeout_rejected",
+            }
+        ),
+        AutomationRunState.UNKNOWN_CONSUMED: frozenset(
+            {
+                "automation_spot_safe_closeout_unknown_consumed",
+            }
+        ),
+    }
+
+
+def test_spot_eligibility_refresh_request_requires_all_consumption_acknowledgements():
     body = AutomationEligibilityRefreshRequest(
         confirm_approved_eligibility_reads=True,
+        confirm_account_wide_active_spot_order_catalog_read=True,
         confirm_unknown_consumes_cycle=True,
         expected_plan_sha256="a" * 64,
         reason="Refresh this exact source-gated run",
@@ -555,12 +647,14 @@ def test_spot_eligibility_refresh_request_requires_both_consumption_acknowledgem
 
     assert body.model_dump(mode="json") == {
         "confirm_approved_eligibility_reads": True,
+        "confirm_account_wide_active_spot_order_catalog_read": True,
         "confirm_unknown_consumes_cycle": True,
         "expected_plan_sha256": "a" * 64,
         "reason": "Refresh this exact source-gated run",
     }
     for field_name in (
         "confirm_approved_eligibility_reads",
+        "confirm_account_wide_active_spot_order_catalog_read",
         "confirm_unknown_consumes_cycle",
     ):
         with pytest.raises(ValidationError):
@@ -628,6 +722,7 @@ def test_single_child_run_readback_is_backend_owned_and_truthful():
             "best_bid_ask",
             "fee_summary",
             "exact_order_reconciliation",
+            "active_order_catalog",
         ],
         completed_categories=["api_key_permissions"],
         eligible=False,
@@ -664,6 +759,7 @@ def test_source_gated_single_child_run_exposes_only_offline_eligibility_refresh(
         "best_bid_ask",
         "fee_summary",
         "exact_order_reconciliation",
+        "active_order_catalog",
     ]
     item = AutomationRunItem.model_validate(
         {
@@ -704,6 +800,19 @@ def test_source_gated_single_child_run_exposes_only_offline_eligibility_refresh(
     assert item.allowed_actions == ["REFRESH_ELIGIBILITY"]
     assert item.live_execution_available is False
 
+    recovered = AutomationRunItem.model_validate(
+        {
+            **item.model_dump(mode="json"),
+            "diagnostic_code": "restart_pre_invocation_blocked",
+            "eligibility": {
+                **item.eligibility.model_dump(mode="json"),
+                "blocker_code": "restart_pre_invocation_blocked",
+            },
+        }
+    )
+    assert recovered.state is AutomationRunState.BLOCKED
+    assert recovered.allowed_actions == ["REFRESH_ELIGIBILITY"]
+
     with pytest.raises(ValidationError):
         AutomationRunItem.model_validate(
             {
@@ -714,12 +823,19 @@ def test_source_gated_single_child_run_exposes_only_offline_eligibility_refresh(
         )
 
 
-def test_single_child_action_requires_trigger_create_and_cancel_permissions(
+def test_create_only_action_requires_refresh_and_create_but_not_cancel_permission(
     monkeypatch: pytest.MonkeyPatch,
 ):
     from api.v1.routes import operator_automation as automation_routes
     from application.admin_api.models import AdminApiActor
     from core.enums import AdminApiPermission, AdminApiRole
+
+    monkeypatch.setattr(
+        automation_routes,
+        "_operator_automation_live_action_ready",
+        lambda _action: True,
+        raising=False,
+    )
 
     categories = [
         "api_key_permissions",
@@ -729,6 +845,7 @@ def test_single_child_action_requires_trigger_create_and_cancel_permissions(
         "best_bid_ask",
         "fee_summary",
         "exact_order_reconciliation",
+        "active_order_catalog",
     ]
     item = AutomationRunItem.model_validate(
         {
@@ -754,7 +871,7 @@ def test_single_child_action_requires_trigger_create_and_cancel_permissions(
                 "completed_categories": categories,
                 "eligible": True,
                 "blocker_code": None,
-                "coinbase_api_call_count": 7,
+                "coinbase_api_call_count": 8,
                 "call_count_exact": True,
             },
             "allowed_actions": ["AUTHORIZE_SINGLE_CHILD"],
@@ -763,8 +880,9 @@ def test_single_child_action_requires_trigger_create_and_cancel_permissions(
     actor = AdminApiActor(actor_id="trader", roles=[AdminApiRole.TRADER])
     required = {
         AdminApiPermission.AUTOMATION_TRIGGER,
+        AdminApiPermission.AUTOMATION_RESUME,
+        AdminApiPermission.ACCOUNT_REALITY_REFRESH,
         AdminApiPermission.ORDER_CREATE,
-        AdminApiPermission.ORDER_CANCEL,
     }
 
     for missing in required:
@@ -787,12 +905,75 @@ def test_single_child_action_requires_trigger_create_and_cancel_permissions(
     assert scoped.live_execution_available is True
 
 
+def test_safe_closeout_action_requires_trigger_and_cancel_permissions(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from api.v1.routes import operator_automation as automation_routes
+    from application.admin_api.models import AdminApiActor
+    from core.enums import AdminApiPermission, AdminApiRole
+
+    monkeypatch.setattr(
+        automation_routes,
+        "_operator_automation_live_action_ready",
+        lambda _action: True,
+        raising=False,
+    )
+
+    run = _single_child_run(
+        state=AutomationRunState.ACTIVE,
+        diagnostic_code="automation_spot_safe_closeout_ready",
+        coinbase_api_call_count=10,
+        create_call_count=1,
+        cancel_call_count=0,
+        call_count_exact=True,
+        child_terminal=False,
+    )
+    run.update(
+        {
+            "live_execution_available": True,
+            "reconciliation_call_count": 1,
+            "allowed_actions": ["SAFE_CLOSEOUT_CHILD"],
+        }
+    )
+    item = AutomationRunItem.model_validate(run)
+    actor = AdminApiActor(actor_id="trader", roles=[AdminApiRole.TRADER])
+    required = {
+        AdminApiPermission.AUTOMATION_TRIGGER,
+        AdminApiPermission.ORDER_CANCEL,
+    }
+
+    for missing in required:
+        monkeypatch.setattr(
+            automation_routes,
+            "actor_has_permission",
+            lambda _actor, permission, missing=missing: permission != missing,
+        )
+        scoped = automation_routes._scope_run_item(item, actor)
+        assert scoped.allowed_actions == []
+        assert scoped.live_execution_available is False
+
+    monkeypatch.setattr(
+        automation_routes,
+        "actor_has_permission",
+        lambda _actor, permission: permission in required,
+    )
+    scoped = automation_routes._scope_run_item(item, actor)
+    assert scoped.allowed_actions == ["SAFE_CLOSEOUT_CHILD"]
+    assert scoped.live_execution_available is True
+
+
 def test_eligibility_refresh_action_requires_trigger_resume_and_refresh_permissions(
     monkeypatch: pytest.MonkeyPatch,
 ):
     from api.v1.routes import operator_automation as automation_routes
     from application.admin_api.models import AdminApiActor
     from core.enums import AdminApiPermission, AdminApiRole
+
+    monkeypatch.setattr(
+        automation_routes,
+        "_operator_automation_live_action_ready",
+        lambda _action: True,
+    )
 
     item = AutomationRunItem.model_validate(_source_gated_single_child_run())
     actor = AdminApiActor(actor_id="trader", roles=[AdminApiRole.TRADER])
@@ -832,6 +1013,7 @@ def test_unknown_single_child_run_never_reports_an_exact_zero_call_count():
                 "diagnostic_code": "unknown_consumed",
                 "adapter_status": "UNKNOWN_CONSUMED",
                 "live_attempt_consumed": True,
+                "create_allowance_consumed": True,
                 "coinbase_api_call_count": 0,
                 "create_call_count": 0,
                 "call_count_exact": True,
@@ -846,6 +1028,7 @@ def test_unknown_single_child_run_never_reports_an_exact_zero_call_count():
             "diagnostic_code": "unknown_consumed",
             "adapter_status": "UNKNOWN_CONSUMED",
             "live_attempt_consumed": True,
+            "create_allowance_consumed": True,
             "coinbase_api_call_count": None,
             "create_call_count": None,
             "call_count_exact": False,
@@ -855,7 +1038,7 @@ def test_unknown_single_child_run_never_reports_an_exact_zero_call_count():
     assert item.create_call_count is None
 
 
-def test_run_mutation_activity_supports_exact_create_cancel_and_unknown_boundaries():
+def test_run_mutation_activity_is_operation_local_and_truthful():
     from application.admin_api.automation_models import (
         AutomationNoExchangeActivity,
         AutomationRunMutationActivity,
@@ -872,17 +1055,54 @@ def test_run_mutation_activity_supports_exact_create_cancel_and_unknown_boundari
     with pytest.raises(ValidationError):
         AutomationNoExchangeActivity(coinbase_api_call_count=1)
 
-    exact_create_and_cancel = AutomationRunMutationActivity(
-        coinbase_api_call_count=3,
-        exchange_mutation_count=2,
+    exact_create = AutomationRunMutationActivity(
+        operation="CREATE",
+        coinbase_api_call_count=2,
+        read_call_count=1,
+        exchange_mutation_count=1,
         create_call_count=1,
+        cancel_call_count=0,
+        call_count_exact=True,
+    )
+    assert exact_create.exchange_mutation_count == 1
+
+    pre_boundary_create_rejection = AutomationRunMutationActivity(
+        operation="CREATE",
+        coinbase_api_call_count=1,
+        read_call_count=1,
+        exchange_mutation_count=0,
+        create_call_count=0,
+        cancel_call_count=0,
+        call_count_exact=True,
+    )
+    assert pre_boundary_create_rejection.create_call_count == 0
+
+    closeout = AutomationRunMutationActivity(
+        operation="SAFE_CLOSEOUT",
+        coinbase_api_call_count=3,
+        read_call_count=2,
+        exchange_mutation_count=1,
+        create_call_count=0,
         cancel_call_count=1,
         call_count_exact=True,
     )
-    assert exact_create_and_cancel.exchange_mutation_count == 2
+    assert closeout.cancel_call_count == 1
+
+    already_terminal_closeout = AutomationRunMutationActivity(
+        operation="SAFE_CLOSEOUT",
+        coinbase_api_call_count=1,
+        read_call_count=1,
+        exchange_mutation_count=0,
+        create_call_count=0,
+        cancel_call_count=0,
+        call_count_exact=True,
+    )
+    assert already_terminal_closeout.cancel_call_count == 0
 
     unknown_create = AutomationRunMutationActivity(
+        operation="CREATE",
         coinbase_api_call_count=None,
+        read_call_count=1,
         exchange_mutation_count=None,
         create_call_count=None,
         cancel_call_count=0,
@@ -890,46 +1110,85 @@ def test_run_mutation_activity_supports_exact_create_cancel_and_unknown_boundari
     )
     assert unknown_create.create_call_count is None
 
-    unknown_cancel = AutomationRunMutationActivity(
+    unknown_closeout = AutomationRunMutationActivity(
+        operation="SAFE_CLOSEOUT",
         coinbase_api_call_count=None,
+        read_call_count=2,
         exchange_mutation_count=None,
-        create_call_count=1,
+        create_call_count=0,
         cancel_call_count=None,
         call_count_exact=False,
     )
-    assert unknown_cancel.create_call_count == 1
+    assert unknown_closeout.cancel_call_count is None
 
-    unknown_post_create_read = AutomationRunMutationActivity(
+    unknown_pre_create_read = AutomationRunMutationActivity(
+        operation="CREATE",
         coinbase_api_call_count=None,
-        exchange_mutation_count=1,
-        create_call_count=1,
+        read_call_count=None,
+        exchange_mutation_count=0,
+        create_call_count=0,
         cancel_call_count=0,
         call_count_exact=False,
     )
-    assert unknown_post_create_read.exchange_mutation_count == 1
+    assert unknown_pre_create_read.exchange_mutation_count == 0
+
+
+def test_run_readback_allows_consumed_allowance_with_exact_zero_mutation():
+    create_rejected = _single_child_run(
+        state=AutomationRunState.TERMINAL,
+        diagnostic_code="automation_spot_create_rejected",
+        coinbase_api_call_count=9,
+        create_call_count=0,
+        cancel_call_count=0,
+        reconciliation_call_count=1,
+        call_count_exact=True,
+        child_terminal=None,
+    )
+    create_item = AutomationRunItem.model_validate(create_rejected)
+    assert create_item.create_allowance_consumed is True
+    assert create_item.create_call_count == 0
+
+    terminal_before_cancel = _single_child_run(
+        state=AutomationRunState.TERMINAL,
+        diagnostic_code="automation_spot_safe_closeout_accepted_terminal",
+        coinbase_api_call_count=11,
+        create_call_count=1,
+        cancel_call_count=0,
+        reconciliation_call_count=2,
+        call_count_exact=True,
+        child_terminal=True,
+    )
+    terminal_before_cancel["cancel_allowance_consumed"] = True
+    closeout_item = AutomationRunItem.model_validate(terminal_before_cancel)
+    assert closeout_item.cancel_allowance_consumed is True
+    assert closeout_item.cancel_call_count == 0
 
 
 @pytest.mark.parametrize(
     (
+        "operation",
         "coinbase_api_call_count",
+        "read_call_count",
         "exchange_mutation_count",
         "create_call_count",
         "cancel_call_count",
         "call_count_exact",
     ),
     [
-        (0, 1, 1, 0, True),
-        (2, 1, 1, 1, True),
-        (1, 1, 0, 1, True),
-        (None, None, None, 0, True),
-        (0, 0, 0, 0, False),
-        (None, 0, 0, 0, False),
-        (None, None, 1, 0, False),
-        (None, 2, 1, None, False),
+        ("LOCAL", 1, 1, 0, 0, 0, True),
+        ("CREATE", 2, 0, 2, 1, 1, True),
+        ("CREATE", 1, 0, 1, 0, 1, True),
+        ("RECONCILE", 1, 1, 1, 0, 0, True),
+        ("SAFE_CLOSEOUT", 2, 1, 1, 1, 0, True),
+        ("CREATE", None, None, None, None, 0, True),
+        ("RECONCILE", 0, 0, 0, 0, 0, False),
+        ("SAFE_CLOSEOUT", None, 1, None, 1, None, False),
     ],
 )
 def test_run_mutation_activity_rejects_incoherent_partial_evidence(
+    operation: str,
     coinbase_api_call_count: int | None,
+    read_call_count: int | None,
     exchange_mutation_count: int | None,
     create_call_count: int | None,
     cancel_call_count: int | None,
@@ -941,7 +1200,9 @@ def test_run_mutation_activity_rejects_incoherent_partial_evidence(
 
     with pytest.raises(ValidationError):
         AutomationRunMutationActivity(
+            operation=operation,
             coinbase_api_call_count=coinbase_api_call_count,
+            read_call_count=read_call_count,
             exchange_mutation_count=exchange_mutation_count,
             create_call_count=create_call_count,
             cancel_call_count=cancel_call_count,
@@ -1041,6 +1302,22 @@ def test_run_event_model_accepts_durable_source_gate_rejection_without_state_cha
 
     assert event.from_state is AutomationRunState.BLOCKED
     assert event.state is AutomationRunState.BLOCKED
+
+    final_admission = AutomationRunEventItem(
+        event_id="218d5f34-a054-410b-9c92-ddd09dcd6b10",
+        run_id=RUN_ID,
+        sequence=4,
+        from_state="AWAITING_OPERATOR_AUTHORIZATION",
+        state="PREPARING",
+        diagnostic_code="automation_spot_final_admission_started",
+        audit_id=AUDIT_ID,
+        correlation_id="automation-correlation-final-admission",
+        recorded_at=NOW,
+    )
+    assert final_admission.from_state is (
+        AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
+    )
+    assert final_admission.state is AutomationRunState.PREPARING
 
 
 @pytest.mark.parametrize(
@@ -1276,7 +1553,8 @@ def test_single_child_authorization_forwards_only_exact_acknowledgements():
     service = OperatorAutomationService(repository)
     request = AutomationSingleChildAuthorizationRequest(
         confirm_single_child_create=True,
-        confirm_exact_child_safe_closeout_cancel=True,
+        confirm_final_eligibility_refresh=True,
+        confirm_account_wide_active_spot_order_catalog_read=True,
         confirm_unknown_consumes_allowance=True,
         expected_plan_sha256="d" * 64,
         reason="Authorize the exact prepared child",
@@ -1288,7 +1566,7 @@ def test_single_child_authorization_forwards_only_exact_acknowledgements():
         context=_context().model_copy(
             update={
                 "operator_intent": (
-                    "authorize_automation_single_child_create_and_safe_closeout"
+                    "authorize_automation_single_child_create"
                 )
             }
         ),
@@ -1306,6 +1584,7 @@ def test_spot_eligibility_refresh_forwards_exact_request_and_current_cycle_activ
     repository = _FakeRepository()
     request = AutomationEligibilityRefreshRequest(
         confirm_approved_eligibility_reads=True,
+        confirm_account_wide_active_spot_order_catalog_read=True,
         confirm_unknown_consumes_cycle=True,
         expected_plan_sha256="b" * 64,
         reason="Refresh this exact source-gated run",
@@ -1336,7 +1615,241 @@ def test_spot_eligibility_refresh_forwards_exact_request_and_current_cycle_activ
     assert kwargs["context"] == context
 
 
-def test_single_child_authorization_activity_excludes_prior_eligibility_reads():
+def test_adapter_projects_eighth_category_and_authorize_action_without_reconcile():
+    categories = (
+        "API_KEY_PERMISSIONS",
+        "PORTFOLIO_CATALOG",
+        "ACCOUNT_WALLET_BALANCES",
+        "PRODUCT_METADATA",
+        "BEST_BID_ASK",
+        "FEE_SUMMARY",
+        "EXACT_ORDER_RECONCILIATION",
+        "ACCOUNT_ACTIVE_SPOT_ORDER_CATALOG",
+    )
+    public_categories = [
+        "api_key_permissions",
+        "portfolio_catalog",
+        "wallet_balances",
+        "product_metadata",
+        "best_bid_ask",
+        "fee_summary",
+        "exact_order_reconciliation",
+        "active_order_catalog",
+    ]
+    portfolio_sha256 = "f" * 64
+    fresh_until = "2099-07-20T13:00:00+00:00"
+
+    class ProjectionRepository:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, tuple[Any, ...], dict[str, Any]]] = []
+            self.control_posture = "ACTIVE"
+
+        def get_control_posture(self) -> SimpleNamespace:
+            return SimpleNamespace(posture=self.control_posture)
+
+        def get_spot_single_child_plan(
+            self,
+            definition_id: str,
+            definition_revision: int,
+        ) -> Any:
+            self.calls.append(
+                (
+                    "get_spot_single_child_plan",
+                    (definition_id, definition_revision),
+                    {},
+                )
+            )
+            return SimpleNamespace(
+                plan_sha256="e" * 64,
+                portfolio_id_sha256=portfolio_sha256,
+                product_id="BTC-USDC",
+                side="BUY",
+                base_size="0.00001",
+                limit_price="50000.00",
+                post_only=False,
+                submitted_notional_usdc="0.50",
+                possible_execution_notional_usdc="0.50",
+                max_submitted_notional_usdc="3.10",
+                max_possible_execution_notional_usdc="1.00",
+            )
+
+        def list_spot_eligibility_attempts(
+            self,
+            run_id: str,
+            *,
+            cycle_number: int | None,
+        ) -> tuple[Any, ...]:
+            self.calls.append(
+                (
+                    "list_spot_eligibility_attempts",
+                    (run_id,),
+                    {"cycle_number": cycle_number},
+                )
+            )
+            return tuple(
+                SimpleNamespace(
+                    run_id=run_id,
+                    cycle_number=1,
+                    category=category,
+                    allowance_consumed=True,
+                    outcome="SUCCEEDED",
+                    eligible=True,
+                    coinbase_api_call_count=1,
+                    call_count_exact=True,
+                    portfolio_id_sha256=(
+                        portfolio_sha256
+                        if category == "PORTFOLIO_CATALOG"
+                        else None
+                    ),
+                    fresh_until=fresh_until,
+                )
+                for category in categories
+            )
+
+        def list_spot_eligibility_cycles(self) -> tuple[Any, ...]:
+            self.calls.append(("list_spot_eligibility_cycles", (), {}))
+            return (
+                SimpleNamespace(
+                    run_id=RUN_ID,
+                    cycle_number=1,
+                    state="SUCCEEDED",
+                    fresh_until=fresh_until,
+                    call_count_exact=True,
+                    coinbase_api_call_count=8,
+                    diagnostic_code="automation_spot_eligibility_succeeded",
+                ),
+            )
+
+        def get_spot_run_execution(self, run_id: str) -> None:
+            self.calls.append(("get_spot_run_execution", (run_id,), {}))
+            return None
+
+    repository = ProjectionRepository()
+    adapter = PostgresOperatorAutomationRepositoryAdapter(repository)
+    projection = adapter._run(
+        SimpleNamespace(
+            run_id=RUN_ID,
+            definition_id=DEFINITION_ID,
+            definition_revision=1,
+            domain=AutomationDomain.SPOT,
+            job_kind=AutomationJobKind.SPOT_CAMPAIGN,
+            state=AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION,
+            diagnostic_code="awaiting_operator_authorization",
+            audit_id=AUDIT_ID,
+            correlation_id="automation-correlation-1",
+            client_order_id=None,
+            live_attempt_consumed=False,
+            coinbase_api_call_count=0,
+            create_call_count=0,
+            cancel_call_count=0,
+            claimed_at=NOW.isoformat(),
+            updated_at=NOW.isoformat(),
+        )
+    )
+    run = AutomationRunItem.model_validate(projection)
+
+    assert run.eligibility is not None
+    assert run.eligibility.required_categories == public_categories
+    assert run.eligibility.completed_categories == public_categories
+    assert run.eligibility.coinbase_api_call_count == 8
+    assert run.eligibility.eligible is True
+    assert run.reconciliation_call_count == 0
+    assert run.allowed_actions == ["AUTHORIZE_SINGLE_CHILD"]
+    assert "RECONCILE_CHILD" not in run.allowed_actions
+
+    fresh_until = "2000-07-20T13:00:00+00:00"
+    stale_projection = adapter._run(
+        SimpleNamespace(
+            run_id=RUN_ID,
+            definition_id=DEFINITION_ID,
+            definition_revision=1,
+            domain=AutomationDomain.SPOT,
+            job_kind=AutomationJobKind.SPOT_CAMPAIGN,
+            state=AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION,
+            diagnostic_code="awaiting_operator_authorization",
+            audit_id=AUDIT_ID,
+            correlation_id="automation-correlation-1",
+            client_order_id=None,
+            live_attempt_consumed=False,
+            coinbase_api_call_count=0,
+            create_call_count=0,
+            cancel_call_count=0,
+            claimed_at=NOW.isoformat(),
+            updated_at=NOW.isoformat(),
+        )
+    )
+    stale = AutomationRunItem.model_validate(stale_projection)
+    assert stale.eligibility is not None
+    assert stale.eligibility.eligible is False
+    assert stale.eligibility.blocker_code == "automation_spot_eligibility_stale"
+    assert stale.single_child_plan is not None
+    assert stale.single_child_plan.portfolio_scope == "CONFIGURED_UNVERIFIED"
+    assert stale.live_execution_available is True
+    assert stale.allowed_actions == ["AUTHORIZE_SINGLE_CHILD"]
+    for control_posture in ("PAUSED", "DRAINING"):
+        repository.control_posture = control_posture
+        paused = AutomationRunItem.model_validate(
+            adapter._run(
+                SimpleNamespace(
+                    run_id=RUN_ID,
+                    definition_id=DEFINITION_ID,
+                    definition_revision=1,
+                    domain=AutomationDomain.SPOT,
+                    job_kind=AutomationJobKind.SPOT_CAMPAIGN,
+                    state=AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION,
+                    diagnostic_code="awaiting_operator_authorization",
+                    audit_id=AUDIT_ID,
+                    correlation_id="automation-correlation-1",
+                    client_order_id=None,
+                    live_attempt_consumed=False,
+                    coinbase_api_call_count=0,
+                    create_call_count=0,
+                    cancel_call_count=0,
+                    claimed_at=NOW.isoformat(),
+                    updated_at=NOW.isoformat(),
+                )
+            )
+        )
+        assert paused.live_execution_available is False
+        assert paused.allowed_actions == []
+    repository.control_posture = "ACTIVE"
+    assert repository.calls == [
+        ("get_spot_single_child_plan", (DEFINITION_ID, 1), {}),
+        (
+            "list_spot_eligibility_attempts",
+            (RUN_ID,),
+            {"cycle_number": None},
+        ),
+        ("list_spot_eligibility_cycles", (), {}),
+        ("get_spot_run_execution", (RUN_ID,), {}),
+        ("get_spot_single_child_plan", (DEFINITION_ID, 1), {}),
+        (
+            "list_spot_eligibility_attempts",
+            (RUN_ID,),
+            {"cycle_number": None},
+        ),
+        ("list_spot_eligibility_cycles", (), {}),
+        ("get_spot_run_execution", (RUN_ID,), {}),
+        ("get_spot_single_child_plan", (DEFINITION_ID, 1), {}),
+        (
+            "list_spot_eligibility_attempts",
+            (RUN_ID,),
+            {"cycle_number": None},
+        ),
+        ("list_spot_eligibility_cycles", (), {}),
+        ("get_spot_run_execution", (RUN_ID,), {}),
+        ("get_spot_single_child_plan", (DEFINITION_ID, 1), {}),
+        (
+            "list_spot_eligibility_attempts",
+            (RUN_ID,),
+            {"cycle_number": None},
+        ),
+        ("list_spot_eligibility_cycles", (), {}),
+        ("get_spot_run_execution", (RUN_ID,), {}),
+    ]
+
+
+def test_create_service_reports_only_create_and_canonical_readback_activity():
     repository = _FakeRepository()
     categories = [
         "api_key_permissions",
@@ -1346,6 +1859,7 @@ def test_single_child_authorization_activity_excludes_prior_eligibility_reads():
         "best_bid_ask",
         "fee_summary",
         "exact_order_reconciliation",
+        "active_order_catalog",
     ]
     plan = AutomationSingleChildPlanReadback(
         plan_sha256="e" * 64,
@@ -1360,13 +1874,17 @@ def test_single_child_authorization_activity_excludes_prior_eligibility_reads():
     entity = {
         **_run(),
         "job_kind": "SPOT_CAMPAIGN",
-        "state": "TERMINAL",
-        "diagnostic_code": "automation_spot_create_rejected",
-        "adapter_status": "TERMINAL",
+        "state": "ACTIVE",
+        "diagnostic_code": "automation_spot_safe_closeout_ready",
+        "adapter_status": "ACTIVE",
+        "live_execution_available": True,
         "live_attempt_consumed": True,
-        "coinbase_api_call_count": 8,
+        "coinbase_api_call_count": 10,
         "create_call_count": 1,
         "cancel_call_count": 0,
+        "reconciliation_call_count": 1,
+        "create_allowance_consumed": True,
+        "cancel_allowance_consumed": False,
         "call_count_exact": True,
         "client_order_id": "4dc878e7-f27b-42b5-adf3-4965b2b916d9",
         "child_terminal": False,
@@ -1377,10 +1895,10 @@ def test_single_child_authorization_activity_excludes_prior_eligibility_reads():
             "completed_categories": categories,
             "eligible": True,
             "blocker_code": None,
-            "coinbase_api_call_count": 7,
+            "coinbase_api_call_count": 8,
             "call_count_exact": True,
         },
-        "allowed_actions": [],
+        "allowed_actions": ["SAFE_CLOSEOUT_CHILD"],
     }
 
     def authorize_single_child(**kwargs: Any) -> AutomationRepositoryMutation:
@@ -1393,123 +1911,122 @@ def test_single_child_authorization_activity_excludes_prior_eligibility_reads():
 
     repository.authorize_single_child = authorize_single_child  # type: ignore[method-assign]
     service = OperatorAutomationService(repository)
+    request = AutomationSingleChildAuthorizationRequest(
+        confirm_single_child_create=True,
+        confirm_final_eligibility_refresh=True,
+        confirm_account_wide_active_spot_order_catalog_read=True,
+        confirm_unknown_consumes_allowance=True,
+        expected_plan_sha256="e" * 64,
+        reason="Authorize the exact prepared child",
+    )
+    context = _context().model_copy(
+        update={
+            "operator_intent": "authorize_automation_single_child_create"
+        }
+    )
     response = service.authorize_single_child(
         run_id=RUN_ID,
-        request=AutomationSingleChildAuthorizationRequest(
-            confirm_single_child_create=True,
-            confirm_exact_child_safe_closeout_cancel=True,
-            confirm_unknown_consumes_allowance=True,
-            expected_plan_sha256="e" * 64,
-            reason="Authorize the exact prepared child",
-        ),
-        context=_context().model_copy(
-            update={
-                "operator_intent": (
-                    "authorize_automation_single_child_create_and_safe_closeout"
-                )
-            }
-        ),
+        request=request,
+        context=context,
     )
 
-    assert response.run.coinbase_api_call_count == 8
-    assert response.activity.coinbase_api_call_count == 1
+    assert repository.calls == [
+        (
+            "authorize_single_child",
+            {
+                "run_id": RUN_ID,
+                "request": request.model_dump(mode="json"),
+                "context": context,
+            },
+        )
+    ]
+    assert response.run.coinbase_api_call_count == 10
+    assert response.run.reconciliation_call_count == 1
+    assert response.run.allowed_actions == ["SAFE_CLOSEOUT_CHILD"]
+    assert "RECONCILE_CHILD" not in response.run.allowed_actions
+    assert response.activity.operation == "CREATE"
+    assert response.activity.coinbase_api_call_count == 2
+    assert response.activity.read_call_count == 1
     assert response.activity.create_call_count == 1
+    assert response.activity.cancel_call_count == 0
     assert response.activity.exchange_mutation_count == 1
     assert response.activity.call_count_exact is True
 
 
-def test_single_child_authorization_activity_reports_optional_safe_closeout():
+def test_safe_closeout_service_reports_cancel_only_operation_activity():
     repository = _FakeRepository()
     entity = _single_child_run(
         state=AutomationRunState.TERMINAL,
-        diagnostic_code="automation_spot_cancel_accepted_terminal",
-        coinbase_api_call_count=9,
+        diagnostic_code="automation_spot_safe_closeout_accepted_terminal",
+        coinbase_api_call_count=13,
         create_call_count=1,
         cancel_call_count=1,
+        reconciliation_call_count=3,
         call_count_exact=True,
         child_terminal=True,
     )
 
-    def authorize_single_child(**kwargs: Any) -> AutomationRepositoryMutation:
-        repository._record("authorize_single_child", **kwargs)
+    def safe_closeout_single_child(
+        **kwargs: Any,
+    ) -> AutomationRepositoryMutation:
+        repository._record("safe_closeout_single_child", **kwargs)
         return AutomationRepositoryMutation(
             entity=entity,
             audit_id=AUDIT_ID,
             correlation_id=kwargs["context"].correlation_id,
         )
 
-    repository.authorize_single_child = authorize_single_child  # type: ignore[method-assign]
-    response = OperatorAutomationService(repository).authorize_single_child(
+    repository.safe_closeout_single_child = safe_closeout_single_child  # type: ignore[method-assign]
+    request = AutomationSingleChildSafeCloseoutRequest(
+        confirm_exact_child_safe_closeout_cancel=True,
+        confirm_unknown_consumes_allowance=True,
+        expected_plan_sha256="e" * 64,
+        reason="Safely close out the exact accepted child",
+    )
+    context = _context().model_copy(
+        update={
+            "operator_intent": "safe_closeout_automation_single_child"
+        }
+    )
+    response = OperatorAutomationService(repository).safe_closeout_single_child(
         run_id=RUN_ID,
-        request=AutomationSingleChildAuthorizationRequest(
-            confirm_single_child_create=True,
-            confirm_exact_child_safe_closeout_cancel=True,
-            confirm_unknown_consumes_allowance=True,
-            expected_plan_sha256="e" * 64,
-            reason="Authorize one child and its exact safe closeout",
-        ),
-        context=_context().model_copy(
-            update={
-                "operator_intent": (
-                    "authorize_automation_single_child_create_and_safe_closeout"
-                )
-            }
-        ),
+        request=request,
+        context=context,
     )
 
-    assert response.activity.coinbase_api_call_count == 2
-    assert response.activity.exchange_mutation_count == 2
-    assert response.activity.create_call_count == 1
+    assert repository.calls == [
+        (
+            "safe_closeout_single_child",
+            {
+                "run_id": RUN_ID,
+                "request": request.model_dump(mode="json"),
+                "context": context,
+            },
+        )
+    ]
+    assert response.run.reconciliation_call_count == 3
+    assert response.run.allowed_actions == []
+    assert response.activity.operation == "SAFE_CLOSEOUT"
+    assert response.activity.coinbase_api_call_count == 3
+    assert response.activity.read_call_count == 2
+    assert response.activity.exchange_mutation_count == 1
+    assert response.activity.create_call_count == 0
     assert response.activity.cancel_call_count == 1
     assert response.activity.call_count_exact is True
 
 
-@pytest.mark.parametrize(
-    ("entity", "expected"),
-    [
-        (
-            _single_child_run(
-                state=AutomationRunState.UNKNOWN_CONSUMED,
-                diagnostic_code="automation_spot_create_unknown_consumed",
-                coinbase_api_call_count=None,
-                create_call_count=None,
-                cancel_call_count=0,
-                call_count_exact=False,
-                child_terminal=None,
-            ),
-            (None, None, None, 0),
-        ),
-        (
-            _single_child_run(
-                state=AutomationRunState.UNKNOWN_CONSUMED,
-                diagnostic_code="automation_spot_cancel_unknown_consumed",
-                coinbase_api_call_count=None,
-                create_call_count=1,
-                cancel_call_count=None,
-                call_count_exact=False,
-                child_terminal=None,
-            ),
-            (None, None, 1, None),
-        ),
-        (
-            _single_child_run(
-                state=AutomationRunState.ACTIVE,
-                diagnostic_code="automation_spot_create_accepted_active",
-                coinbase_api_call_count=None,
-                create_call_count=1,
-                cancel_call_count=0,
-                call_count_exact=False,
-                child_terminal=False,
-            ),
-            (None, 1, 1, 0),
-        ),
-    ],
-)
-def test_single_child_authorization_activity_preserves_strict_unknown_boundary(
-    entity: dict[str, Any],
-    expected: tuple[int | None, int | None, int | None, int | None],
-):
+def test_create_service_preserves_unknown_operation_local_boundary():
     repository = _FakeRepository()
+    entity = _single_child_run(
+        state=AutomationRunState.UNKNOWN_CONSUMED,
+        diagnostic_code="automation_spot_create_unknown_consumed",
+        coinbase_api_call_count=None,
+        create_call_count=None,
+        cancel_call_count=0,
+        reconciliation_call_count=None,
+        call_count_exact=False,
+        child_terminal=None,
+    )
 
     def authorize_single_child(**kwargs: Any) -> AutomationRepositoryMutation:
         repository._record("authorize_single_child", **kwargs)
@@ -1520,30 +2037,102 @@ def test_single_child_authorization_activity_preserves_strict_unknown_boundary(
         )
 
     repository.authorize_single_child = authorize_single_child  # type: ignore[method-assign]
+    request = AutomationSingleChildAuthorizationRequest(
+        confirm_single_child_create=True,
+        confirm_final_eligibility_refresh=True,
+        confirm_account_wide_active_spot_order_catalog_read=True,
+        confirm_unknown_consumes_allowance=True,
+        expected_plan_sha256="e" * 64,
+        reason="Authorize the exact prepared child",
+    )
+    context = _context().model_copy(
+        update={
+            "operator_intent": "authorize_automation_single_child_create"
+        }
+    )
     response = OperatorAutomationService(repository).authorize_single_child(
         run_id=RUN_ID,
-        request=AutomationSingleChildAuthorizationRequest(
-            confirm_single_child_create=True,
-            confirm_exact_child_safe_closeout_cancel=True,
-            confirm_unknown_consumes_allowance=True,
-            expected_plan_sha256="e" * 64,
-            reason="Authorize one child and its exact safe closeout",
-        ),
-        context=_context().model_copy(
-            update={
-                "operator_intent": (
-                    "authorize_automation_single_child_create_and_safe_closeout"
-                )
-            }
-        ),
+        request=request,
+        context=context,
     )
 
-    assert (
-        response.activity.coinbase_api_call_count,
-        response.activity.exchange_mutation_count,
-        response.activity.create_call_count,
-        response.activity.cancel_call_count,
-    ) == expected
+    assert repository.calls == [
+        (
+            "authorize_single_child",
+            {
+                "run_id": RUN_ID,
+                "request": request.model_dump(mode="json"),
+                "context": context,
+            },
+        )
+    ]
+    assert response.activity.operation == "CREATE"
+    assert response.activity.coinbase_api_call_count is None
+    assert response.activity.read_call_count is None
+    assert response.activity.exchange_mutation_count is None
+    assert response.activity.create_call_count is None
+    assert response.activity.cancel_call_count == 0
+    assert response.activity.call_count_exact is False
+
+
+def test_safe_closeout_service_preserves_unknown_operation_local_boundary():
+    repository = _FakeRepository()
+    entity = _single_child_run(
+        state=AutomationRunState.UNKNOWN_CONSUMED,
+        diagnostic_code="automation_spot_safe_closeout_unknown_consumed",
+        coinbase_api_call_count=None,
+        create_call_count=1,
+        cancel_call_count=None,
+        reconciliation_call_count=None,
+        call_count_exact=False,
+        child_terminal=None,
+    )
+    entity["cancel_allowance_consumed"] = True
+
+    def safe_closeout_single_child(
+        **kwargs: Any,
+    ) -> AutomationRepositoryMutation:
+        repository._record("safe_closeout_single_child", **kwargs)
+        return AutomationRepositoryMutation(
+            entity=entity,
+            audit_id=AUDIT_ID,
+            correlation_id=kwargs["context"].correlation_id,
+        )
+
+    repository.safe_closeout_single_child = safe_closeout_single_child  # type: ignore[method-assign]
+    request = AutomationSingleChildSafeCloseoutRequest(
+        confirm_exact_child_safe_closeout_cancel=True,
+        confirm_unknown_consumes_allowance=True,
+        expected_plan_sha256="e" * 64,
+        reason="Safely close out the exact accepted child",
+    )
+    context = _context().model_copy(
+        update={
+            "operator_intent": "safe_closeout_automation_single_child"
+        }
+    )
+    response = OperatorAutomationService(repository).safe_closeout_single_child(
+        run_id=RUN_ID,
+        request=request,
+        context=context,
+    )
+
+    assert repository.calls == [
+        (
+            "safe_closeout_single_child",
+            {
+                "run_id": RUN_ID,
+                "request": request.model_dump(mode="json"),
+                "context": context,
+            },
+        )
+    ]
+    assert response.activity.operation == "SAFE_CLOSEOUT"
+    assert response.activity.coinbase_api_call_count is None
+    assert response.activity.read_call_count is None
+    assert response.activity.exchange_mutation_count is None
+    assert response.activity.create_call_count == 0
+    assert response.activity.cancel_call_count is None
     assert response.activity.call_count_exact is False
 
 

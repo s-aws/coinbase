@@ -30,6 +30,8 @@ _CONTROLLED_LIVE_ROUTES = {
         "/api/v1/orders/{source_client_order_id}/follow-up-intent/"
         "materialization/safe-closeout"
     ),
+    "/api/v1/automation/runs/{run_id}/authorize-single-child",
+    "/api/v1/automation/runs/{run_id}/safe-closeout-child",
 }
 _MATERIALIZATION_ROUTE = (
     "/api/v1/orders/{source_client_order_id}/follow-up-intent/materialization"
@@ -333,6 +335,7 @@ def test_live_enablement_requires_command_runtime_readiness_for_eligibility(
         AdminApiCommandRuntimeReadiness,
     )
     from application.admin_api.live_execution import (
+        CONFIGURED_LIVE_EXECUTION_SERVICE_SOURCE,
         AdminApiLiveExecutionServiceState,
     )
     from application.admin_api.read_service import AdminApiReadService
@@ -348,8 +351,13 @@ def test_live_enablement_requires_command_runtime_readiness_for_eligibility(
             required=True,
             present=True,
             status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
-            source="synthetic_controlled_live_decision",
+            source=CONFIGURED_LIVE_EXECUTION_SERVICE_SOURCE,
             missing_reason=None,
+            max_submitted_notional_usdc="3.10",
+            max_executed_notional_usdc="1.00",
+            supported_routes=frozenset(
+                ("POST", route) for route in _CONTROLLED_LIVE_ROUTES
+            ),
         ),
     )
     monkeypatch.setattr(
@@ -373,7 +381,7 @@ def test_live_enablement_requires_command_runtime_readiness_for_eligibility(
         if item["route"] in _CONTROLLED_LIVE_ROUTES
     }
 
-    assert payload["live_enabled_path_count"] == 4
+    assert payload["live_enabled_path_count"] == 6
     assert payload["live_eligible_path_count"] == 0
     for path in controlled.values():
         assert path["live_enabled"] is True

@@ -83,7 +83,7 @@ def _mutation_context(*, key: str, intent: str) -> AutomationMutationContext:
 
 
 class _SealedSyntheticEligibilityReader:
-    """Synthetic success evidence for only the seven approved read categories."""
+    """Synthetic success evidence for only the eight approved read categories."""
 
     def __init__(self) -> None:
         self.calls: list[ApprovedSpotEligibilityCategory] = []
@@ -170,6 +170,15 @@ class _SealedSyntheticEligibilityReader:
     ) -> SpotEligibilityReadResult:
         return self._success(
             ApprovedSpotEligibilityCategory.EXACT_ORDER_RECONCILIATION,
+            context,
+        )
+
+    def read_account_active_spot_order_catalog(
+        self,
+        context: SpotEligibilityReadContext,
+    ) -> SpotEligibilityReadResult:
+        return self._success(
+            ApprovedSpotEligibilityCategory.ACCOUNT_ACTIVE_SPOT_ORDER_CATALOG,
             context,
         )
 
@@ -593,7 +602,8 @@ def test_real_postgres_single_child_adapter_is_operator_visible_and_fails_before
 
             authorization_body = {
                 "confirm_single_child_create": True,
-                "confirm_exact_child_safe_closeout_cancel": True,
+                "confirm_final_eligibility_refresh": True,
+                "confirm_account_wide_active_spot_order_catalog_read": True,
                 "confirm_unknown_consumes_allowance": True,
                 "expected_plan_sha256": run["single_child_plan"][
                     "plan_sha256"
@@ -602,9 +612,7 @@ def test_real_postgres_single_child_adapter_is_operator_visible_and_fails_before
             }
             authorization_headers = _headers(
                 key="integration-single-child-authorize",
-                intent=(
-                    "authorize_automation_single_child_create_and_safe_closeout"
-                ),
+                intent="authorize_automation_single_child_create",
             )
             required_permissions = []
             original_require_permission = (
@@ -620,6 +628,11 @@ def test_real_postgres_single_child_adapter_is_operator_visible_and_fails_before
                 "require_permission",
                 record_required_permission,
             )
+            monkeypatch.setattr(
+                operator_automation_routes,
+                "_operator_automation_live_action_ready",
+                lambda _action: True,
+            )
             authorization = client.post(
                 f"/api/v1/automation/runs/{run['run_id']}/authorize-single-child",
                 json=authorization_body,
@@ -627,8 +640,9 @@ def test_real_postgres_single_child_adapter_is_operator_visible_and_fails_before
             )
             assert required_permissions == [
                 operator_automation_routes.AdminApiPermission.AUTOMATION_TRIGGER,
+                operator_automation_routes.AdminApiPermission.AUTOMATION_RESUME,
+                operator_automation_routes.AdminApiPermission.ACCOUNT_REALITY_REFRESH,
                 operator_automation_routes.AdminApiPermission.ORDER_CREATE,
-                operator_automation_routes.AdminApiPermission.ORDER_CANCEL,
             ]
             monkeypatch.setattr(
                 operator_automation_routes,
@@ -637,7 +651,7 @@ def test_real_postgres_single_child_adapter_is_operator_visible_and_fails_before
             )
             assert authorization.status_code == 409
             assert authorization.json()["message"] == (
-                "automation_active_order_catalog_read_not_authorized"
+                "automation_single_child_run_not_authorizable"
             )
             exact_replay = client.post(
                 f"/api/v1/automation/runs/{run['run_id']}/authorize-single-child",
@@ -646,7 +660,7 @@ def test_real_postgres_single_child_adapter_is_operator_visible_and_fails_before
             )
             assert exact_replay.status_code == 409
             assert exact_replay.json()["message"] == (
-                "automation_active_order_catalog_read_not_authorized"
+                "automation_single_child_run_not_authorizable"
             )
             changed_correlation_headers = dict(authorization_headers)
             changed_correlation_headers["X-Correlation-Id"] = (
@@ -659,7 +673,7 @@ def test_real_postgres_single_child_adapter_is_operator_visible_and_fails_before
             )
             assert changed_correlation.status_code == 409
             assert changed_correlation.json()["message"] == (
-                "automation_idempotency_conflict"
+                "automation_single_child_run_not_authorizable"
             )
             changed_payload = client.post(
                 f"/api/v1/automation/runs/{run['run_id']}/authorize-single-child",
@@ -671,7 +685,7 @@ def test_real_postgres_single_child_adapter_is_operator_visible_and_fails_before
             )
             assert changed_payload.status_code == 409
             assert changed_payload.json()["message"] == (
-                "automation_idempotency_conflict"
+                "automation_single_child_run_not_authorizable"
             )
             events = client.get(
                 f"/api/v1/automation/runs/{run['run_id']}/events",
@@ -690,11 +704,11 @@ def test_real_postgres_single_child_adapter_is_operator_visible_and_fails_before
                 )
                 for event in events.json()["items"]
             ][-1] == (
-                "BLOCKED",
+                "PREPARING",
                 "BLOCKED",
                 "automation_active_order_catalog_read_not_authorized",
             )
-            assert events.json()["pagination"]["total_matching_count"] == 4
+            assert events.json()["pagination"]["total_matching_count"] == 3
             readback = client.get(
                 f"/api/v1/automation/runs/{run['run_id']}",
                 headers={
@@ -805,9 +819,10 @@ def test_real_postgres_spot_eligibility_cycle_is_durable_and_replay_is_call_free
 
         refresh_request = {
             "confirm_approved_eligibility_reads": True,
+            "confirm_account_wide_active_spot_order_catalog_read": True,
             "confirm_unknown_consumes_cycle": True,
             "expected_plan_sha256": plan_sha256,
-            "reason": "Run one sealed synthetic seven-category cycle",
+            "reason": "Run one sealed synthetic eight-category cycle",
         }
         refresh_context = _mutation_context(
             key="integration-eligibility-cycle-1",
@@ -832,32 +847,38 @@ def test_real_postgres_spot_eligibility_cycle_is_durable_and_replay_is_call_free
         assert Decimal(
             factory_plan.max_possible_execution_notional_usdc
         ) == Decimal("1.00")
-        assert len(reader.contexts) == 7
+        assert len(reader.contexts) == len(APPROVED_SPOT_ELIGIBILITY_ORDER)
         assert {context.cycle_number for context in reader.contexts} == {1}
         assert {context.run_id for context in reader.contexts} == {run_id}
         assert len({context.client_order_id for context in reader.contexts}) == 1
         assert result.replayed is False
-        assert result.coinbase_api_call_count == 7
+        assert result.coinbase_api_call_count == len(
+            APPROVED_SPOT_ELIGIBILITY_ORDER
+        )
         assert result.call_count_exact is True
-        assert result.entity["state"] == "BLOCKED"
+        assert result.entity["state"] == "AWAITING_OPERATOR_AUTHORIZATION"
         assert result.entity["diagnostic_code"] == (
-            "automation_active_order_catalog_read_not_authorized"
+            "awaiting_operator_authorization"
         )
         assert result.entity["eligibility"]["cycle_number"] == 1
         assert result.entity["eligibility"]["eligible"] is True
-        assert result.entity["eligibility"]["coinbase_api_call_count"] == 7
+        assert result.entity["eligibility"]["coinbase_api_call_count"] == len(
+            APPROVED_SPOT_ELIGIBILITY_ORDER
+        )
         assert result.entity["eligibility"]["call_count_exact"] is True
-        assert result.entity["live_execution_available"] is False
+        assert result.entity["live_execution_available"] is True
         assert result.entity["live_attempt_consumed"] is False
-        assert result.entity["allowed_actions"] == ["REFRESH_ELIGIBILITY"]
+        assert result.entity["allowed_actions"] == ["AUTHORIZE_SINGLE_CHILD"]
         assert result.entity["create_call_count"] == 0
         assert result.entity["cancel_call_count"] == 0
 
         stored_run = repository.get_run(run_id)
         assert stored_run is not None
-        assert stored_run.state is OperatorAutomationRunState.BLOCKED
+        assert stored_run.state is (
+            OperatorAutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
+        )
         assert stored_run.diagnostic_code == (
-            "automation_active_order_catalog_read_not_authorized"
+            "awaiting_operator_authorization"
         )
         assert stored_run.live_attempt_consumed is False
         assert stored_run.create_call_count == 0
@@ -871,7 +892,9 @@ def test_real_postgres_spot_eligibility_cycle_is_durable_and_replay_is_call_free
         cycle = cycles[0]
         assert cycle.cycle_number == 1
         assert cycle.state == "SUCCEEDED"
-        assert cycle.coinbase_api_call_count == 7
+        assert cycle.coinbase_api_call_count == len(
+            APPROVED_SPOT_ELIGIBILITY_ORDER
+        )
         assert cycle.call_count_exact is True
         assert cycle.fresh_until is not None
         assert cycle.finalized_at is not None
@@ -899,7 +922,13 @@ def test_real_postgres_spot_eligibility_cycle_is_durable_and_replay_is_call_free
             fresh_until = datetime.fromisoformat(attempt.fresh_until)
             attempt_freshness[attempt.category] = fresh_until
             expected_seconds = (
-                30 if attempt.category == "BEST_BID_ASK" else 60
+                30
+                if attempt.category
+                in {
+                    "BEST_BID_ASK",
+                    "ACCOUNT_ACTIVE_SPOT_ORDER_CATALOG",
+                }
+                else 60
             )
             assert (fresh_until - observed_at).total_seconds() == expected_seconds
             if attempt.category == "PORTFOLIO_CATALOG":
@@ -937,21 +966,23 @@ def test_real_postgres_spot_eligibility_cycle_is_durable_and_replay_is_call_free
                 run_id,
                 cycle_number=1,
             )
-        ) == 7
+        ) == len(APPROVED_SPOT_ELIGIBILITY_ORDER)
 
         reader_factory_state["fail"] = True
-        replay = adapter.refresh_spot_eligibility(
+        exact_replay = adapter.refresh_spot_eligibility(
             run_id=run_id,
             request=refresh_request,
             context=refresh_context,
         )
-
-        assert replay.replayed is True
-        assert replay.coinbase_api_call_count == 7
-        assert replay.call_count_exact is True
-        assert replay.entity["eligibility"]["cycle_number"] == 1
-        assert replay.entity["live_execution_available"] is False
-        assert replay.entity["allowed_actions"] == ["REFRESH_ELIGIBILITY"]
+        assert exact_replay.replayed is True
+        assert exact_replay.audit_id == result.audit_id
+        assert exact_replay.correlation_id == result.correlation_id
+        assert exact_replay.entity["state"] == "AWAITING_OPERATOR_AUTHORIZATION"
+        assert exact_replay.entity["eligibility"]["cycle_number"] == 1
+        assert exact_replay.coinbase_api_call_count == len(
+            APPROVED_SPOT_ELIGIBILITY_ORDER
+        )
+        assert exact_replay.call_count_exact is True
         assert tuple(reader.calls) == calls_before_replay
         assert len(reader_factory_calls) == 1
         assert len(repository.list_spot_eligibility_cycles()) == 1
@@ -960,7 +991,7 @@ def test_real_postgres_spot_eligibility_cycle_is_durable_and_replay_is_call_free
                 run_id,
                 cycle_number=1,
             )
-        ) == 7
+        ) == len(APPROVED_SPOT_ELIGIBILITY_ORDER)
         assert repository.get_spot_run_execution(run_id) is None
         goal_after_replay = repository.get_spot_live_proof_goal()
         assert goal_after_replay.create_allowance_consumed is False
@@ -975,7 +1006,7 @@ def test_real_postgres_spot_eligibility_cycle_is_durable_and_replay_is_call_free
             correlation_id="correlation-integration-eligibility-cycle-2-open",
             operator_intent="refresh_automation_spot_eligibility",
         )
-        second_allocation = repository.resume_spot_source_gated_run(
+        second_allocation = repository.allocate_spot_authorization_cycle(
             run_id,
             expected_plan_sha256=plan_sha256,
             command=second_cycle_command,
@@ -983,21 +1014,24 @@ def test_real_postgres_spot_eligibility_cycle_is_durable_and_replay_is_call_free
         assert second_allocation.entity.run.state is (
             OperatorAutomationRunState.PREPARING
         )
+        assert second_allocation.entity.run.diagnostic_code == (
+            "automation_spot_final_admission_started"
+        )
         assert second_allocation.entity.cycle.cycle_number == 2
         assert second_allocation.entity.cycle.state == "OPEN"
 
-        earlier_replay_during_newer_open = adapter.refresh_spot_eligibility(
+        replay_during_newer_cycle = adapter.refresh_spot_eligibility(
             run_id=run_id,
             request=refresh_request,
             context=refresh_context,
         )
-
-        assert earlier_replay_during_newer_open.replayed is True
-        assert earlier_replay_during_newer_open.entity["state"] == "PREPARING"
-        assert earlier_replay_during_newer_open.entity["eligibility"][
+        assert replay_during_newer_cycle.replayed is True
+        assert replay_during_newer_cycle.audit_id == result.audit_id
+        assert replay_during_newer_cycle.correlation_id == result.correlation_id
+        assert replay_during_newer_cycle.entity["state"] == "PREPARING"
+        assert replay_during_newer_cycle.entity["eligibility"][
             "cycle_number"
         ] == 1
-        assert earlier_replay_during_newer_open.entity["allowed_actions"] == []
         assert tuple(reader.calls) == calls_before_replay
         assert len(reader_factory_calls) == 1
         persisted_cycles = repository.list_spot_eligibility_cycles()
@@ -1055,21 +1089,12 @@ def test_real_postgres_spot_eligibility_cycle_is_durable_and_replay_is_call_free
             ),
         )
 
-        earlier_replay_after_newer_terminal = adapter.refresh_spot_eligibility(
-            run_id=run_id,
-            request=refresh_request,
-            context=refresh_context,
+        terminal_run = repository.get_run(run_id)
+        assert terminal_run is not None
+        assert terminal_run.state is OperatorAutomationRunState.BLOCKED
+        assert terminal_run.diagnostic_code == (
+            "automation_spot_eligibility_refresh_required"
         )
-
-        assert earlier_replay_after_newer_terminal.replayed is True
-        assert earlier_replay_after_newer_terminal.audit_id == result.audit_id
-        assert earlier_replay_after_newer_terminal.correlation_id == (
-            result.correlation_id
-        )
-        assert earlier_replay_after_newer_terminal.entity["state"] == "BLOCKED"
-        assert earlier_replay_after_newer_terminal.entity["eligibility"][
-            "cycle_number"
-        ] == 1
         assert tuple(reader.calls) == calls_before_replay
         assert len(reader_factory_calls) == 1
         persisted_cycles = repository.list_spot_eligibility_cycles()

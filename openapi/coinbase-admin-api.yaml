@@ -11750,7 +11750,7 @@ paths:
         in: header
         required: true
         schema:
-          const: authorize_automation_single_child_create_and_safe_closeout
+          const: authorize_automation_single_child_create
           type: string
           title: X-Operator-Intent
       - name: Authorization
@@ -11789,6 +11789,126 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/AutomationSingleChildAuthorizationRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationRunMutationResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Not Found
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/automation/runs/{run_id}/safe-closeout-child:
+    post:
+      tags:
+      - operator-automation
+      summary: Safe Closeout Single Child
+      operationId: safe_closeout_operator_automation_single_child
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 36
+          maxLength: 36
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Run Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: ^[\x21-\x7e]+$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: ^[\x21-\x7e]+$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: safe_closeout_automation_single_child
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutomationSingleChildSafeCloseoutRequest'
       responses:
         '200':
           description: Successful Response
@@ -18074,6 +18194,12 @@ components:
           type: boolean
           title: Live Coinbase Read Ran
           default: false
+        live_coinbase_read_call_count:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Live Coinbase Read Call Count
         live_command_runtime_enabled:
           type: boolean
           title: Live Command Runtime Enabled
@@ -149881,6 +150007,10 @@ components:
           type: boolean
           const: true
           title: Confirm Approved Eligibility Reads
+        confirm_account_wide_active_spot_order_catalog_read:
+          type: boolean
+          const: true
+          title: Confirm Account Wide Active Spot Order Catalog Read
         confirm_unknown_consumes_cycle:
           type: boolean
           const: true
@@ -149898,11 +150028,12 @@ components:
       type: object
       required:
       - confirm_approved_eligibility_reads
+      - confirm_account_wide_active_spot_order_catalog_read
       - confirm_unknown_consumes_cycle
       - expected_plan_sha256
       - reason
       title: AutomationEligibilityRefreshRequest
-      description: Exact-run authorization for one bounded seven-category read cycle.
+      description: Exact-run authorization for one bounded eight-category read cycle.
     AutomationFilters:
       properties:
         domain:
@@ -150204,6 +150335,7 @@ components:
         create_call_count:
           anyOf:
           - type: integer
+            maximum: 1.0
             minimum: 0.0
           - type: 'null'
           title: Create Call Count
@@ -150211,14 +150343,30 @@ components:
         cancel_call_count:
           anyOf:
           - type: integer
+            maximum: 1.0
             minimum: 0.0
           - type: 'null'
           title: Cancel Call Count
+          default: 0
+        reconciliation_call_count:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Reconciliation Call Count
           default: 0
         call_count_exact:
           type: boolean
           title: Call Count Exact
           default: true
+        create_allowance_consumed:
+          type: boolean
+          title: Create Allowance Consumed
+          default: false
+        cancel_allowance_consumed:
+          type: boolean
+          title: Cancel Allowance Consumed
+          default: false
         client_order_id:
           anyOf:
           - type: string
@@ -150244,6 +150392,7 @@ components:
             enum:
             - REFRESH_ELIGIBILITY
             - AUTHORIZE_SINGLE_CHILD
+            - SAFE_CLOSEOUT_CHILD
           type: array
           maxItems: 1
           title: Allowed Actions
@@ -150312,6 +150461,14 @@ components:
       title: AutomationRunListResponse
     AutomationRunMutationActivity:
       properties:
+        operation:
+          type: string
+          enum:
+          - LOCAL
+          - CREATE
+          - SAFE_CLOSEOUT
+          title: Operation
+          default: LOCAL
         coinbase_api_call_count:
           anyOf:
           - type: integer
@@ -150319,10 +150476,17 @@ components:
           - type: 'null'
           title: Coinbase Api Call Count
           default: 0
+        read_call_count:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Read Call Count
+          default: 0
         exchange_mutation_count:
           anyOf:
           - type: integer
-            maximum: 2.0
+            maximum: 1.0
             minimum: 0.0
           - type: 'null'
           title: Exchange Mutation Count
@@ -150355,7 +150519,7 @@ components:
       additionalProperties: false
       type: object
       title: AutomationRunMutationActivity
-      description: Truthful current-request accounting for one run mutation workflow.
+      description: Truthful operation-local accounting for one run mutation workflow.
     AutomationRunMutationResponse:
       properties:
         type:
@@ -150405,10 +150569,14 @@ components:
           type: boolean
           const: true
           title: Confirm Single Child Create
-        confirm_exact_child_safe_closeout_cancel:
+        confirm_final_eligibility_refresh:
           type: boolean
           const: true
-          title: Confirm Exact Child Safe Closeout Cancel
+          title: Confirm Final Eligibility Refresh
+        confirm_account_wide_active_spot_order_catalog_read:
+          type: boolean
+          const: true
+          title: Confirm Account Wide Active Spot Order Catalog Read
         confirm_unknown_consumes_allowance:
           type: boolean
           const: true
@@ -150426,12 +150594,13 @@ components:
       type: object
       required:
       - confirm_single_child_create
-      - confirm_exact_child_safe_closeout_cancel
+      - confirm_final_eligibility_refresh
+      - confirm_account_wide_active_spot_order_catalog_read
       - confirm_unknown_consumes_allowance
       - expected_plan_sha256
       - reason
       title: AutomationSingleChildAuthorizationRequest
-      description: Exact-run acknowledgement; trading terms remain backend-owned.
+      description: Create-only exact-run acknowledgement; trading terms remain backend-owned.
     AutomationSingleChildEligibilityReadback:
       properties:
         cycle_number:
@@ -150452,8 +150621,9 @@ components:
             - best_bid_ask
             - fee_summary
             - exact_order_reconciliation
+            - active_order_catalog
           type: array
-          maxItems: 7
+          maxItems: 8
           title: Required Categories
         completed_categories:
           items:
@@ -150466,8 +150636,9 @@ components:
             - best_bid_ask
             - fee_summary
             - exact_order_reconciliation
+            - active_order_catalog
           type: array
-          maxItems: 7
+          maxItems: 8
           title: Completed Categories
         eligible:
           type: boolean
@@ -150575,6 +150746,34 @@ components:
       - possible_execution_notional_usdc
       title: AutomationSingleChildPlanReadback
       description: Safe backend-owned trading terms for one immutable child plan.
+    AutomationSingleChildSafeCloseoutRequest:
+      properties:
+        confirm_exact_child_safe_closeout_cancel:
+          type: boolean
+          const: true
+          title: Confirm Exact Child Safe Closeout Cancel
+        confirm_unknown_consumes_allowance:
+          type: boolean
+          const: true
+          title: Confirm Unknown Consumes Allowance
+        expected_plan_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Expected Plan Sha256
+        reason:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Reason
+      additionalProperties: false
+      type: object
+      required:
+      - confirm_exact_child_safe_closeout_cancel
+      - confirm_unknown_consumes_allowance
+      - expected_plan_sha256
+      - reason
+      title: AutomationSingleChildSafeCloseoutRequest
+      description: Cancel-only exact-child safe-closeout acknowledgement.
     AutomationSpotSingleChildOrderSpec:
       properties:
         side:
@@ -151693,6 +151892,7 @@ components:
       type: string
       enum:
       - ADMIN_MANUAL_ROOT
+      - ADMIN_AUTOMATION_ROOT
       - ADMIN_FILL_FOLLOW_UP
       - EXTERNAL_WS_OBSERVED
       title: OrderOwnershipProvenance

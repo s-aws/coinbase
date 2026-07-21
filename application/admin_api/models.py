@@ -2748,6 +2748,7 @@ class AdminApiCommandResponse(BaseModel):
     live_exchange_submitted: bool = False
     live_coinbase_orders_ran: bool = False
     live_coinbase_read_ran: bool = False
+    live_coinbase_read_call_count: int | None = Field(default=None, ge=0)
     live_command_runtime_enabled: bool = False
     live_command_rest_client_available: bool = False
     live_command_runtime_ready: bool = False

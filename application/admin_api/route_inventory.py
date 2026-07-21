@@ -2792,12 +2792,13 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
             "changed payload, actor, or intent conflicts"
         ),
         approval=(
-            "required approved-read and unknown-consumes-cycle acknowledgements; "
-            "also requires automation:trigger and automation:resume"
+            "required approved-read and active-order-catalog and unknown-consumes-cycle "
+            "acknowledgements; also requires automation:trigger and automation:resume"
         ),
         caps=(
-            "required one goal-global cycle, at most ten cycles, exactly seven approved "
-            "BTC-USDC read categories, and zero exchange mutations"
+            "required one goal-global cycle, at most ten cycles, exactly eight approved "
+            "BTC-USDC read categories including one logical account-wide active Spot-order "
+            "catalog read, and zero exchange mutations"
         ),
         audit=(
             "required PostgreSQL cycle/category claims with fixed sanitized "
@@ -2805,9 +2806,9 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         ),
         shared_method="refresh_spot_eligibility",
         parity_test=(
-            "seven approved read-only categories with no individual retry; "
-            "bounded Coinbase call accounting and zero active-order catalog, "
-            "Create, Cancel, or other exchange mutation"
+            "eight approved read-only categories, including the account-wide active-order "
+            "catalog, with no individual or page retry; bounded Coinbase call accounting "
+            "and zero Create, Cancel, or other exchange mutation"
         ),
     ),
     AdminApiRouteInventoryItem(
@@ -2819,22 +2820,53 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         permission=AdminApiPermission.ORDER_CREATE,
         idempotency="required exact-run command; no alternate identity or retry",
         approval=(
-            "required explicit single-child, exact-child safe-closeout, and "
-            "unknown-consumption acknowledgements; also requires "
-            "automation:trigger and order:cancel"
+            "required Create-only, final-eligibility-refresh, active-order-catalog, and "
+            "unknown-consumption acknowledgements; also requires automation:trigger, "
+            "automation:resume, and account_reality:refresh"
         ),
         caps=(
             "required BTC-USDC-only one-Test-portfolio-child cap guard; 3.10 "
             "submitted and 1.00 possible-execution USDC ceilings"
         ),
         audit=(
-            "required revision-bound plan hash and PostgreSQL allowance "
-            "evidence; current goal fails before invocation"
+            "required revision-bound plan hash, PostgreSQL Create allowance, canonical "
+            "admission, and operation-local read/Create accounting"
         ),
         shared_method="authorize_single_child",
         parity_test=(
-            "canonical active-order catalog read is outside current authority; "
-            "zero Coinbase call or exchange mutation"
+            "one final eight-category eligibility refresh and canonical zero-active-order "
+            "admission before at most one Coinbase call for Create; no Cancel or "
+            "alternate placement path"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="automation_control_plane",
+        surface=(
+            "POST /api/v1/automation/runs/{run_id}/safe-closeout-child"
+        ),
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        permission=AdminApiPermission.ORDER_CANCEL,
+        idempotency=(
+            "required separate exact-run safe-closeout command; no alternate child, "
+            "identity, or retry"
+        ),
+        approval=(
+            "required exact-child safe-closeout and unknown-consumption acknowledgements; "
+            "also requires automation:trigger"
+        ),
+        caps=(
+            "required exact backend-linked BTC-USDC child and at most one Cancel solely "
+            "for safe closeout; zero Create authority"
+        ),
+        audit=(
+            "required revision-bound plan hash, PostgreSQL Cancel allowance, exact-child "
+            "reconciliation, and operation-local read/Cancel accounting"
+        ),
+        shared_method="safe_closeout_single_child",
+        parity_test=(
+            "separate exact-child terminal reconciliation with Coinbase call accounting; "
+            "terminal is zero-Cancel and authoritatively nonterminal permits at most one "
+            "canonical Cancel"
         ),
     ),
     AdminApiRouteInventoryItem(

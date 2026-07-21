@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from typing import Any, Mapping
 
 import pytest
@@ -22,6 +23,10 @@ from application.admin_api.automation_models import (
     AutomationRunMutationResponse,
 )
 from application.admin_api.models import AdminApiActor
+from application.admin_api.live_execution import (
+    CONFIGURED_LIVE_EXECUTION_SERVICE_SOURCE,
+    AdminApiLiveExecutionServiceState,
+)
 from application.admin_api.operator_automation import (
     AutomationRepositoryConflict,
     AutomationRepositoryMutation,
@@ -29,7 +34,7 @@ from application.admin_api.operator_automation import (
     OperatorAutomationService,
 )
 from application.admin_api.route_inventory import ADMIN_API_ROUTE_INVENTORY
-from core.enums import AdminApiPermission
+from core.enums import AdminApiLiveExecutionStatus, AdminApiPermission
 
 
 pytestmark = pytest.mark.regression
@@ -88,6 +93,9 @@ def _run() -> dict[str, Any]:
         "coinbase_api_call_count": 0,
         "create_call_count": 0,
         "cancel_call_count": 0,
+        "reconciliation_call_count": 0,
+        "create_allowance_consumed": False,
+        "cancel_allowance_consumed": False,
         "client_order_id": None,
         "audit_id": AUDIT_ID,
         "correlation_id": "automation-route-correlation",
@@ -105,6 +113,7 @@ def _actionable_single_child_run() -> dict[str, Any]:
         "best_bid_ask",
         "fee_summary",
         "exact_order_reconciliation",
+        "active_order_catalog",
     ]
     return {
         **_run(),
@@ -113,7 +122,7 @@ def _actionable_single_child_run() -> dict[str, Any]:
         "diagnostic_code": "awaiting_operator_authorization",
         "adapter_status": "AWAITING_OPERATOR_AUTHORIZATION",
         "live_execution_available": True,
-        "coinbase_api_call_count": 7,
+        "coinbase_api_call_count": 8,
         "call_count_exact": True,
         "child_terminal": None,
         "single_child_plan": {
@@ -137,7 +146,7 @@ def _actionable_single_child_run() -> dict[str, Any]:
             "completed_categories": categories,
             "eligible": True,
             "blocker_code": None,
-            "coinbase_api_call_count": 7,
+            "coinbase_api_call_count": 8,
             "call_count_exact": True,
         },
         "allowed_actions": ["AUTHORIZE_SINGLE_CHILD"],
@@ -153,6 +162,7 @@ def _source_gated_single_child_run() -> dict[str, Any]:
         "best_bid_ask",
         "fee_summary",
         "exact_order_reconciliation",
+        "active_order_catalog",
     ]
     return {
         **_run(),
@@ -558,7 +568,15 @@ def test_readback_actions_are_scoped_by_backend_rbac(
     assert definitions.json()["items"][0]["allowed_actions"] == definition_actions
 
 
-def test_single_child_live_readback_is_scoped_by_backend_rbac():
+def test_single_child_live_readback_is_scoped_by_backend_rbac(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(
+        operator_automation_routes,
+        "_operator_automation_live_action_ready",
+        lambda _action: True,
+        raising=False,
+    )
     payload = AutomationRunDetailResponse(
         run=AutomationRunItem.model_validate(_actionable_single_child_run())
     )
@@ -578,13 +596,125 @@ def test_single_child_live_readback_is_scoped_by_backend_rbac():
     assert trader.run.allowed_actions == ["AUTHORIZE_SINGLE_CHILD"]
 
 
-@pytest.mark.parametrize("removed_action", ["RECONCILE_CHILD", "SAFE_CLOSEOUT_CHILD"])
-def test_run_contract_rejects_unimplemented_public_actions(removed_action: str):
+@pytest.mark.parametrize(
+    ("action", "route"),
+    [
+        (
+            "AUTHORIZE_SINGLE_CHILD",
+            "/api/v1/automation/runs/{run_id}/authorize-single-child",
+        ),
+        (
+            "SAFE_CLOSEOUT_CHILD",
+            "/api/v1/automation/runs/{run_id}/safe-closeout-child",
+        ),
+    ],
+)
+def test_live_run_actions_require_exact_route_service_and_runtime_readiness(
+    monkeypatch: pytest.MonkeyPatch,
+    action: str,
+    route: str,
+):
+    payload = _actionable_single_child_run()
+    if action == "SAFE_CLOSEOUT_CHILD":
+        payload.update(
+            {
+                "state": "ACTIVE",
+                "diagnostic_code": "automation_spot_safe_closeout_ready",
+                "adapter_status": "ACTIVE",
+                "live_attempt_consumed": True,
+                "coinbase_api_call_count": 10,
+                "create_call_count": 1,
+                "reconciliation_call_count": 1,
+                "create_allowance_consumed": True,
+                "client_order_id": "4dc878e7-f27b-42b5-adf3-4965b2b916d9",
+                "child_terminal": False,
+                "allowed_actions": [action],
+            }
+        )
+    item = AutomationRunItem.model_validate(payload)
+    actor = AdminApiActor(actor_id="trader", roles=["trader"])
+
+    def scoped(
+        *,
+        state: AdminApiLiveExecutionServiceState,
+        runtime_ready: bool,
+    ) -> AutomationRunItem:
+        monkeypatch.setattr(
+            operator_automation_routes,
+            "get_decision_backed_live_execution_service",
+            lambda: SimpleNamespace(admission_state=lambda: state),
+            raising=False,
+        )
+        monkeypatch.setattr(
+            operator_automation_routes,
+            "build_admin_api_command_runtime_readiness",
+            lambda: SimpleNamespace(runtime_ready=runtime_ready),
+            raising=False,
+        )
+        return operator_automation_routes._scope_run_item(item, actor)
+
+    disabled = AdminApiLiveExecutionServiceState(
+        required=True,
+        present=True,
+        status=AdminApiLiveExecutionStatus.LIVE_DISABLED,
+        source="disabled_backend_service",
+        missing_reason="live_execution_disabled",
+        supported_routes=frozenset({("POST", route)}),
+    )
+    exact_route_missing = AdminApiLiveExecutionServiceState(
+        required=True,
+        present=True,
+        status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
+        source=CONFIGURED_LIVE_EXECUTION_SERVICE_SOURCE,
+        missing_reason=None,
+        max_submitted_notional_usdc="3.10",
+        max_executed_notional_usdc="1.00",
+        supported_routes=frozenset({("POST", "/api/v1/orders")}),
+    )
+    admitted = replace(
+        exact_route_missing,
+        supported_routes=frozenset({("POST", route)}),
+    )
+
+    assert scoped(state=disabled, runtime_ready=True).allowed_actions == []
+    assert scoped(state=exact_route_missing, runtime_ready=True).allowed_actions == []
+    assert scoped(state=admitted, runtime_ready=False).allowed_actions == []
+    available = scoped(state=admitted, runtime_ready=True)
+    assert available.allowed_actions == [action]
+    assert available.live_execution_available is True
+
+    refresh = operator_automation_routes._scope_run_item(
+        AutomationRunItem.model_validate(_source_gated_single_child_run()),
+        actor,
+    )
+    assert refresh.allowed_actions == ["REFRESH_ELIGIBILITY"]
+    assert refresh.live_execution_available is False
+
+
+def test_run_contract_exposes_only_direct_safe_closeout_after_create_readback():
+    payload = {
+        **_actionable_single_child_run(),
+        "state": "ACTIVE",
+        "diagnostic_code": "automation_spot_safe_closeout_ready",
+        "adapter_status": "ACTIVE",
+        "live_execution_available": True,
+        "live_attempt_consumed": True,
+        "coinbase_api_call_count": 10,
+        "create_call_count": 1,
+        "reconciliation_call_count": 1,
+        "create_allowance_consumed": True,
+        "client_order_id": "4dc878e7-f27b-42b5-adf3-4965b2b916d9",
+        "child_terminal": False,
+        "allowed_actions": ["SAFE_CLOSEOUT_CHILD"],
+    }
+    item = AutomationRunItem.model_validate(payload)
+    assert item.allowed_actions == ["SAFE_CLOSEOUT_CHILD"]
+
     with pytest.raises(ValueError):
         AutomationRunItem.model_validate(
             {
-                **_actionable_single_child_run(),
-                "allowed_actions": [removed_action],
+                **payload,
+                "allowed_actions": ["RECONCILE_CHILD"],
                 "live_execution_available": False,
             }
         )
@@ -775,6 +905,12 @@ def _install_authorize_single_child_probe(
     monkeypatch: pytest.MonkeyPatch,
     repository: _FakeRepository,
 ) -> None:
+    monkeypatch.setattr(
+        operator_automation_routes,
+        "_operator_automation_live_action_ready",
+        lambda _action: True,
+    )
+
     def authorize_single_child(
         _service: OperatorAutomationService,
         *,
@@ -805,7 +941,8 @@ def _install_authorize_single_child_probe(
 def _authorize_single_child_body(**overrides: Any) -> dict[str, Any]:
     body: dict[str, Any] = {
         "confirm_single_child_create": True,
-        "confirm_exact_child_safe_closeout_cancel": True,
+        "confirm_final_eligibility_refresh": True,
+        "confirm_account_wide_active_spot_order_catalog_read": True,
         "confirm_unknown_consumes_allowance": True,
         "expected_plan_sha256": "a" * 64,
         "reason": "Authorize this exact prepared child",
@@ -818,6 +955,12 @@ def _install_refresh_eligibility_probe(
     monkeypatch: pytest.MonkeyPatch,
     repository: _FakeRepository,
 ) -> None:
+    monkeypatch.setattr(
+        operator_automation_routes,
+        "_operator_automation_live_action_ready",
+        lambda _action: True,
+    )
+
     def refresh_spot_eligibility(
         _service: OperatorAutomationService,
         *,
@@ -854,6 +997,7 @@ def _install_refresh_eligibility_probe(
 def _refresh_eligibility_body(**overrides: Any) -> dict[str, Any]:
     body: dict[str, Any] = {
         "confirm_approved_eligibility_reads": True,
+        "confirm_account_wide_active_spot_order_catalog_read": True,
         "confirm_unknown_consumes_cycle": True,
         "expected_plan_sha256": "a" * 64,
         "reason": "Refresh this exact source-gated run",
@@ -957,6 +1101,16 @@ def test_refresh_spot_eligibility_requires_exact_three_read_permissions(
             _refresh_eligibility_body(product_id="BTC-USDC"),
             "refresh_automation_spot_eligibility",
         ),
+        (
+            {},
+            {
+                key: value
+                for key, value in _refresh_eligibility_body().items()
+                if key
+                != "confirm_account_wide_active_spot_order_catalog_read"
+            },
+            "refresh_automation_spot_eligibility",
+        ),
         ({}, _refresh_eligibility_body(), "claim_automation_one_shot_run"),
     ],
 )
@@ -992,7 +1146,7 @@ def test_authorize_single_child_route_binds_exact_run_request_and_context(
         headers=_headers(
             roles="trader",
             operator_intent=(
-                "authorize_automation_single_child_create_and_safe_closeout"
+                "authorize_automation_single_child_create"
             ),
             idempotency_key="automation-single-child-authorization-1",
         ),
@@ -1013,11 +1167,11 @@ def test_authorize_single_child_route_binds_exact_run_request_and_context(
         "automation-single-child-authorization-1"
     )
     assert call["context"].operator_intent == (
-        "authorize_automation_single_child_create_and_safe_closeout"
+        "authorize_automation_single_child_create"
     )
 
 
-def test_authorize_single_child_requires_trigger_create_and_cancel_before_service(
+def test_authorize_single_child_requires_refresh_and_create_before_service(
     monkeypatch: pytest.MonkeyPatch,
 ):
     repository = _FakeRepository()
@@ -1029,7 +1183,7 @@ def test_authorize_single_child_requires_trigger_create_and_cancel_before_servic
         permission: AdminApiPermission,
     ) -> None:
         permission_checks.append(permission)
-        if permission is AdminApiPermission.ORDER_CANCEL:
+        if permission is AdminApiPermission.ORDER_CREATE:
             raise HTTPException(status_code=403, detail="forbidden")
 
     monkeypatch.setattr(
@@ -1044,7 +1198,7 @@ def test_authorize_single_child_requires_trigger_create_and_cancel_before_servic
         headers=_headers(
             roles="trader",
             operator_intent=(
-                "authorize_automation_single_child_create_and_safe_closeout"
+                "authorize_automation_single_child_create"
             ),
         ),
     )
@@ -1052,8 +1206,9 @@ def test_authorize_single_child_requires_trigger_create_and_cancel_before_servic
     assert response.status_code == 403
     assert permission_checks == [
         AdminApiPermission.AUTOMATION_TRIGGER,
+        AdminApiPermission.AUTOMATION_RESUME,
+        AdminApiPermission.ACCOUNT_REALITY_REFRESH,
         AdminApiPermission.ORDER_CREATE,
-        AdminApiPermission.ORDER_CANCEL,
     ]
     assert repository.calls == []
 
@@ -1062,11 +1217,15 @@ def test_authorize_single_child_requires_trigger_create_and_cancel_before_servic
     ("query", "body", "intent"),
     [
         ({"refresh": "true"}, _authorize_single_child_body(), (
-            "authorize_automation_single_child_create_and_safe_closeout"
+            "authorize_automation_single_child_create"
         )),
         ({}, _authorize_single_child_body(product_id="BTC-USDC"), (
-            "authorize_automation_single_child_create_and_safe_closeout"
+            "authorize_automation_single_child_create"
         )),
+        ({}, {
+            **_authorize_single_child_body(),
+            "confirm_exact_child_safe_closeout_cancel": True,
+        }, "authorize_automation_single_child_create"),
         ({}, _authorize_single_child_body(), "claim_automation_one_shot_run"),
     ],
 )
@@ -1084,6 +1243,191 @@ def test_authorize_single_child_rejects_query_body_or_intent_broadening(
         params=query,
         json=body,
         headers=_headers(roles="trader", operator_intent=intent),
+    )
+
+    assert response.status_code == 422
+    assert repository.calls == []
+
+
+def _safe_closeout_body(**overrides: Any) -> dict[str, Any]:
+    body: dict[str, Any] = {
+        "confirm_exact_child_safe_closeout_cancel": True,
+        "confirm_unknown_consumes_allowance": True,
+        "expected_plan_sha256": "a" * 64,
+        "reason": "Safely close out this exact child",
+    }
+    body.update(overrides)
+    return body
+
+
+def _install_safe_closeout_probe(
+    monkeypatch: pytest.MonkeyPatch,
+    repository: _FakeRepository,
+) -> None:
+    monkeypatch.setattr(
+        operator_automation_routes,
+        "_operator_automation_live_action_ready",
+        lambda _action: True,
+    )
+
+    def invoke(
+        _service: OperatorAutomationService,
+        *,
+        run_id: str,
+        request: Any,
+        context: Any,
+    ) -> AutomationRunMutationResponse:
+        repository._record(
+            "safe_closeout_single_child",
+            run_id=run_id,
+            request=request,
+            context=context,
+        )
+        return AutomationRunMutationResponse(
+            run=AutomationRunItem.model_validate(_run()),
+            audit_id=AUDIT_ID,
+            correlation_id=context.correlation_id,
+        )
+
+    monkeypatch.setattr(
+        OperatorAutomationService,
+        "safe_closeout_single_child",
+        invoke,
+        raising=False,
+    )
+
+
+@pytest.mark.parametrize(
+    ("path", "body", "operator_intent"),
+    [
+        (
+            f"/api/v1/automation/runs/{RUN_ID}/eligibility-cycles",
+            _refresh_eligibility_body(),
+            "refresh_automation_spot_eligibility",
+        ),
+        (
+            f"/api/v1/automation/runs/{RUN_ID}/authorize-single-child",
+            _authorize_single_child_body(),
+            "authorize_automation_single_child_create",
+        ),
+        (
+            f"/api/v1/automation/runs/{RUN_ID}/safe-closeout-child",
+            _safe_closeout_body(),
+            "safe_closeout_automation_single_child",
+        ),
+    ],
+)
+def test_no_live_runtime_blocks_before_automation_service_dispatch(
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+    body: dict[str, Any],
+    operator_intent: str,
+):
+    repository = _FakeRepository()
+    _install_refresh_eligibility_probe(monkeypatch, repository)
+    _install_authorize_single_child_probe(monkeypatch, repository)
+    _install_safe_closeout_probe(monkeypatch, repository)
+    monkeypatch.setattr(
+        operator_automation_routes,
+        "_operator_automation_live_action_ready",
+        lambda _action: False,
+    )
+
+    response = _client(repository).post(
+        path,
+        json=body,
+        headers=_headers(
+            roles="trader",
+            operator_intent=operator_intent,
+            idempotency_key="automation-no-live-runtime-block",
+        ),
+    )
+
+    assert response.status_code == 503
+    assert response.json()["message"] == (
+        "operator_automation_action_runtime_unavailable"
+    )
+    assert repository.calls == []
+
+
+def test_safe_closeout_route_binds_exact_run_request_and_context(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repository = _FakeRepository()
+    _install_safe_closeout_probe(monkeypatch, repository)
+
+    response = _client(repository).post(
+        f"/api/v1/automation/runs/{RUN_ID}/safe-closeout-child",
+        json=_safe_closeout_body(),
+        headers=_headers(
+            roles="trader",
+            operator_intent="safe_closeout_automation_single_child",
+            idempotency_key="automation-safe-closeout-child-1",
+        ),
+    )
+
+    assert response.status_code == 200
+    name, call = repository.calls[-1]
+    assert name == "safe_closeout_single_child"
+    assert call["run_id"] == RUN_ID
+    assert call["request"].model_dump(mode="json") == (
+        _safe_closeout_body()
+    )
+    assert call["context"].operator_intent == (
+        "safe_closeout_automation_single_child"
+    )
+
+
+def test_safe_closeout_route_requires_trigger_and_cancel_before_service(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repository = _FakeRepository()
+    _install_safe_closeout_probe(monkeypatch, repository)
+    permission_checks: list[AdminApiPermission] = []
+
+    def require_all_permissions(
+        _actor: Any,
+        permission: AdminApiPermission,
+    ) -> None:
+        permission_checks.append(permission)
+        if permission is AdminApiPermission.ORDER_CANCEL:
+            raise HTTPException(status_code=403, detail="forbidden")
+
+    monkeypatch.setattr(
+        operator_automation_routes,
+        "require_permission",
+        require_all_permissions,
+    )
+    response = _client(repository).post(
+        f"/api/v1/automation/runs/{RUN_ID}/safe-closeout-child",
+        json=_safe_closeout_body(),
+        headers=_headers(
+            roles="trader",
+            operator_intent="safe_closeout_automation_single_child",
+        ),
+    )
+
+    assert response.status_code == 403
+    assert permission_checks == [
+        AdminApiPermission.AUTOMATION_TRIGGER,
+        AdminApiPermission.ORDER_CANCEL,
+    ]
+    assert repository.calls == []
+
+
+def test_safe_closeout_route_rejects_browser_identity_or_query_broadening(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repository = _FakeRepository()
+    _install_safe_closeout_probe(monkeypatch, repository)
+    response = _client(repository).post(
+        f"/api/v1/automation/runs/{RUN_ID}/safe-closeout-child",
+        params={"retry": "true"},
+        json=_safe_closeout_body(client_order_id=RUN_ID),
+        headers=_headers(
+            roles="trader",
+            operator_intent="safe_closeout_automation_single_child",
+        ),
     )
 
     assert response.status_code == 422
@@ -1148,6 +1492,7 @@ def test_app_openapi_and_inventory_expose_only_local_control_plane_actions():
         "/api/v1/automation/runs/{run_id}",
         "/api/v1/automation/runs/{run_id}/eligibility-cycles",
         "/api/v1/automation/runs/{run_id}/authorize-single-child",
+        "/api/v1/automation/runs/{run_id}/safe-closeout-child",
         "/api/v1/automation/runs/{run_id}/events",
     }
     assert expected <= set(paths)
@@ -1220,6 +1565,10 @@ def test_app_openapi_and_inventory_expose_only_local_control_plane_actions():
             "POST",
             "/api/v1/automation/runs/{run_id}/authorize-single-child",
         ): "authorize_operator_automation_single_child",
+        (
+            "POST",
+            "/api/v1/automation/runs/{run_id}/safe-closeout-child",
+        ): "safe_closeout_operator_automation_single_child",
         ("GET", "/api/v1/automation/runs/{run_id}/events"): (
             "list_operator_automation_run_events"
         ),
@@ -1246,4 +1595,7 @@ def test_app_openapi_and_inventory_expose_only_local_control_plane_actions():
     assert inventory[
         "POST /api/v1/automation/runs/{run_id}/authorize-single-child"
     ].permission == AdminApiPermission.ORDER_CREATE
+    assert inventory[
+        "POST /api/v1/automation/runs/{run_id}/safe-closeout-child"
+    ].permission == AdminApiPermission.ORDER_CANCEL
     assert all("Coinbase call" in row.parity_test for row in inventory.values())

@@ -1,10 +1,11 @@
 """Authenticated, PostgreSQL-backed operator Automation control plane.
 
-Definition, lifecycle, claim, and read routes are local.  The exact-run
-authorization route delegates only through the backend-owned single-child
-adapter.  The current source gate stops before any Coinbase call because the
-canonical active-order catalog read is outside this goal's enumerated read
-authority.
+Definition, lifecycle, claim, and ordinary read routes are local. The exact-run
+authorization and safe-closeout routes delegate only through the backend-owned
+single-child coordinators. Controlled-live capability is necessary but never
+sufficient: each request must still pass exact run/action authority, RBAC,
+explicit confirmation, immutable plan, approved Test-portfolio, eight-category
+eligibility, cap, idempotency, audit, reconciliation, and one-use call gates.
 """
 
 from __future__ import annotations
@@ -20,6 +21,17 @@ from application.admin_api.auth import (
     actor_has_permission,
     get_authenticated_actor,
     require_permission,
+)
+from application.admin_api.command_runtime import (
+    build_admin_api_command_runtime_readiness,
+)
+from application.admin_api.live_execution import (
+    get_decision_backed_live_execution_service,
+    operator_mvp_live_service_state_allows_route_admission,
+)
+from application.admin_api.operator_mvp_policy import (
+    OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_CREATE_ROUTE,
+    OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_SAFE_CLOSEOUT_ROUTE,
 )
 from application.admin_api.automation_models import (
     AutomationControlAction,
@@ -51,6 +63,7 @@ from application.admin_api.automation_models import (
     AutomationRunMutationResponse,
     AutomationRunState,
     AutomationSingleChildAuthorizationRequest,
+    AutomationSingleChildSafeCloseoutRequest,
 )
 from application.admin_api.models import AdminApiActor, AdminApiErrorResponse
 from application.admin_api.operator_automation import (
@@ -75,6 +88,52 @@ _DEFINITION_QUERY_KEYS = frozenset(
 )
 _RUN_QUERY_KEYS = frozenset({"definition_id", "state", "limit", "offset"})
 _EVENT_QUERY_KEYS = frozenset({"limit", "offset"})
+_AUTOMATION_LIVE_ACTION_ROUTES = {
+    "AUTHORIZE_SINGLE_CHILD": (
+        "POST",
+        OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_CREATE_ROUTE,
+    ),
+    "SAFE_CLOSEOUT_CHILD": (
+        "POST",
+        OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_SAFE_CLOSEOUT_ROUTE,
+    ),
+}
+
+
+def _operator_automation_live_action_ready(action: str) -> bool:
+    """Require exact outer-route service admission and canonical runtime readiness."""
+
+    target = _AUTOMATION_LIVE_ACTION_ROUTES.get(action)
+    try:
+        runtime = build_admin_api_command_runtime_readiness()
+    except Exception:
+        return False
+    if not runtime.runtime_ready:
+        return False
+    if action == "REFRESH_ELIGIBILITY":
+        return True
+    if target is None:
+        return False
+    method, route = target
+    try:
+        service_state = (
+            get_decision_backed_live_execution_service().admission_state()
+        )
+    except Exception:
+        return False
+    return operator_mvp_live_service_state_allows_route_admission(
+            service_state,
+            method=method,
+            route=route,
+        )
+
+
+def _require_operator_automation_action_ready(action: str) -> None:
+    if not _operator_automation_live_action_ready(action):
+        raise HTTPException(
+            status_code=503,
+            detail="operator_automation_action_runtime_unavailable",
+        )
 
 
 def require_operator_automation_enabled() -> None:
@@ -174,13 +233,15 @@ _ClaimRunIntent = Annotated[
     Header(alias="X-Operator-Intent"),
 ]
 _AuthorizeSingleChildIntent = Annotated[
-    Literal[
-        "authorize_automation_single_child_create_and_safe_closeout"
-    ],
+    Literal["authorize_automation_single_child_create"],
     Header(alias="X-Operator-Intent"),
 ]
 _RefreshEligibilityIntent = Annotated[
     Literal["refresh_automation_spot_eligibility"],
+    Header(alias="X-Operator-Intent"),
+]
+_SafeCloseoutSingleChildIntent = Annotated[
+    Literal["safe_closeout_automation_single_child"],
     Header(alias="X-Operator-Intent"),
 ]
 
@@ -275,18 +336,30 @@ def _scope_run_item(
             AdminApiPermission.ACCOUNT_REALITY_REFRESH,
         ),
         "AUTHORIZE_SINGLE_CHILD": can_trigger
-        and actor_has_permission(actor, AdminApiPermission.ORDER_CREATE)
+        and actor_has_permission(actor, AdminApiPermission.AUTOMATION_RESUME)
+        and actor_has_permission(
+            actor,
+            AdminApiPermission.ACCOUNT_REALITY_REFRESH,
+        )
+        and actor_has_permission(actor, AdminApiPermission.ORDER_CREATE),
+        "SAFE_CLOSEOUT_CHILD": can_trigger
         and actor_has_permission(actor, AdminApiPermission.ORDER_CANCEL),
     }
     allowed_actions = [
-        action for action in item.allowed_actions if permissions.get(action, False)
+        action
+        for action in item.allowed_actions
+        if permissions.get(action, False)
+        and _operator_automation_live_action_ready(action)
     ]
-    can_authorize = "AUTHORIZE_SINGLE_CHILD" in allowed_actions
+    can_live_execute = bool(
+        {"AUTHORIZE_SINGLE_CHILD", "SAFE_CLOSEOUT_CHILD"}
+        & set(allowed_actions)
+    )
     return item.model_copy(
         update={
             "allowed_actions": allowed_actions,
             "live_execution_available": bool(
-                item.live_execution_available and can_authorize
+                item.live_execution_available and can_live_execute
             ),
         }
     )
@@ -950,6 +1023,7 @@ def refresh_spot_eligibility(
     require_permission(actor, AdminApiPermission.AUTOMATION_RESUME)
     require_permission(actor, AdminApiPermission.ACCOUNT_REALITY_REFRESH)
     _require_query_shape(request, frozenset())
+    _require_operator_automation_action_ready("REFRESH_ELIGIBILITY")
     return _mutation_result(
         lambda: service.refresh_spot_eligibility(
             run_id=run_id,
@@ -982,11 +1056,48 @@ def authorize_single_child(
     operator_intent: _AuthorizeSingleChildIntent,
 ) -> JSONResponse:
     require_permission(actor, AdminApiPermission.AUTOMATION_TRIGGER)
+    require_permission(actor, AdminApiPermission.AUTOMATION_RESUME)
+    require_permission(actor, AdminApiPermission.ACCOUNT_REALITY_REFRESH)
     require_permission(actor, AdminApiPermission.ORDER_CREATE)
-    require_permission(actor, AdminApiPermission.ORDER_CANCEL)
     _require_query_shape(request, frozenset())
+    _require_operator_automation_action_ready("AUTHORIZE_SINGLE_CHILD")
     return _mutation_result(
         lambda: service.authorize_single_child(
+            run_id=run_id,
+            request=body,
+            context=_context(
+                actor=actor,
+                idempotency_key=idempotency_key,
+                correlation_id=correlation_id,
+                operator_intent=operator_intent,
+            ),
+        ),
+        actor=actor,
+    )
+
+
+@router.post(
+    "/automation/runs/{run_id}/safe-closeout-child",
+    response_model=AutomationRunMutationResponse,
+    responses=_MUTATION_RESPONSES,
+    operation_id="safe_closeout_operator_automation_single_child",
+)
+def safe_closeout_single_child(
+    request: Request,
+    body: AutomationSingleChildSafeCloseoutRequest,
+    run_id: _EntityId,
+    actor: _Actor,
+    service: _Service,
+    idempotency_key: _IdempotencyKey,
+    correlation_id: _CorrelationId,
+    operator_intent: _SafeCloseoutSingleChildIntent,
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.AUTOMATION_TRIGGER)
+    require_permission(actor, AdminApiPermission.ORDER_CANCEL)
+    _require_query_shape(request, frozenset())
+    _require_operator_automation_action_ready("SAFE_CLOSEOUT_CHILD")
+    return _mutation_result(
+        lambda: service.safe_closeout_single_child(
             run_id=run_id,
             request=body,
             context=_context(

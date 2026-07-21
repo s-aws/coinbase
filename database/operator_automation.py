@@ -59,7 +59,12 @@ AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES = (
     "BEST_BID_ASK",
     "FEE_SUMMARY",
     "EXACT_ORDER_RECONCILIATION",
+    "ACCOUNT_ACTIVE_SPOT_ORDER_CATALOG",
 )
+_AUTOMATION_SPOT_ELIGIBILITY_V1_CATEGORIES = (
+    AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[:-1]
+)
+_AUTOMATION_SPOT_ELIGIBILITY_POLICY_REVISION = 2
 _AUTOMATION_SPOT_ELIGIBILITY_CATEGORY_SET = frozenset(
     AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES
 )
@@ -258,6 +263,7 @@ class AutomationSpotSingleChildPlanRecord:
 class AutomationSpotEligibilityCycleRecord:
     goal_key: str
     cycle_number: int
+    policy_revision: int
     run_id: str
     definition_id: str
     definition_revision: int
@@ -306,6 +312,7 @@ class AutomationSpotEligibilityCycleAllocationRecord:
 @dataclass(frozen=True)
 class AutomationSpotRunExecutionRecord:
     run_id: str
+    policy_revision: int
     definition_id: str
     definition_revision: int
     eligibility_cycle: int
@@ -317,10 +324,14 @@ class AutomationSpotRunExecutionRecord:
     create_outcome: Literal["ACCEPTED", "REJECTED", "UNKNOWN"] | None
     create_call_count: int | None
     create_call_count_exact: bool
+    create_read_call_count: int | None
+    create_read_call_count_exact: bool
     cancel_allowance_consumed: bool
     cancel_outcome: Literal["ACCEPTED", "REJECTED", "UNKNOWN"] | None
     cancel_call_count: int | None
     cancel_call_count_exact: bool
+    cancel_read_call_count: int | None
+    cancel_read_call_count_exact: bool
     child_terminal: bool | None
     audit_id: str
     correlation_id: str
@@ -547,6 +558,8 @@ class OperatorAutomationRepository:
                         goal_key = '{_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY}'
                     ),
                     cycle_number SMALLINT NOT NULL CHECK (cycle_number BETWEEN 1 AND 10),
+                    policy_revision SMALLINT NOT NULL DEFAULT 2
+                        CHECK (policy_revision IN (1,2)),
                     run_id UUID NOT NULL REFERENCES {self._prefix}automation_run(run_id),
                     definition_id UUID NOT NULL,
                     definition_revision INTEGER NOT NULL CHECK (definition_revision >= 1),
@@ -614,12 +627,49 @@ class OperatorAutomationRepository:
             )
             cursor.execute(
                 f"""
+                ALTER TABLE {self._prefix}automation_spot_eligibility_cycle
+                ADD COLUMN IF NOT EXISTS policy_revision SMALLINT
+                """
+            )
+            cursor.execute(
+                f"""
+                UPDATE {self._prefix}automation_spot_eligibility_cycle
+                SET policy_revision = 1
+                WHERE policy_revision IS NULL
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_eligibility_cycle
+                ALTER COLUMN policy_revision SET DEFAULT 2,
+                ALTER COLUMN policy_revision SET NOT NULL
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_eligibility_cycle
+                DROP CONSTRAINT IF EXISTS
+                    automation_spot_eligibility_cycle_policy_revision_check
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_eligibility_cycle
+                ADD CONSTRAINT
+                    automation_spot_eligibility_cycle_policy_revision_check
+                CHECK (policy_revision IN (1,2))
+                """
+            )
+            cursor.execute(
+                f"""
                 CREATE TABLE IF NOT EXISTS {self._prefix}automation_spot_eligibility_attempt (
                     run_id UUID NOT NULL REFERENCES {self._prefix}automation_run(run_id),
                     goal_key TEXT NOT NULL DEFAULT '{_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY}'
                         CHECK (goal_key = '{_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY}'),
                     cycle_number SMALLINT NOT NULL CHECK (cycle_number BETWEEN 1 AND 10),
-                    category TEXT NOT NULL CHECK (category IN ({eligibility_categories})),
+                    category TEXT NOT NULL CONSTRAINT
+                        automation_spot_eligibility_attempt_category_check
+                        CHECK (category IN ({eligibility_categories})),
                     allowance_consumed BOOLEAN NOT NULL CHECK (allowance_consumed),
                     outcome TEXT CHECK (outcome IN ('SUCCEEDED','REJECTED','UNKNOWN')),
                     eligible BOOLEAN,
@@ -687,6 +737,21 @@ class OperatorAutomationRepository:
                 ADD COLUMN IF NOT EXISTS goal_key TEXT NOT NULL
                     DEFAULT '{_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY}'
                     CHECK (goal_key = '{_AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY}')
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_eligibility_attempt
+                DROP CONSTRAINT IF EXISTS
+                    automation_spot_eligibility_attempt_category_check
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_eligibility_attempt
+                ADD CONSTRAINT
+                    automation_spot_eligibility_attempt_category_check
+                CHECK (category IN ({eligibility_categories}))
                 """
             )
             cursor.execute(
@@ -905,14 +970,14 @@ class OperatorAutomationRepository:
                 cursor.execute(
                     f"""
                     INSERT INTO {self._prefix}automation_spot_eligibility_cycle (
-                        goal_key, cycle_number, run_id, definition_id,
+                        goal_key, cycle_number, policy_revision, run_id, definition_id,
                         definition_revision, plan_sha256,
                         portfolio_id_sha256, product_id, client_order_id,
                         state, coinbase_api_call_count, call_count_exact,
                         diagnostic_code, audit_id, correlation_id,
                         started_at, finalized_at
                     ) VALUES (
-                        %s,%s,%s,%s,%s,%s,%s,%s,%s,
+                        %s,%s,1,%s,%s,%s,%s,%s,%s,%s,
                         'UNKNOWN',NULL,FALSE,
                         'automation_spot_eligibility_legacy_cycle_unknown',
                         %s,%s,%s,%s
@@ -999,6 +1064,8 @@ class OperatorAutomationRepository:
                 f"""
                 CREATE TABLE IF NOT EXISTS {self._prefix}automation_spot_run_execution (
                     run_id UUID PRIMARY KEY REFERENCES {self._prefix}automation_run(run_id),
+                    policy_revision SMALLINT NOT NULL DEFAULT 2
+                        CHECK (policy_revision IN (1,2)),
                     definition_id UUID NOT NULL,
                     definition_revision INTEGER NOT NULL,
                     eligibility_cycle SMALLINT NOT NULL CHECK (eligibility_cycle BETWEEN 1 AND 10),
@@ -1013,12 +1080,22 @@ class OperatorAutomationRepository:
                         create_call_count IS NULL OR create_call_count IN (0,1)
                     ),
                     create_call_count_exact BOOLEAN NOT NULL DEFAULT FALSE,
+                    create_read_call_count INTEGER CHECK (
+                        create_read_call_count IS NULL
+                        OR create_read_call_count BETWEEN 0 AND 100
+                    ),
+                    create_read_call_count_exact BOOLEAN NOT NULL DEFAULT FALSE,
                     cancel_allowance_consumed BOOLEAN NOT NULL DEFAULT FALSE,
                     cancel_outcome TEXT CHECK (cancel_outcome IN ('ACCEPTED','REJECTED','UNKNOWN')),
                     cancel_call_count INTEGER CHECK (
                         cancel_call_count IS NULL OR cancel_call_count IN (0,1)
                     ),
                     cancel_call_count_exact BOOLEAN NOT NULL DEFAULT FALSE,
+                    cancel_read_call_count INTEGER CHECK (
+                        cancel_read_call_count IS NULL
+                        OR cancel_read_call_count BETWEEN 0 AND 200
+                    ),
+                    cancel_read_call_count_exact BOOLEAN NOT NULL DEFAULT FALSE,
                     child_terminal BOOLEAN,
                     audit_id UUID NOT NULL,
                     correlation_id TEXT NOT NULL CHECK (char_length(correlation_id) BETWEEN 1 AND 255),
@@ -1026,7 +1103,7 @@ class OperatorAutomationRepository:
                     updated_at TIMESTAMPTZ NOT NULL,
                     FOREIGN KEY (definition_id, definition_revision)
                         REFERENCES {self._prefix}automation_spot_single_child_plan(definition_id, definition_revision),
-                    CHECK (
+                    CONSTRAINT automation_spot_create_result_shape_valid CHECK (
                         (create_outcome IS NULL AND create_call_count IS NULL
                             AND create_call_count_exact = FALSE AND child_terminal IS NULL)
                         OR
@@ -1034,29 +1111,287 @@ class OperatorAutomationRepository:
                             AND create_call_count_exact AND create_call_count = 1)
                         OR
                         (create_outcome = 'REJECTED'
-                            AND create_call_count_exact
-                            AND create_call_count IN (0,1))
+                            AND (
+                                (create_call_count_exact
+                                    AND create_call_count IN (0,1))
+                                OR
+                                (NOT create_call_count_exact
+                                    AND create_call_count IS NULL)
+                            ))
                         OR
                         (create_outcome = 'UNKNOWN'
-                            AND NOT create_call_count_exact
-                            AND create_call_count IS NULL)
+                            AND (
+                                (create_call_count_exact
+                                    AND create_call_count IN (0,1))
+                                OR
+                                (NOT create_call_count_exact
+                                    AND create_call_count IS NULL)
+                            ))
                     ),
-                    CHECK (
+                    CONSTRAINT automation_spot_cancel_allowance_shape_valid CHECK (
                         (NOT cancel_allowance_consumed AND cancel_outcome IS NULL
                             AND cancel_call_count IS NULL AND cancel_call_count_exact = FALSE)
                         OR cancel_allowance_consumed
                     ),
-                    CHECK (
+                    CONSTRAINT automation_spot_safe_closeout_result_shape_valid CHECK (
                         cancel_outcome IS NULL
                         OR (cancel_outcome = 'ACCEPTED'
-                            AND cancel_call_count_exact AND cancel_call_count = 1)
-                        OR (cancel_outcome = 'REJECTED'
                             AND cancel_call_count_exact
-                            AND cancel_call_count IN (0,1))
+                            AND cancel_call_count IN (0,1)
+                            AND child_terminal IS NOT NULL)
+                        OR (cancel_outcome = 'REJECTED'
+                            AND child_terminal IS FALSE
+                            AND (
+                                (cancel_call_count_exact
+                                    AND cancel_call_count IN (0,1))
+                                OR
+                                (NOT cancel_call_count_exact
+                                    AND cancel_call_count IS NULL)
+                            ))
                         OR (cancel_outcome = 'UNKNOWN'
-                            AND NOT cancel_call_count_exact
-                            AND cancel_call_count IS NULL)
+                            AND child_terminal IS NULL
+                            AND (
+                                (cancel_call_count_exact
+                                    AND cancel_call_count IN (0,1))
+                                OR
+                                (NOT cancel_call_count_exact
+                                    AND cancel_call_count IS NULL)
+                            ))
                     )
+                )
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_run_execution
+                ADD COLUMN IF NOT EXISTS policy_revision SMALLINT
+                """
+            )
+            cursor.execute(
+                f"""
+                UPDATE {self._prefix}automation_spot_run_execution
+                SET policy_revision = 1
+                WHERE policy_revision IS NULL
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_run_execution
+                ALTER COLUMN policy_revision SET DEFAULT 2,
+                ALTER COLUMN policy_revision SET NOT NULL
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_run_execution
+                DROP CONSTRAINT IF EXISTS
+                    automation_spot_run_execution_policy_revision_check
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_run_execution
+                ADD CONSTRAINT
+                    automation_spot_run_execution_policy_revision_check
+                CHECK (policy_revision IN (1,2))
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_run_execution
+                ADD COLUMN IF NOT EXISTS create_read_call_count INTEGER CHECK (
+                    create_read_call_count IS NULL
+                    OR create_read_call_count BETWEEN 0 AND 100
+                ),
+                ADD COLUMN IF NOT EXISTS create_read_call_count_exact
+                    BOOLEAN NOT NULL DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS cancel_read_call_count INTEGER CHECK (
+                    cancel_read_call_count IS NULL
+                    OR cancel_read_call_count BETWEEN 0 AND 200
+                ),
+                ADD COLUMN IF NOT EXISTS cancel_read_call_count_exact
+                    BOOLEAN NOT NULL DEFAULT FALSE
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_run_execution
+                DROP CONSTRAINT IF EXISTS
+                    automation_spot_run_execution_cancel_read_call_count_check
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_run_execution
+                DROP CONSTRAINT IF EXISTS
+                    automation_spot_cancel_read_call_count_range
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_run_execution
+                ADD CONSTRAINT automation_spot_cancel_read_call_count_range
+                CHECK (
+                    cancel_read_call_count IS NULL
+                    OR cancel_read_call_count BETWEEN 0 AND 200
+                )
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_run_execution
+                DROP CONSTRAINT IF EXISTS
+                    automation_spot_execution_v2_read_shape_valid
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_run_execution
+                ADD CONSTRAINT automation_spot_execution_v2_read_shape_valid
+                CHECK (
+                    policy_revision = 1
+                    OR (
+                        (
+                            (create_outcome IS NULL
+                                AND create_read_call_count IS NULL
+                                AND NOT create_read_call_count_exact)
+                            OR
+                            (create_outcome IS NOT NULL AND (
+                                (create_read_call_count_exact
+                                    AND create_read_call_count IS NOT NULL)
+                                OR
+                                (NOT create_read_call_count_exact
+                                    AND create_read_call_count IS NULL)
+                            ))
+                        )
+                        AND
+                        (
+                            (cancel_outcome IS NULL
+                                AND cancel_read_call_count IS NULL
+                                AND NOT cancel_read_call_count_exact)
+                            OR
+                            (cancel_outcome IS NOT NULL AND (
+                                (cancel_read_call_count_exact
+                                    AND cancel_read_call_count IS NOT NULL)
+                                OR
+                                (NOT cancel_read_call_count_exact
+                                    AND cancel_read_call_count IS NULL)
+                            ))
+                        )
+                    )
+                )
+                """
+            )
+            cursor.execute(
+                f"""
+                DO $$
+                DECLARE
+                    constraint_record RECORD;
+                BEGIN
+                    FOR constraint_record IN
+                        SELECT constraint_row.conname
+                        FROM pg_constraint AS constraint_row
+                        JOIN pg_class AS table_row
+                          ON table_row.oid = constraint_row.conrelid
+                        JOIN pg_namespace AS namespace_row
+                          ON namespace_row.oid = table_row.relnamespace
+                        WHERE namespace_row.nspname = '{self.schema}'
+                          AND table_row.relname = 'automation_spot_run_execution'
+                          AND constraint_row.contype = 'c'
+                          AND (
+                              (
+                                  pg_get_constraintdef(constraint_row.oid)
+                                      LIKE '%create_outcome%'
+                                  AND pg_get_constraintdef(constraint_row.oid)
+                                      LIKE '%create_call_count%'
+                              )
+                              OR
+                              (
+                                  pg_get_constraintdef(constraint_row.oid)
+                                      LIKE '%cancel_outcome%'
+                                  AND pg_get_constraintdef(constraint_row.oid)
+                                      LIKE '%cancel_call_count%'
+                              )
+                          )
+                    LOOP
+                        EXECUTE format(
+                            'ALTER TABLE %I.%I DROP CONSTRAINT %I',
+                            '{self.schema}',
+                            'automation_spot_run_execution',
+                            constraint_record.conname
+                        );
+                    END LOOP;
+                END;
+                $$
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_run_execution
+                ADD CONSTRAINT automation_spot_create_result_shape_valid
+                CHECK (
+                    (create_outcome IS NULL AND create_call_count IS NULL
+                        AND NOT create_call_count_exact
+                        AND child_terminal IS NULL)
+                    OR
+                    (create_outcome = 'ACCEPTED'
+                        AND create_call_count_exact
+                        AND create_call_count = 1)
+                    OR
+                    (create_outcome = 'REJECTED'
+                        AND (
+                            (create_call_count_exact
+                                AND create_call_count IN (0,1))
+                            OR
+                            (NOT create_call_count_exact
+                                AND create_call_count IS NULL)
+                        ))
+                    OR
+                    (create_outcome = 'UNKNOWN'
+                        AND (
+                            (create_call_count_exact
+                                AND create_call_count IN (0,1))
+                            OR
+                            (NOT create_call_count_exact
+                                AND create_call_count IS NULL)
+                        ))
+                ),
+                ADD CONSTRAINT automation_spot_cancel_allowance_shape_valid
+                CHECK (
+                    (NOT cancel_allowance_consumed
+                        AND cancel_outcome IS NULL
+                        AND cancel_call_count IS NULL
+                        AND NOT cancel_call_count_exact)
+                    OR cancel_allowance_consumed
+                ),
+                ADD CONSTRAINT automation_spot_safe_closeout_result_shape_valid
+                CHECK (
+                    cancel_outcome IS NULL
+                    OR
+                    (cancel_outcome = 'ACCEPTED'
+                        AND cancel_call_count_exact
+                        AND cancel_call_count IN (0,1)
+                        AND child_terminal IS NOT NULL)
+                    OR
+                    (cancel_outcome = 'REJECTED'
+                        AND child_terminal IS FALSE
+                        AND (
+                            (cancel_call_count_exact
+                                AND cancel_call_count IN (0,1))
+                            OR
+                            (NOT cancel_call_count_exact
+                                AND cancel_call_count IS NULL)
+                        ))
+                    OR
+                    (cancel_outcome = 'UNKNOWN'
+                        AND child_terminal IS NULL
+                        AND (
+                            (cancel_call_count_exact
+                                AND cancel_call_count IN (0,1))
+                            OR
+                            (NOT cancel_call_count_exact
+                                AND cancel_call_count IS NULL)
+                        ))
                 )
                 """
             )
@@ -1091,7 +1426,8 @@ class OperatorAutomationRepository:
                 INSERT INTO {self._prefix}automation_spot_live_proof_goal (
                     singleton, goal_key, create_allowance_consumed,
                     cancel_allowance_consumed, bound_run_id, client_order_id,
-                    create_outcome, cancel_outcome, updated_at
+                    create_outcome, cancel_outcome,
+                    updated_at
                 ) VALUES (1,%s,FALSE,FALSE,NULL,NULL,NULL,NULL,NOW())
                 ON CONFLICT (singleton) DO NOTHING
                 """,
@@ -1209,6 +1545,7 @@ class OperatorAutomationRepository:
                     END IF;
                     IF NEW.goal_key IS DISTINCT FROM OLD.goal_key
                        OR NEW.cycle_number IS DISTINCT FROM OLD.cycle_number
+                       OR NEW.policy_revision IS DISTINCT FROM OLD.policy_revision
                        OR NEW.run_id IS DISTINCT FROM OLD.run_id
                        OR NEW.definition_id IS DISTINCT FROM OLD.definition_id
                        OR NEW.definition_revision IS DISTINCT FROM OLD.definition_revision
@@ -2445,6 +2782,7 @@ class OperatorAutomationRepository:
         return AutomationSpotEligibilityCycleRecord(
             goal_key=row["goal_key"],
             cycle_number=int(row["cycle_number"]),
+            policy_revision=int(row["policy_revision"]),
             run_id=str(row["run_id"]),
             definition_id=str(row["definition_id"]),
             definition_revision=int(row["definition_revision"]),
@@ -2627,7 +2965,16 @@ class OperatorAutomationRepository:
         attempts: list[Mapping[str, Any]],
         *,
         category: str,
+        policy_revision: int,
     ) -> None:
+        if policy_revision == 1:
+            categories = _AUTOMATION_SPOT_ELIGIBILITY_V1_CATEGORIES
+        elif policy_revision == _AUTOMATION_SPOT_ELIGIBILITY_POLICY_REVISION:
+            categories = AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES
+        else:
+            raise AutomationStoreUnavailable(
+                "automation_spot_eligibility_policy_revision_invalid"
+            )
         consumed = {str(row["category"]) for row in attempts}
         if category in consumed:
             raise AutomationStoreConflict(
@@ -2638,15 +2985,15 @@ class OperatorAutomationRepository:
                 "automation_spot_eligibility_attempt_in_progress"
             )
         expected_prefix = set(
-            AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[: len(attempts)]
+            categories[: len(attempts)]
         )
         if consumed != expected_prefix:
             raise AutomationStoreUnavailable(
                 "automation_spot_eligibility_sequence_corrupt"
             )
         if (
-            len(attempts) >= len(AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES)
-            or category != AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[len(attempts)]
+            len(attempts) >= len(categories)
+            or category != categories[len(attempts)]
         ):
             raise AutomationStoreConflict(
                 "automation_spot_eligibility_category_sequence_invalid"
@@ -2695,6 +3042,7 @@ class OperatorAutomationRepository:
             self._require_next_spot_eligibility_category(
                 attempts,
                 category=category,
+                policy_revision=int(cycle["policy_revision"]),
             )
             now = _utc_now()
             audit_id = _new_id()
@@ -2931,13 +3279,22 @@ class OperatorAutomationRepository:
             row = self._row(cursor)
             assert row is not None
             record = self._spot_eligibility_from_row(row)
+            policy_revision = int(cycle["policy_revision"])
+            if policy_revision == 1:
+                cycle_categories = _AUTOMATION_SPOT_ELIGIBILITY_V1_CATEGORIES
+            elif policy_revision == _AUTOMATION_SPOT_ELIGIBILITY_POLICY_REVISION:
+                cycle_categories = AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES
+            else:
+                raise AutomationStoreUnavailable(
+                    "automation_spot_eligibility_policy_revision_invalid"
+                )
             terminal_cycle_state: str | None = None
             if normalized_outcome in {"REJECTED", "UNKNOWN"}:
                 terminal_cycle_state = normalized_outcome
             elif (
-                category == AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[-1]
+                category == cycle_categories[-1]
                 and len(attempts)
-                == len(AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES)
+                == len(cycle_categories)
             ):
                 terminal_cycle_state = "SUCCEEDED"
             if terminal_cycle_state is not None:
@@ -2966,7 +3323,7 @@ class OperatorAutomationRepository:
                         ]
                         if (
                             len(successful_deadlines)
-                            != len(AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES) - 1
+                            != len(cycle_categories) - 1
                             or normalized_fresh_until is None
                         ):
                             raise AutomationStoreUnavailable(
@@ -3022,7 +3379,14 @@ class OperatorAutomationRepository:
                 recorded_at=now,
             )
             if terminal_cycle_state is not None:
-                source_gate = "automation_active_order_catalog_read_not_authorized"
+                if terminal_cycle_state == "SUCCEEDED":
+                    target_state = (
+                        OperatorAutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
+                    )
+                    run_diagnostic = "awaiting_operator_authorization"
+                else:
+                    target_state = OperatorAutomationRunState.BLOCKED
+                    run_diagnostic = "automation_spot_eligibility_refresh_required"
                 cursor.execute(
                     f"""
                     UPDATE {self._prefix}automation_run
@@ -3031,8 +3395,8 @@ class OperatorAutomationRepository:
                     WHERE run_id = %s AND state = %s
                     """,
                     (
-                        OperatorAutomationRunState.BLOCKED.value,
-                        source_gate,
+                        target_state.value,
+                        run_diagnostic,
                         audit_id,
                         command.correlation_id,
                         now,
@@ -3049,8 +3413,8 @@ class OperatorAutomationRepository:
                     definition_id=str(run["definition_id"]),
                     run_id=run_id,
                     from_state=OperatorAutomationRunState.PREPARING.value,
-                    to_state=OperatorAutomationRunState.BLOCKED.value,
-                    diagnostic_code=source_gate,
+                    to_state=target_state.value,
+                    diagnostic_code=run_diagnostic,
                     audit_id=audit_id,
                     idempotency_key_sha256=_hash(command.idempotency_key),
                     correlation_id=command.correlation_id,
@@ -3107,6 +3471,7 @@ class OperatorAutomationRepository:
     ) -> AutomationSpotRunExecutionRecord:
         return AutomationSpotRunExecutionRecord(
             run_id=str(row["run_id"]),
+            policy_revision=int(row["policy_revision"]),
             definition_id=str(row["definition_id"]),
             definition_revision=int(row["definition_revision"]),
             eligibility_cycle=int(row["eligibility_cycle"]),
@@ -3122,6 +3487,14 @@ class OperatorAutomationRepository:
                 else None
             ),
             create_call_count_exact=bool(row["create_call_count_exact"]),
+            create_read_call_count=(
+                int(row["create_read_call_count"])
+                if row.get("create_read_call_count") is not None
+                else None
+            ),
+            create_read_call_count_exact=bool(
+                row["create_read_call_count_exact"]
+            ),
             cancel_allowance_consumed=bool(row["cancel_allowance_consumed"]),
             cancel_outcome=row["cancel_outcome"],
             cancel_call_count=(
@@ -3130,6 +3503,14 @@ class OperatorAutomationRepository:
                 else None
             ),
             cancel_call_count_exact=bool(row["cancel_call_count_exact"]),
+            cancel_read_call_count=(
+                int(row["cancel_read_call_count"])
+                if row.get("cancel_read_call_count") is not None
+                else None
+            ),
+            cancel_read_call_count_exact=bool(
+                row["cancel_read_call_count_exact"]
+            ),
             child_terminal=(
                 bool(row["child_terminal"])
                 if row.get("child_terminal") is not None
@@ -3153,6 +3534,7 @@ class OperatorAutomationRepository:
     ) -> AutomationSpotRunExecutionRecord:
         return AutomationSpotRunExecutionRecord(
             run_id=value["run_id"],
+            policy_revision=int(value.get("policy_revision", 1)),
             definition_id=value["definition_id"],
             definition_revision=int(value["definition_revision"]),
             eligibility_cycle=int(value["eligibility_cycle"]),
@@ -3168,6 +3550,14 @@ class OperatorAutomationRepository:
                 else None
             ),
             create_call_count_exact=bool(value["create_call_count_exact"]),
+            create_read_call_count=(
+                int(value["create_read_call_count"])
+                if value.get("create_read_call_count") is not None
+                else None
+            ),
+            create_read_call_count_exact=bool(
+                value.get("create_read_call_count_exact", False)
+            ),
             cancel_allowance_consumed=bool(value["cancel_allowance_consumed"]),
             cancel_outcome=value.get("cancel_outcome"),
             cancel_call_count=(
@@ -3176,6 +3566,14 @@ class OperatorAutomationRepository:
                 else None
             ),
             cancel_call_count_exact=bool(value["cancel_call_count_exact"]),
+            cancel_read_call_count=(
+                int(value["cancel_read_call_count"])
+                if value.get("cancel_read_call_count") is not None
+                else None
+            ),
+            cancel_read_call_count_exact=bool(
+                value.get("cancel_read_call_count_exact", False)
+            ),
             child_terminal=(
                 bool(value["child_terminal"])
                 if value.get("child_terminal") is not None
@@ -3256,6 +3654,8 @@ class OperatorAutomationRepository:
         )
         if (
             cycle is None
+            or int(cycle.get("policy_revision") or 0)
+            != _AUTOMATION_SPOT_ELIGIBILITY_POLICY_REVISION
             or cycle["state"] != "SUCCEEDED"
             or not bool(cycle["call_count_exact"])
             or cycle["coinbase_api_call_count"] is None
@@ -3316,11 +3716,16 @@ class OperatorAutomationRepository:
     @staticmethod
     def _validate_spot_mutation_result(
         *,
+        operation: Literal["CREATE", "SAFE_CLOSEOUT"],
         outcome: str,
         child_terminal: bool | None,
         coinbase_api_call_count: int | None,
         call_count_exact: bool,
     ) -> str:
+        if operation not in {"CREATE", "SAFE_CLOSEOUT"}:
+            raise AutomationStoreInvalid(
+                "automation_spot_mutation_operation_invalid"
+            )
         normalized = str(outcome).upper()
         if normalized not in _AUTOMATION_SPOT_MUTATION_OUTCOMES:
             raise AutomationStoreInvalid("automation_spot_mutation_outcome_invalid")
@@ -3328,17 +3733,25 @@ class OperatorAutomationRepository:
             raise AutomationStoreInvalid(
                 "automation_spot_mutation_accounting_invalid"
             )
-        if call_count_exact:
-            if (
-                type(coinbase_api_call_count) is not int
-                or coinbase_api_call_count not in {0, 1}
-                or (normalized == "ACCEPTED" and coinbase_api_call_count != 1)
-                or normalized == "UNKNOWN"
-            ):
-                raise AutomationStoreInvalid(
-                    "automation_spot_mutation_accounting_invalid"
+        known_exact_count = bool(
+            call_count_exact
+            and type(coinbase_api_call_count) is int
+            and coinbase_api_call_count in {0, 1}
+        )
+        unknown_count = bool(
+            not call_count_exact and coinbase_api_call_count is None
+        )
+        if normalized == "ACCEPTED":
+            accounting_valid = bool(
+                known_exact_count
+                and (
+                    operation == "SAFE_CLOSEOUT"
+                    or coinbase_api_call_count == 1
                 )
-        elif coinbase_api_call_count is not None:
+            )
+        else:
+            accounting_valid = known_exact_count or unknown_count
+        if not accounting_valid:
             raise AutomationStoreInvalid(
                 "automation_spot_mutation_accounting_invalid"
             )
@@ -3357,6 +3770,30 @@ class OperatorAutomationRepository:
                 "automation_spot_mutation_child_state_invalid"
             )
         return normalized
+
+    @staticmethod
+    def _validate_spot_read_accounting(
+        *,
+        read_call_count: int | None,
+        read_call_count_exact: bool,
+        max_read_call_count: int,
+    ) -> None:
+        if type(read_call_count_exact) is not bool:
+            raise AutomationStoreInvalid(
+                "automation_spot_read_accounting_invalid"
+            )
+        if read_call_count_exact:
+            if (
+                type(read_call_count) is not int
+                or not 0 <= read_call_count <= max_read_call_count
+            ):
+                raise AutomationStoreInvalid(
+                    "automation_spot_read_accounting_invalid"
+                )
+        elif read_call_count is not None:
+            raise AutomationStoreInvalid(
+                "automation_spot_read_accounting_invalid"
+            )
 
     def start_spot_create_invocation(
         self,
@@ -3437,7 +3874,7 @@ class OperatorAutomationRepository:
             cursor.execute(
                 f"""
                 INSERT INTO {self._prefix}automation_spot_run_execution (
-                    run_id, definition_id, definition_revision,
+                    run_id, policy_revision, definition_id, definition_revision,
                     eligibility_cycle, plan_sha256, portfolio_id_sha256,
                     product_id, client_order_id, create_allowance_consumed,
                     create_outcome, create_call_count, create_call_count_exact,
@@ -3445,7 +3882,7 @@ class OperatorAutomationRepository:
                     cancel_call_count, cancel_call_count_exact, child_terminal,
                     audit_id, correlation_id, created_at, updated_at
                 ) VALUES (
-                    %s,%s,%s,%s,%s,%s,%s,%s,TRUE,NULL,NULL,FALSE,
+                    %s,2,%s,%s,%s,%s,%s,%s,%s,TRUE,NULL,NULL,FALSE,
                     FALSE,NULL,NULL,FALSE,NULL,%s,%s,%s,%s
                 ) RETURNING *
                 """,
@@ -3481,8 +3918,6 @@ class OperatorAutomationRepository:
                 SET state = %s, diagnostic_code = %s, audit_id = %s,
                     correlation_id = %s, client_order_id = %s,
                     live_attempt_consumed = TRUE,
-                    coinbase_api_call_count = coinbase_api_call_count + 1,
-                    create_call_count = create_call_count + 1,
                     updated_at = %s
                 WHERE run_id = %s
                 """,
@@ -3533,13 +3968,21 @@ class OperatorAutomationRepository:
         coinbase_api_call_count: int | None,
         call_count_exact: bool,
         command: AutomationMutationCommand,
+        read_call_count: int | None = 0,
+        read_call_count_exact: bool = True,
     ) -> AutomationStoreMutation[AutomationSpotRunExecutionRecord]:
         _validate_id(run_id, code="automation_run_id_invalid")
         normalized = self._validate_spot_mutation_result(
+            operation="CREATE",
             outcome=outcome,
             child_terminal=child_terminal,
             coinbase_api_call_count=coinbase_api_call_count,
             call_count_exact=call_count_exact,
+        )
+        self._validate_spot_read_accounting(
+            read_call_count=read_call_count,
+            read_call_count_exact=read_call_count_exact,
+            max_read_call_count=100,
         )
         resource_type = "spot_create_invocation_finalize"
         with self.database.get_cursor() as cursor:
@@ -3600,14 +4043,21 @@ class OperatorAutomationRepository:
                 diagnostic = "automation_spot_create_accepted_terminal"
             else:
                 target = OperatorAutomationRunState.ACTIVE
-                diagnostic = "automation_spot_create_accepted_active"
+                diagnostic = "automation_spot_safe_closeout_ready"
+            event_diagnostic = (
+                "automation_spot_create_accepted_active"
+                if target is OperatorAutomationRunState.ACTIVE
+                else diagnostic
+            )
             now = _utc_now()
             audit_id = _new_id()
             cursor.execute(
                 f"""
                 UPDATE {self._prefix}automation_spot_run_execution
                 SET create_outcome = %s, create_call_count = %s,
-                    create_call_count_exact = %s, child_terminal = %s,
+                    create_call_count_exact = %s,
+                    create_read_call_count = %s,
+                    create_read_call_count_exact = %s, child_terminal = %s,
                     audit_id = %s, correlation_id = %s, updated_at = %s
                 WHERE run_id = %s RETURNING *
                 """,
@@ -3615,6 +4065,8 @@ class OperatorAutomationRepository:
                     normalized,
                     coinbase_api_call_count,
                     call_count_exact,
+                    read_call_count,
+                    read_call_count_exact,
                     child_terminal,
                     audit_id,
                     command.correlation_id,
@@ -3635,7 +4087,10 @@ class OperatorAutomationRepository:
                 f"""
                 UPDATE {self._prefix}automation_run
                 SET state = %s, diagnostic_code = %s, audit_id = %s,
-                    correlation_id = %s, updated_at = %s
+                    correlation_id = %s,
+                    coinbase_api_call_count = coinbase_api_call_count + %s,
+                    create_call_count = create_call_count + %s,
+                    updated_at = %s
                 WHERE run_id = %s
                 """,
                 (
@@ -3643,6 +4098,26 @@ class OperatorAutomationRepository:
                     diagnostic,
                     audit_id,
                     command.correlation_id,
+                    (
+                        (
+                            coinbase_api_call_count
+                            if call_count_exact
+                            and coinbase_api_call_count is not None
+                            else 0
+                        )
+                        + (
+                            read_call_count
+                            if read_call_count_exact
+                            and read_call_count is not None
+                            else 0
+                        )
+                    ),
+                    (
+                        coinbase_api_call_count
+                        if call_count_exact
+                        and coinbase_api_call_count is not None
+                        else 0
+                    ),
                     now,
                     run_id,
                 ),
@@ -3654,7 +4129,7 @@ class OperatorAutomationRepository:
                 run_id=run_id,
                 from_state=run["state"],
                 to_state=target.value,
-                diagnostic_code=diagnostic,
+                diagnostic_code=event_diagnostic,
                 audit_id=audit_id,
                 idempotency_key_sha256=_hash(command.idempotency_key),
                 correlation_id=command.correlation_id,
@@ -3701,10 +4176,16 @@ class OperatorAutomationRepository:
                     replay["correlation_id"],
                     True,
                 )
-            if (
-                self._current_control(cursor, for_update=True)
-                is not OperatorAutomationControlPosture.ACTIVE
-            ):
+            control_posture = self._current_control(cursor, for_update=True)
+            if control_posture is OperatorAutomationControlPosture.SHUTDOWN:
+                raise AutomationStoreConflict(
+                    "automation_control_plane_shutdown"
+                )
+            if control_posture not in {
+                OperatorAutomationControlPosture.ACTIVE,
+                OperatorAutomationControlPosture.PAUSED,
+                OperatorAutomationControlPosture.DRAINING,
+            }:
                 raise AutomationStoreConflict(
                     "automation_control_plane_not_active"
                 )
@@ -3737,6 +4218,8 @@ class OperatorAutomationRepository:
                     "automation_spot_run_execution_not_found"
                 )
             if (
+                int(execution.get("policy_revision") or 0) != 2
+                or
                 str(goal.get("bound_run_id")) != run_id
                 or goal.get("create_outcome") != "ACCEPTED"
                 or execution.get("create_outcome") != "ACCEPTED"
@@ -3754,13 +4237,21 @@ class OperatorAutomationRepository:
                 raise AutomationStoreConflict(
                     "automation_spot_cancel_child_mismatch"
                 )
+            if (
+                not bool(execution["create_read_call_count_exact"])
+                or execution.get("create_read_call_count") is None
+                or int(execution["create_read_call_count"]) < 1
+            ):
+                raise AutomationStoreConflict(
+                    "automation_spot_cancel_create_readback_required"
+                )
             if bool(execution["cancel_allowance_consumed"]):
                 raise AutomationStoreConflict(
                     "automation_spot_cancel_allowance_consumed"
                 )
             now = _utc_now()
             audit_id = _new_id()
-            diagnostic = "automation_spot_cancel_invocation_started"
+            diagnostic = "automation_spot_safe_closeout_invocation_started"
             cursor.execute(
                 f"""
                 UPDATE {self._prefix}automation_spot_run_execution
@@ -3784,8 +4275,6 @@ class OperatorAutomationRepository:
                 f"""
                 UPDATE {self._prefix}automation_run
                 SET diagnostic_code = %s, audit_id = %s, correlation_id = %s,
-                    coinbase_api_call_count = coinbase_api_call_count + 1,
-                    cancel_call_count = cancel_call_count + 1,
                     updated_at = %s
                 WHERE run_id = %s
                 """,
@@ -3834,13 +4323,21 @@ class OperatorAutomationRepository:
         coinbase_api_call_count: int | None,
         call_count_exact: bool,
         command: AutomationMutationCommand,
+        read_call_count: int | None = 0,
+        read_call_count_exact: bool = True,
     ) -> AutomationStoreMutation[AutomationSpotRunExecutionRecord]:
         _validate_id(run_id, code="automation_run_id_invalid")
         normalized = self._validate_spot_mutation_result(
+            operation="SAFE_CLOSEOUT",
             outcome=outcome,
             child_terminal=child_terminal,
             coinbase_api_call_count=coinbase_api_call_count,
             call_count_exact=call_count_exact,
+        )
+        self._validate_spot_read_accounting(
+            read_call_count=read_call_count,
+            read_call_count_exact=read_call_count_exact,
+            max_read_call_count=200,
         )
         resource_type = "spot_cancel_invocation_finalize"
         with self.database.get_cursor() as cursor:
@@ -3890,23 +4387,25 @@ class OperatorAutomationRepository:
                 )
             if normalized == "UNKNOWN":
                 target = OperatorAutomationRunState.UNKNOWN_CONSUMED
-                diagnostic = "automation_spot_cancel_unknown_consumed"
+                diagnostic = "automation_spot_safe_closeout_unknown_consumed"
             elif normalized == "REJECTED":
                 target = OperatorAutomationRunState.TERMINAL
-                diagnostic = "automation_spot_cancel_rejected"
+                diagnostic = "automation_spot_safe_closeout_rejected"
             elif child_terminal:
                 target = OperatorAutomationRunState.TERMINAL
-                diagnostic = "automation_spot_cancel_accepted_terminal"
+                diagnostic = "automation_spot_safe_closeout_accepted_terminal"
             else:
                 target = OperatorAutomationRunState.TERMINAL
-                diagnostic = "automation_spot_cancel_accepted_nonterminal"
+                diagnostic = "automation_spot_safe_closeout_accepted_nonterminal"
             now = _utc_now()
             audit_id = _new_id()
             cursor.execute(
                 f"""
                 UPDATE {self._prefix}automation_spot_run_execution
                 SET cancel_outcome = %s, cancel_call_count = %s,
-                    cancel_call_count_exact = %s, child_terminal = %s,
+                    cancel_call_count_exact = %s,
+                    cancel_read_call_count = %s,
+                    cancel_read_call_count_exact = %s, child_terminal = %s,
                     audit_id = %s, correlation_id = %s, updated_at = %s
                 WHERE run_id = %s RETURNING *
                 """,
@@ -3914,6 +4413,8 @@ class OperatorAutomationRepository:
                     normalized,
                     coinbase_api_call_count,
                     call_count_exact,
+                    read_call_count,
+                    read_call_count_exact,
                     child_terminal,
                     audit_id,
                     command.correlation_id,
@@ -3934,7 +4435,10 @@ class OperatorAutomationRepository:
                 f"""
                 UPDATE {self._prefix}automation_run
                 SET state = %s, diagnostic_code = %s, audit_id = %s,
-                    correlation_id = %s, updated_at = %s
+                    correlation_id = %s,
+                    coinbase_api_call_count = coinbase_api_call_count + %s,
+                    cancel_call_count = cancel_call_count + %s,
+                    updated_at = %s
                 WHERE run_id = %s
                 """,
                 (
@@ -3942,6 +4446,26 @@ class OperatorAutomationRepository:
                     diagnostic,
                     audit_id,
                     command.correlation_id,
+                    (
+                        (
+                            coinbase_api_call_count
+                            if call_count_exact
+                            and coinbase_api_call_count is not None
+                            else 0
+                        )
+                        + (
+                            read_call_count
+                            if read_call_count_exact
+                            and read_call_count is not None
+                            else 0
+                        )
+                    ),
+                    (
+                        coinbase_api_call_count
+                        if call_count_exact
+                        and coinbase_api_call_count is not None
+                        else 0
+                    ),
                     now,
                     run_id,
                 ),
@@ -4325,13 +4849,13 @@ class OperatorAutomationRepository:
         cursor.execute(
             f"""
             INSERT INTO {self._prefix}automation_spot_eligibility_cycle (
-                goal_key, cycle_number, run_id, definition_id,
+                goal_key, cycle_number, policy_revision, run_id, definition_id,
                 definition_revision, plan_sha256, portfolio_id_sha256,
                 product_id, client_order_id, state,
                 coinbase_api_call_count, call_count_exact, diagnostic_code,
                 audit_id, correlation_id, started_at, finalized_at
             ) VALUES (
-                %s,%s,%s,%s,%s,%s,%s,%s,%s,'OPEN',NULL,FALSE,
+                %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'OPEN',NULL,FALSE,
                 'automation_spot_eligibility_cycle_opened',%s,%s,%s,NULL
             )
             RETURNING *
@@ -4339,6 +4863,7 @@ class OperatorAutomationRepository:
             (
                 _AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
                 cycle_number,
+                _AUTOMATION_SPOT_ELIGIBILITY_POLICY_REVISION,
                 str(run["run_id"]),
                 str(run["definition_id"]),
                 int(run["definition_revision"]),
@@ -4355,13 +4880,16 @@ class OperatorAutomationRepository:
         assert row is not None
         return self._spot_eligibility_cycle_from_row(row)
 
-    def _resume_spot_source_gate_and_allocate_cycle_cursor(
+    def _allocate_spot_eligibility_cycle_cursor(
         self,
         cursor: Any,
         *,
         run_id: str,
         expected_plan_sha256: str,
         command: AutomationMutationCommand,
+        start_state: OperatorAutomationRunState,
+        start_diagnostic_codes: frozenset[str],
+        transition_diagnostic: str,
     ) -> tuple[AutomationRunRecord, AutomationSpotEligibilityCycleRecord, str]:
         cursor.execute(
             f"""
@@ -4394,9 +4922,8 @@ class OperatorAutomationRepository:
                 "automation_single_child_plan_mismatch"
             )
         if (
-            row["state"] != OperatorAutomationRunState.BLOCKED.value
-            or row["diagnostic_code"]
-            != "automation_active_order_catalog_read_not_authorized"
+            row["state"] != start_state.value
+            or row["diagnostic_code"] not in start_diagnostic_codes
         ):
             raise AutomationStoreConflict(
                 "automation_single_child_run_not_resumable"
@@ -4428,7 +4955,7 @@ class OperatorAutomationRepository:
 
         now = _utc_now()
         audit_id = _new_id()
-        diagnostic = "automation_spot_source_gate_resumed"
+        diagnostic = transition_diagnostic
         cursor.execute(
             f"""
             UPDATE {self._prefix}automation_run
@@ -4461,7 +4988,7 @@ class OperatorAutomationRepository:
             cursor,
             definition_id=record.definition_id,
             run_id=run_id,
-            from_state=OperatorAutomationRunState.BLOCKED.value,
+            from_state=start_state.value,
             to_state=OperatorAutomationRunState.PREPARING.value,
             diagnostic_code=diagnostic,
             audit_id=audit_id,
@@ -4471,17 +4998,18 @@ class OperatorAutomationRepository:
         )
         return record, cycle, audit_id
 
-    def resume_spot_source_gated_run(
+    def _allocate_spot_eligibility_cycle(
         self,
         run_id: str,
         *,
         expected_plan_sha256: str,
         command: AutomationMutationCommand,
+        resource_type: str,
+        start_state: OperatorAutomationRunState,
+        start_diagnostic_codes: frozenset[str],
+        transition_diagnostic: str,
     ) -> AutomationStoreMutation[AutomationSpotEligibilityCycleAllocationRecord]:
-        """Atomically resume the exact source gate and allocate its next cycle."""
-
         _validate_id(run_id, code="automation_run_id_invalid")
-        resource_type = "spot_source_gate_resume"
         with self.database.get_cursor() as cursor:
             replay = self._idempotency_replay(
                 cursor,
@@ -4536,18 +5064,31 @@ class OperatorAutomationRepository:
                     raise AutomationStoreConflict(
                         "automation_spot_eligibility_cycle_in_progress"
                     )
-                source_gate_restored = bool(
-                    current_run["state"]
-                    == OperatorAutomationRunState.BLOCKED.value
-                    and current_run["diagnostic_code"]
-                    == "automation_active_order_catalog_read_not_authorized"
+                terminal_result_applied = bool(
+                    (
+                        current_cycle["state"] == "SUCCEEDED"
+                        and current_run["state"]
+                        == OperatorAutomationRunState.AWAITING_OPERATOR_AUTHORIZATION.value
+                        and current_run["diagnostic_code"]
+                        == "awaiting_operator_authorization"
+                    )
+                    or (
+                        current_cycle["state"] in {"REJECTED", "UNKNOWN"}
+                        and current_run["state"]
+                        == OperatorAutomationRunState.BLOCKED.value
+                        and current_run["diagnostic_code"]
+                        == "automation_spot_eligibility_refresh_required"
+                    )
                 )
                 replay_during_newer_cycle = False
                 if (
                     current_run["state"]
                     == OperatorAutomationRunState.PREPARING.value
                     and current_run["diagnostic_code"]
-                    == "automation_spot_source_gate_resumed"
+                    in {
+                        "automation_spot_source_gate_resumed",
+                        "automation_spot_final_admission_started",
+                    }
                 ):
                     cursor.execute(
                         f"""
@@ -4567,7 +5108,7 @@ class OperatorAutomationRepository:
                         and open_cycles[0]["plan_sha256"]
                         == expected_plan_sha256
                     )
-                if not (source_gate_restored or replay_during_newer_cycle):
+                if not (terminal_result_applied or replay_during_newer_cycle):
                     raise AutomationStoreUnavailable(
                         "automation_spot_eligibility_terminal_source_gate_missing"
                     )
@@ -4583,11 +5124,14 @@ class OperatorAutomationRepository:
                     True,
                 )
             record, cycle, audit_id = (
-                self._resume_spot_source_gate_and_allocate_cycle_cursor(
+                self._allocate_spot_eligibility_cycle_cursor(
                     cursor,
                     run_id=run_id,
                     expected_plan_sha256=expected_plan_sha256,
                     command=command,
+                    start_state=start_state,
+                    start_diagnostic_codes=start_diagnostic_codes,
+                    transition_diagnostic=transition_diagnostic,
                 )
             )
             self._store_idempotency(
@@ -4610,6 +5154,52 @@ class OperatorAutomationRepository:
                 audit_id,
                 command.correlation_id,
             )
+
+    def resume_spot_source_gated_run(
+        self,
+        run_id: str,
+        *,
+        expected_plan_sha256: str,
+        command: AutomationMutationCommand,
+    ) -> AutomationStoreMutation[AutomationSpotEligibilityCycleAllocationRecord]:
+        """Atomically resume an exact blocked source gate and allocate a cycle."""
+
+        return self._allocate_spot_eligibility_cycle(
+            run_id,
+            expected_plan_sha256=expected_plan_sha256,
+            command=command,
+            resource_type="spot_source_gate_resume",
+            start_state=OperatorAutomationRunState.BLOCKED,
+            start_diagnostic_codes=frozenset(
+                {
+                    "automation_active_order_catalog_read_not_authorized",
+                    "automation_spot_eligibility_refresh_required",
+                    "restart_pre_invocation_blocked",
+                }
+            ),
+            transition_diagnostic="automation_spot_source_gate_resumed",
+        )
+
+    def allocate_spot_authorization_cycle(
+        self,
+        run_id: str,
+        *,
+        expected_plan_sha256: str,
+        command: AutomationMutationCommand,
+    ) -> AutomationStoreMutation[AutomationSpotEligibilityCycleAllocationRecord]:
+        """Allocate the final fresh cycle for an exact operator Create decision."""
+
+        return self._allocate_spot_eligibility_cycle(
+            run_id,
+            expected_plan_sha256=expected_plan_sha256,
+            command=command,
+            resource_type="spot_authorization_cycle_allocate",
+            start_state=OperatorAutomationRunState.AWAITING_OPERATOR_AUTHORIZATION,
+            start_diagnostic_codes=frozenset(
+                {"awaiting_operator_authorization"}
+            ),
+            transition_diagnostic="automation_spot_final_admission_started",
+        )
 
     @staticmethod
     def _run_transition_allowed(
@@ -4954,6 +5544,9 @@ class OperatorAutomationRepository:
                     stable_accepted_child = bool(
                         execution is not None
                         and execution["create_outcome"] == "ACCEPTED"
+                        and bool(execution["create_read_call_count_exact"])
+                        and execution["create_read_call_count"] is not None
+                        and int(execution["create_read_call_count"]) >= 1
                         and execution["child_terminal"] is False
                         and not bool(execution["cancel_allowance_consumed"])
                         and execution["cancel_outcome"] is None
@@ -5078,6 +5671,8 @@ class OperatorAutomationRepository:
                             SET create_outcome = 'UNKNOWN',
                                 create_call_count = NULL,
                                 create_call_count_exact = FALSE,
+                                create_read_call_count = NULL,
+                                create_read_call_count_exact = FALSE,
                                 child_terminal = NULL,
                                 audit_id = %s, correlation_id = %s,
                                 updated_at = %s
@@ -5110,6 +5705,8 @@ class OperatorAutomationRepository:
                             SET cancel_outcome = 'UNKNOWN',
                                 cancel_call_count = NULL,
                                 cancel_call_count_exact = FALSE,
+                                cancel_read_call_count = NULL,
+                                cancel_read_call_count_exact = FALSE,
                                 child_terminal = NULL,
                                 audit_id = %s, correlation_id = %s,
                                 updated_at = %s

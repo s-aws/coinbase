@@ -14,6 +14,10 @@ import psycopg2
 from psycopg2 import sql
 import pytest
 
+from application.admin_api.operator_automation import (
+    OperatorAutomationService,
+    PostgresOperatorAutomationRepositoryAdapter,
+)
 from core.enums import (
     OperatorAutomationControlPosture,
     OperatorAutomationDefinitionState,
@@ -763,6 +767,53 @@ def test_source_gated_spot_run_resume_rejects_wrong_plan_or_block_reason(
     ).total == before.total
 
 
+def test_final_spot_authorization_cycle_is_distinct_and_starts_from_awaiting(
+    repository_harness: _Harness,
+):
+    repository = repository_harness.repository()
+    _, plan, run = _prepare_spot_run(repository, "spot-final-admission-cycle")
+    _complete_eligible_cycle(
+        repository,
+        run.run_id,
+        "spot-final-admission-cycle-source",
+    )
+    before = repository.list_run_events(run.run_id, limit=100, offset=0)
+
+    with pytest.raises(AutomationStoreConflict) as source_refresh:
+        repository.resume_spot_source_gated_run(
+            run.run_id,
+            expected_plan_sha256=plan.plan_sha256,
+            command=_mutation("spot-final-admission-wrong-purpose"),
+        )
+    assert source_refresh.value.code == "automation_single_child_run_not_resumable"
+
+    command = _mutation("spot-final-admission-cycle-allocate")
+    allocation = repository.allocate_spot_authorization_cycle(
+        run.run_id,
+        expected_plan_sha256=plan.plan_sha256,
+        command=command,
+    )
+
+    assert allocation.replayed is False
+    assert allocation.entity.cycle.cycle_number == 2
+    assert allocation.entity.cycle.state == "OPEN"
+    assert allocation.entity.run.state is OperatorAutomationRunState.PREPARING
+    assert allocation.entity.run.diagnostic_code == (
+        "automation_spot_final_admission_started"
+    )
+    events = repository.list_run_events(run.run_id, limit=100, offset=0)
+    assert events.total == before.total + 1
+    event = events.items[-1]
+    assert event.from_state is (
+        OperatorAutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
+    )
+    assert event.to_state is OperatorAutomationRunState.PREPARING
+    assert event.diagnostic_code == "automation_spot_final_admission_started"
+    assert event.idempotency_key_sha256 == hashlib.sha256(
+        command.idempotency_key.encode("utf-8")
+    ).hexdigest()
+
+
 def test_restart_recovery_terminally_blocks_pre_invocation_and_quarantines_started_run(
     repository_harness: _Harness,
 ):
@@ -1236,9 +1287,10 @@ def _allocate_spot_eligibility_cycle(
             command=_mutation(f"{seed}-source-gate"),
         ).entity
     assert run.state is OperatorAutomationRunState.BLOCKED
-    assert run.diagnostic_code == (
-        "automation_active_order_catalog_read_not_authorized"
-    )
+    assert run.diagnostic_code in {
+        "automation_active_order_catalog_read_not_authorized",
+        "automation_spot_eligibility_refresh_required",
+    }
     resumed = repository.resume_spot_source_gated_run(
         run_id,
         expected_plan_sha256=plan_sha256,
@@ -1308,10 +1360,8 @@ def _complete_eligible_cycle(
     assert cycle.fresh_until is not None
     current = repository.get_run(run_id)
     assert current is not None
-    assert current.state is OperatorAutomationRunState.BLOCKED
-    assert current.diagnostic_code == (
-        "automation_active_order_catalog_read_not_authorized"
-    )
+    assert current.state is OperatorAutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
+    assert current.diagnostic_code == "awaiting_operator_authorization"
 
 
 def _await_spot_authorization(
@@ -1321,6 +1371,8 @@ def _await_spot_authorization(
 ):
     current = repository.get_run(run_id)
     assert current is not None
+    if current.state is OperatorAutomationRunState.AWAITING_OPERATOR_AUTHORIZATION:
+        return current
     if current.state is OperatorAutomationRunState.BLOCKED:
         # Historical Create-ledger tests predate the source-gated eligibility
         # ledger. The production repository deliberately has no
@@ -1338,6 +1390,71 @@ def _await_spot_authorization(
         diagnostic_code="awaiting_operator_authorization",
         command=_mutation(f"{seed}-awaiting"),
     ).entity
+
+
+def test_spot_eligibility_v2_adds_final_account_catalog_and_preserves_v1_rows(
+    repository_harness: _Harness,
+):
+    repository = repository_harness.repository()
+    _, plan, run = _prepare_spot_run(repository, "eligibility-policy-revision")
+    _, cycle = _allocate_spot_eligibility_cycle(
+        repository,
+        run.run_id,
+        plan.plan_sha256,
+        "eligibility-policy-revision",
+    )
+    assert cycle.policy_revision == 2
+    assert AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[-1] == (
+        "ACCOUNT_ACTIVE_SPOT_ORDER_CATALOG"
+    )
+
+    repository_harness.database.execute_update(
+        f'ALTER TABLE "{repository_harness.schema}".automation_spot_eligibility_cycle '
+        "DISABLE TRIGGER automation_spot_cycle_binding_no_update"
+    )
+    repository_harness.database.execute_update(
+        f'UPDATE "{repository_harness.schema}".automation_spot_eligibility_cycle '
+        "SET policy_revision = 1 WHERE goal_key = %s AND cycle_number = %s",
+        (cycle.goal_key, cycle.cycle_number),
+    )
+    repository_harness.database.execute_update(
+        f'ALTER TABLE "{repository_harness.schema}".automation_spot_eligibility_cycle '
+        "ENABLE TRIGGER automation_spot_cycle_binding_no_update"
+    )
+    repository.ensure_schema()
+    preserved = repository.list_spot_eligibility_cycles()[0]
+    assert preserved.policy_revision == 1
+
+
+def test_spot_create_requires_fresh_v2_eight_category_cycle(
+    repository_harness: _Harness,
+):
+    repository = repository_harness.repository()
+    _, plan, run = _prepare_spot_run(repository, "spot-create-policy-revision")
+    _complete_eligible_cycle(repository, run.run_id, "spot-create-policy-revision")
+    cycle = repository.list_spot_eligibility_cycles()[-1]
+    assert cycle.policy_revision == 2
+
+    repository_harness.database.execute_update(
+        f'ALTER TABLE "{repository_harness.schema}".automation_spot_eligibility_cycle '
+        "DISABLE TRIGGER automation_spot_cycle_binding_no_update"
+    )
+    repository_harness.database.execute_update(
+        f'UPDATE "{repository_harness.schema}".automation_spot_eligibility_cycle '
+        "SET policy_revision = 1 WHERE goal_key = %s AND cycle_number = %s",
+        (cycle.goal_key, cycle.cycle_number),
+    )
+    repository_harness.database.execute_update(
+        f'ALTER TABLE "{repository_harness.schema}".automation_spot_eligibility_cycle '
+        "ENABLE TRIGGER automation_spot_cycle_binding_no_update"
+    )
+    with pytest.raises(AutomationStoreConflict) as blocked:
+        repository.start_spot_create_invocation(
+            run.run_id,
+            eligibility_cycle=cycle.cycle_number,
+            command=_mutation("spot-create-policy-revision-start"),
+        )
+    assert blocked.value.code == "automation_spot_exact_eligibility_not_proven"
 
 
 def test_spot_single_child_plan_has_only_atomic_definition_write_path_and_is_immutable(
@@ -1738,7 +1855,7 @@ def test_spot_eligibility_result_shapes_allow_zero_rejections_and_multipage_coun
         assert current is not None
         assert current.state is OperatorAutomationRunState.BLOCKED
         assert current.diagnostic_code == (
-            "automation_active_order_catalog_read_not_authorized"
+            "automation_spot_eligibility_refresh_required"
         )
 
 
@@ -2263,7 +2380,7 @@ def test_spot_create_invocation_consumes_once_and_finalizes_value_blind_accounti
     assert bound_run.state is OperatorAutomationRunState.INVOCATION_STARTED
     assert bound_run.client_order_id == started.entity.client_order_id
     assert bound_run.live_attempt_consumed is True
-    assert bound_run.create_call_count == 1
+    assert bound_run.create_call_count == 0
     assert repository.get_spot_live_proof_goal().create_allowance_consumed is True
 
     finalized = repository.finalize_spot_create_invocation(
@@ -2272,12 +2389,266 @@ def test_spot_create_invocation_consumes_once_and_finalizes_value_blind_accounti
         child_terminal=child_terminal,
         coinbase_api_call_count=call_count,
         call_count_exact=call_count_exact,
+        read_call_count=(1 if outcome == "ACCEPTED" else (0 if call_count_exact else None)),
+        read_call_count_exact=call_count_exact,
         command=_mutation(f"spot-create-{outcome.lower()}-finish"),
     ).entity
     assert finalized.create_outcome == outcome
     assert finalized.create_call_count == call_count
     assert finalized.create_call_count_exact is call_count_exact
     assert repository.get_run(run.run_id).state is run_state
+
+
+def test_spot_create_accepted_nonterminal_keeps_action_diagnostic_and_serializes_transition_event(
+    repository_harness: _Harness,
+):
+    repository = repository_harness.repository()
+    _, _, run = _prepare_spot_run(
+        repository,
+        "spot-create-active-event-contract",
+    )
+    _complete_eligible_cycle(
+        repository,
+        run.run_id,
+        "spot-create-active-event-contract-eligibility",
+    )
+    _await_spot_authorization(
+        repository,
+        run.run_id,
+        "spot-create-active-event-contract",
+    )
+    repository.start_spot_create_invocation(
+        run.run_id,
+        eligibility_cycle=1,
+        command=_mutation("spot-create-active-event-contract-start"),
+    )
+
+    repository.finalize_spot_create_invocation(
+        run.run_id,
+        outcome="ACCEPTED",
+        child_terminal=False,
+        coinbase_api_call_count=1,
+        call_count_exact=True,
+        read_call_count=1,
+        read_call_count_exact=True,
+        command=_mutation("spot-create-active-event-contract-finish"),
+    )
+
+    current = repository.get_run(run.run_id)
+    assert current is not None
+    assert current.state is OperatorAutomationRunState.ACTIVE
+    assert current.diagnostic_code == "automation_spot_safe_closeout_ready"
+
+    service = OperatorAutomationService(
+        PostgresOperatorAutomationRepositoryAdapter(repository)
+    )
+    event_readback = service.list_run_events(
+        run_id=run.run_id,
+        limit=100,
+        offset=0,
+    )
+    assert event_readback.items[-1].from_state is (
+        OperatorAutomationRunState.INVOCATION_STARTED
+    )
+    assert event_readback.items[-1].state is OperatorAutomationRunState.ACTIVE
+    assert event_readback.items[-1].diagnostic_code == (
+        "automation_spot_create_accepted_active"
+    )
+
+
+def test_spot_create_unknown_preserves_known_mutation_count(
+    repository_harness: _Harness,
+):
+    repository = repository_harness.repository()
+    _, _, run = _prepare_spot_run(repository, "spot-create-known-unknown")
+    _complete_eligible_cycle(
+        repository,
+        run.run_id,
+        "spot-create-known-unknown-eligibility",
+    )
+    _await_spot_authorization(
+        repository,
+        run.run_id,
+        "spot-create-known-unknown",
+    )
+    repository.start_spot_create_invocation(
+        run.run_id,
+        eligibility_cycle=1,
+        command=_mutation("spot-create-known-unknown-start"),
+    )
+    repository_harness.database.execute_update(
+        f'ALTER TABLE "{repository_harness.schema}".'
+        "automation_spot_run_execution "
+        "ADD CONSTRAINT automation_spot_create_result_shape_legacy CHECK ("
+        "(create_outcome IS NULL AND create_call_count IS NULL "
+        "AND NOT create_call_count_exact AND child_terminal IS NULL) OR "
+        "(create_outcome = 'ACCEPTED' AND create_call_count_exact "
+        "AND create_call_count = 1) OR "
+        "(create_outcome = 'REJECTED' AND create_call_count_exact "
+        "AND create_call_count IN (0,1)) OR "
+        "(create_outcome = 'UNKNOWN' AND NOT create_call_count_exact "
+        "AND create_call_count IS NULL))"
+    )
+    repository.ensure_schema()
+
+    execution = repository.finalize_spot_create_invocation(
+        run.run_id,
+        outcome="UNKNOWN",
+        child_terminal=None,
+        coinbase_api_call_count=1,
+        call_count_exact=True,
+        read_call_count=2,
+        read_call_count_exact=True,
+        command=_mutation("spot-create-known-unknown-finish"),
+    ).entity
+
+    assert execution.create_outcome == "UNKNOWN"
+    assert execution.create_call_count == 1
+    assert execution.create_call_count_exact is True
+    assert execution.create_read_call_count == 2
+    current = repository.get_run(run.run_id)
+    assert current is not None
+    assert current.state is OperatorAutomationRunState.UNKNOWN_CONSUMED
+    assert current.coinbase_api_call_count == 3
+    assert current.create_call_count == 1
+
+
+def test_spot_create_start_replay_is_verified_before_consumed_allowance(
+    repository_harness: _Harness,
+):
+    repository = repository_harness.repository()
+    _, _, run = _prepare_spot_run(repository, "spot-create-replay-ordering")
+    _complete_eligible_cycle(
+        repository,
+        run.run_id,
+        "spot-create-replay-ordering-eligibility",
+    )
+    _await_spot_authorization(
+        repository,
+        run.run_id,
+        "spot-create-replay-ordering",
+    )
+    start_command = _mutation("spot-create-replay-ordering-start")
+    started = repository.start_spot_create_invocation(
+        run.run_id,
+        eligibility_cycle=1,
+        command=start_command,
+    )
+    repository.finalize_spot_create_invocation(
+        run.run_id,
+        outcome="ACCEPTED",
+        child_terminal=True,
+        coinbase_api_call_count=1,
+        call_count_exact=True,
+        read_call_count=1,
+        read_call_count_exact=True,
+        command=_mutation("spot-create-replay-ordering-finish"),
+    )
+
+    replay = repository.start_spot_create_invocation(
+        run.run_id,
+        eligibility_cycle=1,
+        command=start_command,
+    )
+    assert replay.replayed is True
+    assert replay.entity == started.entity
+
+    with pytest.raises(AutomationStoreConflict) as changed_payload:
+        repository.start_spot_create_invocation(
+            run.run_id,
+            eligibility_cycle=1,
+            command=replace(start_command, payload_sha256="f" * 64),
+        )
+    assert changed_payload.value.code == "automation_idempotency_conflict"
+
+    with pytest.raises(AutomationStoreConflict) as changed_key:
+        repository.start_spot_create_invocation(
+            run.run_id,
+            eligibility_cycle=1,
+            command=_mutation("spot-create-replay-ordering-second"),
+        )
+    assert changed_key.value.code == "automation_spot_create_allowance_consumed"
+
+
+def test_spot_known_mutation_and_unknown_read_account_independently(
+    repository_harness: _Harness,
+):
+    repository = repository_harness.repository()
+    _, _, run = _prepare_spot_run(repository, "spot-create-known-unknown-read")
+    _complete_eligible_cycle(
+        repository,
+        run.run_id,
+        "spot-create-known-unknown-read-eligibility",
+    )
+    _await_spot_authorization(
+        repository,
+        run.run_id,
+        "spot-create-known-unknown-read",
+    )
+    repository.start_spot_create_invocation(
+        run.run_id,
+        eligibility_cycle=1,
+        command=_mutation("spot-create-known-unknown-read-start"),
+    )
+
+    execution = repository.finalize_spot_create_invocation(
+        run.run_id,
+        outcome="REJECTED",
+        child_terminal=False,
+        coinbase_api_call_count=1,
+        call_count_exact=True,
+        read_call_count=None,
+        read_call_count_exact=False,
+        command=_mutation("spot-create-known-unknown-read-finish"),
+    ).entity
+
+    assert execution.create_call_count == 1
+    assert execution.create_call_count_exact is True
+    assert execution.create_read_call_count is None
+    assert execution.create_read_call_count_exact is False
+    current = repository.get_run(run.run_id)
+    assert current is not None
+    assert current.coinbase_api_call_count == 1
+    assert current.create_call_count == 1
+
+
+def test_spot_create_accepted_requires_one_exact_mutation(
+    repository_harness: _Harness,
+):
+    repository = repository_harness.repository()
+    _, _, run = _prepare_spot_run(repository, "spot-create-accepted-zero")
+    _complete_eligible_cycle(
+        repository,
+        run.run_id,
+        "spot-create-accepted-zero-eligibility",
+    )
+    _await_spot_authorization(
+        repository,
+        run.run_id,
+        "spot-create-accepted-zero",
+    )
+    repository.start_spot_create_invocation(
+        run.run_id,
+        eligibility_cycle=1,
+        command=_mutation("spot-create-accepted-zero-start"),
+    )
+
+    with pytest.raises(AutomationStoreInvalid) as invalid:
+        repository.finalize_spot_create_invocation(
+            run.run_id,
+            outcome="ACCEPTED",
+            child_terminal=True,
+            coinbase_api_call_count=0,
+            call_count_exact=True,
+            read_call_count=1,
+            read_call_count_exact=True,
+            command=_mutation("spot-create-accepted-zero-finish"),
+        )
+
+    assert invalid.value.code == "automation_spot_mutation_accounting_invalid"
+    current = repository.get_run(run.run_id)
+    assert current is not None
+    assert current.state is OperatorAutomationRunState.INVOCATION_STARTED
 
 
 def test_spot_create_restart_recovery_marks_unfinalized_boundary_unknown_once(
@@ -2329,6 +2700,8 @@ def test_spot_cancel_claim_is_exact_child_single_use_and_restart_safe(
         child_terminal=False,
         coinbase_api_call_count=1,
         call_count_exact=True,
+        read_call_count=1,
+        read_call_count_exact=True,
         command=_mutation("spot-cancel-create-finish"),
     ).entity
     assert repository.get_run(run.run_id).state is OperatorAutomationRunState.ACTIVE
@@ -2342,24 +2715,45 @@ def test_spot_cancel_claim_is_exact_child_single_use_and_restart_safe(
     assert wrong_child.value.code == "automation_spot_cancel_child_mismatch"
     assert repository.get_spot_live_proof_goal().cancel_allowance_consumed is False
 
+    cancel_start_command = _mutation("spot-cancel-start")
     cancelling = repository.start_spot_cancel_invocation(
         run.run_id,
         client_order_id=created.client_order_id,
-        command=_mutation("spot-cancel-start"),
+        command=cancel_start_command,
     ).entity
     assert cancelling.cancel_allowance_consumed is True
-    assert repository.get_run(run.run_id).cancel_call_count == 1
+    assert repository.get_run(run.run_id).cancel_call_count == 0
     terminal = repository.finalize_spot_cancel_invocation(
         run.run_id,
         outcome="ACCEPTED",
         child_terminal=True,
         coinbase_api_call_count=1,
         call_count_exact=True,
+        read_call_count=2,
+        read_call_count_exact=True,
         command=_mutation("spot-cancel-finish"),
     ).entity
     assert terminal.cancel_outcome == "ACCEPTED"
+    assert terminal.cancel_read_call_count == 2
+    assert terminal.cancel_read_call_count_exact is True
     assert terminal.child_terminal is True
     assert repository.get_run(run.run_id).state is OperatorAutomationRunState.TERMINAL
+
+    replay = repository.start_spot_cancel_invocation(
+        run.run_id,
+        client_order_id=created.client_order_id,
+        command=cancel_start_command,
+    )
+    assert replay.replayed is True
+    assert replay.entity == cancelling
+
+    with pytest.raises(AutomationStoreConflict) as changed_payload:
+        repository.start_spot_cancel_invocation(
+            run.run_id,
+            client_order_id=created.client_order_id,
+            command=replace(cancel_start_command, payload_sha256="f" * 64),
+        )
+    assert changed_payload.value.code == "automation_idempotency_conflict"
 
     with pytest.raises(AutomationStoreConflict) as second_cancel:
         repository.start_spot_cancel_invocation(
@@ -2368,6 +2762,226 @@ def test_spot_cancel_claim_is_exact_child_single_use_and_restart_safe(
             command=_mutation("spot-cancel-second"),
         )
     assert second_cancel.value.code == "automation_spot_cancel_allowance_consumed"
+
+
+@pytest.mark.parametrize(
+    ("posture_action", "expected_posture"),
+    [
+        ("pause", OperatorAutomationControlPosture.PAUSED),
+        ("drain", OperatorAutomationControlPosture.DRAINING),
+    ],
+)
+def test_spot_cancel_claim_remains_available_in_risk_reducing_postures(
+    repository_harness: _Harness,
+    posture_action: str,
+    expected_posture: OperatorAutomationControlPosture,
+):
+    repository = repository_harness.repository()
+    _, _, run = _prepare_spot_run(
+        repository,
+        f"spot-cancel-{posture_action}",
+    )
+    _complete_eligible_cycle(
+        repository,
+        run.run_id,
+        f"spot-cancel-{posture_action}-eligibility",
+    )
+    _await_spot_authorization(
+        repository,
+        run.run_id,
+        f"spot-cancel-{posture_action}",
+    )
+    created = repository.start_spot_create_invocation(
+        run.run_id,
+        eligibility_cycle=1,
+        command=_mutation(f"spot-cancel-{posture_action}-create-start"),
+    ).entity
+    repository.finalize_spot_create_invocation(
+        run.run_id,
+        outcome="ACCEPTED",
+        child_terminal=False,
+        coinbase_api_call_count=1,
+        call_count_exact=True,
+        read_call_count=1,
+        read_call_count_exact=True,
+        command=_mutation(f"spot-cancel-{posture_action}-create-finish"),
+    )
+    posture = repository.transition_control_posture(
+        posture_action,
+        _mutation(f"spot-cancel-{posture_action}-posture"),
+    ).entity
+    assert posture.posture is expected_posture
+
+    claimed = repository.start_spot_cancel_invocation(
+        run.run_id,
+        client_order_id=created.client_order_id,
+        command=_mutation(f"spot-cancel-{posture_action}-start"),
+    ).entity
+
+    assert claimed.cancel_allowance_consumed is True
+    assert repository.get_spot_live_proof_goal().cancel_allowance_consumed is True
+
+
+def test_spot_cancel_claim_is_blocked_in_shutdown_without_consuming_allowance(
+    repository_harness: _Harness,
+):
+    repository = repository_harness.repository()
+    _, _, run = _prepare_spot_run(repository, "spot-cancel-shutdown")
+    _complete_eligible_cycle(
+        repository,
+        run.run_id,
+        "spot-cancel-shutdown-eligibility",
+    )
+    _await_spot_authorization(repository, run.run_id, "spot-cancel-shutdown")
+    created = repository.start_spot_create_invocation(
+        run.run_id,
+        eligibility_cycle=1,
+        command=_mutation("spot-cancel-shutdown-create-start"),
+    ).entity
+    repository.finalize_spot_create_invocation(
+        run.run_id,
+        outcome="ACCEPTED",
+        child_terminal=False,
+        coinbase_api_call_count=1,
+        call_count_exact=True,
+        read_call_count=1,
+        read_call_count_exact=True,
+        command=_mutation("spot-cancel-shutdown-create-finish"),
+    )
+    posture = repository.transition_control_posture(
+        "shutdown",
+        _mutation("spot-cancel-shutdown-posture"),
+    ).entity
+    assert posture.posture is OperatorAutomationControlPosture.SHUTDOWN
+
+    with pytest.raises(AutomationStoreConflict) as blocked:
+        repository.start_spot_cancel_invocation(
+            run.run_id,
+            client_order_id=created.client_order_id,
+            command=_mutation("spot-cancel-shutdown-start"),
+        )
+
+    assert blocked.value.code == "automation_control_plane_shutdown"
+    assert repository.get_spot_live_proof_goal().cancel_allowance_consumed is False
+
+
+def test_spot_safe_closeout_accepts_already_terminal_with_zero_mutation(
+    repository_harness: _Harness,
+):
+    repository = repository_harness.repository()
+    _, _, run = _prepare_spot_run(repository, "spot-closeout-already-terminal")
+    _complete_eligible_cycle(
+        repository,
+        run.run_id,
+        "spot-closeout-already-terminal-eligibility",
+    )
+    _await_spot_authorization(
+        repository,
+        run.run_id,
+        "spot-closeout-already-terminal",
+    )
+    created = repository.start_spot_create_invocation(
+        run.run_id,
+        eligibility_cycle=1,
+        command=_mutation("spot-closeout-already-terminal-create-start"),
+    ).entity
+    repository.finalize_spot_create_invocation(
+        run.run_id,
+        outcome="ACCEPTED",
+        child_terminal=False,
+        coinbase_api_call_count=1,
+        call_count_exact=True,
+        read_call_count=1,
+        read_call_count_exact=True,
+        command=_mutation("spot-closeout-already-terminal-create-finish"),
+    )
+    before_closeout = repository.get_run(run.run_id)
+    assert before_closeout is not None
+
+    repository.start_spot_cancel_invocation(
+        run.run_id,
+        client_order_id=created.client_order_id,
+        command=_mutation("spot-closeout-already-terminal-start"),
+    )
+    repository_harness.database.execute_update(
+        f'ALTER TABLE "{repository_harness.schema}".'
+        "automation_spot_run_execution "
+        "ADD CONSTRAINT automation_spot_safe_closeout_result_shape_legacy "
+        "CHECK (cancel_outcome IS NULL OR "
+        "(cancel_outcome = 'ACCEPTED' AND cancel_call_count_exact "
+        "AND cancel_call_count = 1) OR "
+        "(cancel_outcome = 'REJECTED' AND cancel_call_count_exact "
+        "AND cancel_call_count IN (0,1)) OR "
+        "(cancel_outcome = 'UNKNOWN' AND NOT cancel_call_count_exact "
+        "AND cancel_call_count IS NULL))"
+    )
+    repository.ensure_schema()
+    execution = repository.finalize_spot_cancel_invocation(
+        run.run_id,
+        outcome="ACCEPTED",
+        child_terminal=True,
+        coinbase_api_call_count=0,
+        call_count_exact=True,
+        read_call_count=1,
+        read_call_count_exact=True,
+        command=_mutation("spot-closeout-already-terminal-finish"),
+    ).entity
+
+    assert execution.cancel_outcome == "ACCEPTED"
+    assert execution.cancel_call_count == 0
+    assert execution.cancel_call_count_exact is True
+    current = repository.get_run(run.run_id)
+    assert current is not None
+    assert current.state is OperatorAutomationRunState.TERMINAL
+    assert current.cancel_call_count == 0
+    assert current.coinbase_api_call_count == (
+        before_closeout.coinbase_api_call_count + 1
+    )
+
+
+def test_spot_cancel_requires_exact_create_readback(
+    repository_harness: _Harness,
+):
+    repository = repository_harness.repository()
+    _, _, run = _prepare_spot_run(repository, "spot-create-readback-required")
+    _complete_eligible_cycle(
+        repository,
+        run.run_id,
+        "spot-create-readback-required-eligibility",
+    )
+    _await_spot_authorization(
+        repository,
+        run.run_id,
+        "spot-create-readback-required",
+    )
+    created = repository.start_spot_create_invocation(
+        run.run_id,
+        eligibility_cycle=1,
+        command=_mutation("spot-create-readback-required-start"),
+    ).entity
+    execution = repository.finalize_spot_create_invocation(
+        run.run_id,
+        outcome="ACCEPTED",
+        child_terminal=False,
+        coinbase_api_call_count=1,
+        call_count_exact=True,
+        read_call_count=0,
+        read_call_count_exact=True,
+        command=_mutation("spot-create-readback-required-finish"),
+    ).entity
+    assert execution.create_read_call_count == 0
+    assert execution.create_read_call_count_exact is True
+
+    with pytest.raises(AutomationStoreConflict) as missing_readback:
+        repository.start_spot_cancel_invocation(
+            run.run_id,
+            client_order_id=created.client_order_id,
+            command=_mutation("spot-create-readback-required-cancel"),
+        )
+    assert missing_readback.value.code == (
+        "automation_spot_cancel_create_readback_required"
+    )
+    assert repository.get_spot_live_proof_goal().cancel_allowance_consumed is False
 
 
 def test_spot_active_child_survives_restart_until_exact_cancel_starts(
@@ -2392,6 +3006,8 @@ def test_spot_active_child_survives_restart_until_exact_cancel_starts(
         child_terminal=False,
         coinbase_api_call_count=1,
         call_count_exact=True,
+        read_call_count=1,
+        read_call_count_exact=True,
         command=_mutation("spot-active-restart-create-finish"),
     )
 
@@ -2400,7 +3016,7 @@ def test_spot_active_child_survives_restart_until_exact_cancel_starts(
     active = restarted.get_run(run.run_id)
     assert active is not None
     assert active.state is OperatorAutomationRunState.ACTIVE
-    assert active.diagnostic_code == "automation_spot_create_accepted_active"
+    assert active.diagnostic_code == "automation_spot_safe_closeout_ready"
 
     restarted.start_spot_cancel_invocation(
         run.run_id,

@@ -1,4 +1,4 @@
-"""Pure seven-category operator Spot eligibility coordinator tests."""
+"""Pure eight-category operator Spot eligibility coordinator tests."""
 
 from __future__ import annotations
 
@@ -168,6 +168,12 @@ class _FakeReader(ApprovedSpotEligibilityReader):
             context,
         )
 
+    def read_account_active_spot_order_catalog(self, context):
+        return self._read(
+            ApprovedSpotEligibilityCategory.ACCOUNT_ACTIVE_SPOT_ORDER_CATALOG,
+            context,
+        )
+
 
 def _coordinator(
     ledger: _FakeLedger,
@@ -182,7 +188,7 @@ def _coordinator(
     )
 
 
-def test_reader_protocol_is_exactly_the_seven_approved_typed_methods():
+def test_reader_protocol_is_exactly_the_eight_approved_typed_methods():
     read_methods = {
         name
         for name, value in ApprovedSpotEligibilityReader.__dict__.items()
@@ -196,6 +202,7 @@ def test_reader_protocol_is_exactly_the_seven_approved_typed_methods():
         "read_best_bid_ask",
         "read_fee_summary",
         "read_exact_order_reconciliation",
+        "read_account_active_spot_order_catalog",
     }
     assert tuple(category.value for category in APPROVED_SPOT_ELIGIBILITY_ORDER) == (
         "API_KEY_PERMISSIONS",
@@ -205,6 +212,7 @@ def test_reader_protocol_is_exactly_the_seven_approved_typed_methods():
         "BEST_BID_ASK",
         "FEE_SUMMARY",
         "EXACT_ORDER_RECONCILIATION",
+        "ACCOUNT_ACTIVE_SPOT_ORDER_CATALOG",
     )
     for method_name in read_methods:
         assert tuple(
@@ -256,6 +264,10 @@ def test_happy_path_claims_reads_and_finalizes_once_in_fixed_order():
                 http_request_count=2,
                 evidence_seed="3",
             ),
+            ApprovedSpotEligibilityCategory.ACCOUNT_ACTIVE_SPOT_ORDER_CATALOG: _success(
+                http_request_count=3,
+                evidence_seed="4",
+            ),
         }
     )
 
@@ -275,8 +287,8 @@ def test_happy_path_claims_reads_and_finalizes_once_in_fixed_order():
     assert result.cycle_number == 4
     assert result.outcome is SpotEligibilityReadOutcome.SUCCEEDED
     assert result.eligible is True
-    assert result.logical_call_count == 7
-    assert result.coinbase_api_call_count == 10
+    assert result.logical_call_count == 8
+    assert result.coinbase_api_call_count == 13
     assert result.call_count_exact is True
     assert result.completed_categories == tuple(expected)
     assert result.fresh_until == NOW + timedelta(seconds=30)
@@ -316,10 +328,11 @@ def test_clock_and_both_freshness_windows_are_injected():
         now_factory=lambda: NOW + timedelta(seconds=1),
         default_freshness=timedelta(seconds=20),
         best_bid_ask_freshness=timedelta(seconds=5),
+        active_order_catalog_freshness=timedelta(seconds=3),
     ).run(_context())
 
     assert result.outcome is SpotEligibilityReadOutcome.SUCCEEDED
-    assert result.fresh_until == NOW + timedelta(seconds=5)
+    assert result.fresh_until == NOW + timedelta(seconds=3)
 
 
 def test_proven_rejection_fails_short_without_later_claims_or_reads():

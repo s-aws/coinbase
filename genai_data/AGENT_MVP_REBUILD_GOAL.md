@@ -2,27 +2,58 @@
 
 Goal ID: `operator_spot_automation_single_child_execution_adapter_v1`
 
-Last reviewed: 2026-07-20 UTC.
+Last reviewed: 2026-07-21 UTC.
 
-Status: `eligibility_coordinator_complete_source_gated`.
+Status: `complete`.
 
 Current action:
-`await_active_order_catalog_and_canonical_execution_authority`.
+`complete_zero_candidate_all_live_allowances_unconsumed`.
 
-The installed operator path includes a durable, explicit, seven-category
-eligibility refresh and stops at fixed diagnostic
-`automation_active_order_catalog_read_not_authorized` before the canonical
-account-wide active-order guard, invocation claim, Create, or Cancel. No live
-refresh ran and all read and mutation allowances remain unconsumed. This is not
-a live-ready completion. The exact remaining canonical
-admission/exact-child work and consolidated draft authorization are recorded in
+Default action: `await_operator_direction_for_next_mvp`.
+
+The Eight-category single-child adapter remains installed behind backend-owned
+authority. Aggregate primary evidence: definitions `0`, plans `0`, runs `0`, eligibility cycles `0`, claims `0`, and candidates `0`.
+State-refresh cycles consumed: `0/10`.
+Coinbase Create calls: `0`; Coinbase Cancel calls: `0`.
+All live allowances remain unconsumed.
+
+Validation evidence: backend full `1179 passed, 6 skipped` parallel and `664 passed, 150 skipped` serial; focused backend `367 passed`; frontend full `1555 passed`; E2E `15/15`; focused frontend `177 passed`; independent safety audit `PASS`; blind-contextless audit `PASS`.
+Release/deployment gate: `PASS` (canonical rerun complete).
+No Coinbase API call or exchange mutation was made for this closeout. Every immutable
+R1-R12 artifact byte and documented hash remains preserved, and R8 content and
+hash remain inaccessible.
+
+No definition or plan existed in the authoritative primary evidence, so no run,
+state-refresh cycle, final-authorization cycle, claim, or candidate existed.
+The bounded proof completed at zero candidates without consuming any of the ten
+refresh cycles or the Create/Cancel allowances. A later candidate cannot reopen
+this completed goal; the default is to await operator direction for the next
+MVP.
+
+## Historical pre-closeout implementation record
+
+Historical checkpoint status:
+`canonical_single_child_execution_implemented_validation_pending`.
+Historical checkpoint action:
+`complete_validation_audits_deployment_and_bounded_live_proof`.
+
+The operator path includes a durable, explicit eight-category eligibility
+refresh whose final category is the account-wide active Spot-order catalog.
+Exact-run authorization owns a separate final authorization refresh of the same
+plan-, revision-, portfolio-hash-, and freshness-bound evidence before any
+Create claim. Both are fixed order and no retry.
+
+The canonical domain-owned one-child Create and exact-child safe-closeout
+Cancel coordinators are implemented through typed admission, durable one-use
+claims, and the existing Spot command service. No bare enablement boolean,
+untyped gateway, alternate placement path, recurring scheduler, second child,
+or fan-out is installed. No goal-scoped Coinbase call has run.
+Eligibility-cycle, final-authorization-read, Create, and Cancel allowances
+remained unconsumed. At that checkpoint full validation, independent audits,
+installed deployment validation, and the bounded live proof remained pending. The previous
+source-gated checkpoint and its gate counts are historical, not evidence for this
+implementation increment. See
 `docs/OPERATOR_SPOT_AUTOMATION_SINGLE_CHILD_ADAPTER.md`.
-
-Current checkpoint validation passed backend full `1170 passed, 6 skipped`
-parallel and `651 passed, 150 skipped` serial, frontend full `1536 passed`,
-browser E2E `15/15`, independent safety and blind-contextless audits, and the
-frontend build/security/readiness gates. All gates reported no Coinbase
-execution and zero notional.
 
 Completed predecessor `operator_automation_control_plane_origin_prod_alignment_v1`
 established the PostgreSQL Automation control plane and is historical

@@ -2451,6 +2451,95 @@ class AdminMvpService:
             roles=context.roles,
         )
 
+    def record_typed_spot_command_proof_chain(
+        self,
+        *,
+        proof_context: Mapping[str, Any],
+        command_kind: str,
+        roles: tuple[str, ...],
+        wallet_available_notional_usdc: Decimal,
+        approval_store: FileAdminApiApprovalStore | None = None,
+        audit_store: FileAdminApiAuditStore | None = None,
+        cap_guard_store: FileAdminApiCapGuardStore | None = None,
+        reconciliation_store: FileAdminApiReconciliationStore | None = None,
+        cap_guard_service: AdminApiCapGuardDecisionService | None = None,
+    ) -> dict[str, Any]:
+        """Record the canonical typed proof chain for a backend command.
+
+        This public wrapper is intentionally evidence-only.  It accepts the
+        already authenticated, payload-bound command context and a transient
+        wallet amount supplied by a domain-owned reader; it performs no
+        Coinbase read or mutation itself.
+        """
+
+        required_fields = (
+            "route",
+            "method",
+            "module_id",
+            "identity_key",
+            "identity_value",
+            "action_class",
+            "required_permission",
+            "service_method",
+            "actor_id",
+            "operator_intent",
+            "command_idempotency_key",
+            "payload_hash",
+            "product_scope",
+        )
+        if (
+            command_kind not in {"manual", "cancel"}
+            or any(
+                not str(proof_context.get(field_name) or "").strip()
+                for field_name in required_fields
+            )
+            or not isinstance(roles, tuple)
+            or not roles
+            or not isinstance(wallet_available_notional_usdc, Decimal)
+            or not wallet_available_notional_usdc.is_finite()
+            or wallet_available_notional_usdc < 0
+        ):
+            raise ValueError("typed_spot_proof_context_invalid")
+        payload_hash = str(proof_context["payload_hash"])
+        if len(payload_hash) != 64 or any(
+            character not in "0123456789abcdef" for character in payload_hash
+        ):
+            raise ValueError("typed_spot_proof_context_invalid")
+
+        context = AdminMvpRequestContext(
+            idempotency_key=str(proof_context["command_idempotency_key"]),
+            correlation_id=str(proof_context.get("correlation_id") or ""),
+            operator_intent=str(proof_context["operator_intent"]),
+            actor_id=str(proof_context["actor_id"]),
+            roles=roles,
+        )
+        if not context.correlation_id:
+            raise ValueError("typed_spot_proof_context_invalid")
+        record_ids = self._spot_manual_order_proof_chain_record_ids(
+            {},
+            proof_context,
+        )
+        return self._record_typed_spot_proof_chain_evidence(
+            context=context,
+            proof_context=proof_context,
+            record_ids=record_ids,
+            command_kind=command_kind,
+            approval_store=approval_store or FileAdminApiApprovalStore(),
+            audit_store=audit_store or FileAdminApiAuditStore(),
+            cap_guard_store=cap_guard_store or FileAdminApiCapGuardStore(),
+            reconciliation_store=(
+                reconciliation_store or FileAdminApiReconciliationStore()
+            ),
+            cap_guard_service=(
+                cap_guard_service
+                or AdminApiCapGuardDecisionService(
+                    wallet_evidence_resolver=(
+                        lambda _product_scope: wallet_available_notional_usdc
+                    )
+                )
+            ),
+        )
+
     def _record_typed_spot_proof_chain_evidence(
         self,
         *,

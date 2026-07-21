@@ -21,6 +21,7 @@ _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _DIAGNOSTIC_PATTERN = re.compile(r"^[a-z0-9_]+$")
 _DEFAULT_FRESHNESS = timedelta(seconds=60)
 _BEST_BID_ASK_FRESHNESS = timedelta(seconds=30)
+_ACTIVE_ORDER_CATALOG_FRESHNESS = timedelta(seconds=30)
 
 
 class ApprovedSpotEligibilityCategory(str, Enum):
@@ -33,6 +34,7 @@ class ApprovedSpotEligibilityCategory(str, Enum):
     BEST_BID_ASK = "BEST_BID_ASK"
     FEE_SUMMARY = "FEE_SUMMARY"
     EXACT_ORDER_RECONCILIATION = "EXACT_ORDER_RECONCILIATION"
+    ACCOUNT_ACTIVE_SPOT_ORDER_CATALOG = "ACCOUNT_ACTIVE_SPOT_ORDER_CATALOG"
 
 
 APPROVED_SPOT_ELIGIBILITY_ORDER = (
@@ -43,6 +45,7 @@ APPROVED_SPOT_ELIGIBILITY_ORDER = (
     ApprovedSpotEligibilityCategory.BEST_BID_ASK,
     ApprovedSpotEligibilityCategory.FEE_SUMMARY,
     ApprovedSpotEligibilityCategory.EXACT_ORDER_RECONCILIATION,
+    ApprovedSpotEligibilityCategory.ACCOUNT_ACTIVE_SPOT_ORDER_CATALOG,
 )
 
 
@@ -492,7 +495,7 @@ class SpotEligibilityCycleClaim:
 
 
 class ApprovedSpotEligibilityReader(Protocol):
-    """Only the seven reads approved for this bounded coordinator."""
+    """Only the eight reads approved for this bounded coordinator."""
 
     def read_api_key_permissions(
         self,
@@ -525,6 +528,11 @@ class ApprovedSpotEligibilityReader(Protocol):
     ) -> SpotEligibilityReadResult: ...
 
     def read_exact_order_reconciliation(
+        self,
+        context: SpotEligibilityReadContext,
+    ) -> SpotEligibilityReadResult: ...
+
+    def read_account_active_spot_order_catalog(
         self,
         context: SpotEligibilityReadContext,
     ) -> SpotEligibilityReadResult: ...
@@ -573,9 +581,13 @@ class SpotEligibilityCoordinator:
         now_factory: Callable[[], datetime] = _utc_now,
         default_freshness: timedelta = _DEFAULT_FRESHNESS,
         best_bid_ask_freshness: timedelta = _BEST_BID_ASK_FRESHNESS,
+        active_order_catalog_freshness: timedelta = (
+            _ACTIVE_ORDER_CATALOG_FRESHNESS
+        ),
     ) -> None:
         self._require_freshness(default_freshness)
         self._require_freshness(best_bid_ask_freshness)
+        self._require_freshness(active_order_catalog_freshness)
         if (reader is None) is (reader_factory is None):
             raise ValueError("spot_eligibility_reader_binding_invalid")
         if reader_factory is not None and not callable(reader_factory):
@@ -586,6 +598,7 @@ class SpotEligibilityCoordinator:
         self._now_factory = now_factory
         self._default_freshness = default_freshness
         self._best_bid_ask_freshness = best_bid_ask_freshness
+        self._active_order_catalog_freshness = active_order_catalog_freshness
 
     @staticmethod
     def _require_freshness(value: timedelta) -> None:
@@ -627,6 +640,7 @@ class SpotEligibilityCoordinator:
                     "read_best_bid_ask",
                     "read_fee_summary",
                     "read_exact_order_reconciliation",
+                    "read_account_active_spot_order_catalog",
                 )
                 if reader is None or any(
                     not callable(getattr(reader, method_name, None))
@@ -704,6 +718,10 @@ class SpotEligibilityCoordinator:
             (
                 ApprovedSpotEligibilityCategory.EXACT_ORDER_RECONCILIATION,
                 reader.read_exact_order_reconciliation,
+            ),
+            (
+                ApprovedSpotEligibilityCategory.ACCOUNT_ACTIVE_SPOT_ORDER_CATALOG,
+                reader.read_account_active_spot_order_catalog,
             ),
         )
 
@@ -851,6 +869,11 @@ class SpotEligibilityCoordinator:
     ) -> timedelta:
         if category is ApprovedSpotEligibilityCategory.BEST_BID_ASK:
             return self._best_bid_ask_freshness
+        if (
+            category
+            is ApprovedSpotEligibilityCategory.ACCOUNT_ACTIVE_SPOT_ORDER_CATALOG
+        ):
+            return self._active_order_catalog_freshness
         return self._default_freshness
 
     @staticmethod

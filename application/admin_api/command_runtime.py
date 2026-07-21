@@ -129,9 +129,12 @@ def _order_root_registrar_available(registrar: Any | None) -> bool:
     return bool(
         callable(getattr(registrar, "register_manual_spot_root", None))
         and callable(
+            getattr(registrar, "register_automation_spot_root", None)
+        )
+        and callable(
             getattr(
                 registrar,
-                "get_unresolved_admin_manual_root_submissions",
+                "get_unresolved_admin_spot_root_submissions",
                 None,
             )
         )
@@ -394,6 +397,61 @@ class AdminApiOrderRootRuntimeRegistrar:
         audit_id: str | None = None,
         target_movement_override: str | float | None = None,
     ) -> dict[str, Any]:
+        return self._register_spot_root(
+            client_order_id=client_order_id,
+            product_id=product_id,
+            side=side,
+            base_size=base_size,
+            limit_price=limit_price,
+            retail_portfolio_id=retail_portfolio_id,
+            correlation_id=correlation_id,
+            audit_id=audit_id,
+            target_movement_override=target_movement_override,
+            ownership_provenance=OrderOwnershipProvenance.ADMIN_MANUAL_ROOT,
+        )
+
+    def register_automation_spot_root(
+        self,
+        *,
+        client_order_id: str,
+        product_id: str,
+        side: str,
+        base_size: str,
+        limit_price: str,
+        retail_portfolio_id: str,
+        correlation_id: str | None = None,
+        audit_id: str | None = None,
+        target_movement_override: str | float | None = None,
+    ) -> dict[str, Any]:
+        """Persist one typed Automation-owned Spot root before submission."""
+
+        return self._register_spot_root(
+            client_order_id=client_order_id,
+            product_id=product_id,
+            side=side,
+            base_size=base_size,
+            limit_price=limit_price,
+            retail_portfolio_id=retail_portfolio_id,
+            correlation_id=correlation_id,
+            audit_id=audit_id,
+            target_movement_override=target_movement_override,
+            ownership_provenance=OrderOwnershipProvenance.ADMIN_AUTOMATION_ROOT,
+        )
+
+    def _register_spot_root(
+        self,
+        *,
+        client_order_id: str,
+        product_id: str,
+        side: str,
+        base_size: str,
+        limit_price: str,
+        retail_portfolio_id: str,
+        correlation_id: str | None,
+        audit_id: str | None,
+        target_movement_override: str | float | None,
+        ownership_provenance: OrderOwnershipProvenance,
+    ) -> dict[str, Any]:
         engine = self.order_engine
         db_module = getattr(engine, "db_module", None)
         insert_order_parent = getattr(db_module, "insert_order_parent", None)
@@ -443,9 +501,7 @@ class AdminApiOrderRootRuntimeRegistrar:
             retail_portfolio_id=retail_portfolio_id,
             correlation_id=correlation_id,
             audit_id=audit_id,
-            ownership_provenance=(
-                OrderOwnershipProvenance.ADMIN_MANUAL_ROOT
-            ),
+            ownership_provenance=ownership_provenance,
         )
         if parent_row_id is None:
             raise RuntimeError("order_parent_insert_returned_no_id")
@@ -463,9 +519,7 @@ class AdminApiOrderRootRuntimeRegistrar:
             "target_movement_type": "P",
             "target_movement_source": target_movement_source,
             "max_order_replacement": max_order_replacement,
-            "ownership_provenance": (
-                OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
-            ),
+            "ownership_provenance": ownership_provenance.value,
         }
 
     def build_intentional_fill_target_movement(
@@ -689,6 +743,26 @@ class AdminApiOrderRootRuntimeRegistrar:
             not isinstance(row, dict) for row in rows
         ):
             raise RuntimeError("unresolved_admin_root_read_invalid")
+        return [dict(row) for row in rows]
+
+    def get_unresolved_admin_spot_root_submissions(
+        self,
+        retail_portfolio_id: str,
+    ) -> list[dict[str, Any]]:
+        """Return nonterminal manual and Automation roots for single-flight."""
+
+        getter = getattr(
+            getattr(self.order_engine, "db_module", None),
+            "get_unresolved_admin_spot_root_submissions",
+            None,
+        )
+        if not callable(getter):
+            raise RuntimeError("unresolved_admin_spot_root_read_unavailable")
+        rows = getter(retail_portfolio_id)
+        if not isinstance(rows, list) or any(
+            not isinstance(row, dict) for row in rows
+        ):
+            raise RuntimeError("unresolved_admin_spot_root_read_invalid")
         return [dict(row) for row in rows]
 
 

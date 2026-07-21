@@ -61,23 +61,51 @@ class PostgresSpotEligibilityLedger:
         repository: Any,
         mutation_context: AutomationMutationContext,
         request_payload: Mapping[str, Any],
+        authorization_cycle: bool = False,
     ) -> None:
         if repository is None:
             raise ValueError("spot_eligibility_repository_unavailable")
         if not isinstance(mutation_context, AutomationMutationContext):
             raise ValueError("spot_eligibility_mutation_context_invalid")
-        expected_fields = {
-            "confirm_approved_eligibility_reads",
-            "confirm_unknown_consumes_cycle",
-            "expected_plan_sha256",
-            "reason",
-        }
+        expected_fields = (
+            {
+                "confirm_single_child_create",
+                "confirm_final_eligibility_refresh",
+                "confirm_account_wide_active_spot_order_catalog_read",
+                "confirm_unknown_consumes_allowance",
+                "expected_plan_sha256",
+                "reason",
+            }
+            if authorization_cycle
+            else {
+                "confirm_approved_eligibility_reads",
+                "confirm_account_wide_active_spot_order_catalog_read",
+                "confirm_unknown_consumes_cycle",
+                "expected_plan_sha256",
+                "reason",
+            }
+        )
+        required_confirmations = (
+            (
+                "confirm_single_child_create",
+                "confirm_final_eligibility_refresh",
+                "confirm_account_wide_active_spot_order_catalog_read",
+                "confirm_unknown_consumes_allowance",
+            )
+            if authorization_cycle
+            else (
+                "confirm_approved_eligibility_reads",
+                "confirm_account_wide_active_spot_order_catalog_read",
+                "confirm_unknown_consumes_cycle",
+            )
+        )
         if (
             not isinstance(request_payload, Mapping)
             or set(request_payload) != expected_fields
-            or request_payload.get("confirm_approved_eligibility_reads")
-            is not True
-            or request_payload.get("confirm_unknown_consumes_cycle") is not True
+            or any(
+                request_payload.get(field_name) is not True
+                for field_name in required_confirmations
+            )
             or not isinstance(request_payload.get("expected_plan_sha256"), str)
             or not isinstance(request_payload.get("reason"), str)
             or not str(request_payload.get("reason")).strip()
@@ -86,6 +114,7 @@ class PostgresSpotEligibilityLedger:
         self._repository = repository
         self._mutation_context = mutation_context
         self._request_payload = dict(request_payload)
+        self._authorization_cycle = authorization_cycle
 
     def _command(
         self,
@@ -149,12 +178,21 @@ class PostgresSpotEligibilityLedger:
         if self._request_payload["expected_plan_sha256"] != context.plan_sha256:
             raise ValueError("spot_eligibility_request_plan_mismatch")
         payload = {
-            "operation": "resume_automation_spot_source_gated_run",
+            "operation": (
+                "allocate_automation_spot_authorization_cycle"
+                if self._authorization_cycle
+                else "resume_automation_spot_source_gated_run"
+            ),
             "run_id": context.run_id,
             "expected_plan_sha256": context.plan_sha256,
             "request": self._request_payload,
         }
-        mutation = self._repository.resume_spot_source_gated_run(
+        allocate_cycle = (
+            self._repository.allocate_spot_authorization_cycle
+            if self._authorization_cycle
+            else self._repository.resume_spot_source_gated_run
+        )
+        mutation = allocate_cycle(
             context.run_id,
             expected_plan_sha256=context.plan_sha256,
             command=self._command(

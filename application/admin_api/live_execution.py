@@ -36,6 +36,8 @@ from core.coinbase_execution_authority import (
 )
 
 from .operator_mvp_policy import (
+    OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_CREATE_ROUTE,
+    OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_SAFE_CLOSEOUT_ROUTE,
     OPERATOR_MVP_MAX_EXECUTED_NOTIONAL_USDC,
     OPERATOR_MVP_MAX_SUBMITTED_NOTIONAL_USDC,
     OPERATOR_MVP_SUPPORTED_LIVE_ROUTES,
@@ -848,6 +850,33 @@ CONTROLLED_LIVE_MVP_ADAPTER_ROUTES = {
         CONTROLLED_LIVE_MVP_ADAPTER_CANCEL_ROUTE,
         CONTROLLED_LIVE_MVP_ADAPTER_MODULE_ID,
         CONTROLLED_LIVE_MVP_ADAPTER_CANCEL_SERVICE_METHOD,
+    ),
+}
+OPERATOR_AUTOMATION_SPOT_ADAPTER_SOURCE = (
+    "canonical_operator_automation_spot_runtime"
+)
+OPERATOR_AUTOMATION_SPOT_ADAPTER_ROUTES = {
+    (
+        "POST",
+        OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_CREATE_ROUTE,
+        "automation_control_plane",
+        "authorize_single_child",
+    ): (
+        "place_manual_order",
+        "OperatorAutomationService.authorize_single_child -> "
+        "PostgresOperatorAutomationRepositoryAdapter.authorize_single_child -> "
+        "AdminApiCommandService.place_manual_order",
+    ),
+    (
+        "POST",
+        OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_SAFE_CLOSEOUT_ROUTE,
+        "automation_control_plane",
+        "safe_closeout_single_child",
+    ): (
+        "cancel_order_by_client_order_id",
+        "OperatorAutomationService.safe_closeout_single_child -> "
+        "PostgresOperatorAutomationRepositoryAdapter.safe_closeout_single_child -> "
+        "AdminApiCommandService.cancel_order_by_client_order_id",
     ),
 }
 FOLLOW_UP_MATERIALIZATION_ADAPTER_SOURCE = (
@@ -16815,6 +16844,79 @@ def build_controlled_live_mvp_execution_adapter_contract(
     }
 
 
+def build_operator_automation_spot_execution_adapter_contract(
+    *,
+    method: str,
+    route: str,
+    module_id: str,
+    service_method: str,
+    canonical_command_method: str,
+    adapter_reference: str,
+    action_class: AdminApiActionClass,
+    live_adapter_decision_store: FileAdminApiLiveAdapterDecisionStore | None = None,
+    include_construction_contract: bool = True,
+) -> dict[str, Any]:
+    """Describe the outer Automation route's canonical Spot delegation chain."""
+
+    contract = build_controlled_live_mvp_execution_adapter_contract(
+        method=method,
+        route=route,
+        module_id=module_id,
+        service_method=service_method,
+        action_class=action_class,
+        live_adapter_decision_store=live_adapter_decision_store,
+        include_construction_contract=include_construction_contract,
+    )
+    contract.update(
+        {
+            "source": OPERATOR_AUTOMATION_SPOT_ADAPTER_SOURCE,
+            "adapter_reference": adapter_reference,
+            "construction_precondition_authority": (
+                "installed_canonical_operator_automation_spot_runtime"
+            ),
+            "construction_contract_ref": (
+                "application/admin_api/operator_automation.py::"
+                f"PostgresOperatorAutomationRepositoryAdapter.{service_method}"
+            ),
+            "construction_satisfaction_authority": (
+                "installed_canonical_operator_automation_spot_runtime"
+            ),
+            "construction_contract_refs": [
+                (
+                    "application/admin_api/operator_automation.py::"
+                    f"PostgresOperatorAutomationRepositoryAdapter.{service_method}"
+                ),
+                (
+                    "application/admin_api/operator_spot_automation_runtime.py::"
+                    "PreparedSpotAutomationCommand"
+                ),
+                (
+                    "application/admin_api/command_service.py::"
+                    f"AdminApiCommandService.{canonical_command_method}"
+                ),
+                "application/admin_api/route_inventory.py",
+            ],
+            "evidence": [
+                "The outer operator Automation route delegates through its typed PostgreSQL coordinator.",
+                (
+                    "The coordinator binds a canonical AdminApiCommandService "
+                    f"{canonical_command_method} command; it does not add a parallel placement path."
+                ),
+                "Current runtime authority and every exact run/action admission gate remain mandatory.",
+                "Browser and BFF layers may display and forward intent but cannot authorize execution.",
+            ],
+            "detail": (
+                f"{method} {route} is installed as {adapter_reference}. This "
+                "capability is not request authority: the outer run claim and "
+                "the canonical inner command must independently pass their "
+                "respective RBAC, explicit-intent, idempotency, portfolio, "
+                "product, cap, audit, reconciliation, runtime, and one-use gates."
+            ),
+        }
+    )
+    return contract
+
+
 def build_follow_up_materialization_execution_adapter_contract(
     *,
     method: str,
@@ -16974,6 +17076,22 @@ def build_live_execution_adapter_contract(
 ) -> dict[str, Any]:
     """Return route-specific live adapter evidence for Admin API readiness."""
 
+    automation_adapter = OPERATOR_AUTOMATION_SPOT_ADAPTER_ROUTES.get(
+        (method, route, module_id, service_method)
+    )
+    if automation_adapter is not None:
+        canonical_command_method, adapter_reference = automation_adapter
+        return build_operator_automation_spot_execution_adapter_contract(
+            method=method,
+            route=route,
+            module_id=module_id,
+            service_method=service_method,
+            canonical_command_method=canonical_command_method,
+            adapter_reference=adapter_reference,
+            action_class=action_class,
+            live_adapter_decision_store=live_adapter_decision_store,
+            include_construction_contract=include_construction_contract,
+        )
     materialization_route = next(
         (
             adapter_method

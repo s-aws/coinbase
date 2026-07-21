@@ -57,9 +57,21 @@ def _mutation_context() -> AutomationMutationContext:
 def _request(*, reason: str = "Refresh this exact source-gated run") -> dict[str, Any]:
     return {
         "confirm_approved_eligibility_reads": True,
+        "confirm_account_wide_active_spot_order_catalog_read": True,
         "confirm_unknown_consumes_cycle": True,
         "expected_plan_sha256": PLAN_SHA256,
         "reason": reason,
+    }
+
+
+def _authorization_request() -> dict[str, Any]:
+    return {
+        "confirm_single_child_create": True,
+        "confirm_final_eligibility_refresh": True,
+        "confirm_account_wide_active_spot_order_catalog_read": True,
+        "confirm_unknown_consumes_allowance": True,
+        "expected_plan_sha256": PLAN_SHA256,
+        "reason": "Authorize this exact child after a fresh final cycle",
     }
 
 
@@ -79,7 +91,7 @@ def _cycle(*, state: str = "OPEN") -> SimpleNamespace:
         product_id="BTC-USDC",
         client_order_id=client_order_id,
         state=state,
-        coinbase_api_call_count=(7 if state == "SUCCEEDED" else None),
+        coinbase_api_call_count=(8 if state == "SUCCEEDED" else None),
         call_count_exact=state == "SUCCEEDED",
         fresh_until=(
             (NOW + timedelta(seconds=30)).isoformat()
@@ -147,6 +159,20 @@ class _RawRepository:
 
     def resume_spot_source_gated_run(self, run_id: str, **kwargs: Any) -> _Mutation:
         self.calls.append(("resume_spot_source_gated_run", {"run_id": run_id, **kwargs}))
+        allocation = SimpleNamespace(
+            run=SimpleNamespace(run_id=RUN_ID),
+            cycle=self.cycle,
+        )
+        return _Mutation(entity=allocation, replayed=self.replayed)
+
+    def allocate_spot_authorization_cycle(
+        self,
+        run_id: str,
+        **kwargs: Any,
+    ) -> _Mutation:
+        self.calls.append(
+            ("allocate_spot_authorization_cycle", {"run_id": run_id, **kwargs})
+        )
         allocation = SimpleNamespace(
             run=SimpleNamespace(run_id=RUN_ID),
             cycle=self.cycle,
@@ -317,7 +343,7 @@ def test_terminal_cycle_replay_reconstructs_result_without_reader_calls():
     assert result.replayed is True
     assert result.eligible is True
     assert result.completed_categories == APPROVED_SPOT_ELIGIBILITY_ORDER
-    assert result.coinbase_api_call_count == 7
+    assert result.coinbase_api_call_count == 8
     assert reader.calls == 0
     assert [name for name, _kwargs in raw.calls] == [
         "resume_spot_source_gated_run",
@@ -387,3 +413,22 @@ def test_outer_cycle_payload_hash_binds_the_full_operator_request():
     second_command = second_raw.calls[0][1]["command"]
     assert first_command.idempotency_key == second_command.idempotency_key
     assert first_command.payload_sha256 != second_command.payload_sha256
+
+
+def test_authorization_cycle_uses_a_distinct_typed_repository_transition():
+    raw = _RawRepository()
+    ledger = PostgresSpotEligibilityLedger(
+        repository=raw,
+        mutation_context=_mutation_context(),
+        request_payload=_authorization_request(),
+        authorization_cycle=True,
+    )
+
+    claim = ledger.claim_or_resume_cycle(_run_context())
+
+    assert claim.replayed is False
+    assert [name for name, _kwargs in raw.calls] == [
+        "allocate_spot_authorization_cycle"
+    ]
+    command = raw.calls[0][1]["command"]
+    assert command.idempotency_key == "eligibility-request-1"

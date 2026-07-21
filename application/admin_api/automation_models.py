@@ -75,12 +75,39 @@ _DEFINITION_ALLOWED_ACTIONS = frozenset(
     }
 )
 _CONTROL_ALLOWED_ACTIONS = frozenset({"PAUSE", "RESUME", "DRAIN", "SHUTDOWN"})
+AUTOMATION_SPOT_SINGLE_CHILD_SUCCESSOR_DIAGNOSTICS = {
+    AutomationRunState.BLOCKED: frozenset(
+        {"automation_spot_eligibility_refresh_required"}
+    ),
+    AutomationRunState.ACTIVE: frozenset(
+        {
+            "automation_spot_safe_closeout_ready",
+            "automation_spot_safe_closeout_invocation_started",
+        }
+    ),
+    AutomationRunState.TERMINAL: frozenset(
+        {
+            "automation_spot_safe_closeout_accepted_terminal",
+            "automation_spot_safe_closeout_accepted_nonterminal",
+            "automation_spot_safe_closeout_rejected",
+        }
+    ),
+    AutomationRunState.UNKNOWN_CONSUMED: frozenset(
+        {
+            "automation_spot_safe_closeout_unknown_consumed",
+        }
+    ),
+}
 _V1_RUN_DIAGNOSTICS = {
     AutomationRunState.CLAIMED: frozenset(
         {"one_shot_run_claimed"}
     ),
     AutomationRunState.PREPARING: frozenset(
-        {"preparing", "automation_spot_source_gate_resumed"}
+        {
+            "preparing",
+            "automation_spot_source_gate_resumed",
+            "automation_spot_final_admission_started",
+        }
     ),
     AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION: frozenset(
         {"awaiting_operator_authorization"}
@@ -92,7 +119,10 @@ _V1_RUN_DIAGNOSTICS = {
             "automation_active_order_catalog_read_not_authorized",
             "restart_pre_invocation_blocked",
         }
-    ),
+    )
+    | AUTOMATION_SPOT_SINGLE_CHILD_SUCCESSOR_DIAGNOSTICS[
+        AutomationRunState.BLOCKED
+    ],
     AutomationRunState.UNKNOWN_CONSUMED: frozenset(
         {
             "restart_unknown_consumed",
@@ -100,10 +130,16 @@ _V1_RUN_DIAGNOSTICS = {
             "automation_spot_create_unknown_consumed",
             "automation_spot_cancel_unknown_consumed",
         }
-    ),
+    )
+    | AUTOMATION_SPOT_SINGLE_CHILD_SUCCESSOR_DIAGNOSTICS[
+        AutomationRunState.UNKNOWN_CONSUMED
+    ],
     AutomationRunState.ABORTED: frozenset({"automation_run_aborted"}),
     AutomationRunState.INVOCATION_STARTED: frozenset(
-        {"invocation_started", "automation_spot_create_invocation_started"}
+        {
+            "invocation_started",
+            "automation_spot_create_invocation_started",
+        }
     ),
     AutomationRunState.ACTIVE: frozenset(
         {
@@ -111,7 +147,10 @@ _V1_RUN_DIAGNOSTICS = {
             "automation_spot_create_accepted_active",
             "automation_spot_cancel_invocation_started",
         }
-    ),
+    )
+    | AUTOMATION_SPOT_SINGLE_CHILD_SUCCESSOR_DIAGNOSTICS[
+        AutomationRunState.ACTIVE
+    ],
     AutomationRunState.TERMINAL: frozenset(
         {
             "terminal",
@@ -121,7 +160,10 @@ _V1_RUN_DIAGNOSTICS = {
             "automation_spot_cancel_accepted_terminal",
             "automation_spot_cancel_accepted_nonterminal",
         }
-    ),
+    )
+    | AUTOMATION_SPOT_SINGLE_CHILD_SUCCESSOR_DIAGNOSTICS[
+        AutomationRunState.TERMINAL
+    ],
 }
 
 
@@ -177,12 +219,16 @@ class AutomationEligibilityRefreshActivity(BaseModel):
 
 
 class AutomationRunMutationActivity(BaseModel):
-    """Truthful current-request accounting for one run mutation workflow."""
+    """Truthful operation-local accounting for one run mutation workflow."""
 
     model_config = ConfigDict(extra="forbid")
 
+    operation: Literal["LOCAL", "CREATE", "SAFE_CLOSEOUT"] = (
+        "LOCAL"
+    )
     coinbase_api_call_count: int | None = Field(default=0, ge=0)
-    exchange_mutation_count: int | None = Field(default=0, ge=0, le=2)
+    read_call_count: int | None = Field(default=0, ge=0)
+    exchange_mutation_count: int | None = Field(default=0, ge=0, le=1)
     create_call_count: int | None = Field(default=0, ge=0, le=1)
     cancel_call_count: int | None = Field(default=0, ge=0, le=1)
     call_count_exact: bool = True
@@ -192,6 +238,7 @@ class AutomationRunMutationActivity(BaseModel):
     def validate_call_accounting(self) -> Self:
         counts = (
             self.coinbase_api_call_count,
+            self.read_call_count,
             self.exchange_mutation_count,
             self.create_call_count,
             self.cancel_call_count,
@@ -201,23 +248,54 @@ class AutomationRunMutationActivity(BaseModel):
             if any_unknown:
                 raise ValueError("automation_run_mutation_activity_invalid")
             total = cast(int, self.coinbase_api_call_count)
+            reads = cast(int, self.read_call_count)
             exchange = cast(int, self.exchange_mutation_count)
             create = cast(int, self.create_call_count)
             cancel = cast(int, self.cancel_call_count)
-            if (
-                total < exchange
-                or exchange != create + cancel
-                or (cancel == 1 and create != 1)
+            if total != reads + exchange:
+                raise ValueError("automation_run_mutation_activity_invalid")
+            if exchange != create + cancel:
+                raise ValueError("automation_run_mutation_activity_invalid")
+            if self.operation == "LOCAL" and (
+                reads != 0 or create != 0 or cancel != 0
+            ):
+                raise ValueError("automation_run_mutation_activity_invalid")
+            if self.operation == "CREATE" and (
+                create not in {0, 1} or cancel != 0
+            ):
+                raise ValueError("automation_run_mutation_activity_invalid")
+            if self.operation == "SAFE_CLOSEOUT" and (
+                create != 0 or cancel not in {0, 1}
             ):
                 raise ValueError("automation_run_mutation_activity_invalid")
             return self
 
-        allowed_unknown = {
-            (None, None, None, 0),
-            (None, None, 1, None),
-            (None, 1, 1, 0),
-        }
-        if not any_unknown or counts not in allowed_unknown:
+        if not any_unknown or self.operation == "LOCAL":
+            raise ValueError("automation_run_mutation_activity_invalid")
+        total, reads, exchange, create, cancel = counts
+        if total is not None:
+            raise ValueError("automation_run_mutation_activity_invalid")
+        if self.operation == "CREATE" and (
+            cancel != 0
+            or create not in {0, 1, None}
+            or exchange not in {0, 1, None}
+            or (
+                create is not None
+                and exchange is not None
+                and create != exchange
+            )
+        ):
+            raise ValueError("automation_run_mutation_activity_invalid")
+        if self.operation == "SAFE_CLOSEOUT" and (
+            create != 0
+            or cancel not in {0, 1, None}
+            or exchange not in {0, 1, None}
+            or (
+                cancel is not None
+                and exchange is not None
+                and cancel != exchange
+            )
+        ):
             raise ValueError("automation_run_mutation_activity_invalid")
         return self
 
@@ -394,12 +472,13 @@ class AutomationOneShotRunRequest(BaseModel):
 
 
 class AutomationSingleChildAuthorizationRequest(BaseModel):
-    """Exact-run acknowledgement; trading terms remain backend-owned."""
+    """Create-only exact-run acknowledgement; trading terms remain backend-owned."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     confirm_single_child_create: Literal[True]
-    confirm_exact_child_safe_closeout_cancel: Literal[True]
+    confirm_final_eligibility_refresh: Literal[True]
+    confirm_account_wide_active_spot_order_catalog_read: Literal[True]
     confirm_unknown_consumes_allowance: Literal[True]
     expected_plan_sha256: str = Field(pattern=_SHA256_PATTERN)
     reason: str = Field(min_length=1, max_length=255)
@@ -411,12 +490,29 @@ class AutomationSingleChildAuthorizationRequest(BaseModel):
 
 
 class AutomationEligibilityRefreshRequest(BaseModel):
-    """Exact-run authorization for one bounded seven-category read cycle."""
+    """Exact-run authorization for one bounded eight-category read cycle."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     confirm_approved_eligibility_reads: Literal[True]
+    confirm_account_wide_active_spot_order_catalog_read: Literal[True]
     confirm_unknown_consumes_cycle: Literal[True]
+    expected_plan_sha256: str = Field(pattern=_SHA256_PATTERN)
+    reason: str = Field(min_length=1, max_length=255)
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def normalize_reason(cls, value: object) -> object:
+        return _normalized_operator_text(value, code="automation_reason_invalid")
+
+
+class AutomationSingleChildSafeCloseoutRequest(BaseModel):
+    """Cancel-only exact-child safe-closeout acknowledgement."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    confirm_exact_child_safe_closeout_cancel: Literal[True]
+    confirm_unknown_consumes_allowance: Literal[True]
     expected_plan_sha256: str = Field(pattern=_SHA256_PATTERN)
     reason: str = Field(min_length=1, max_length=255)
 
@@ -434,6 +530,7 @@ AutomationEligibilityCategory = Literal[
     "best_bid_ask",
     "fee_summary",
     "exact_order_reconciliation",
+    "active_order_catalog",
 ]
 
 
@@ -487,11 +584,11 @@ class AutomationSingleChildEligibilityReadback(BaseModel):
     cycle_number: int | None = Field(default=None, ge=1, le=10)
     required_categories: list[AutomationEligibilityCategory] = Field(
         default_factory=list,
-        max_length=7,
+        max_length=8,
     )
     completed_categories: list[AutomationEligibilityCategory] = Field(
         default_factory=list,
-        max_length=7,
+        max_length=8,
     )
     eligible: bool = False
     blocker_code: str | None = Field(default=None, min_length=1, max_length=96)
@@ -612,9 +709,12 @@ class AutomationRunItem(BaseModel):
     live_execution_available: bool = False
     live_attempt_consumed: bool = False
     coinbase_api_call_count: int | None = Field(default=0, ge=0)
-    create_call_count: int | None = Field(default=0, ge=0)
-    cancel_call_count: int | None = Field(default=0, ge=0)
+    create_call_count: int | None = Field(default=0, ge=0, le=1)
+    cancel_call_count: int | None = Field(default=0, ge=0, le=1)
+    reconciliation_call_count: int | None = Field(default=0, ge=0)
     call_count_exact: bool = True
+    create_allowance_consumed: bool = False
+    cancel_allowance_consumed: bool = False
     client_order_id: str | None = Field(
         default=None,
         pattern=_CANONICAL_UUID_PATTERN,
@@ -623,7 +723,11 @@ class AutomationRunItem(BaseModel):
     single_child_plan: AutomationSingleChildPlanReadback | None = None
     eligibility: AutomationSingleChildEligibilityReadback | None = None
     allowed_actions: list[
-        Literal["REFRESH_ELIGIBILITY", "AUTHORIZE_SINGLE_CHILD"]
+        Literal[
+            "REFRESH_ELIGIBILITY",
+            "AUTHORIZE_SINGLE_CHILD",
+            "SAFE_CLOSEOUT_CHILD",
+        ]
     ] = Field(
         default_factory=list,
         max_length=1,
@@ -648,11 +752,36 @@ class AutomationRunItem(BaseModel):
             self.coinbase_api_call_count is None
             or self.create_call_count is None
             or self.cancel_call_count is None
+            or self.reconciliation_call_count is None
         ):
             raise ValueError("automation_run_call_count_invalid")
         if self.state is AutomationRunState.UNKNOWN_CONSUMED:
             if not self.live_attempt_consumed or self.call_count_exact:
                 raise ValueError("automation_run_unknown_call_count_invalid")
+        if self.job_kind is AutomationJobKind.SPOT_CAMPAIGN and (
+            (self.cancel_allowance_consumed and not self.create_allowance_consumed)
+            or (
+                not self.create_allowance_consumed
+                and self.create_call_count != 0
+            )
+            or (
+                not self.cancel_allowance_consumed
+                and self.cancel_call_count != 0
+            )
+        ):
+            raise ValueError("automation_run_allowance_invalid")
+        if (
+            self.job_kind is AutomationJobKind.SPOT_CAMPAIGN
+            and self.call_count_exact
+        ):
+            total = cast(int, self.coinbase_api_call_count)
+            create = cast(int, self.create_call_count)
+            cancel = cast(int, self.cancel_call_count)
+            reconciliation = cast(int, self.reconciliation_call_count)
+            if (
+                total < create + cancel + reconciliation
+            ):
+                raise ValueError("automation_run_allowance_invalid")
         post_invocation = self.state in {
             AutomationRunState.INVOCATION_STARTED,
             AutomationRunState.ACTIVE,
@@ -661,39 +790,89 @@ class AutomationRunItem(BaseModel):
         }
         if self.live_attempt_consumed is not post_invocation:
             raise ValueError("automation_run_consumption_invalid")
+        if (
+            self.job_kind is AutomationJobKind.SPOT_CAMPAIGN
+            and self.create_allowance_consumed is not post_invocation
+        ):
+            raise ValueError("automation_run_consumption_invalid")
         if self.job_kind is not AutomationJobKind.SPOT_CAMPAIGN:
             if any(
                 (
                     self.coinbase_api_call_count,
                     self.create_call_count,
                     self.cancel_call_count,
+                    self.reconciliation_call_count,
                 )
             ):
                 raise ValueError("automation_v1_run_call_evidence_invalid")
+            if self.create_allowance_consumed or self.cancel_allowance_consumed:
+                raise ValueError("automation_v1_run_allowance_forbidden")
             if self.client_order_id is not None:
                 raise ValueError("automation_v1_run_child_forbidden")
             if self.single_child_plan is not None or self.eligibility is not None:
                 raise ValueError("automation_single_child_readback_forbidden")
-        if self.live_execution_available and (
-            self.state is not AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
-            or self.eligibility is None
-            or not self.eligibility.eligible
-            or self.allowed_actions != ["AUTHORIZE_SINGLE_CHILD"]
-        ):
-            raise ValueError("automation_live_execution_availability_invalid")
-        if not self.live_execution_available:
-            if "AUTHORIZE_SINGLE_CHILD" in self.allowed_actions:
-                raise ValueError("automation_live_execution_action_invalid")
-            if self.allowed_actions and (
-                self.allowed_actions != ["REFRESH_ELIGIBILITY"]
-                or self.job_kind is not AutomationJobKind.SPOT_CAMPAIGN
-                or self.state is not AutomationRunState.BLOCKED
-                or self.diagnostic_code
-                != "automation_active_order_catalog_read_not_authorized"
-                or self.single_child_plan is None
-                or self.live_attempt_consumed
-            ):
-                raise ValueError("automation_eligibility_refresh_action_invalid")
+        if self.client_order_id is None and self.child_terminal is not None:
+            raise ValueError("automation_run_child_terminal_invalid")
+        action = self.allowed_actions[0] if self.allowed_actions else None
+        if action == "REFRESH_ELIGIBILITY":
+            valid = (
+                not self.live_execution_available
+                and self.job_kind is AutomationJobKind.SPOT_CAMPAIGN
+                and self.state is AutomationRunState.BLOCKED
+                and self.diagnostic_code
+                in {
+                    "automation_active_order_catalog_read_not_authorized",
+                    "automation_spot_eligibility_refresh_required",
+                    "restart_pre_invocation_blocked",
+                }
+                and self.single_child_plan is not None
+                and not self.live_attempt_consumed
+                and not self.create_allowance_consumed
+            )
+        elif action == "AUTHORIZE_SINGLE_CHILD":
+            preliminary_authorization_available = bool(
+                self.eligibility is not None
+                and (
+                    self.eligibility.eligible
+                    or (
+                        self.eligibility.blocker_code
+                        == "automation_spot_eligibility_stale"
+                        and self.eligibility.call_count_exact
+                        and self.eligibility.cycle_number is not None
+                        and self.eligibility.completed_categories
+                        == self.eligibility.required_categories
+                    )
+                )
+            )
+            valid = (
+                self.live_execution_available
+                and self.state
+                is AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
+                and self.diagnostic_code == "awaiting_operator_authorization"
+                and preliminary_authorization_available
+                and self.single_child_plan is not None
+                and self.client_order_id is None
+                and not self.create_allowance_consumed
+                and not self.cancel_allowance_consumed
+                and self.reconciliation_call_count == 0
+            )
+        elif action == "SAFE_CLOSEOUT_CHILD":
+            valid = (
+                self.live_execution_available
+                and self.state is AutomationRunState.ACTIVE
+                and self.diagnostic_code == "automation_spot_safe_closeout_ready"
+                and self.single_child_plan is not None
+                and self.client_order_id is not None
+                and self.child_terminal is False
+                and self.create_allowance_consumed
+                and not self.cancel_allowance_consumed
+                and self.reconciliation_call_count is not None
+                and self.reconciliation_call_count >= 1
+            )
+        else:
+            valid = not self.live_execution_available
+        if not valid:
+            raise ValueError("automation_run_action_authority_invalid")
         if self.updated_at < self.claimed_at:
             raise ValueError("automation_run_timestamp_invalid")
         return self
@@ -727,6 +906,12 @@ class AutomationRunEventItem(BaseModel):
             },
             "automation_spot_source_gate_resumed": {
                 (AutomationRunState.BLOCKED, AutomationRunState.PREPARING),
+            },
+            "automation_spot_final_admission_started": {
+                (
+                    AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION,
+                    AutomationRunState.PREPARING,
+                ),
             },
             "awaiting_operator_authorization": {
                 (
@@ -789,6 +974,10 @@ class AutomationRunEventItem(BaseModel):
                 (AutomationRunState.PREPARING, AutomationRunState.BLOCKED),
                 (AutomationRunState.BLOCKED, AutomationRunState.BLOCKED),
             },
+            "automation_spot_eligibility_refresh_required": {
+                (AutomationRunState.PREPARING, AutomationRunState.BLOCKED),
+                (AutomationRunState.BLOCKED, AutomationRunState.BLOCKED),
+            },
             "automation_spot_eligibility_invocation_started": {
                 (AutomationRunState.PREPARING, AutomationRunState.PREPARING),
             },
@@ -828,6 +1017,27 @@ class AutomationRunEventItem(BaseModel):
             "automation_spot_create_unknown_consumed": {
                 (
                     AutomationRunState.INVOCATION_STARTED,
+                    AutomationRunState.UNKNOWN_CONSUMED,
+                ),
+            },
+            "automation_spot_safe_closeout_ready": {
+                (AutomationRunState.ACTIVE, AutomationRunState.ACTIVE),
+            },
+            "automation_spot_safe_closeout_invocation_started": {
+                (AutomationRunState.ACTIVE, AutomationRunState.ACTIVE),
+            },
+            "automation_spot_safe_closeout_accepted_terminal": {
+                (AutomationRunState.ACTIVE, AutomationRunState.TERMINAL),
+            },
+            "automation_spot_safe_closeout_accepted_nonterminal": {
+                (AutomationRunState.ACTIVE, AutomationRunState.TERMINAL),
+            },
+            "automation_spot_safe_closeout_rejected": {
+                (AutomationRunState.ACTIVE, AutomationRunState.TERMINAL),
+            },
+            "automation_spot_safe_closeout_unknown_consumed": {
+                (
+                    AutomationRunState.ACTIVE,
                     AutomationRunState.UNKNOWN_CONSUMED,
                 ),
             },

@@ -62810,6 +62810,14 @@ def test_admin_api_decision_backed_live_execution_service_requires_runtime_opt_i
                 "/api/v1/orders/{source_client_order_id}/"
                 "follow-up-intent/materialization/safe-closeout",
             ),
+            (
+                "POST",
+                "/api/v1/automation/runs/{run_id}/authorize-single-child",
+            ),
+            (
+                "POST",
+                "/api/v1/automation/runs/{run_id}/safe-closeout-child",
+            ),
         }
     )
     unsupported = evaluate_command_live_admission(
@@ -62952,7 +62960,8 @@ def test_read_surfaces_expose_all_controlled_live_order_routes_from_backend_deci
         "get_admin_api_order_root_registrar",
         lambda: SimpleNamespace(
             register_manual_spot_root=lambda **_kwargs: None,
-            get_unresolved_admin_manual_root_submissions=lambda: [],
+            register_automation_spot_root=lambda **_kwargs: None,
+            get_unresolved_admin_spot_root_submissions=lambda _portfolio_id: [],
         ),
     )
     monkeypatch.setattr(
@@ -62968,6 +62977,9 @@ def test_read_surfaces_expose_all_controlled_live_order_routes_from_backend_deci
     capabilities = service.build_admin_capabilities().model_dump(mode="json")
     live_enablement = service.build_live_enablement().model_dump(mode="json")
     spot_suite = service.build_spot_command_suite().model_dump(mode="json")
+    enterprise_readiness = service.build_enterprise_readiness().model_dump(
+        mode="json"
+    )
 
     command_capabilities = {
         (item["method"], item["route"]): item
@@ -62992,6 +63004,18 @@ def test_read_surfaces_expose_all_controlled_live_order_routes_from_backend_deci
             "follow-up-intent/materialization/safe-closeout",
         )
     ]
+    automation_authorize_capability = command_capabilities[
+        (
+            "POST",
+            "/api/v1/automation/runs/{run_id}/authorize-single-child",
+        )
+    ]
+    automation_safe_closeout_capability = command_capabilities[
+        (
+            "POST",
+            "/api/v1/automation/runs/{run_id}/safe-closeout-child",
+        )
+    ]
 
     assert manual_capability["availability"] == "available"
     assert manual_capability["live_enabled"] is True
@@ -63010,6 +63034,21 @@ def test_read_surfaces_expose_all_controlled_live_order_routes_from_backend_deci
     assert safe_closeout_capability["shared_method"] == (
         "safe_closeout_materialized_follow_up_intent"
     )
+    assert automation_authorize_capability["live_enabled"] is True
+    assert automation_authorize_capability["frontend_safe"] is True
+    assert automation_authorize_capability["shared_method"] == (
+        "authorize_single_child"
+    )
+    assert automation_safe_closeout_capability["live_enabled"] is True
+    assert automation_safe_closeout_capability["frontend_safe"] is True
+    assert automation_safe_closeout_capability["shared_method"] == (
+        "safe_closeout_single_child"
+    )
+    automation_inventory = {
+        item["workflow_id"]: item
+        for item in enterprise_readiness["functionality_inventory"]
+    }["automation.operator_control_plane"]
+    assert automation_inventory["live_enabled"] is True
 
     live_routes = {item["route"]: item for item in live_enablement["paths"]}
     manual_live_route = live_routes["/api/v1/orders"]
@@ -63022,15 +63061,21 @@ def test_read_surfaces_expose_all_controlled_live_order_routes_from_backend_deci
         "/api/v1/orders/{source_client_order_id}/"
         "follow-up-intent/materialization/safe-closeout"
     ]
+    automation_authorize_live_route = live_routes[
+        "/api/v1/automation/runs/{run_id}/authorize-single-child"
+    ]
+    automation_safe_closeout_live_route = live_routes[
+        "/api/v1/automation/runs/{run_id}/safe-closeout-child"
+    ]
 
     assert live_enablement["status"] == "approval_required"
-    assert live_enablement["live_enabled_path_count"] == 4
-    assert live_enablement["live_eligible_path_count"] == 4
+    assert live_enablement["live_enabled_path_count"] == 6
+    assert live_enablement["live_eligible_path_count"] == 6
     assert live_enablement["live_command_runtime_enabled"] is True
     assert live_enablement["live_command_rest_client_available"] is True
     assert live_enablement["live_command_runtime_ready"] is True
     assert live_enablement["live_command_runtime_missing_reason"] is None
-    assert live_enablement["live_command_runtime_ready_path_count"] == 4
+    assert live_enablement["live_command_runtime_ready_path_count"] == 6
     assert manual_live_route["live_enabled"] is True
     assert manual_live_route["live_eligible"] is True
     assert manual_live_route["live_command_runtime_ready"] is True
@@ -63075,6 +63120,19 @@ def test_read_surfaces_expose_all_controlled_live_order_routes_from_backend_deci
         )
         assert path["live_execution_adapter"]["adapter_reference"] == (
             adapter_reference
+        )
+    for path in (
+        automation_authorize_live_route,
+        automation_safe_closeout_live_route,
+    ):
+        assert path["live_enabled"] is True
+        assert path["live_eligible"] is True
+        assert path["live_command_runtime_ready"] is True
+        assert path["live_command_runtime_missing_reason"] is None
+        assert path["live_execution_adapter"]["configured"] is True
+        assert path["live_execution_adapter"]["executable"] is True
+        assert path["live_execution_adapter"]["source"] == (
+            "canonical_operator_automation_spot_runtime"
         )
 
     spot_commands = {item["route"]: item for item in spot_suite["commands"]}
@@ -63149,11 +63207,28 @@ def test_live_enablement_separates_admission_from_missing_command_runtime(
     monkeypatch.setattr(configuration, "get_rest_client", unexpected_rest_client_load)
 
     live_enablement = AdminApiReadService().build_live_enablement().model_dump(mode="json")
-    manual_live_route = {
+    live_routes = {
         item["route"]: item for item in live_enablement["paths"]
-    }["/api/v1/orders"]
+    }
+    manual_live_route = live_routes["/api/v1/orders"]
+    automation_authorize_live_route = live_routes[
+        "/api/v1/automation/runs/{run_id}/authorize-single-child"
+    ]
+    automation_safe_closeout_live_route = live_routes[
+        "/api/v1/automation/runs/{run_id}/safe-closeout-child"
+    ]
 
-    assert live_enablement["live_enabled_path_count"] == 2
+    assert live_enablement["live_enabled_path_count"] == 4
+    assert {
+        item["route"]
+        for item in live_enablement["paths"]
+        if item["live_enabled"]
+    } == {
+        "/api/v1/orders",
+        "/api/v1/orders/{client_order_id}/cancel",
+        "/api/v1/automation/runs/{run_id}/authorize-single-child",
+        "/api/v1/automation/runs/{run_id}/safe-closeout-child",
+    }
     assert live_enablement["live_command_runtime_enabled"] is True
     assert live_enablement["live_command_rest_client_available"] is False
     assert live_enablement["live_command_runtime_ready"] is False
@@ -63168,6 +63243,15 @@ def test_live_enablement_separates_admission_from_missing_command_runtime(
         manual_live_route["live_command_runtime_missing_reason"]
         == "coinbase_rest_credentials_missing"
     )
+    for automation_route in (
+        automation_authorize_live_route,
+        automation_safe_closeout_live_route,
+    ):
+        assert automation_route["live_enabled"] is True
+        assert automation_route["live_command_runtime_ready"] is False
+        assert automation_route["live_command_runtime_missing_reason"] == (
+            "coinbase_rest_credentials_missing"
+        )
 
 
 def _live_adapter_decision_payload(
@@ -65611,11 +65695,20 @@ def test_admin_api_manual_order_route_executes_through_backend_runtime_dependenc
                 "ownership_provenance": "ADMIN_MANUAL_ROOT",
             }
 
+        def register_automation_spot_root(self, **kwargs):
+            return self.register_manual_spot_root(**kwargs)
+
         def mark_submission_status(self, **kwargs):
             call_order.append("root_status")
             self.status_updates.append(kwargs)
 
         def get_unresolved_admin_manual_root_submissions(
+            self,
+            _retail_portfolio_id,
+        ):
+            return []
+
+        def get_unresolved_admin_spot_root_submissions(
             self,
             _retail_portfolio_id,
         ):
@@ -65947,7 +66040,8 @@ def test_admin_api_manual_order_route_blocks_limit_notional_above_backend_cap(
         "get_admin_api_order_root_registrar",
         lambda: SimpleNamespace(
             register_manual_spot_root=lambda **_kwargs: None,
-            get_unresolved_admin_manual_root_submissions=lambda *_args: [],
+            register_automation_spot_root=lambda **_kwargs: None,
+            get_unresolved_admin_spot_root_submissions=lambda *_args: [],
         ),
     )
 
@@ -66230,7 +66324,8 @@ def test_admin_api_command_service_uses_backend_runtime_dependencies_when_enable
         "get_admin_api_order_root_registrar",
         lambda: SimpleNamespace(
             register_manual_spot_root=lambda **_kwargs: None,
-            get_unresolved_admin_manual_root_submissions=lambda *_args: [],
+            register_automation_spot_root=lambda **_kwargs: None,
+            get_unresolved_admin_spot_root_submissions=lambda *_args: [],
         ),
     )
 
@@ -66316,10 +66411,19 @@ def test_admin_api_manual_order_command_fails_closed_on_rest_exception(
                 "ownership_provenance": "ADMIN_MANUAL_ROOT",
             }
 
+        def register_automation_spot_root(self, **kwargs):
+            return self.register_manual_spot_root(**kwargs)
+
         def mark_submission_status(self, **kwargs):
             self.status_updates.append(kwargs)
 
         def get_unresolved_admin_manual_root_submissions(
+            self,
+            _retail_portfolio_id,
+        ):
+            return []
+
+        def get_unresolved_admin_spot_root_submissions(
             self,
             _retail_portfolio_id,
         ):
@@ -66790,6 +66894,20 @@ def test_admin_api_manual_spot_adapters_are_current_and_parked_routes_stay_dry_r
         service_method="cancel_order_by_client_order_id",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
     )
+    automation_create = build_live_execution_adapter_contract(
+        method="POST",
+        route="/api/v1/automation/runs/{run_id}/authorize-single-child",
+        module_id="automation_control_plane",
+        service_method="authorize_single_child",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+    )
+    automation_closeout = build_live_execution_adapter_contract(
+        method="POST",
+        route="/api/v1/automation/runs/{run_id}/safe-closeout-child",
+        module_id="automation_control_plane",
+        service_method="safe_closeout_single_child",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+    )
     non_pilot = build_live_execution_adapter_contract(
         method="POST",
         route="/api/v1/spot/campaign/executions",
@@ -66870,6 +66988,34 @@ def test_admin_api_manual_spot_adapters_are_current_and_parked_routes_stay_dry_r
     assert cancel_pilot["source"] == "canonical_admin_operator_runtime"
     assert cancel_pilot["missing_reason"] == "per_request_admission_required"
     assert cancel_pilot["executable"] is True
+
+    assert automation_create["configured"] is True
+    assert automation_create["executable"] is True
+    assert automation_create["source"] == (
+        "canonical_operator_automation_spot_runtime"
+    )
+    assert automation_create["adapter_reference"] == (
+        "OperatorAutomationService.authorize_single_child -> "
+        "PostgresOperatorAutomationRepositoryAdapter.authorize_single_child -> "
+        "AdminApiCommandService.place_manual_order"
+    )
+    assert automation_closeout["configured"] is True
+    assert automation_closeout["executable"] is True
+    assert automation_closeout["source"] == (
+        "canonical_operator_automation_spot_runtime"
+    )
+    assert automation_closeout["adapter_reference"] == (
+        "OperatorAutomationService.safe_closeout_single_child -> "
+        "PostgresOperatorAutomationRepositoryAdapter.safe_closeout_single_child -> "
+        "AdminApiCommandService.cancel_order_by_client_order_id"
+    )
+    assert all(
+        any(
+            "canonical AdminApiCommandService" in evidence
+            for evidence in item["evidence"]
+        )
+        for item in (automation_create, automation_closeout)
+    )
 
     assert reveal_pilot["configured"] is True
     assert reveal_pilot["route"] == (
@@ -74251,6 +74397,18 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         ("POST", "/api/v1/spot/sweep/automation-runs")
     ]["shared_method"] == "run_spot_sweep_automation"
     assert command_capabilities[
+        (
+            "POST",
+            "/api/v1/automation/runs/{run_id}/authorize-single-child",
+        )
+    ]["live_enabled"] is False
+    assert command_capabilities[
+        (
+            "POST",
+            "/api/v1/automation/runs/{run_id}/safe-closeout-child",
+        )
+    ]["live_enabled"] is False
+    assert command_capabilities[
         ("POST", "/api/v1/stealth/orders/{stealth_order_id}/recovery")
     ]["permission"] == AdminApiPermission.STEALTH_RECOVERY_EXECUTE.value
     assert command_capabilities[
@@ -74290,35 +74448,35 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     )
     assert live_payload["live_enabled_path_count"] == 0
     assert live_payload["live_eligible_path_count"] == 0
-    assert live_payload["preflight_check_count"] == 96
-    assert live_payload["blocking_preflight_check_count"] == 48
-    assert live_payload["passed_preflight_check_count"] == 48
-    assert live_payload["approval_snapshot_required_count"] == 12
+    assert live_payload["preflight_check_count"] == 104
+    assert live_payload["blocking_preflight_check_count"] == 52
+    assert live_payload["passed_preflight_check_count"] == 52
+    assert live_payload["approval_snapshot_required_count"] == 13
     assert live_payload["approval_snapshot_present_count"] == 0
-    assert live_payload["approval_snapshot_missing_count"] == 12
-    assert live_payload["approval_snapshot_required_field_count"] == 180
-    assert live_payload["approval_snapshot_missing_field_count"] == 180
-    assert live_payload["approval_store_required_count"] == 12
-    assert live_payload["approval_store_configured_count"] == 12
+    assert live_payload["approval_snapshot_missing_count"] == 13
+    assert live_payload["approval_snapshot_required_field_count"] == 195
+    assert live_payload["approval_snapshot_missing_field_count"] == 195
+    assert live_payload["approval_store_required_count"] == 13
+    assert live_payload["approval_store_configured_count"] == 13
     assert live_payload["approval_store_missing_count"] == 0
-    assert live_payload["approval_store_requirement_count"] == 144
+    assert live_payload["approval_store_requirement_count"] == 156
     assert live_payload["approval_store_missing_requirement_count"] == 0
-    assert live_payload["admission_audit_required_count"] == 12
+    assert live_payload["admission_audit_required_count"] == 13
     assert live_payload["admission_audit_configured_count"] == 0
-    assert live_payload["admission_audit_missing_count"] == 12
-    assert live_payload["admission_audit_fact_count"] == 120
-    assert live_payload["admission_audit_missing_fact_count"] == 108
-    assert live_payload["cap_guard_required_count"] == 12
+    assert live_payload["admission_audit_missing_count"] == 13
+    assert live_payload["admission_audit_fact_count"] == 130
+    assert live_payload["admission_audit_missing_fact_count"] == 117
+    assert live_payload["cap_guard_required_count"] == 13
     assert live_payload["cap_guard_configured_count"] == 0
-    assert live_payload["cap_guard_missing_count"] == 12
-    assert live_payload["cap_guard_requirement_count"] == 168
-    assert live_payload["cap_guard_missing_requirement_count"] == 168
-    assert live_payload["live_execution_adapter_required_count"] == 12
-    assert live_payload["live_execution_adapter_configured_count"] == 5
-    assert live_payload["live_execution_adapter_missing_count"] == 7
-    assert live_payload["readiness_precondition_count"] == 108
-    assert live_payload["blocking_readiness_precondition_count"] == 66
-    assert live_payload["passed_readiness_precondition_count"] == 42
+    assert live_payload["cap_guard_missing_count"] == 13
+    assert live_payload["cap_guard_requirement_count"] == 182
+    assert live_payload["cap_guard_missing_requirement_count"] == 182
+    assert live_payload["live_execution_adapter_required_count"] == 13
+    assert live_payload["live_execution_adapter_configured_count"] == 7
+    assert live_payload["live_execution_adapter_missing_count"] == 6
+    assert live_payload["readiness_precondition_count"] == 117
+    assert live_payload["blocking_readiness_precondition_count"] == 70
+    assert live_payload["passed_readiness_precondition_count"] == 47
     assert live_payload["live_coinbase_orders_ran"] is False
     live_routes = {item["route"]: item for item in live_payload["paths"]}
     assert "/api/v1/orders" in live_routes
@@ -74345,6 +74503,22 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "/api/v1/automation/runs/{run_id}/authorize-single-child"
         in live_routes
     )
+    assert (
+        "/api/v1/automation/runs/{run_id}/safe-closeout-child"
+        in live_routes
+    )
+    assert (
+        live_routes[
+            "/api/v1/automation/runs/{run_id}/authorize-single-child"
+        ]["live_enabled"]
+        is False
+    )
+    assert (
+        live_routes[
+            "/api/v1/automation/runs/{run_id}/safe-closeout-child"
+        ]["live_enabled"]
+        is False
+    )
     assert not {
         "/api/v1/futures/orders",
         "/api/v1/futures/positions/{position_key}/close-reduce",
@@ -74369,6 +74543,8 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
             "/api/v1/orders/{source_client_order_id}/follow-up-intent/"
             "materialization/safe-closeout"
         ),
+        "/api/v1/automation/runs/{run_id}/authorize-single-child",
+        "/api/v1/automation/runs/{run_id}/safe-closeout-child",
         "/api/v1/stealth/orders/{stealth_order_id}/reveal",
     }
     executable_adapter_routes = configured_adapter_routes - {
@@ -75117,9 +75293,13 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert automation_eligibility_taxonomy["reconciliation_required"] is False
     assert automation_eligibility_taxonomy["live_adapter_required"] is False
     assert automation_eligibility_taxonomy["live_coinbase_execution"] == "not_run"
-    assert automation_eligibility_taxonomy["blockers"] == [
-        "automation_active_order_catalog_read_not_authorized",
-    ]
+    assert "exactly eight approved read-only" in (
+        automation_eligibility_taxonomy["summary"]
+    )
+    assert "account-wide active Spot-order catalog" in (
+        automation_eligibility_taxonomy["reconciliation_contract"]
+    )
+    assert automation_eligibility_taxonomy["blockers"] == []
     automation_spot_taxonomy = taxonomy_by_id[
         "automation.spot_single_child_execution"
     ]
@@ -75131,18 +75311,30 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         AdminApiActionClass.LIVE_EXCHANGE_CANCEL.value,
     ]
     assert set(automation_spot_taxonomy["required_permissions"]) == {
+        AdminApiPermission.ACCOUNT_REALITY_REFRESH.value,
+        AdminApiPermission.AUTOMATION_RESUME.value,
         AdminApiPermission.AUTOMATION_TRIGGER.value,
         AdminApiPermission.ORDER_CREATE.value,
         AdminApiPermission.ORDER_CANCEL.value,
     }
+    assert automation_spot_taxonomy["exposure_status"] == (
+        AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED.value
+    )
+    assert automation_spot_taxonomy["support_status"] == (
+        AdminApiModuleSupportStatus.PLATFORM_READY.value
+    )
     assert automation_spot_taxonomy["approval_required"] is True
     assert automation_spot_taxonomy["cap_guard_required"] is True
     assert automation_spot_taxonomy["reconciliation_required"] is True
     assert automation_spot_taxonomy["live_adapter_required"] is True
     assert automation_spot_taxonomy["live_coinbase_execution"] == "not_run"
     assert automation_spot_taxonomy["blockers"] == [
-        "automation_active_order_catalog_read_not_authorized",
-        "automation_spot_execution_coordinator_unavailable",
+        "approval_snapshot_missing",
+        "admission_audit_missing",
+        "cap_guard_missing",
+        "reconciliation_plan_missing",
+        "current_live_runtime_readback_required",
+        "exact_run_action_authority_required",
     ]
     assert {
         "admin.platform_evidence",
@@ -75174,9 +75366,17 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert automation_inventory["live_designated"] is True
     assert automation_inventory["live_enabled"] is False
     assert automation_inventory["blockers"] == [
-        "automation_active_order_catalog_read_not_authorized",
-        "automation_spot_execution_coordinator_unavailable",
+        "approval_snapshot_missing",
+        "admission_audit_missing",
+        "cap_guard_missing",
+        "reconciliation_plan_missing",
+        "current_live_runtime_readback_required",
+        "exact_run_action_authority_required",
     ]
+    assert "typed Spot adapter" in automation_inventory["spot_rule_boundary"]
+    assert "future typed Spot adapter" not in (
+        automation_inventory["spot_rule_boundary"]
+    )
     spot_command_inventory = inventory_by_id["spot.order_command_drafts"]
     assert spot_command_inventory["workflow_type"] == (
         AdminApiFunctionalityWorkflowType.LIVE_EXECUTION.value
@@ -94326,6 +94526,31 @@ def test_admin_api_audit_workbench_preserves_movement_client_alias_filters(
 def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     rows = {item.surface: item for item in ADMIN_API_ROUTE_INVENTORY}
     doc = ROUTE_INVENTORY_DOC.read_text(encoding="utf-8")
+
+    automation_refresh = rows[
+        "POST /api/v1/automation/runs/{run_id}/eligibility-cycles"
+    ]
+    automation_create = rows[
+        "POST /api/v1/automation/runs/{run_id}/authorize-single-child"
+    ]
+    automation_closeout = rows[
+        "POST /api/v1/automation/runs/{run_id}/safe-closeout-child"
+    ]
+    assert automation_refresh.shared_method == "refresh_spot_eligibility"
+    assert "eight" in automation_refresh.caps
+    assert "active-order catalog" in automation_refresh.parity_test
+    assert automation_create.action_class == AdminApiActionClass.LIVE_EXCHANGE_PLACE
+    assert automation_create.permission == AdminApiPermission.ORDER_CREATE
+    assert "Create-only" in automation_create.approval
+    assert automation_closeout.shared_method == "safe_closeout_single_child"
+    assert automation_closeout.action_class == AdminApiActionClass.LIVE_EXCHANGE_CANCEL
+    assert automation_closeout.permission == AdminApiPermission.ORDER_CANCEL
+    for surface in (
+        automation_refresh.surface,
+        automation_create.surface,
+        automation_closeout.surface,
+    ):
+        assert f"| `{surface}` |" in doc
 
     assert rows["POST /api/v1/orders"].shared_method == "place_manual_order"
     assert rows["POST /api/v1/orders"].action_class == AdminApiActionClass.LIVE_EXCHANGE_PLACE

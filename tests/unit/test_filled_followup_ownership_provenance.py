@@ -256,6 +256,29 @@ def test_unresolved_admin_root_query_is_profile_scoped_and_root_only(
     assert params[1] == OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
 
 
+def test_unresolved_admin_spot_root_query_combines_manual_and_automation_roots(
+    monkeypatch,
+) -> None:
+    expected = [{"client_order_id": ROOT_ID, "status": "SUBMISSION_UNKNOWN"}]
+    db = _QueryDb(expected)
+    monkeypatch.setattr(order_db, "DB_CLIENT", db)
+
+    rows = order_db.get_unresolved_admin_spot_root_submissions(
+        TEST_PORTFOLIO_ID,
+    )
+
+    assert rows == expected
+    query, params = db.calls[0]
+    assert "parent_order_id IS NULL" in query
+    assert "ownership_provenance IN (%s, %s)" in query
+    assert "UPPER(status) NOT IN" in query
+    assert params[:3] == (
+        TEST_PORTFOLIO_ID,
+        OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value,
+        OrderOwnershipProvenance.ADMIN_AUTOMATION_ROOT.value,
+    )
+
+
 @pytest.mark.integration
 @pytest.mark.serial
 def test_unresolved_admin_root_query_round_trips_test_database() -> None:

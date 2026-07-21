@@ -121,7 +121,6 @@ from core.enums import (
 )
 
 from .approval import (
-    BACKEND_LIVE_ADMISSION_SERVICE_STATUSES,
     AdminApiApprovalRecord,
     FileAdminApiApprovalStore,
     evaluate_live_execution_gate,
@@ -150,6 +149,7 @@ from .live_execution import (
     build_live_execution_adapter_contract,
     build_live_execution_service_contract,
     get_decision_backed_live_execution_service,
+    operator_mvp_live_service_state_allows_route_admission,
 )
 from .operator_mvp_policy import (
     OPERATOR_MVP_MAX_EXECUTED_NOTIONAL_TEXT,
@@ -1048,6 +1048,14 @@ CONTROLLED_LIVE_MVP_ROUTES = {
         "/api/v1/orders/{source_client_order_id}/follow-up-intent/"
         "materialization/safe-closeout",
     ),
+    (
+        "POST",
+        "/api/v1/automation/runs/{run_id}/authorize-single-child",
+    ),
+    (
+        "POST",
+        "/api/v1/automation/runs/{run_id}/safe-closeout-child",
+    ),
 }
 
 M58_SOURCE_PARKED_EXCHANGE_ROUTES = {
@@ -1125,19 +1133,6 @@ def _decision_backed_live_service_state() -> AdminApiLiveExecutionServiceState:
     return get_decision_backed_live_execution_service().admission_state()
 
 
-def _live_service_state_allows_backend_admission(
-    state: AdminApiLiveExecutionServiceState,
-) -> bool:
-    """Return whether the live-service state can clear route admission."""
-
-    return (
-        state.required
-        and state.present
-        and state.status in BACKEND_LIVE_ADMISSION_SERVICE_STATUSES
-        and state.missing_reason is None
-    )
-
-
 def _controlled_live_mvp_route_enabled(
     *,
     method: str,
@@ -1148,7 +1143,11 @@ def _controlled_live_mvp_route_enabled(
 
     return (
         (method, path) in CONTROLLED_LIVE_MVP_ROUTES
-        and _live_service_state_allows_backend_admission(live_service_state)
+        and operator_mvp_live_service_state_allows_route_admission(
+            live_service_state,
+            method=method,
+            route=path,
+        )
     )
 
 
@@ -8488,12 +8487,14 @@ class AdminApiReadService:
             "POST /api/v1/automation/definitions/{definition_id}/runs",
             "POST /api/v1/automation/runs/{run_id}/eligibility-cycles",
             "POST /api/v1/automation/runs/{run_id}/authorize-single-child",
+            "POST /api/v1/automation/runs/{run_id}/safe-closeout-child",
         ]
         operator_automation_eligibility_command_surfaces = [
             "POST /api/v1/automation/runs/{run_id}/eligibility-cycles",
         ]
         operator_automation_live_command_surfaces = [
             "POST /api/v1/automation/runs/{run_id}/authorize-single-child",
+            "POST /api/v1/automation/runs/{run_id}/safe-closeout-child",
         ]
         operator_automation_local_command_surfaces = [
             surface
@@ -8501,6 +8502,17 @@ class AdminApiReadService:
             if surface not in operator_automation_live_command_surfaces
             and surface not in operator_automation_eligibility_command_surfaces
         ]
+        operator_automation_live_service_state = (
+            _decision_backed_live_service_state()
+        )
+        operator_automation_controlled_live_enabled = all(
+            _controlled_live_mvp_route_enabled(
+                method=_surface_method_and_path(surface)[0],
+                path=_surface_method_and_path(surface)[1],
+                live_service_state=operator_automation_live_service_state,
+            )
+            for surface in operator_automation_live_command_surfaces
+        )
         functionality_inventory = [
             functionality_item(
                 workflow_id="admin.platform_evidence",
@@ -9153,14 +9165,16 @@ class AdminApiReadService:
                 summary=(
                     "Authenticated PostgreSQL-backed definitions, lifecycle and "
                     "posture controls, review-only schedules, one-shot local claims, "
-                    "restart recovery, and durable audit history."
+                    "restart recovery, durable audit history, and backend-gated "
+                    "Controlled-live single-child Create and exact-child safe "
+                    "closeout routes. This catalog grants no per-request authority."
                 ),
                 backend_supported=True,
                 admin_api_exposed=True,
                 frontend_exposed=True,
                 command_capable=True,
                 live_designated=True,
-                live_enabled=False,
+                live_enabled=operator_automation_controlled_live_enabled,
                 read_routes=operator_automation_read_surfaces,
                 command_routes=operator_automation_command_surfaces,
                 automation_routes=operator_automation_command_surfaces,
@@ -9178,14 +9192,18 @@ class AdminApiReadService:
                     "docs/OPERATOR_AUTOMATION_CONTROL_PLANE.md",
                 ],
                 required_next_contract=(
-                    "The source-gated Spot child route requires the explicitly "
-                    "authorized account-wide active-order catalog guard and a "
-                    "canonical route-owned execution coordinator before it can "
-                    "become live-enabled; the control plane alone grants none."
+                    "Each exact request must still pass current Controlled-live "
+                    "readback, exact run action authority, explicit confirmation, "
+                    "approval, cap/guard, audit, reconciliation, idempotency, "
+                    "wallet/product, and one-use exchange-call gates."
                 ),
                 blockers=[
-                    "automation_active_order_catalog_read_not_authorized",
-                    "automation_spot_execution_coordinator_unavailable",
+                    "approval_snapshot_missing",
+                    "admission_audit_missing",
+                    "cap_guard_missing",
+                    "reconciliation_plan_missing",
+                    "current_live_runtime_readback_required",
+                    "exact_run_action_authority_required",
                 ],
                 frontend_boundary=(
                     "Render generated backend authority and forward explicit local "
@@ -9194,8 +9212,8 @@ class AdminApiReadService:
                 ),
                 spot_rule_boundary=(
                     "Spot product, wallet, inventory, cap, and execution rules remain "
-                    "inside a future typed Spot adapter; they do not apply to Orders "
-                    "follow-up classifications or any future non-Spot adapter."
+                    "inside the typed Spot adapter; they do not apply to Orders "
+                    "follow-up classifications or any non-Spot adapter."
                 ),
             ),
             functionality_item(
@@ -10200,8 +10218,9 @@ class AdminApiReadService:
                 support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
                 summary=(
                     "Explicit operator-triggered, PostgreSQL-claimed BTC-USDC "
-                    "eligibility refresh over exactly seven approved read-only "
-                    "Coinbase categories; page loading and replay are call-free."
+                    "eligibility refresh over exactly eight approved read-only "
+                    "Coinbase categories, including one logical account-wide active "
+                    "Spot-order catalog read; page loading and replay are call-free."
                 ),
                 command_surfaces=operator_automation_eligibility_command_surfaces,
                 action_classes=[
@@ -10227,6 +10246,7 @@ class AdminApiReadService:
                     "run_id",
                     "expected_plan_sha256",
                     "confirm_approved_eligibility_reads",
+                    "confirm_account_wide_active_spot_order_catalog_read",
                     "confirm_unknown_consumes_cycle",
                     "reason",
                     "idempotency_key",
@@ -10252,9 +10272,9 @@ class AdminApiReadService:
                     "only fixed diagnostics, freshness, hashes, and call accounting"
                 ),
                 reconciliation_contract=(
-                    "exact-order reconciliation is one approved read category; "
-                    "account-wide active-order admission and all mutations remain "
-                    "source-gated"
+                    "exact-order reconciliation and the account-wide active Spot-"
+                    "order catalog are approved read categories; the cycle performs "
+                    "zero Create, Cancel, or other exchange mutation"
                 ),
                 owning_backend_service=(
                     "application/admin_api/operator_automation.py::"
@@ -10280,12 +10300,11 @@ class AdminApiReadService:
                     "docs/OPERATOR_SPOT_AUTOMATION_SINGLE_CHILD_ADAPTER.md",
                 ],
                 required_next_contract=(
-                    "Separately authorized account-wide active-order catalog guard "
-                    "and canonical Spot execution coordinator."
+                    "Any later Create authorization must allocate its separate final "
+                    "eight-category refresh and pass canonical admission before the "
+                    "durable one-use Create claim."
                 ),
-                blockers=[
-                    "automation_active_order_catalog_read_not_authorized",
-                ],
+                blockers=[],
                 frontend_boundary=(
                     "The UI may render generated evidence and forward only the "
                     "explicit acknowledged refresh; it cannot call Coinbase or "
@@ -10317,16 +10336,17 @@ class AdminApiReadService:
                 module_id="automation",
                 module="Automation",
                 exposure_status=(
-                    AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
                 ),
                 support_status=(
-                    AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
+                    AdminApiModuleSupportStatus.PLATFORM_READY
                 ),
                 summary=(
-                    "One explicitly operator-triggered BTC-USDC automation child "
-                    "authorization route; installed execution is source-gated after "
-                    "the separate eligibility refresh and before the account-wide "
-                    "active-order read or mutation."
+                    "Backend-gated Controlled-live BTC-USDC single-child execution: "
+                    "authorization performs one final eight-category refresh before "
+                    "at most one Create, while separate exact-child safe closeout "
+                    "performs reconciliation before at most one Cancel. No retry, "
+                    "fallback, alternate identity, second child, or fan-out is allowed."
                 ),
                 command_surfaces=operator_automation_live_command_surfaces,
                 action_classes=[
@@ -10334,6 +10354,8 @@ class AdminApiReadService:
                     AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
                 ],
                 required_permissions=[
+                    AdminApiPermission.ACCOUNT_REALITY_REFRESH,
+                    AdminApiPermission.AUTOMATION_RESUME,
                     AdminApiPermission.AUTOMATION_TRIGGER,
                     AdminApiPermission.ORDER_CREATE,
                     AdminApiPermission.ORDER_CANCEL,
@@ -10351,12 +10373,14 @@ class AdminApiReadService:
                     "run_id",
                     "expected_plan_sha256",
                     "body",
+                    "route_specific_confirmations",
                     "idempotency_key",
                     "correlation_id",
                 ],
                 idempotency_contract=(
-                    "required exact-run durable claim or durable source-gate "
-                    "rejection; changed payload reuse is rejected"
+                    "separate exact-run durable Create and Cancel claims; exact "
+                    "request replay is local and changed payload, actor, roles, "
+                    "intent, correlation, plan, or identity reuse is rejected"
                 ),
                 approval_contract=(
                     "explicit single-child, exact-child safe-closeout, and "
@@ -10369,11 +10393,15 @@ class AdminApiReadService:
                 ),
                 admission_audit_contract=(
                     "revision-bound plan, configured portfolio hash, exact run, "
-                    "idempotency, correlation, and fixed diagnostic evidence"
+                    "typed approval/cap/admission/live-service evidence, "
+                    "idempotency, correlation, fixed diagnostics, and exact or "
+                    "unknown read/mutation call accounting"
                 ),
                 reconciliation_contract=(
-                    "fresh exact-child and canonical account-wide active-order "
-                    "evidence are mandatory before Create or safe closeout"
+                    "Create requires one final eight-category refresh including "
+                    "canonical zero-active-order evidence; safe closeout requires "
+                    "the exact linked child's reconciliation and permits Cancel "
+                    "only when it is authoritatively nonterminal"
                 ),
                 owning_backend_service=(
                     "application/admin_api/operator_automation.py::"
@@ -10383,6 +10411,9 @@ class AdminApiReadService:
                 backend_contract_refs=[
                     "api/v1/routes/operator_automation.py",
                     "application/admin_api/operator_automation.py",
+                    "application/admin_api/operator_spot_automation_execution.py",
+                    "application/admin_api/operator_spot_automation_runtime.py",
+                    "application/admin_api/command_service.py",
                     "database/operator_automation.py",
                 ],
                 frontend_contract_refs=[
@@ -10393,12 +10424,17 @@ class AdminApiReadService:
                     "docs/OPERATOR_SPOT_AUTOMATION_SINGLE_CHILD_ADAPTER.md",
                 ],
                 required_next_contract=(
-                    "Explicit authority for the canonical account-wide active-order "
-                    "catalog read and a route-owned canonical Spot coordinator."
+                    "Every invocation still requires current Controlled-live "
+                    "capability/runtime evidence and exact backend per-run action "
+                    "authority; this taxonomy grants neither by itself."
                 ),
                 blockers=[
-                    "automation_active_order_catalog_read_not_authorized",
-                    "automation_spot_execution_coordinator_unavailable",
+                    "approval_snapshot_missing",
+                    "admission_audit_missing",
+                    "cap_guard_missing",
+                    "reconciliation_plan_missing",
+                    "current_live_runtime_readback_required",
+                    "exact_run_action_authority_required",
                 ],
                 frontend_boundary=(
                     "Render exact generated backend authority and forward one "
@@ -10410,10 +10446,11 @@ class AdminApiReadService:
                     "with server-held authentication and performs no retry."
                 ),
                 route_local_boundary=(
-                    "The explicit eligibility route owns one durable seven-category "
-                    "read cycle; the single-child authorization route remains "
-                    "source-gated before the account-wide active-order read, "
-                    "invocation claim, canonical execution coordinator, or mutation."
+                    "The eligibility route owns one durable eight-category read "
+                    "cycle. Authorization owns a separate final eight-category "
+                    "cycle and durable one-use Create claim; safe closeout owns exact-"
+                    "child reconciliation and a separate one-use Cancel claim. "
+                    "Unknown outcomes consume their allowance and cannot be retried."
                 ),
                 spot_rule_boundary=(
                     "BTC-USDC wallet, inventory, cap, and child rules are Spot-only "

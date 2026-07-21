@@ -37,12 +37,43 @@ DEFAULT_PORTFOLIO_ID = "f4dfdb77-aa88-53d0-9c37-da3a0762ce54"
 def _ready_runtime_root_registrar() -> SimpleNamespace:
     return SimpleNamespace(
         register_manual_spot_root=lambda **_kwargs: {"registered": True},
+        register_automation_spot_root=lambda **_kwargs: {"registered": True},
         get_unresolved_admin_manual_root_submissions=lambda _portfolio_id: [],
+        get_unresolved_admin_spot_root_submissions=lambda _portfolio_id: [],
     )
 
 
 def _ready_order_event_publisher() -> SimpleNamespace:
     return SimpleNamespace(enabled=True, publish_event=lambda **_kwargs: True)
+
+
+def test_runtime_root_registrar_requires_cross_path_unresolved_spot_read() -> None:
+    from application.admin_api import command_runtime
+
+    manual_without_cross_path_read = SimpleNamespace(
+        register_manual_spot_root=lambda **_kwargs: {"registered": True},
+        get_unresolved_admin_manual_root_submissions=lambda _portfolio_id: [],
+    )
+    manual_without_automation_registration = SimpleNamespace(
+        register_manual_spot_root=lambda **_kwargs: {"registered": True},
+        get_unresolved_admin_spot_root_submissions=lambda _portfolio_id: [],
+    )
+
+    assert (
+        command_runtime._order_root_registrar_available(
+            manual_without_cross_path_read
+        )
+        is False
+    )
+    assert (
+        command_runtime._order_root_registrar_available(
+            manual_without_automation_registration
+        )
+        is False
+    )
+    assert command_runtime._order_root_registrar_available(
+        _ready_runtime_root_registrar(),
+    ) is True
 
 
 @pytest.fixture(autouse=True)
@@ -858,6 +889,12 @@ def test_manual_spot_root_is_registered_with_test_scope_before_rest_submit(
         ) -> list[dict[str, object]]:
             return []
 
+        def get_unresolved_admin_spot_root_submissions(
+            self,
+            _retail_portfolio_id: str,
+        ) -> list[dict[str, object]]:
+            return []
+
     class _RuntimeController:
         def track_inflight(self, _name: str):
             return self
@@ -941,6 +978,12 @@ def test_manual_spot_root_registration_failure_prevents_rest_submit(
 
     class _FailingRootRegistrar:
         def get_unresolved_admin_manual_root_submissions(
+            self,
+            _retail_portfolio_id: str,
+        ) -> list[dict[str, object]]:
+            return []
+
+        def get_unresolved_admin_spot_root_submissions(
             self,
             _retail_portfolio_id: str,
         ) -> list[dict[str, object]]:
@@ -1315,6 +1358,7 @@ def test_manual_spot_submit_requires_no_existing_open_order(monkeypatch) -> None
     root_registrar = SimpleNamespace(
         register_manual_spot_root=Mock(return_value={"registered": True}),
         get_unresolved_admin_manual_root_submissions=Mock(return_value=[]),
+        get_unresolved_admin_spot_root_submissions=Mock(return_value=[]),
     )
     monkeypatch.setattr(
         configuration,
