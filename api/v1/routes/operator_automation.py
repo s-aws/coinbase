@@ -57,6 +57,8 @@ from application.admin_api.automation_models import (
     AutomationEligibilityRefreshRequest,
     AutomationJobKind,
     AutomationMutationContext,
+    AutomationMinimumSizeCandidatePreparationRequest,
+    AutomationMinimumSizeCandidatePreparationResponse,
     AutomationNearMarketCandidatePreparationRequest,
     AutomationNearMarketCandidatePreparationResponse,
     AutomationOneShotRunRequest,
@@ -197,6 +199,10 @@ _PrepareNearMarketCandidateIntent = Annotated[
     Literal["prepare_automation_near_market_candidate"],
     Header(alias="X-Operator-Intent"),
 ]
+_PrepareMinimumSizeCandidateIntent = Annotated[
+    Literal["prepare_automation_minimum_size_candidate"],
+    Header(alias="X-Operator-Intent"),
+]
 _EnableIntent = Annotated[
     Literal["enable_automation_definition"],
     Header(alias="X-Operator-Intent"),
@@ -329,6 +335,17 @@ def _scope_control_item(
                 actor, AdminApiPermission.AUTOMATION_CONFIGURE
             ),
             "near_market_candidate_preparation_allowed": all(
+                actor_has_permission(actor, permission)
+                for permission in (
+                    AdminApiPermission.AUTOMATION_CONFIGURE,
+                    AdminApiPermission.AUTOMATION_TRIGGER,
+                    AdminApiPermission.AUTOMATION_RESUME,
+                    AdminApiPermission.ACCOUNT_REALITY_REFRESH,
+                )
+            )
+            and item.posture is AutomationControlPosture.ACTIVE
+            and _operator_automation_live_action_ready("REFRESH_ELIGIBILITY"),
+            "minimum_size_candidate_preparation_allowed": all(
                 actor_has_permission(actor, permission)
                 for permission in (
                     AdminApiPermission.AUTOMATION_CONFIGURE,
@@ -676,6 +693,41 @@ def prepare_near_market_candidate(
     _require_operator_automation_action_ready("REFRESH_ELIGIBILITY")
     return _mutation_result(
         lambda: service.prepare_near_market_candidate(
+            body,
+            _context(
+                actor=actor,
+                idempotency_key=idempotency_key,
+                correlation_id=correlation_id,
+                operator_intent=operator_intent,
+            ),
+        ),
+        actor=actor,
+    )
+
+
+@router.post(
+    "/automation/minimum-size-candidates",
+    response_model=AutomationMinimumSizeCandidatePreparationResponse,
+    responses=_MUTATION_RESPONSES,
+    operation_id="prepare_operator_automation_minimum_size_candidate",
+)
+def prepare_minimum_size_candidate(
+    request: Request,
+    body: AutomationMinimumSizeCandidatePreparationRequest,
+    actor: _Actor,
+    service: _Service,
+    idempotency_key: _IdempotencyKey,
+    correlation_id: _CorrelationId,
+    operator_intent: _PrepareMinimumSizeCandidateIntent,
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.AUTOMATION_CONFIGURE)
+    require_permission(actor, AdminApiPermission.AUTOMATION_TRIGGER)
+    require_permission(actor, AdminApiPermission.AUTOMATION_RESUME)
+    require_permission(actor, AdminApiPermission.ACCOUNT_REALITY_REFRESH)
+    _require_query_shape(request, frozenset())
+    _require_operator_automation_action_ready("REFRESH_ELIGIBILITY")
+    return _mutation_result(
+        lambda: service.prepare_minimum_size_candidate(
             body,
             _context(
                 actor=actor,

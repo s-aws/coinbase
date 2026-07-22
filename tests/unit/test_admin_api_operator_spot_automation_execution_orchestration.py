@@ -77,6 +77,7 @@ from database.operator_automation import (
     AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
     AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
     AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY,
+    AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY,
     AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
     AutomationMutationCommand,
     AutomationRunRecord,
@@ -231,6 +232,8 @@ def _cycle_result() -> SpotEligibilityCycleResult:
 def _read_snapshot(
     *,
     market_source: str = "coinbase_rest_best_bid",
+    best_bid: str = "49999",
+    best_ask: str = "50000",
 ) -> SpotEligibilityReadSnapshot:
     return SpotEligibilityReadSnapshot(
         cycle_number=1,
@@ -257,8 +260,8 @@ def _read_snapshot(
         },
         market_reference=SpotEligibilityMarketReferenceSnapshot(
             product_id="BTC-USDC",
-            best_bid=Decimal("49999"),
-            best_ask=Decimal("50000"),
+            best_bid=Decimal(best_bid),
+            best_ask=Decimal(best_ask),
             observed_at=NOW,
             source=market_source,
         ),
@@ -464,9 +467,10 @@ class _ExecutionRepository:
                 ),
                 cycle_number=result.cycle_number,
                 policy_revision=(
-                    3
-                    if self.goal_key
-                    == AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY
+                    4
+                    if self.goal_key == AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY
+                    else 3
+                    if self.goal_key == AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY
                     else 2
                 ),
                 run_id=RUN_ID,
@@ -586,7 +590,9 @@ class _ExecutionRepository:
             )
         self.execution = _execution_record(
             policy_revision=(
-                3
+                4
+                if self.goal_key == AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY
+                else 3
                 if self.goal_key == AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY
                 else 2
             )
@@ -764,9 +770,10 @@ class _ExecutionRepository:
         self.execution = replace(
             _execution_record(
                 policy_revision=(
-                    3
-                    if self.goal_key
-                    == AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY
+                    4
+                    if self.goal_key == AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY
+                    else 3
+                    if self.goal_key == AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY
                     else 2
                 )
             ),
@@ -933,9 +940,22 @@ class _EligibilityRunner:
                     in {
                         AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
                         AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY,
+                        AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY,
                     }
                     else "coinbase_rest_best_bid"
-                )
+                ),
+                best_bid=(
+                    "100000"
+                    if self.repository.goal_key
+                    == AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY
+                    else "49999"
+                ),
+                best_ask=(
+                    "100001"
+                    if self.repository.goal_key
+                    == AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY
+                    else "50000"
+                ),
             ),
             attempts=self.repository.attempts,
         )
@@ -1088,7 +1108,9 @@ class _CanonicalCommandService:
         assert command.request.manual_live_acknowledgement is True
         assert command.allow_live_execution is True
         assert command.admin_max_submitted_notional_usdc == "3.10"
-        assert command.admin_max_executed_notional_usdc == "1.00"
+        assert Decimal(command.admin_max_executed_notional_usdc or "0") == (
+            automation_admission.max_possible_execution_notional_usdc
+        )
         assert command.admin_approval_snapshot_id == "automation-approval-proof"
         assert command.admin_cap_guard_decision_id == "automation-cap-proof"
         assert command.admission_audit_id == "automation-admission-proof"
@@ -1174,11 +1196,17 @@ class _PreviewInvoker:
         return PreviewOrderResponse(
             {
                 "order_total": (
-                    "0.50049"
+                    "1.01"
+                    if self.expected_limit_price == "100000"
+                    else "0.50049"
                     if self.expected_limit_price == "49999"
                     else "0.5005"
                 ),
-                "commission_total": "0.0005",
+                "commission_total": (
+                    "0.01"
+                    if self.expected_limit_price == "100000"
+                    else "0.0005"
+                ),
                 "errs": (
                     []
                     if self.mode == "accepted"
@@ -1190,13 +1218,23 @@ class _PreviewInvoker:
                 "quote_size": (
                     "0.6"
                     if self.mode == "economics_mismatch"
+                    else "1"
+                    if self.expected_limit_price == "100000"
                     else "0.49999"
                     if self.expected_limit_price == "49999"
                     else "0.5"
                 ),
                 "base_size": "0.00001",
-                "best_bid": "49999",
-                "best_ask": "50000",
+                "best_bid": (
+                    "100000"
+                    if self.expected_limit_price == "100000"
+                    else "49999"
+                ),
+                "best_ask": (
+                    "100001"
+                    if self.expected_limit_price == "100000"
+                    else "50000"
+                ),
                 "is_max": False,
                 "preview_id": "withheld-preview-identity",
             }
@@ -1331,6 +1369,15 @@ def _harness(
             possible_execution_notional_usdc="0.49999",
             post_only=True,
         )
+    if goal_key == AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY:
+        repository.plan = replace(
+            repository.plan,
+            limit_price="100000",
+            submitted_notional_usdc="1",
+            possible_execution_notional_usdc="1",
+            max_possible_execution_notional_usdc="1.01",
+            post_only=True,
+        )
     if goal_key != AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY:
         repository.preview_goal = replace(
             repository.preview_goal,
@@ -1360,10 +1407,16 @@ def _harness(
             events,
             mode=preview_mode,
             expected_post_only=(
-                goal_key == AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY
+                goal_key
+                in {
+                    AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY,
+                    AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY,
+                }
             ),
             expected_limit_price=(
-                "49999"
+                "100000"
+                if goal_key == AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY
+                else "49999"
                 if goal_key == AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY
                 else "50000"
             ),
@@ -1544,6 +1597,7 @@ def test_preview_gated_rejection_or_unknown_never_enters_create(
         AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
         AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
         AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY,
+        AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY,
     ],
 )
 def test_preview_gated_acceptance_previews_then_creates_the_identical_candidate(
@@ -1597,13 +1651,20 @@ def test_preview_gated_acceptance_previews_then_creates_the_identical_candidate(
         in {
             AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
             AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY,
+            AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY,
         }
         else "coinbase_rest_best_bid"
     )
     assert harness.preview is not None
     assert harness.preview.calls[0]["order_configuration"]["limit_limit_gtc"][
         "post_only"
-    ] is (goal_key == AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY)
+    ] is (
+        goal_key
+        in {
+            AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY,
+            AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY,
+        }
+    )
     assert harness.events == [
         "lease_enter",
         "eligibility_cycle",

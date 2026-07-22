@@ -43,6 +43,8 @@ from .automation_models import (
     AutomationFilters,
     AutomationJobKind,
     AutomationMutationContext,
+    AutomationMinimumSizeCandidatePreparationRequest,
+    AutomationMinimumSizeCandidatePreparationResponse,
     AutomationNearMarketCandidatePreparationRequest,
     AutomationNearMarketCandidatePreparationResponse,
     AutomationOneShotRunRequest,
@@ -66,6 +68,9 @@ from .operator_spot_eligibility import (
     SPOT_ELIGIBILITY_NEAR_MARKET_V4_GOAL_KEY,
     SPOT_ELIGIBILITY_NEAR_MARKET_V5_GOAL_KEY,
     SPOT_ELIGIBILITY_NEAR_MARKET_V6_GOAL_KEY,
+    SPOT_ELIGIBILITY_MINIMUM_SIZE_V7_GOAL_KEY,
+    SPOT_ELIGIBILITY_MINIMUM_SIZE_V8_GOAL_KEY,
+    SPOT_ELIGIBILITY_MINIMUM_SIZE_V9_GOAL_KEY,
     SPOT_ELIGIBILITY_PREVIEW_GATED_GOAL_KEY,
 )
 
@@ -80,8 +85,25 @@ _SPOT_PREVIEW_MODE_BY_GOAL = {
     SPOT_ELIGIBILITY_NEAR_MARKET_V4_GOAL_KEY: "NEAR_MARKET_POST_ONLY_V4",
     SPOT_ELIGIBILITY_NEAR_MARKET_V5_GOAL_KEY: "NEAR_MARKET_POST_ONLY_V5",
     SPOT_ELIGIBILITY_NEAR_MARKET_V6_GOAL_KEY: "NEAR_MARKET_POST_ONLY_V6",
+    SPOT_ELIGIBILITY_MINIMUM_SIZE_V7_GOAL_KEY: "MINIMUM_SIZE_POST_ONLY_V7",
+    SPOT_ELIGIBILITY_MINIMUM_SIZE_V8_GOAL_KEY: "MINIMUM_SIZE_POST_ONLY_V8",
+    SPOT_ELIGIBILITY_MINIMUM_SIZE_V9_GOAL_KEY: "MINIMUM_SIZE_POST_ONLY_V9",
 }
 _SPOT_PREVIEW_GOAL_KEYS = frozenset(_SPOT_PREVIEW_MODE_BY_GOAL)
+_SPOT_NEAR_MARKET_GOAL_KEYS = frozenset(
+    {
+        SPOT_ELIGIBILITY_NEAR_MARKET_V4_GOAL_KEY,
+        SPOT_ELIGIBILITY_NEAR_MARKET_V5_GOAL_KEY,
+        SPOT_ELIGIBILITY_NEAR_MARKET_V6_GOAL_KEY,
+    }
+)
+_SPOT_MINIMUM_SIZE_GOAL_KEYS = frozenset(
+    {
+        SPOT_ELIGIBILITY_MINIMUM_SIZE_V7_GOAL_KEY,
+        SPOT_ELIGIBILITY_MINIMUM_SIZE_V8_GOAL_KEY,
+        SPOT_ELIGIBILITY_MINIMUM_SIZE_V9_GOAL_KEY,
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -165,6 +187,13 @@ class OperatorAutomationRepository(Protocol):
     ) -> AutomationRepositoryMutation: ...
 
     def prepare_near_market_candidate(
+        self,
+        *,
+        request: Mapping[str, Any],
+        context: AutomationMutationContext,
+    ) -> AutomationRepositoryMutation: ...
+
+    def prepare_minimum_size_candidate(
         self,
         *,
         request: Mapping[str, Any],
@@ -376,6 +405,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
         spot_preview_invoker: Callable[..., Any] | None = None,
         spot_execution_scope_factory: Callable[[str], Any] | None = None,
         spot_near_market_preparation_runner: Callable[[], Any] | None = None,
+        spot_minimum_size_preparation_runner: Callable[[], Any] | None = None,
         spot_proof_chain_recorder: Callable[..., Mapping[str, Any]] | None = None,
         spot_live_admission_evaluator: Callable[..., Any] | None = None,
         now_factory: Callable[[], datetime] | None = None,
@@ -393,6 +423,9 @@ class PostgresOperatorAutomationRepositoryAdapter:
         self._spot_execution_scope_factory = spot_execution_scope_factory
         self._spot_near_market_preparation_runner = (
             spot_near_market_preparation_runner
+        )
+        self._spot_minimum_size_preparation_runner = (
+            spot_minimum_size_preparation_runner
         )
         self._spot_proof_chain_recorder = spot_proof_chain_recorder
         self._spot_live_admission_evaluator = spot_live_admission_evaluator
@@ -526,15 +559,33 @@ class PostgresOperatorAutomationRepositoryAdapter:
         *,
         record: Any,
         plan: Any,
+        goal_key: str,
         eligibility_cycle: int,
         client_order_id: str,
         require_cancel_allowance: bool = False,
     ) -> bool:
         try:
+            expected_policy_revision = (
+                4
+                if goal_key
+                in {
+                    SPOT_ELIGIBILITY_MINIMUM_SIZE_V7_GOAL_KEY,
+                    SPOT_ELIGIBILITY_MINIMUM_SIZE_V8_GOAL_KEY,
+                    SPOT_ELIGIBILITY_MINIMUM_SIZE_V9_GOAL_KEY,
+                }
+                else 3
+                if goal_key
+                in {
+                    SPOT_ELIGIBILITY_NEAR_MARKET_V4_GOAL_KEY,
+                    SPOT_ELIGIBILITY_NEAR_MARKET_V5_GOAL_KEY,
+                    SPOT_ELIGIBILITY_NEAR_MARKET_V6_GOAL_KEY,
+                }
+                else 2
+            )
             return bool(
                 execution.run_id == record.run_id
                 and execution.policy_revision
-                == (3 if plan.post_only is True else 2)
+                == expected_policy_revision
                 and execution.definition_id == record.definition_id
                 and execution.definition_revision == record.definition_revision
                 and execution.eligibility_cycle == eligibility_cycle
@@ -834,7 +885,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
         return decision
 
     @staticmethod
-    def _spot_plan_terms(plan: Any) -> Any:
+    def _spot_plan_terms(plan: Any, *, goal_key: str) -> Any:
         from application.admin_api.operator_spot_eligibility_reader import (
             SpotEligibilityPlanTerms,
         )
@@ -856,6 +907,13 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 plan.max_possible_execution_notional_usdc
             ),
             post_only=plan.post_only,
+            policy_revision=(
+                4
+                if goal_key in _SPOT_MINIMUM_SIZE_GOAL_KEYS
+                else 3
+                if goal_key in _SPOT_NEAR_MARKET_GOAL_KEYS
+                else 2
+            ),
         )
 
     def _run_spot_execution_eligibility(
@@ -912,7 +970,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 )
             reader = self._spot_eligibility_reader_factory(
                 expected_context=run_context,
-                plan=self._spot_plan_terms(plan),
+                plan=self._spot_plan_terms(plan, goal_key=run_context.goal_key),
             )
             reader_holder.append(reader)
             return reader
@@ -1008,6 +1066,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
             "exchange_mutation_count": 0,
             "definition_create_allowed": False,
             "near_market_candidate_preparation_allowed": False,
+            "minimum_size_candidate_preparation_allowed": False,
             "allowed_actions": _control_allowed_actions(record.posture),
             "updated_at": record.updated_at,
         }
@@ -1019,6 +1078,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
         *,
         spot_goal_run_claimed: bool = False,
         spot_goal_key: str | None = None,
+        minimum_size_preparation: Mapping[str, Any] | None = None,
     ) -> Mapping[str, Any]:
         state = AutomationDefinitionState(
             str(getattr(record.lifecycle_state, "value", record.lifecycle_state))
@@ -1067,6 +1127,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 else None
             ),
             "single_child_order": single_child_order,
+            "minimum_size_preparation": minimum_size_preparation,
             "schedule": {
                 "mode": schedule_mode,
                 "interval_minutes": interval_minutes,
@@ -1261,7 +1322,11 @@ class PostgresOperatorAutomationRepositoryAdapter:
                     plan.possible_execution_notional_usdc
                 ),
                 "max_submitted_notional_usdc": "3.10",
-                "max_possible_execution_notional_usdc": "1.00",
+                "max_possible_execution_notional_usdc": (
+                    plan.max_possible_execution_notional_usdc
+                    if spot_goal_key in _SPOT_MINIMUM_SIZE_GOAL_KEYS
+                    else "1.00"
+                ),
             }
 
         eligibility = None
@@ -1708,11 +1773,51 @@ class PostgresOperatorAutomationRepositoryAdapter:
                     goal_key=spot_goal_key
                 )
             )
+        minimum_size_preparation = None
+        if plan is not None and spot_goal_key in _SPOT_MINIMUM_SIZE_GOAL_KEYS:
+            preparations = self._call(
+                lambda: self.repository.list_spot_minimum_size_preparations()
+            )
+            preparation = next(
+                (
+                    item
+                    for item in preparations
+                    if item.definition_id == record.definition_id
+                    and item.state == "MATERIALIZED"
+                ),
+                None,
+            )
+            if preparation is None:
+                raise AutomationRepositoryUnavailable(
+                    "automation_minimum_size_preparation_readback_unavailable"
+                )
+            minimum_size_preparation = {
+                "policy_revision": (
+                    "BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2"
+                ),
+                "boundary_classification": preparation.diagnostic_code,
+                "cycle_number": preparation.cycle_number,
+                "completed_categories": [
+                    self._near_market_public_category(category)
+                    for category in preparation.completed_categories
+                ],
+                "coinbase_api_call_count": (
+                    preparation.coinbase_api_call_count
+                ),
+                "call_count_exact": preparation.call_count_exact,
+                "max_submitted_notional_usdc": (
+                    "3.10"
+                ),
+                "max_possible_execution_notional_usdc": (
+                    plan.max_possible_execution_notional_usdc
+                ),
+            }
         return self._definition(
             record,
             plan,
             spot_goal_run_claimed=spot_goal_run_claimed,
             spot_goal_key=spot_goal_key,
+            minimum_size_preparation=minimum_size_preparation,
         )
 
     def get_control_posture(self) -> Mapping[str, Any]:
@@ -2026,6 +2131,295 @@ class PostgresOperatorAutomationRepositoryAdapter:
             )
         return AutomationRepositoryMutation(
             entity=self._near_market_preparation_entity(finalized.entity),
+            audit_id=finalized.audit_id,
+            correlation_id=finalized.correlation_id,
+            replayed=finalized.replayed,
+        )
+
+    def _minimum_size_preparation_entity(
+        self,
+        record: Any,
+    ) -> Mapping[str, Any]:
+        definition = None
+        dynamic_cap = None
+        if record.definition_id is not None:
+            definition_record = self._call(
+                lambda: self.repository.get_definition(record.definition_id)
+            )
+            if definition_record is None:
+                raise AutomationRepositoryUnavailable(
+                    "automation_minimum_size_definition_unavailable"
+                )
+            definition = self._definition_with_plan(definition_record)
+            plan = self._call(
+                lambda: self.repository.get_spot_single_child_plan(
+                    definition_record.definition_id,
+                    definition_record.revision,
+                )
+            )
+            if plan is None:
+                raise AutomationRepositoryUnavailable(
+                    "automation_minimum_size_plan_unavailable"
+                )
+            dynamic_cap = plan.max_possible_execution_notional_usdc
+        mode = _SPOT_PREVIEW_MODE_BY_GOAL.get(record.goal_key)
+        if mode is None:
+            raise AutomationRepositoryUnavailable(
+                "automation_minimum_size_goal_binding_invalid"
+            )
+        boundary = (
+            record.diagnostic_code
+            if record.diagnostic_code.startswith("minimum_size_v4_")
+            else None
+        )
+        return {
+            "outcome": record.state,
+            "candidate_version": record.candidate_version,
+            "spot_execution_mode": mode,
+            "cycle_number": record.cycle_number,
+            "policy_revision": (
+                "BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2"
+            ),
+            "boundary_classification": boundary,
+            "diagnostic_code": record.diagnostic_code,
+            "completed_categories": [
+                self._near_market_public_category(category)
+                for category in record.completed_categories
+            ],
+            "coinbase_api_call_count": record.coinbase_api_call_count,
+            "call_count_exact": record.call_count_exact,
+            "definition": definition,
+            "max_submitted_notional_usdc": "3.10",
+            "max_possible_execution_notional_usdc": dynamic_cap,
+            "preview_call_count": 0,
+            "create_call_count": 0,
+            "cancel_call_count": 0,
+        }
+
+    def prepare_minimum_size_candidate(
+        self,
+        *,
+        request: Mapping[str, Any],
+        context: AutomationMutationContext,
+    ) -> AutomationRepositoryMutation:
+        """Claim one V7-V9 cycle and atomically persist derived terms."""
+
+        from application.admin_api.operator_spot_minimum_size_preparation import (
+            MinimumSizePreparationOutcome,
+        )
+        from database.operator_automation import (
+            AutomationDefinitionCreateCommand,
+            AutomationSpotMinimumSizeMaterializationEvidence,
+            AutomationSpotSingleChildPlanTerms,
+        )
+
+        self._require_active_control_posture()
+        claim_command = self._command(
+            context=context,
+            payload={
+                "operation": "prepare_minimum_size_candidate",
+                "request": request,
+            },
+        )
+        claim = self._call(
+            lambda: self.repository.start_spot_minimum_size_preparation(
+                claim_command
+            )
+        )
+        claimed = claim.entity
+        if claim.replayed:
+            if claimed.state == "CLAIMED":
+                raise AutomationRepositoryConflict(
+                    "automation_minimum_size_preparation_in_progress"
+                )
+            return AutomationRepositoryMutation(
+                entity=self._minimum_size_preparation_entity(claimed),
+                audit_id=claim.audit_id,
+                correlation_id=claim.correlation_id,
+                replayed=True,
+            )
+
+        runner = self._spot_minimum_size_preparation_runner
+        try:
+            result = runner() if callable(runner) else None
+        except Exception:
+            result = None
+        if result is None:
+            finalized = self._call(
+                lambda: self.repository.finalize_spot_minimum_size_preparation(
+                    cycle_number=claimed.cycle_number,
+                    goal_key=claimed.goal_key,
+                    state="UNKNOWN",
+                    diagnostic_code=(
+                        "automation_minimum_size_preparation_unknown"
+                    ),
+                    completed_categories=(),
+                    coinbase_api_call_count=None,
+                    call_count_exact=False,
+                    evidence_sha256=None,
+                    definition_id=None,
+                )
+            )
+        elif result.outcome is MinimumSizePreparationOutcome.MATERIALIZED:
+            plan = result.plan
+            if (
+                plan is None
+                or result.evidence_sha256 is None
+                or result.coinbase_api_call_count is None
+                or not result.call_count_exact
+            ):
+                raise AutomationRepositoryUnavailable(
+                    "automation_minimum_size_preparation_result_invalid"
+                )
+            definition_command = AutomationDefinitionCreateCommand(
+                **self._command(
+                    context=context,
+                    idempotency_key="minimum-size-definition:"
+                    + hashlib.sha256(
+                        json.dumps(
+                            {
+                                "actor_id": context.actor_id,
+                                "cycle_number": claimed.cycle_number,
+                                "goal_key": claimed.goal_key,
+                                "source_idempotency_key": (
+                                    context.idempotency_key
+                                ),
+                            },
+                            sort_keys=True,
+                            separators=(",", ":"),
+                            ensure_ascii=True,
+                        ).encode("utf-8")
+                    ).hexdigest(),
+                    operator_intent="materialize_minimum_size_candidate",
+                    payload={
+                        "operation": "materialize_minimum_size_candidate",
+                        "candidate_version": claimed.candidate_version,
+                        "cycle_number": claimed.cycle_number,
+                        "goal_key": claimed.goal_key,
+                        "policy_revision": plan.policy_revision,
+                        "plan": {
+                            "product_id": plan.product_id,
+                            "side": plan.side,
+                            "base_size": plan.base_size,
+                            "limit_price": plan.limit_price,
+                            "submitted_notional_usdc": (
+                                plan.submitted_notional_usdc
+                            ),
+                            "possible_execution_notional_usdc": (
+                                plan.possible_execution_notional_usdc
+                            ),
+                            "max_possible_execution_notional_usdc": (
+                                plan.max_possible_execution_notional_usdc
+                            ),
+                            "v4_boundary_classification": (
+                                plan.v4_boundary_classification
+                            ),
+                            "post_only": plan.post_only,
+                        },
+                    },
+                ).__dict__,
+                domain=AutomationDomain.SPOT,
+                job_kind=AutomationJobKind.SPOT_CAMPAIGN,
+                label=(
+                    "BTC-USDC minimum-size successor "
+                    f"V{claimed.candidate_version}"
+                ),
+                product_ids=("BTC-USDC",),
+            )
+            terms = AutomationSpotSingleChildPlanTerms(
+                portfolio_id_sha256=_configured_spot_portfolio_hash(),
+                product_id=plan.product_id,
+                side=plan.side,
+                base_size=plan.base_size,
+                limit_price=plan.limit_price,
+                submitted_notional_usdc=plan.submitted_notional_usdc,
+                possible_execution_notional_usdc=(
+                    plan.possible_execution_notional_usdc
+                ),
+                max_submitted_notional_usdc=(
+                    plan.max_submitted_notional_usdc
+                ),
+                max_possible_execution_notional_usdc=(
+                    plan.max_possible_execution_notional_usdc
+                ),
+                post_only=True,
+            )
+            try:
+                created = self._call(
+                    lambda: self.repository.create_definition(
+                        definition_command,
+                        spot_single_child_plan=terms,
+                        spot_goal_key=claimed.goal_key,
+                        spot_minimum_size_materialization=(
+                            AutomationSpotMinimumSizeMaterializationEvidence(
+                                cycle_number=claimed.cycle_number,
+                                goal_key=claimed.goal_key,
+                                diagnostic_code=result.diagnostic_code,
+                                completed_categories=tuple(
+                                    result.completed_categories
+                                ),
+                                coinbase_api_call_count=(
+                                    result.coinbase_api_call_count
+                                ),
+                                evidence_sha256=result.evidence_sha256,
+                            )
+                        ),
+                    )
+                )
+            except Exception:
+                finalized = self._call(
+                    lambda: self.repository.finalize_spot_minimum_size_preparation(
+                        cycle_number=claimed.cycle_number,
+                        goal_key=claimed.goal_key,
+                        state="UNKNOWN",
+                        diagnostic_code=(
+                            "automation_minimum_size_preparation_unknown"
+                        ),
+                        completed_categories=(),
+                        coinbase_api_call_count=None,
+                        call_count_exact=False,
+                        evidence_sha256=None,
+                        definition_id=None,
+                    )
+                )
+            else:
+                preparations = self._call(
+                    lambda: self.repository.list_spot_minimum_size_preparations()
+                )
+                record = next(
+                    (
+                        item
+                        for item in preparations
+                        if item.cycle_number == claimed.cycle_number
+                        and item.goal_key == claimed.goal_key
+                    ),
+                    None,
+                )
+                if record is None or record.state != "MATERIALIZED":
+                    raise AutomationRepositoryUnavailable(
+                        "automation_minimum_size_materialization_unavailable"
+                    )
+                finalized = AutomationRepositoryMutation(
+                    entity=record,
+                    audit_id=created.audit_id,
+                    correlation_id=created.correlation_id,
+                )
+        else:
+            finalized = self._call(
+                lambda: self.repository.finalize_spot_minimum_size_preparation(
+                    cycle_number=claimed.cycle_number,
+                    goal_key=claimed.goal_key,
+                    state=result.outcome.value,
+                    diagnostic_code=result.diagnostic_code,
+                    completed_categories=tuple(result.completed_categories),
+                    coinbase_api_call_count=result.coinbase_api_call_count,
+                    call_count_exact=result.call_count_exact,
+                    evidence_sha256=result.evidence_sha256,
+                    definition_id=None,
+                )
+            )
+        return AutomationRepositoryMutation(
+            entity=self._minimum_size_preparation_entity(finalized.entity),
             audit_id=finalized.audit_id,
             correlation_id=finalized.correlation_id,
             replayed=finalized.replayed,
@@ -2488,6 +2882,9 @@ class PostgresOperatorAutomationRepositoryAdapter:
                     correlation_id=context.correlation_id,
                     operator_intent=context.operator_intent,
                     outer_idempotency_key=context.idempotency_key,
+                    minimum_size_dynamic_cap=(
+                        goal_key in _SPOT_MINIMUM_SIZE_GOAL_KEYS
+                    ),
                 )
             except SpotAutomationRuntimeBindingError:
                 raise AutomationRepositoryUnavailable(
@@ -2521,6 +2918,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
                     replay.entity,
                     record=record,
                     plan=plan,
+                    goal_key=goal_key,
                     eligibility_cycle=existing_execution.eligibility_cycle,
                     client_order_id=existing_execution.client_order_id,
                 )
@@ -2644,11 +3042,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
                     configured_portfolio_id=configured_portfolio_id,
                     planned_budget=planned_budget,
                     now=self._now_factory(),
-                    goal_key=self._call(
-                        lambda: self.repository.get_spot_goal_key_for_run(
-                            run_id
-                        )
-                    ),
+                    goal_key=goal_key,
                 )
                 prepared = prepare_spot_automation_create_command(
                     run=record,
@@ -2659,6 +3053,9 @@ class PostgresOperatorAutomationRepositoryAdapter:
                     correlation_id=context.correlation_id,
                     operator_intent=context.operator_intent,
                     outer_idempotency_key=context.idempotency_key,
+                    minimum_size_dynamic_cap=(
+                        goal_key in _SPOT_MINIMUM_SIZE_GOAL_KEYS
+                    ),
                 )
                 wallet_notional = (
                     admission.wallet_evidence.available_balance
@@ -2924,6 +3321,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 started_execution,
                 record=record,
                 plan=plan,
+                goal_key=goal_key,
                 eligibility_cycle=bundle.cycle.cycle_number,
                 client_order_id=admission.client_order_id,
             ):
@@ -3130,6 +3528,9 @@ class PostgresOperatorAutomationRepositoryAdapter:
             raise AutomationRepositoryConflict(
                 "automation_spot_safe_closeout_not_eligible"
             )
+        spot_goal_key = self._call(
+            lambda: self.repository.get_spot_goal_key_for_run(run_id)
+        )
         if execution.cancel_allowance_consumed:
             try:
                 prepared_replay = prepare_spot_automation_cancel_command(
@@ -3175,6 +3576,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
                     replay.entity,
                     record=record,
                     plan=plan,
+                    goal_key=spot_goal_key,
                     eligibility_cycle=execution.eligibility_cycle,
                     client_order_id=execution.client_order_id,
                     require_cancel_allowance=True,
@@ -3231,9 +3633,6 @@ class PostgresOperatorAutomationRepositoryAdapter:
             raise AutomationRepositoryUnavailable(
                 "automation_spot_portfolio_not_configured"
             )
-        spot_goal_key = self._call(
-            lambda: self.repository.get_spot_goal_key_for_run(run_id)
-        )
         cycles = self._call(
             lambda: self.repository.list_spot_eligibility_cycles(
                 goal_key=spot_goal_key
@@ -3327,6 +3726,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 started.entity,
                 record=record,
                 plan=plan,
+                goal_key=spot_goal_key,
                 eligibility_cycle=execution.eligibility_cycle,
                 client_order_id=execution.client_order_id,
                 require_cancel_allowance=True,
@@ -3506,7 +3906,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 )
             return self._spot_eligibility_reader_factory(
                 expected_context=run_context,
-                plan=self._spot_plan_terms(plan),
+                plan=self._spot_plan_terms(plan, goal_key=run_context.goal_key),
             )
         ledger = PostgresSpotEligibilityLedger(
             repository=self.repository,
@@ -3785,6 +4185,27 @@ class OperatorAutomationService:
                 self.repository.get_control_posture()
             )
             return AutomationControlPlaneResponse(control_plane=item)
+        except OperatorAutomationError:
+            raise
+        except Exception as exc:
+            raise self._translate_error(exc) from None
+
+    def prepare_minimum_size_candidate(
+        self,
+        request: AutomationMinimumSizeCandidatePreparationRequest,
+        context: AutomationMutationContext,
+    ) -> AutomationMinimumSizeCandidatePreparationResponse:
+        try:
+            result = self.repository.prepare_minimum_size_candidate(
+                request=request.model_dump(mode="json"),
+                context=context,
+            )
+            return AutomationMinimumSizeCandidatePreparationResponse(
+                **result.entity,
+                replayed=result.replayed,
+                audit_id=result.audit_id,
+                correlation_id=result.correlation_id,
+            )
         except OperatorAutomationError:
             raise
         except Exception as exc:
@@ -4358,6 +4779,25 @@ def _default_near_market_preparation_runner() -> Any:
     )
 
 
+def _default_minimum_size_preparation_runner() -> Any:
+    """Run exactly one claimed six-category V7-V9 read without retry."""
+
+    from application.admin_api.operator_spot_minimum_size_preparation import (
+        run_minimum_size_candidate_preparation,
+    )
+    from configuration import REST_CLIENT
+
+    portfolio_id = str(
+        os.environ.get("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID") or ""
+    ).strip()
+    return run_minimum_size_candidate_preparation(
+        rest_client=REST_CLIENT,
+        approved_portfolio_id=portfolio_id,
+        approved_portfolio_label="Test",
+        now_factory=lambda: datetime.now(timezone.utc),
+    )
+
+
 def get_default_operator_automation_service() -> OperatorAutomationService:
     """Resolve the PostgreSQL repository lazily to keep imports local-only."""
 
@@ -4375,6 +4815,9 @@ def get_default_operator_automation_service() -> OperatorAutomationService:
                 ),
                 spot_near_market_preparation_runner=(
                     _default_near_market_preparation_runner
+                ),
+                spot_minimum_size_preparation_runner=(
+                    _default_minimum_size_preparation_runner
                 ),
             )
         )

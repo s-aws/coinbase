@@ -296,8 +296,21 @@ def operator_mvp_cap_guard_policy_error(
         return "operator_mvp_submitted_notional_ceiling_exceeded"
     if executed is None or executed <= 0 or executed > submitted:
         return "operator_mvp_executed_notional_invalid"
-    if executed > OPERATOR_MVP_MAX_EXECUTED_NOTIONAL_USDC:
-        return "operator_mvp_executed_notional_ceiling_exceeded"
+    expected_dynamic_policy = (
+        "submitted_notional_cap:3.10;"
+        f"minimum_size_dynamic_execution_cap:{format(executed, 'f')}"
+    )
+    dynamic_policy = bool(
+        product_scope == "BTC-USDC"
+        and executed < OPERATOR_MVP_MAX_SUBMITTED_NOTIONAL_USDC
+        and str(getattr(value, "cap_policy_ref", "") or "")
+        == expected_dynamic_policy
+    )
+    if (
+        executed > OPERATOR_MVP_MAX_EXECUTED_NOTIONAL_USDC
+        and not dynamic_policy
+    ):
+            return "operator_mvp_executed_notional_ceiling_exceeded"
     if getattr(value, "wallet_check_required", False) is not True:
         return "operator_mvp_wallet_check_required"
     if not verify_wallet_fields:
@@ -307,7 +320,12 @@ def operator_mvp_cap_guard_policy_error(
     wallet_available = _finite_decimal(
         getattr(value, "wallet_available_notional_usdc", None)
     )
-    if wallet_available is None or wallet_available < submitted:
+    wallet_requirement = (
+        executed
+        if dynamic_policy
+        else submitted
+    )
+    if wallet_available is None or wallet_available < wallet_requirement:
         return "operator_mvp_wallet_evidence_insufficient"
     if str(getattr(value, "wallet_check_source", "") or "") not in (
         OPERATOR_MVP_WALLET_EVIDENCE_SOURCES

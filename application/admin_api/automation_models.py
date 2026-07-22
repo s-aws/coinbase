@@ -39,11 +39,21 @@ _NEAR_MARKET_SPOT_MODES = frozenset(
         "NEAR_MARKET_POST_ONLY_V6",
     }
 )
+_MINIMUM_SIZE_SPOT_MODES = frozenset(
+    {
+        "MINIMUM_SIZE_POST_ONLY_V7",
+        "MINIMUM_SIZE_POST_ONLY_V8",
+        "MINIMUM_SIZE_POST_ONLY_V9",
+    }
+)
+_POST_ONLY_SPOT_MODES = frozenset(
+    {*_NEAR_MARKET_SPOT_MODES, *_MINIMUM_SIZE_SPOT_MODES}
+)
 _PREVIEW_GATED_SPOT_MODES = frozenset(
     {
         "PREVIEW_GATED_V2",
         "DOCUMENTED_MARKET_FRESHNESS_V3",
-        *_NEAR_MARKET_SPOT_MODES,
+        *_POST_ONLY_SPOT_MODES,
     }
 )
 
@@ -516,6 +526,24 @@ class AutomationNearMarketCandidatePreparationRequest(BaseModel):
         return _normalized_operator_text(value, code="automation_reason_invalid")
 
 
+class AutomationMinimumSizeCandidatePreparationRequest(BaseModel):
+    """Explicit acknowledgement for one V7-V9 backend-derived proposal."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    confirm_backend_derived_terms: Literal[True]
+    confirm_one_no_retry_preparation_cycle: Literal[True]
+    confirm_btc_usdc_test_portfolio_scope: Literal[True]
+    confirm_dynamic_cap_strictly_below_3_10: Literal[True]
+    confirm_unknown_consumes_cycle: Literal[True]
+    reason: str = Field(min_length=1, max_length=255)
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def normalize_reason(cls, value: object) -> object:
+        return _normalized_operator_text(value, code="automation_reason_invalid")
+
+
 class AutomationDefinitionScheduleRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -666,7 +694,11 @@ class AutomationSingleChildPlanReadback(BaseModel):
         max_length=64,
     )
     max_submitted_notional_usdc: Literal["3.10"] = "3.10"
-    max_possible_execution_notional_usdc: Literal["1.00"] = "1.00"
+    max_possible_execution_notional_usdc: str = Field(
+        default="1.00",
+        pattern=_POSITIVE_DECIMAL_PATTERN,
+        max_length=64,
+    )
 
     @model_validator(mode="after")
     def validate_caps(self) -> Self:
@@ -675,12 +707,17 @@ class AutomationSingleChildPlanReadback(BaseModel):
             Decimal(self.limit_price),
             Decimal(self.submitted_notional_usdc),
             Decimal(self.possible_execution_notional_usdc),
+            Decimal(self.max_possible_execution_notional_usdc),
         )
         if any(not value.is_finite() or value <= 0 for value in values):
             raise ValueError("automation_single_child_plan_value_invalid")
-        if values[0] * values[1] != values[2] or values[3] > values[2]:
+        if (
+            values[0] * values[1] != values[2]
+            or values[3] > values[2]
+            or values[3] > values[4]
+        ):
             raise ValueError("automation_single_child_plan_notional_invalid")
-        if values[2] > Decimal("3.10") or values[3] > Decimal("1.00"):
+        if values[2] > Decimal("3.10") or values[4] >= Decimal("3.10"):
             raise ValueError("automation_single_child_plan_cap_exceeded")
         return self
 
@@ -733,6 +770,7 @@ class AutomationControlPlaneItem(BaseModel):
     exchange_mutation_count: Literal[0] = 0
     definition_create_allowed: bool = False
     near_market_candidate_preparation_allowed: bool = False
+    minimum_size_candidate_preparation_allowed: bool = False
     allowed_actions: list[str] = Field(default_factory=list)
     updated_at: datetime
 
@@ -746,6 +784,48 @@ class AutomationControlPlaneItem(BaseModel):
             raise ValueError("automation_control_action_invalid")
         if len(self.allowed_actions) != len(set(self.allowed_actions)):
             raise ValueError("automation_control_action_duplicate")
+        return self
+
+
+class AutomationMinimumSizePreparationReadback(BaseModel):
+    """Sanitized durable V7-V9 preparation evidence for operator reloads."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    policy_revision: Literal[
+        "BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2"
+    ] = "BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2"
+    boundary_classification: Literal[
+        "minimum_size_v4_base_minimum_conflict",
+        "minimum_size_v4_quote_minimum_conflict",
+        "minimum_size_v4_increment_conflict",
+        "minimum_size_v4_fee_reserve_conflict",
+        "minimum_size_v4_boundary_not_reproduced",
+    ]
+    cycle_number: int = Field(ge=1, le=10)
+    completed_categories: list[
+        Literal[
+            "api_key_permissions",
+            "portfolio_catalog",
+            "wallet_balances",
+            "product_metadata",
+            "best_bid_ask",
+            "fee_summary",
+        ]
+    ] = Field(min_length=6, max_length=6)
+    coinbase_api_call_count: int = Field(ge=6)
+    call_count_exact: Literal[True] = True
+    max_submitted_notional_usdc: Literal["3.10"] = "3.10"
+    max_possible_execution_notional_usdc: str = Field(
+        pattern=_POSITIVE_DECIMAL_PATTERN,
+        max_length=64,
+    )
+
+    @model_validator(mode="after")
+    def validate_dynamic_cap(self) -> Self:
+        cap = Decimal(self.max_possible_execution_notional_usdc)
+        if not cap.is_finite() or cap <= 0 or cap >= Decimal("3.10"):
+            raise ValueError("automation_minimum_size_preparation_cap_invalid")
         return self
 
 
@@ -766,8 +846,12 @@ class AutomationDefinitionItem(BaseModel):
         "NEAR_MARKET_POST_ONLY_V4",
         "NEAR_MARKET_POST_ONLY_V5",
         "NEAR_MARKET_POST_ONLY_V6",
+        "MINIMUM_SIZE_POST_ONLY_V7",
+        "MINIMUM_SIZE_POST_ONLY_V8",
+        "MINIMUM_SIZE_POST_ONLY_V9",
     ] | None = None
     single_child_order: AutomationSpotSingleChildOrderSpec | None = None
+    minimum_size_preparation: AutomationMinimumSizePreparationReadback | None
     schedule: AutomationDefinitionSchedule
     adapter_status: Literal[
         "UNAVAILABLE",
@@ -794,14 +878,20 @@ class AutomationDefinitionItem(BaseModel):
             or self.product_ids != ["BTC-USDC"]
         ):
             raise ValueError("automation_single_child_job_kind_blocked")
-        near_market = self.spot_execution_mode in _NEAR_MARKET_SPOT_MODES
-        if near_market and (
+        minimum_size_mode = bool(
+            self.spot_execution_mode is not None
+            and self.spot_execution_mode.startswith("MINIMUM_SIZE_POST_ONLY_V")
+        )
+        if (self.minimum_size_preparation is not None) is not minimum_size_mode:
+            raise ValueError("automation_minimum_size_preparation_binding_invalid")
+        post_only = self.spot_execution_mode in _POST_ONLY_SPOT_MODES
+        if post_only and (
             self.single_child_order is None
             or self.single_child_order.post_only is not True
         ):
             raise ValueError("automation_near_market_post_only_required")
         if (
-            not near_market
+            not post_only
             and self.single_child_order is not None
             and self.single_child_order.post_only is not False
         ):
@@ -845,6 +935,9 @@ class AutomationRunItem(BaseModel):
         "NEAR_MARKET_POST_ONLY_V4",
         "NEAR_MARKET_POST_ONLY_V5",
         "NEAR_MARKET_POST_ONLY_V6",
+        "MINIMUM_SIZE_POST_ONLY_V7",
+        "MINIMUM_SIZE_POST_ONLY_V8",
+        "MINIMUM_SIZE_POST_ONLY_V9",
     ] | None = None
     preview_allowance_consumed: bool = False
     preview_outcome: Literal["ACCEPTED", "REJECTED", "UNKNOWN"] | None = None
@@ -956,14 +1049,14 @@ class AutomationRunItem(BaseModel):
         ):
             raise ValueError("automation_run_allowance_invalid")
         preview_gated = self.spot_execution_mode in _PREVIEW_GATED_SPOT_MODES
-        near_market = self.spot_execution_mode in _NEAR_MARKET_SPOT_MODES
-        if near_market and (
+        post_only = self.spot_execution_mode in _POST_ONLY_SPOT_MODES
+        if post_only and (
             self.single_child_plan is None
             or self.single_child_plan.post_only is not True
         ):
             raise ValueError("automation_near_market_post_only_required")
         if (
-            not near_market
+            not post_only
             and self.single_child_plan is not None
             and self.single_child_plan.post_only is not False
         ):
@@ -1768,6 +1861,121 @@ class AutomationNearMarketCandidatePreparationResponse(BaseModel):
         ):
             raise ValueError(
                 "automation_near_market_preparation_definition_invalid"
+            )
+        return self
+
+
+class AutomationMinimumSizeCandidatePreparationResponse(BaseModel):
+    """Value-blind V4 boundary classification and optional V7-V9 plan."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["automation_minimum_size_candidate_preparation"] = (
+        "automation_minimum_size_candidate_preparation"
+    )
+    status: Literal["accepted"] = "accepted"
+    outcome: Literal["MATERIALIZED", "BLOCKED", "UNKNOWN"]
+    candidate_version: Literal[7, 8, 9]
+    spot_execution_mode: Literal[
+        "MINIMUM_SIZE_POST_ONLY_V7",
+        "MINIMUM_SIZE_POST_ONLY_V8",
+        "MINIMUM_SIZE_POST_ONLY_V9",
+    ]
+    cycle_number: int = Field(ge=1, le=10)
+    policy_revision: Literal[
+        "BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2"
+    ] = "BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2"
+    boundary_classification: Literal[
+        "minimum_size_v4_base_minimum_conflict",
+        "minimum_size_v4_quote_minimum_conflict",
+        "minimum_size_v4_increment_conflict",
+        "minimum_size_v4_fee_reserve_conflict",
+        "minimum_size_v4_boundary_not_reproduced",
+    ] | None = None
+    diagnostic_code: Literal[
+        "automation_minimum_size_api_key_permissions_rejected",
+        "automation_minimum_size_best_bid_ask_rejected",
+        "automation_minimum_size_fee_summary_rejected",
+        "automation_minimum_size_portfolio_catalog_rejected",
+        "automation_minimum_size_portfolio_configuration_invalid",
+        "automation_minimum_size_preparation_unknown",
+        "automation_minimum_size_product_metadata_rejected",
+        "automation_minimum_size_wallet_balances_rejected",
+        "minimum_size_fee_invalid",
+        "minimum_size_fee_reserve_cap_conflict",
+        "minimum_size_increment_conflict",
+        "minimum_size_post_only_crossing",
+        "minimum_size_product_blocked",
+        "minimum_size_product_metadata_invalid",
+        "minimum_size_snapshot_future",
+        "minimum_size_snapshot_invalid",
+        "minimum_size_snapshot_stale",
+        "minimum_size_snapshot_timestamp_invalid",
+        "minimum_size_submitted_cap_conflict",
+        "minimum_size_v4_base_minimum_conflict",
+        "minimum_size_v4_boundary_not_reproduced",
+        "minimum_size_v4_fee_reserve_conflict",
+        "minimum_size_v4_increment_conflict",
+        "minimum_size_v4_quote_minimum_conflict",
+        "minimum_size_wallet_insufficient",
+    ]
+    completed_categories: list[
+        Literal[
+            "api_key_permissions",
+            "portfolio_catalog",
+            "wallet_balances",
+            "product_metadata",
+            "best_bid_ask",
+            "fee_summary",
+        ]
+    ] = Field(default_factory=list, max_length=6)
+    coinbase_api_call_count: int | None = Field(default=0, ge=0)
+    call_count_exact: bool = True
+    definition: AutomationDefinitionItem | None = None
+    max_submitted_notional_usdc: Literal["3.10"] = "3.10"
+    max_possible_execution_notional_usdc: str | None = Field(
+        default=None,
+        pattern=_POSITIVE_DECIMAL_PATTERN,
+        max_length=64,
+    )
+    preview_call_count: Literal[0] = 0
+    create_call_count: Literal[0] = 0
+    cancel_call_count: Literal[0] = 0
+    audit_id: str = Field(pattern=_CANONICAL_UUID_PATTERN)
+    correlation_id: str = Field(
+        min_length=1,
+        max_length=255,
+        pattern=_VISIBLE_ASCII_PATTERN,
+    )
+    replayed: bool = False
+
+    @model_validator(mode="after")
+    def validate_preparation_evidence(self) -> Self:
+        if self.call_count_exact is (self.coinbase_api_call_count is None):
+            raise ValueError(
+                "automation_minimum_size_preparation_call_count_invalid"
+            )
+        expected_mode = f"MINIMUM_SIZE_POST_ONLY_V{self.candidate_version}"
+        if self.spot_execution_mode != expected_mode:
+            raise ValueError("automation_minimum_size_preparation_mode_invalid")
+        materialized = self.outcome == "MATERIALIZED"
+        if materialized is (self.definition is None):
+            raise ValueError(
+                "automation_minimum_size_preparation_definition_invalid"
+            )
+        if materialized is (self.max_possible_execution_notional_usdc is None):
+            raise ValueError("automation_minimum_size_preparation_cap_invalid")
+        if self.max_possible_execution_notional_usdc is not None:
+            cap = Decimal(self.max_possible_execution_notional_usdc)
+            if not cap.is_finite() or cap <= 0 or cap >= Decimal("3.10"):
+                raise ValueError("automation_minimum_size_preparation_cap_invalid")
+        if self.definition is not None and (
+            self.definition.spot_execution_mode != self.spot_execution_mode
+            or self.definition.single_child_order is None
+            or self.definition.single_child_order.post_only is not True
+        ):
+            raise ValueError(
+                "automation_minimum_size_preparation_definition_invalid"
             )
         return self
 

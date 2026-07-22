@@ -43,6 +43,7 @@ from database.operator_automation import (
     AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
     AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES,
     AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
+    AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY,
     AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
     AutomationControlPlaneRecord,
     AutomationDefinitionCreateCommand,
@@ -55,6 +56,7 @@ from database.operator_automation import (
     AutomationSpotEligibilityAttemptRecord,
     AutomationSpotEligibilityCycleAllocationRecord,
     AutomationSpotEligibilityCycleRecord,
+    AutomationSpotPreviewGatedGoalRecord,
     AutomationStoreMutation,
     AutomationStorePage,
 )
@@ -264,6 +266,36 @@ class _RawRepository:
     def get_spot_goal_key_for_run(self, run_id: str) -> str:
         self.calls.append(("get_spot_goal_key_for_run", (run_id,), {}))
         return self.spot_goal_key
+
+    def get_spot_preview_gated_goal(
+        self,
+        *,
+        goal_key: str,
+    ) -> AutomationSpotPreviewGatedGoalRecord:
+        self.calls.append(("get_spot_preview_gated_goal", (), {"goal_key": goal_key}))
+        return AutomationSpotPreviewGatedGoalRecord(
+            goal_key=goal_key,
+            definition_id=DEFINITION_ID,
+            bound_run_id=None,
+            client_order_id=None,
+            eligibility_cycle=None,
+            plan_sha256=None,
+            portfolio_id_sha256=None,
+            product_id=None,
+            preview_allowance_consumed=False,
+            preview_outcome=None,
+            preview_failure_class=None,
+            preview_rejection_code=None,
+            preview_warning_present=None,
+            preview_id_sha256=None,
+            preview_call_count=None,
+            preview_call_count_exact=True,
+            create_allowance_consumed=False,
+            create_outcome=None,
+            cancel_allowance_consumed=False,
+            cancel_outcome=None,
+            updated_at=NOW,
+        )
 
     def get_spot_single_child_plan(
         self,
@@ -667,6 +699,34 @@ def test_single_child_readback_withholds_test_scope_until_catalog_proves_it():
 
     assert current_proven is not None
     assert current_proven["single_child_plan"]["portfolio_scope"] == "Test"
+
+
+def test_minimum_size_run_readback_preserves_the_persisted_dynamic_cap():
+    raw = _RawRepository()
+    raw.spot_goal_key = AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY
+    raw.plan = replace(
+        _plan(),
+        base_size="0.00002",
+        limit_price="50500",
+        submitted_notional_usdc="1.01",
+        possible_execution_notional_usdc="1.01",
+        max_possible_execution_notional_usdc="1.01",
+        post_only=True,
+    )
+    raw.current_run = _run(
+        state=OperatorAutomationRunState.BLOCKED,
+        diagnostic_code="automation_active_order_catalog_read_not_authorized",
+        job_kind=OperatorAutomationJobKind.SPOT_CAMPAIGN,
+    )
+
+    projected = PostgresOperatorAutomationRepositoryAdapter(raw).get_run(RUN_ID)
+    item = AutomationRunItem.model_validate(projected)
+
+    assert item.spot_execution_mode == "MINIMUM_SIZE_POST_ONLY_V7"
+    assert item.single_child_plan is not None
+    assert item.single_child_plan.submitted_notional_usdc == "1.01"
+    assert item.single_child_plan.possible_execution_notional_usdc == "1.01"
+    assert item.single_child_plan.max_possible_execution_notional_usdc == "1.01"
 
 
 def test_campaign_claim_prepares_then_blocks_before_calls_when_open_order_read_is_unauthorized():

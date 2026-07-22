@@ -2710,8 +2710,18 @@ class AdminMvpService:
         else:
             now = now.astimezone(timezone.utc)
         expires_at = now + timedelta(minutes=5)
-        max_submitted = "3.10" if manual else "0"
-        max_executed = "1.00" if manual else "0"
+        try:
+            max_submitted, max_executed = _typed_spot_proof_caps(
+                proof_context,
+                manual=manual,
+            )
+        except ValueError:
+            return {
+                "required": True,
+                "status": "blocked",
+                "blocker": "typed_spot_proof_cap_invalid",
+                "live_exchange_submitted": False,
+            }
         common = {
             "route": str(proof_context["route"]),
             "method": str(proof_context["method"]).upper(),
@@ -2741,7 +2751,15 @@ class AdminMvpService:
                         allowed=True,
                         status=AdminApiGateStatus.PASSED,
                         cap_policy_ref=(
-                            "submitted_notional_cap:3.10"
+                            _typed_spot_cap_policy_ref(
+                                max_executed,
+                                minimum_size_dynamic_cap=(
+                                    proof_context.get(
+                                        "minimum_size_dynamic_cap"
+                                    )
+                                    is True
+                                ),
+                            )
                             if manual
                             else "no_new_notional:cancel_order"
                         ),
@@ -15554,6 +15572,49 @@ def _proof_chain_record_key(proof_context: Mapping[str, Any]) -> str:
     return hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]
 
 
+def _typed_spot_proof_caps(
+    proof_context: Mapping[str, Any],
+    *,
+    manual: bool,
+) -> tuple[str, str]:
+    if not manual:
+        return "0", "0"
+    try:
+        submitted = Decimal(
+            str(proof_context.get("max_submitted_notional_usdc", "3.10"))
+        )
+        executed = Decimal(
+            str(proof_context.get("max_executed_notional_usdc", "1.00"))
+        )
+    except (ArithmeticError, TypeError, ValueError) as exc:
+        raise ValueError("typed_spot_proof_cap_invalid") from exc
+    if (
+        not submitted.is_finite()
+        or submitted != Decimal("3.10")
+        or not executed.is_finite()
+        or executed <= 0
+        or executed >= Decimal("3.10")
+    ):
+        raise ValueError("typed_spot_proof_cap_invalid")
+    return format(submitted, "f"), format(executed, "f")
+
+
+def _typed_spot_cap_policy_ref(
+    max_executed: str,
+    *,
+    minimum_size_dynamic_cap: bool = False,
+) -> str:
+    if (
+        not minimum_size_dynamic_cap
+        and Decimal(max_executed) == Decimal("1.00")
+    ):
+        return "submitted_notional_cap:3.10"
+    return (
+        "submitted_notional_cap:3.10;"
+        f"minimum_size_dynamic_execution_cap:{max_executed}"
+    )
+
+
 def _typed_spot_proof_records_match(
     records: Mapping[str, Any],
     *,
@@ -15611,8 +15672,20 @@ def _typed_spot_proof_records_match(
         )
 
     manual = expected["service_method"] == "place_manual_order"
-    max_submitted = "3.10" if manual else "0"
-    max_executed = "1.00" if manual else "0"
+    try:
+        max_submitted, max_executed = _typed_spot_proof_caps(
+            proof_context,
+            manual=manual,
+        )
+    except ValueError:
+        return False
+    minimum_size_dynamic_cap = bool(
+        manual
+        and (
+            proof_context.get("minimum_size_dynamic_cap") is True
+            or Decimal(max_executed) != Decimal("1.00")
+        )
+    )
 
     approval_matches = bool(
         approval is not None
@@ -15671,7 +15744,10 @@ def _typed_spot_proof_records_match(
         and cap_guard.status == AdminApiGateStatus.PASSED
         and cap_guard.cap_policy_ref
         == (
-            "submitted_notional_cap:3.10"
+            _typed_spot_cap_policy_ref(
+                max_executed,
+                minimum_size_dynamic_cap=minimum_size_dynamic_cap,
+            )
             if manual
             else "no_new_notional:cancel_order"
         )
@@ -15686,7 +15762,12 @@ def _typed_spot_proof_records_match(
         and cap_guard.max_executed_notional_usdc == max_executed
         and cap_guard.wallet_check_required is manual
         and cap_guard.wallet_check_status == AdminApiGateStatus.PASSED
-        and cap_guard.wallet_available_notional_usdc == max_submitted
+        and cap_guard.wallet_available_notional_usdc
+        == (
+            max_executed
+            if minimum_size_dynamic_cap
+            else max_submitted
+        )
         and cap_guard.wallet_check_source
         == (
             "backend_coinbase_account_wallet_read"

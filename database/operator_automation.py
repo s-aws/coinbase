@@ -29,6 +29,10 @@ from core.operator_spot_near_market_evidence import (
     NEAR_MARKET_POLICY_REVISION,
     near_market_preparation_evidence_sha256,
 )
+from core.operator_spot_minimum_size_evidence import (
+    MINIMUM_SIZE_POLICY_REVISION,
+    minimum_size_preparation_evidence_sha256,
+)
 from database.database import PostgresDB
 
 
@@ -70,6 +74,7 @@ _AUTOMATION_SPOT_ELIGIBILITY_V1_CATEGORIES = (
 )
 _AUTOMATION_SPOT_ELIGIBILITY_POLICY_REVISION = 2
 _AUTOMATION_SPOT_NEAR_MARKET_ELIGIBILITY_POLICY_REVISION = 3
+_AUTOMATION_SPOT_MINIMUM_SIZE_ELIGIBILITY_POLICY_REVISION = 4
 _AUTOMATION_SPOT_ELIGIBILITY_CATEGORY_SET = frozenset(
     AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES
 )
@@ -133,6 +138,28 @@ AUTOMATION_SPOT_NEAR_MARKET_GOAL_KEYS = frozenset(
         AUTOMATION_SPOT_NEAR_MARKET_V6_GOAL_KEY,
     }
 )
+AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY = (
+    "operator_spot_automation_minimum_size_successor_v7"
+)
+AUTOMATION_SPOT_MINIMUM_SIZE_V8_GOAL_KEY = (
+    "operator_spot_automation_minimum_size_successor_v8"
+)
+AUTOMATION_SPOT_MINIMUM_SIZE_V9_GOAL_KEY = (
+    "operator_spot_automation_minimum_size_successor_v9"
+)
+AUTOMATION_SPOT_MINIMUM_SIZE_GOAL_KEYS = frozenset(
+    {
+        AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY,
+        AUTOMATION_SPOT_MINIMUM_SIZE_V8_GOAL_KEY,
+        AUTOMATION_SPOT_MINIMUM_SIZE_V9_GOAL_KEY,
+    }
+)
+AUTOMATION_SPOT_POST_ONLY_GOAL_KEYS = frozenset(
+    {
+        *AUTOMATION_SPOT_NEAR_MARKET_GOAL_KEYS,
+        *AUTOMATION_SPOT_MINIMUM_SIZE_GOAL_KEYS,
+    }
+)
 _AUTOMATION_SPOT_NEAR_MARKET_PREPARATION_CATEGORIES = (
     AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[:6]
 )
@@ -159,12 +186,45 @@ _AUTOMATION_SPOT_NEAR_MARKET_PREPARATION_DIAGNOSTICS = frozenset(
         "near_market_wallet_insufficient",
     }
 )
+_AUTOMATION_SPOT_MINIMUM_SIZE_PREPARATION_CATEGORIES = (
+    AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[:6]
+)
+_AUTOMATION_SPOT_MINIMUM_SIZE_PREPARATION_DIAGNOSTICS = frozenset(
+    {
+        "automation_minimum_size_api_key_permissions_rejected",
+        "automation_minimum_size_best_bid_ask_rejected",
+        "automation_minimum_size_fee_summary_rejected",
+        "automation_minimum_size_portfolio_catalog_rejected",
+        "automation_minimum_size_portfolio_configuration_invalid",
+        "automation_minimum_size_preparation_unknown",
+        "automation_minimum_size_product_metadata_rejected",
+        "automation_minimum_size_wallet_balances_rejected",
+        "minimum_size_fee_invalid",
+        "minimum_size_fee_reserve_cap_conflict",
+        "minimum_size_increment_conflict",
+        "minimum_size_post_only_crossing",
+        "minimum_size_product_blocked",
+        "minimum_size_product_metadata_invalid",
+        "minimum_size_snapshot_future",
+        "minimum_size_snapshot_invalid",
+        "minimum_size_snapshot_stale",
+        "minimum_size_snapshot_timestamp_invalid",
+        "minimum_size_submitted_cap_conflict",
+        "minimum_size_v4_base_minimum_conflict",
+        "minimum_size_v4_boundary_not_reproduced",
+        "minimum_size_v4_fee_reserve_conflict",
+        "minimum_size_v4_increment_conflict",
+        "minimum_size_v4_quote_minimum_conflict",
+        "minimum_size_wallet_insufficient",
+    }
+)
 _AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY = AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY
 _AUTOMATION_SPOT_PREVIEW_GOAL_KEYS = frozenset(
     {
         AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
         AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
         *AUTOMATION_SPOT_NEAR_MARKET_GOAL_KEYS,
+        *AUTOMATION_SPOT_MINIMUM_SIZE_GOAL_KEYS,
     }
 )
 _AUTOMATION_SPOT_GOAL_KEYS = frozenset(
@@ -176,6 +236,14 @@ _AUTOMATION_SPOT_GOAL_KEYS = frozenset(
 _AUTOMATION_SPOT_CLIENT_ORDER_NAMESPACE = uuid.UUID(
     "af243a31-5934-52e2-b540-8d7b101d82ca"
 )
+
+
+def _spot_policy_revision_for_goal(goal_key: str) -> int:
+    if goal_key in AUTOMATION_SPOT_MINIMUM_SIZE_GOAL_KEYS:
+        return _AUTOMATION_SPOT_MINIMUM_SIZE_ELIGIBILITY_POLICY_REVISION
+    if goal_key in AUTOMATION_SPOT_NEAR_MARKET_GOAL_KEYS:
+        return _AUTOMATION_SPOT_NEAR_MARKET_ELIGIBILITY_POLICY_REVISION
+    return _AUTOMATION_SPOT_ELIGIBILITY_POLICY_REVISION
 
 
 def _utc_now() -> datetime:
@@ -498,6 +566,34 @@ class AutomationSpotNearMarketMaterializationEvidence:
 
 
 @dataclass(frozen=True)
+class AutomationSpotMinimumSizePreparationRecord:
+    cycle_number: int
+    goal_key: str
+    candidate_version: int
+    state: Literal["CLAIMED", "MATERIALIZED", "BLOCKED", "UNKNOWN"]
+    definition_id: str | None
+    diagnostic_code: str
+    completed_categories: tuple[str, ...]
+    coinbase_api_call_count: int | None
+    call_count_exact: bool
+    evidence_sha256: str | None
+    audit_id: str
+    correlation_id: str
+    started_at: str
+    finalized_at: str | None
+
+
+@dataclass(frozen=True)
+class AutomationSpotMinimumSizeMaterializationEvidence:
+    cycle_number: int
+    goal_key: str
+    diagnostic_code: str
+    completed_categories: tuple[str, ...]
+    coinbase_api_call_count: int
+    evidence_sha256: str
+
+
+@dataclass(frozen=True)
 class AutomationRunEventRecord:
     event_id: str
     run_id: str
@@ -594,6 +690,10 @@ class OperatorAutomationRepository:
         near_market_goal_keys = ", ".join(
             f"'{goal_key}'"
             for goal_key in sorted(AUTOMATION_SPOT_NEAR_MARKET_GOAL_KEYS)
+        )
+        minimum_size_goal_keys = ", ".join(
+            f"'{goal_key}'"
+            for goal_key in sorted(AUTOMATION_SPOT_MINIMUM_SIZE_GOAL_KEYS)
         )
         with self.database.get_cursor() as cursor:
             cursor.execute(f'CREATE SCHEMA IF NOT EXISTS "{self.schema}"')
@@ -692,13 +792,17 @@ class OperatorAutomationRepository:
                     possible_execution_notional_usdc NUMERIC NOT NULL
                         CHECK (
                             possible_execution_notional_usdc > 0
-                            AND possible_execution_notional_usdc <= 1.00
                             AND possible_execution_notional_usdc <= submitted_notional_usdc
                         ),
                     max_submitted_notional_usdc NUMERIC NOT NULL
                         CHECK (max_submitted_notional_usdc = 3.10),
                     max_possible_execution_notional_usdc NUMERIC NOT NULL
-                        CHECK (max_possible_execution_notional_usdc = 1.00),
+                        CHECK (
+                            max_possible_execution_notional_usdc > 0
+                            AND max_possible_execution_notional_usdc < 3.10
+                            AND possible_execution_notional_usdc
+                                <= max_possible_execution_notional_usdc
+                        ),
                     post_only BOOLEAN NOT NULL,
                     plan_sha256 CHAR(64) NOT NULL UNIQUE
                         CHECK (plan_sha256 ~ '^[0-9a-f]{{64}}$'),
@@ -706,6 +810,45 @@ class OperatorAutomationRepository:
                     correlation_id TEXT NOT NULL CHECK (char_length(correlation_id) BETWEEN 1 AND 255),
                     created_at TIMESTAMPTZ NOT NULL,
                     PRIMARY KEY (definition_id, definition_revision)
+                )
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_single_child_plan
+                DROP CONSTRAINT IF EXISTS
+                    automation_spot_single_child_plan_possible_execution_notional_usdc_check
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_single_child_plan
+                ADD CONSTRAINT
+                    automation_spot_single_child_plan_possible_execution_notional_usdc_check
+                CHECK (
+                    possible_execution_notional_usdc > 0
+                    AND possible_execution_notional_usdc
+                        <= submitted_notional_usdc
+                )
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_single_child_plan
+                DROP CONSTRAINT IF EXISTS
+                    automation_spot_single_child_plan_max_possible_execution_notional_usdc_check
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_single_child_plan
+                ADD CONSTRAINT
+                    automation_spot_single_child_plan_max_possible_execution_notional_usdc_check
+                CHECK (
+                    max_possible_execution_notional_usdc > 0
+                    AND max_possible_execution_notional_usdc < 3.10
+                    AND possible_execution_notional_usdc
+                        <= max_possible_execution_notional_usdc
                 )
                 """
             )
@@ -767,7 +910,7 @@ class OperatorAutomationRepository:
                     ),
                     cycle_number SMALLINT NOT NULL CHECK (cycle_number BETWEEN 1 AND 10),
                     policy_revision SMALLINT NOT NULL DEFAULT 2
-                        CHECK (policy_revision IN (1,2,3)),
+                        CHECK (policy_revision IN (1,2,3,4)),
                     run_id UUID NOT NULL REFERENCES {self._prefix}automation_run(run_id),
                     definition_id UUID NOT NULL,
                     definition_revision INTEGER NOT NULL CHECK (definition_revision >= 1),
@@ -865,7 +1008,7 @@ class OperatorAutomationRepository:
                 ALTER TABLE {self._prefix}automation_spot_eligibility_cycle
                 ADD CONSTRAINT
                     automation_spot_eligibility_cycle_policy_revision_check
-                CHECK (policy_revision IN (1,2,3))
+                CHECK (policy_revision IN (1,2,3,4))
                 """
             )
             cursor.execute(
@@ -1334,7 +1477,7 @@ class OperatorAutomationRepository:
                 CREATE TABLE IF NOT EXISTS {self._prefix}automation_spot_run_execution (
                     run_id UUID PRIMARY KEY REFERENCES {self._prefix}automation_run(run_id),
                     policy_revision SMALLINT NOT NULL DEFAULT 2
-                        CHECK (policy_revision IN (1,2,3)),
+                        CHECK (policy_revision IN (1,2,3,4)),
                     definition_id UUID NOT NULL,
                     definition_revision INTEGER NOT NULL,
                     eligibility_cycle SMALLINT NOT NULL CHECK (eligibility_cycle BETWEEN 1 AND 10),
@@ -1462,7 +1605,7 @@ class OperatorAutomationRepository:
                 ALTER TABLE {self._prefix}automation_spot_run_execution
                 ADD CONSTRAINT
                     automation_spot_run_execution_policy_revision_check
-                CHECK (policy_revision IN (1,2,3))
+                CHECK (policy_revision IN (1,2,3,4))
                 """
             )
             cursor.execute(
@@ -1962,6 +2105,78 @@ class OperatorAutomationRepository:
             )
             cursor.execute(
                 f"""
+                CREATE TABLE IF NOT EXISTS {self._prefix}automation_spot_minimum_size_preparation (
+                    cycle_number SMALLINT PRIMARY KEY
+                        CHECK (cycle_number BETWEEN 1 AND 10),
+                    goal_key TEXT NOT NULL
+                        CHECK (goal_key IN ({minimum_size_goal_keys})),
+                    candidate_version SMALLINT NOT NULL
+                        CHECK (candidate_version BETWEEN 7 AND 9),
+                    state TEXT NOT NULL CHECK (
+                        state IN ('CLAIMED','MATERIALIZED','BLOCKED','UNKNOWN')
+                    ),
+                    definition_id UUID UNIQUE REFERENCES
+                        {self._prefix}automation_definition(definition_id),
+                    idempotency_key_sha256 CHAR(64) NOT NULL UNIQUE
+                        CHECK (idempotency_key_sha256 ~ '^[0-9a-f]{{64}}$'),
+                    payload_sha256 CHAR(64) NOT NULL
+                        CHECK (payload_sha256 ~ '^[0-9a-f]{{64}}$'),
+                    actor_id_sha256 CHAR(64) NOT NULL
+                        CHECK (actor_id_sha256 ~ '^[0-9a-f]{{64}}$'),
+                    operator_intent_sha256 CHAR(64) NOT NULL
+                        CHECK (operator_intent_sha256 ~ '^[0-9a-f]{{64}}$'),
+                    diagnostic_code TEXT NOT NULL
+                        CHECK (char_length(diagnostic_code) BETWEEN 1 AND 96),
+                    completed_categories JSONB NOT NULL DEFAULT '[]'::jsonb,
+                    coinbase_api_call_count INTEGER CHECK (
+                        coinbase_api_call_count IS NULL
+                        OR coinbase_api_call_count >= 0
+                    ),
+                    call_count_exact BOOLEAN NOT NULL DEFAULT FALSE,
+                    evidence_sha256 CHAR(64) CHECK (
+                        evidence_sha256 IS NULL
+                        OR evidence_sha256 ~ '^[0-9a-f]{{64}}$'
+                    ),
+                    audit_id UUID NOT NULL,
+                    correlation_id TEXT NOT NULL
+                        CHECK (char_length(correlation_id) BETWEEN 1 AND 255),
+                    started_at TIMESTAMPTZ NOT NULL,
+                    finalized_at TIMESTAMPTZ,
+                    CHECK (
+                        (candidate_version = 7 AND goal_key = '{AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY}')
+                        OR (candidate_version = 8 AND goal_key = '{AUTOMATION_SPOT_MINIMUM_SIZE_V8_GOAL_KEY}')
+                        OR (candidate_version = 9 AND goal_key = '{AUTOMATION_SPOT_MINIMUM_SIZE_V9_GOAL_KEY}')
+                    ),
+                    CHECK (
+                        (state = 'CLAIMED' AND definition_id IS NULL
+                            AND coinbase_api_call_count IS NULL
+                            AND NOT call_count_exact
+                            AND evidence_sha256 IS NULL
+                            AND finalized_at IS NULL)
+                        OR
+                        (state = 'MATERIALIZED' AND definition_id IS NOT NULL
+                            AND coinbase_api_call_count IS NOT NULL
+                            AND call_count_exact
+                            AND evidence_sha256 IS NOT NULL
+                            AND finalized_at IS NOT NULL)
+                        OR
+                        (state = 'BLOCKED' AND definition_id IS NULL
+                            AND coinbase_api_call_count IS NOT NULL
+                            AND call_count_exact
+                            AND evidence_sha256 IS NOT NULL
+                            AND finalized_at IS NOT NULL)
+                        OR
+                        (state = 'UNKNOWN' AND definition_id IS NULL
+                            AND coinbase_api_call_count IS NULL
+                            AND NOT call_count_exact
+                            AND evidence_sha256 IS NULL
+                            AND finalized_at IS NOT NULL)
+                    )
+                )
+                """
+            )
+            cursor.execute(
+                f"""
                 CREATE TABLE IF NOT EXISTS {self._prefix}automation_idempotency (
                     idempotency_key_sha256 CHAR(64) PRIMARY KEY,
                     payload_sha256 CHAR(64) NOT NULL,
@@ -2148,6 +2363,62 @@ class OperatorAutomationRepository:
                 CREATE TRIGGER automation_spot_near_market_preparation_no_delete
                 BEFORE DELETE ON {self._prefix}automation_spot_near_market_preparation
                 FOR EACH ROW EXECUTE FUNCTION {immutable_preparation_function}()
+                """
+            )
+            immutable_minimum_size_preparation_function = (
+                f'"{self.schema}".'
+                "reject_automation_spot_minimum_size_preparation_mutation"
+            )
+            cursor.execute(
+                f"""
+                CREATE OR REPLACE FUNCTION {immutable_minimum_size_preparation_function}()
+                RETURNS trigger LANGUAGE plpgsql AS $$
+                BEGIN
+                    IF TG_OP = 'DELETE' THEN
+                        RAISE EXCEPTION 'automation_spot_minimum_size_preparation_is_immutable';
+                    END IF;
+                    IF NEW.cycle_number IS DISTINCT FROM OLD.cycle_number
+                       OR NEW.goal_key IS DISTINCT FROM OLD.goal_key
+                       OR NEW.candidate_version IS DISTINCT FROM OLD.candidate_version
+                       OR NEW.idempotency_key_sha256 IS DISTINCT FROM OLD.idempotency_key_sha256
+                       OR NEW.payload_sha256 IS DISTINCT FROM OLD.payload_sha256
+                       OR NEW.actor_id_sha256 IS DISTINCT FROM OLD.actor_id_sha256
+                       OR NEW.operator_intent_sha256 IS DISTINCT FROM OLD.operator_intent_sha256
+                       OR NEW.correlation_id IS DISTINCT FROM OLD.correlation_id
+                       OR NEW.started_at IS DISTINCT FROM OLD.started_at THEN
+                        RAISE EXCEPTION 'automation_spot_minimum_size_preparation_binding_is_immutable';
+                    END IF;
+                    IF OLD.state <> 'CLAIMED'
+                       OR NEW.state NOT IN ('MATERIALIZED','BLOCKED','UNKNOWN') THEN
+                        RAISE EXCEPTION 'automation_spot_minimum_size_preparation_is_immutable';
+                    END IF;
+                    RETURN NEW;
+                END;
+                $$
+                """
+            )
+            cursor.execute(
+                "DROP TRIGGER IF EXISTS "
+                "automation_spot_minimum_size_preparation_no_update ON "
+                f"{self._prefix}automation_spot_minimum_size_preparation"
+            )
+            cursor.execute(
+                f"""
+                CREATE TRIGGER automation_spot_minimum_size_preparation_no_update
+                BEFORE UPDATE ON {self._prefix}automation_spot_minimum_size_preparation
+                FOR EACH ROW EXECUTE FUNCTION {immutable_minimum_size_preparation_function}()
+                """
+            )
+            cursor.execute(
+                "DROP TRIGGER IF EXISTS "
+                "automation_spot_minimum_size_preparation_no_delete ON "
+                f"{self._prefix}automation_spot_minimum_size_preparation"
+            )
+            cursor.execute(
+                f"""
+                CREATE TRIGGER automation_spot_minimum_size_preparation_no_delete
+                BEFORE DELETE ON {self._prefix}automation_spot_minimum_size_preparation
+                FOR EACH ROW EXECUTE FUNCTION {immutable_minimum_size_preparation_function}()
                 """
             )
             immutable_cycle_binding_function = (
@@ -2562,6 +2833,34 @@ class OperatorAutomationRepository:
         if goal_key == AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY:
             return
 
+        if goal_key == AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY:
+            cursor.execute(
+                f"""
+                SELECT state, diagnostic_code, definition_id,
+                       coinbase_api_call_count, call_count_exact
+                FROM {self._prefix}automation_spot_near_market_preparation
+                WHERE goal_key = %s
+                ORDER BY cycle_number DESC
+                LIMIT 1
+                FOR UPDATE
+                """,
+                (AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY,),
+            )
+            predecessor = self._row(cursor)
+            if not (
+                predecessor is not None
+                and predecessor.get("state") == "BLOCKED"
+                and predecessor.get("diagnostic_code")
+                == "near_market_no_valid_size"
+                and predecessor.get("definition_id") is None
+                and type(predecessor.get("coinbase_api_call_count")) is int
+                and predecessor.get("call_count_exact") is True
+            ):
+                raise AutomationStoreConflict(
+                    "automation_spot_minimum_size_v4_predecessor_not_terminal"
+                )
+            return
+
         near_market_predecessor = {
             AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY: (
                 AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY
@@ -2571,6 +2870,12 @@ class OperatorAutomationRepository:
             ),
             AUTOMATION_SPOT_NEAR_MARKET_V6_GOAL_KEY: (
                 AUTOMATION_SPOT_NEAR_MARKET_V5_GOAL_KEY
+            ),
+            AUTOMATION_SPOT_MINIMUM_SIZE_V8_GOAL_KEY: (
+                AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY
+            ),
+            AUTOMATION_SPOT_MINIMUM_SIZE_V9_GOAL_KEY: (
+                AUTOMATION_SPOT_MINIMUM_SIZE_V8_GOAL_KEY
             ),
         }.get(goal_key)
         if near_market_predecessor is not None:
@@ -2620,9 +2925,12 @@ class OperatorAutomationRepository:
                 )
             )
             if not predecessor_terminal:
-                raise AutomationStoreConflict(
-                    "automation_spot_near_market_predecessor_not_terminal"
+                code = (
+                    "automation_spot_minimum_size_predecessor_not_terminal"
+                    if goal_key in AUTOMATION_SPOT_MINIMUM_SIZE_GOAL_KEYS
+                    else "automation_spot_near_market_predecessor_not_terminal"
                 )
+                raise AutomationStoreConflict(code)
             return
 
         if goal_key == AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY:
@@ -2722,6 +3030,9 @@ class OperatorAutomationRepository:
         spot_near_market_materialization: (
             AutomationSpotNearMarketMaterializationEvidence | None
         ) = None,
+        spot_minimum_size_materialization: (
+            AutomationSpotMinimumSizeMaterializationEvidence | None
+        ) = None,
     ) -> AutomationStoreMutation[AutomationDefinitionRecord]:
         domain = OperatorAutomationDomain(command.domain)
         job_kind = OperatorAutomationJobKind(command.job_kind)
@@ -2752,6 +3063,20 @@ class OperatorAutomationRepository:
         ):
             raise AutomationStoreInvalid(
                 "automation_near_market_materialization_required"
+            )
+        if (
+            spot_goal_key in AUTOMATION_SPOT_MINIMUM_SIZE_GOAL_KEYS
+            and spot_minimum_size_materialization is None
+        ):
+            raise AutomationStoreInvalid(
+                "automation_minimum_size_materialization_required"
+            )
+        if (
+            spot_near_market_materialization is not None
+            and spot_minimum_size_materialization is not None
+        ):
+            raise AutomationStoreInvalid(
+                "automation_spot_materialization_ambiguous"
             )
         if spot_near_market_materialization is not None:
             evidence = spot_near_market_materialization
@@ -2814,6 +3139,77 @@ class OperatorAutomationRepository:
             ):
                 raise AutomationStoreInvalid(
                     "automation_near_market_materialization_invalid"
+                )
+        if spot_minimum_size_materialization is not None:
+            evidence = spot_minimum_size_materialization
+            expected_evidence_sha256 = (
+                minimum_size_preparation_evidence_sha256(
+                    call_count=evidence.coinbase_api_call_count,
+                    categories=evidence.completed_categories,
+                    diagnostic_code=evidence.diagnostic_code,
+                    outcome="MATERIALIZED",
+                    policy_revision=MINIMUM_SIZE_POLICY_REVISION,
+                    plan=(
+                        {
+                            "base_size": spot_single_child_plan.base_size,
+                            "limit_price": spot_single_child_plan.limit_price,
+                            "max_possible_execution_notional_usdc": (
+                                spot_single_child_plan
+                                .max_possible_execution_notional_usdc
+                            ),
+                            "max_submitted_notional_usdc": (
+                                spot_single_child_plan
+                                .max_submitted_notional_usdc
+                            ),
+                            "possible_execution_notional_usdc": (
+                                spot_single_child_plan
+                                .possible_execution_notional_usdc
+                            ),
+                            "post_only": spot_single_child_plan.post_only,
+                            "portfolio_id_sha256": (
+                                spot_single_child_plan.portfolio_id_sha256
+                            ),
+                            "product_id": spot_single_child_plan.product_id,
+                            "side": spot_single_child_plan.side,
+                            "submitted_notional_usdc": (
+                                spot_single_child_plan
+                                .submitted_notional_usdc
+                            ),
+                            "v4_boundary_classification": (
+                                evidence.diagnostic_code
+                            ),
+                        }
+                        if spot_single_child_plan is not None
+                        else None
+                    ),
+                )
+                if spot_single_child_plan is not None
+                else None
+            )
+            if (
+                spot_single_child_plan is None
+                or spot_goal_key not in AUTOMATION_SPOT_MINIMUM_SIZE_GOAL_KEYS
+                or evidence.goal_key != spot_goal_key
+                or type(evidence.cycle_number) is not int
+                or not 1 <= evidence.cycle_number <= 10
+                or evidence.diagnostic_code
+                not in {
+                    "minimum_size_v4_base_minimum_conflict",
+                    "minimum_size_v4_boundary_not_reproduced",
+                    "minimum_size_v4_fee_reserve_conflict",
+                    "minimum_size_v4_increment_conflict",
+                    "minimum_size_v4_quote_minimum_conflict",
+                }
+                or type(evidence.coinbase_api_call_count) is not int
+                or evidence.coinbase_api_call_count
+                < len(_AUTOMATION_SPOT_MINIMUM_SIZE_PREPARATION_CATEGORIES)
+                or tuple(evidence.completed_categories)
+                != _AUTOMATION_SPOT_MINIMUM_SIZE_PREPARATION_CATEGORIES
+                or _SHA256_PATTERN.fullmatch(evidence.evidence_sha256) is None
+                or evidence.evidence_sha256 != expected_evidence_sha256
+            ):
+                raise AutomationStoreInvalid(
+                    "automation_minimum_size_materialization_invalid"
                 )
 
         with self.database.get_cursor() as cursor:
@@ -2892,7 +3288,10 @@ class OperatorAutomationRepository:
                         command=command,
                     ),
                     post_only_required=(
-                        spot_goal_key in AUTOMATION_SPOT_NEAR_MARKET_GOAL_KEYS
+                        spot_goal_key in AUTOMATION_SPOT_POST_ONLY_GOAL_KEYS
+                    ),
+                    dynamic_execution_cap=(
+                        spot_goal_key in AUTOMATION_SPOT_MINIMUM_SIZE_GOAL_KEYS
                     ),
                 )
                 self._insert_spot_single_child_plan(
@@ -2957,6 +3356,37 @@ class OperatorAutomationRepository:
                     if cursor.rowcount != 1:
                         raise AutomationStoreConflict(
                             "automation_near_market_preparation_not_claimed"
+                        )
+                if spot_minimum_size_materialization is not None:
+                    evidence = spot_minimum_size_materialization
+                    cursor.execute(
+                        f"""
+                        UPDATE {self._prefix}automation_spot_minimum_size_preparation
+                        SET state = 'MATERIALIZED', definition_id = %s,
+                            diagnostic_code = %s,
+                            completed_categories = %s::jsonb,
+                            coinbase_api_call_count = %s,
+                            call_count_exact = TRUE,
+                            evidence_sha256 = %s,
+                            audit_id = %s, finalized_at = %s
+                        WHERE cycle_number = %s AND goal_key = %s
+                          AND state = 'CLAIMED'
+                        """,
+                        (
+                            definition_id,
+                            evidence.diagnostic_code,
+                            json.dumps(list(evidence.completed_categories)),
+                            evidence.coinbase_api_call_count,
+                            evidence.evidence_sha256,
+                            audit_id,
+                            now,
+                            evidence.cycle_number,
+                            evidence.goal_key,
+                        ),
+                    )
+                    if cursor.rowcount != 1:
+                        raise AutomationStoreConflict(
+                            "automation_minimum_size_preparation_not_claimed"
                         )
             self._append_event(
                 cursor,
@@ -3025,6 +3455,7 @@ class OperatorAutomationRepository:
         command: _AutomationSpotSingleChildPlanCreateCommand,
         *,
         post_only_required: bool = False,
+        dynamic_execution_cap: bool = False,
     ) -> dict[str, Any]:
         _validate_id(
             command.definition_id,
@@ -3073,16 +3504,33 @@ class OperatorAutomationRepository:
         )
         if Decimal(submitted_cap) != Decimal("3.10"):
             raise AutomationStoreInvalid("automation_spot_plan_submitted_cap_invalid")
-        if Decimal(execution_cap) != Decimal("1.00"):
-            raise AutomationStoreInvalid("automation_spot_plan_execution_cap_invalid")
+        execution_cap_decimal = Decimal(execution_cap)
+        if dynamic_execution_cap:
+            if not Decimal("0") < execution_cap_decimal < Decimal("3.10"):
+                raise AutomationStoreInvalid(
+                    "automation_spot_plan_execution_cap_invalid"
+                )
+        elif execution_cap_decimal != Decimal("1.00"):
+            raise AutomationStoreInvalid(
+                "automation_spot_plan_execution_cap_invalid"
+            )
         if Decimal(base_size) * Decimal(limit_price) != Decimal(submitted):
             raise AutomationStoreInvalid("automation_spot_plan_notional_mismatch")
-        if Decimal(submitted) > Decimal("3.10"):
-            raise AutomationStoreInvalid("automation_spot_plan_submitted_cap_exceeded")
         if (
-            Decimal(possible) > Decimal("1.00")
-            or Decimal(possible) > Decimal(submitted)
+            Decimal(submitted) >= Decimal("3.10")
+            if dynamic_execution_cap
+            else Decimal(submitted) > Decimal("3.10")
         ):
+            raise AutomationStoreInvalid("automation_spot_plan_submitted_cap_exceeded")
+        possible_decimal = Decimal(possible)
+        if dynamic_execution_cap:
+            execution_invalid = (
+                possible_decimal != Decimal(submitted)
+                or possible_decimal > execution_cap_decimal
+            )
+        else:
+            execution_invalid = possible_decimal > Decimal("1.00")
+        if execution_invalid or possible_decimal > Decimal(submitted):
             raise AutomationStoreInvalid("automation_spot_plan_execution_cap_exceeded")
         canonical = {
             "base_size": base_size,
@@ -3220,7 +3668,10 @@ class OperatorAutomationRepository:
                 command=command,
             ),
             post_only_required=(
-                goal_key in AUTOMATION_SPOT_NEAR_MARKET_GOAL_KEYS
+                goal_key in AUTOMATION_SPOT_POST_ONLY_GOAL_KEYS
+            ),
+            dynamic_execution_cap=(
+                goal_key in AUTOMATION_SPOT_MINIMUM_SIZE_GOAL_KEYS
             ),
         )
         persisted = self._spot_plan_for_revision(
@@ -3290,7 +3741,10 @@ class OperatorAutomationRepository:
                 command=command,
             ),
             post_only_required=(
-                goal_key in AUTOMATION_SPOT_NEAR_MARKET_GOAL_KEYS
+                goal_key in AUTOMATION_SPOT_POST_ONLY_GOAL_KEYS
+            ),
+            dynamic_execution_cap=(
+                goal_key in AUTOMATION_SPOT_MINIMUM_SIZE_GOAL_KEYS
             ),
         )
         return self._insert_spot_single_child_plan(
@@ -3327,6 +3781,10 @@ class OperatorAutomationRepository:
         )
         if current is None:
             raise AutomationStoreConflict("automation_spot_plan_revision_missing")
+        goal_key = self._spot_goal_key_for_definition_cursor(
+            cursor,
+            definition_id=record.definition_id,
+        )
         expected = self._validated_spot_plan_values(
             self._spot_plan_command_for_revision(
                 definition_id=record.definition_id,
@@ -3352,11 +3810,10 @@ class OperatorAutomationRepository:
                 command=command,
             ),
             post_only_required=(
-                self._spot_goal_key_for_definition_cursor(
-                    cursor,
-                    definition_id=record.definition_id,
-                )
-                in AUTOMATION_SPOT_NEAR_MARKET_GOAL_KEYS
+                goal_key in AUTOMATION_SPOT_POST_ONLY_GOAL_KEYS
+            ),
+            dynamic_execution_cap=(
+                goal_key in AUTOMATION_SPOT_MINIMUM_SIZE_GOAL_KEYS
             ),
         )
         if current.plan_sha256 != expected["plan_sha256"]:
@@ -4024,6 +4481,7 @@ class OperatorAutomationRepository:
         elif policy_revision in {
             _AUTOMATION_SPOT_ELIGIBILITY_POLICY_REVISION,
             _AUTOMATION_SPOT_NEAR_MARKET_ELIGIBILITY_POLICY_REVISION,
+            _AUTOMATION_SPOT_MINIMUM_SIZE_ELIGIBILITY_POLICY_REVISION,
         }:
             categories = AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES
         else:
@@ -4273,6 +4731,7 @@ class OperatorAutomationRepository:
                 not in {
                     AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
                     *AUTOMATION_SPOT_NEAR_MARKET_GOAL_KEYS,
+                    *AUTOMATION_SPOT_MINIMUM_SIZE_GOAL_KEYS,
                 }
             ):
                 raise AutomationStoreInvalid(
@@ -4368,6 +4827,7 @@ class OperatorAutomationRepository:
             elif policy_revision in {
                 _AUTOMATION_SPOT_ELIGIBILITY_POLICY_REVISION,
                 _AUTOMATION_SPOT_NEAR_MARKET_ELIGIBILITY_POLICY_REVISION,
+                _AUTOMATION_SPOT_MINIMUM_SIZE_ELIGIBILITY_POLICY_REVISION,
             }:
                 cycle_categories = AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES
             else:
@@ -4804,11 +5264,7 @@ class OperatorAutomationRepository:
             plan_sha256=plan["plan_sha256"],
             goal_key=goal_key,
         )
-        expected_policy_revision = (
-            _AUTOMATION_SPOT_NEAR_MARKET_ELIGIBILITY_POLICY_REVISION
-            if goal_key in AUTOMATION_SPOT_NEAR_MARKET_GOAL_KEYS
-            else _AUTOMATION_SPOT_ELIGIBILITY_POLICY_REVISION
-        )
+        expected_policy_revision = _spot_policy_revision_for_goal(goal_key)
         if (
             cycle is None
             or int(cycle.get("policy_revision") or 0)
@@ -5410,10 +5866,8 @@ class OperatorAutomationRepository:
             now = _utc_now()
             audit_id = _new_id()
             diagnostic = "automation_spot_create_invocation_started"
-            execution_policy_revision = (
-                _AUTOMATION_SPOT_NEAR_MARKET_ELIGIBILITY_POLICY_REVISION
-                if goal_key in AUTOMATION_SPOT_NEAR_MARKET_GOAL_KEYS
-                else _AUTOMATION_SPOT_ELIGIBILITY_POLICY_REVISION
+            execution_policy_revision = _spot_policy_revision_for_goal(
+                goal_key
             )
             cursor.execute(
                 f"""
@@ -5789,11 +6243,7 @@ class OperatorAutomationRepository:
                 )
             if (
                 int(execution.get("policy_revision") or 0)
-                != (
-                    _AUTOMATION_SPOT_NEAR_MARKET_ELIGIBILITY_POLICY_REVISION
-                    if goal_key in AUTOMATION_SPOT_NEAR_MARKET_GOAL_KEYS
-                    else _AUTOMATION_SPOT_ELIGIBILITY_POLICY_REVISION
-                )
+                != _spot_policy_revision_for_goal(goal_key)
                 or
                 str(goal.get("bound_run_id")) != run_id
                 or goal.get("create_outcome") != "ACCEPTED"
@@ -6477,6 +6927,357 @@ class OperatorAutomationRepository:
                 record.correlation_id,
             )
 
+    @staticmethod
+    def _minimum_size_preparation_from_row(
+        row: Mapping[str, Any],
+    ) -> AutomationSpotMinimumSizePreparationRecord:
+        categories = row.get("completed_categories") or []
+        if isinstance(categories, str):
+            categories = json.loads(categories)
+        return AutomationSpotMinimumSizePreparationRecord(
+            cycle_number=int(row["cycle_number"]),
+            goal_key=str(row["goal_key"]),
+            candidate_version=int(row["candidate_version"]),
+            state=str(row["state"]),
+            definition_id=(
+                str(row["definition_id"])
+                if row.get("definition_id") is not None
+                else None
+            ),
+            diagnostic_code=str(row["diagnostic_code"]),
+            completed_categories=tuple(str(item) for item in categories),
+            coinbase_api_call_count=(
+                int(row["coinbase_api_call_count"])
+                if row.get("coinbase_api_call_count") is not None
+                else None
+            ),
+            call_count_exact=bool(row["call_count_exact"]),
+            evidence_sha256=row.get("evidence_sha256"),
+            audit_id=str(row["audit_id"]),
+            correlation_id=str(row["correlation_id"]),
+            started_at=_iso(row["started_at"]) or "",
+            finalized_at=_iso(row.get("finalized_at")),
+        )
+
+    def list_spot_minimum_size_preparations(
+        self,
+    ) -> tuple[AutomationSpotMinimumSizePreparationRecord, ...]:
+        rows = self.database.execute_query(
+            f"SELECT * FROM {self._prefix}automation_spot_minimum_size_preparation "
+            "ORDER BY cycle_number"
+        )
+        return tuple(
+            self._minimum_size_preparation_from_row(row) for row in rows
+        )
+
+    def start_spot_minimum_size_preparation(
+        self,
+        command: AutomationMutationCommand,
+    ) -> AutomationStoreMutation[AutomationSpotMinimumSizePreparationRecord]:
+        """Claim one V7-V9 goal-global cycle before any Coinbase read."""
+
+        self._validate_command(command)
+        idempotency_hash = _hash(command.idempotency_key)
+        with self.database.get_cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT *
+                FROM {self._prefix}automation_spot_minimum_size_preparation
+                WHERE idempotency_key_sha256 = %s
+                FOR UPDATE
+                """,
+                (idempotency_hash,),
+            )
+            replay = self._row(cursor)
+            if replay is not None:
+                if (
+                    replay["payload_sha256"] != command.payload_sha256
+                    or replay["actor_id_sha256"] != _hash(command.actor_id)
+                    or replay["operator_intent_sha256"]
+                    != _hash(command.operator_intent)
+                    or replay["correlation_id"] != command.correlation_id
+                ):
+                    raise AutomationStoreConflict(
+                        "automation_minimum_size_preparation_idempotency_conflict"
+                    )
+                record = self._minimum_size_preparation_from_row(replay)
+                return AutomationStoreMutation(
+                    record,
+                    record.audit_id,
+                    record.correlation_id,
+                    True,
+                )
+
+            cursor.execute(
+                f"""
+                SELECT *
+                FROM {self._prefix}automation_spot_preview_gated_goal
+                WHERE goal_key = ANY(%s)
+                ORDER BY goal_key
+                FOR UPDATE
+                """,
+                (list(sorted(AUTOMATION_SPOT_MINIMUM_SIZE_GOAL_KEYS)),),
+            )
+            goal_rows = {
+                str(row["goal_key"]): row for row in self._rows(cursor)
+            }
+            if set(goal_rows) != set(AUTOMATION_SPOT_MINIMUM_SIZE_GOAL_KEYS):
+                raise AutomationStoreUnavailable(
+                    "automation_minimum_size_goal_ledger_unavailable"
+                )
+            ordered = (
+                (7, AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY),
+                (8, AUTOMATION_SPOT_MINIMUM_SIZE_V8_GOAL_KEY),
+                (9, AUTOMATION_SPOT_MINIMUM_SIZE_V9_GOAL_KEY),
+            )
+            target: tuple[int, str] | None = None
+            for version, goal_key in ordered:
+                row = goal_rows[goal_key]
+                if row.get("definition_id") is None:
+                    target = (version, goal_key)
+                    break
+                if row.get("preview_outcome") not in {"REJECTED", "UNKNOWN"}:
+                    raise AutomationStoreConflict(
+                        "automation_minimum_size_successor_not_available"
+                    )
+            if target is None:
+                raise AutomationStoreConflict(
+                    "automation_minimum_size_candidates_exhausted"
+                )
+            candidate_version, goal_key = target
+            self._lock_spot_single_child_definition_slot(
+                cursor,
+                definition_id=None,
+                goal_key=goal_key,
+            )
+
+            cursor.execute(
+                f"""
+                SELECT *
+                FROM {self._prefix}automation_spot_minimum_size_preparation
+                WHERE goal_key = %s
+                ORDER BY cycle_number DESC
+                LIMIT 1
+                FOR UPDATE
+                """,
+                (goal_key,),
+            )
+            latest = self._row(cursor)
+            if latest is not None:
+                if latest["state"] == "CLAIMED":
+                    raise AutomationStoreConflict(
+                        "automation_minimum_size_preparation_in_progress"
+                    )
+                if latest["state"] == "MATERIALIZED":
+                    raise AutomationStoreConflict(
+                        "automation_minimum_size_successor_not_available"
+                    )
+                if latest["state"] == "BLOCKED" and latest[
+                    "diagnostic_code"
+                ] in {
+                    "minimum_size_wallet_insufficient",
+                    "minimum_size_submitted_cap_conflict",
+                    "minimum_size_fee_reserve_cap_conflict",
+                }:
+                    raise AutomationStoreConflict(
+                        "automation_minimum_size_terminal"
+                    )
+
+            cursor.execute(
+                f"""
+                SELECT MAX(cycle_number) AS cycle_number
+                FROM (
+                    SELECT cycle_number
+                    FROM {self._prefix}automation_spot_minimum_size_preparation
+                    UNION ALL
+                    SELECT cycle_number
+                    FROM {self._prefix}automation_spot_eligibility_cycle
+                    WHERE goal_key = ANY(%s)
+                ) AS consumed
+                """,
+                (list(sorted(AUTOMATION_SPOT_MINIMUM_SIZE_GOAL_KEYS)),),
+            )
+            consumed = self._row(cursor)
+            cycle_number = int(
+                (consumed or {}).get("cycle_number") or 0
+            ) + 1
+            if cycle_number > 10:
+                raise AutomationStoreConflict(
+                    "automation_minimum_size_cycles_exhausted"
+                )
+            now = _utc_now()
+            audit_id = _new_id()
+            cursor.execute(
+                f"""
+                INSERT INTO {self._prefix}automation_spot_minimum_size_preparation (
+                    cycle_number, goal_key, candidate_version, state,
+                    definition_id, idempotency_key_sha256, payload_sha256,
+                    actor_id_sha256, operator_intent_sha256, diagnostic_code,
+                    completed_categories, coinbase_api_call_count,
+                    call_count_exact, evidence_sha256, audit_id,
+                    correlation_id, started_at, finalized_at
+                ) VALUES (
+                    %s,%s,%s,'CLAIMED',NULL,%s,%s,%s,%s,
+                    'automation_minimum_size_preparation_claimed','[]'::jsonb,
+                    NULL,FALSE,NULL,%s,%s,%s,NULL
+                )
+                RETURNING *
+                """,
+                (
+                    cycle_number,
+                    goal_key,
+                    candidate_version,
+                    idempotency_hash,
+                    command.payload_sha256,
+                    _hash(command.actor_id),
+                    _hash(command.operator_intent),
+                    audit_id,
+                    command.correlation_id,
+                    now,
+                ),
+            )
+            row = self._row(cursor)
+            assert row is not None
+            return AutomationStoreMutation(
+                self._minimum_size_preparation_from_row(row),
+                audit_id,
+                command.correlation_id,
+            )
+
+    def finalize_spot_minimum_size_preparation(
+        self,
+        *,
+        cycle_number: int,
+        goal_key: str,
+        state: Literal["BLOCKED", "UNKNOWN"],
+        diagnostic_code: str,
+        completed_categories: tuple[str, ...],
+        coinbase_api_call_count: int | None,
+        call_count_exact: bool,
+        evidence_sha256: str | None,
+        definition_id: str | None,
+    ) -> AutomationStoreMutation[AutomationSpotMinimumSizePreparationRecord]:
+        """Finalize value-blind V7-V9 preparation evidence."""
+
+        expected_evidence_sha256 = (
+            minimum_size_preparation_evidence_sha256(
+                call_count=coinbase_api_call_count,
+                categories=completed_categories,
+                diagnostic_code=diagnostic_code,
+                outcome=state,
+                policy_revision=MINIMUM_SIZE_POLICY_REVISION,
+                plan=None,
+            )
+            if state == "BLOCKED"
+            and type(coinbase_api_call_count) is int
+            and call_count_exact
+            else None
+        )
+        if (
+            type(cycle_number) is not int
+            or not 1 <= cycle_number <= 10
+            or goal_key not in AUTOMATION_SPOT_MINIMUM_SIZE_GOAL_KEYS
+            or state not in {"BLOCKED", "UNKNOWN"}
+            or diagnostic_code
+            not in _AUTOMATION_SPOT_MINIMUM_SIZE_PREPARATION_DIAGNOSTICS
+            or tuple(completed_categories)
+            != _AUTOMATION_SPOT_MINIMUM_SIZE_PREPARATION_CATEGORIES[
+                : len(completed_categories)
+            ]
+            or len(completed_categories)
+            > len(_AUTOMATION_SPOT_MINIMUM_SIZE_PREPARATION_CATEGORIES)
+            or definition_id is not None
+            or (
+                state == "UNKNOWN"
+                and (
+                    coinbase_api_call_count is not None
+                    or call_count_exact
+                    or evidence_sha256 is not None
+                )
+            )
+            or (
+                state != "UNKNOWN"
+                and (
+                    type(coinbase_api_call_count) is not int
+                    or coinbase_api_call_count < 0
+                    or not call_count_exact
+                    or evidence_sha256 is None
+                )
+            )
+            or (
+                evidence_sha256 is not None
+                and _SHA256_PATTERN.fullmatch(evidence_sha256) is None
+            )
+            or (
+                state == "BLOCKED"
+                and evidence_sha256 != expected_evidence_sha256
+            )
+        ):
+            raise AutomationStoreInvalid(
+                "automation_minimum_size_preparation_result_invalid"
+            )
+        with self.database.get_cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT *
+                FROM {self._prefix}automation_spot_minimum_size_preparation
+                WHERE cycle_number = %s AND goal_key = %s
+                FOR UPDATE
+                """,
+                (cycle_number, goal_key),
+            )
+            current = self._row(cursor)
+            if current is None:
+                raise AutomationStoreNotFound(
+                    "automation_minimum_size_preparation_not_found"
+                )
+            if current["state"] != "CLAIMED":
+                record = self._minimum_size_preparation_from_row(current)
+                return AutomationStoreMutation(
+                    record,
+                    record.audit_id,
+                    record.correlation_id,
+                    True,
+                )
+            now = _utc_now()
+            audit_id = _new_id()
+            cursor.execute(
+                f"""
+                UPDATE {self._prefix}automation_spot_minimum_size_preparation
+                SET state = %s, definition_id = %s, diagnostic_code = %s,
+                    completed_categories = %s::jsonb,
+                    coinbase_api_call_count = %s, call_count_exact = %s,
+                    evidence_sha256 = %s, audit_id = %s,
+                    finalized_at = %s
+                WHERE cycle_number = %s AND goal_key = %s AND state = 'CLAIMED'
+                RETURNING *
+                """,
+                (
+                    state,
+                    definition_id,
+                    diagnostic_code,
+                    json.dumps(list(completed_categories)),
+                    coinbase_api_call_count,
+                    call_count_exact,
+                    evidence_sha256,
+                    audit_id,
+                    now,
+                    cycle_number,
+                    goal_key,
+                ),
+            )
+            row = self._row(cursor)
+            if row is None:
+                raise AutomationStoreConflict(
+                    "automation_minimum_size_preparation_already_finalized"
+                )
+            record = self._minimum_size_preparation_from_row(row)
+            return AutomationStoreMutation(
+                record,
+                audit_id,
+                record.correlation_id,
+            )
+
     def has_spot_single_child_run(
         self,
         *,
@@ -6866,11 +7667,7 @@ class OperatorAutomationRepository:
             plan_sha256=plan["plan_sha256"],
             goal_key=goal_key,
         )
-        policy_revision = (
-            _AUTOMATION_SPOT_NEAR_MARKET_ELIGIBILITY_POLICY_REVISION
-            if goal_key in AUTOMATION_SPOT_NEAR_MARKET_GOAL_KEYS
-            else _AUTOMATION_SPOT_ELIGIBILITY_POLICY_REVISION
-        )
+        policy_revision = _spot_policy_revision_for_goal(goal_key)
         cursor.execute(
             f"""
             INSERT INTO {self._prefix}automation_spot_eligibility_cycle (
@@ -6960,6 +7757,12 @@ class OperatorAutomationRepository:
         )
 
         if goal_key in AUTOMATION_SPOT_NEAR_MARKET_GOAL_KEYS:
+            series_goal_keys = AUTOMATION_SPOT_NEAR_MARKET_GOAL_KEYS
+        elif goal_key in AUTOMATION_SPOT_MINIMUM_SIZE_GOAL_KEYS:
+            series_goal_keys = AUTOMATION_SPOT_MINIMUM_SIZE_GOAL_KEYS
+        else:
+            series_goal_keys = None
+        if series_goal_keys is not None:
             cursor.execute(
                 f"""
                 SELECT *
@@ -6968,7 +7771,7 @@ class OperatorAutomationRepository:
                 ORDER BY cycle_number
                 FOR UPDATE
                 """,
-                (list(sorted(AUTOMATION_SPOT_NEAR_MARKET_GOAL_KEYS)),),
+                (list(sorted(series_goal_keys)),),
             )
         else:
             cursor.execute(
@@ -6991,10 +7794,16 @@ class OperatorAutomationRepository:
             default=0,
         ) + 1
         if goal_key in AUTOMATION_SPOT_NEAR_MARKET_GOAL_KEYS:
+            preparation_table = "automation_spot_near_market_preparation"
+        elif goal_key in AUTOMATION_SPOT_MINIMUM_SIZE_GOAL_KEYS:
+            preparation_table = "automation_spot_minimum_size_preparation"
+        else:
+            preparation_table = None
+        if preparation_table is not None:
             cursor.execute(
                 f"""
                 SELECT cycle_number
-                FROM {self._prefix}automation_spot_near_market_preparation
+                FROM {self._prefix}{preparation_table}
                 ORDER BY cycle_number
                 FOR UPDATE
                 """
@@ -7599,6 +8408,31 @@ class OperatorAutomationRepository:
                     UPDATE {self._prefix}automation_spot_near_market_preparation
                     SET state = 'UNKNOWN',
                         diagnostic_code = 'automation_near_market_preparation_unknown',
+                        completed_categories = '[]'::jsonb,
+                        coinbase_api_call_count = NULL,
+                        call_count_exact = FALSE,
+                        evidence_sha256 = NULL,
+                        audit_id = %s,
+                        finalized_at = %s
+                    WHERE cycle_number = %s AND state = 'CLAIMED'
+                    """,
+                    (
+                        _new_id(),
+                        _utc_now(),
+                        int(preparation["cycle_number"]),
+                    ),
+                )
+            cursor.execute(
+                f"SELECT cycle_number FROM "
+                f"{self._prefix}automation_spot_minimum_size_preparation "
+                "WHERE state = 'CLAIMED' FOR UPDATE"
+            )
+            for preparation in self._rows(cursor):
+                cursor.execute(
+                    f"""
+                    UPDATE {self._prefix}automation_spot_minimum_size_preparation
+                    SET state = 'UNKNOWN',
+                        diagnostic_code = 'automation_minimum_size_preparation_unknown',
                         completed_categories = '[]'::jsonb,
                         coinbase_api_call_count = NULL,
                         call_count_exact = FALSE,

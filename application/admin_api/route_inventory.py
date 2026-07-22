@@ -2638,6 +2638,35 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="automation_control_plane",
+        surface="POST /api/v1/automation/minimum-size-candidates",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.ACCOUNT_REALITY_REFRESH,
+        idempotency=(
+            "required durable goal-global V7-V9 preparation claim; exact replay is "
+            "call-free and changed payload, actor, or intent conflicts"
+        ),
+        approval=(
+            "required explicit backend-derived BTC-USDC/Test scope, dynamic-cap-below-3.10, "
+            "and unknown-consumes-cycle acknowledgements; also requires automation "
+            "configure, trigger, and resume"
+        ),
+        caps=(
+            "required one sequential V7-V9 proposal, one no-retry six-category preparation "
+            "read, submitted notional strictly below 3.10 USDC, and the smallest "
+            "backend-derived fee-reserved execution cap strictly below 3.10 USDC"
+        ),
+        audit=(
+            "required durable preparation cycle, fixed sanitized V4 boundary classification, "
+            "atomic immutable definition linkage, and exact or unknown call accounting"
+        ),
+        shared_method="prepare_minimum_size_candidate",
+        parity_test=(
+            "bounded approved Coinbase calls for six read-only categories; zero Preview, "
+            "Create, Cancel, retry, or other exchange mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="automation_control_plane",
         surface="GET /api/v1/automation/definitions/{definition_id}",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.AUTOMATION_READ,

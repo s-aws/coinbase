@@ -1559,12 +1559,36 @@ def _manual_order_admin_cap_guard_limits(
     if decision_id is None:
         return None, None, None
     record = cap_guard_store.find_by_decision_id(decision_id)
-    if record is None:
+    if (
+        record is None
+        or record.cap_policy_ref != "submitted_notional_cap:3.10"
+        or record.max_submitted_notional_usdc != "3.10"
+        or record.max_executed_notional_usdc != "1.00"
+    ):
         return None, None, None
     return (
         decision_id,
         submitted,
         record.max_executed_notional_usdc,
+    )
+
+
+def _manual_order_dynamic_cap_record_present(
+    *,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+    cap_guard_store: FileAdminApiCapGuardStore,
+) -> bool:
+    """Detect a proof-only dynamic cap on the ordinary manual route."""
+
+    decision_id = admission_decision.cap_guard_decision_id
+    if not decision_id:
+        return False
+    record = cap_guard_store.find_by_decision_id(decision_id)
+    if record is None:
+        return False
+    return bool(
+        record.cap_policy_ref != "submitted_notional_cap:3.10"
+        or record.max_executed_notional_usdc != "1.00"
     )
 
 
@@ -3313,6 +3337,36 @@ def create_manual_order(
                 cap_guard_store=cap_guard_store,
             )
         )
+        if (
+            _manual_order_dynamic_cap_record_present(
+                admission_decision=admission_decision,
+                cap_guard_store=cap_guard_store,
+            )
+            or (
+                admission_decision.allowed
+                and (
+                    cap_guard_decision_id is None
+                    or admin_max_notional is None
+                    or admin_max_executed_notional is None
+                )
+            )
+        ):
+            return AdminApiCommandResponse(
+                status=AdminApiCommandStatus.REJECTED,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+                required_permission=AdminApiPermission.ORDER_CREATE,
+                service_method="place_manual_order",
+                message=(
+                    "Ordinary manual orders require the fixed installed "
+                    "cap policy; dynamic caps require typed Automation admission."
+                ),
+                client_order_id=body.client_order_id,
+                correlation_id=envelope.correlation_id,
+                idempotency_key=envelope.idempotency_key,
+                live_exchange_submitted=False,
+                live_coinbase_orders_ran=False,
+                failure_stage="cap_guard",
+            )
         with canonical_coinbase_execution_scope(
             COINBASE_EXECUTION_SCOPE_SPOT_PLACE
         ):

@@ -63,15 +63,15 @@ class AdminApiCapGuardDecisionService:
                     "Authoritative backend wallet evidence is unavailable: "
                     f"exception_class:{type(exc).__name__}."
                 ) from None
-            submitted = _decimal_value(body.max_submitted_notional_usdc)
-            if authoritative_available < submitted:
+            required_wallet = _operator_wallet_requirement(body)
+            if authoritative_available < required_wallet:
                 raise CapGuardDecisionError(
-                    "Authoritative backend wallet evidence must cover submitted notional."
+                    "Authoritative backend wallet evidence must cover admitted notional."
                 )
             # Persist only the bounded amount proved sufficient, not the
             # operator's full private wallet balance.
             wallet_check_status = AdminApiGateStatus.PASSED
-            wallet_available_notional_usdc = body.max_submitted_notional_usdc
+            wallet_available_notional_usdc = format(required_wallet, "f")
             wallet_check_source = "backend_coinbase_account_wallet_read"
 
         record = CapGuardDecisionRecord(
@@ -283,6 +283,24 @@ def _requires_authoritative_operator_wallet(
         and body.module_id == "spot_operations"
         and body.service_method == "place_manual_order"
     )
+
+
+def _operator_wallet_requirement(
+    body: AdminCapGuardDecisionCreateRequest,
+) -> Decimal:
+    submitted = _decimal_value(body.max_submitted_notional_usdc)
+    executed = _decimal_value(body.max_executed_notional_usdc)
+    expected_dynamic_policy = (
+        "submitted_notional_cap:3.10;"
+        f"minimum_size_dynamic_execution_cap:{format(executed, 'f')}"
+    )
+    if (
+        body.product_scope == "BTC-USDC"
+        and body.cap_policy_ref == expected_dynamic_policy
+        and Decimal("0") < executed < Decimal("3.10")
+    ):
+        return executed
+    return submitted
 
 
 def _read_authoritative_usdc_wallet(_product_scope: str) -> Decimal:

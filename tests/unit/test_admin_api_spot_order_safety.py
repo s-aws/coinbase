@@ -1251,6 +1251,9 @@ def _automation_admission(
     policy_revision: int = 2,
     standing_price_policy: str = "STANDARD_STANDING_V2",
     market_source: str = "coinbase_rest_best_bid",
+    max_submitted_notional_usdc: str = "3.10",
+    max_possible_execution_notional_usdc: str = "1.00",
+    available_balance: str = "10.00",
 ) -> ValidatedSpotAutomationAdmissionEvidence:
     now = datetime.now(timezone.utc)
     expires = fresh_until or now + timedelta(seconds=30)
@@ -1272,7 +1275,7 @@ def _automation_admission(
         },
         wallet_evidence=SpotAutomationWalletEvidence(
             required_currency="USDC",
-            available_balance=Decimal("10.00"),
+            available_balance=Decimal(available_balance),
             planned_commitment=Decimal("0"),
             known_inventory_available=True,
             known_inventory_base_size=Decimal("0.02"),
@@ -1300,6 +1303,10 @@ def _automation_admission(
             observed_at=now,
             fresh_until=transient_expires,
             evidence_sha256="d" * 64,
+        ),
+        max_submitted_notional_usdc=Decimal(max_submitted_notional_usdc),
+        max_possible_execution_notional_usdc=Decimal(
+            max_possible_execution_notional_usdc
         ),
     )
 
@@ -1455,6 +1462,177 @@ def test_near_market_automation_uses_typed_post_only_bid_policy_without_global_h
     assert len(rest_client.create_calls) == 1
     configuration = rest_client.create_calls[0]["order_configuration"]
     assert configuration["limit_limit_gtc"]["post_only"] is True
+
+
+def test_minimum_size_automation_binds_backend_derived_execution_cap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import configuration
+
+    monkeypatch.setattr(
+        configuration,
+        "ACTION_CONDITION_GUARDS",
+        {"wallet_available": True, "limits": []},
+        raising=False,
+    )
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+    rest_client = _SpotRestClient()
+    rest_client.history = [
+        {
+            "client_order_id": client_order_id,
+            "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
+            "status": "OPEN",
+        }
+    ]
+    coordinator = SpotProfileOrderAdmissionCoordinator()
+    service = _service(rest_client, _RootRegistrar(), coordinator=coordinator)
+
+    with coordinator.claim(TEST_PORTFOLIO_ID) as lease:
+        response = service.place_manual_order(
+            _manual_command(
+                client_order_id,
+                base_size="0.01",
+                limit_price="100.00",
+                post_only=True,
+                approval_snapshot_id="approval-minimum-size-automation",
+                max_submitted_notional_usdc="3.10",
+                max_executed_notional_usdc="1.01",
+            ),
+            automation_admission=_automation_admission(
+                lease,
+                base_size="0.01",
+                limit_price="100.00",
+                post_only=True,
+                policy_revision=4,
+                standing_price_policy=(
+                    "NEAR_MARKET_POST_ONLY_MINIMUM_SIZE_V2"
+                ),
+                market_source="coinbase_rest_market_trade_snapshot",
+                max_possible_execution_notional_usdc="1.01",
+            ),
+        )
+
+    assert response.status == AdminApiCommandStatus.ACCEPTED, (
+        response.failure_stage,
+        response.message,
+        response.data,
+    )
+    assert len(rest_client.create_calls) == 1
+
+
+def test_minimum_size_automation_requires_fee_reserved_wallet_cap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import configuration
+
+    monkeypatch.setattr(
+        configuration,
+        "ACTION_CONDITION_GUARDS",
+        {"wallet_available": True, "limits": []},
+        raising=False,
+    )
+    rest_client = _SpotRestClient()
+    coordinator = SpotProfileOrderAdmissionCoordinator()
+    service = _service(rest_client, _RootRegistrar(), coordinator=coordinator)
+
+    with coordinator.claim(TEST_PORTFOLIO_ID) as lease:
+        response = service.place_manual_order(
+            _manual_command(
+                base_size="0.01",
+                limit_price="100.00",
+                post_only=True,
+                approval_snapshot_id="approval-minimum-size-wallet",
+                max_submitted_notional_usdc="3.10",
+                max_executed_notional_usdc="1.01",
+            ),
+            automation_admission=_automation_admission(
+                lease,
+                base_size="0.01",
+                limit_price="100.00",
+                post_only=True,
+                policy_revision=4,
+                standing_price_policy=(
+                    "NEAR_MARKET_POST_ONLY_MINIMUM_SIZE_V2"
+                ),
+                market_source="coinbase_rest_market_trade_snapshot",
+                max_possible_execution_notional_usdc="1.01",
+                available_balance="1.00",
+            ),
+        )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "automation_admission"
+    assert rest_client.create_calls == []
+
+
+def test_minimum_size_admission_rejects_submitted_notional_at_strict_ceiling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import configuration
+
+    monkeypatch.setattr(
+        configuration,
+        "ACTION_CONDITION_GUARDS",
+        {"wallet_available": True, "limits": []},
+        raising=False,
+    )
+    rest_client = _SpotRestClient()
+    coordinator = SpotProfileOrderAdmissionCoordinator()
+    service = _service(rest_client, _RootRegistrar(), coordinator=coordinator)
+
+    with coordinator.claim(TEST_PORTFOLIO_ID) as lease:
+        with pytest.raises(
+            ValueError,
+            match="^spot_automation_cap_policy_invalid$",
+        ):
+            _automation_admission(
+                lease,
+                base_size="0.031",
+                limit_price="100.00",
+                post_only=True,
+                policy_revision=4,
+                standing_price_policy=(
+                    "NEAR_MARKET_POST_ONLY_MINIMUM_SIZE_V2"
+                ),
+                market_source="coinbase_rest_market_trade_snapshot",
+                max_possible_execution_notional_usdc="3.09",
+            )
+
+    assert rest_client.create_calls == []
+
+
+def test_ordinary_manual_order_rejects_dynamic_cap_without_automation_admission(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import configuration
+
+    monkeypatch.setattr(
+        configuration,
+        "ACTION_CONDITION_GUARDS",
+        {"wallet_available": True, "limits": []},
+        raising=False,
+    )
+    rest_client = _SpotRestClient()
+    service = _service(
+        rest_client,
+        _RootRegistrar(),
+        coordinator=SpotProfileOrderAdmissionCoordinator(),
+    )
+
+    response = service.place_manual_order(
+        _manual_command(
+            base_size="0.01",
+            limit_price="100.00",
+            post_only=True,
+            max_submitted_notional_usdc="3.10",
+            max_executed_notional_usdc="1.01",
+        )
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "cap_guard"
+    assert rest_client.create_calls == []
 
 
 def test_near_market_automation_rejects_non_trade_snapshot_before_create(

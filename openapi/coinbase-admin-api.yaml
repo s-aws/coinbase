@@ -10299,6 +10299,117 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/automation/minimum-size-candidates:
+    post:
+      tags:
+      - operator-automation
+      summary: Prepare Minimum Size Candidate
+      operationId: prepare_operator_automation_minimum_size_candidate
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: ^[\x21-\x7e]+$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: ^[\x21-\x7e]+$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: prepare_automation_minimum_size_candidate
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutomationMinimumSizeCandidatePreparationRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationMinimumSizeCandidatePreparationResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Not Found
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/automation/definitions/{definition_id}/enable:
     post:
       tags:
@@ -149805,6 +149916,10 @@ components:
           type: boolean
           title: Near Market Candidate Preparation Allowed
           default: false
+        minimum_size_candidate_preparation_allowed:
+          type: boolean
+          title: Minimum Size Candidate Preparation Allowed
+          default: false
         allowed_actions:
           items:
             type: string
@@ -150016,11 +150131,18 @@ components:
             - NEAR_MARKET_POST_ONLY_V4
             - NEAR_MARKET_POST_ONLY_V5
             - NEAR_MARKET_POST_ONLY_V6
+            - MINIMUM_SIZE_POST_ONLY_V7
+            - MINIMUM_SIZE_POST_ONLY_V8
+            - MINIMUM_SIZE_POST_ONLY_V9
           - type: 'null'
           title: Spot Execution Mode
         single_child_order:
           anyOf:
           - $ref: '#/components/schemas/AutomationSpotSingleChildOrderSpec'
+          - type: 'null'
+        minimum_size_preparation:
+          anyOf:
+          - $ref: '#/components/schemas/AutomationMinimumSizePreparationReadback'
           - type: 'null'
         schedule:
           $ref: '#/components/schemas/AutomationDefinitionSchedule'
@@ -150058,6 +150180,7 @@ components:
       - domain
       - job_kind
       - lifecycle_state
+      - minimum_size_preparation
       - schedule
       - created_at
       - updated_at
@@ -150318,6 +150441,272 @@ components:
       - limit
       - offset
       title: AutomationFilters
+    AutomationMinimumSizeCandidatePreparationRequest:
+      properties:
+        confirm_backend_derived_terms:
+          type: boolean
+          const: true
+          title: Confirm Backend Derived Terms
+        confirm_one_no_retry_preparation_cycle:
+          type: boolean
+          const: true
+          title: Confirm One No Retry Preparation Cycle
+        confirm_btc_usdc_test_portfolio_scope:
+          type: boolean
+          const: true
+          title: Confirm Btc Usdc Test Portfolio Scope
+        confirm_dynamic_cap_strictly_below_3_10:
+          type: boolean
+          const: true
+          title: Confirm Dynamic Cap Strictly Below 3 10
+        confirm_unknown_consumes_cycle:
+          type: boolean
+          const: true
+          title: Confirm Unknown Consumes Cycle
+        reason:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Reason
+      additionalProperties: false
+      type: object
+      required:
+      - confirm_backend_derived_terms
+      - confirm_one_no_retry_preparation_cycle
+      - confirm_btc_usdc_test_portfolio_scope
+      - confirm_dynamic_cap_strictly_below_3_10
+      - confirm_unknown_consumes_cycle
+      - reason
+      title: AutomationMinimumSizeCandidatePreparationRequest
+      description: Explicit acknowledgement for one V7-V9 backend-derived proposal.
+    AutomationMinimumSizeCandidatePreparationResponse:
+      properties:
+        type:
+          type: string
+          const: automation_minimum_size_candidate_preparation
+          title: Type
+          default: automation_minimum_size_candidate_preparation
+        status:
+          type: string
+          const: accepted
+          title: Status
+          default: accepted
+        outcome:
+          type: string
+          enum:
+          - MATERIALIZED
+          - BLOCKED
+          - UNKNOWN
+          title: Outcome
+        candidate_version:
+          type: integer
+          enum:
+          - 7
+          - 8
+          - 9
+          title: Candidate Version
+        spot_execution_mode:
+          type: string
+          enum:
+          - MINIMUM_SIZE_POST_ONLY_V7
+          - MINIMUM_SIZE_POST_ONLY_V8
+          - MINIMUM_SIZE_POST_ONLY_V9
+          title: Spot Execution Mode
+        cycle_number:
+          type: integer
+          maximum: 10.0
+          minimum: 1.0
+          title: Cycle Number
+        policy_revision:
+          type: string
+          const: BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2
+          title: Policy Revision
+          default: BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2
+        boundary_classification:
+          anyOf:
+          - type: string
+            enum:
+            - minimum_size_v4_base_minimum_conflict
+            - minimum_size_v4_quote_minimum_conflict
+            - minimum_size_v4_increment_conflict
+            - minimum_size_v4_fee_reserve_conflict
+            - minimum_size_v4_boundary_not_reproduced
+          - type: 'null'
+          title: Boundary Classification
+        diagnostic_code:
+          type: string
+          enum:
+          - automation_minimum_size_api_key_permissions_rejected
+          - automation_minimum_size_best_bid_ask_rejected
+          - automation_minimum_size_fee_summary_rejected
+          - automation_minimum_size_portfolio_catalog_rejected
+          - automation_minimum_size_portfolio_configuration_invalid
+          - automation_minimum_size_preparation_unknown
+          - automation_minimum_size_product_metadata_rejected
+          - automation_minimum_size_wallet_balances_rejected
+          - minimum_size_fee_invalid
+          - minimum_size_fee_reserve_cap_conflict
+          - minimum_size_increment_conflict
+          - minimum_size_post_only_crossing
+          - minimum_size_product_blocked
+          - minimum_size_product_metadata_invalid
+          - minimum_size_snapshot_future
+          - minimum_size_snapshot_invalid
+          - minimum_size_snapshot_stale
+          - minimum_size_snapshot_timestamp_invalid
+          - minimum_size_submitted_cap_conflict
+          - minimum_size_v4_base_minimum_conflict
+          - minimum_size_v4_boundary_not_reproduced
+          - minimum_size_v4_fee_reserve_conflict
+          - minimum_size_v4_increment_conflict
+          - minimum_size_v4_quote_minimum_conflict
+          - minimum_size_wallet_insufficient
+          title: Diagnostic Code
+        completed_categories:
+          items:
+            type: string
+            enum:
+            - api_key_permissions
+            - portfolio_catalog
+            - wallet_balances
+            - product_metadata
+            - best_bid_ask
+            - fee_summary
+          type: array
+          maxItems: 6
+          title: Completed Categories
+        coinbase_api_call_count:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Coinbase Api Call Count
+          default: 0
+        call_count_exact:
+          type: boolean
+          title: Call Count Exact
+          default: true
+        definition:
+          anyOf:
+          - $ref: '#/components/schemas/AutomationDefinitionItem'
+          - type: 'null'
+        max_submitted_notional_usdc:
+          type: string
+          const: '3.10'
+          title: Max Submitted Notional Usdc
+          default: '3.10'
+        max_possible_execution_notional_usdc:
+          anyOf:
+          - type: string
+            maxLength: 64
+            pattern: ^(0|[1-9]\d*)(\.\d+)?$
+          - type: 'null'
+          title: Max Possible Execution Notional Usdc
+        preview_call_count:
+          type: integer
+          const: 0
+          title: Preview Call Count
+          default: 0
+        create_call_count:
+          type: integer
+          const: 0
+          title: Create Call Count
+          default: 0
+        cancel_call_count:
+          type: integer
+          const: 0
+          title: Cancel Call Count
+          default: 0
+        audit_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Audit Id
+        correlation_id:
+          type: string
+          maxLength: 255
+          minLength: 1
+          pattern: ^[\x21-\x7e]+$
+          title: Correlation Id
+        replayed:
+          type: boolean
+          title: Replayed
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - outcome
+      - candidate_version
+      - spot_execution_mode
+      - cycle_number
+      - diagnostic_code
+      - audit_id
+      - correlation_id
+      title: AutomationMinimumSizeCandidatePreparationResponse
+      description: Value-blind V4 boundary classification and optional V7-V9 plan.
+    AutomationMinimumSizePreparationReadback:
+      properties:
+        policy_revision:
+          type: string
+          const: BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2
+          title: Policy Revision
+          default: BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2
+        boundary_classification:
+          type: string
+          enum:
+          - minimum_size_v4_base_minimum_conflict
+          - minimum_size_v4_quote_minimum_conflict
+          - minimum_size_v4_increment_conflict
+          - minimum_size_v4_fee_reserve_conflict
+          - minimum_size_v4_boundary_not_reproduced
+          title: Boundary Classification
+        cycle_number:
+          type: integer
+          maximum: 10.0
+          minimum: 1.0
+          title: Cycle Number
+        completed_categories:
+          items:
+            type: string
+            enum:
+            - api_key_permissions
+            - portfolio_catalog
+            - wallet_balances
+            - product_metadata
+            - best_bid_ask
+            - fee_summary
+          type: array
+          maxItems: 6
+          minItems: 6
+          title: Completed Categories
+        coinbase_api_call_count:
+          type: integer
+          minimum: 6.0
+          title: Coinbase Api Call Count
+        call_count_exact:
+          type: boolean
+          const: true
+          title: Call Count Exact
+          default: true
+        max_submitted_notional_usdc:
+          type: string
+          const: '3.10'
+          title: Max Submitted Notional Usdc
+          default: '3.10'
+        max_possible_execution_notional_usdc:
+          type: string
+          maxLength: 64
+          pattern: ^(0|[1-9]\d*)(\.\d+)?$
+          title: Max Possible Execution Notional Usdc
+      additionalProperties: false
+      type: object
+      required:
+      - boundary_classification
+      - cycle_number
+      - completed_categories
+      - coinbase_api_call_count
+      - max_possible_execution_notional_usdc
+      title: AutomationMinimumSizePreparationReadback
+      description: Sanitized durable V7-V9 preparation evidence for operator reloads.
     AutomationNearMarketCandidatePreparationRequest:
       properties:
         confirm_backend_derived_terms:
@@ -150806,6 +151195,9 @@ components:
             - NEAR_MARKET_POST_ONLY_V4
             - NEAR_MARKET_POST_ONLY_V5
             - NEAR_MARKET_POST_ONLY_V6
+            - MINIMUM_SIZE_POST_ONLY_V7
+            - MINIMUM_SIZE_POST_ONLY_V8
+            - MINIMUM_SIZE_POST_ONLY_V9
           - type: 'null'
           title: Spot Execution Mode
         preview_allowance_consumed:
@@ -151296,7 +151688,8 @@ components:
           default: '3.10'
         max_possible_execution_notional_usdc:
           type: string
-          const: '1.00'
+          maxLength: 64
+          pattern: ^(0|[1-9]\d*)(\.\d+)?$
           title: Max Possible Execution Notional Usdc
           default: '1.00'
       additionalProperties: false

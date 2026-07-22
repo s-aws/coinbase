@@ -49,7 +49,11 @@ from .operator_spot_eligibility import (
     SpotEligibilityReadOutcome,
     derive_spot_eligibility_client_order_id,
 )
-from .operator_spot_eligibility import SPOT_ELIGIBILITY_NEAR_MARKET_GOAL_KEYS
+from .operator_spot_eligibility import (
+    SPOT_ELIGIBILITY_MINIMUM_SIZE_GOAL_KEYS,
+    SPOT_ELIGIBILITY_NEAR_MARKET_GOAL_KEYS,
+    SPOT_ELIGIBILITY_POST_ONLY_GOAL_KEYS,
+)
 from .operator_spot_eligibility_reader import SpotEligibilityReadSnapshot
 from .spot_portfolio_binding import SpotPortfolioBindingEvidence
 
@@ -337,7 +341,19 @@ def build_spot_automation_create_admission(
         positive=True,
     )
     near_market = goal_key in SPOT_ELIGIBILITY_NEAR_MARKET_GOAL_KEYS
-    expected_post_only = near_market
+    minimum_size = goal_key in SPOT_ELIGIBILITY_MINIMUM_SIZE_GOAL_KEYS
+    expected_post_only = goal_key in SPOT_ELIGIBILITY_POST_ONLY_GOAL_KEYS
+    fixed_cap_policy_valid = bool(
+        not minimum_size
+        and possible_execution_cap == MAX_EXECUTED_NOTIONAL_USDC
+        and possible_execution_notional <= MAX_EXECUTED_NOTIONAL_USDC
+    )
+    dynamic_cap_policy_valid = bool(
+        minimum_size
+        and possible_execution_cap < MAX_SUBMITTED_NOTIONAL_USDC
+        and possible_execution_notional == submitted_notional
+        and possible_execution_notional <= possible_execution_cap
+    )
     if (
         type(definition_revision) is not int
         or definition_revision < 1
@@ -345,9 +361,12 @@ def build_spot_automation_create_admission(
         or definition_revision != _field(plan, "definition_revision")
         or _field(plan, "product_id") != SPOT_AUTOMATION_PRODUCT
         or submitted_cap != MAX_SUBMITTED_NOTIONAL_USDC
-        or possible_execution_cap != MAX_EXECUTED_NOTIONAL_USDC
-        or submitted_notional > MAX_SUBMITTED_NOTIONAL_USDC
-        or possible_execution_notional > MAX_EXECUTED_NOTIONAL_USDC
+        or (
+            submitted_notional >= MAX_SUBMITTED_NOTIONAL_USDC
+            if minimum_size
+            else submitted_notional > MAX_SUBMITTED_NOTIONAL_USDC
+        )
+        or not (fixed_cap_policy_valid or dynamic_cap_policy_valid)
         or possible_execution_notional > submitted_notional
         or submitted_notional != base_size * limit_price
         or _field(plan, "post_only") is not expected_post_only
@@ -468,9 +487,11 @@ def build_spot_automation_create_admission(
         base_size=base_size,
         limit_price=limit_price,
         post_only=expected_post_only,
-        policy_revision=3 if near_market else 2,
+        policy_revision=4 if minimum_size else 3 if near_market else 2,
         standing_price_policy=(
-            "NEAR_MARKET_POST_ONLY_V1"
+            "NEAR_MARKET_POST_ONLY_MINIMUM_SIZE_V2"
+            if minimum_size
+            else "NEAR_MARKET_POST_ONLY_V1"
             if near_market
             else "STANDARD_STANDING_V2"
         ),
@@ -522,6 +543,8 @@ def build_spot_automation_create_admission(
             ),
             evidence_sha256=active_snapshot.evidence_sha256,
         ),
+        max_submitted_notional_usdc=submitted_cap,
+        max_possible_execution_notional_usdc=possible_execution_cap,
     )
 
 
@@ -563,12 +586,14 @@ def build_spot_automation_cancel_ownership(
     )
     run_state = _field(run, "state")
     near_market = goal_key in SPOT_ELIGIBILITY_NEAR_MARKET_GOAL_KEYS
-    expected_policy_revision = 3 if near_market else 2
+    minimum_size = goal_key in SPOT_ELIGIBILITY_MINIMUM_SIZE_GOAL_KEYS
+    post_only = goal_key in SPOT_ELIGIBILITY_POST_ONLY_GOAL_KEYS
+    expected_policy_revision = 4 if minimum_size else 3 if near_market else 2
     if str(getattr(run_state, "value", run_state)) != "ACTIVE":
         raise _fixed_error("spot_automation_cancel_binding_invalid")
     if (
         _field(execution, "policy_revision") != expected_policy_revision
-        or _field(plan, "post_only") is not near_market
+        or _field(plan, "post_only") is not post_only
         or _field(execution, "run_id") != run_id
         or _field(execution, "definition_id") != definition_id
         or _field(execution, "definition_revision")
@@ -626,7 +651,9 @@ def build_spot_automation_cancel_ownership(
         post_only=bool(_field(plan, "post_only")),
         policy_revision=expected_policy_revision,
         standing_price_policy=(
-            "NEAR_MARKET_POST_ONLY_V1"
+            "NEAR_MARKET_POST_ONLY_MINIMUM_SIZE_V2"
+            if minimum_size
+            else "NEAR_MARKET_POST_ONLY_V1"
             if near_market
             else "STANDARD_STANDING_V2"
         ),
@@ -660,6 +687,7 @@ def prepare_spot_automation_create_command(
     correlation_id: str,
     operator_intent: str,
     outer_idempotency_key: str,
+    minimum_size_dynamic_cap: bool = False,
 ) -> PreparedSpotAutomationCommand:
     plan_sha256 = _sha256(
         _field(plan, "plan_sha256"),
@@ -719,6 +747,13 @@ def prepare_spot_automation_create_command(
         "correlation_id": correlation_id,
         "payload_hash": payload_hash,
         "product_scope": SPOT_AUTOMATION_PRODUCT,
+        "max_submitted_notional_usdc": str(
+            _field(plan, "max_submitted_notional_usdc")
+        ),
+        "max_executed_notional_usdc": str(
+            _field(plan, "max_possible_execution_notional_usdc")
+        ),
+        "minimum_size_dynamic_cap": minimum_size_dynamic_cap,
     }
     return PreparedSpotAutomationCommand(
         envelope=envelope,
@@ -744,13 +779,34 @@ def bind_spot_automation_create_command(
     cap_id = str(cap.get("decision_id") or "")
     if not approval_id or not audit_id or not cap_id:
         raise _fixed_error("spot_automation_proof_chain_invalid")
+    try:
+        max_submitted = Decimal(
+            str(prepared.proof_context["max_submitted_notional_usdc"])
+        )
+        max_executed = Decimal(
+            str(prepared.proof_context["max_executed_notional_usdc"])
+        )
+    except (ArithmeticError, KeyError, TypeError, ValueError) as exc:
+        raise _fixed_error("spot_automation_proof_chain_invalid") from exc
+    if (
+        not max_submitted.is_finite()
+        or max_submitted != MAX_SUBMITTED_NOTIONAL_USDC
+        or not max_executed.is_finite()
+        or max_executed <= 0
+        or max_executed >= MAX_SUBMITTED_NOTIONAL_USDC
+    ):
+        raise _fixed_error("spot_automation_proof_chain_invalid")
     return ManualOrderCommand(
         envelope=prepared.envelope,
         request=prepared.manual_request,
         admin_approval_snapshot_id=approval_id,
         admin_cap_guard_decision_id=cap_id,
         admin_max_submitted_notional_usdc=str(MAX_SUBMITTED_NOTIONAL_USDC),
-        admin_max_executed_notional_usdc=str(MAX_EXECUTED_NOTIONAL_USDC),
+        admin_max_executed_notional_usdc=(
+            str(MAX_EXECUTED_NOTIONAL_USDC)
+            if max_executed == MAX_EXECUTED_NOTIONAL_USDC
+            else str(max_executed)
+        ),
         admission_audit_id=audit_id,
         allow_live_execution=True,
     )

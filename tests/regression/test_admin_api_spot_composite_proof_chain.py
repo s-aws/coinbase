@@ -683,3 +683,80 @@ def test_typed_spot_proof_chain_resumes_after_partial_durable_write(tmp_path):
     assert recovered["reconciliation_plan"]["plan_id"] == record_ids[
         "reconciliation_plan_id"
     ]
+
+
+def test_typed_spot_proof_chain_persists_backend_derived_execution_cap(
+    tmp_path,
+) -> None:
+    service = AdminMvpService()
+    proof_context = {
+        **_assertion("manual"),
+        "product_scope": "BTC-USDC",
+        "correlation_id": "correlation-minimum-size-proof",
+        "max_submitted_notional_usdc": "3.10",
+        "max_executed_notional_usdc": "1.01",
+    }
+    cap_store = FileAdminApiCapGuardStore(tmp_path / "caps.jsonl")
+    reconciliation_store = FileAdminApiReconciliationStore(
+        tmp_path / "reconciliation.jsonl"
+    )
+
+    result = service.record_typed_spot_command_proof_chain(
+        proof_context=proof_context,
+        command_kind="manual",
+        roles=(AdminApiRole.ADMIN.value,),
+        wallet_available_notional_usdc=Decimal("1.01"),
+        approval_store=FileAdminApiApprovalStore(
+            tmp_path / "approvals.jsonl"
+        ),
+        audit_store=FileAdminApiAuditStore(tmp_path / "audit.jsonl"),
+        cap_guard_store=cap_store,
+        reconciliation_store=reconciliation_store,
+    )
+
+    assert result["status"] == "passed", result
+    cap = cap_store.read_recent(limit=1)[0]
+    reconciliation = reconciliation_store.read_recent(limit=1)[0]
+    assert cap.max_submitted_notional_usdc == "3.10"
+    assert cap.max_executed_notional_usdc == "1.01"
+    assert cap.wallet_available_notional_usdc == "1.01"
+    assert reconciliation.max_submitted_notional_usdc == "3.10"
+    assert reconciliation.max_executed_notional_usdc == "1.01"
+
+
+def test_typed_spot_proof_chain_preserves_dynamic_policy_at_one_usdc(
+    tmp_path,
+) -> None:
+    service = AdminMvpService()
+    proof_context = {
+        **_assertion("manual"),
+        "product_scope": "BTC-USDC",
+        "correlation_id": "correlation-minimum-size-zero-fee-proof",
+        "max_submitted_notional_usdc": "3.10",
+        "max_executed_notional_usdc": "1.00",
+        "minimum_size_dynamic_cap": True,
+    }
+    cap_store = FileAdminApiCapGuardStore(tmp_path / "caps.jsonl")
+
+    result = service.record_typed_spot_command_proof_chain(
+        proof_context=proof_context,
+        command_kind="manual",
+        roles=(AdminApiRole.ADMIN.value,),
+        wallet_available_notional_usdc=Decimal("1.00"),
+        approval_store=FileAdminApiApprovalStore(
+            tmp_path / "approvals.jsonl"
+        ),
+        audit_store=FileAdminApiAuditStore(tmp_path / "audit.jsonl"),
+        cap_guard_store=cap_store,
+        reconciliation_store=FileAdminApiReconciliationStore(
+            tmp_path / "reconciliation.jsonl"
+        ),
+    )
+
+    assert result["status"] == "passed", result
+    cap = cap_store.read_recent(limit=1)[0]
+    assert cap.cap_policy_ref == (
+        "submitted_notional_cap:3.10;"
+        "minimum_size_dynamic_execution_cap:1.00"
+    )
+    assert cap.wallet_available_notional_usdc == "1.00"

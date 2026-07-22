@@ -18,7 +18,9 @@ from application.admin_api.command_service import (
 )
 from application.admin_api.operator_spot_eligibility import (
     SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+    SPOT_ELIGIBILITY_MINIMUM_SIZE_GOAL_KEYS,
     SPOT_ELIGIBILITY_NEAR_MARKET_GOAL_KEYS,
+    SPOT_ELIGIBILITY_POST_ONLY_GOAL_KEYS,
     SPOT_ELIGIBILITY_PRODUCT_ID,
     SpotEligibilityReadContext,
     SpotEligibilityReadOutcome,
@@ -30,7 +32,7 @@ from core.action_condition_guard import evaluate_spot_standing_price_limit
 
 
 _MAX_SUBMITTED_NOTIONAL_USDC = Decimal("3.10")
-_MAX_POSSIBLE_EXECUTION_NOTIONAL_USDC = Decimal("1.00")
+_MAX_POSSIBLE_EXECUTION_CAP_USDC = Decimal("3.10")
 _MAX_EXACT_ORDER_PAGES = 100
 _MAX_ACTIVE_ORDER_PAGES = 100
 
@@ -117,6 +119,7 @@ class SpotEligibilityPlanTerms:
     max_submitted_notional_usdc: str
     max_possible_execution_notional_usdc: str
     post_only: bool
+    policy_revision: int
 
     def __post_init__(self) -> None:
         if (
@@ -145,11 +148,24 @@ class SpotEligibilityPlanTerms:
             or possible is None
             or min(base, price, submitted, possible) <= 0
             or submitted_cap != _MAX_SUBMITTED_NOTIONAL_USDC
-            or possible_cap != _MAX_POSSIBLE_EXECUTION_NOTIONAL_USDC
+            or possible_cap is None
+            or not Decimal("0") < possible_cap < _MAX_POSSIBLE_EXECUTION_CAP_USDC
             or base * price != submitted
-            or submitted > submitted_cap
+            or (
+                submitted >= submitted_cap
+                if self.policy_revision == 4
+                else submitted > submitted_cap
+            )
             or possible > possible_cap
             or possible > submitted
+            or self.policy_revision not in {2, 3, 4}
+            or (
+                self.policy_revision == 4
+                and (
+                    self.post_only is not True
+                    or possible != submitted
+                )
+            )
         ):
             raise ValueError("spot_eligibility_reader_plan_values_invalid")
 
@@ -415,10 +431,20 @@ class CoinbaseApprovedSpotEligibilityReader:
             raise ValueError("spot_eligibility_reader_portfolio_label_invalid")
         if not isinstance(plan, SpotEligibilityPlanTerms):
             raise ValueError("spot_eligibility_reader_plan_invalid")
-        near_market = expected_context.goal_key in (
-            SPOT_ELIGIBILITY_NEAR_MARKET_GOAL_KEYS
+        post_only_proof = expected_context.goal_key in (
+            SPOT_ELIGIBILITY_POST_ONLY_GOAL_KEYS
         )
-        if plan.post_only is not near_market:
+        expected_policy_revision = (
+            4
+            if expected_context.goal_key in SPOT_ELIGIBILITY_MINIMUM_SIZE_GOAL_KEYS
+            else 3
+            if expected_context.goal_key in SPOT_ELIGIBILITY_NEAR_MARKET_GOAL_KEYS
+            else 2
+        )
+        if (
+            plan.post_only is not post_only_proof
+            or plan.policy_revision != expected_policy_revision
+        ):
             raise ValueError("spot_eligibility_reader_post_only_invalid")
         if plan.plan_sha256 != expected_context.plan_sha256:
             raise ValueError("spot_eligibility_reader_plan_mismatch")
@@ -805,7 +831,7 @@ class CoinbaseApprovedSpotEligibilityReader:
     ) -> SpotEligibilityReadResult:
         self._validate_context(context)
         self._market_reference = None
-        near_market = context.goal_key in SPOT_ELIGIBILITY_NEAR_MARKET_GOAL_KEYS
+        near_market = context.goal_key in SPOT_ELIGIBILITY_POST_ONLY_GOAL_KEYS
         documented_market_freshness = bool(
             context.goal_key
             == SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY

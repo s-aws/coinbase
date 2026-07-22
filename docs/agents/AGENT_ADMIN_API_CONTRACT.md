@@ -22,6 +22,18 @@ frontend request
 ```
 
 Current goal
+`operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`
+is active at `readiness_complete_operator_action_pending`. Current action:
+`execute_first_valid_v7_v9_successor`.
+Default action: `complete_readiness_then_execute_first_valid_v7_v9_successor`.
+The backend-owned `BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2` V7-V9 path
+binds six-category preparation and eight-category eligibility to `0/10`
+durable no-retry cycles and fixed sanitized classifications. Get Market Trades
+supplies same-snapshot price/freshness evidence. Preview/Create/Cancel calls are
+`0/0/0`; all allowances remain unconsumed after readiness passed. See
+[`OPERATOR_SPOT_AUTOMATION_MINIMUM_SIZE_V7_V9.md`](../OPERATOR_SPOT_AUTOMATION_MINIMUM_SIZE_V7_V9.md).
+
+Previous V4 near-market goal
 `operator_spot_automation_near_market_policy_and_successor_proof_v4_v6`
 is complete at `complete_terminal_no_valid_size`. Current action:
 `complete_v4_no_valid_size_preview_create_cancel_unconsumed`.

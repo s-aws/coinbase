@@ -4,6 +4,18 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
+Active bounded proof goal
+`operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`
+is `readiness_complete_operator_action_pending`. Current action:
+`execute_first_valid_v7_v9_successor`. Default action:
+`complete_readiness_then_execute_first_valid_v7_v9_successor`. The Automation
+domain owns policy `BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2`, six-category
+preparation and eight-category eligibility with `0/10` shared no-retry cycles.
+Get Market Trades supplies same-snapshot market evidence.
+Preview/Create/Cancel calls are `0/0/0`; all successor allowances remain
+unconsumed. Complete regression, release, installed-deployment, safety, and
+blind-contextless code gates pass; the authenticated operator action is next.
+
 Status: `complete`.
 
 Historical core-workspaces completion record (retained as milestone evidence):
@@ -25,7 +37,8 @@ only. Automation is GET-only through one local
 Historical validation evidence for the core-workspaces milestone is backend
 full `1109 passed, 6 skipped` parallel and `599 passed, 150 skipped` serial,
 frontend full `1440 passed`, E2E `13 passed`, and independent safety audit
-`PASS`.
+`PASS`. The final blind re-audit is not claimed as passed in this historical
+snapshot.
 
 Current extension status: `complete_terminal_no_valid_size`. The
 historical GET-only statement above is not current Automation capability

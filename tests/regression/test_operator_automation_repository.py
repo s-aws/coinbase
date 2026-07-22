@@ -26,6 +26,17 @@ from application.admin_api.operator_spot_near_market_preparation import (
     NearMarketPreparationOutcome,
     NearMarketPreparationResult,
 )
+from application.admin_api.operator_spot_minimum_size_policy import (
+    MinimumSizeBuyPlan,
+)
+from application.admin_api.operator_spot_minimum_size_preparation import (
+    MinimumSizePreparationOutcome,
+    MinimumSizePreparationResult,
+)
+from core.operator_spot_minimum_size_evidence import (
+    MINIMUM_SIZE_POLICY_REVISION,
+    minimum_size_preparation_evidence_sha256,
+)
 from core.enums import (
     OperatorAutomationControlPosture,
     OperatorAutomationDefinitionState,
@@ -44,11 +55,15 @@ from database.operator_automation import (
     AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY,
     AUTOMATION_SPOT_NEAR_MARKET_V5_GOAL_KEY,
     AUTOMATION_SPOT_NEAR_MARKET_V6_GOAL_KEY,
+    AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY,
+    AUTOMATION_SPOT_MINIMUM_SIZE_V8_GOAL_KEY,
+    AUTOMATION_SPOT_MINIMUM_SIZE_V9_GOAL_KEY,
     AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
     AutomationDefinitionCreateCommand,
     AutomationMutationCommand,
     AutomationSpotSingleChildPlanTerms,
     AutomationSpotNearMarketMaterializationEvidence,
+    AutomationSpotMinimumSizeMaterializationEvidence,
     AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES,
     AutomationStoreConflict,
     AutomationStoreInvalid,
@@ -231,6 +246,7 @@ def test_schema_is_idempotent_and_persists_only_hashed_key_and_actor(
         "automation_spot_eligibility_cycle",
         "automation_spot_eligibility_attempt",
         "automation_spot_live_proof_goal",
+        "automation_spot_minimum_size_preparation",
         "automation_spot_near_market_preparation",
         "automation_spot_plan_goal",
         "automation_spot_preview_gated_goal",
@@ -1040,6 +1056,48 @@ def _near_market_materialization_evidence(
     )
 
 
+def _minimum_size_materialization_evidence(
+    terms: AutomationSpotSingleChildPlanTerms,
+    *,
+    cycle_number: int,
+    goal_key: str,
+    diagnostic_code: str = "minimum_size_v4_fee_reserve_conflict",
+) -> AutomationSpotMinimumSizeMaterializationEvidence:
+    categories = tuple(AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[:6])
+    evidence_hash = minimum_size_preparation_evidence_sha256(
+        call_count=6,
+        categories=categories,
+        diagnostic_code=diagnostic_code,
+        outcome="MATERIALIZED",
+        policy_revision=MINIMUM_SIZE_POLICY_REVISION,
+        plan={
+            "base_size": terms.base_size,
+            "limit_price": terms.limit_price,
+            "max_possible_execution_notional_usdc": (
+                terms.max_possible_execution_notional_usdc
+            ),
+            "max_submitted_notional_usdc": terms.max_submitted_notional_usdc,
+            "possible_execution_notional_usdc": (
+                terms.possible_execution_notional_usdc
+            ),
+            "post_only": terms.post_only,
+            "portfolio_id_sha256": terms.portfolio_id_sha256,
+            "product_id": terms.product_id,
+            "side": terms.side,
+            "submitted_notional_usdc": terms.submitted_notional_usdc,
+            "v4_boundary_classification": diagnostic_code,
+        },
+    )
+    return AutomationSpotMinimumSizeMaterializationEvidence(
+        cycle_number=cycle_number,
+        goal_key=goal_key,
+        diagnostic_code=diagnostic_code,
+        completed_categories=categories,
+        coinbase_api_call_count=6,
+        evidence_sha256=evidence_hash,
+    )
+
+
 def _materialize_near_market_candidate(
     repository: OperatorAutomationRepository,
     seed: str,
@@ -1062,6 +1120,83 @@ def _materialize_near_market_candidate(
         spot_single_child_plan=terms,
         spot_goal_key=claimed.goal_key,
         spot_near_market_materialization=_near_market_materialization_evidence(
+            terms,
+            cycle_number=claimed.cycle_number,
+            goal_key=claimed.goal_key,
+        ),
+    ).entity
+    enabled = repository.transition_definition(
+        created.definition_id,
+        "enable",
+        _mutation(f"{seed}-enable"),
+    ).entity
+    run = repository.claim_one_shot_run(
+        enabled.definition_id,
+        _mutation(f"{seed}-run"),
+    ).entity
+    run = repository.transition_run(
+        run.run_id,
+        OperatorAutomationRunState.PREPARING,
+        diagnostic_code="preparing",
+        command=_mutation(f"{seed}-preparing"),
+    ).entity
+    return claimed, created, run
+
+
+def _seal_minimum_size_predecessor(
+    repository: OperatorAutomationRepository,
+    seed: str,
+) -> None:
+    _seal_rejected_v3_predecessor(repository, seed)
+    claimed = repository.start_spot_near_market_preparation(
+        _mutation(f"{seed}-v4-preparation")
+    ).entity
+    categories = tuple(AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[:6])
+    diagnostic_code = "near_market_no_valid_size"
+    evidence = near_market_preparation_evidence_sha256(
+        call_count=6,
+        categories=categories,
+        diagnostic_code=diagnostic_code,
+        outcome="BLOCKED",
+        policy_revision=NEAR_MARKET_POLICY_REVISION,
+        plan=None,
+    )
+    repository.finalize_spot_near_market_preparation(
+        cycle_number=claimed.cycle_number,
+        goal_key=claimed.goal_key,
+        state="BLOCKED",
+        diagnostic_code=diagnostic_code,
+        completed_categories=categories,
+        coinbase_api_call_count=6,
+        call_count_exact=True,
+        evidence_sha256=evidence,
+        definition_id=None,
+    )
+
+
+def _materialize_minimum_size_candidate(
+    repository: OperatorAutomationRepository,
+    seed: str,
+):
+    claimed = repository.start_spot_minimum_size_preparation(
+        _mutation(f"{seed}-preparation")
+    ).entity
+    terms = _spot_plan_terms(
+        base_size="0.00001",
+        limit_price="100000",
+        submitted_notional_usdc="1",
+        possible_execution_notional_usdc="1",
+        max_possible_execution_notional_usdc="1.01",
+        post_only=True,
+    )
+    created = repository.create_definition(
+        _definition_command(
+            f"{seed}-definition",
+            product_ids=("BTC-USDC",),
+        ),
+        spot_single_child_plan=terms,
+        spot_goal_key=claimed.goal_key,
+        spot_minimum_size_materialization=_minimum_size_materialization_evidence(
             terms,
             cycle_number=claimed.cycle_number,
             goal_key=claimed.goal_key,
@@ -3797,6 +3932,361 @@ def test_near_market_preparation_claim_atomically_materializes_v4_post_only_plan
     assert terminal.state is OperatorAutomationRunState.TERMINAL
 
 
+def test_minimum_size_v7_has_a_distinct_ledger_and_atomic_dynamic_cap_plan(
+    repository_harness: _Harness,
+) -> None:
+    repository = repository_harness.repository()
+    _seal_rejected_v3_predecessor(repository, "minimum-size")
+    v4 = repository.start_spot_near_market_preparation(
+        _mutation("minimum-size-v4-preparation")
+    ).entity
+    v4_evidence = near_market_preparation_evidence_sha256(
+        call_count=6,
+        categories=AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[:6],
+        diagnostic_code="near_market_no_valid_size",
+        outcome="BLOCKED",
+        policy_revision=NEAR_MARKET_POLICY_REVISION,
+        plan=None,
+    )
+    repository.finalize_spot_near_market_preparation(
+        cycle_number=v4.cycle_number,
+        goal_key=v4.goal_key,
+        state="BLOCKED",
+        diagnostic_code="near_market_no_valid_size",
+        completed_categories=tuple(AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[:6]),
+        coinbase_api_call_count=6,
+        call_count_exact=True,
+        evidence_sha256=v4_evidence,
+        definition_id=None,
+    )
+
+    claimed = repository.start_spot_minimum_size_preparation(
+        _mutation("minimum-size-v7-preparation")
+    )
+    assert claimed.entity.goal_key == AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY
+    assert claimed.entity.candidate_version == 7
+    assert claimed.entity.cycle_number == 1
+    assert claimed.entity.state == "CLAIMED"
+    assert len(repository.list_spot_near_market_preparations()) == 1
+
+    with pytest.raises(AutomationStoreInvalid) as mismatched_blocked_evidence:
+        repository.finalize_spot_minimum_size_preparation(
+            cycle_number=claimed.entity.cycle_number,
+            goal_key=claimed.entity.goal_key,
+            state="BLOCKED",
+            diagnostic_code="minimum_size_wallet_insufficient",
+            completed_categories=tuple(
+                AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[:6]
+            ),
+            coinbase_api_call_count=6,
+            call_count_exact=True,
+            evidence_sha256="a" * 64,
+            definition_id=None,
+        )
+    assert mismatched_blocked_evidence.value.code == (
+        "automation_minimum_size_preparation_result_invalid"
+    )
+
+    terms = _spot_plan_terms(
+        base_size="0.00001",
+        limit_price="100000",
+        submitted_notional_usdc="1",
+        possible_execution_notional_usdc="1",
+        max_possible_execution_notional_usdc="1.01",
+        post_only=True,
+    )
+    created = repository.create_definition(
+        _definition_command(
+            "minimum-size-v7-definition",
+            product_ids=("BTC-USDC",),
+        ),
+        spot_single_child_plan=terms,
+        spot_goal_key=AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY,
+        spot_minimum_size_materialization=(
+            _minimum_size_materialization_evidence(
+                terms,
+                cycle_number=claimed.entity.cycle_number,
+                goal_key=claimed.entity.goal_key,
+            )
+        ),
+    )
+    stored_plan = repository.get_spot_single_child_plan(
+        created.entity.definition_id,
+        created.entity.revision,
+    )
+    assert stored_plan is not None
+    assert stored_plan.max_possible_execution_notional_usdc == "1.01"
+    prepared = repository.list_spot_minimum_size_preparations()
+    assert len(prepared) == 1
+    assert prepared[0].state == "MATERIALIZED"
+    assert prepared[0].definition_id == created.entity.definition_id
+
+    enabled = repository.transition_definition(
+        created.entity.definition_id,
+        "enable",
+        _mutation("minimum-size-v7-enable"),
+    ).entity
+    run = repository.claim_one_shot_run(
+        enabled.definition_id,
+        _mutation("minimum-size-v7-run"),
+    ).entity
+    repository.transition_run(
+        run.run_id,
+        OperatorAutomationRunState.PREPARING,
+        diagnostic_code="preparing",
+        command=_mutation("minimum-size-v7-preparing"),
+    )
+    _complete_eligible_cycle(repository, run.run_id, "minimum-size-v7-cycle")
+    cycle = repository.list_spot_eligibility_cycles(
+        goal_key=AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY,
+    )[-1]
+    assert cycle.policy_revision == 4
+
+    with pytest.raises(AutomationStoreConflict) as blocked_v8:
+        repository.start_spot_minimum_size_preparation(
+            _mutation("minimum-size-v8-too-early")
+        )
+    assert blocked_v8.value.code == "automation_minimum_size_successor_not_available"
+    assert repository.list_spot_eligibility_cycles(
+        goal_key=AUTOMATION_SPOT_MINIMUM_SIZE_V8_GOAL_KEY,
+    ) == ()
+    assert repository.list_spot_eligibility_cycles(
+        goal_key=AUTOMATION_SPOT_MINIMUM_SIZE_V9_GOAL_KEY,
+    ) == ()
+
+    repository.start_spot_preview_invocation(
+        run.run_id,
+        eligibility_cycle=cycle.cycle_number,
+        command=_mutation("minimum-size-v7-preview-start"),
+    )
+    repository.finalize_spot_preview_invocation(
+        run.run_id,
+        outcome="ACCEPTED",
+        failure_class="NONE",
+        rejection_code=None,
+        warning_present=False,
+        preview_id_sha256="a" * 64,
+        preview_call_count=1,
+        call_count_exact=True,
+        command=_mutation("minimum-size-v7-preview-finish"),
+    )
+    started = repository.start_spot_create_invocation(
+        run.run_id,
+        eligibility_cycle=cycle.cycle_number,
+        command=_mutation("minimum-size-v7-create-start"),
+    )
+    assert started.entity.policy_revision == 4
+    repository.finalize_spot_create_invocation(
+        run.run_id,
+        outcome="ACCEPTED",
+        child_terminal=False,
+        coinbase_api_call_count=1,
+        call_count_exact=True,
+        read_call_count=1,
+        read_call_count_exact=True,
+        command=_mutation("minimum-size-v7-create-finish"),
+    )
+    repository.start_spot_cancel_invocation(
+        run.run_id,
+        client_order_id=started.entity.client_order_id,
+        command=_mutation("minimum-size-v7-cancel-start"),
+    )
+    repository.finalize_spot_cancel_invocation(
+        run.run_id,
+        outcome="ACCEPTED",
+        child_terminal=True,
+        coinbase_api_call_count=1,
+        call_count_exact=True,
+        read_call_count=2,
+        read_call_count_exact=True,
+        command=_mutation("minimum-size-v7-cancel-finish"),
+    )
+    with pytest.raises(AutomationStoreConflict) as accepted_stops_successors:
+        repository.start_spot_minimum_size_preparation(
+            _mutation("minimum-size-v8-after-accepted-preview")
+        )
+    assert accepted_stops_successors.value.code == (
+        "automation_minimum_size_successor_not_available"
+    )
+
+
+def test_minimum_size_v7_v9_sequence_preserves_distinct_terminal_outcomes(
+    repository_harness: _Harness,
+) -> None:
+    repository = repository_harness.repository()
+    _seal_minimum_size_predecessor(repository, "minimum-size-sequence")
+    expected = (
+        (7, AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY, "REJECTED"),
+        (8, AUTOMATION_SPOT_MINIMUM_SIZE_V8_GOAL_KEY, "UNKNOWN"),
+        (9, AUTOMATION_SPOT_MINIMUM_SIZE_V9_GOAL_KEY, "ACCEPTED"),
+    )
+
+    for version, goal_key, outcome in expected:
+        claimed, _definition, run = _materialize_minimum_size_candidate(
+            repository,
+            f"minimum-size-sequence-v{version}",
+        )
+        assert claimed.candidate_version == version
+        assert claimed.goal_key == goal_key
+        _complete_eligible_cycle(
+            repository,
+            run.run_id,
+            f"minimum-size-sequence-v{version}-eligibility",
+        )
+        cycle = repository.list_spot_eligibility_cycles(goal_key=goal_key)[-1]
+        repository.start_spot_preview_invocation(
+            run.run_id,
+            eligibility_cycle=cycle.cycle_number,
+            command=_mutation(f"minimum-size-v{version}-preview-start"),
+        )
+        repository.finalize_spot_preview_invocation(
+            run.run_id,
+            outcome=outcome,
+            failure_class={
+                "REJECTED": "DOCUMENTED_REJECTION",
+                "UNKNOWN": "TRANSPORT_UNKNOWN",
+                "ACCEPTED": "NONE",
+            }[outcome],
+            rejection_code=(
+                "BASE_SIZE_TOO_SMALL" if outcome == "REJECTED" else None
+            ),
+            warning_present=False,
+            preview_id_sha256=("b" * 64 if outcome == "ACCEPTED" else None),
+            preview_call_count=(None if outcome == "UNKNOWN" else 1),
+            call_count_exact=outcome != "UNKNOWN",
+            command=_mutation(f"minimum-size-v{version}-preview-finish"),
+        )
+        goal = repository.get_spot_preview_gated_goal(goal_key=goal_key)
+        assert goal.preview_allowance_consumed is True
+        assert goal.preview_outcome == outcome
+        assert goal.create_allowance_consumed is False
+
+    with pytest.raises(AutomationStoreConflict) as no_v10:
+        repository.start_spot_minimum_size_preparation(
+            _mutation("minimum-size-v10-forbidden")
+        )
+    assert no_v10.value.code == "automation_minimum_size_successor_not_available"
+
+
+def test_minimum_size_preparation_restart_consumes_unknown_cycle(
+    repository_harness: _Harness,
+) -> None:
+    repository = repository_harness.repository()
+    _seal_minimum_size_predecessor(repository, "minimum-size-restart")
+    claimed = repository.start_spot_minimum_size_preparation(
+        _mutation("minimum-size-restart-v7")
+    ).entity
+
+    restarted = repository_harness.repository()
+    restarted.recover_runs_after_restart()
+
+    recovered = restarted.list_spot_minimum_size_preparations()
+    assert len(recovered) == 1
+    assert recovered[0].cycle_number == claimed.cycle_number
+    assert recovered[0].state == "UNKNOWN"
+    assert recovered[0].definition_id is None
+    assert recovered[0].coinbase_api_call_count is None
+    assert recovered[0].call_count_exact is False
+    assert recovered[0].evidence_sha256 is None
+    next_claim = restarted.start_spot_minimum_size_preparation(
+        _mutation("minimum-size-restart-v7-next")
+    ).entity
+    assert next_claim.goal_key == AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY
+    assert next_claim.cycle_number == claimed.cycle_number + 1
+
+
+def test_concurrent_minimum_size_preparation_has_one_claimant(
+    repository_harness: _Harness,
+) -> None:
+    repository = repository_harness.repository()
+    _seal_minimum_size_predecessor(repository, "minimum-size-concurrent")
+    barrier = threading.Barrier(2)
+    results: list = []
+    failures: list[Exception] = []
+    lock = threading.Lock()
+
+    def claim(index: int) -> None:
+        candidate_repository = repository_harness.repository()
+        barrier.wait()
+        try:
+            result = candidate_repository.start_spot_minimum_size_preparation(
+                _mutation(f"minimum-size-concurrent-{index}")
+            )
+            with lock:
+                results.append(result)
+        except Exception as exc:  # pragma: no cover - asserted below
+            with lock:
+                failures.append(exc)
+
+    threads = [threading.Thread(target=claim, args=(index,)) for index in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert all(not thread.is_alive() for thread in threads)
+    assert len(results) == 1
+    assert results[0].entity.state == "CLAIMED"
+    assert len(failures) == 1
+    assert isinstance(failures[0], AutomationStoreConflict)
+    assert failures[0].code == "automation_minimum_size_preparation_in_progress"
+
+
+def test_minimum_size_preparation_and_eligibility_share_ten_cycle_budget(
+    repository_harness: _Harness,
+) -> None:
+    repository = repository_harness.repository()
+    _seal_minimum_size_predecessor(repository, "minimum-size-global-budget")
+    claimed, _definition, run = _materialize_minimum_size_candidate(
+        repository,
+        "minimum-size-global-budget-v7",
+    )
+    assert claimed.cycle_number == 1
+    plan = repository.get_spot_single_child_plan(
+        run.definition_id,
+        run.definition_revision,
+    )
+    assert plan is not None
+
+    for cycle_number in range(2, 11):
+        _, cycle = _allocate_spot_eligibility_cycle(
+            repository,
+            run.run_id,
+            plan.plan_sha256,
+            f"minimum-size-global-budget-{cycle_number}",
+        )
+        assert cycle.cycle_number == cycle_number
+        category = AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[0]
+        repository.start_spot_eligibility_attempt(
+            run.run_id,
+            category=category,
+            command=_mutation(f"minimum-size-budget-{cycle_number}-start"),
+        )
+        repository.finalize_spot_eligibility_attempt(
+            run.run_id,
+            category=category,
+            outcome="REJECTED",
+            eligible=False,
+            coinbase_api_call_count=1,
+            call_count_exact=True,
+            portfolio_id_sha256=None,
+            **_eligibility_evidence(
+                f"minimum-size-budget-{cycle_number}",
+                "REJECTED",
+            ),
+            command=_mutation(f"minimum-size-budget-{cycle_number}-finish"),
+        )
+
+    with pytest.raises(AutomationStoreConflict) as exhausted:
+        _allocate_spot_eligibility_cycle(
+            repository,
+            run.run_id,
+            plan.plan_sha256,
+            "minimum-size-global-budget-eleventh",
+        )
+    assert exhausted.value.code == "automation_spot_eligibility_cycles_exhausted"
+
+
 def test_near_market_service_materializes_the_exact_hashed_runner_plan(
     repository_harness: _Harness,
     monkeypatch: pytest.MonkeyPatch,
@@ -3880,6 +4370,178 @@ def test_near_market_service_materializes_the_exact_hashed_runner_plan(
     stored = repository.list_spot_near_market_preparations()
     assert stored[-1].state == "MATERIALIZED"
     assert stored[-1].evidence_sha256 == evidence
+
+
+def test_minimum_size_service_materializes_exact_dynamic_cap_plan(
+    repository_harness: _Harness,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = repository_harness.repository()
+    _seal_rejected_v3_predecessor(repository, "minimum-size-service")
+    v4 = repository.start_spot_near_market_preparation(
+        _mutation("minimum-size-service-v4")
+    ).entity
+    v4_evidence = near_market_preparation_evidence_sha256(
+        call_count=6,
+        categories=AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[:6],
+        diagnostic_code="near_market_no_valid_size",
+        outcome="BLOCKED",
+        policy_revision=NEAR_MARKET_POLICY_REVISION,
+        plan=None,
+    )
+    repository.finalize_spot_near_market_preparation(
+        cycle_number=v4.cycle_number,
+        goal_key=v4.goal_key,
+        state="BLOCKED",
+        diagnostic_code="near_market_no_valid_size",
+        completed_categories=tuple(AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[:6]),
+        coinbase_api_call_count=6,
+        call_count_exact=True,
+        evidence_sha256=v4_evidence,
+        definition_id=None,
+    )
+    portfolio_id = "11111111-1111-4111-8111-111111111111"
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID", portfolio_id)
+    plan = MinimumSizeBuyPlan(
+        policy_revision=MINIMUM_SIZE_POLICY_REVISION,
+        product_id="BTC-USDC",
+        side="BUY",
+        base_size="0.00001",
+        limit_price="100000",
+        submitted_notional_usdc="1",
+        possible_execution_notional_usdc="1",
+        max_submitted_notional_usdc="3.10",
+        max_possible_execution_notional_usdc="1.01",
+        post_only=True,
+        v4_boundary_classification=(
+            "minimum_size_v4_fee_reserve_conflict"
+        ),
+    )
+    evidence = minimum_size_preparation_evidence_sha256(
+        call_count=6,
+        categories=AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[:6],
+        diagnostic_code=plan.v4_boundary_classification,
+        outcome="MATERIALIZED",
+        policy_revision=MINIMUM_SIZE_POLICY_REVISION,
+        plan={
+            "base_size": plan.base_size,
+            "limit_price": plan.limit_price,
+            "max_possible_execution_notional_usdc": (
+                plan.max_possible_execution_notional_usdc
+            ),
+            "max_submitted_notional_usdc": plan.max_submitted_notional_usdc,
+            "possible_execution_notional_usdc": (
+                plan.possible_execution_notional_usdc
+            ),
+            "post_only": plan.post_only,
+            "portfolio_id_sha256": hashlib.sha256(
+                portfolio_id.encode("utf-8")
+            ).hexdigest(),
+            "product_id": plan.product_id,
+            "side": plan.side,
+            "submitted_notional_usdc": plan.submitted_notional_usdc,
+            "v4_boundary_classification": plan.v4_boundary_classification,
+        },
+    )
+    adapter = PostgresOperatorAutomationRepositoryAdapter(
+        repository,
+        spot_minimum_size_preparation_runner=lambda: (
+            MinimumSizePreparationResult(
+                outcome=MinimumSizePreparationOutcome.MATERIALIZED,
+                diagnostic_code=plan.v4_boundary_classification,
+                completed_categories=tuple(
+                    AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[:6]
+                ),
+                coinbase_api_call_count=6,
+                call_count_exact=True,
+                evidence_sha256=evidence,
+                plan=plan,
+            )
+        ),
+    )
+
+    original_create_definition = repository.create_definition
+    materialization_attempts = 0
+
+    def fail_first_materialization(*args, **kwargs):
+        nonlocal materialization_attempts
+        materialization_attempts += 1
+        if materialization_attempts == 1:
+            raise RuntimeError("withheld-materialization-failure")
+        return original_create_definition(*args, **kwargs)
+
+    monkeypatch.setattr(
+        repository,
+        "create_definition",
+        fail_first_materialization,
+    )
+
+    unknown = adapter.prepare_minimum_size_candidate(
+        request={
+            "confirm_backend_derived_terms": True,
+            "confirm_one_no_retry_preparation_cycle": True,
+            "confirm_btc_usdc_test_portfolio_scope": True,
+            "confirm_dynamic_cap_strictly_below_3_10": True,
+            "confirm_unknown_consumes_cycle": True,
+            "reason": "Exercise conservative materialization failure",
+        },
+        context=AutomationMutationContext(
+            actor_id="operator-minimum-size",
+            roles=("operator",),
+            idempotency_key="minimum-size-materialization-failure",
+            correlation_id="minimum-size-materialization-failure",
+            operator_intent="prepare_automation_minimum_size_candidate",
+        ),
+    )
+
+    assert unknown.entity["outcome"] == "UNKNOWN"
+    assert unknown.entity["diagnostic_code"] == (
+        "automation_minimum_size_preparation_unknown"
+    )
+    assert unknown.entity["call_count_exact"] is False
+    assert unknown.entity["definition"] is None
+
+    mutation = adapter.prepare_minimum_size_candidate(
+        request={
+            "confirm_backend_derived_terms": True,
+            "confirm_one_no_retry_preparation_cycle": True,
+            "confirm_btc_usdc_test_portfolio_scope": True,
+            "confirm_dynamic_cap_strictly_below_3_10": True,
+            "confirm_unknown_consumes_cycle": True,
+            "reason": "Prepare exact minimum-size successor",
+        },
+        context=AutomationMutationContext(
+            actor_id="operator-minimum-size",
+            roles=("operator",),
+            idempotency_key="m" * 255,
+            correlation_id="minimum-size-service-correlation",
+            operator_intent="prepare_automation_minimum_size_candidate",
+        ),
+    )
+
+    assert mutation.entity["outcome"] == "MATERIALIZED"
+    assert mutation.entity["max_possible_execution_notional_usdc"] == "1.01"
+    assert mutation.entity["boundary_classification"] == (
+        "minimum_size_v4_fee_reserve_conflict"
+    )
+    readback = mutation.entity["definition"]["minimum_size_preparation"]
+    assert readback == {
+        "policy_revision": "BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2",
+        "boundary_classification": "minimum_size_v4_fee_reserve_conflict",
+        "cycle_number": 2,
+        "completed_categories": [
+            "api_key_permissions",
+            "portfolio_catalog",
+            "wallet_balances",
+            "product_metadata",
+            "best_bid_ask",
+            "fee_summary",
+        ],
+        "coinbase_api_call_count": 6,
+        "call_count_exact": True,
+        "max_submitted_notional_usdc": "3.10",
+        "max_possible_execution_notional_usdc": "1.01",
+    }
 
 
 def test_near_market_preparation_restart_consumes_unknown_cycle_without_candidate(

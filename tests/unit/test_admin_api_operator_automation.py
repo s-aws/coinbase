@@ -31,6 +31,8 @@ from application.admin_api.automation_models import (
     AutomationEligibilityRefreshRequest,
     AutomationJobKind,
     AutomationMutationContext,
+    AutomationMinimumSizeCandidatePreparationRequest,
+    AutomationMinimumSizeCandidatePreparationResponse,
     AutomationNearMarketCandidatePreparationRequest,
     AutomationNearMarketCandidatePreparationResponse,
     AutomationOneShotRunRequest,
@@ -85,6 +87,7 @@ def _definition(
         "job_kind": job_kind,
         "product_ids": resolved_products,
         "lifecycle_state": state,
+        "minimum_size_preparation": None,
         "schedule": {
             "mode": AutomationScheduleMode.MANUAL_ONLY.value,
             "interval_minutes": None,
@@ -97,6 +100,60 @@ def _definition(
         "created_at": NOW.isoformat(),
         "updated_at": NOW.isoformat(),
     }
+
+
+def test_definition_requires_minimum_size_preparation_exactly_for_v7_v9() -> None:
+    base = _definition(
+        job_kind=AutomationJobKind.SPOT_CAMPAIGN.value,
+        product_ids=["BTC-USDC"],
+    )
+    base.update(
+        {
+            "spot_execution_mode": "MINIMUM_SIZE_POST_ONLY_V7",
+            "single_child_order": {
+                "side": "BUY",
+                "base_size": "0.00001",
+                "limit_price": "100000",
+                "order_type": "LIMIT",
+                "time_in_force": "GOOD_UNTIL_CANCELLED",
+                "post_only": True,
+            },
+            "adapter_status": "SOURCE_GATED",
+        }
+    )
+    preparation = {
+        "policy_revision": "BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2",
+        "boundary_classification": "minimum_size_v4_fee_reserve_conflict",
+        "cycle_number": 1,
+        "completed_categories": [
+            "api_key_permissions",
+            "portfolio_catalog",
+            "wallet_balances",
+            "product_metadata",
+            "best_bid_ask",
+            "fee_summary",
+        ],
+        "coinbase_api_call_count": 6,
+        "call_count_exact": True,
+        "max_submitted_notional_usdc": "3.10",
+        "max_possible_execution_notional_usdc": "1.01",
+    }
+
+    with pytest.raises(ValidationError):
+        AutomationDefinitionItem.model_validate(
+            {key: value for key, value in base.items() if key != "minimum_size_preparation"}
+        )
+    with pytest.raises(ValidationError):
+        AutomationDefinitionItem.model_validate(base)
+    with pytest.raises(ValidationError):
+        AutomationDefinitionItem.model_validate(
+            {**_definition(), "minimum_size_preparation": preparation}
+        )
+
+    validated = AutomationDefinitionItem.model_validate(
+        {**base, "minimum_size_preparation": preparation}
+    )
+    assert validated.minimum_size_preparation is not None
 
 
 def _run() -> dict[str, Any]:
@@ -316,6 +373,84 @@ class _FakeRepository:
                 "coinbase_api_call_count": 6,
                 "call_count_exact": True,
                 "definition": definition,
+                "preview_call_count": 0,
+                "create_call_count": 0,
+                "cancel_call_count": 0,
+            },
+            audit_id=AUDIT_ID,
+            correlation_id=kwargs["context"].correlation_id,
+            replayed=self.replayed,
+        )
+
+    def prepare_minimum_size_candidate(
+        self,
+        **kwargs: Any,
+    ) -> AutomationRepositoryMutation:
+        self._record("prepare_minimum_size_candidate", **kwargs)
+        definition = _definition(
+            job_kind="SPOT_CAMPAIGN",
+            product_ids=["BTC-USDC"],
+        )
+        definition.update(
+            {
+                "spot_execution_mode": "MINIMUM_SIZE_POST_ONLY_V7",
+                "minimum_size_preparation": {
+                    "policy_revision": (
+                        "BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2"
+                    ),
+                    "boundary_classification": (
+                        "minimum_size_v4_fee_reserve_conflict"
+                    ),
+                    "cycle_number": 1,
+                    "completed_categories": [
+                        "api_key_permissions",
+                        "portfolio_catalog",
+                        "wallet_balances",
+                        "product_metadata",
+                        "best_bid_ask",
+                        "fee_summary",
+                    ],
+                    "coinbase_api_call_count": 6,
+                    "call_count_exact": True,
+                    "max_submitted_notional_usdc": "3.10",
+                    "max_possible_execution_notional_usdc": "1.01",
+                },
+                "single_child_order": {
+                    "side": "BUY",
+                    "base_size": "0.00001",
+                    "limit_price": "100000.00",
+                    "order_type": "LIMIT",
+                    "time_in_force": "GOOD_UNTIL_CANCELLED",
+                    "post_only": True,
+                },
+            }
+        )
+        return AutomationRepositoryMutation(
+            entity={
+                "outcome": "MATERIALIZED",
+                "candidate_version": 7,
+                "spot_execution_mode": "MINIMUM_SIZE_POST_ONLY_V7",
+                "cycle_number": 1,
+                "policy_revision": (
+                    "BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2"
+                ),
+                "boundary_classification": (
+                    "minimum_size_v4_fee_reserve_conflict"
+                ),
+                "diagnostic_code": "minimum_size_v4_fee_reserve_conflict",
+                "completed_categories": [
+                    "api_key_permissions",
+                    "portfolio_catalog",
+                    "wallet_balances",
+                    "product_metadata",
+                    "best_bid_ask",
+                    "fee_summary",
+                ],
+                "coinbase_api_call_count": 6,
+                "call_count_exact": True,
+                "definition": definition,
+                "max_submitted_notional_usdc": "3.10",
+                "max_possible_execution_notional_usdc": "1.01",
                 "preview_call_count": 0,
                 "create_call_count": 0,
                 "cancel_call_count": 0,
@@ -604,7 +739,7 @@ def test_preview_gated_successor_mode_requires_an_exact_single_child_plan():
         job_kind=AutomationJobKind.SPOT_CAMPAIGN,
         product_ids=["BTC-USDC"],
         spot_execution_mode="PREVIEW_GATED_V2",
-        single_child_order=AutomationSpotSingleChildOrderSpec(
+        single_child_order=AutomationSpotSingleChildOrderCreateSpec(
             side="BUY",
             base_size="0.00001",
             limit_price="50000.00",
@@ -627,7 +762,7 @@ def test_documented_market_freshness_v3_mode_requires_an_exact_single_child_plan
         job_kind=AutomationJobKind.SPOT_CAMPAIGN,
         product_ids=["BTC-USDC"],
         spot_execution_mode="DOCUMENTED_MARKET_FRESHNESS_V3",
-        single_child_order=AutomationSpotSingleChildOrderSpec(
+        single_child_order=AutomationSpotSingleChildOrderCreateSpec(
             side="BUY",
             base_size="0.00001",
             limit_price="50000.00",
@@ -779,6 +914,29 @@ def test_service_forwards_only_near_market_acknowledgements_and_returns_backend_
             },
         )
     ]
+
+
+def test_minimum_size_response_exposes_only_classification_and_derived_cap():
+    repository = _FakeRepository()
+    service = OperatorAutomationService(repository)
+    request = AutomationMinimumSizeCandidatePreparationRequest(
+        confirm_backend_derived_terms=True,
+        confirm_one_no_retry_preparation_cycle=True,
+        confirm_btc_usdc_test_portfolio_scope=True,
+        confirm_dynamic_cap_strictly_below_3_10=True,
+        confirm_unknown_consumes_cycle=True,
+        reason="Prepare exact minimum-size successor",
+    )
+
+    result = service.prepare_minimum_size_candidate(request, _context())
+
+    assert isinstance(result, AutomationMinimumSizeCandidatePreparationResponse)
+    assert result.boundary_classification == (
+        "minimum_size_v4_fee_reserve_conflict"
+    )
+    assert result.max_possible_execution_notional_usdc == "1.01"
+    assert result.definition is not None
+    assert repository.calls[-1][0] == "prepare_minimum_size_candidate"
 
 
 def test_exact_run_authorization_accepts_only_acknowledgements_and_plan_hash():

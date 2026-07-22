@@ -1,14 +1,37 @@
 # Coinbase Admin MVP Goal
 
 Goal ID:
-`operator_spot_automation_near_market_policy_and_successor_proof_v4_v6`
+`operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`
 
 Last reviewed: 2026-07-22 UTC.
 
-Status: `complete_terminal_no_valid_size`.
+Status: `readiness_complete_operator_action_pending`.
 
 Current action:
-`complete_v4_no_valid_size_preview_create_cancel_unconsumed`.
+`execute_first_valid_v7_v9_successor`.
+
+Default action: `complete_readiness_then_execute_first_valid_v7_v9_successor`.
+
+The backend-owned `BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2` policy is
+restricted to the approved Test portfolio, BTC-USDC, one child, and V7-V9. It
+derives the smallest valid post-only fresh Get Market Trades best-bid terms,
+submitted notional, and fee-reserved dynamic execution cap, with both caps
+strictly below 3.10 USDC. Product minimum, increment, fee, wallet, freshness,
+and cap failures use fixed sanitized classifications. Six-category preparation
+and eight-category run eligibility share `0/10` durable no-retry cycles.
+Preview/Create/Cancel calls are `0/0/0`; all allowances remain unconsumed
+after full validation, deployment checks, and independent safety plus
+blind-contextless code audits passed. The authenticated operator action is
+next.
+
+## V4 near-market predecessor closeout
+
+Goal ID:
+`operator_spot_automation_near_market_policy_and_successor_proof_v4_v6`
+
+Status: `complete_terminal_no_valid_size`.
+
+Current action: `complete_v4_no_valid_size_preview_create_cancel_unconsumed`.
 
 Default action: `await_operator_policy_or_cap_decision`.
 

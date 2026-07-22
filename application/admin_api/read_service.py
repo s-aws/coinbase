@@ -8477,6 +8477,7 @@ class AdminApiReadService:
         ]
         operator_automation_command_surfaces = [
             "POST /api/v1/automation/near-market-candidates",
+            "POST /api/v1/automation/minimum-size-candidates",
             "POST /api/v1/automation/definitions",
             "POST /api/v1/automation/definitions/{definition_id}/enable",
             "POST /api/v1/automation/definitions/{definition_id}/disable",
@@ -8501,6 +8502,9 @@ class AdminApiReadService:
         operator_automation_near_market_preparation_surfaces = [
             "POST /api/v1/automation/near-market-candidates",
         ]
+        operator_automation_minimum_size_preparation_surfaces = [
+            "POST /api/v1/automation/minimum-size-candidates",
+        ]
         operator_automation_live_command_surfaces = [
             "POST /api/v1/automation/runs/{run_id}/authorize-single-child",
             "POST /api/v1/automation/runs/{run_id}/authorize-preview-gated-single-child",
@@ -8512,6 +8516,7 @@ class AdminApiReadService:
             if surface not in operator_automation_live_command_surfaces
             and surface not in operator_automation_eligibility_command_surfaces
             and surface not in operator_automation_near_market_preparation_surfaces
+            and surface not in operator_automation_minimum_size_preparation_surfaces
         ]
         operator_automation_live_service_state = (
             _decision_backed_live_service_state()
@@ -10125,6 +10130,10 @@ class AdminApiReadService:
             route_inventory_item(surface)
             for surface in operator_automation_near_market_preparation_surfaces
         ]
+        operator_automation_minimum_size_preparation_rows = [
+            route_inventory_item(surface)
+            for surface in operator_automation_minimum_size_preparation_surfaces
+        ]
         mutation_taxonomy = [
             mutation_taxonomy_item(
                 mutation_id="automation.operator_control_plane",
@@ -10332,6 +10341,130 @@ class AdminApiReadService:
                 ),
                 spot_rule_boundary=(
                     "The versioned BTC-USDC near-market rule is isolated to V4-V6 "
+                    "single-child Spot Automation and cannot alter generic Spot, "
+                    "Orders, Futures, or orchestration policy."
+                ),
+                approval_required=False,
+                cap_guard_required=True,
+                reconciliation_required=False,
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_item(
+                mutation_id="automation.spot_minimum_size_preparation",
+                mutation_family=(
+                    AdminApiMutationFamilyType.ADMIN_ACCOUNT_REALITY_REFRESH
+                ),
+                workflow_id="automation.operator_control_plane",
+                module_id="automation",
+                module="Automation",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Explicit operator-triggered, PostgreSQL-claimed BTC-USDC "
+                    "minimum-size preparation over exactly six approved read-only "
+                    "Coinbase categories. The backend alone may atomically "
+                    "materialize one sequential immutable V7-V9 candidate."
+                ),
+                command_surfaces=(
+                    operator_automation_minimum_size_preparation_surfaces
+                ),
+                action_classes=[
+                    row.action_class
+                    for row in operator_automation_minimum_size_preparation_rows
+                ],
+                required_permissions=[
+                    AdminApiPermission.ACCOUNT_REALITY_REFRESH,
+                    AdminApiPermission.AUTOMATION_CONFIGURE,
+                    AdminApiPermission.AUTOMATION_RESUME,
+                    AdminApiPermission.AUTOMATION_TRIGGER,
+                ],
+                identity_keys=[
+                    "goal_id",
+                    "candidate_execution_mode",
+                    "cycle_number",
+                    "definition_id",
+                    "plan_sha256",
+                ],
+                payload_binding_fields=[
+                    "route",
+                    "actor",
+                    "operator_intent",
+                    "acknowledgements",
+                    "idempotency_key",
+                    "correlation_id",
+                ],
+                idempotency_contract=(
+                    "required durable goal-global V7-V9 preparation-cycle claim; "
+                    "exact terminal replay is reader-free and changed request, "
+                    "actor, intent, or correlation identity conflicts"
+                ),
+                approval_contract=(
+                    "no order approval snapshot and zero Preview/Create authority; "
+                    "all fixed acknowledgements plus authenticated operator intent "
+                    "are required before the bounded read coordinator"
+                ),
+                cap_guard_contract=(
+                    "BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2 derives the "
+                    "smallest post-only quantized best-bid price and size under "
+                    "product minimums/increments, wallet and maker-fee evidence; "
+                    "submitted and fee-reserved dynamic execution caps are each "
+                    "strictly below 3.10 USDC"
+                ),
+                admission_audit_contract=(
+                    "durable goal-global cycle and ordered category claims persist "
+                    "only fixed minimum/increment/fee/wallet/freshness/cap "
+                    "classification, hashes, exact call accounting, and atomic "
+                    "immutable definition linkage"
+                ),
+                reconciliation_contract=(
+                    "not applicable during preparation; the route performs zero "
+                    "Preview, Create, Cancel, or other exchange mutation"
+                ),
+                owning_backend_service=(
+                    "application/admin_api/operator_automation.py::"
+                    "OperatorAutomationService"
+                ),
+                shared_command_service_method="prepare_minimum_size_candidate",
+                route_inventory_refs=[
+                    row.surface
+                    for row in operator_automation_minimum_size_preparation_rows
+                ],
+                backend_contract_refs=[
+                    "api/v1/routes/operator_automation.py",
+                    "application/admin_api/operator_spot_minimum_size_policy.py",
+                    "application/admin_api/operator_spot_minimum_size_preparation.py",
+                    "database/operator_automation.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    "src/features/operator-read-models/automation",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_SPOT_AUTOMATION_MINIMUM_SIZE_V7_V9.md",
+                ],
+                required_next_contract=(
+                    "The materialized candidate must be enabled and run explicitly; "
+                    "its separate eight-category eligibility, one-use Preview, "
+                    "Create, and safe-closeout claims remain mandatory."
+                ),
+                blockers=[],
+                frontend_boundary=(
+                    "The UI forwards acknowledgement literals only and cannot "
+                    "supply portfolio, price, size, cap, candidate identity, or "
+                    "Coinbase data."
+                ),
+                bff_boundary=(
+                    "The BFF forwards the one allowlisted request with server-held "
+                    "auth and never retries, redirects, derives terms, or acquires "
+                    "exchange authority."
+                ),
+                route_local_boundary=(
+                    "The route binds auth, four RBAC permissions, exact intent, "
+                    "acknowledgements, idempotency, and correlation before the typed "
+                    "coordinator; no Coinbase client is constructed in the route."
+                ),
+                spot_rule_boundary=(
+                    "The versioned BTC-USDC minimum-size rule is isolated to V7-V9 "
                     "single-child Spot Automation and cannot alter generic Spot, "
                     "Orders, Futures, or orchestration policy."
                 ),

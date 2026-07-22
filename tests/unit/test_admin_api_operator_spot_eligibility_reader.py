@@ -14,6 +14,7 @@ import pytest
 from application.admin_api.operator_spot_eligibility import (
     SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
     SPOT_ELIGIBILITY_NEAR_MARKET_V4_GOAL_KEY,
+    SPOT_ELIGIBILITY_MINIMUM_SIZE_V7_GOAL_KEY,
     SpotEligibilityReadContext,
     SpotEligibilityReadOutcome,
     SpotEligibilityRunContext,
@@ -245,6 +246,10 @@ def _plan(
     post_only: bool = False,
     base_size: str = "0.02",
     limit_price: str = "50",
+    max_possible_execution_notional_usdc: str = "1.00",
+    submitted_notional_usdc: str = "1.00",
+    possible_execution_notional_usdc: str = "1.00",
+    policy_revision: int = 2,
 ) -> SpotEligibilityPlanTerms:
     return SpotEligibilityPlanTerms(
         plan_sha256=PLAN_SHA256,
@@ -252,11 +257,14 @@ def _plan(
         side=side,
         base_size=base_size,
         limit_price=limit_price,
-        submitted_notional_usdc="1.00",
-        possible_execution_notional_usdc="1.00",
+        submitted_notional_usdc=submitted_notional_usdc,
+        possible_execution_notional_usdc=possible_execution_notional_usdc,
         max_submitted_notional_usdc="3.10",
-        max_possible_execution_notional_usdc="1.00",
+        max_possible_execution_notional_usdc=(
+            max_possible_execution_notional_usdc
+        ),
         post_only=post_only,
+        policy_revision=policy_revision,
     )
 
 
@@ -335,7 +343,12 @@ def test_near_market_reader_uses_documented_trade_snapshot_and_post_only_bid() -
     client = _StrictClient(best_bid="100", best_ask="101")
     reader = _reader(
         client,
-        plan=_plan(post_only=True, base_size="0.01", limit_price="100"),
+        plan=_plan(
+            post_only=True,
+            base_size="0.01",
+            limit_price="100",
+            policy_revision=3,
+        ),
         goal_key=SPOT_ELIGIBILITY_NEAR_MARKET_V4_GOAL_KEY,
     )
     context = _read_context(goal_key=SPOT_ELIGIBILITY_NEAR_MARKET_V4_GOAL_KEY)
@@ -352,11 +365,87 @@ def test_near_market_reader_uses_documented_trade_snapshot_and_post_only_bid() -
     assert [name for name, _kwargs in client.calls][-1] == "get_market_trades"
 
 
+def test_minimum_size_reader_preserves_dynamic_cap_and_trade_snapshot_policy() -> None:
+    client = _StrictClient(best_bid="100", best_ask="101")
+    reader = _reader(
+        client,
+        plan=_plan(
+            post_only=True,
+            base_size="0.01",
+            limit_price="100",
+            max_possible_execution_notional_usdc="1.01",
+            policy_revision=4,
+        ),
+        goal_key=SPOT_ELIGIBILITY_MINIMUM_SIZE_V7_GOAL_KEY,
+    )
+    context = _read_context(goal_key=SPOT_ELIGIBILITY_MINIMUM_SIZE_V7_GOAL_KEY)
+
+    results = [
+        reader.read_api_key_permissions(context),
+        reader.read_portfolio_catalog(context),
+        reader.read_account_wallet_balances(context),
+        reader.read_product_metadata(context),
+        reader.read_best_bid_ask(context),
+    ]
+
+    assert all(
+        result.outcome is SpotEligibilityReadOutcome.SUCCEEDED
+        for result in results
+    )
+    assert [name for name, _kwargs in client.calls][-1] == "get_market_trades"
+
+
+def test_minimum_size_reader_rejects_submitted_notional_at_strict_ceiling() -> None:
+    with pytest.raises(
+        ValueError,
+        match="^spot_eligibility_reader_plan_values_invalid$",
+    ):
+        _plan(
+            post_only=True,
+            base_size="0.031",
+            limit_price="100",
+            submitted_notional_usdc="3.10",
+            possible_execution_notional_usdc="3.09",
+            max_possible_execution_notional_usdc="3.09",
+            policy_revision=4,
+        )
+
+
+def test_minimum_size_reader_rejects_revision_two_ceiling_before_any_call() -> None:
+    client = _StrictClient()
+    revision_two_plan = _plan(
+        post_only=True,
+        base_size="0.031",
+        limit_price="100",
+        submitted_notional_usdc="3.10",
+        possible_execution_notional_usdc="3.09",
+        max_possible_execution_notional_usdc="3.09",
+        policy_revision=2,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="^spot_eligibility_reader_post_only_invalid$",
+    ):
+        _reader(
+            client,
+            plan=revision_two_plan,
+            goal_key=SPOT_ELIGIBILITY_MINIMUM_SIZE_V7_GOAL_KEY,
+        )
+
+    assert client.calls == []
+
+
 def test_near_market_reader_rejects_plan_above_current_same_snapshot_bid() -> None:
     client = _StrictClient(best_bid="99", best_ask="101")
     reader = _reader(
         client,
-        plan=_plan(post_only=True, base_size="0.01", limit_price="100"),
+        plan=_plan(
+            post_only=True,
+            base_size="0.01",
+            limit_price="100",
+            policy_revision=3,
+        ),
         goal_key=SPOT_ELIGIBILITY_NEAR_MARKET_V4_GOAL_KEY,
     )
     context = _read_context(goal_key=SPOT_ELIGIBILITY_NEAR_MARKET_V4_GOAL_KEY)

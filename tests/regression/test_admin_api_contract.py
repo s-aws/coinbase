@@ -1438,6 +1438,8 @@ def _append_manual_order_cap_guard_decision(
     payload_hash: str | None = None,
     allowed: bool = True,
     status: AdminApiGateStatus = AdminApiGateStatus.PASSED,
+    cap_policy_ref: str = "submitted_notional_cap:3.10",
+    max_executed_notional_usdc: str = "1.00",
 ) -> CapGuardDecisionRecord:
     record = CapGuardDecisionRecord(
         decision_id=approval.cap_guard_decision_ref,
@@ -1464,11 +1466,11 @@ def _append_manual_order_cap_guard_decision(
         admission_audit_id=audit_event.audit_id,
         allowed=allowed,
         status=status,
-        cap_policy_ref="submitted_notional_cap:3.10",
+        cap_policy_ref=cap_policy_ref,
         guard_policy_ref="action_condition_guard:manual_order",
         product_scope="BTC-USDC",
         max_submitted_notional_usdc="3.10",
-        max_executed_notional_usdc="1.00",
+        max_executed_notional_usdc=max_executed_notional_usdc,
         wallet_check_required=True,
         wallet_check_status=AdminApiGateStatus.PASSED,
         wallet_available_notional_usdc="3.10",
@@ -64840,8 +64842,22 @@ def test_admin_api_manual_order_route_retries_non_live_idempotency_after_admissi
 
 
 @pytest.mark.regression
+@pytest.mark.parametrize(
+    ("max_executed_notional_usdc", "cap_policy_ref", "accepted"),
+    [
+        ("1.00", "submitted_notional_cap:3.10", True),
+        (
+            "1.01",
+            "submitted_notional_cap:3.10;minimum_size_dynamic_execution_cap:1.01",
+            False,
+        ),
+    ],
+)
 def test_admin_api_manual_order_route_passes_backend_admission_to_command_service(
     monkeypatch,
+    max_executed_notional_usdc,
+    cap_policy_ref,
+    accepted,
 ):
     from api.v1.routes import orders as order_routes
 
@@ -64911,6 +64927,8 @@ def test_admin_api_manual_order_route_passes_backend_admission_to_command_servic
         idempotency_key=idempotency_key,
         operator_intent=operator_intent,
         payload_hash=payload_hash,
+        cap_policy_ref=cap_policy_ref,
+        max_executed_notional_usdc=max_executed_notional_usdc,
     )
     _append_manual_order_reconciliation_plan(
         store=client.admin_api_test_reconciliation_store,
@@ -64933,7 +64951,7 @@ def test_admin_api_manual_order_route_passes_backend_admission_to_command_servic
             decision_reason="Enable bounded manual order route admission.",
             live_coinbase_execution_approved=True,
             max_submitted_notional_usdc="3.10",
-            max_executed_notional_usdc="1.00",
+            max_executed_notional_usdc=max_executed_notional_usdc,
         )
     )
 
@@ -64944,11 +64962,22 @@ def test_admin_api_manual_order_route_passes_backend_admission_to_command_servic
     )
 
     payload = response.json()
+    if not accepted:
+        assert response.status_code == 400
+        assert command_service.commands == []
+        return
     assert response.status_code == 200
-    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["status"] == (
+        AdminApiCommandStatus.ACCEPTED.value
+        if accepted
+        else AdminApiCommandStatus.REJECTED.value
+    )
     assert payload["admission_decision"]["allowed"] is True
     assert payload["admission_decision"]["browser_authority"] == "backend_admin_api"
-    assert payload["data"]["allow_live_execution_seen"] is True
+    if accepted:
+        assert payload["data"]["allow_live_execution_seen"] is True
+    else:
+        assert payload["failure_stage"] == "cap_guard"
     assert payload["live_exchange_submitted"] is False
     assert payload["live_coinbase_orders_ran"] is False
     assert len(command_service.commands) == 1
@@ -75260,6 +75289,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "spot.usdc_pair_snapshot_allowlist_live_handoff",
         "automation.operator_control_plane",
         "automation.spot_near_market_preparation",
+        "automation.spot_minimum_size_preparation",
         "automation.spot_eligibility_refresh",
         "automation.spot_single_child_execution",
         "stealth.create",
@@ -75345,6 +75375,34 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         automation_near_market_taxonomy["cap_guard_contract"]
     )
     assert automation_near_market_taxonomy["blockers"] == []
+    automation_minimum_size_taxonomy = taxonomy_by_id[
+        "automation.spot_minimum_size_preparation"
+    ]
+    assert automation_minimum_size_taxonomy["mutation_family"] == (
+        AdminApiMutationFamilyType.ADMIN_ACCOUNT_REALITY_REFRESH.value
+    )
+    assert automation_minimum_size_taxonomy["action_classes"] == [
+        AdminApiActionClass.LOCAL_STATE_MUTATION.value
+    ]
+    assert set(automation_minimum_size_taxonomy["required_permissions"]) == {
+        AdminApiPermission.ACCOUNT_REALITY_REFRESH.value,
+        AdminApiPermission.AUTOMATION_CONFIGURE.value,
+        AdminApiPermission.AUTOMATION_RESUME.value,
+        AdminApiPermission.AUTOMATION_TRIGGER.value,
+    }
+    assert automation_minimum_size_taxonomy["command_surfaces"] == [
+        "POST /api/v1/automation/minimum-size-candidates"
+    ]
+    assert automation_minimum_size_taxonomy["approval_required"] is False
+    assert automation_minimum_size_taxonomy["cap_guard_required"] is True
+    assert automation_minimum_size_taxonomy["reconciliation_required"] is False
+    assert automation_minimum_size_taxonomy["live_adapter_required"] is False
+    assert automation_minimum_size_taxonomy["live_coinbase_execution"] == "not_run"
+    assert "six approved read-only" in automation_minimum_size_taxonomy["summary"]
+    assert "BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2" in (
+        automation_minimum_size_taxonomy["cap_guard_contract"]
+    )
+    assert automation_minimum_size_taxonomy["blockers"] == []
     automation_eligibility_taxonomy = taxonomy_by_id[
         "automation.spot_eligibility_refresh"
     ]

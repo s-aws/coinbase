@@ -65,6 +65,7 @@ def _definition(*, state: str = "DRAFT") -> dict[str, Any]:
         "job_kind": "SPOT_SWEEP",
         "product_ids": ["BTC-USDC"],
         "lifecycle_state": state,
+        "minimum_size_preparation": None,
         "schedule": {
             "mode": "MANUAL_ONLY",
             "interval_minutes": None,
@@ -287,6 +288,81 @@ class _FakeRepository:
                 "coinbase_api_call_count": 6,
                 "call_count_exact": True,
                 "definition": definition,
+                "preview_call_count": 0,
+                "create_call_count": 0,
+                "cancel_call_count": 0,
+            },
+            kwargs["context"].correlation_id,
+        )
+
+    def prepare_minimum_size_candidate(
+        self,
+        **kwargs: Any,
+    ) -> AutomationRepositoryMutation:
+        self._record("prepare_minimum_size_candidate", **kwargs)
+        definition = _definition()
+        definition.update(
+            {
+                "display_name": "BTC-USDC minimum-size successor V7",
+                "job_kind": "SPOT_CAMPAIGN",
+                "spot_execution_mode": "MINIMUM_SIZE_POST_ONLY_V7",
+                "minimum_size_preparation": {
+                    "policy_revision": (
+                        "BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2"
+                    ),
+                    "boundary_classification": (
+                        "minimum_size_v4_fee_reserve_conflict"
+                    ),
+                    "cycle_number": 1,
+                    "completed_categories": [
+                        "api_key_permissions",
+                        "portfolio_catalog",
+                        "wallet_balances",
+                        "product_metadata",
+                        "best_bid_ask",
+                        "fee_summary",
+                    ],
+                    "coinbase_api_call_count": 6,
+                    "call_count_exact": True,
+                    "max_submitted_notional_usdc": "3.10",
+                    "max_possible_execution_notional_usdc": "1.01",
+                },
+                "single_child_order": {
+                    "side": "BUY",
+                    "base_size": "0.00001",
+                    "limit_price": "100000.00",
+                    "order_type": "LIMIT",
+                    "time_in_force": "GOOD_UNTIL_CANCELLED",
+                    "post_only": True,
+                },
+            }
+        )
+        return self._mutation(
+            {
+                "outcome": "MATERIALIZED",
+                "candidate_version": 7,
+                "spot_execution_mode": "MINIMUM_SIZE_POST_ONLY_V7",
+                "cycle_number": 1,
+                "policy_revision": (
+                    "BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2"
+                ),
+                "boundary_classification": (
+                    "minimum_size_v4_fee_reserve_conflict"
+                ),
+                "diagnostic_code": "minimum_size_v4_fee_reserve_conflict",
+                "completed_categories": [
+                    "api_key_permissions",
+                    "portfolio_catalog",
+                    "wallet_balances",
+                    "product_metadata",
+                    "best_bid_ask",
+                    "fee_summary",
+                ],
+                "coinbase_api_call_count": 6,
+                "call_count_exact": True,
+                "definition": definition,
+                "max_submitted_notional_usdc": "3.10",
+                "max_possible_execution_notional_usdc": "1.01",
                 "preview_call_count": 0,
                 "create_call_count": 0,
                 "cancel_call_count": 0,
@@ -969,6 +1045,39 @@ def test_near_market_candidate_route_requires_explicit_backend_derived_acknowled
     )
     assert rejected.status_code == 422
     assert repository.calls == []
+
+
+def test_minimum_size_candidate_route_requires_dynamic_cap_acknowledgement(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repository = _FakeRepository()
+    monkeypatch.setattr(
+        operator_automation_routes,
+        "build_admin_api_command_runtime_readiness",
+        lambda: SimpleNamespace(runtime_ready=True),
+    )
+    body = {
+        "confirm_backend_derived_terms": True,
+        "confirm_one_no_retry_preparation_cycle": True,
+        "confirm_btc_usdc_test_portfolio_scope": True,
+        "confirm_dynamic_cap_strictly_below_3_10": True,
+        "confirm_unknown_consumes_cycle": True,
+        "reason": "Prepare one exact minimum-size successor",
+    }
+    response = _client(repository).post(
+        "/api/v1/automation/minimum-size-candidates",
+        json=body,
+        headers=_headers(
+            operator_intent="prepare_automation_minimum_size_candidate"
+        ),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["candidate_version"] == 7
+    assert payload["max_possible_execution_notional_usdc"] == "1.01"
+    assert payload["preview_call_count"] == 0
+    assert repository.calls[-1][0] == "prepare_minimum_size_candidate"
 
 
 @pytest.mark.parametrize(

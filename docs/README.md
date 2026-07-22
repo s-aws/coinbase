@@ -5,6 +5,22 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 ## Project Entry
 
 The active successor goal is
+`operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`.
+Status: `readiness_complete_operator_action_pending`. Current action:
+`execute_first_valid_v7_v9_successor`.
+Default action: `complete_readiness_then_execute_first_valid_v7_v9_successor`.
+The backend-owned `BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2` policy,
+six-category preparation, eight-category eligibility, fixed sanitized boundary
+classification, and strict below-3.10 dynamic cap are documented in
+[`OPERATOR_SPOT_AUTOMATION_MINIMUM_SIZE_V7_V9.md`](OPERATOR_SPOT_AUTOMATION_MINIMUM_SIZE_V7_V9.md).
+Goal-global cycles are `0/10`; Preview/Create/Cancel calls are `0/0/0`, and all
+allowances remain unconsumed. Complete backend/frontend gates, installed
+deployment validation, and independent safety plus blind-contextless code
+audits pass; the authenticated operator action is next.
+
+### V4 near-market predecessor entry
+
+The active successor goal is
 `operator_spot_automation_near_market_policy_and_successor_proof_v4_v6`.
 Status: `complete_terminal_no_valid_size`. Current action:
 `complete_v4_no_valid_size_preview_create_cancel_unconsumed`.

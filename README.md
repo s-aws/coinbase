@@ -14,6 +14,27 @@ plans.
 ## Current MVP Goal
 
 Goal
+`operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`
+is active at `readiness_complete_operator_action_pending`. Current action:
+`execute_first_valid_v7_v9_successor`.
+Default action: `complete_readiness_then_execute_first_valid_v7_v9_successor`.
+
+The backend-owned successor policy
+`BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2` derives the smallest valid
+post-only fresh Get Market Trades best-bid candidate for the approved Test
+portfolio and BTC-USDC. It uses fixed sanitized minimum/increment/fee/wallet/
+freshness/cap classifications and a submitted plus fee-reserved dynamic cap
+strictly below 3.10 USDC. Six-category preparation and eight-category run
+eligibility share `0/10` durable no-retry cycles. Preview/Create/Cancel calls
+are `0/0/0`; all allowances remain unconsumed. The full backend gate passed
+with `1209 passed, 6 skipped` parallel and `685 passed, 150 skipped` serial;
+the canonical frontend release gate and installed deployment validation pass,
+and the independent safety plus blind-contextless code audits found no code
+boundary requiring remediation. The authenticated operator action is next.
+
+### V4 near-market predecessor closeout
+
+Goal
 `operator_spot_automation_near_market_policy_and_successor_proof_v4_v6`
 is complete at `complete_terminal_no_valid_size`. Current action:
 `complete_v4_no_valid_size_preview_create_cancel_unconsumed`.

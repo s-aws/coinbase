@@ -339,6 +339,19 @@ class SpotAutomationAdmissionError(RuntimeError):
     """Fixed, value-blind rejection for invalid typed Automation evidence."""
 
 
+def _ordinary_manual_order_uses_dynamic_cap(command: ManualOrderCommand) -> bool:
+    """Detect the proof-only cap expansion outside typed Automation."""
+
+    try:
+        executed = Decimal(str(command.admin_max_executed_notional_usdc))
+    except (ArithmeticError, TypeError, ValueError):
+        return False
+    return bool(
+        executed.is_finite()
+        and executed > OPERATOR_MVP_MAX_EXECUTED_NOTIONAL_USDC
+    )
+
+
 @dataclass(frozen=True, slots=True, repr=False)
 class SpotProfileAdmissionLease:
     """Unforgeable, thread-bound capability for one active profile claim."""
@@ -632,9 +645,13 @@ class ValidatedSpotAutomationOwnershipEvidence:
         )
         if (
             type(self.policy_revision) is not int
-            or self.policy_revision not in {2, 3}
+            or self.policy_revision not in {2, 3, 4}
             or self.standing_price_policy
-            not in {"STANDARD_STANDING_V2", "NEAR_MARKET_POST_ONLY_V1"}
+            not in {
+                "STANDARD_STANDING_V2",
+                "NEAR_MARKET_POST_ONLY_V1",
+                "NEAR_MARKET_POST_ONLY_MINIMUM_SIZE_V2",
+            }
             or (
                 self.policy_revision == 2
                 and (
@@ -649,6 +666,15 @@ class ValidatedSpotAutomationOwnershipEvidence:
                     or self.side != OrderSide.BUY.value
                     or self.standing_price_policy
                     != "NEAR_MARKET_POST_ONLY_V1"
+                )
+            )
+            or (
+                self.policy_revision == 4
+                and (
+                    self.post_only is not True
+                    or self.side != OrderSide.BUY.value
+                    or self.standing_price_policy
+                    != "NEAR_MARKET_POST_ONLY_MINIMUM_SIZE_V2"
                 )
             )
         ):
@@ -691,6 +717,8 @@ class ValidatedSpotAutomationAdmissionEvidence(
     wallet_evidence: SpotAutomationWalletEvidence
     market_evidence: SpotAutomationMarketEvidence
     zero_active_order_evidence: SpotAutomationZeroActiveOrderEvidence
+    max_submitted_notional_usdc: Decimal
+    max_possible_execution_notional_usdc: Decimal
 
     def __post_init__(self) -> None:
         super(ValidatedSpotAutomationAdmissionEvidence, self).__post_init__()
@@ -703,6 +731,35 @@ class ValidatedSpotAutomationAdmissionEvidence(
             SpotAutomationZeroActiveOrderEvidence,
         ):
             raise ValueError("spot_automation_active_order_evidence_invalid")
+        _require_positive_automation_decimal(
+            self.max_submitted_notional_usdc,
+            code="spot_automation_submitted_cap_invalid",
+        )
+        _require_positive_automation_decimal(
+            self.max_possible_execution_notional_usdc,
+            code="spot_automation_execution_cap_invalid",
+        )
+        if (
+            self.max_submitted_notional_usdc
+            != OPERATOR_MVP_MAX_SUBMITTED_NOTIONAL_USDC
+            or self.max_possible_execution_notional_usdc
+            >= OPERATOR_MVP_MAX_SUBMITTED_NOTIONAL_USDC
+            or (
+                self.policy_revision in {2, 3}
+                and self.max_possible_execution_notional_usdc
+                != OPERATOR_MVP_MAX_EXECUTED_NOTIONAL_USDC
+            )
+            or (
+                self.policy_revision == 4
+                and (
+                    self.base_size * self.limit_price
+                    >= self.max_submitted_notional_usdc
+                    or self.base_size * self.limit_price
+                    > self.max_possible_execution_notional_usdc
+                )
+            )
+        ):
+            raise ValueError("spot_automation_cap_policy_invalid")
         if any(
             evidence.fresh_until < self.fresh_until
             for evidence in (
@@ -797,8 +854,8 @@ def _require_current_spot_automation_admission(
         or evidence.base_size != requested_size
         or evidence.limit_price != requested_price
         or evidence.post_only is not post_only
-        or submitted_cap != OPERATOR_MVP_MAX_SUBMITTED_NOTIONAL_USDC
-        or executed_cap != OPERATOR_MVP_MAX_EXECUTED_NOTIONAL_USDC
+        or submitted_cap != evidence.max_submitted_notional_usdc
+        or executed_cap != evidence.max_possible_execution_notional_usdc
         or not command.admin_approval_snapshot_id
         or not command.admin_cap_guard_decision_id
         or not command.admission_audit_id
@@ -809,7 +866,10 @@ def _require_current_spot_automation_admission(
         quote_currency if normalized_side == OrderSide.BUY.value else base_currency
     )
     required_amount = (
-        requested_size * requested_price
+        evidence.max_possible_execution_notional_usdc
+        if normalized_side == OrderSide.BUY.value
+        and evidence.policy_revision == 4
+        else requested_size * requested_price
         if normalized_side == OrderSide.BUY.value
         else requested_size
     )
@@ -4640,6 +4700,21 @@ class AdminApiCommandService:
 
         deps = self.dependencies
         client_order_id = command.request.client_order_id or deps.uuid_factory()
+        if (
+            automation_admission is None
+            and command.order_configuration_override is None
+            and _ordinary_manual_order_uses_dynamic_cap(command)
+        ):
+            return self._place_rejected(
+                command=command,
+                client_order_id=client_order_id,
+                message=(
+                    "Dynamic execution caps require exact policy-revision-4 "
+                    "Spot Automation admission evidence."
+                ),
+                data={"blocker": "manual_order_dynamic_cap_forbidden"},
+                failure_stage="cap_guard",
+            )
         # Admin API requests have no order-configuration override, so this
         # guard prevents their typed intent from being rewritten into another
         # Coinbase configuration.  The historical dashboard compatibility
@@ -5085,7 +5160,10 @@ class AdminApiCommandService:
                 near_market_automation = bool(
                     automation_admission is not None
                     and automation_admission.standing_price_policy
-                    == "NEAR_MARKET_POST_ONLY_V1"
+                    in {
+                        "NEAR_MARKET_POST_ONLY_V1",
+                        "NEAR_MARKET_POST_ONLY_MINIMUM_SIZE_V2",
+                    }
                 )
                 standing_price_limit_evidence = (
                     evaluate_near_market_post_only_limit(
