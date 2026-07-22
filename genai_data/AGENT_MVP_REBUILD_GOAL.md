@@ -5,12 +5,12 @@ Goal ID:
 
 Last reviewed: 2026-07-22 UTC.
 
-Status: `materialization_unknown_cycle_6_legacy_cap_schema_remediation_in_progress`.
+Status: `complete_terminal_eligibility_cycles_exhausted_v7`.
 
 Current action:
-`validate_deploy_then_execute_distinct_cycle_7`.
+`complete_v7_cycle_10_best_bid_ask_rejected_preview_create_cancel_unconsumed`.
 
-Default action: `complete_readiness_then_execute_first_valid_v7_v9_successor`.
+Default action: `await_operator_direction_for_next_mvp`.
 
 The backend-owned `BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2` policy is
 restricted to the approved Test portfolio, BTC-USDC, one child, and V7-V9. It
@@ -18,15 +18,12 @@ derives the smallest valid post-only fresh Get Market Trades best-bid terms,
 submitted notional, and fee-reserved dynamic execution cap, with both caps
 strictly below 3.10 USDC. Product minimum, increment, fee, wallet, freshness,
 and cap failures use fixed sanitized classifications. Six-category preparation
-and eight-category run eligibility share `6/10` durable no-retry cycles.
+and eight-category run eligibility share `10/10` durable no-retry cycles.
 Cycles 1–5 remain immutable generic
 `automation_minimum_size_preparation_unknown` records with zero completed
 categories and exact call count withheld; the first approved category was not
 confirmed. Cycle 3 exposed an unprotected REST-client method lookup, and cycle
-4 exposed response processing outside the fixed stage envelope. Cycle 5 remained generic after both fixes. The deployed outer-boundary split classified cycle 6 as `automation_minimum_size_materialization_unknown` after all six read categories completed. Schema-only inspection localized a concrete materialization blocker: two obsolete fixed-1.00-USDC PostgreSQL CHECK constraints remained active beside the dynamic-cap constraints. The current remediation removes only those legacy constraints and proves a synthetic 1.01-USDC dynamic-cap row survives startup migration. Preview/Create/Cancel calls are
-`0/0/0`; all those allowances remain unconsumed. Prior readiness gates passed;
-the schema remediation still requires focused/full validation, deployment, and
-both independent audits before distinct cycle 7.
+4 exposed response processing outside the fixed stage envelope. Cycle 5 remained generic after both fixes. The deployed outer-boundary split classified cycle 6 as `automation_minimum_size_materialization_unknown` after all six read categories completed. Schema-only inspection localized a concrete materialization blocker: two obsolete fixed-1.00-USDC PostgreSQL CHECK constraints remained active beside the dynamic-cap constraints. The completed migration removed only those legacy constraints and proved a synthetic 1.01-USDC dynamic-cap row survives startup migration. Cycle 7 materialized V7; cycles 8–10 each stopped at Get Market Trades `BEST_BID_ASK` after four successful categories and five exact reads. Backend readback is terminal at `automation_spot_eligibility_cycles_exhausted` with no action. Preview/Create/Cancel calls are `0/0/0`; all allowances remain unconsumed, no child exists, and V8–V9 were not created.
 
 ## V4 near-market predecessor closeout
 

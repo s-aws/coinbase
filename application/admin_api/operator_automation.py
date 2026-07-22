@@ -1465,6 +1465,27 @@ class PostgresOperatorAutomationRepositoryAdapter:
             or not preview_allowance_consumed
             or preview_goal.preview_call_count_exact
         )
+        goal_latest_cycle = max(
+            (int(cycle.cycle_number) for cycle in cycles),
+            default=0,
+        )
+        eligibility_cycles_exhausted = bool(
+            goal_latest_cycle >= 10
+            and spot_goal_key in _SPOT_PREVIEW_GOAL_KEYS
+            and record.state is AutomationRunState.BLOCKED
+            and record.diagnostic_code
+            == "automation_spot_eligibility_refresh_required"
+            and execution is None
+            and not record.live_attempt_consumed
+            and not preview_allowance_consumed
+        )
+        effective_diagnostic_code = (
+            "automation_spot_eligibility_cycles_exhausted"
+            if eligibility_cycles_exhausted
+            else record.diagnostic_code
+        )
+        if eligibility_cycles_exhausted and eligibility is not None:
+            eligibility["blocker_code"] = effective_diagnostic_code
         call_count_exact = bool(
             eligibility_lifetime_call_count_exact
             and preview_call_count_exact
@@ -1627,7 +1648,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
             and execution is None
             and not record.live_attempt_consumed
             and not preview_allowance_consumed
-            and len(cycles) < 10
+            and goal_latest_cycle < 10
             and not any(cycle.state == "OPEN" for cycle in cycles)
         )
 
@@ -1638,7 +1659,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
             "job_kind": str(getattr(record.job_kind, "value", record.job_kind)),
             "trigger": "ONE_SHOT",
             "state": state_value,
-            "diagnostic_code": record.diagnostic_code,
+            "diagnostic_code": effective_diagnostic_code,
             "adapter_status": adapter_status,
             "live_execution_available": live_execution_available,
             "live_attempt_consumed": record.live_attempt_consumed,

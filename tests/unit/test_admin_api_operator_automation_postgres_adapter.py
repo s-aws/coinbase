@@ -729,6 +729,41 @@ def test_minimum_size_run_readback_preserves_the_persisted_dynamic_cap():
     assert item.single_child_plan.max_possible_execution_notional_usdc == "1.01"
 
 
+def test_minimum_size_cycle_ten_rejection_is_exhausted_not_refreshable():
+    raw = _RawRepository()
+    raw.spot_goal_key = AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY
+    raw.plan = replace(
+        _plan(),
+        base_size="0.00002",
+        limit_price="50500",
+        submitted_notional_usdc="1.01",
+        possible_execution_notional_usdc="1.01",
+        max_possible_execution_notional_usdc="1.01",
+        post_only=True,
+    )
+    raw.current_run = _run(
+        state=OperatorAutomationRunState.BLOCKED,
+        diagnostic_code="automation_spot_eligibility_refresh_required",
+        job_kind=OperatorAutomationJobKind.SPOT_CAMPAIGN,
+    )
+    raw.cycles = (
+        replace(
+            _eligibility_cycle(cycle_number=10),
+            goal_key=AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY,
+        ),
+    )
+
+    projected = PostgresOperatorAutomationRepositoryAdapter(raw).get_run(RUN_ID)
+    item = AutomationRunItem.model_validate(projected)
+
+    assert item.state is OperatorAutomationRunState.BLOCKED
+    assert item.diagnostic_code == "automation_spot_eligibility_cycles_exhausted"
+    assert item.allowed_actions == []
+    assert item.preview_allowance_consumed is False
+    assert item.create_allowance_consumed is False
+    assert item.cancel_allowance_consumed is False
+
+
 def test_campaign_claim_prepares_then_blocks_before_calls_when_open_order_read_is_unauthorized():
     raw = _RawRepository()
     raw.plan = _plan()

@@ -125,7 +125,10 @@ _DEFINITION_ALLOWED_ACTIONS = frozenset(
 _CONTROL_ALLOWED_ACTIONS = frozenset({"PAUSE", "RESUME", "DRAIN", "SHUTDOWN"})
 AUTOMATION_SPOT_SINGLE_CHILD_SUCCESSOR_DIAGNOSTICS = {
     AutomationRunState.BLOCKED: frozenset(
-        {"automation_spot_eligibility_refresh_required"}
+        {
+            "automation_spot_eligibility_refresh_required",
+            "automation_spot_eligibility_cycles_exhausted",
+        }
     ),
     AutomationRunState.ACTIVE: frozenset(
         {

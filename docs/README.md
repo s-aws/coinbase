@@ -6,15 +6,15 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 
 The active successor goal is
 `operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`.
-Status: `materialization_unknown_cycle_6_legacy_cap_schema_remediation_in_progress`.
-Current action: `validate_deploy_then_execute_distinct_cycle_7`.
-Default action: `complete_readiness_then_execute_first_valid_v7_v9_successor`.
+Status: `complete_terminal_eligibility_cycles_exhausted_v7`.
+Current action: `complete_v7_cycle_10_best_bid_ask_rejected_preview_create_cancel_unconsumed`.
+Default action: `await_operator_direction_for_next_mvp`.
 The backend-owned `BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2` policy,
 six-category preparation, eight-category eligibility, fixed sanitized boundary
 classification, and strict below-3.10 dynamic cap are documented in
 [`OPERATOR_SPOT_AUTOMATION_MINIMUM_SIZE_V7_V9.md`](OPERATOR_SPOT_AUTOMATION_MINIMUM_SIZE_V7_V9.md).
 Get Market Trades supplies the same-snapshot price and freshness evidence.
-Goal-global cycles are `6/10`; cycles 1–5 remain immutable generic
+Goal-global cycles are `10/10`; cycles 1–5 remain immutable generic
 `automation_minimum_size_preparation_unknown` records with zero completed
 categories and conservatively withheld exact call count. The first approved
 category was not confirmed. Cycle 3 exposed an unprotected REST-client method
@@ -23,12 +23,13 @@ envelope. The deployed outer-boundary split classified cycle 6 as
 `automation_minimum_size_materialization_unknown` after all six read
 categories completed. Schema-only inspection localized two obsolete fixed-
 1.00-USDC PostgreSQL CHECK constraints beside the dynamic-cap constraints.
-The current migration removes only those legacy checks.
-Preview/Create/Cancel calls are `0/0/0`, and all those allowances remain
-unconsumed. Complete backend/frontend gates, installed
-deployment validation, and independent safety plus blind-contextless code
-audits passed for the prior readiness checkpoint; the schema remediation must
-pass those gates before distinct cycle 7.
+The completed migration removed only those legacy checks. Cycle 7 materialized
+immutable V7 with a 1.01-USDC dynamic cap. Cycles 8–10 each used five exact
+reads and stopped at Get Market Trades `BEST_BID_ASK` after four successful
+categories. Backend readback is terminal at
+`automation_spot_eligibility_cycles_exhausted` with no action.
+Preview/Create/Cancel calls are `0/0/0`; all allowances remain unconsumed, no
+child exists, and V8–V9 were not created.
 
 ### V4 near-market predecessor entry
 

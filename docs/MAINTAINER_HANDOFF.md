@@ -7,13 +7,13 @@ working on the enterprise admin platform.
 
 Goal
 `operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`
-is active at `materialization_unknown_cycle_6_legacy_cap_schema_remediation_in_progress`.
-Current action: `validate_deploy_then_execute_distinct_cycle_7`.
-Default action: `complete_readiness_then_execute_first_valid_v7_v9_successor`.
+is complete at `complete_terminal_eligibility_cycles_exhausted_v7`.
+Current action: `complete_v7_cycle_10_best_bid_ask_rejected_preview_create_cancel_unconsumed`.
+Default action: `await_operator_direction_for_next_mvp`.
 Policy `BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2` is backend-owned and
 derives the smallest valid post-only fresh Get Market Trades best-bid terms and
 fee-reserved execution cap strictly below 3.10 USDC. Six-category preparation
-and eight-category eligibility share `6/10` durable no-retry cycles. Cycles
+and eight-category eligibility share `10/10` durable no-retry cycles. Cycles
 1–5 remain immutable generic `automation_minimum_size_preparation_unknown`
 records with zero completed categories and conservatively withheld exact call
 count; the first approved category was not confirmed. Cycle 3 exposed an
@@ -22,14 +22,13 @@ outside the fixed stage envelope. The deployed outer-boundary split classified
 cycle 6 as `automation_minimum_size_materialization_unknown` after all six
 read categories completed. Schema-only inspection localized two obsolete
 fixed-1.00-USDC PostgreSQL CHECK constraints beside the dynamic-cap
-constraints. The current migration removes only those legacy checks.
-Preview/Create/Cancel calls are
-`0/0/0`; all those allowances remain unconsumed.
-The complete backend regression, canonical frontend release gate, installed
-deployment checks, and independent safety plus blind-contextless code audits
-passed for the prior readiness checkpoint. The schema remediation must pass focused
-and full validation, installed deployment checks, and both audits before
-distinct cycle 7. See
+constraints. The completed migration removed only those legacy checks. Cycle
+7 materialized V7 with the dynamic 1.01-USDC cap. Cycles 8–10 each used five
+exact reads and stopped at Get Market Trades `BEST_BID_ASK` after four
+successful categories. The terminal backend readback is
+`automation_spot_eligibility_cycles_exhausted` with no action.
+Preview/Create/Cancel calls are `0/0/0`; all allowances remain unconsumed, no
+child exists, and V8–V9 were not created. See
 [Operator Spot Automation Minimum Size V7-V9](OPERATOR_SPOT_AUTOMATION_MINIMUM_SIZE_V7_V9.md).
 
 ### V4 near-market predecessor handoff

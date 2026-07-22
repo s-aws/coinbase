@@ -1040,7 +1040,10 @@ def test_safe_closeout_request_is_exact_run_only():
 def test_successor_diagnostic_vocabulary_is_fixed_and_value_blind():
     assert AUTOMATION_SPOT_SINGLE_CHILD_SUCCESSOR_DIAGNOSTICS == {
         AutomationRunState.BLOCKED: frozenset(
-            {"automation_spot_eligibility_refresh_required"}
+            {
+                "automation_spot_eligibility_refresh_required",
+                "automation_spot_eligibility_cycles_exhausted",
+            }
         ),
         AutomationRunState.ACTIVE: frozenset(
             {

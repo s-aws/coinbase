@@ -6,11 +6,11 @@ implicit platform model.
 
 Active bounded proof goal
 `operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`
-is `materialization_unknown_cycle_6_legacy_cap_schema_remediation_in_progress`. Current
-action: `validate_deploy_then_execute_distinct_cycle_7`. Default action:
-`complete_readiness_then_execute_first_valid_v7_v9_successor`. The Automation
+is `complete_terminal_eligibility_cycles_exhausted_v7`. Current action:
+`complete_v7_cycle_10_best_bid_ask_rejected_preview_create_cancel_unconsumed`. Default action:
+`await_operator_direction_for_next_mvp`. The Automation
 domain owns policy `BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2`, six-category
-preparation and eight-category eligibility with `6/10` shared no-retry cycles.
+preparation and eight-category eligibility with `10/10` shared no-retry cycles.
 Get Market Trades supplies same-snapshot market evidence. Cycles 1–5 remain
 immutable generic `automation_minimum_size_preparation_unknown` records with
 zero completed categories and exact call count withheld; the first approved
@@ -20,11 +20,13 @@ envelope. The deployed outer-boundary split classified cycle 6 as
 `automation_minimum_size_materialization_unknown` after all six read
 categories completed. Schema-only inspection localized two obsolete fixed-
 1.00-USDC PostgreSQL CHECK constraints beside the dynamic-cap constraints.
-The current migration removes only those legacy checks.
-Preview/Create/Cancel calls are `0/0/0`; all those successor allowances remain
-unconsumed. Prior readiness gates passed; the remediation must pass focused and
-full validation, deployment, and both independent audits before distinct
-cycle 7.
+The completed migration removed only those legacy checks. Cycle 7 materialized
+V7 with the dynamic 1.01-USDC cap. Cycles 8–10 each used five exact reads and
+stopped at Get Market Trades `BEST_BID_ASK` after four successful categories.
+Backend readback is terminal at
+`automation_spot_eligibility_cycles_exhausted` with no action.
+Preview/Create/Cancel calls are `0/0/0`; all successor allowances remain
+unconsumed, no child exists, and V8–V9 were not created.
 
 Status: `complete`.
 
