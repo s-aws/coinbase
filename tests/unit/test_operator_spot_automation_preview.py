@@ -4,11 +4,19 @@ from importlib.metadata import version
 from types import SimpleNamespace
 
 from coinbase.rest.types.orders_types import PreviewOrderResponse
+from requests import Response
+from requests.exceptions import (
+    HTTPError,
+    JSONDecodeError as RequestsJSONDecodeError,
+    Timeout,
+    TooManyRedirects,
+)
 
 from application.admin_api.operator_spot_automation_preview import (
     SpotAutomationPreviewFailureClass,
     SpotAutomationPreviewOutcome,
     SpotAutomationPreviewRejectionCode,
+    classify_spot_automation_preview_exception,
     classify_spot_automation_preview_response,
     unknown_spot_automation_preview_classification,
 )
@@ -243,3 +251,70 @@ def test_transport_unknown_withholds_the_exact_wire_call_count() -> None:
     assert result.outcome is SpotAutomationPreviewOutcome.UNKNOWN
     assert result.preview_call_count is None
     assert result.preview_call_count_exact is False
+
+
+def _response_exception(
+    exception_type: type[HTTPError] | type[TooManyRedirects],
+    status_code: int,
+) -> Exception:
+    response = Response()
+    response.status_code = status_code
+    response._content = b"withheld-private-response"
+    return exception_type("withheld-private-exception", response=response)
+
+
+def test_http_response_failures_are_exact_fixed_value_blind_boundaries() -> None:
+    expected = (
+        (HTTPError, 400, SpotAutomationPreviewFailureClass.HTTP_CLIENT_RESPONSE),
+        (HTTPError, 500, SpotAutomationPreviewFailureClass.HTTP_SERVER_RESPONSE),
+        (
+            TooManyRedirects,
+            302,
+            SpotAutomationPreviewFailureClass.HTTP_REDIRECT_RESPONSE,
+        ),
+    )
+
+    for exception_type, status_code, failure_class in expected:
+        result = classify_spot_automation_preview_exception(
+            _response_exception(exception_type, status_code)
+        )
+
+        assert result.outcome is SpotAutomationPreviewOutcome.UNKNOWN
+        assert result.failure_class is failure_class
+        assert result.preview_call_count == 1
+        assert result.preview_call_count_exact is True
+        assert "withheld" not in repr(result)
+
+
+def test_transport_exception_remains_inexact_and_value_blind() -> None:
+    result = classify_spot_automation_preview_exception(
+        Timeout("withheld-private-exception")
+    )
+
+    assert result.outcome is SpotAutomationPreviewOutcome.UNKNOWN
+    assert (
+        result.failure_class
+        is SpotAutomationPreviewFailureClass.TRANSPORT_UNKNOWN
+    )
+    assert result.preview_call_count is None
+    assert result.preview_call_count_exact is False
+    assert "withheld" not in repr(result)
+
+
+def test_response_json_decode_failure_is_exact_schema_invalid_evidence() -> None:
+    result = classify_spot_automation_preview_exception(
+        RequestsJSONDecodeError(
+            "withheld-private-exception",
+            "withheld-private-response",
+            0,
+        )
+    )
+
+    assert result.outcome is SpotAutomationPreviewOutcome.UNKNOWN
+    assert (
+        result.failure_class
+        is SpotAutomationPreviewFailureClass.RESPONSE_SCHEMA_INVALID
+    )
+    assert result.preview_call_count == 1
+    assert result.preview_call_count_exact is True
+    assert "withheld" not in repr(result)

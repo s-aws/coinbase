@@ -3,17 +3,21 @@
 ## Active V10-V12 atomic-snapshot goal
 
 `operator_spot_automation_atomic_market_snapshot_binding_and_successor_proof_v10_v12`
-keeps the V10-V12 goal active at V11. V10 completed eight exact reads,
-atomically bound its final terms, and consumed its Preview at terminal
-`TRANSPORT_UNKNOWN`; Create and Cancel remain unconsumed with zero calls.
+keeps the V10-V12 goal active at V12. V10 and V11 each completed eight exact
+reads, atomically bound final terms, and consumed one distinct Preview at
+terminal `TRANSPORT_UNKNOWN`; Create and Cancel remain unconsumed with zero
+calls.
 Backend policy revision 5 derives final
 price, size, fee-reserved cap, plan/child identities, evidence, and the
 single-use Preview claim from one fresh documented Get Market Trades snapshot
 and commits them with the eight-read ledger in one PostgreSQL transaction.
 The canonical command service independently requires post-only BUY at the
 exact same-snapshot bid and both actual notionals strictly below 3.10 USDC.
-The generated Admin UI sends acknowledgements only. V11 is a distinct
-successor rather than a V10 retry. See
+The V12 correction uses the pinned SDK exception type and response status
+family only: client, server, and blocked-redirect responses prove one exact
+Preview call without inspecting the message or body; all other invocation
+exceptions remain inexact `TRANSPORT_UNKNOWN`. The generated Admin UI sends
+acknowledgements only. V12 is distinct rather than a V10 or V11 retry. See
 [Operator Spot Automation Atomic Market Snapshot V10-V12](OPERATOR_SPOT_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_V10_V12.md).
 
 This guide is the backend entry point for maintainers and contextless agents

@@ -5202,6 +5202,146 @@ def test_preview_claim_is_single_use_and_rejection_leaves_create_unconsumed(
     assert terminal.create_call_count == 0
 
 
+def test_preview_http_client_response_is_exact_value_blind_terminal_evidence(
+    repository_harness: _Harness,
+) -> None:
+    repository = repository_harness.repository()
+    _seal_rejected_predecessor(repository, "preview-http-predecessor")
+    definition = repository.create_definition(
+        _definition_command("preview-http-successor", product_ids=("BTC-USDC",)),
+        spot_single_child_plan=_spot_plan_terms(),
+        spot_goal_key=AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+    ).entity
+    enabled = repository.transition_definition(
+        definition.definition_id,
+        "enable",
+        _mutation("preview-http-enable"),
+    ).entity
+    run = repository.claim_one_shot_run(
+        enabled.definition_id,
+        _mutation("preview-http-run"),
+    ).entity
+    repository.transition_run(
+        run.run_id,
+        OperatorAutomationRunState.PREPARING,
+        diagnostic_code="preparing",
+        command=_mutation("preview-http-preparing"),
+    )
+    _complete_eligible_cycle(repository, run.run_id, "preview-http-cycle")
+    cycle = repository.list_spot_eligibility_cycles(
+        goal_key=AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY
+    )[0]
+    repository.start_spot_preview_invocation(
+        run.run_id,
+        eligibility_cycle=cycle.cycle_number,
+        command=_mutation("preview-http-start"),
+    )
+
+    finalized = repository.finalize_spot_preview_invocation(
+        run.run_id,
+        outcome="UNKNOWN",
+        failure_class="HTTP_CLIENT_RESPONSE",
+        rejection_code=None,
+        warning_present=False,
+        preview_id_sha256=None,
+        preview_call_count=1,
+        call_count_exact=True,
+        command=_mutation("preview-http-finish"),
+    )
+
+    assert finalized.entity.preview_outcome == "UNKNOWN"
+    assert finalized.entity.preview_failure_class == "HTTP_CLIENT_RESPONSE"
+    assert finalized.entity.preview_call_count == 1
+    assert finalized.entity.preview_call_count_exact is True
+    terminal = repository.get_run(run.run_id)
+    assert terminal is not None
+    assert terminal.state is OperatorAutomationRunState.UNKNOWN_CONSUMED
+    assert finalized.entity.create_allowance_consumed is False
+    assert terminal.create_call_count == 0
+
+    for failure_class, call_count_exact, preview_call_count in (
+        ("HTTP_CLIENT_RESPONSE", False, None),
+        ("TRANSPORT_UNKNOWN", True, 1),
+    ):
+        with pytest.raises(psycopg2.errors.CheckViolation):
+            with repository_harness.database.get_cursor() as cursor:
+                cursor.execute(
+                    f'UPDATE "{repository_harness.schema}".'
+                    "automation_spot_preview_gated_goal "
+                    "SET preview_failure_class = %s, "
+                    "preview_call_count_exact = %s, preview_call_count = %s "
+                    "WHERE bound_run_id = %s",
+                    (
+                        failure_class,
+                        call_count_exact,
+                        preview_call_count,
+                        run.run_id,
+                    ),
+                )
+
+
+def test_preview_failure_class_rejects_mismatched_call_accounting(
+    repository_harness: _Harness,
+) -> None:
+    repository = repository_harness.repository()
+    _seal_rejected_predecessor(repository, "preview-accounting-predecessor")
+    definition = repository.create_definition(
+        _definition_command(
+            "preview-accounting-successor",
+            product_ids=("BTC-USDC",),
+        ),
+        spot_single_child_plan=_spot_plan_terms(),
+        spot_goal_key=AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+    ).entity
+    enabled = repository.transition_definition(
+        definition.definition_id,
+        "enable",
+        _mutation("preview-accounting-enable"),
+    ).entity
+    run = repository.claim_one_shot_run(
+        enabled.definition_id,
+        _mutation("preview-accounting-run"),
+    ).entity
+    repository.transition_run(
+        run.run_id,
+        OperatorAutomationRunState.PREPARING,
+        diagnostic_code="preparing",
+        command=_mutation("preview-accounting-preparing"),
+    )
+    _complete_eligible_cycle(repository, run.run_id, "preview-accounting-cycle")
+    repository.start_spot_preview_invocation(
+        run.run_id,
+        eligibility_cycle=1,
+        command=_mutation("preview-accounting-start"),
+    )
+
+    for index, (failure_class, call_count_exact, preview_call_count) in enumerate(
+        (
+            ("RESPONSE_SCHEMA_INVALID", False, None),
+            ("HTTP_CLIENT_RESPONSE", False, None),
+            ("HTTP_SERVER_RESPONSE", False, None),
+            ("HTTP_REDIRECT_RESPONSE", False, None),
+            ("HTTP_RESPONSE_INVALID", False, None),
+            ("TRANSPORT_UNKNOWN", True, 1),
+        ),
+        start=1,
+    ):
+        with pytest.raises(AutomationStoreInvalid) as error:
+            repository.finalize_spot_preview_invocation(
+                run.run_id,
+                outcome="UNKNOWN",
+                failure_class=failure_class,
+                rejection_code=None,
+                warning_present=False,
+                preview_id_sha256=None,
+                preview_call_count=preview_call_count,
+                call_count_exact=call_count_exact,
+                command=_mutation(f"preview-accounting-finish-{index}"),
+            )
+
+        assert error.value.code == "automation_spot_preview_result_invalid"
+
+
 def test_preview_rejection_code_rejects_unallowlisted_values(
     repository_harness: _Harness,
 ):

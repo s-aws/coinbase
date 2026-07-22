@@ -151500,6 +151500,10 @@ components:
             - DOCUMENTED_REJECTION
             - UNCLASSIFIED_REJECTION
             - RESPONSE_SCHEMA_INVALID
+            - HTTP_CLIENT_RESPONSE
+            - HTTP_SERVER_RESPONSE
+            - HTTP_REDIRECT_RESPONSE
+            - HTTP_RESPONSE_INVALID
             - TRANSPORT_UNKNOWN
           - type: 'null'
           title: Preview Failure Class

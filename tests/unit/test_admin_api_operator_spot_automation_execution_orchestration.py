@@ -19,6 +19,12 @@ from typing import Any, Iterator
 
 import pytest
 from coinbase.rest.types.orders_types import PreviewOrderResponse
+from requests import Response
+from requests.exceptions import (
+    HTTPError,
+    JSONDecodeError as RequestsJSONDecodeError,
+    Timeout,
+)
 
 from application.admin_api.automation_models import (
     AutomationMutationContext,
@@ -1208,6 +1214,27 @@ class _PreviewInvoker:
         self.calls.append(dict(kwargs))
         if self.mode == "raise":
             raise RuntimeError("withheld preview exception")
+        if self.mode == "timeout":
+            raise Timeout("withheld preview exception")
+        if self.mode == "http_client_response":
+            response = Response()
+            response.status_code = 400
+            response._content = b"withheld private response"
+            raise HTTPError("withheld preview exception", response=response)
+        if self.mode == "json_decode":
+            raise RequestsJSONDecodeError(
+                "withheld preview exception",
+                "withheld private response",
+                0,
+            )
+        if self.mode == "classifier_raise":
+            class _ExplodingPreviewResponse(PreviewOrderResponse):
+                def __getattribute__(self, name: str) -> Any:
+                    if name == "order_total":
+                        raise RuntimeError("withheld classifier exception")
+                    return super().__getattribute__(name)
+
+            return _ExplodingPreviewResponse({})
         if self.mode == "malformed":
             return SimpleNamespace(errs=[])
         return PreviewOrderResponse(
@@ -1555,17 +1582,67 @@ def test_authorize_orchestrates_one_fresh_cycle_claim_and_canonical_create(
 
 
 @pytest.mark.parametrize(
-    ("preview_mode", "expected_state", "expected_exact"),
+    (
+        "preview_mode",
+        "expected_state",
+        "expected_exact",
+        "expected_failure_class",
+    ),
     [
-        ("rejected", OperatorAutomationRunState.TERMINAL, True),
-        ("documented_rejected", OperatorAutomationRunState.TERMINAL, True),
-        ("malformed", OperatorAutomationRunState.UNKNOWN_CONSUMED, True),
+        (
+            "rejected",
+            OperatorAutomationRunState.TERMINAL,
+            True,
+            "UNCLASSIFIED_REJECTION",
+        ),
+        (
+            "documented_rejected",
+            OperatorAutomationRunState.TERMINAL,
+            True,
+            "DOCUMENTED_REJECTION",
+        ),
+        (
+            "malformed",
+            OperatorAutomationRunState.UNKNOWN_CONSUMED,
+            True,
+            "RESPONSE_SCHEMA_INVALID",
+        ),
         (
             "economics_mismatch",
             OperatorAutomationRunState.UNKNOWN_CONSUMED,
             True,
+            "RESPONSE_SCHEMA_INVALID",
         ),
-        ("raise", OperatorAutomationRunState.UNKNOWN_CONSUMED, False),
+        (
+            "http_client_response",
+            OperatorAutomationRunState.UNKNOWN_CONSUMED,
+            True,
+            "HTTP_CLIENT_RESPONSE",
+        ),
+        (
+            "json_decode",
+            OperatorAutomationRunState.UNKNOWN_CONSUMED,
+            True,
+            "RESPONSE_SCHEMA_INVALID",
+        ),
+        (
+            "classifier_raise",
+            OperatorAutomationRunState.UNKNOWN_CONSUMED,
+            True,
+            "RESPONSE_SCHEMA_INVALID",
+        ),
+        (
+            "timeout",
+            OperatorAutomationRunState.UNKNOWN_CONSUMED,
+            False,
+            "TRANSPORT_UNKNOWN",
+        ),
+        (
+            "raise",
+            OperatorAutomationRunState.UNKNOWN_CONSUMED,
+            False,
+            "TRANSPORT_UNKNOWN",
+        ),
     ],
 )
 def test_preview_gated_rejection_or_unknown_never_enters_create(
@@ -1574,6 +1651,7 @@ def test_preview_gated_rejection_or_unknown_never_enters_create(
     preview_mode: str,
     expected_state: OperatorAutomationRunState,
     expected_exact: bool,
+    expected_failure_class: str,
 ) -> None:
     successor_client_order_id = derive_spot_eligibility_client_order_id(
         run_id=RUN_ID,
@@ -1600,6 +1678,7 @@ def test_preview_gated_rejection_or_unknown_never_enters_create(
     assert response.run.state is expected_state
     assert response.run.preview_allowance_consumed is True
     assert response.run.create_allowance_consumed is False
+    assert response.run.preview_failure_class == expected_failure_class
     assert response.run.preview_rejection_code == (
         "INSUFFICIENT_FUNDS"
         if preview_mode == "documented_rejected"

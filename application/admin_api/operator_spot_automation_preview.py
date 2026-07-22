@@ -15,6 +15,11 @@ import hashlib
 from typing import Any
 
 from coinbase.rest.types.orders_types import PreviewOrderResponse
+from requests.exceptions import (
+    HTTPError,
+    JSONDecodeError as RequestsJSONDecodeError,
+    TooManyRedirects,
+)
 
 
 # Exact allowlist from Coinbase's Preview Order ``errs`` response schema.
@@ -196,6 +201,10 @@ class SpotAutomationPreviewFailureClass(str, Enum):
     DOCUMENTED_REJECTION = "DOCUMENTED_REJECTION"
     UNCLASSIFIED_REJECTION = "UNCLASSIFIED_REJECTION"
     RESPONSE_SCHEMA_INVALID = "RESPONSE_SCHEMA_INVALID"
+    HTTP_CLIENT_RESPONSE = "HTTP_CLIENT_RESPONSE"
+    HTTP_SERVER_RESPONSE = "HTTP_SERVER_RESPONSE"
+    HTTP_REDIRECT_RESPONSE = "HTTP_REDIRECT_RESPONSE"
+    HTTP_RESPONSE_INVALID = "HTTP_RESPONSE_INVALID"
     TRANSPORT_UNKNOWN = "TRANSPORT_UNKNOWN"
 
 
@@ -344,6 +353,57 @@ def unknown_spot_automation_preview_classification(
     )
 
 
+def classify_spot_automation_preview_exception(
+    exception: Exception,
+) -> SpotAutomationPreviewClassification:
+    """Classify an invocation failure without reading its message or body.
+
+    A Requests HTTP/redirect exception carrying a response proves that exactly
+    one Preview request returned to the pinned SDK.  Everything else remains
+    transport-unknown because the wire boundary cannot be proven locally.
+    """
+
+    if isinstance(exception, RequestsJSONDecodeError):
+        return unknown_spot_automation_preview_classification(
+            transport_unknown=False
+        )
+    if not isinstance(exception, (HTTPError, TooManyRedirects)):
+        return unknown_spot_automation_preview_classification(
+            transport_unknown=True
+        )
+    response = getattr(exception, "response", None)
+    status_code = getattr(response, "status_code", None)
+    if type(status_code) is int:
+        if 300 <= status_code < 400:
+            failure_class = (
+                SpotAutomationPreviewFailureClass.HTTP_REDIRECT_RESPONSE
+            )
+        elif 400 <= status_code < 500:
+            failure_class = (
+                SpotAutomationPreviewFailureClass.HTTP_CLIENT_RESPONSE
+            )
+        elif 500 <= status_code < 600:
+            failure_class = (
+                SpotAutomationPreviewFailureClass.HTTP_SERVER_RESPONSE
+            )
+        else:
+            failure_class = (
+                SpotAutomationPreviewFailureClass.HTTP_RESPONSE_INVALID
+            )
+        return SpotAutomationPreviewClassification(
+            outcome=SpotAutomationPreviewOutcome.UNKNOWN,
+            failure_class=failure_class,
+            warning_present=False,
+            rejection_code=None,
+            preview_id_sha256=None,
+            preview_call_count=1,
+            preview_call_count_exact=True,
+        )
+    return unknown_spot_automation_preview_classification(
+        transport_unknown=True
+    )
+
+
 def _decimal(value: Any, *, positive: bool) -> Decimal | None:
     if isinstance(value, bool) or not isinstance(value, (str, int, float, Decimal)):
         return None
@@ -475,6 +535,7 @@ __all__ = [
     "SpotAutomationPreviewFailureClass",
     "SpotAutomationPreviewOutcome",
     "SpotAutomationPreviewRejectionCode",
+    "classify_spot_automation_preview_exception",
     "classify_spot_automation_preview_response",
     "unknown_spot_automation_preview_classification",
 ]

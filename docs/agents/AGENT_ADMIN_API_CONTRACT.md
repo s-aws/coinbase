@@ -24,17 +24,20 @@ frontend request
 
 Goal
 `operator_spot_automation_atomic_market_snapshot_binding_and_successor_proof_v10_v12`
-keeps the V10-V12 goal active at V11. V10 completed eight exact reads and
-consumed its one Preview at terminal `TRANSPORT_UNKNOWN`; Create and Cancel
-remain unconsumed with zero calls.
+keeps the V10-V12 goal active at V12. V10 and V11 each completed eight exact
+reads and consumed one distinct Preview at terminal `TRANSPORT_UNKNOWN`;
+Create and Cancel remain unconsumed with zero calls.
 
 The active generated route is
 `POST /api/v1/automation/atomic-market-snapshot-candidates/authorize`.
 Policy revision 5 binds final terms, evidence, identities, the exact eight-read
 ledger, run, and one-use Preview claim atomically. It reuses canonical
 Preview/Create/Cancel scopes and exposes only fixed sanitized diagnostics,
-hash retention, and exact-or-withheld call accounting. The browser supplies no
-trading term. V11 is a distinct successor rather than a V10 retry.
+hash retention, and exact-or-withheld call accounting. Response-bearing HTTP
+client/server and blocked-redirect exceptions use fixed value-blind classes
+and exact one-call evidence; exception messages and bodies remain unread. The
+browser supplies no trading term. V12 is distinct rather than a V10 or V11
+retry.
 
 ## Completed V7-V9 predecessor
 

@@ -1533,6 +1533,59 @@ def test_unknown_single_child_run_never_reports_an_exact_zero_call_count():
     assert item.create_call_count is None
 
 
+@pytest.mark.parametrize(
+    ("failure_class", "call_count_exact", "preview_call_count"),
+    [
+        ("RESPONSE_SCHEMA_INVALID", False, None),
+        ("HTTP_CLIENT_RESPONSE", False, None),
+        ("HTTP_SERVER_RESPONSE", False, None),
+        ("HTTP_REDIRECT_RESPONSE", False, None),
+        ("HTTP_RESPONSE_INVALID", False, None),
+        ("TRANSPORT_UNKNOWN", True, 1),
+    ],
+)
+def test_preview_unknown_failure_class_is_cross_bound_to_call_accounting(
+    failure_class: str,
+    call_count_exact: bool,
+    preview_call_count: int | None,
+) -> None:
+    run = _single_child_run(
+        state=AutomationRunState.UNKNOWN_CONSUMED,
+        diagnostic_code="automation_spot_preview_unknown_consumed",
+        coinbase_api_call_count=9 if call_count_exact else None,
+        create_call_count=0,
+        cancel_call_count=0,
+        reconciliation_call_count=0,
+        call_count_exact=call_count_exact,
+        child_terminal=None,
+    )
+    run.update(
+        {
+            "spot_execution_mode": "ATOMIC_MARKET_SNAPSHOT_V12",
+            "preview_allowance_consumed": True,
+            "preview_outcome": "UNKNOWN",
+            "preview_failure_class": failure_class,
+            "preview_warning_present": False,
+            "preview_call_count": preview_call_count,
+            "preview_identity_retention": "UNAVAILABLE",
+            "create_allowance_consumed": False,
+            "cancel_allowance_consumed": False,
+            "client_order_id": None,
+            "child_terminal": None,
+            "single_child_plan": {
+                **run["single_child_plan"],
+                "post_only": True,
+            },
+        }
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="automation_run_preview_evidence_invalid",
+    ):
+        AutomationRunItem.model_validate(run)
+
+
 def test_run_mutation_activity_is_operation_local_and_truthful():
     from application.admin_api.automation_models import (
         AutomationNoExchangeActivity,

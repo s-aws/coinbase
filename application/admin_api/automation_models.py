@@ -91,6 +91,15 @@ _PREVIEW_GATED_SPOT_MODES = frozenset(
         *_POST_ONLY_SPOT_MODES,
     }
 )
+_EXACT_PREVIEW_UNKNOWN_FAILURE_CLASSES = frozenset(
+    {
+        "RESPONSE_SCHEMA_INVALID",
+        "HTTP_CLIENT_RESPONSE",
+        "HTTP_SERVER_RESPONSE",
+        "HTTP_REDIRECT_RESPONSE",
+        "HTTP_RESPONSE_INVALID",
+    }
+)
 
 
 class AutomationDefinitionLifecycleAction(str, Enum):
@@ -1011,6 +1020,10 @@ class AutomationRunItem(BaseModel):
         "DOCUMENTED_REJECTION",
         "UNCLASSIFIED_REJECTION",
         "RESPONSE_SCHEMA_INVALID",
+        "HTTP_CLIENT_RESPONSE",
+        "HTTP_SERVER_RESPONSE",
+        "HTTP_REDIRECT_RESPONSE",
+        "HTTP_RESPONSE_INVALID",
         "TRANSPORT_UNKNOWN",
     ] | None = None
     preview_rejection_code: Literal[
@@ -1188,7 +1201,31 @@ class AutomationRunItem(BaseModel):
                 or (
                     self.preview_outcome == "UNKNOWN"
                     and self.preview_failure_class
-                    not in {"RESPONSE_SCHEMA_INVALID", "TRANSPORT_UNKNOWN"}
+                    not in {
+                        "RESPONSE_SCHEMA_INVALID",
+                        "HTTP_CLIENT_RESPONSE",
+                        "HTTP_SERVER_RESPONSE",
+                        "HTTP_REDIRECT_RESPONSE",
+                        "HTTP_RESPONSE_INVALID",
+                        "TRANSPORT_UNKNOWN",
+                    }
+                )
+                or (
+                    self.preview_outcome == "UNKNOWN"
+                    and self.preview_failure_class
+                    in _EXACT_PREVIEW_UNKNOWN_FAILURE_CLASSES
+                    and (
+                        not self.call_count_exact
+                        or self.preview_call_count != 1
+                    )
+                )
+                or (
+                    self.preview_outcome == "UNKNOWN"
+                    and self.preview_failure_class == "TRANSPORT_UNKNOWN"
+                    and (
+                        self.call_count_exact
+                        or self.preview_call_count is not None
+                    )
                 )
                 or (
                     self.preview_identity_retention == "HASHED"

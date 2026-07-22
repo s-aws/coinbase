@@ -88,6 +88,15 @@ _AUTOMATION_SPOT_ELIGIBILITY_CYCLE_STATES = frozenset(
 _AUTOMATION_SPOT_MUTATION_OUTCOMES = frozenset(
     {"ACCEPTED", "REJECTED", "UNKNOWN"}
 )
+_AUTOMATION_SPOT_EXACT_PREVIEW_UNKNOWN_FAILURE_CLASSES = frozenset(
+    {
+        "RESPONSE_SCHEMA_INVALID",
+        "HTTP_CLIENT_RESPONSE",
+        "HTTP_SERVER_RESPONSE",
+        "HTTP_REDIRECT_RESPONSE",
+        "HTTP_RESPONSE_INVALID",
+    }
+)
 _AUTOMATION_SPOT_PREVIEW_REJECTION_CODES = frozenset(
     {
         "UNKNOWN_DOCUMENTED",
@@ -1999,7 +2008,10 @@ class OperatorAutomationRepository:
                         preview_failure_class IN (
                             'NONE', 'DOCUMENTED_REJECTION',
                             'UNCLASSIFIED_REJECTION',
-                            'RESPONSE_SCHEMA_INVALID', 'TRANSPORT_UNKNOWN'
+                            'RESPONSE_SCHEMA_INVALID',
+                            'HTTP_CLIENT_RESPONSE', 'HTTP_SERVER_RESPONSE',
+                            'HTTP_REDIRECT_RESPONSE', 'HTTP_RESPONSE_INVALID',
+                            'TRANSPORT_UNKNOWN'
                         )
                     ),
                     preview_rejection_code TEXT CHECK (
@@ -2103,6 +2115,67 @@ class OperatorAutomationRepository:
                 f"""
                 ALTER TABLE {self._prefix}automation_spot_preview_gated_goal
                 ADD COLUMN IF NOT EXISTS preview_rejection_code TEXT
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_preview_gated_goal
+                DROP CONSTRAINT IF EXISTS
+                    automation_spot_preview_unknown_accounting_shape_valid
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_preview_gated_goal
+                ADD CONSTRAINT
+                    automation_spot_preview_unknown_accounting_shape_valid
+                CHECK (
+                    preview_outcome IS DISTINCT FROM 'UNKNOWN'
+                    OR (
+                        preview_failure_class IN (
+                            'RESPONSE_SCHEMA_INVALID',
+                            'HTTP_CLIENT_RESPONSE', 'HTTP_SERVER_RESPONSE',
+                            'HTTP_REDIRECT_RESPONSE', 'HTTP_RESPONSE_INVALID'
+                        )
+                        AND preview_call_count_exact
+                        AND preview_call_count = 1
+                    )
+                    OR (
+                        preview_failure_class = 'TRANSPORT_UNKNOWN'
+                        AND NOT preview_call_count_exact
+                        AND preview_call_count IS NULL
+                    )
+                )
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_preview_gated_goal
+                DROP CONSTRAINT IF EXISTS
+                    automation_spot_preview_gated_goal_preview_failure_class_check
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_preview_gated_goal
+                DROP CONSTRAINT IF EXISTS
+                    automation_spot_preview_failure_class_check
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_preview_gated_goal
+                ADD CONSTRAINT automation_spot_preview_failure_class_check
+                CHECK (
+                    preview_failure_class IN (
+                        'NONE', 'DOCUMENTED_REJECTION',
+                        'UNCLASSIFIED_REJECTION',
+                        'RESPONSE_SCHEMA_INVALID',
+                        'HTTP_CLIENT_RESPONSE', 'HTTP_SERVER_RESPONSE',
+                        'HTTP_REDIRECT_RESPONSE', 'HTTP_RESPONSE_INVALID',
+                        'TRANSPORT_UNKNOWN'
+                    )
+                )
                 """
             )
             cursor.execute(
@@ -5744,6 +5817,10 @@ class OperatorAutomationRepository:
             "DOCUMENTED_REJECTION",
             "UNCLASSIFIED_REJECTION",
             "RESPONSE_SCHEMA_INVALID",
+            "HTTP_CLIENT_RESPONSE",
+            "HTTP_SERVER_RESPONSE",
+            "HTTP_REDIRECT_RESPONSE",
+            "HTTP_RESPONSE_INVALID",
             "TRANSPORT_UNKNOWN",
         }
         if (
@@ -5781,8 +5858,29 @@ class OperatorAutomationRepository:
             })
             or (normalized == "UNKNOWN" and failure_class not in {
                 "RESPONSE_SCHEMA_INVALID",
+                "HTTP_CLIENT_RESPONSE",
+                "HTTP_SERVER_RESPONSE",
+                "HTTP_REDIRECT_RESPONSE",
+                "HTTP_RESPONSE_INVALID",
                 "TRANSPORT_UNKNOWN",
             })
+            or (
+                normalized == "UNKNOWN"
+                and failure_class
+                in _AUTOMATION_SPOT_EXACT_PREVIEW_UNKNOWN_FAILURE_CLASSES
+                and (
+                    not call_count_exact
+                    or preview_call_count != 1
+                )
+            )
+            or (
+                normalized == "UNKNOWN"
+                and failure_class == "TRANSPORT_UNKNOWN"
+                and (
+                    call_count_exact
+                    or preview_call_count is not None
+                )
+            )
             or (
                 preview_id_sha256 is not None
                 and (

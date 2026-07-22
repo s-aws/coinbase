@@ -4,11 +4,13 @@ Current operator goal:
 [Operator Spot Automation Atomic Market Snapshot V10-V12](OPERATOR_SPOT_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_V10_V12.md).
 Goal
 `operator_spot_automation_atomic_market_snapshot_binding_and_successor_proof_v10_v12`
-keeps the V10-V12 goal active at V11. V10 completed eight exact reads and
-consumed its one Preview at terminal `TRANSPORT_UNKNOWN`; Create and Cancel
-remain unconsumed with zero calls. The backend binds the exact eight-category
+keeps the V10-V12 goal active at V12. V10 and V11 each completed eight exact
+reads and consumed one distinct Preview at terminal `TRANSPORT_UNKNOWN`;
+Create and Cancel remain unconsumed with zero calls. The backend binds the exact eight-category
 atomic snapshot and one-use Preview claim; browser authority remains
-acknowledgement-only.
+acknowledgement-only. The V12 correction retains only fixed client/server/
+redirect response classes when one response proves an exact Preview call;
+otherwise the boundary remains transport-unknown and inexact.
 
 Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 

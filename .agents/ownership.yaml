@@ -271,11 +271,13 @@ owners:
       - docs/FUTURES_SLICE_2R12_TERMINAL_DIAGNOSIS.md
       - docs/FUTURES_POST_R10_COMPATIBILITY_DIRECTION.md
       - docs/OPERATOR_AUTOMATION_CONTROL_PLANE.md
+      - docs/OPERATOR_SPOT_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_V10_V12.md
       - docs/OPERATOR_SPOT_AUTOMATION_SINGLE_CHILD_ADAPTER.md
       - openapi/**
       - tools/export_admin_api_route_inventory.py
       - tests/regression/test_admin_api_*.py
       - tests/unit/test_admin_api_*.py
+      - tests/unit/test_operator_spot_automation_preview.py
       - tests/unit/test_operator_follow_up_intent_audit.py
       - tests/regression/test_admin_mvp_account_reality_live_read_smoke.py
       - tests/regression/test_admin_mvp_futures_executor_boundary_smoke.py

@@ -3556,6 +3556,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
         )
         from application.admin_api.operator_spot_automation_preview import (
             SpotAutomationPreviewOutcome,
+            classify_spot_automation_preview_exception,
             classify_spot_automation_preview_response,
             unknown_spot_automation_preview_classification,
         )
@@ -3759,21 +3760,29 @@ class PostgresOperatorAutomationRepositoryAdapter:
                                     command_service=command_service,
                                     plan=plan,
                                 )
+                            except Exception as exc:
                                 preview_classification = (
-                                    classify_spot_automation_preview_response(
-                                        raw_preview,
-                                        expected_base_size=plan.base_size,
-                                        expected_quote_size=(
-                                            plan.submitted_notional_usdc
-                                        ),
+                                    classify_spot_automation_preview_exception(
+                                        exc
                                     )
                                 )
-                            except Exception:
-                                preview_classification = (
-                                    unknown_spot_automation_preview_classification(
-                                        transport_unknown=True
+                            else:
+                                try:
+                                    preview_classification = (
+                                        classify_spot_automation_preview_response(
+                                            raw_preview,
+                                            expected_base_size=plan.base_size,
+                                            expected_quote_size=(
+                                                plan.submitted_notional_usdc
+                                            ),
+                                        )
                                     )
-                                )
+                                except Exception:
+                                    preview_classification = (
+                                        unknown_spot_automation_preview_classification(
+                                            transport_unknown=False
+                                        )
+                                    )
                 except AutomationRepositoryError:
                     raise
 

@@ -3,10 +3,11 @@
 Goal:
 `operator_spot_automation_atomic_market_snapshot_binding_and_successor_proof_v10_v12`.
 
-Status: active at V11. V10 cycle 1 completed all eight reads exactly,
-atomically materialized its final terms, and consumed its one Preview at a
-terminal `TRANSPORT_UNKNOWN` boundary. Create and Cancel remain unconsumed
-with zero calls and no exchange mutation. V11 is distinct and is not a retry.
+Status: active at V12. V10 cycle 1 and V11 cycle 2 each completed all eight
+reads exactly, atomically materialized final terms, and consumed one distinct
+Preview at a terminal `TRANSPORT_UNKNOWN` boundary. Create and Cancel remain
+unconsumed with zero calls and no exchange mutation. V12 is distinct and is
+not a retry of V10 or V11.
 
 ## Narrow policy
 
@@ -80,6 +81,18 @@ Non-materialized cycles report their request-local eligibility read count as
 `PREVIEW_GATED_CREATE` activity. Exact blocked reads retain their exact count;
 an unknown boundary remains unknown and is never rendered as a local zero-call
 operation. True idempotent replays remain the only local zero-call result.
+
+Before V12, the Preview invocation boundary is split prospectively without
+reinterpreting V10 or V11. A pinned-SDK HTTP exception with a returned 4xx,
+5xx, or blocked 3xx response proves exactly one Preview call and persists only
+the fixed class `HTTP_CLIENT_RESPONSE`, `HTTP_SERVER_RESPONSE`, or
+`HTTP_REDIRECT_RESPONSE`. An unexpected response status uses
+`HTTP_RESPONSE_INVALID`. No exception message, response body, raw Preview
+identifier, or withheld text is read or retained. An exception without a
+provable response remains `TRANSPORT_UNKNOWN` with exact call count withheld.
+The approved CDP API-key path continues to omit `retail_portfolio_id`; Coinbase
+documents that API-key connections derive the portfolio from the key, and V3
+already proved this project can reach Preview without adding that field.
 
 ## Information and authority boundaries
 
