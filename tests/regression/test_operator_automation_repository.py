@@ -3969,6 +3969,24 @@ def test_minimum_size_v7_has_a_distinct_ledger_and_atomic_dynamic_cap_plan(
     assert claimed.entity.state == "CLAIMED"
     assert len(repository.list_spot_near_market_preparations()) == 1
 
+    with pytest.raises(AutomationStoreInvalid) as mismatched_unknown_stage:
+        repository.finalize_spot_minimum_size_preparation(
+            cycle_number=claimed.entity.cycle_number,
+            goal_key=claimed.entity.goal_key,
+            state="UNKNOWN",
+            diagnostic_code=(
+                "automation_minimum_size_portfolio_catalog_unknown"
+            ),
+            completed_categories=(),
+            coinbase_api_call_count=None,
+            call_count_exact=False,
+            evidence_sha256=None,
+            definition_id=None,
+        )
+    assert mismatched_unknown_stage.value.code == (
+        "automation_minimum_size_preparation_result_invalid"
+    )
+
     with pytest.raises(AutomationStoreInvalid) as mismatched_blocked_evidence:
         repository.finalize_spot_minimum_size_preparation(
             cycle_number=claimed.entity.cycle_number,

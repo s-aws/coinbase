@@ -150537,13 +150537,19 @@ components:
           type: string
           enum:
           - automation_minimum_size_api_key_permissions_rejected
+          - automation_minimum_size_api_key_permissions_unknown
           - automation_minimum_size_best_bid_ask_rejected
+          - automation_minimum_size_best_bid_ask_unknown
           - automation_minimum_size_fee_summary_rejected
+          - automation_minimum_size_fee_summary_unknown
           - automation_minimum_size_portfolio_catalog_rejected
+          - automation_minimum_size_portfolio_catalog_unknown
           - automation_minimum_size_portfolio_configuration_invalid
           - automation_minimum_size_preparation_unknown
           - automation_minimum_size_product_metadata_rejected
+          - automation_minimum_size_product_metadata_unknown
           - automation_minimum_size_wallet_balances_rejected
+          - automation_minimum_size_wallet_balances_unknown
           - minimum_size_fee_invalid
           - minimum_size_fee_reserve_cap_conflict
           - minimum_size_increment_conflict

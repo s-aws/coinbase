@@ -4,15 +4,19 @@
 
 Goal
 `operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`
-is active at `readiness_complete_operator_action_pending`. Current action:
-`execute_first_valid_v7_v9_successor`.
+is active at `generic_unknown_cycles_2_stage_remediation_in_progress`.
+Current action: `validate_deploy_then_execute_distinct_cycle_3`.
 Default action: `complete_readiness_then_execute_first_valid_v7_v9_successor`.
 The adapter recognizes typed policy-revision-4 V7-V9 plans under
 `BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2`, preserving exact dynamic caps
 strictly below 3.10 USDC through eight-category eligibility, Preview, Create,
-and exact-child Cancel. Six-category preparation and eligibility share `0/10`
-durable no-retry cycles. Preview/Create/Cancel calls are `0/0/0`; all
-allowances remain unconsumed after readiness passed. See
+and exact-child Cancel. Six-category preparation and eligibility share `2/10`
+durable no-retry cycles. Cycles 1 and 2 remain immutable generic
+`automation_minimum_size_preparation_unknown` records with zero completed
+categories and exact call count withheld; the first approved category was not
+confirmed. Stage-specific unknown codes apply only to future cycles after the
+remediation is validated and deployed. Preview/Create/Cancel calls are
+`0/0/0`, and those allowances remain unconsumed. See
 [`OPERATOR_SPOT_AUTOMATION_MINIMUM_SIZE_V7_V9.md`](OPERATOR_SPOT_AUTOMATION_MINIMUM_SIZE_V7_V9.md).
 
 ### V4 near-market predecessor status

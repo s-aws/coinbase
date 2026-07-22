@@ -49,6 +49,28 @@ _MINIMUM_SIZE_SPOT_MODES = frozenset(
 _POST_ONLY_SPOT_MODES = frozenset(
     {*_NEAR_MARKET_SPOT_MODES, *_MINIMUM_SIZE_SPOT_MODES}
 )
+_MINIMUM_SIZE_PREPARATION_CATEGORIES = (
+    "api_key_permissions",
+    "portfolio_catalog",
+    "wallet_balances",
+    "product_metadata",
+    "best_bid_ask",
+    "fee_summary",
+)
+_MINIMUM_SIZE_STAGE_UNKNOWN_PREFIX_LENGTH = {
+    "automation_minimum_size_api_key_permissions_unknown": 0,
+    "automation_minimum_size_portfolio_catalog_unknown": 1,
+    "automation_minimum_size_wallet_balances_unknown": 2,
+    "automation_minimum_size_product_metadata_unknown": 3,
+    "automation_minimum_size_best_bid_ask_unknown": 4,
+    "automation_minimum_size_fee_summary_unknown": 5,
+}
+_MINIMUM_SIZE_UNKNOWN_DIAGNOSTICS = frozenset(
+    {
+        "automation_minimum_size_preparation_unknown",
+        *_MINIMUM_SIZE_STAGE_UNKNOWN_PREFIX_LENGTH,
+    }
+)
 _PREVIEW_GATED_SPOT_MODES = frozenset(
     {
         "PREVIEW_GATED_V2",
@@ -1894,13 +1916,19 @@ class AutomationMinimumSizeCandidatePreparationResponse(BaseModel):
     ] | None = None
     diagnostic_code: Literal[
         "automation_minimum_size_api_key_permissions_rejected",
+        "automation_minimum_size_api_key_permissions_unknown",
         "automation_minimum_size_best_bid_ask_rejected",
+        "automation_minimum_size_best_bid_ask_unknown",
         "automation_minimum_size_fee_summary_rejected",
+        "automation_minimum_size_fee_summary_unknown",
         "automation_minimum_size_portfolio_catalog_rejected",
+        "automation_minimum_size_portfolio_catalog_unknown",
         "automation_minimum_size_portfolio_configuration_invalid",
         "automation_minimum_size_preparation_unknown",
         "automation_minimum_size_product_metadata_rejected",
+        "automation_minimum_size_product_metadata_unknown",
         "automation_minimum_size_wallet_balances_rejected",
+        "automation_minimum_size_wallet_balances_unknown",
         "minimum_size_fee_invalid",
         "minimum_size_fee_reserve_cap_conflict",
         "minimum_size_increment_conflict",
@@ -1958,6 +1986,43 @@ class AutomationMinimumSizeCandidatePreparationResponse(BaseModel):
         expected_mode = f"MINIMUM_SIZE_POST_ONLY_V{self.candidate_version}"
         if self.spot_execution_mode != expected_mode:
             raise ValueError("automation_minimum_size_preparation_mode_invalid")
+        unknown_outcome = self.outcome == "UNKNOWN"
+        unknown_call_count = (
+            self.coinbase_api_call_count is None
+            and self.call_count_exact is False
+        )
+        if unknown_outcome is not unknown_call_count:
+            raise ValueError(
+                "automation_minimum_size_preparation_call_count_invalid"
+            )
+        unknown_diagnostic = (
+            self.diagnostic_code in _MINIMUM_SIZE_UNKNOWN_DIAGNOSTICS
+        )
+        if unknown_outcome is not unknown_diagnostic:
+            raise ValueError(
+                "automation_minimum_size_preparation_diagnostic_invalid"
+            )
+        unknown_prefix_length = _MINIMUM_SIZE_STAGE_UNKNOWN_PREFIX_LENGTH.get(
+            self.diagnostic_code
+        )
+        if unknown_prefix_length is not None and self.completed_categories != list(
+            _MINIMUM_SIZE_PREPARATION_CATEGORIES[:unknown_prefix_length]
+        ):
+            raise ValueError(
+                "automation_minimum_size_preparation_unknown_stage_invalid"
+            )
+        boundary_expected = self.diagnostic_code.startswith("minimum_size_v4_")
+        if boundary_expected is (self.boundary_classification is None) or (
+            self.boundary_classification is not None
+            and self.boundary_classification != self.diagnostic_code
+        ):
+            raise ValueError(
+                "automation_minimum_size_preparation_boundary_invalid"
+            )
+        if unknown_outcome and self.boundary_classification is not None:
+            raise ValueError(
+                "automation_minimum_size_preparation_boundary_invalid"
+            )
         materialized = self.outcome == "MATERIALIZED"
         if materialized is (self.definition is None):
             raise ValueError(

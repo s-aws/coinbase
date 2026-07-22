@@ -6,15 +6,20 @@ implicit platform model.
 
 Active bounded proof goal
 `operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`
-is `readiness_complete_operator_action_pending`. Current action:
-`execute_first_valid_v7_v9_successor`. Default action:
+is `generic_unknown_cycles_2_stage_remediation_in_progress`. Current
+action: `validate_deploy_then_execute_distinct_cycle_3`. Default action:
 `complete_readiness_then_execute_first_valid_v7_v9_successor`. The Automation
 domain owns policy `BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2`, six-category
-preparation and eight-category eligibility with `0/10` shared no-retry cycles.
-Get Market Trades supplies same-snapshot market evidence.
-Preview/Create/Cancel calls are `0/0/0`; all successor allowances remain
-unconsumed. Complete regression, release, installed-deployment, safety, and
-blind-contextless code gates pass; the authenticated operator action is next.
+preparation and eight-category eligibility with `2/10` shared no-retry cycles.
+Get Market Trades supplies same-snapshot market evidence. Cycles 1 and 2 remain
+immutable generic `automation_minimum_size_preparation_unknown` records with
+zero completed categories and exact call count withheld; the first approved
+category was not confirmed. Stage-specific unknown codes apply only to future
+cycles after the remediation is validated and deployed.
+Preview/Create/Cancel calls are `0/0/0`; all those successor allowances remain
+unconsumed. Prior readiness gates passed; the remediation must pass focused and
+full validation, deployment, and both independent audits before distinct
+cycle 3.
 
 Status: `complete`.
 

@@ -7,18 +7,24 @@ working on the enterprise admin platform.
 
 Goal
 `operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`
-is active at `readiness_complete_operator_action_pending`. Current action:
-`execute_first_valid_v7_v9_successor`.
+is active at `generic_unknown_cycles_2_stage_remediation_in_progress`.
+Current action: `validate_deploy_then_execute_distinct_cycle_3`.
 Default action: `complete_readiness_then_execute_first_valid_v7_v9_successor`.
 Policy `BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2` is backend-owned and
 derives the smallest valid post-only fresh Get Market Trades best-bid terms and
 fee-reserved execution cap strictly below 3.10 USDC. Six-category preparation
-and eight-category eligibility share `0/10` durable no-retry cycles.
-Preview/Create/Cancel calls are `0/0/0`; all allowances remain unconsumed.
+and eight-category eligibility share `2/10` durable no-retry cycles. Cycles 1
+and 2 remain immutable generic `automation_minimum_size_preparation_unknown`
+records with zero completed categories and conservatively withheld exact call
+count; the first approved category was not confirmed. Stage-specific unknown
+codes apply only to future cycles after the remediation is validated and
+deployed. Preview/Create/Cancel calls are
+`0/0/0`; all those allowances remain unconsumed.
 The complete backend regression, canonical frontend release gate, installed
 deployment checks, and independent safety plus blind-contextless code audits
-pass. The installed authenticated operator workflow and terminal re-audit are
-next. See
+passed for the prior readiness checkpoint. The remediation must pass focused
+and full validation, installed deployment checks, and both audits before
+distinct cycle 3. See
 [Operator Spot Automation Minimum Size V7-V9](OPERATOR_SPOT_AUTOMATION_MINIMUM_SIZE_V7_V9.md).
 
 ### V4 near-market predecessor handoff

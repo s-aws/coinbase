@@ -192,13 +192,19 @@ _AUTOMATION_SPOT_MINIMUM_SIZE_PREPARATION_CATEGORIES = (
 _AUTOMATION_SPOT_MINIMUM_SIZE_PREPARATION_DIAGNOSTICS = frozenset(
     {
         "automation_minimum_size_api_key_permissions_rejected",
+        "automation_minimum_size_api_key_permissions_unknown",
         "automation_minimum_size_best_bid_ask_rejected",
+        "automation_minimum_size_best_bid_ask_unknown",
         "automation_minimum_size_fee_summary_rejected",
+        "automation_minimum_size_fee_summary_unknown",
         "automation_minimum_size_portfolio_catalog_rejected",
+        "automation_minimum_size_portfolio_catalog_unknown",
         "automation_minimum_size_portfolio_configuration_invalid",
         "automation_minimum_size_preparation_unknown",
         "automation_minimum_size_product_metadata_rejected",
+        "automation_minimum_size_product_metadata_unknown",
         "automation_minimum_size_wallet_balances_rejected",
+        "automation_minimum_size_wallet_balances_unknown",
         "minimum_size_fee_invalid",
         "minimum_size_fee_reserve_cap_conflict",
         "minimum_size_increment_conflict",
@@ -216,6 +222,20 @@ _AUTOMATION_SPOT_MINIMUM_SIZE_PREPARATION_DIAGNOSTICS = frozenset(
         "minimum_size_v4_increment_conflict",
         "minimum_size_v4_quote_minimum_conflict",
         "minimum_size_wallet_insufficient",
+    }
+)
+_AUTOMATION_SPOT_MINIMUM_SIZE_STAGE_UNKNOWN_PREFIX_LENGTH = {
+    "automation_minimum_size_api_key_permissions_unknown": 0,
+    "automation_minimum_size_portfolio_catalog_unknown": 1,
+    "automation_minimum_size_wallet_balances_unknown": 2,
+    "automation_minimum_size_product_metadata_unknown": 3,
+    "automation_minimum_size_best_bid_ask_unknown": 4,
+    "automation_minimum_size_fee_summary_unknown": 5,
+}
+_AUTOMATION_SPOT_MINIMUM_SIZE_UNKNOWN_DIAGNOSTICS = frozenset(
+    {
+        "automation_minimum_size_preparation_unknown",
+        *_AUTOMATION_SPOT_MINIMUM_SIZE_STAGE_UNKNOWN_PREFIX_LENGTH,
     }
 )
 _AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY = AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY
@@ -7173,6 +7193,11 @@ class OperatorAutomationRepository:
             and call_count_exact
             else None
         )
+        stage_unknown_prefix_length = (
+            _AUTOMATION_SPOT_MINIMUM_SIZE_STAGE_UNKNOWN_PREFIX_LENGTH.get(
+                diagnostic_code
+            )
+        )
         if (
             type(cycle_number) is not int
             or not 1 <= cycle_number <= 10
@@ -7180,6 +7205,18 @@ class OperatorAutomationRepository:
             or state not in {"BLOCKED", "UNKNOWN"}
             or diagnostic_code
             not in _AUTOMATION_SPOT_MINIMUM_SIZE_PREPARATION_DIAGNOSTICS
+            or (state == "UNKNOWN")
+            is not (
+                diagnostic_code
+                in _AUTOMATION_SPOT_MINIMUM_SIZE_UNKNOWN_DIAGNOSTICS
+            )
+            or (
+                stage_unknown_prefix_length is not None
+                and tuple(completed_categories)
+                != _AUTOMATION_SPOT_MINIMUM_SIZE_PREPARATION_CATEGORIES[
+                    :stage_unknown_prefix_length
+                ]
+            )
             or tuple(completed_categories)
             != _AUTOMATION_SPOT_MINIMUM_SIZE_PREPARATION_CATEGORIES[
                 : len(completed_categories)

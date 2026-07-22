@@ -4,6 +4,12 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
+import pytest
+from pydantic import ValidationError
+
+from application.admin_api.automation_models import (
+    AutomationMinimumSizeCandidatePreparationResponse,
+)
 from application.admin_api.operator_spot_minimum_size_preparation import (
     MinimumSizePreparationOutcome,
     run_minimum_size_candidate_preparation,
@@ -151,16 +157,124 @@ def test_preparation_blocks_wallet_shortfall_with_no_terms_or_private_value():
     assert "0.50" not in repr(result)
 
 
-def test_preparation_unknown_is_terminal_and_never_retries():
-    client = _Client(fail_method="get_market_trades")
+def test_preparation_wallet_call_accounting_unknown_is_stage_specific():
+    client = _Client()
+    client.get_account_wallets_strict = lambda: _WalletRead(
+        wallets={"USDC": _Wallet("USDC", "2", "2")},
+        request_count=0,
+        page_count=0,
+    )
 
     result = _run(client)
 
     assert result.outcome is MinimumSizePreparationOutcome.UNKNOWN
-    assert result.diagnostic_code == "automation_minimum_size_preparation_unknown"
+    assert result.diagnostic_code == (
+        "automation_minimum_size_wallet_balances_unknown"
+    )
+    assert result.completed_categories == (
+        "API_KEY_PERMISSIONS",
+        "PORTFOLIO_CATALOG",
+    )
+
+
+@pytest.mark.parametrize(
+    ("fail_method", "diagnostic_code", "next_method"),
+    (
+        (
+            "get_api_key_permissions",
+            "automation_minimum_size_api_key_permissions_unknown",
+            "list_portfolios",
+        ),
+        (
+            "list_portfolios",
+            "automation_minimum_size_portfolio_catalog_unknown",
+            "get_account_wallets_strict",
+        ),
+        (
+            "get_account_wallets_strict",
+            "automation_minimum_size_wallet_balances_unknown",
+            "get_products_batch",
+        ),
+        (
+            "get_products_batch",
+            "automation_minimum_size_product_metadata_unknown",
+            "get_market_trades",
+        ),
+        (
+            "get_market_trades",
+            "automation_minimum_size_best_bid_ask_unknown",
+            "get_spot_transaction_summary",
+        ),
+        (
+            "get_spot_transaction_summary",
+            "automation_minimum_size_fee_summary_unknown",
+            "",
+        ),
+    ),
+)
+def test_preparation_unknown_is_stage_specific_terminal_and_never_retries(
+    fail_method: str,
+    diagnostic_code: str,
+    next_method: str,
+):
+    client = _Client(fail_method=fail_method)
+
+    result = _run(client)
+
+    assert result.outcome is MinimumSizePreparationOutcome.UNKNOWN
+    assert result.diagnostic_code == diagnostic_code
     assert result.coinbase_api_call_count is None
     assert result.call_count_exact is False
-    assert client.calls.count("get_market_trades") == 1
-    assert "get_spot_transaction_summary" not in client.calls
+    assert client.calls.count(fail_method) == 1
+    if next_method:
+        assert next_method not in client.calls
     assert "withheld-private-error" not in repr(result)
 
+
+def test_preparation_response_rejects_unknown_code_with_mismatched_evidence():
+    base = {
+        "outcome": "UNKNOWN",
+        "candidate_version": 7,
+        "spot_execution_mode": "MINIMUM_SIZE_POST_ONLY_V7",
+        "cycle_number": 3,
+        "boundary_classification": None,
+        "diagnostic_code": (
+            "automation_minimum_size_portfolio_catalog_unknown"
+        ),
+        "completed_categories": ["api_key_permissions"],
+        "coinbase_api_call_count": None,
+        "call_count_exact": False,
+        "definition": None,
+        "max_possible_execution_notional_usdc": None,
+        "audit_id": "30000000-0000-4000-8000-000000000001",
+        "correlation_id": "minimum-size-stage-unknown",
+    }
+
+    valid = AutomationMinimumSizeCandidatePreparationResponse(**base)
+    assert valid.diagnostic_code == (
+        "automation_minimum_size_portfolio_catalog_unknown"
+    )
+
+    with pytest.raises(ValidationError):
+        AutomationMinimumSizeCandidatePreparationResponse(
+            **{**base, "completed_categories": []}
+        )
+    with pytest.raises(ValidationError):
+        AutomationMinimumSizeCandidatePreparationResponse(
+            **{
+                **base,
+                "outcome": "BLOCKED",
+                "coinbase_api_call_count": 1,
+                "call_count_exact": True,
+            }
+        )
+    for invalid_evidence in (
+        {"boundary_classification": "minimum_size_v4_fee_reserve_conflict"},
+        {"definition": {}},
+        {"max_possible_execution_notional_usdc": "1.01"},
+        {"coinbase_api_call_count": 1, "call_count_exact": True},
+    ):
+        with pytest.raises(ValidationError):
+            AutomationMinimumSizeCandidatePreparationResponse(
+                **{**base, **invalid_evidence}
+            )

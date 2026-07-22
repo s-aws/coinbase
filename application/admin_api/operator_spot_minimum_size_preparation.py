@@ -155,10 +155,13 @@ def _blocked(
     )
 
 
-def _unknown(completed: list[str]) -> MinimumSizePreparationResult:
+def _unknown(
+    completed: list[str],
+    diagnostic_code: str = "automation_minimum_size_preparation_unknown",
+) -> MinimumSizePreparationResult:
     return _result(
         outcome=MinimumSizePreparationOutcome.UNKNOWN,
-        diagnostic_code="automation_minimum_size_preparation_unknown",
+        diagnostic_code=diagnostic_code,
         completed=completed,
         call_count=None,
     )
@@ -206,7 +209,10 @@ def run_minimum_size_candidate_preparation(
         permissions = _mapping(permissions_method())
         request_count += 1
     except Exception:
-        return _unknown(completed)
+        return _unknown(
+            completed,
+            "automation_minimum_size_api_key_permissions_unknown",
+        )
     if not (
         str(
             permissions.get("portfolio_uuid")
@@ -237,7 +243,10 @@ def run_minimum_size_candidate_preparation(
         portfolios = portfolios_method()
         request_count += 1
     except Exception:
-        return _unknown(completed)
+        return _unknown(
+            completed,
+            "automation_minimum_size_portfolio_catalog_unknown",
+        )
     matches = (
         [
             _mapping(row)
@@ -270,7 +279,10 @@ def run_minimum_size_candidate_preparation(
     try:
         wallet_read = wallets_method()
     except Exception:
-        return _unknown(completed)
+        return _unknown(
+            completed,
+            "automation_minimum_size_wallet_balances_unknown",
+        )
     wallet_requests = _field(wallet_read, "request_count")
     wallet_pages = _field(wallet_read, "page_count")
     if (
@@ -279,7 +291,10 @@ def run_minimum_size_candidate_preparation(
         or type(wallet_pages) is not int
         or wallet_pages != wallet_requests
     ):
-        return _unknown(completed)
+        return _unknown(
+            completed,
+            "automation_minimum_size_wallet_balances_unknown",
+        )
     request_count += wallet_requests
     portfolio_ids = {
         str(item).strip()
@@ -319,7 +334,10 @@ def run_minimum_size_candidate_preparation(
         product_map = products_method(["BTC-USDC"])
         request_count += 1
     except Exception:
-        return _unknown(completed)
+        return _unknown(
+            completed,
+            "automation_minimum_size_product_metadata_unknown",
+        )
     products = product_map if isinstance(product_map, Mapping) else {}
     product = _mapping(products.get("BTC-USDC"))
     increment_names = (
@@ -367,7 +385,10 @@ def run_minimum_size_candidate_preparation(
         market = _mapping(market_method(product_id="BTC-USDC", limit=1))
         request_count += 1
     except Exception:
-        return _unknown(completed)
+        return _unknown(
+            completed,
+            "automation_minimum_size_best_bid_ask_unknown",
+        )
     trades = market.get("trades")
     trade = (
         _mapping(trades[0])
@@ -394,7 +415,10 @@ def run_minimum_size_candidate_preparation(
         fee_summary = _mapping(fee_method())
         request_count += 1
     except Exception:
-        return _unknown(completed)
+        return _unknown(
+            completed,
+            "automation_minimum_size_fee_summary_unknown",
+        )
     fee_tier = _mapping(fee_summary.get("fee_tier"))
     maker_fee = _decimal(fee_tier.get("maker_fee_rate"))
     taker_fee = _decimal(fee_tier.get("taker_fee_rate"))
@@ -444,4 +468,3 @@ def run_minimum_size_candidate_preparation(
             approved_portfolio_id.encode("utf-8")
         ).hexdigest(),
     )
-

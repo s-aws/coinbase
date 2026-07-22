@@ -6,17 +6,23 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 
 The active successor goal is
 `operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`.
-Status: `readiness_complete_operator_action_pending`. Current action:
-`execute_first_valid_v7_v9_successor`.
+Status: `generic_unknown_cycles_2_stage_remediation_in_progress`.
+Current action: `validate_deploy_then_execute_distinct_cycle_3`.
 Default action: `complete_readiness_then_execute_first_valid_v7_v9_successor`.
 The backend-owned `BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2` policy,
 six-category preparation, eight-category eligibility, fixed sanitized boundary
 classification, and strict below-3.10 dynamic cap are documented in
 [`OPERATOR_SPOT_AUTOMATION_MINIMUM_SIZE_V7_V9.md`](OPERATOR_SPOT_AUTOMATION_MINIMUM_SIZE_V7_V9.md).
-Goal-global cycles are `0/10`; Preview/Create/Cancel calls are `0/0/0`, and all
-allowances remain unconsumed. Complete backend/frontend gates, installed
+Goal-global cycles are `2/10`; both remain immutable generic
+`automation_minimum_size_preparation_unknown` records with zero completed
+categories and conservatively withheld exact call count. The first approved
+category was not confirmed. Stage-specific unknown codes apply only to future
+cycles after the remediation is validated and deployed.
+Preview/Create/Cancel calls are `0/0/0`, and all those allowances remain
+unconsumed. Complete backend/frontend gates, installed
 deployment validation, and independent safety plus blind-contextless code
-audits pass; the authenticated operator action is next.
+audits passed for the prior readiness checkpoint; the remediation must pass
+those gates before distinct cycle 3.
 
 ### V4 near-market predecessor entry
 

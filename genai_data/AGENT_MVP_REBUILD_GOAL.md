@@ -5,10 +5,10 @@ Goal ID:
 
 Last reviewed: 2026-07-22 UTC.
 
-Status: `readiness_complete_operator_action_pending`.
+Status: `generic_unknown_cycles_2_stage_remediation_in_progress`.
 
 Current action:
-`execute_first_valid_v7_v9_successor`.
+`validate_deploy_then_execute_distinct_cycle_3`.
 
 Default action: `complete_readiness_then_execute_first_valid_v7_v9_successor`.
 
@@ -18,11 +18,15 @@ derives the smallest valid post-only fresh Get Market Trades best-bid terms,
 submitted notional, and fee-reserved dynamic execution cap, with both caps
 strictly below 3.10 USDC. Product minimum, increment, fee, wallet, freshness,
 and cap failures use fixed sanitized classifications. Six-category preparation
-and eight-category run eligibility share `0/10` durable no-retry cycles.
-Preview/Create/Cancel calls are `0/0/0`; all allowances remain unconsumed
-after full validation, deployment checks, and independent safety plus
-blind-contextless code audits passed. The authenticated operator action is
-next.
+and eight-category run eligibility share `2/10` durable no-retry cycles.
+Cycles 1 and 2 remain immutable generic
+`automation_minimum_size_preparation_unknown` records with zero completed
+categories and exact call count withheld; the first approved category was not
+confirmed. Stage-specific unknown codes apply only to future cycles after the
+remediation is validated and deployed. Preview/Create/Cancel calls are
+`0/0/0`; all those allowances remain unconsumed. Prior readiness gates passed;
+the remediation still requires focused/full validation, deployment, and both
+independent audits before distinct cycle 3.
 
 ## V4 near-market predecessor closeout
 
