@@ -131,6 +131,17 @@ class _LookupFailureClient:
         return getattr(self._delegate, name)
 
 
+class _ExplodingMapping(dict[str, Any]):
+    def get(self, _key: str, _default: Any = None) -> Any:
+        raise RuntimeError("withheld-private-error")
+
+
+class _ExplodingWalletRead:
+    @property
+    def request_count(self) -> int:
+        raise RuntimeError("withheld-private-error")
+
+
 def _run(client: _Client):
     return run_minimum_size_candidate_preparation(
         rest_client=client,
@@ -327,6 +338,85 @@ def test_preparation_truly_missing_method_is_rejected_not_unknown():
     assert result.completed_categories == ()
     assert result.coinbase_api_call_count == 0
     assert result.call_count_exact is True
+
+
+@pytest.mark.parametrize(
+    ("fail_method", "diagnostic_code", "completed_categories"),
+    (
+        (
+            "get_api_key_permissions",
+            "automation_minimum_size_api_key_permissions_unknown",
+            (),
+        ),
+        (
+            "list_portfolios",
+            "automation_minimum_size_portfolio_catalog_unknown",
+            ("API_KEY_PERMISSIONS",),
+        ),
+        (
+            "get_account_wallets_strict",
+            "automation_minimum_size_wallet_balances_unknown",
+            ("API_KEY_PERMISSIONS", "PORTFOLIO_CATALOG"),
+        ),
+        (
+            "get_products_batch",
+            "automation_minimum_size_product_metadata_unknown",
+            (
+                "API_KEY_PERMISSIONS",
+                "PORTFOLIO_CATALOG",
+                "ACCOUNT_WALLET_BALANCES",
+            ),
+        ),
+        (
+            "get_market_trades",
+            "automation_minimum_size_best_bid_ask_unknown",
+            (
+                "API_KEY_PERMISSIONS",
+                "PORTFOLIO_CATALOG",
+                "ACCOUNT_WALLET_BALANCES",
+                "PRODUCT_METADATA",
+            ),
+        ),
+        (
+            "get_spot_transaction_summary",
+            "automation_minimum_size_fee_summary_unknown",
+            (
+                "API_KEY_PERMISSIONS",
+                "PORTFOLIO_CATALOG",
+                "ACCOUNT_WALLET_BALANCES",
+                "PRODUCT_METADATA",
+                "BEST_BID_ASK",
+            ),
+        ),
+    ),
+)
+def test_preparation_response_processing_failure_is_stage_specific(
+    monkeypatch: pytest.MonkeyPatch,
+    fail_method: str,
+    diagnostic_code: str,
+    completed_categories: tuple[str, ...],
+):
+    client = _Client()
+
+    def malformed_response(*_args: Any, **_kwargs: Any) -> Any:
+        client.calls.append(fail_method)
+        if fail_method == "list_portfolios":
+            return [_ExplodingMapping()]
+        if fail_method == "get_account_wallets_strict":
+            return _ExplodingWalletRead()
+        return _ExplodingMapping()
+
+    monkeypatch.setattr(client, fail_method, malformed_response)
+
+    result = _run(client)
+
+    assert result.outcome is MinimumSizePreparationOutcome.UNKNOWN
+    assert result.diagnostic_code == diagnostic_code
+    assert result.completed_categories == completed_categories
+    assert result.coinbase_api_call_count is None
+    assert result.call_count_exact is False
+    assert client.calls.count(fail_method) == 1
+    assert "withheld-private-error" not in repr(result)
 
 
 def test_preparation_response_rejects_unknown_code_with_mismatched_evidence():

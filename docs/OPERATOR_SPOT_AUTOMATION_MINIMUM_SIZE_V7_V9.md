@@ -2,8 +2,8 @@
 
 Goal
 `operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`
-is active at `generic_unknown_cycles_3_method_resolution_remediation_in_progress`.
-Current action: `validate_deploy_then_execute_distinct_cycle_4`.
+is active at `generic_unknown_cycles_4_response_processing_remediation_in_progress`.
+Current action: `validate_deploy_then_execute_distinct_cycle_5`.
 Default action: `complete_readiness_then_execute_first_valid_v7_v9_successor`.
 
 ## Boundary and policy
@@ -85,24 +85,26 @@ and one-winner concurrent preparation claiming.
 
 ## Current accounting
 
-Goal-global cycles are `3/10`. Cycles 1–3 are immutable terminal generic
+Goal-global cycles are `4/10`. Cycles 1–4 are immutable terminal generic
 `automation_minimum_size_preparation_unknown` records with zero completed
 categories and exact call count conservatively withheld; the first approved
-category was not confirmed. Cycle 3 localized the remaining software boundary
-to REST-client method resolution outside the protected category lookup. Coinbase
+category was not confirmed. Cycle 3 exposed an unprotected REST-client method
+lookup. Cycle 4 remained generic after that fix, localizing the next software
+boundary to response processing outside the fixed stage envelope. Coinbase
 Preview/Create/Cancel calls are `0/0/0`; every such live allowance is
-unconsumed. No V7-V9 candidate currently exists. Remediation adds fixed
-stage-specific unknown codes for each approved preparation category without
-retaining response content or exception text. The readiness backend gate
+unconsumed. No V7-V9 candidate currently exists. Remediation now applies the
+fixed stage-specific unknown codes to method lookup, invocation, and response
+processing for each approved preparation category without retaining response
+content or exception text. The readiness backend gate
 passed with `1209 passed, 6 skipped` parallel and
 `685 passed, 150 skipped` serial. The canonical frontend release gate passed
 `1581` Vitest tests, `229` deployment tests, `17` Playwright tests, generated
 contract checks, and installed Controlled-live deployment validation with zero
 live Coinbase execution. The independent safety audit passed; the
-blind-contextless code audit found the stage-specific evidence-binding and
-operator-readback defects now under remediation. Focused and full validation,
+blind-contextless code audit passed for the method-lookup checkpoint. The
+response-processing stage envelope is now under remediation. Focused and full validation,
 installed deployment checks, and both independent audits must pass before the
-distinct cycle 4 operator action.
+distinct cycle 5 operator action.
 
 ## Legacy comparison
 

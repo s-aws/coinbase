@@ -7,25 +7,27 @@ working on the enterprise admin platform.
 
 Goal
 `operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`
-is active at `generic_unknown_cycles_3_method_resolution_remediation_in_progress`.
-Current action: `validate_deploy_then_execute_distinct_cycle_4`.
+is active at `generic_unknown_cycles_4_response_processing_remediation_in_progress`.
+Current action: `validate_deploy_then_execute_distinct_cycle_5`.
 Default action: `complete_readiness_then_execute_first_valid_v7_v9_successor`.
 Policy `BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2` is backend-owned and
 derives the smallest valid post-only fresh Get Market Trades best-bid terms and
 fee-reserved execution cap strictly below 3.10 USDC. Six-category preparation
-and eight-category eligibility share `3/10` durable no-retry cycles. Cycles
-1–3 remain immutable generic `automation_minimum_size_preparation_unknown`
+and eight-category eligibility share `4/10` durable no-retry cycles. Cycles
+1–4 remain immutable generic `automation_minimum_size_preparation_unknown`
 records with zero completed categories and conservatively withheld exact call
-count; the first approved category was not confirmed. Cycle 3 localized the
-remaining software boundary to REST-client method resolution outside the
-category catch. Stage-specific lookup classification applies only after the
-current remediation is validated and deployed. Preview/Create/Cancel calls are
+count; the first approved category was not confirmed. Cycle 3 exposed an
+unprotected REST-client method lookup. Cycle 4 remained generic after that
+fix, localizing the next software boundary to response processing outside the
+fixed stage envelope. Stage-specific response-processing classification
+applies only after the current remediation is validated and deployed.
+Preview/Create/Cancel calls are
 `0/0/0`; all those allowances remain unconsumed.
 The complete backend regression, canonical frontend release gate, installed
 deployment checks, and independent safety plus blind-contextless code audits
 passed for the prior readiness checkpoint. The remediation must pass focused
 and full validation, installed deployment checks, and both audits before
-distinct cycle 4. See
+distinct cycle 5. See
 [Operator Spot Automation Minimum Size V7-V9](OPERATOR_SPOT_AUTOMATION_MINIMUM_SIZE_V7_V9.md).
 
 ### V4 near-market predecessor handoff

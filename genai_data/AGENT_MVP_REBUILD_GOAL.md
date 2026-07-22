@@ -5,10 +5,10 @@ Goal ID:
 
 Last reviewed: 2026-07-22 UTC.
 
-Status: `generic_unknown_cycles_3_method_resolution_remediation_in_progress`.
+Status: `generic_unknown_cycles_4_response_processing_remediation_in_progress`.
 
 Current action:
-`validate_deploy_then_execute_distinct_cycle_4`.
+`validate_deploy_then_execute_distinct_cycle_5`.
 
 Default action: `complete_readiness_then_execute_first_valid_v7_v9_successor`.
 
@@ -18,16 +18,18 @@ derives the smallest valid post-only fresh Get Market Trades best-bid terms,
 submitted notional, and fee-reserved dynamic execution cap, with both caps
 strictly below 3.10 USDC. Product minimum, increment, fee, wallet, freshness,
 and cap failures use fixed sanitized classifications. Six-category preparation
-and eight-category run eligibility share `3/10` durable no-retry cycles.
-Cycles 1–3 remain immutable generic
+and eight-category run eligibility share `4/10` durable no-retry cycles.
+Cycles 1–4 remain immutable generic
 `automation_minimum_size_preparation_unknown` records with zero completed
 categories and exact call count withheld; the first approved category was not
-confirmed. Cycle 3 localized REST-client method resolution outside the
-category catch. Stage-specific lookup classification applies only after the
-current remediation is validated and deployed. Preview/Create/Cancel calls are
+confirmed. Cycle 3 exposed an unprotected REST-client method lookup. Cycle 4
+remained generic after that fix, localizing the next software boundary to
+response processing outside the fixed stage envelope. Stage-specific
+response-processing classification applies only after the current remediation
+is validated and deployed. Preview/Create/Cancel calls are
 `0/0/0`; all those allowances remain unconsumed. Prior readiness gates passed;
 the remediation still requires focused/full validation, deployment, and both
-independent audits before distinct cycle 4.
+independent audits before distinct cycle 5.
 
 ## V4 near-market predecessor closeout
 

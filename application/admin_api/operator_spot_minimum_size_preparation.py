@@ -168,15 +168,15 @@ def _unknown(
     )
 
 
-def run_minimum_size_candidate_preparation(
+def _run_minimum_size_candidate_preparation(
     *,
     rest_client: Any,
     approved_portfolio_id: str,
     approved_portfolio_label: str,
     now_factory: Callable[[], datetime],
+    completed: list[str],
+    stage_state: dict[str, str],
 ) -> MinimumSizePreparationResult:
-    """Read six approved categories once and derive no caller-owned term."""
-
     try:
         if (
             str(UUID(approved_portfolio_id)) != approved_portfolio_id
@@ -192,7 +192,6 @@ def run_minimum_size_candidate_preparation(
             call_count=0,
         )
 
-    completed: list[str] = []
     request_count = 0
 
     def method(name: str) -> tuple[Callable[..., Any] | None, bool]:
@@ -215,6 +214,9 @@ def run_minimum_size_candidate_preparation(
             return None, True
         return (value if callable(value) else None), False
 
+    stage_state["diagnostic_code"] = (
+        "automation_minimum_size_api_key_permissions_unknown"
+    )
     permissions_method, permissions_lookup_unknown = method(
         "get_api_key_permissions"
     )
@@ -256,6 +258,9 @@ def run_minimum_size_candidate_preparation(
         )
     completed.append(_CATEGORIES[0])
 
+    stage_state["diagnostic_code"] = (
+        "automation_minimum_size_portfolio_catalog_unknown"
+    )
     portfolios_method, portfolios_lookup_unknown = method("list_portfolios")
     if portfolios_lookup_unknown:
         return _unknown(
@@ -298,6 +303,9 @@ def run_minimum_size_candidate_preparation(
         )
     completed.append(_CATEGORIES[1])
 
+    stage_state["diagnostic_code"] = (
+        "automation_minimum_size_wallet_balances_unknown"
+    )
     wallets_method, wallets_lookup_unknown = method(
         "get_account_wallets_strict"
     )
@@ -359,6 +367,9 @@ def run_minimum_size_candidate_preparation(
         )
     completed.append(_CATEGORIES[2])
 
+    stage_state["diagnostic_code"] = (
+        "automation_minimum_size_product_metadata_unknown"
+    )
     products_method, products_lookup_unknown = method("get_products_batch")
     if products_lookup_unknown:
         return _unknown(
@@ -415,6 +426,9 @@ def run_minimum_size_candidate_preparation(
         )
     completed.append(_CATEGORIES[3])
 
+    stage_state["diagnostic_code"] = (
+        "automation_minimum_size_best_bid_ask_unknown"
+    )
     market_method, market_lookup_unknown = method("get_market_trades")
     if market_lookup_unknown:
         return _unknown(
@@ -450,6 +464,9 @@ def run_minimum_size_candidate_preparation(
         )
     completed.append(_CATEGORIES[4])
 
+    stage_state["diagnostic_code"] = (
+        "automation_minimum_size_fee_summary_unknown"
+    )
     fee_method, fee_lookup_unknown = method("get_spot_transaction_summary")
     if fee_lookup_unknown:
         return _unknown(
@@ -486,6 +503,9 @@ def run_minimum_size_candidate_preparation(
         )
     completed.append(_CATEGORIES[5])
 
+    stage_state["diagnostic_code"] = (
+        "automation_minimum_size_preparation_unknown"
+    )
     try:
         plan = derive_minimum_size_buy_plan(
             product_id="BTC-USDC",
@@ -519,3 +539,32 @@ def run_minimum_size_candidate_preparation(
             approved_portfolio_id.encode("utf-8")
         ).hexdigest(),
     )
+
+
+def run_minimum_size_candidate_preparation(
+    *,
+    rest_client: Any,
+    approved_portfolio_id: str,
+    approved_portfolio_label: str,
+    now_factory: Callable[[], datetime],
+) -> MinimumSizePreparationResult:
+    """Read six approved categories once and derive no caller-owned term."""
+
+    completed: list[str] = []
+    stage_state = {
+        "diagnostic_code": "automation_minimum_size_preparation_unknown"
+    }
+    try:
+        return _run_minimum_size_candidate_preparation(
+            rest_client=rest_client,
+            approved_portfolio_id=approved_portfolio_id,
+            approved_portfolio_label=approved_portfolio_label,
+            now_factory=now_factory,
+            completed=completed,
+            stage_state=stage_state,
+        )
+    except Exception:
+        return _unknown(
+            completed,
+            stage_state["diagnostic_code"],
+        )

@@ -6,21 +6,23 @@ implicit platform model.
 
 Active bounded proof goal
 `operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`
-is `generic_unknown_cycles_3_method_resolution_remediation_in_progress`. Current
-action: `validate_deploy_then_execute_distinct_cycle_4`. Default action:
+is `generic_unknown_cycles_4_response_processing_remediation_in_progress`. Current
+action: `validate_deploy_then_execute_distinct_cycle_5`. Default action:
 `complete_readiness_then_execute_first_valid_v7_v9_successor`. The Automation
 domain owns policy `BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2`, six-category
-preparation and eight-category eligibility with `3/10` shared no-retry cycles.
-Get Market Trades supplies same-snapshot market evidence. Cycles 1–3 remain
+preparation and eight-category eligibility with `4/10` shared no-retry cycles.
+Get Market Trades supplies same-snapshot market evidence. Cycles 1–4 remain
 immutable generic `automation_minimum_size_preparation_unknown` records with
 zero completed categories and exact call count withheld; the first approved
-category was not confirmed. Cycle 3 localized the remaining software boundary
-to REST-client method resolution outside the category catch; stage-specific
-lookup classification applies only after the remediation is validated and deployed.
+category was not confirmed. Cycle 3 exposed an unprotected REST-client method
+lookup. Cycle 4 remained generic after that fix, localizing the next software
+boundary to response processing outside the fixed stage envelope. The
+stage-specific envelope applies only after this remediation is validated and
+deployed.
 Preview/Create/Cancel calls are `0/0/0`; all those successor allowances remain
 unconsumed. Prior readiness gates passed; the remediation must pass focused and
 full validation, deployment, and both independent audits before distinct
-cycle 4.
+cycle 5.
 
 Status: `complete`.
 
