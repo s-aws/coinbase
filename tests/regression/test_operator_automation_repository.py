@@ -4514,8 +4514,16 @@ def test_minimum_size_service_materializes_exact_dynamic_cap_plan(
 
     assert unknown.entity["outcome"] == "UNKNOWN"
     assert unknown.entity["diagnostic_code"] == (
-        "automation_minimum_size_preparation_unknown"
+        "automation_minimum_size_materialization_unknown"
     )
+    assert unknown.entity["completed_categories"] == [
+        "api_key_permissions",
+        "portfolio_catalog",
+        "wallet_balances",
+        "product_metadata",
+        "best_bid_ask",
+        "fee_summary",
+    ]
     assert unknown.entity["call_count_exact"] is False
     assert unknown.entity["definition"] is None
 
@@ -4560,6 +4568,49 @@ def test_minimum_size_service_materializes_exact_dynamic_cap_plan(
         "max_submitted_notional_usdc": "3.10",
         "max_possible_execution_notional_usdc": "1.01",
     }
+
+
+def test_minimum_size_service_localizes_runner_composition_failure(
+    repository_harness: _Harness,
+) -> None:
+    repository = repository_harness.repository()
+    _seal_minimum_size_predecessor(repository, "minimum-size-composition")
+
+    def fail_before_reader_entry():
+        raise RuntimeError("withheld-private-error")
+
+    adapter = PostgresOperatorAutomationRepositoryAdapter(
+        repository,
+        spot_minimum_size_preparation_runner=fail_before_reader_entry,
+    )
+
+    mutation = adapter.prepare_minimum_size_candidate(
+        request={
+            "confirm_backend_derived_terms": True,
+            "confirm_one_no_retry_preparation_cycle": True,
+            "confirm_btc_usdc_test_portfolio_scope": True,
+            "confirm_dynamic_cap_strictly_below_3_10": True,
+            "confirm_unknown_consumes_cycle": True,
+            "reason": "Localize the fixed composition boundary",
+        },
+        context=AutomationMutationContext(
+            actor_id="operator-minimum-size",
+            roles=("operator",),
+            idempotency_key="minimum-size-composition-failure",
+            correlation_id="minimum-size-composition-failure",
+            operator_intent="prepare_automation_minimum_size_candidate",
+        ),
+    )
+
+    assert mutation.entity["outcome"] == "UNKNOWN"
+    assert mutation.entity["diagnostic_code"] == (
+        "automation_minimum_size_runner_composition_unknown"
+    )
+    assert mutation.entity["completed_categories"] == []
+    assert mutation.entity["coinbase_api_call_count"] is None
+    assert mutation.entity["call_count_exact"] is False
+    assert mutation.entity["definition"] is None
+    assert "withheld-private-error" not in repr(mutation.entity)
 
 
 def test_near_market_preparation_restart_consumes_unknown_cycle_without_candidate(

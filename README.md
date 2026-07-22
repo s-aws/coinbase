@@ -15,8 +15,8 @@ plans.
 
 Goal
 `operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`
-is active at `generic_unknown_cycles_4_response_processing_remediation_in_progress`.
-Current action: `validate_deploy_then_execute_distinct_cycle_5`.
+is active at `generic_unknown_cycles_5_outer_boundary_remediation_in_progress`.
+Current action: `validate_deploy_then_execute_distinct_cycle_6`.
 Default action: `complete_readiness_then_execute_first_valid_v7_v9_successor`.
 
 The backend-owned successor policy
@@ -25,21 +25,22 @@ post-only fresh Get Market Trades best-bid candidate for the approved Test
 portfolio and BTC-USDC. It uses fixed sanitized minimum/increment/fee/wallet/
 freshness/cap classifications and a submitted plus fee-reserved dynamic cap
 strictly below 3.10 USDC. Six-category preparation and eight-category run
-eligibility share `4/10` durable no-retry cycles. Cycles 1–4 remain
+eligibility share `5/10` durable no-retry cycles. Cycles 1–5 remain
 immutable generic `automation_minimum_size_preparation_unknown` records with
 zero completed categories and exact call count conservatively withheld; the
 first approved category was not confirmed. Cycle 3 exposed an unprotected
-REST-client method lookup. Cycle 4 remained generic after that fix, localizing
-the next software boundary to response processing outside the fixed stage
-envelope. The current remediation makes every such failure terminal under its
-fixed category-specific UNKNOWN classification.
+REST-client method lookup, and cycle 4 exposed response processing outside the
+fixed stage envelope. Cycle 5 remained generic after both fixes, localizing the
+remaining ambiguity to runner composition before reader entry or atomic
+materialization after valid terms. The current remediation assigns those two
+outer boundaries distinct fixed UNKNOWN classifications.
 Preview/Create/Cancel calls are
 `0/0/0`; all those allowances remain unconsumed. The readiness backend gate passed
 with `1209 passed, 6 skipped` parallel and `685 passed, 150 skipped` serial;
 the canonical frontend release gate and installed deployment validation pass,
 and the independent safety plus blind-contextless code audits passed for the
 prior readiness checkpoint. The stage-specific remediation must pass focused and full
-validation, deployment, and both audits before distinct cycle 5.
+validation, deployment, and both audits before distinct cycle 6.
 
 ### V4 near-market predecessor closeout
 

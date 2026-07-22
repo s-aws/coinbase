@@ -443,6 +443,47 @@ def test_preparation_response_rejects_unknown_code_with_mismatched_evidence():
         "automation_minimum_size_portfolio_catalog_unknown"
     )
 
+    composition = AutomationMinimumSizeCandidatePreparationResponse(
+        **{
+            **base,
+            "diagnostic_code": (
+                "automation_minimum_size_runner_composition_unknown"
+            ),
+            "completed_categories": [],
+        }
+    )
+    assert composition.completed_categories == []
+
+    materialization_categories = [
+        "api_key_permissions",
+        "portfolio_catalog",
+        "wallet_balances",
+        "product_metadata",
+        "best_bid_ask",
+        "fee_summary",
+    ]
+    materialization = AutomationMinimumSizeCandidatePreparationResponse(
+        **{
+            **base,
+            "diagnostic_code": (
+                "automation_minimum_size_materialization_unknown"
+            ),
+            "completed_categories": materialization_categories,
+        }
+    )
+    assert materialization.completed_categories == materialization_categories
+
+    with pytest.raises(ValidationError):
+        AutomationMinimumSizeCandidatePreparationResponse(
+            **{
+                **base,
+                "diagnostic_code": (
+                    "automation_minimum_size_materialization_unknown"
+                ),
+                "completed_categories": materialization_categories[:-1],
+            }
+        )
+
     with pytest.raises(ValidationError):
         AutomationMinimumSizeCandidatePreparationResponse(
             **{**base, "completed_categories": []}

@@ -58,12 +58,14 @@ _MINIMUM_SIZE_PREPARATION_CATEGORIES = (
     "fee_summary",
 )
 _MINIMUM_SIZE_STAGE_UNKNOWN_PREFIX_LENGTH = {
+    "automation_minimum_size_runner_composition_unknown": 0,
     "automation_minimum_size_api_key_permissions_unknown": 0,
     "automation_minimum_size_portfolio_catalog_unknown": 1,
     "automation_minimum_size_wallet_balances_unknown": 2,
     "automation_minimum_size_product_metadata_unknown": 3,
     "automation_minimum_size_best_bid_ask_unknown": 4,
     "automation_minimum_size_fee_summary_unknown": 5,
+    "automation_minimum_size_materialization_unknown": 6,
 }
 _MINIMUM_SIZE_UNKNOWN_DIAGNOSTICS = frozenset(
     {
@@ -1924,9 +1926,11 @@ class AutomationMinimumSizeCandidatePreparationResponse(BaseModel):
         "automation_minimum_size_portfolio_catalog_rejected",
         "automation_minimum_size_portfolio_catalog_unknown",
         "automation_minimum_size_portfolio_configuration_invalid",
+        "automation_minimum_size_materialization_unknown",
         "automation_minimum_size_preparation_unknown",
         "automation_minimum_size_product_metadata_rejected",
         "automation_minimum_size_product_metadata_unknown",
+        "automation_minimum_size_runner_composition_unknown",
         "automation_minimum_size_wallet_balances_rejected",
         "automation_minimum_size_wallet_balances_unknown",
         "minimum_size_fee_invalid",

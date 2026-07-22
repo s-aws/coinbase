@@ -2251,7 +2251,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
                     goal_key=claimed.goal_key,
                     state="UNKNOWN",
                     diagnostic_code=(
-                        "automation_minimum_size_preparation_unknown"
+                        "automation_minimum_size_runner_composition_unknown"
                     ),
                     completed_categories=(),
                     coinbase_api_call_count=None,
@@ -2373,9 +2373,11 @@ class PostgresOperatorAutomationRepositoryAdapter:
                         goal_key=claimed.goal_key,
                         state="UNKNOWN",
                         diagnostic_code=(
-                            "automation_minimum_size_preparation_unknown"
+                            "automation_minimum_size_materialization_unknown"
                         ),
-                        completed_categories=(),
+                        completed_categories=tuple(
+                            result.completed_categories
+                        ),
                         coinbase_api_call_count=None,
                         call_count_exact=False,
                         evidence_sha256=None,

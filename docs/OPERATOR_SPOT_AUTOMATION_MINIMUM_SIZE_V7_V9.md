@@ -2,8 +2,8 @@
 
 Goal
 `operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`
-is active at `generic_unknown_cycles_4_response_processing_remediation_in_progress`.
-Current action: `validate_deploy_then_execute_distinct_cycle_5`.
+is active at `generic_unknown_cycles_5_outer_boundary_remediation_in_progress`.
+Current action: `validate_deploy_then_execute_distinct_cycle_6`.
 Default action: `complete_readiness_then_execute_first_valid_v7_v9_successor`.
 
 ## Boundary and policy
@@ -85,26 +85,30 @@ and one-winner concurrent preparation claiming.
 
 ## Current accounting
 
-Goal-global cycles are `4/10`. Cycles 1–4 are immutable terminal generic
+Goal-global cycles are `5/10`. Cycles 1–5 are immutable terminal generic
 `automation_minimum_size_preparation_unknown` records with zero completed
 categories and exact call count conservatively withheld; the first approved
 category was not confirmed. Cycle 3 exposed an unprotected REST-client method
-lookup. Cycle 4 remained generic after that fix, localizing the next software
-boundary to response processing outside the fixed stage envelope. Coinbase
+lookup, and cycle 4 exposed response processing outside the fixed stage
+envelope. Cycle 5 remained generic after both fixes, localizing the remaining
+ambiguity to runner composition before reader entry or atomic materialization
+after valid terms. Coinbase
 Preview/Create/Cancel calls are `0/0/0`; every such live allowance is
-unconsumed. No V7-V9 candidate currently exists. Remediation now applies the
-fixed stage-specific unknown codes to method lookup, invocation, and response
-processing for each approved preparation category without retaining response
-content or exception text. The readiness backend gate
+unconsumed. No V7-V9 candidate currently exists. Remediation retains the fixed
+per-category codes and adds
+`automation_minimum_size_runner_composition_unknown` for the zero-prefix outer
+boundary plus `automation_minimum_size_materialization_unknown` for the
+six-category-prefix outer boundary, without retaining response content or
+exception text. The readiness backend gate
 passed with `1209 passed, 6 skipped` parallel and
 `685 passed, 150 skipped` serial. The canonical frontend release gate passed
 `1581` Vitest tests, `229` deployment tests, `17` Playwright tests, generated
 contract checks, and installed Controlled-live deployment validation with zero
 live Coinbase execution. The independent safety audit passed; the
-blind-contextless code audit passed for the method-lookup checkpoint. The
-response-processing stage envelope is now under remediation. Focused and full validation,
+blind-contextless code audit passed for the response-processing checkpoint.
+The outer-boundary split is now under remediation. Focused and full validation,
 installed deployment checks, and both independent audits must pass before the
-distinct cycle 5 operator action.
+distinct cycle 6 operator action.
 
 ## Legacy comparison
 
