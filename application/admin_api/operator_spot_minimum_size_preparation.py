@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from enum import Enum
 import hashlib
+from inspect import getattr_static
 from typing import Any, Callable, Mapping
 from uuid import UUID
 
@@ -194,11 +195,34 @@ def run_minimum_size_candidate_preparation(
     completed: list[str] = []
     request_count = 0
 
-    def method(name: str) -> Callable[..., Any] | None:
-        value = getattr(rest_client, name, None)
-        return value if callable(value) else None
+    def method(name: str) -> tuple[Callable[..., Any] | None, bool]:
+        missing = object()
+        try:
+            statically_missing = (
+                getattr_static(rest_client, name, missing) is missing
+            )
+            dynamic_lookup = (
+                getattr_static(type(rest_client), "__getattr__", missing)
+                is not missing
+            )
+        except Exception:
+            return None, True
+        if statically_missing and not dynamic_lookup:
+            return None, False
+        try:
+            value = getattr(rest_client, name)
+        except Exception:
+            return None, True
+        return (value if callable(value) else None), False
 
-    permissions_method = method("get_api_key_permissions")
+    permissions_method, permissions_lookup_unknown = method(
+        "get_api_key_permissions"
+    )
+    if permissions_lookup_unknown:
+        return _unknown(
+            completed,
+            "automation_minimum_size_api_key_permissions_unknown",
+        )
     if permissions_method is None:
         return _blocked(
             "automation_minimum_size_api_key_permissions_rejected",
@@ -232,7 +256,12 @@ def run_minimum_size_candidate_preparation(
         )
     completed.append(_CATEGORIES[0])
 
-    portfolios_method = method("list_portfolios")
+    portfolios_method, portfolios_lookup_unknown = method("list_portfolios")
+    if portfolios_lookup_unknown:
+        return _unknown(
+            completed,
+            "automation_minimum_size_portfolio_catalog_unknown",
+        )
     if portfolios_method is None:
         return _blocked(
             "automation_minimum_size_portfolio_catalog_rejected",
@@ -269,7 +298,14 @@ def run_minimum_size_candidate_preparation(
         )
     completed.append(_CATEGORIES[1])
 
-    wallets_method = method("get_account_wallets_strict")
+    wallets_method, wallets_lookup_unknown = method(
+        "get_account_wallets_strict"
+    )
+    if wallets_lookup_unknown:
+        return _unknown(
+            completed,
+            "automation_minimum_size_wallet_balances_unknown",
+        )
     if wallets_method is None:
         return _blocked(
             "automation_minimum_size_wallet_balances_rejected",
@@ -323,7 +359,12 @@ def run_minimum_size_candidate_preparation(
         )
     completed.append(_CATEGORIES[2])
 
-    products_method = method("get_products_batch")
+    products_method, products_lookup_unknown = method("get_products_batch")
+    if products_lookup_unknown:
+        return _unknown(
+            completed,
+            "automation_minimum_size_product_metadata_unknown",
+        )
     if products_method is None:
         return _blocked(
             "automation_minimum_size_product_metadata_rejected",
@@ -374,7 +415,12 @@ def run_minimum_size_candidate_preparation(
         )
     completed.append(_CATEGORIES[3])
 
-    market_method = method("get_market_trades")
+    market_method, market_lookup_unknown = method("get_market_trades")
+    if market_lookup_unknown:
+        return _unknown(
+            completed,
+            "automation_minimum_size_best_bid_ask_unknown",
+        )
     if market_method is None:
         return _blocked(
             "automation_minimum_size_best_bid_ask_rejected",
@@ -404,7 +450,12 @@ def run_minimum_size_candidate_preparation(
         )
     completed.append(_CATEGORIES[4])
 
-    fee_method = method("get_spot_transaction_summary")
+    fee_method, fee_lookup_unknown = method("get_spot_transaction_summary")
+    if fee_lookup_unknown:
+        return _unknown(
+            completed,
+            "automation_minimum_size_fee_summary_unknown",
+        )
     if fee_method is None:
         return _blocked(
             "automation_minimum_size_fee_summary_rejected",

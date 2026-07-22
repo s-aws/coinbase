@@ -2,8 +2,8 @@
 
 Goal
 `operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`
-is active at `generic_unknown_cycles_2_stage_remediation_in_progress`.
-Current action: `validate_deploy_then_execute_distinct_cycle_3`.
+is active at `generic_unknown_cycles_3_method_resolution_remediation_in_progress`.
+Current action: `validate_deploy_then_execute_distinct_cycle_4`.
 Default action: `complete_readiness_then_execute_first_valid_v7_v9_successor`.
 
 ## Boundary and policy
@@ -85,10 +85,11 @@ and one-winner concurrent preparation claiming.
 
 ## Current accounting
 
-Goal-global cycles are `2/10`. Cycles 1 and 2 are immutable terminal generic
+Goal-global cycles are `3/10`. Cycles 1–3 are immutable terminal generic
 `automation_minimum_size_preparation_unknown` records with zero completed
 categories and exact call count conservatively withheld; the first approved
-category was not confirmed. Coinbase
+category was not confirmed. Cycle 3 localized the remaining software boundary
+to REST-client method resolution outside the protected category lookup. Coinbase
 Preview/Create/Cancel calls are `0/0/0`; every such live allowance is
 unconsumed. No V7-V9 candidate currently exists. Remediation adds fixed
 stage-specific unknown codes for each approved preparation category without
@@ -101,7 +102,7 @@ live Coinbase execution. The independent safety audit passed; the
 blind-contextless code audit found the stage-specific evidence-binding and
 operator-readback defects now under remediation. Focused and full validation,
 installed deployment checks, and both independent audits must pass before the
-distinct cycle 3 operator action.
+distinct cycle 4 operator action.
 
 ## Legacy comparison
 

@@ -115,6 +115,22 @@ class _Client:
         raise AssertionError("Cancel is outside preparation authority")
 
 
+class _LookupFailureClient:
+    def __init__(
+        self,
+        fail_lookup: str,
+        exception_type: type[Exception],
+    ) -> None:
+        self._delegate = _Client()
+        self._fail_lookup = fail_lookup
+        self._exception_type = exception_type
+
+    def __getattr__(self, name: str) -> Any:
+        if name == self._fail_lookup:
+            raise self._exception_type("withheld-private-error")
+        return getattr(self._delegate, name)
+
+
 def _run(client: _Client):
     return run_minimum_size_candidate_preparation(
         rest_client=client,
@@ -229,6 +245,88 @@ def test_preparation_unknown_is_stage_specific_terminal_and_never_retries(
     if next_method:
         assert next_method not in client.calls
     assert "withheld-private-error" not in repr(result)
+
+
+@pytest.mark.parametrize(
+    ("fail_lookup", "diagnostic_code", "completed_categories"),
+    (
+        (
+            "get_api_key_permissions",
+            "automation_minimum_size_api_key_permissions_unknown",
+            (),
+        ),
+        (
+            "list_portfolios",
+            "automation_minimum_size_portfolio_catalog_unknown",
+            ("API_KEY_PERMISSIONS",),
+        ),
+        (
+            "get_account_wallets_strict",
+            "automation_minimum_size_wallet_balances_unknown",
+            ("API_KEY_PERMISSIONS", "PORTFOLIO_CATALOG"),
+        ),
+        (
+            "get_products_batch",
+            "automation_minimum_size_product_metadata_unknown",
+            (
+                "API_KEY_PERMISSIONS",
+                "PORTFOLIO_CATALOG",
+                "ACCOUNT_WALLET_BALANCES",
+            ),
+        ),
+        (
+            "get_market_trades",
+            "automation_minimum_size_best_bid_ask_unknown",
+            (
+                "API_KEY_PERMISSIONS",
+                "PORTFOLIO_CATALOG",
+                "ACCOUNT_WALLET_BALANCES",
+                "PRODUCT_METADATA",
+            ),
+        ),
+        (
+            "get_spot_transaction_summary",
+            "automation_minimum_size_fee_summary_unknown",
+            (
+                "API_KEY_PERMISSIONS",
+                "PORTFOLIO_CATALOG",
+                "ACCOUNT_WALLET_BALANCES",
+                "PRODUCT_METADATA",
+                "BEST_BID_ASK",
+            ),
+        ),
+    ),
+)
+@pytest.mark.parametrize("exception_type", (RuntimeError, AttributeError))
+def test_preparation_method_lookup_failure_is_stage_specific(
+    fail_lookup: str,
+    diagnostic_code: str,
+    completed_categories: tuple[str, ...],
+    exception_type: type[Exception],
+):
+    client = _LookupFailureClient(fail_lookup, exception_type)
+
+    result = _run(client)  # type: ignore[arg-type]
+
+    assert result.outcome is MinimumSizePreparationOutcome.UNKNOWN
+    assert result.diagnostic_code == diagnostic_code
+    assert result.completed_categories == completed_categories
+    assert result.coinbase_api_call_count is None
+    assert result.call_count_exact is False
+    assert fail_lookup not in client.calls
+    assert "withheld-private-error" not in repr(result)
+
+
+def test_preparation_truly_missing_method_is_rejected_not_unknown():
+    result = _run(object())  # type: ignore[arg-type]
+
+    assert result.outcome is MinimumSizePreparationOutcome.BLOCKED
+    assert result.diagnostic_code == (
+        "automation_minimum_size_api_key_permissions_rejected"
+    )
+    assert result.completed_categories == ()
+    assert result.coinbase_api_call_count == 0
+    assert result.call_count_exact is True
 
 
 def test_preparation_response_rejects_unknown_code_with_mismatched_evidence():
