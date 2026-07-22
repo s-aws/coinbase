@@ -3,14 +3,16 @@
 ## Current status
 Goal
 `operator_spot_automation_atomic_market_snapshot_binding_and_successor_proof_v10_v12`
-is in implementation and validation.
+keeps the V10-V12 goal active at V11. V10 completed eight exact reads and
+consumed its one Preview at terminal `TRANSPORT_UNKNOWN`; Create and Cancel
+remain unconsumed with zero calls.
 
 The adapter now also recognizes policy-revision-5 V10-V12 atomic-market plans.
 It requires post-only BUY at the exact documented Get Market Trades best bid,
 dynamic cap and both actual notionals strictly below 3.10 USDC, and a
 precomputed eight-read bundle committed with the consumed Preview claim. It
 does not run a second eligibility cycle and does not add a parallel Preview or
-Create path. No V10-V12 Coinbase call has occurred at this checkpoint. See
+Create path. V11 is a distinct successor rather than a V10 retry. See
 [`OPERATOR_SPOT_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_V10_V12.md`](OPERATOR_SPOT_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_V10_V12.md).
 
 ### Completed V7-V9 status

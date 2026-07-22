@@ -4,8 +4,9 @@
 Goal ID:
 `operator_spot_automation_atomic_market_snapshot_binding_and_successor_proof_v10_v12`
 
-Status: implementation and validation in progress. No V10-V12 Coinbase call has
-occurred at this checkpoint.
+Status: V10-V12 goal active at V11. V10 completed eight exact reads and
+consumed its one Preview at terminal `TRANSPORT_UNKNOWN`; Create and Cancel
+remain unconsumed with zero calls. V11 is distinct and is not a V10 retry.
 
 Backend policy revision 5 claims one no-retry eight-category cycle, derives
 final post-only best-bid terms, fee-reserved cap, evidence, plan/child

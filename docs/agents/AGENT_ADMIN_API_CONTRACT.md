@@ -24,7 +24,9 @@ frontend request
 
 Goal
 `operator_spot_automation_atomic_market_snapshot_binding_and_successor_proof_v10_v12`
-is in implementation and validation.
+keeps the V10-V12 goal active at V11. V10 completed eight exact reads and
+consumed its one Preview at terminal `TRANSPORT_UNKNOWN`; Create and Cancel
+remain unconsumed with zero calls.
 
 The active generated route is
 `POST /api/v1/automation/atomic-market-snapshot-candidates/authorize`.
@@ -32,7 +34,7 @@ Policy revision 5 binds final terms, evidence, identities, the exact eight-read
 ledger, run, and one-use Preview claim atomically. It reuses canonical
 Preview/Create/Cancel scopes and exposes only fixed sanitized diagnostics,
 hash retention, and exact-or-withheld call accounting. The browser supplies no
-trading term. No V10-V12 Coinbase call has occurred at this checkpoint.
+trading term. V11 is a distinct successor rather than a V10 retry.
 
 ## Completed V7-V9 predecessor
 

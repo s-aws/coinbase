@@ -3,8 +3,10 @@
 Goal:
 `operator_spot_automation_atomic_market_snapshot_binding_and_successor_proof_v10_v12`.
 
-Status: implementation and validation in progress. No V10-V12 Coinbase call has
-occurred at this checkpoint.
+Status: active at V11. V10 cycle 1 completed all eight reads exactly,
+atomically materialized its final terms, and consumed its one Preview at a
+terminal `TRANSPORT_UNKNOWN` boundary. Create and Cancel remain unconsumed
+with zero calls and no exchange mutation. V11 is distinct and is not a retry.
 
 ## Narrow policy
 
