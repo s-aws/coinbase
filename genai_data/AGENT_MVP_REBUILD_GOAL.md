@@ -1,4 +1,23 @@
 # Coinbase Admin MVP Goal
+## Active V10-V12 atomic market snapshot goal
+
+Goal ID:
+`operator_spot_automation_atomic_market_snapshot_binding_and_successor_proof_v10_v12`
+
+Status: implementation and validation in progress. No V10-V12 Coinbase call has
+occurred at this checkpoint.
+
+Backend policy revision 5 claims one no-retry eight-category cycle, derives
+final post-only best-bid terms, fee-reserved cap, evidence, plan/child
+identities, and commits them with the run and consumed Preview claim in one
+PostgreSQL transaction. The canonical command path independently requires the
+exact same-snapshot bid and both notionals strictly below 3.10 USDC. The first
+accepted error-free Preview may reach one identical Create; only its exact
+nonterminal child may reach one Cancel. See
+[`OPERATOR_SPOT_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_V10_V12.md`](../docs/OPERATOR_SPOT_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_V10_V12.md).
+
+## Completed V7-V9 predecessor
+
 
 Goal ID:
 `operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`

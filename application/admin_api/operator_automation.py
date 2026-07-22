@@ -8,6 +8,7 @@ boundary because one canonical read lacks goal authority.
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -45,6 +46,8 @@ from .automation_models import (
     AutomationMutationContext,
     AutomationMinimumSizeCandidatePreparationRequest,
     AutomationMinimumSizeCandidatePreparationResponse,
+    AutomationAtomicMarketSnapshotAuthorizationRequest,
+    AutomationAtomicMarketSnapshotMutationResponse,
     AutomationNearMarketCandidatePreparationRequest,
     AutomationNearMarketCandidatePreparationResponse,
     AutomationOneShotRunRequest,
@@ -71,6 +74,9 @@ from .operator_spot_eligibility import (
     SPOT_ELIGIBILITY_MINIMUM_SIZE_V7_GOAL_KEY,
     SPOT_ELIGIBILITY_MINIMUM_SIZE_V8_GOAL_KEY,
     SPOT_ELIGIBILITY_MINIMUM_SIZE_V9_GOAL_KEY,
+    SPOT_ELIGIBILITY_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY,
+    SPOT_ELIGIBILITY_ATOMIC_MARKET_SNAPSHOT_V11_GOAL_KEY,
+    SPOT_ELIGIBILITY_ATOMIC_MARKET_SNAPSHOT_V12_GOAL_KEY,
     SPOT_ELIGIBILITY_PREVIEW_GATED_GOAL_KEY,
 )
 
@@ -88,6 +94,15 @@ _SPOT_PREVIEW_MODE_BY_GOAL = {
     SPOT_ELIGIBILITY_MINIMUM_SIZE_V7_GOAL_KEY: "MINIMUM_SIZE_POST_ONLY_V7",
     SPOT_ELIGIBILITY_MINIMUM_SIZE_V8_GOAL_KEY: "MINIMUM_SIZE_POST_ONLY_V8",
     SPOT_ELIGIBILITY_MINIMUM_SIZE_V9_GOAL_KEY: "MINIMUM_SIZE_POST_ONLY_V9",
+    SPOT_ELIGIBILITY_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY: (
+        "ATOMIC_MARKET_SNAPSHOT_V10"
+    ),
+    SPOT_ELIGIBILITY_ATOMIC_MARKET_SNAPSHOT_V11_GOAL_KEY: (
+        "ATOMIC_MARKET_SNAPSHOT_V11"
+    ),
+    SPOT_ELIGIBILITY_ATOMIC_MARKET_SNAPSHOT_V12_GOAL_KEY: (
+        "ATOMIC_MARKET_SNAPSHOT_V12"
+    ),
 }
 _SPOT_PREVIEW_GOAL_KEYS = frozenset(_SPOT_PREVIEW_MODE_BY_GOAL)
 _SPOT_NEAR_MARKET_GOAL_KEYS = frozenset(
@@ -103,6 +118,16 @@ _SPOT_MINIMUM_SIZE_GOAL_KEYS = frozenset(
         SPOT_ELIGIBILITY_MINIMUM_SIZE_V8_GOAL_KEY,
         SPOT_ELIGIBILITY_MINIMUM_SIZE_V9_GOAL_KEY,
     }
+)
+_SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS = frozenset(
+    {
+        SPOT_ELIGIBILITY_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY,
+        SPOT_ELIGIBILITY_ATOMIC_MARKET_SNAPSHOT_V11_GOAL_KEY,
+        SPOT_ELIGIBILITY_ATOMIC_MARKET_SNAPSHOT_V12_GOAL_KEY,
+    }
+)
+_SPOT_DYNAMIC_CAP_GOAL_KEYS = frozenset(
+    {*_SPOT_MINIMUM_SIZE_GOAL_KEYS, *_SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS}
 )
 
 
@@ -123,6 +148,34 @@ class AutomationRepositoryMutation:
     correlation_id: str
     replayed: bool = False
     activity: AutomationRunMutationActivity | None = None
+
+
+def _atomic_market_snapshot_read_activity(
+    *,
+    coinbase_api_call_count: int | None,
+    call_count_exact: bool,
+) -> AutomationRunMutationActivity:
+    """Project request-local atomic eligibility reads without inventing calls."""
+
+    exact_count = (
+        coinbase_api_call_count
+        if call_count_exact
+        and type(coinbase_api_call_count) is int
+        and coinbase_api_call_count >= 0
+        else None
+    )
+    if call_count_exact and exact_count is None:
+        raise ValueError("automation_atomic_market_snapshot_activity_invalid")
+    return AutomationRunMutationActivity(
+        operation="PREVIEW_GATED_CREATE",
+        coinbase_api_call_count=exact_count,
+        preview_call_count=0,
+        read_call_count=exact_count,
+        exchange_mutation_count=0,
+        create_call_count=0,
+        cancel_call_count=0,
+        call_count_exact=call_count_exact,
+    )
 
 
 @dataclass(frozen=True)
@@ -194,6 +247,13 @@ class OperatorAutomationRepository(Protocol):
     ) -> AutomationRepositoryMutation: ...
 
     def prepare_minimum_size_candidate(
+        self,
+        *,
+        request: Mapping[str, Any],
+        context: AutomationMutationContext,
+    ) -> AutomationRepositoryMutation: ...
+
+    def authorize_atomic_market_snapshot_candidate(
         self,
         *,
         request: Mapping[str, Any],
@@ -406,6 +466,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
         spot_execution_scope_factory: Callable[[str], Any] | None = None,
         spot_near_market_preparation_runner: Callable[[], Any] | None = None,
         spot_minimum_size_preparation_runner: Callable[[], Any] | None = None,
+        spot_atomic_market_snapshot_runner: Callable[..., Any] | None = None,
         spot_proof_chain_recorder: Callable[..., Mapping[str, Any]] | None = None,
         spot_live_admission_evaluator: Callable[..., Any] | None = None,
         now_factory: Callable[[], datetime] | None = None,
@@ -426,6 +487,9 @@ class PostgresOperatorAutomationRepositoryAdapter:
         )
         self._spot_minimum_size_preparation_runner = (
             spot_minimum_size_preparation_runner
+        )
+        self._spot_atomic_market_snapshot_runner = (
+            spot_atomic_market_snapshot_runner
         )
         self._spot_proof_chain_recorder = spot_proof_chain_recorder
         self._spot_live_admission_evaluator = spot_live_admission_evaluator
@@ -566,7 +630,9 @@ class PostgresOperatorAutomationRepositoryAdapter:
     ) -> bool:
         try:
             expected_policy_revision = (
-                4
+                5
+                if goal_key in _SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS
+                else 4
                 if goal_key
                 in {
                     SPOT_ELIGIBILITY_MINIMUM_SIZE_V7_GOAL_KEY,
@@ -908,7 +974,9 @@ class PostgresOperatorAutomationRepositoryAdapter:
             ),
             post_only=plan.post_only,
             policy_revision=(
-                4
+                5
+                if goal_key in _SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS
+                else 4
                 if goal_key in _SPOT_MINIMUM_SIZE_GOAL_KEYS
                 else 3
                 if goal_key in _SPOT_NEAR_MARKET_GOAL_KEYS
@@ -1055,7 +1123,11 @@ class PostgresOperatorAutomationRepositoryAdapter:
         )
 
     @staticmethod
-    def _control(record: Any) -> Mapping[str, Any]:
+    def _control(
+        record: Any,
+        *,
+        atomic_market_snapshot_authorization_allowed: bool = False,
+    ) -> Mapping[str, Any]:
         posture = str(getattr(record.posture, "value", record.posture))
         return {
             "posture": posture,
@@ -1067,6 +1139,9 @@ class PostgresOperatorAutomationRepositoryAdapter:
             "definition_create_allowed": False,
             "near_market_candidate_preparation_allowed": False,
             "minimum_size_candidate_preparation_allowed": False,
+            "atomic_market_snapshot_authorization_allowed": (
+                atomic_market_snapshot_authorization_allowed
+            ),
             "allowed_actions": _control_allowed_actions(record.posture),
             "updated_at": record.updated_at,
         }
@@ -1324,7 +1399,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 "max_submitted_notional_usdc": "3.10",
                 "max_possible_execution_notional_usdc": (
                     plan.max_possible_execution_notional_usdc
-                    if spot_goal_key in _SPOT_MINIMUM_SIZE_GOAL_KEYS
+                    if spot_goal_key in _SPOT_DYNAMIC_CAP_GOAL_KEYS
                     else "1.00"
                 ),
             }
@@ -1843,7 +1918,20 @@ class PostgresOperatorAutomationRepositoryAdapter:
 
     def get_control_posture(self) -> Mapping[str, Any]:
         record = self._call(self.repository.get_control_posture)
-        return self._control(record)
+        availability_reader = getattr(
+            self.repository,
+            "spot_atomic_market_snapshot_successor_available",
+            None,
+        )
+        atomic_available = (
+            bool(self._call(availability_reader))
+            if callable(availability_reader)
+            else False
+        )
+        return self._control(
+            record,
+            atomic_market_snapshot_authorization_allowed=atomic_available,
+        )
 
     def list_definitions(
         self,
@@ -2448,6 +2536,455 @@ class PostgresOperatorAutomationRepositoryAdapter:
             replayed=finalized.replayed,
         )
 
+    @staticmethod
+    def _atomic_public_categories(categories: tuple[str, ...]) -> list[str]:
+        mapping = {
+            "API_KEY_PERMISSIONS": "api_key_permissions",
+            "PORTFOLIO_CATALOG": "portfolio_catalog",
+            "ACCOUNT_WALLET_BALANCES": "wallet_balances",
+            "PRODUCT_METADATA": "product_metadata",
+            "BEST_BID_ASK": "best_bid_ask",
+            "FEE_SUMMARY": "fee_summary",
+            "EXACT_ORDER_RECONCILIATION": "exact_order_reconciliation",
+            "ACCOUNT_ACTIVE_SPOT_ORDER_CATALOG": "active_order_catalog",
+        }
+        try:
+            return [mapping[category] for category in categories]
+        except KeyError:
+            raise AutomationRepositoryUnavailable(
+                "automation_atomic_market_snapshot_evidence_invalid"
+            ) from None
+
+    def _atomic_market_snapshot_entity(
+        self,
+        record: Any,
+        *,
+        run: Mapping[str, Any] | None = None,
+        diagnostic_code: str | None = None,
+    ) -> Mapping[str, Any]:
+        return {
+            "outcome": record.state,
+            "candidate_version": record.candidate_version,
+            "cycle_number": record.cycle_number,
+            "diagnostic_code": diagnostic_code or record.diagnostic_code,
+            "completed_categories": self._atomic_public_categories(
+                tuple(record.completed_categories)
+            ),
+            "coinbase_api_call_count": record.coinbase_api_call_count,
+            "call_count_exact": record.call_count_exact,
+            "market_snapshot_binding": (
+                "HASHED"
+                if record.market_snapshot_sha256 is not None
+                else "UNAVAILABLE"
+            ),
+            "run": run,
+        }
+
+    def authorize_atomic_market_snapshot_candidate(
+        self,
+        *,
+        request: Mapping[str, Any],
+        context: AutomationMutationContext,
+    ) -> AutomationRepositoryMutation:
+        """Hold one profile lease across reads, binding, Preview, and Create."""
+
+        configured_portfolio_id = str(
+            os.environ.get("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID") or ""
+        ).strip()
+        if not configured_portfolio_id:
+            raise AutomationRepositoryUnavailable(
+                "automation_spot_portfolio_not_configured"
+            )
+        command_service = self._resolve_spot_command_service()
+        profile_coordinator = self._resolve_spot_profile_coordinator(
+            command_service
+        )
+        with profile_coordinator.claim(configured_portfolio_id) as lease:
+            return self._authorize_atomic_market_snapshot_candidate_under_lease(
+                request=request,
+                context=context,
+                configured_portfolio_id=configured_portfolio_id,
+                command_service=command_service,
+                admission_lease=lease,
+            )
+
+    def _authorize_atomic_market_snapshot_candidate_under_lease(
+        self,
+        *,
+        request: Mapping[str, Any],
+        context: AutomationMutationContext,
+        configured_portfolio_id: str,
+        command_service: Any,
+        admission_lease: Any,
+    ) -> AutomationRepositoryMutation:
+        """Claim, bind, Preview, and conditionally Create one V10-V12 child."""
+
+        from application.admin_api.operator_spot_atomic_market_snapshot import (
+            AtomicMarketSnapshotOutcome,
+            run_atomic_market_snapshot_candidate,
+        )
+        from database.operator_automation import (
+            AutomationSpotSingleChildPlanTerms,
+        )
+
+        self._require_active_control_posture()
+        claim = self._call(
+            lambda: self.repository.start_spot_atomic_market_snapshot_cycle(
+                self._command(
+                    context=context,
+                    payload={
+                        "operation": (
+                            "authorize_atomic_market_snapshot_candidate"
+                        ),
+                        "request": request,
+                    },
+                )
+            )
+        )
+        claimed = claim.entity
+        if claim.replayed:
+            if claimed.state == "CLAIMED":
+                raise AutomationRepositoryConflict(
+                    "automation_atomic_market_snapshot_cycle_in_progress"
+                )
+            recovered_unknown = None
+            if (
+                claimed.state == "MATERIALIZED"
+                and claimed.run_id is not None
+                and claimed.plan_sha256 is not None
+                and claimed.client_order_id is not None
+            ):
+                checkpoint = self._call(
+                    lambda: self.repository.get_spot_preview_gated_goal(
+                        goal_key=claimed.goal_key
+                    )
+                )
+                if checkpoint.preview_outcome is None:
+                    from application.admin_api.operator_spot_automation_runtime import (
+                        derive_spot_automation_phase_key,
+                    )
+
+                    recovered_unknown = self._call(
+                        lambda: self.repository.finalize_spot_preview_invocation(
+                            claimed.run_id,
+                            outcome="UNKNOWN",
+                            failure_class="TRANSPORT_UNKNOWN",
+                            rejection_code=None,
+                            warning_present=False,
+                            preview_id_sha256=None,
+                            preview_call_count=None,
+                            call_count_exact=False,
+                            command=self._command(
+                                context=context,
+                                idempotency_key=derive_spot_automation_phase_key(
+                                    outer_idempotency_key=context.idempotency_key,
+                                    run_id=claimed.run_id,
+                                    plan_sha256=claimed.plan_sha256,
+                                    phase="atomic-preview-restart-finalize",
+                                ),
+                                operator_intent=(
+                                    "finalize_automation_spot_single_child_preview"
+                                ),
+                                payload={
+                                    "operation": (
+                                        "finalize_atomic_preview_restart_unknown"
+                                    ),
+                                    "run_id": claimed.run_id,
+                                    "plan_sha256": claimed.plan_sha256,
+                                    "client_order_id": claimed.client_order_id,
+                                    "outcome": "UNKNOWN",
+                                    "failure_class": "TRANSPORT_UNKNOWN",
+                                    "preview_call_count": None,
+                                    "call_count_exact": False,
+                                },
+                            ),
+                        )
+                    )
+            run = None
+            diagnostic = claimed.diagnostic_code
+            if claimed.run_id is not None:
+                current = self._call(
+                    lambda: self.repository.get_run(claimed.run_id)
+                )
+                if current is None:
+                    raise AutomationRepositoryUnavailable(
+                        "automation_atomic_market_snapshot_run_unavailable"
+                    )
+                run = self._run(current)
+                diagnostic = current.diagnostic_code
+            return AutomationRepositoryMutation(
+                entity=self._atomic_market_snapshot_entity(
+                    claimed,
+                    run=run,
+                    diagnostic_code=diagnostic,
+                ),
+                audit_id=(
+                    recovered_unknown.audit_id
+                    if recovered_unknown is not None
+                    else claim.audit_id
+                ),
+                correlation_id=(
+                    recovered_unknown.correlation_id
+                    if recovered_unknown is not None
+                    else claim.correlation_id
+                ),
+                replayed=recovered_unknown is None,
+                activity=(
+                    AutomationRunMutationActivity(
+                        operation="PREVIEW_GATED_CREATE",
+                        coinbase_api_call_count=None,
+                        preview_call_count=None,
+                        read_call_count=claimed.coinbase_api_call_count,
+                        exchange_mutation_count=0,
+                        create_call_count=0,
+                        cancel_call_count=0,
+                        call_count_exact=False,
+                    )
+                    if recovered_unknown is not None
+                    else AutomationRunMutationActivity()
+                ),
+            )
+
+        definition_id = str(uuid.uuid4())
+        run_id = str(uuid.uuid4())
+        dependencies = getattr(command_service, "dependencies", None)
+        rest_client = getattr(dependencies, "rest_client", None)
+        runner = (
+            self._spot_atomic_market_snapshot_runner
+            or run_atomic_market_snapshot_candidate
+        )
+        try:
+            result = runner(
+                rest_client=rest_client,
+                approved_portfolio_id=configured_portfolio_id,
+                approved_portfolio_label="Test",
+                definition_id=definition_id,
+                run_id=run_id,
+                goal_key=claimed.goal_key,
+                candidate_version=claimed.candidate_version,
+                cycle_number=claimed.cycle_number,
+                correlation_id=context.correlation_id,
+                now_factory=self._now_factory,
+            )
+        except Exception:
+            result = None
+        if result is None:
+            finalized = self._call(
+                lambda: self.repository.finalize_spot_atomic_market_snapshot_terminal(
+                    cycle_number=claimed.cycle_number,
+                    goal_key=claimed.goal_key,
+                    state="UNKNOWN",
+                    diagnostic_code=(
+                        "automation_atomic_market_snapshot_runner_unknown"
+                    ),
+                    completed_categories=(),
+                    coinbase_api_call_count=None,
+                    call_count_exact=False,
+                    evidence_sha256=None,
+                )
+            )
+            return AutomationRepositoryMutation(
+                entity=self._atomic_market_snapshot_entity(finalized.entity),
+                audit_id=finalized.audit_id,
+                correlation_id=finalized.correlation_id,
+                activity=_atomic_market_snapshot_read_activity(
+                    coinbase_api_call_count=None,
+                    call_count_exact=False,
+                ),
+            )
+        if result.outcome is not AtomicMarketSnapshotOutcome.MATERIALIZED:
+            finalized = self._call(
+                lambda: self.repository.finalize_spot_atomic_market_snapshot_terminal(
+                    cycle_number=claimed.cycle_number,
+                    goal_key=claimed.goal_key,
+                    state=result.outcome.value,
+                    diagnostic_code=result.diagnostic_code,
+                    completed_categories=tuple(result.completed_categories),
+                    coinbase_api_call_count=result.coinbase_api_call_count,
+                    call_count_exact=result.call_count_exact,
+                    evidence_sha256=result.evidence_sha256,
+                )
+            )
+            return AutomationRepositoryMutation(
+                entity=self._atomic_market_snapshot_entity(finalized.entity),
+                audit_id=finalized.audit_id,
+                correlation_id=finalized.correlation_id,
+                activity=_atomic_market_snapshot_read_activity(
+                    coinbase_api_call_count=result.coinbase_api_call_count,
+                    call_count_exact=result.call_count_exact,
+                ),
+            )
+        if (
+            result.plan is None
+            or result.plan_sha256 is None
+            or result.client_order_id is None
+            or result.market_snapshot_sha256 is None
+            or result.evidence_sha256 is None
+            or result.snapshot is None
+        ):
+            raise AutomationRepositoryUnavailable(
+                "automation_atomic_market_snapshot_result_invalid"
+            )
+        plan = result.plan
+        materialized = self._call(
+            lambda: self.repository.materialize_spot_atomic_market_snapshot_and_claim_preview(
+                cycle_number=claimed.cycle_number,
+                goal_key=claimed.goal_key,
+                definition_id=definition_id,
+                run_id=run_id,
+                terms=AutomationSpotSingleChildPlanTerms(
+                    portfolio_id_sha256=_configured_spot_portfolio_hash(),
+                    product_id=plan.product_id,
+                    side=plan.side,
+                    base_size=plan.base_size,
+                    limit_price=plan.limit_price,
+                    submitted_notional_usdc=(
+                        plan.submitted_notional_usdc
+                    ),
+                    possible_execution_notional_usdc=(
+                        plan.possible_execution_notional_usdc
+                    ),
+                    max_submitted_notional_usdc=(
+                        plan.max_submitted_notional_usdc
+                    ),
+                    max_possible_execution_notional_usdc=(
+                        plan.max_possible_execution_notional_usdc
+                    ),
+                    post_only=True,
+                ),
+                expected_plan_sha256=result.plan_sha256,
+                expected_client_order_id=result.client_order_id,
+                market_snapshot_sha256=result.market_snapshot_sha256,
+                evidence_sha256=result.evidence_sha256,
+                attempts=tuple(result.attempts),
+            )
+        )
+        cycles = self._call(
+            lambda: self.repository.list_spot_eligibility_cycles(
+                goal_key=claimed.goal_key
+            )
+        )
+        cycle = next(
+            (
+                item
+                for item in cycles
+                if item.cycle_number == claimed.cycle_number
+            ),
+            None,
+        )
+        if cycle is None:
+            raise AutomationRepositoryUnavailable(
+                "automation_atomic_market_snapshot_cycle_unavailable"
+            )
+        attempts = self._call(
+            lambda: self.repository.list_spot_eligibility_attempts(
+                run_id,
+                cycle_number=claimed.cycle_number,
+            )
+        )
+        bundle = SpotAutomationEligibilityExecutionBundle(
+            cycle=cycle,
+            snapshot=result.snapshot,
+            attempts=tuple(attempts),
+        )
+        try:
+            authorization = self._authorize_single_child_workflow(
+                run_id=run_id,
+                request={
+                    **request,
+                    "expected_plan_sha256": result.plan_sha256,
+                },
+                context=context,
+                preview_gated=True,
+                precomputed_bundle=bundle,
+                admission_lease=admission_lease,
+            )
+        except Exception:
+            # Once the atomic transaction consumes the Preview claim, any
+            # failure whose exact network boundary cannot be proven must
+            # terminally consume this candidate.  Never strand a claimed
+            # candidate with preview_outcome=NULL or replay it.
+            from application.admin_api.operator_spot_automation_runtime import (
+                derive_spot_automation_phase_key,
+            )
+
+            checkpoint = self._call(
+                lambda: self.repository.get_spot_preview_gated_goal(
+                    goal_key=claimed.goal_key
+                )
+            )
+            if checkpoint.preview_outcome is None:
+                finalized_unknown = self._call(
+                    lambda: self.repository.finalize_spot_preview_invocation(
+                        run_id,
+                        outcome="UNKNOWN",
+                        failure_class="TRANSPORT_UNKNOWN",
+                        rejection_code=None,
+                        warning_present=False,
+                        preview_id_sha256=None,
+                        preview_call_count=None,
+                        call_count_exact=False,
+                        command=self._command(
+                            context=context,
+                            idempotency_key=derive_spot_automation_phase_key(
+                                outer_idempotency_key=context.idempotency_key,
+                                run_id=run_id,
+                                plan_sha256=result.plan_sha256,
+                                phase="atomic-preview-failure-finalize",
+                            ),
+                            operator_intent=(
+                                "finalize_automation_spot_single_child_preview"
+                            ),
+                            payload={
+                                "operation": (
+                                    "finalize_atomic_automation_spot_preview_unknown"
+                                ),
+                                "run_id": run_id,
+                                "plan_sha256": result.plan_sha256,
+                                "client_order_id": result.client_order_id,
+                                "outcome": "UNKNOWN",
+                                "failure_class": "TRANSPORT_UNKNOWN",
+                                "preview_call_count": None,
+                                "call_count_exact": False,
+                            },
+                        ),
+                    )
+                )
+                authorization = AutomationRepositoryMutation(
+                    entity={},
+                    audit_id=finalized_unknown.audit_id,
+                    correlation_id=finalized_unknown.correlation_id,
+                    replayed=False,
+                    activity=AutomationRunMutationActivity(
+                        operation="PREVIEW_GATED_CREATE",
+                        coinbase_api_call_count=None,
+                        preview_call_count=None,
+                        read_call_count=result.coinbase_api_call_count,
+                        exchange_mutation_count=0,
+                        create_call_count=0,
+                        cancel_call_count=0,
+                        call_count_exact=False,
+                    ),
+                )
+            else:
+                raise
+        current = self._call(lambda: self.repository.get_run(run_id))
+        if current is None:
+            raise AutomationRepositoryUnavailable(
+                "automation_atomic_market_snapshot_run_unavailable"
+            )
+        return AutomationRepositoryMutation(
+            entity=self._atomic_market_snapshot_entity(
+                materialized.entity,
+                run=self._run(current),
+                diagnostic_code=current.diagnostic_code,
+            ),
+            audit_id=authorization.audit_id,
+            correlation_id=authorization.correlation_id,
+            replayed=False,
+            activity=authorization.activity,
+        )
+
     def create_definition(
         self,
         *,
@@ -2813,6 +3350,8 @@ class PostgresOperatorAutomationRepositoryAdapter:
         request: Mapping[str, Any],
         context: AutomationMutationContext,
         preview_gated: bool,
+        precomputed_bundle: SpotAutomationEligibilityExecutionBundle | None = None,
+        admission_lease: Any | None = None,
     ) -> AutomationRepositoryMutation:
         """Run fresh exact eligibility, then the goal-owned live boundary."""
 
@@ -2906,7 +3445,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
                     operator_intent=context.operator_intent,
                     outer_idempotency_key=context.idempotency_key,
                     minimum_size_dynamic_cap=(
-                        goal_key in _SPOT_MINIMUM_SIZE_GOAL_KEYS
+                        goal_key in _SPOT_DYNAMIC_CAP_GOAL_KEYS
                     ),
                 )
             except SpotAutomationRuntimeBindingError:
@@ -2977,7 +3516,25 @@ class PostgresOperatorAutomationRepositoryAdapter:
             == "automation_spot_preview_accepted_create_ready"
             and record.live_attempt_consumed
         )
-        if not (initial_checkpoint or accepted_preview_checkpoint):
+        atomic_preview_checkpoint = bool(
+            preview_gated
+            and goal_key in _SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS
+            and preview_goal is not None
+            and preview_goal.preview_allowance_consumed
+            and preview_goal.preview_outcome is None
+            and preview_goal.bound_run_id == run_id
+            and preview_goal.plan_sha256 == plan.plan_sha256
+            and record.state
+            is AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
+            and record.diagnostic_code
+            == "automation_spot_preview_invocation_started"
+            and record.live_attempt_consumed
+        )
+        if not (
+            initial_checkpoint
+            or accepted_preview_checkpoint
+            or atomic_preview_checkpoint
+        ):
             raise AutomationRepositoryConflict(
                 "automation_single_child_run_not_authorizable"
             )
@@ -3030,15 +3587,27 @@ class PostgresOperatorAutomationRepositoryAdapter:
             }
         )
 
-        with profile_coordinator.claim(configured_portfolio_id) as lease:
+        lease_context = (
+            nullcontext(admission_lease)
+            if admission_lease is not None
+            else profile_coordinator.claim(configured_portfolio_id)
+        )
+        with lease_context as lease:
             try:
-                bundle = self._run_spot_execution_eligibility(
-                    record=record,
-                    plan=plan,
-                    request=request,
-                    context=eligibility_context,
-                    lease=lease,
-                )
+                if precomputed_bundle is not None:
+                    if goal_key not in _SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS:
+                        raise SpotAutomationRuntimeBindingError(
+                            "spot_automation_precomputed_eligibility_invalid"
+                        )
+                    bundle = precomputed_bundle
+                else:
+                    bundle = self._run_spot_execution_eligibility(
+                        record=record,
+                        plan=plan,
+                        request=request,
+                        context=eligibility_context,
+                        lease=lease,
+                    )
                 eligibility_read_call_count = (
                     bundle.cycle.coinbase_api_call_count
                 )
@@ -3077,7 +3646,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
                     operator_intent=context.operator_intent,
                     outer_idempotency_key=context.idempotency_key,
                     minimum_size_dynamic_cap=(
-                        goal_key in _SPOT_MINIMUM_SIZE_GOAL_KEYS
+                        goal_key in _SPOT_DYNAMIC_CAP_GOAL_KEYS
                     ),
                 )
                 wallet_notional = (
@@ -3140,14 +3709,25 @@ class PostgresOperatorAutomationRepositoryAdapter:
                                     COINBASE_EXECUTION_SCOPE_SPOT_PREVIEW
                                 )
                             )
-                        started_preview = self._call(
-                            lambda: self.repository.start_spot_preview_invocation(
-                                run_id,
-                                eligibility_cycle=bundle.cycle.cycle_number,
-                                command=preview_start_command,
-                            )
+                        atomic_preclaimed = bool(
+                            goal_key
+                            in _SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS
+                            and atomic_preview_checkpoint
                         )
-                        started_goal = started_preview.entity
+                        if atomic_preclaimed:
+                            started_preview = None
+                            started_goal = preview_goal
+                        else:
+                            started_preview = self._call(
+                                lambda: self.repository.start_spot_preview_invocation(
+                                    run_id,
+                                    eligibility_cycle=(
+                                        bundle.cycle.cycle_number
+                                    ),
+                                    command=preview_start_command,
+                                )
+                            )
+                            started_goal = started_preview.entity
                         if (
                             started_goal.bound_run_id != run_id
                             or started_goal.eligibility_cycle
@@ -3164,7 +3744,10 @@ class PostgresOperatorAutomationRepositoryAdapter:
                             raise AutomationRepositoryUnavailable(
                                 "automation_spot_preview_claim_invalid"
                             )
-                        if started_preview.replayed:
+                        if (
+                            started_preview is not None
+                            and started_preview.replayed
+                        ):
                             preview_classification = (
                                 unknown_spot_automation_preview_classification(
                                     transport_unknown=True
@@ -4208,6 +4791,28 @@ class OperatorAutomationService:
                 self.repository.get_control_posture()
             )
             return AutomationControlPlaneResponse(control_plane=item)
+        except OperatorAutomationError:
+            raise
+        except Exception as exc:
+            raise self._translate_error(exc) from None
+
+    def authorize_atomic_market_snapshot_candidate(
+        self,
+        request: AutomationAtomicMarketSnapshotAuthorizationRequest,
+        context: AutomationMutationContext,
+    ) -> AutomationAtomicMarketSnapshotMutationResponse:
+        try:
+            result = self.repository.authorize_atomic_market_snapshot_candidate(
+                request=request.model_dump(mode="json"),
+                context=context,
+            )
+            return AutomationAtomicMarketSnapshotMutationResponse(
+                **result.entity,
+                replayed=result.replayed,
+                audit_id=result.audit_id,
+                correlation_id=result.correlation_id,
+                activity=(result.activity or AutomationRunMutationActivity()),
+            )
         except OperatorAutomationError:
             raise
         except Exception as exc:

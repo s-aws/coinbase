@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from enum import Enum
@@ -48,6 +48,13 @@ class MinimumSizePreparationResult:
     call_count_exact: bool
     evidence_sha256: str | None
     plan: MinimumSizeBuyPlan | None
+    market_observed_at: datetime | None = field(default=None, repr=False)
+    market_snapshot_sha256: str | None = field(default=None, repr=False)
+    available_usdc: Decimal | None = field(default=None, repr=False)
+    total_usdc: Decimal | None = field(default=None, repr=False)
+    best_bid: Decimal | None = field(default=None, repr=False)
+    best_ask: Decimal | None = field(default=None, repr=False)
+    category_call_counts: tuple[int, ...] = field(default=(), repr=False)
 
 
 def _mapping(value: Any) -> Mapping[str, Any]:
@@ -95,6 +102,13 @@ def _result(
     call_count: int | None,
     plan: MinimumSizeBuyPlan | None = None,
     portfolio_id_sha256: str | None = None,
+    market_observed_at: datetime | None = None,
+    market_snapshot_sha256: str | None = None,
+    available_usdc: Decimal | None = None,
+    total_usdc: Decimal | None = None,
+    best_bid: Decimal | None = None,
+    best_ask: Decimal | None = None,
+    category_call_counts: tuple[int, ...] = (),
 ) -> MinimumSizePreparationResult:
     exact = call_count is not None
     evidence = None
@@ -139,6 +153,13 @@ def _result(
         call_count_exact=exact,
         evidence_sha256=evidence,
         plan=plan,
+        market_observed_at=market_observed_at,
+        market_snapshot_sha256=market_snapshot_sha256,
+        available_usdc=available_usdc,
+        total_usdc=total_usdc,
+        best_bid=best_bid,
+        best_ask=best_ask,
+        category_call_counts=category_call_counts,
     )
 
 
@@ -193,6 +214,7 @@ def _run_minimum_size_candidate_preparation(
         )
 
     request_count = 0
+    category_call_counts: list[int] = []
 
     def method(name: str) -> tuple[Callable[..., Any] | None, bool]:
         missing = object()
@@ -257,6 +279,7 @@ def _run_minimum_size_candidate_preparation(
             call_count=request_count,
         )
     completed.append(_CATEGORIES[0])
+    category_call_counts.append(1)
 
     stage_state["diagnostic_code"] = (
         "automation_minimum_size_portfolio_catalog_unknown"
@@ -302,6 +325,7 @@ def _run_minimum_size_candidate_preparation(
             call_count=request_count,
         )
     completed.append(_CATEGORIES[1])
+    category_call_counts.append(1)
 
     stage_state["diagnostic_code"] = (
         "automation_minimum_size_wallet_balances_unknown"
@@ -366,6 +390,7 @@ def _run_minimum_size_candidate_preparation(
             call_count=request_count,
         )
     completed.append(_CATEGORIES[2])
+    category_call_counts.append(wallet_requests)
 
     stage_state["diagnostic_code"] = (
         "automation_minimum_size_product_metadata_unknown"
@@ -425,6 +450,7 @@ def _run_minimum_size_candidate_preparation(
             call_count=request_count,
         )
     completed.append(_CATEGORIES[3])
+    category_call_counts.append(1)
 
     stage_state["diagnostic_code"] = (
         "automation_minimum_size_best_bid_ask_unknown"
@@ -463,6 +489,7 @@ def _run_minimum_size_candidate_preparation(
             call_count=request_count,
         )
     completed.append(_CATEGORIES[4])
+    category_call_counts.append(1)
 
     stage_state["diagnostic_code"] = (
         "automation_minimum_size_fee_summary_unknown"
@@ -502,6 +529,7 @@ def _run_minimum_size_candidate_preparation(
             call_count=request_count,
         )
     completed.append(_CATEGORIES[5])
+    category_call_counts.append(1)
 
     stage_state["diagnostic_code"] = (
         "automation_minimum_size_preparation_unknown"
@@ -538,6 +566,23 @@ def _run_minimum_size_candidate_preparation(
         portfolio_id_sha256=hashlib.sha256(
             approved_portfolio_id.encode("utf-8")
         ).hexdigest(),
+        market_observed_at=market_time,
+        market_snapshot_sha256=hashlib.sha256(
+            "|".join(
+                (
+                    "coinbase_rest_market_trade_snapshot",
+                    "BTC-USDC",
+                    str(market.get("best_bid")),
+                    str(market.get("best_ask")),
+                    market_time.isoformat(),
+                )
+            ).encode("utf-8")
+        ).hexdigest(),
+        available_usdc=available_usdc,
+        total_usdc=total_usdc,
+        best_bid=_decimal(market.get("best_bid")),
+        best_ask=_decimal(market.get("best_ask")),
+        category_call_counts=tuple(category_call_counts),
     )
 
 

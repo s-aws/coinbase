@@ -12,6 +12,7 @@ from typing import Any
 import pytest
 
 from application.admin_api.operator_spot_eligibility import (
+    SPOT_ELIGIBILITY_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY,
     SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
     SPOT_ELIGIBILITY_NEAR_MARKET_V4_GOAL_KEY,
     SPOT_ELIGIBILITY_MINIMUM_SIZE_V7_GOAL_KEY,
@@ -393,6 +394,71 @@ def test_minimum_size_reader_preserves_dynamic_cap_and_trade_snapshot_policy() -
         for result in results
     )
     assert [name for name, _kwargs in client.calls][-1] == "get_market_trades"
+
+
+def test_atomic_reader_accepts_revision_five_exact_bid_with_dynamic_cap() -> None:
+    client = _StrictClient(best_bid="100", best_ask="101")
+    reader = _reader(
+        client,
+        plan=_plan(
+            post_only=True,
+            base_size="0.02",
+            limit_price="100",
+            submitted_notional_usdc="2.00",
+            possible_execution_notional_usdc="2.00",
+            max_possible_execution_notional_usdc="2.01",
+            policy_revision=5,
+        ),
+        goal_key=SPOT_ELIGIBILITY_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY,
+    )
+    context = _read_context(
+        goal_key=SPOT_ELIGIBILITY_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY
+    )
+
+    results = [
+        reader.read_api_key_permissions(context),
+        reader.read_portfolio_catalog(context),
+        reader.read_account_wallet_balances(context),
+        reader.read_product_metadata(context),
+        reader.read_best_bid_ask(context),
+    ]
+
+    assert all(
+        result.outcome is SpotEligibilityReadOutcome.SUCCEEDED
+        for result in results
+    )
+    assert [name for name, _kwargs in client.calls][-1] == "get_market_trades"
+
+
+def test_atomic_reader_rejects_non_exact_bid_and_fee_reserve_shortfall() -> None:
+    plan = _plan(
+        post_only=True,
+        base_size="0.02",
+        limit_price="100",
+        submitted_notional_usdc="2.00",
+        possible_execution_notional_usdc="2.00",
+        max_possible_execution_notional_usdc="2.01",
+        policy_revision=5,
+    )
+    goal_key = SPOT_ELIGIBILITY_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY
+    wallet_client = _StrictClient(
+        wallet_available="2.00",
+        best_bid="100",
+        best_ask="101",
+    )
+    wallet_reader = _reader(wallet_client, plan=plan, goal_key=goal_key)
+    context = _read_context(goal_key=goal_key)
+    assert wallet_reader.read_api_key_permissions(context).eligible is True
+    assert wallet_reader.read_portfolio_catalog(context).eligible is True
+    assert wallet_reader.read_account_wallet_balances(context).eligible is False
+
+    price_client = _StrictClient(best_bid="100.01", best_ask="101")
+    price_reader = _reader(price_client, plan=plan, goal_key=goal_key)
+    assert price_reader.read_api_key_permissions(context).eligible is True
+    assert price_reader.read_portfolio_catalog(context).eligible is True
+    assert price_reader.read_account_wallet_balances(context).eligible is True
+    assert price_reader.read_product_metadata(context).eligible is True
+    assert price_reader.read_best_bid_ask(context).eligible is False
 
 
 def test_minimum_size_reader_rejects_submitted_notional_at_strict_ceiling() -> None:

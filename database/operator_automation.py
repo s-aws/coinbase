@@ -75,6 +75,7 @@ _AUTOMATION_SPOT_ELIGIBILITY_V1_CATEGORIES = (
 _AUTOMATION_SPOT_ELIGIBILITY_POLICY_REVISION = 2
 _AUTOMATION_SPOT_NEAR_MARKET_ELIGIBILITY_POLICY_REVISION = 3
 _AUTOMATION_SPOT_MINIMUM_SIZE_ELIGIBILITY_POLICY_REVISION = 4
+_AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_POLICY_REVISION = 5
 _AUTOMATION_SPOT_ELIGIBILITY_CATEGORY_SET = frozenset(
     AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES
 )
@@ -154,10 +155,60 @@ AUTOMATION_SPOT_MINIMUM_SIZE_GOAL_KEYS = frozenset(
         AUTOMATION_SPOT_MINIMUM_SIZE_V9_GOAL_KEY,
     }
 )
+AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY = (
+    "operator_spot_automation_atomic_market_snapshot_successor_v10"
+)
+AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V11_GOAL_KEY = (
+    "operator_spot_automation_atomic_market_snapshot_successor_v11"
+)
+AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V12_GOAL_KEY = (
+    "operator_spot_automation_atomic_market_snapshot_successor_v12"
+)
+AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS = frozenset(
+    {
+        AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY,
+        AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V11_GOAL_KEY,
+        AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V12_GOAL_KEY,
+    }
+)
+
+
+def _select_atomic_market_snapshot_successor(
+    goals: Mapping[str, Mapping[str, Any]],
+    cycles: tuple[Mapping[str, Any], ...] | list[Mapping[str, Any]],
+) -> tuple[int, str] | None:
+    """Select the exact next V10-V12 candidate without mutating its ledger."""
+
+    ordered = (
+        (10, AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY),
+        (11, AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V11_GOAL_KEY),
+        (12, AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V12_GOAL_KEY),
+    )
+    if set(goals) != set(AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS):
+        return None
+    if len(cycles) >= 10:
+        return None
+    target: tuple[int, str] | None = None
+    for version, goal_key in ordered:
+        goal = goals[goal_key]
+        if goal.get("definition_id") is None:
+            target = (version, goal_key)
+            break
+        if goal.get("preview_outcome") not in {"REJECTED", "UNKNOWN"}:
+            return None
+    if target is None:
+        return None
+    target_cycles = [cycle for cycle in cycles if cycle.get("goal_key") == target[1]]
+    if target_cycles:
+        latest = max(target_cycles, key=lambda cycle: int(cycle["cycle_number"]))
+        if latest.get("state") in {"CLAIMED", "MATERIALIZED"}:
+            return None
+    return target
 AUTOMATION_SPOT_POST_ONLY_GOAL_KEYS = frozenset(
     {
         *AUTOMATION_SPOT_NEAR_MARKET_GOAL_KEYS,
         *AUTOMATION_SPOT_MINIMUM_SIZE_GOAL_KEYS,
+        *AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS,
     }
 )
 _AUTOMATION_SPOT_NEAR_MARKET_PREPARATION_CATEGORIES = (
@@ -249,6 +300,7 @@ _AUTOMATION_SPOT_PREVIEW_GOAL_KEYS = frozenset(
         AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
         *AUTOMATION_SPOT_NEAR_MARKET_GOAL_KEYS,
         *AUTOMATION_SPOT_MINIMUM_SIZE_GOAL_KEYS,
+        *AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS,
     }
 )
 _AUTOMATION_SPOT_GOAL_KEYS = frozenset(
@@ -263,6 +315,8 @@ _AUTOMATION_SPOT_CLIENT_ORDER_NAMESPACE = uuid.UUID(
 
 
 def _spot_policy_revision_for_goal(goal_key: str) -> int:
+    if goal_key in AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS:
+        return _AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_POLICY_REVISION
     if goal_key in AUTOMATION_SPOT_MINIMUM_SIZE_GOAL_KEYS:
         return _AUTOMATION_SPOT_MINIMUM_SIZE_ELIGIBILITY_POLICY_REVISION
     if goal_key in AUTOMATION_SPOT_NEAR_MARKET_GOAL_KEYS:
@@ -618,6 +672,28 @@ class AutomationSpotMinimumSizeMaterializationEvidence:
 
 
 @dataclass(frozen=True)
+class AutomationSpotAtomicMarketSnapshotCycleRecord:
+    cycle_number: int
+    goal_key: str
+    candidate_version: int
+    state: Literal["CLAIMED", "MATERIALIZED", "BLOCKED", "UNKNOWN"]
+    definition_id: str | None
+    run_id: str | None
+    plan_sha256: str | None
+    client_order_id: str | None
+    diagnostic_code: str
+    completed_categories: tuple[str, ...]
+    coinbase_api_call_count: int | None
+    call_count_exact: bool
+    market_snapshot_sha256: str | None
+    evidence_sha256: str | None
+    audit_id: str
+    correlation_id: str
+    started_at: str
+    finalized_at: str | None
+
+
+@dataclass(frozen=True)
 class AutomationRunEventRecord:
     event_id: str
     run_id: str
@@ -718,6 +794,12 @@ class OperatorAutomationRepository:
         minimum_size_goal_keys = ", ".join(
             f"'{goal_key}'"
             for goal_key in sorted(AUTOMATION_SPOT_MINIMUM_SIZE_GOAL_KEYS)
+        )
+        atomic_market_snapshot_goal_keys = ", ".join(
+            f"'{goal_key}'"
+            for goal_key in sorted(
+                AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS
+            )
         )
         with self.database.get_cursor() as cursor:
             cursor.execute(f'CREATE SCHEMA IF NOT EXISTS "{self.schema}"')
@@ -948,7 +1030,7 @@ class OperatorAutomationRepository:
                     ),
                     cycle_number SMALLINT NOT NULL CHECK (cycle_number BETWEEN 1 AND 10),
                     policy_revision SMALLINT NOT NULL DEFAULT 2
-                        CHECK (policy_revision IN (1,2,3,4)),
+                        CHECK (policy_revision IN (1,2,3,4,5)),
                     run_id UUID NOT NULL REFERENCES {self._prefix}automation_run(run_id),
                     definition_id UUID NOT NULL,
                     definition_revision INTEGER NOT NULL CHECK (definition_revision >= 1),
@@ -1046,7 +1128,7 @@ class OperatorAutomationRepository:
                 ALTER TABLE {self._prefix}automation_spot_eligibility_cycle
                 ADD CONSTRAINT
                     automation_spot_eligibility_cycle_policy_revision_check
-                CHECK (policy_revision IN (1,2,3,4))
+                CHECK (policy_revision IN (1,2,3,4,5))
                 """
             )
             cursor.execute(
@@ -1515,7 +1597,7 @@ class OperatorAutomationRepository:
                 CREATE TABLE IF NOT EXISTS {self._prefix}automation_spot_run_execution (
                     run_id UUID PRIMARY KEY REFERENCES {self._prefix}automation_run(run_id),
                     policy_revision SMALLINT NOT NULL DEFAULT 2
-                        CHECK (policy_revision IN (1,2,3,4)),
+                        CHECK (policy_revision IN (1,2,3,4,5)),
                     definition_id UUID NOT NULL,
                     definition_revision INTEGER NOT NULL,
                     eligibility_cycle SMALLINT NOT NULL CHECK (eligibility_cycle BETWEEN 1 AND 10),
@@ -1643,7 +1725,7 @@ class OperatorAutomationRepository:
                 ALTER TABLE {self._prefix}automation_spot_run_execution
                 ADD CONSTRAINT
                     automation_spot_run_execution_policy_revision_check
-                CHECK (policy_revision IN (1,2,3,4))
+                CHECK (policy_revision IN (1,2,3,4,5))
                 """
             )
             cursor.execute(
@@ -2207,6 +2289,101 @@ class OperatorAutomationRepository:
                         (state = 'UNKNOWN' AND definition_id IS NULL
                             AND coinbase_api_call_count IS NULL
                             AND NOT call_count_exact
+                            AND evidence_sha256 IS NULL
+                            AND finalized_at IS NOT NULL)
+                    )
+                )
+                """
+            )
+            cursor.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS {self._prefix}automation_spot_atomic_market_snapshot_cycle (
+                    cycle_number SMALLINT PRIMARY KEY
+                        CHECK (cycle_number BETWEEN 1 AND 10),
+                    goal_key TEXT NOT NULL
+                        CHECK (goal_key IN ({atomic_market_snapshot_goal_keys})),
+                    candidate_version SMALLINT NOT NULL
+                        CHECK (candidate_version BETWEEN 10 AND 12),
+                    state TEXT NOT NULL CHECK (
+                        state IN ('CLAIMED','MATERIALIZED','BLOCKED','UNKNOWN')
+                    ),
+                    definition_id UUID UNIQUE REFERENCES
+                        {self._prefix}automation_definition(definition_id),
+                    run_id UUID UNIQUE REFERENCES
+                        {self._prefix}automation_run(run_id),
+                    plan_sha256 CHAR(64) UNIQUE CHECK (
+                        plan_sha256 IS NULL
+                        OR plan_sha256 ~ '^[0-9a-f]{{64}}$'
+                    ),
+                    client_order_id UUID UNIQUE,
+                    idempotency_key_sha256 CHAR(64) NOT NULL UNIQUE
+                        CHECK (idempotency_key_sha256 ~ '^[0-9a-f]{{64}}$'),
+                    payload_sha256 CHAR(64) NOT NULL
+                        CHECK (payload_sha256 ~ '^[0-9a-f]{{64}}$'),
+                    actor_id_sha256 CHAR(64) NOT NULL
+                        CHECK (actor_id_sha256 ~ '^[0-9a-f]{{64}}$'),
+                    operator_intent_sha256 CHAR(64) NOT NULL
+                        CHECK (operator_intent_sha256 ~ '^[0-9a-f]{{64}}$'),
+                    diagnostic_code TEXT NOT NULL
+                        CHECK (char_length(diagnostic_code) BETWEEN 1 AND 96),
+                    completed_categories JSONB NOT NULL DEFAULT '[]'::jsonb,
+                    coinbase_api_call_count INTEGER CHECK (
+                        coinbase_api_call_count IS NULL
+                        OR coinbase_api_call_count >= 0
+                    ),
+                    call_count_exact BOOLEAN NOT NULL DEFAULT FALSE,
+                    market_snapshot_sha256 CHAR(64) CHECK (
+                        market_snapshot_sha256 IS NULL
+                        OR market_snapshot_sha256 ~ '^[0-9a-f]{{64}}$'
+                    ),
+                    evidence_sha256 CHAR(64) CHECK (
+                        evidence_sha256 IS NULL
+                        OR evidence_sha256 ~ '^[0-9a-f]{{64}}$'
+                    ),
+                    audit_id UUID NOT NULL,
+                    correlation_id TEXT NOT NULL
+                        CHECK (char_length(correlation_id) BETWEEN 1 AND 255),
+                    started_at TIMESTAMPTZ NOT NULL,
+                    finalized_at TIMESTAMPTZ,
+                    CHECK (
+                        (candidate_version = 10 AND goal_key = '{AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY}')
+                        OR (candidate_version = 11 AND goal_key = '{AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V11_GOAL_KEY}')
+                        OR (candidate_version = 12 AND goal_key = '{AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V12_GOAL_KEY}')
+                    ),
+                    CHECK (
+                        (state = 'CLAIMED' AND definition_id IS NULL
+                            AND run_id IS NULL AND plan_sha256 IS NULL
+                            AND client_order_id IS NULL
+                            AND coinbase_api_call_count IS NULL
+                            AND NOT call_count_exact
+                            AND market_snapshot_sha256 IS NULL
+                            AND evidence_sha256 IS NULL
+                            AND finalized_at IS NULL)
+                        OR
+                        (state = 'MATERIALIZED' AND definition_id IS NOT NULL
+                            AND run_id IS NOT NULL AND plan_sha256 IS NOT NULL
+                            AND client_order_id IS NOT NULL
+                            AND coinbase_api_call_count IS NOT NULL
+                            AND call_count_exact
+                            AND market_snapshot_sha256 IS NOT NULL
+                            AND evidence_sha256 IS NOT NULL
+                            AND finalized_at IS NOT NULL)
+                        OR
+                        (state = 'BLOCKED' AND definition_id IS NULL
+                            AND run_id IS NULL AND plan_sha256 IS NULL
+                            AND client_order_id IS NULL
+                            AND coinbase_api_call_count IS NOT NULL
+                            AND call_count_exact
+                            AND market_snapshot_sha256 IS NULL
+                            AND evidence_sha256 IS NOT NULL
+                            AND finalized_at IS NOT NULL)
+                        OR
+                        (state = 'UNKNOWN' AND definition_id IS NULL
+                            AND run_id IS NULL AND plan_sha256 IS NULL
+                            AND client_order_id IS NULL
+                            AND coinbase_api_call_count IS NULL
+                            AND NOT call_count_exact
+                            AND market_snapshot_sha256 IS NULL
                             AND evidence_sha256 IS NULL
                             AND finalized_at IS NOT NULL)
                     )
@@ -4866,6 +5043,7 @@ class OperatorAutomationRepository:
                 _AUTOMATION_SPOT_ELIGIBILITY_POLICY_REVISION,
                 _AUTOMATION_SPOT_NEAR_MARKET_ELIGIBILITY_POLICY_REVISION,
                 _AUTOMATION_SPOT_MINIMUM_SIZE_ELIGIBILITY_POLICY_REVISION,
+                _AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_POLICY_REVISION,
             }:
                 cycle_categories = AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES
             else:
@@ -7333,6 +7511,635 @@ class OperatorAutomationRepository:
                 record.correlation_id,
             )
 
+    @staticmethod
+    def _atomic_market_snapshot_cycle_from_row(
+        row: Mapping[str, Any],
+    ) -> AutomationSpotAtomicMarketSnapshotCycleRecord:
+        categories = row.get("completed_categories") or []
+        if isinstance(categories, str):
+            categories = json.loads(categories)
+        return AutomationSpotAtomicMarketSnapshotCycleRecord(
+            cycle_number=int(row["cycle_number"]),
+            goal_key=str(row["goal_key"]),
+            candidate_version=int(row["candidate_version"]),
+            state=str(row["state"]),
+            definition_id=(
+                str(row["definition_id"])
+                if row.get("definition_id") is not None
+                else None
+            ),
+            run_id=(
+                str(row["run_id"])
+                if row.get("run_id") is not None
+                else None
+            ),
+            plan_sha256=row.get("plan_sha256"),
+            client_order_id=(
+                str(row["client_order_id"])
+                if row.get("client_order_id") is not None
+                else None
+            ),
+            diagnostic_code=str(row["diagnostic_code"]),
+            completed_categories=tuple(str(item) for item in categories),
+            coinbase_api_call_count=(
+                int(row["coinbase_api_call_count"])
+                if row.get("coinbase_api_call_count") is not None
+                else None
+            ),
+            call_count_exact=bool(row["call_count_exact"]),
+            market_snapshot_sha256=row.get("market_snapshot_sha256"),
+            evidence_sha256=row.get("evidence_sha256"),
+            audit_id=str(row["audit_id"]),
+            correlation_id=str(row["correlation_id"]),
+            started_at=_iso(row["started_at"]) or "",
+            finalized_at=_iso(row.get("finalized_at")),
+        )
+
+    def list_spot_atomic_market_snapshot_cycles(
+        self,
+    ) -> tuple[AutomationSpotAtomicMarketSnapshotCycleRecord, ...]:
+        rows = self.database.execute_query(
+            f"SELECT * FROM {self._prefix}automation_spot_atomic_market_snapshot_cycle "
+            "ORDER BY cycle_number"
+        )
+        return tuple(
+            self._atomic_market_snapshot_cycle_from_row(row) for row in rows
+        )
+
+    def spot_atomic_market_snapshot_successor_available(self) -> bool:
+        """Return ledger-backed actionability without reserving a cycle."""
+
+        with self.database.get_cursor() as cursor:
+            cursor.execute(
+                f"SELECT * FROM {self._prefix}automation_spot_preview_gated_goal "
+                "WHERE goal_key = ANY(%s)",
+                (list(sorted(AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS)),),
+            )
+            goals = {str(row["goal_key"]): row for row in self._rows(cursor)}
+            cursor.execute(
+                f"SELECT cycle_number, goal_key, state FROM "
+                f"{self._prefix}automation_spot_atomic_market_snapshot_cycle "
+                "ORDER BY cycle_number"
+            )
+            cycles = self._rows(cursor)
+        return _select_atomic_market_snapshot_successor(goals, cycles) is not None
+
+    def start_spot_atomic_market_snapshot_cycle(
+        self,
+        command: AutomationMutationCommand,
+    ) -> AutomationStoreMutation[AutomationSpotAtomicMarketSnapshotCycleRecord]:
+        """Claim one goal-global V10-V12 cycle before any Coinbase read."""
+
+        self._validate_command(command)
+        idempotency_hash = _hash(command.idempotency_key)
+        with self.database.get_cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT *
+                FROM {self._prefix}automation_spot_atomic_market_snapshot_cycle
+                WHERE idempotency_key_sha256 = %s
+                FOR UPDATE
+                """,
+                (idempotency_hash,),
+            )
+            replay = self._row(cursor)
+            if replay is not None:
+                if (
+                    replay["payload_sha256"] != command.payload_sha256
+                    or replay["actor_id_sha256"] != _hash(command.actor_id)
+                    or replay["operator_intent_sha256"]
+                    != _hash(command.operator_intent)
+                    or replay["correlation_id"] != command.correlation_id
+                ):
+                    raise AutomationStoreConflict(
+                        "automation_atomic_market_snapshot_idempotency_conflict"
+                    )
+                record = self._atomic_market_snapshot_cycle_from_row(replay)
+                return AutomationStoreMutation(
+                    record,
+                    record.audit_id,
+                    record.correlation_id,
+                    True,
+                )
+            posture = self._current_control(cursor, for_update=True)
+            if posture is not OperatorAutomationControlPosture.ACTIVE:
+                raise AutomationStoreConflict(
+                    "automation_control_plane_not_active"
+                )
+            cursor.execute(
+                f"""
+                SELECT *
+                FROM {self._prefix}automation_spot_preview_gated_goal
+                WHERE goal_key = ANY(%s)
+                ORDER BY goal_key
+                FOR UPDATE
+                """,
+                (list(sorted(AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS)),),
+            )
+            goals = {str(row["goal_key"]): row for row in self._rows(cursor)}
+            if set(goals) != set(AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS):
+                raise AutomationStoreUnavailable(
+                    "automation_atomic_market_snapshot_goal_ledger_unavailable"
+                )
+            cursor.execute(
+                f"SELECT cycle_number, goal_key, state FROM "
+                f"{self._prefix}automation_spot_atomic_market_snapshot_cycle "
+                "ORDER BY cycle_number FOR UPDATE"
+            )
+            existing_cycles = self._rows(cursor)
+            target = _select_atomic_market_snapshot_successor(
+                goals,
+                existing_cycles,
+            )
+            if target is None:
+                raise AutomationStoreConflict(
+                    "automation_atomic_market_snapshot_successor_not_available"
+                )
+            candidate_version, goal_key = target
+            cycle_number = max(
+                (int(cycle["cycle_number"]) for cycle in existing_cycles),
+                default=0,
+            ) + 1
+            if cycle_number > 10:
+                raise AutomationStoreConflict(
+                    "automation_atomic_market_snapshot_cycles_exhausted"
+                )
+            now = _utc_now()
+            audit_id = _new_id()
+            cursor.execute(
+                f"""
+                INSERT INTO {self._prefix}automation_spot_atomic_market_snapshot_cycle (
+                    cycle_number, goal_key, candidate_version, state,
+                    definition_id, run_id, plan_sha256, client_order_id,
+                    idempotency_key_sha256, payload_sha256, actor_id_sha256,
+                    operator_intent_sha256, diagnostic_code,
+                    completed_categories, coinbase_api_call_count,
+                    call_count_exact, market_snapshot_sha256,
+                    evidence_sha256, audit_id, correlation_id,
+                    started_at, finalized_at
+                ) VALUES (
+                    %s,%s,%s,'CLAIMED',NULL,NULL,NULL,NULL,%s,%s,%s,%s,
+                    'atomic_market_snapshot_cycle_claimed','[]'::jsonb,
+                    NULL,FALSE,NULL,NULL,%s,%s,%s,NULL
+                ) RETURNING *
+                """,
+                (
+                    cycle_number,
+                    goal_key,
+                    candidate_version,
+                    idempotency_hash,
+                    command.payload_sha256,
+                    _hash(command.actor_id),
+                    _hash(command.operator_intent),
+                    audit_id,
+                    command.correlation_id,
+                    now,
+                ),
+            )
+            row = self._row(cursor)
+            assert row is not None
+            return AutomationStoreMutation(
+                self._atomic_market_snapshot_cycle_from_row(row),
+                audit_id,
+                command.correlation_id,
+            )
+
+    def finalize_spot_atomic_market_snapshot_terminal(
+        self,
+        *,
+        cycle_number: int,
+        goal_key: str,
+        state: Literal["BLOCKED", "UNKNOWN"],
+        diagnostic_code: str,
+        completed_categories: tuple[str, ...],
+        coinbase_api_call_count: int | None,
+        call_count_exact: bool,
+        evidence_sha256: str | None,
+    ) -> AutomationStoreMutation[AutomationSpotAtomicMarketSnapshotCycleRecord]:
+        """Close a failed cycle without creating any candidate or allowance."""
+
+        if (
+            goal_key not in AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS
+            or state not in {"BLOCKED", "UNKNOWN"}
+            or not diagnostic_code.startswith(("atomic_", "minimum_", "automation_"))
+            or tuple(completed_categories)
+            != AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[: len(completed_categories)]
+            or len(completed_categories) > 8
+            or (state == "UNKNOWN")
+            is not (
+                coinbase_api_call_count is None
+                and not call_count_exact
+                and evidence_sha256 is None
+            )
+            or (
+                state == "BLOCKED"
+                and (
+                    type(coinbase_api_call_count) is not int
+                    or coinbase_api_call_count < 0
+                    or not call_count_exact
+                    or evidence_sha256 is None
+                )
+            )
+            or (
+                evidence_sha256 is not None
+                and _SHA256_PATTERN.fullmatch(evidence_sha256) is None
+            )
+        ):
+            raise AutomationStoreInvalid(
+                "automation_atomic_market_snapshot_result_invalid"
+            )
+        with self.database.get_cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT * FROM {self._prefix}automation_spot_atomic_market_snapshot_cycle
+                WHERE cycle_number = %s AND goal_key = %s
+                FOR UPDATE
+                """,
+                (cycle_number, goal_key),
+            )
+            current = self._row(cursor)
+            if current is None:
+                raise AutomationStoreNotFound(
+                    "automation_atomic_market_snapshot_cycle_not_found"
+                )
+            if current["state"] != "CLAIMED":
+                record = self._atomic_market_snapshot_cycle_from_row(current)
+                return AutomationStoreMutation(
+                    record,
+                    record.audit_id,
+                    record.correlation_id,
+                    True,
+                )
+            now = _utc_now()
+            audit_id = _new_id()
+            cursor.execute(
+                f"""
+                UPDATE {self._prefix}automation_spot_atomic_market_snapshot_cycle
+                SET state = %s, diagnostic_code = %s,
+                    completed_categories = %s::jsonb,
+                    coinbase_api_call_count = %s, call_count_exact = %s,
+                    evidence_sha256 = %s, audit_id = %s, finalized_at = %s
+                WHERE cycle_number = %s AND goal_key = %s AND state = 'CLAIMED'
+                RETURNING *
+                """,
+                (
+                    state,
+                    diagnostic_code,
+                    json.dumps(list(completed_categories)),
+                    coinbase_api_call_count,
+                    call_count_exact,
+                    evidence_sha256,
+                    audit_id,
+                    now,
+                    cycle_number,
+                    goal_key,
+                ),
+            )
+            row = self._row(cursor)
+            if row is None:
+                raise AutomationStoreConflict(
+                    "automation_atomic_market_snapshot_already_finalized"
+                )
+            record = self._atomic_market_snapshot_cycle_from_row(row)
+            return AutomationStoreMutation(
+                record,
+                audit_id,
+                record.correlation_id,
+            )
+
+    def materialize_spot_atomic_market_snapshot_and_claim_preview(
+        self,
+        *,
+        cycle_number: int,
+        goal_key: str,
+        definition_id: str,
+        run_id: str,
+        terms: AutomationSpotSingleChildPlanTerms,
+        expected_plan_sha256: str,
+        expected_client_order_id: str,
+        market_snapshot_sha256: str,
+        evidence_sha256: str,
+        attempts: tuple[Any, ...],
+    ) -> AutomationStoreMutation[AutomationSpotAtomicMarketSnapshotCycleRecord]:
+        """Persist all final terms/evidence/identity and consume Preview atomically."""
+
+        _validate_id(definition_id, code="automation_definition_id_invalid")
+        _validate_id(run_id, code="automation_run_id_invalid")
+        if (
+            goal_key not in AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS
+            or _SHA256_PATTERN.fullmatch(expected_plan_sha256) is None
+            or _SHA256_PATTERN.fullmatch(market_snapshot_sha256) is None
+            or _SHA256_PATTERN.fullmatch(evidence_sha256) is None
+            or len(attempts) != len(AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES)
+            or tuple(item.category for item in attempts)
+            != AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES
+        ):
+            raise AutomationStoreInvalid(
+                "automation_atomic_market_snapshot_materialization_invalid"
+            )
+        values = self._validated_spot_plan_values(
+            self._spot_plan_command_for_revision(
+                definition_id=definition_id,
+                definition_revision=1,
+                terms=terms,
+                command=AutomationMutationCommand(
+                    idempotency_key="atomic-market-snapshot-materialization",
+                    payload_sha256=evidence_sha256,
+                    actor_id="backend-owned-atomic-market-snapshot",
+                    correlation_id="atomic-market-snapshot-binding",
+                    operator_intent="materialize_atomic_market_snapshot",
+                ),
+            ),
+            post_only_required=True,
+            dynamic_execution_cap=True,
+        )
+        if (
+            values["plan_sha256"] != expected_plan_sha256
+            or Decimal(values["submitted_notional_usdc"]) >= Decimal("3.10")
+            or Decimal(values["possible_execution_notional_usdc"])
+            >= Decimal("3.10")
+        ):
+            raise AutomationStoreInvalid(
+                "automation_atomic_market_snapshot_plan_binding_invalid"
+            )
+        expected_identity = self.deterministic_spot_client_order_id(
+            run_id=run_id,
+            plan_sha256=expected_plan_sha256,
+            goal_key=goal_key,
+        )
+        if expected_identity != expected_client_order_id:
+            raise AutomationStoreInvalid(
+                "automation_atomic_market_snapshot_identity_invalid"
+            )
+        total_calls = 0
+        fresh_until_values: list[datetime] = []
+        for item in attempts:
+            observed_at = _aware_utc_datetime(item.observed_at)
+            fresh_until = _aware_utc_datetime(item.fresh_until)
+            if (
+                type(item.coinbase_api_call_count) is not int
+                or item.coinbase_api_call_count < 1
+                or observed_at is None
+                or fresh_until is None
+                or fresh_until <= observed_at
+                or _SHA256_PATTERN.fullmatch(item.evidence_sha256) is None
+            ):
+                raise AutomationStoreInvalid(
+                    "automation_atomic_market_snapshot_attempt_invalid"
+                )
+            total_calls += item.coinbase_api_call_count
+            fresh_until_values.append(fresh_until)
+        now = _utc_now()
+        if min(fresh_until_values) <= now:
+            raise AutomationStoreConflict(
+                "automation_atomic_market_snapshot_stale"
+            )
+        with self.database.get_cursor() as cursor:
+            posture = self._current_control(cursor, for_update=True)
+            if posture is not OperatorAutomationControlPosture.ACTIVE:
+                raise AutomationStoreConflict(
+                    "automation_control_plane_not_active"
+                )
+            cursor.execute(
+                f"""
+                SELECT * FROM {self._prefix}automation_spot_atomic_market_snapshot_cycle
+                WHERE cycle_number = %s AND goal_key = %s
+                FOR UPDATE
+                """,
+                (cycle_number, goal_key),
+            )
+            current = self._row(cursor)
+            if current is None:
+                raise AutomationStoreNotFound(
+                    "automation_atomic_market_snapshot_cycle_not_found"
+                )
+            if current["state"] != "CLAIMED":
+                record = self._atomic_market_snapshot_cycle_from_row(current)
+                return AutomationStoreMutation(
+                    record,
+                    record.audit_id,
+                    record.correlation_id,
+                    True,
+                )
+            cursor.execute(
+                f"""
+                SELECT * FROM {self._prefix}automation_spot_preview_gated_goal
+                WHERE goal_key = %s FOR UPDATE
+                """,
+                (goal_key,),
+            )
+            goal = self._row(cursor)
+            if (
+                goal is None
+                or goal.get("definition_id") is not None
+                or bool(goal.get("preview_allowance_consumed"))
+            ):
+                raise AutomationStoreConflict(
+                    "automation_spot_preview_allowance_consumed"
+                )
+            audit_id = _new_id()
+            correlation_id = str(current["correlation_id"])
+            cursor.execute(
+                f"""
+                INSERT INTO {self._prefix}automation_definition (
+                    definition_id, revision, label, domain, job_kind,
+                    lifecycle_state, product_ids, schedule_kind,
+                    interval_seconds, next_review_at, created_at, updated_at
+                ) VALUES (
+                    %s,1,%s,'SPOT','SPOT_CAMPAIGN','ENABLED',
+                    '["BTC-USDC"]'::jsonb,'MANUAL_ONLY',NULL,NULL,%s,%s
+                )
+                """,
+                (
+                    definition_id,
+                    f"BTC-USDC atomic market snapshot V{int(current['candidate_version'])}",
+                    now,
+                    now,
+                ),
+            )
+            self._insert_spot_single_child_plan(
+                cursor,
+                values=values,
+                audit_id=audit_id,
+                correlation_id=correlation_id,
+                recorded_at=now,
+            )
+            cursor.execute(
+                f"""
+                INSERT INTO {self._prefix}automation_spot_plan_goal (
+                    definition_id, goal_key, created_at
+                ) VALUES (%s,%s,%s)
+                """,
+                (definition_id, goal_key, now),
+            )
+            cursor.execute(
+                f"""
+                INSERT INTO {self._prefix}automation_run (
+                    run_id, definition_id, definition_revision, domain,
+                    job_kind, state, diagnostic_code, audit_id,
+                    correlation_id, client_order_id, live_attempt_consumed,
+                    coinbase_api_call_count, create_call_count,
+                    cancel_call_count, claimed_at, updated_at
+                ) VALUES (
+                    %s,%s,1,'SPOT','SPOT_CAMPAIGN',
+                    'AWAITING_OPERATOR_AUTHORIZATION',
+                    'automation_spot_preview_invocation_started',%s,%s,%s,
+                    TRUE,%s,0,0,%s,%s
+                )
+                """,
+                (
+                    run_id,
+                    definition_id,
+                    audit_id,
+                    correlation_id,
+                    expected_client_order_id,
+                    total_calls,
+                    now,
+                    now,
+                ),
+            )
+            cursor.execute(
+                f"""
+                INSERT INTO {self._prefix}automation_spot_eligibility_cycle (
+                    goal_key, cycle_number, policy_revision, run_id,
+                    definition_id, definition_revision, plan_sha256,
+                    portfolio_id_sha256, product_id, client_order_id,
+                    state, coinbase_api_call_count, call_count_exact,
+                    fresh_until, diagnostic_code, audit_id, correlation_id,
+                    started_at, finalized_at
+                ) VALUES (
+                    %s,%s,5,%s,%s,1,%s,%s,'BTC-USDC',%s,'SUCCEEDED',
+                    %s,TRUE,%s,'automation_spot_eligibility_succeeded',
+                    %s,%s,%s,%s
+                )
+                """,
+                (
+                    goal_key,
+                    cycle_number,
+                    run_id,
+                    definition_id,
+                    expected_plan_sha256,
+                    values["portfolio_id_sha256"],
+                    expected_client_order_id,
+                    total_calls,
+                    min(fresh_until_values),
+                    audit_id,
+                    correlation_id,
+                    now,
+                    now,
+                ),
+            )
+            for item in attempts:
+                portfolio_evidence = (
+                    values["portfolio_id_sha256"]
+                    if item.category == "PORTFOLIO_CATALOG"
+                    else None
+                )
+                cursor.execute(
+                    f"""
+                    INSERT INTO {self._prefix}automation_spot_eligibility_attempt (
+                        run_id, goal_key, cycle_number, category,
+                        allowance_consumed, outcome, eligible,
+                        coinbase_api_call_count, call_count_exact,
+                        diagnostic_code, audit_id, correlation_id,
+                        started_at, finalized_at, observed_at, fresh_until,
+                        evidence_sha256, portfolio_id_sha256
+                    ) VALUES (
+                        %s,%s,%s,%s,TRUE,'SUCCEEDED',TRUE,%s,TRUE,%s,%s,%s,
+                        %s,%s,%s,%s,%s,%s
+                    )
+                    """,
+                    (
+                        run_id,
+                        goal_key,
+                        cycle_number,
+                        item.category,
+                        item.coinbase_api_call_count,
+                        f"automation_spot_eligibility_{item.category.lower()}_succeeded",
+                        audit_id,
+                        correlation_id,
+                        now,
+                        now,
+                        item.observed_at,
+                        item.fresh_until,
+                        item.evidence_sha256,
+                        portfolio_evidence,
+                    ),
+                )
+            cursor.execute(
+                f"""
+                UPDATE {self._prefix}automation_spot_preview_gated_goal
+                SET definition_id = %s, bound_run_id = %s,
+                    client_order_id = %s, eligibility_cycle = %s,
+                    plan_sha256 = %s, portfolio_id_sha256 = %s,
+                    product_id = 'BTC-USDC', preview_allowance_consumed = TRUE,
+                    updated_at = %s
+                WHERE goal_key = %s AND definition_id IS NULL
+                  AND preview_allowance_consumed = FALSE
+                """,
+                (
+                    definition_id,
+                    run_id,
+                    expected_client_order_id,
+                    cycle_number,
+                    expected_plan_sha256,
+                    values["portfolio_id_sha256"],
+                    now,
+                    goal_key,
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise AutomationStoreConflict(
+                    "automation_spot_preview_allowance_consumed"
+                )
+            cursor.execute(
+                f"""
+                UPDATE {self._prefix}automation_spot_atomic_market_snapshot_cycle
+                SET state = 'MATERIALIZED', definition_id = %s, run_id = %s,
+                    plan_sha256 = %s, client_order_id = %s,
+                    diagnostic_code = 'atomic_market_snapshot_terms_bound',
+                    completed_categories = %s::jsonb,
+                    coinbase_api_call_count = %s, call_count_exact = TRUE,
+                    market_snapshot_sha256 = %s, evidence_sha256 = %s,
+                    audit_id = %s, finalized_at = %s
+                WHERE cycle_number = %s AND goal_key = %s AND state = 'CLAIMED'
+                RETURNING *
+                """,
+                (
+                    definition_id,
+                    run_id,
+                    expected_plan_sha256,
+                    expected_client_order_id,
+                    json.dumps(list(AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES)),
+                    total_calls,
+                    market_snapshot_sha256,
+                    evidence_sha256,
+                    audit_id,
+                    now,
+                    cycle_number,
+                    goal_key,
+                ),
+            )
+            row = self._row(cursor)
+            if row is None:
+                raise AutomationStoreConflict(
+                    "automation_atomic_market_snapshot_already_finalized"
+                )
+            self._append_event(
+                cursor,
+                definition_id=definition_id,
+                run_id=run_id,
+                from_state=None,
+                to_state=OperatorAutomationRunState.AWAITING_OPERATOR_AUTHORIZATION.value,
+                diagnostic_code="automation_spot_preview_invocation_started",
+                audit_id=audit_id,
+                idempotency_key_sha256=str(current["idempotency_key_sha256"]),
+                correlation_id=correlation_id,
+                recorded_at=now,
+            )
+            record = self._atomic_market_snapshot_cycle_from_row(row)
+            return AutomationStoreMutation(record, audit_id, correlation_id)
+
     def has_spot_single_child_run(
         self,
         *,
@@ -8475,6 +9282,32 @@ class OperatorAutomationRepository:
                         _new_id(),
                         _utc_now(),
                         int(preparation["cycle_number"]),
+                    ),
+                )
+            cursor.execute(
+                f"SELECT cycle_number FROM "
+                f"{self._prefix}automation_spot_atomic_market_snapshot_cycle "
+                "WHERE state = 'CLAIMED' FOR UPDATE"
+            )
+            for cycle in self._rows(cursor):
+                cursor.execute(
+                    f"""
+                    UPDATE {self._prefix}automation_spot_atomic_market_snapshot_cycle
+                    SET state = 'UNKNOWN',
+                        diagnostic_code = 'automation_atomic_market_snapshot_restart_unknown',
+                        completed_categories = '[]'::jsonb,
+                        coinbase_api_call_count = NULL,
+                        call_count_exact = FALSE,
+                        market_snapshot_sha256 = NULL,
+                        evidence_sha256 = NULL,
+                        audit_id = %s,
+                        finalized_at = %s
+                    WHERE cycle_number = %s AND state = 'CLAIMED'
+                    """,
+                    (
+                        _new_id(),
+                        _utc_now(),
+                        int(cycle["cycle_number"]),
                     ),
                 )
             cursor.execute(

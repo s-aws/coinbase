@@ -50,6 +50,7 @@ from .operator_spot_eligibility import (
     derive_spot_eligibility_client_order_id,
 )
 from .operator_spot_eligibility import (
+    SPOT_ELIGIBILITY_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS,
     SPOT_ELIGIBILITY_MINIMUM_SIZE_GOAL_KEYS,
     SPOT_ELIGIBILITY_NEAR_MARKET_GOAL_KEYS,
     SPOT_ELIGIBILITY_POST_ONLY_GOAL_KEYS,
@@ -342,14 +343,16 @@ def build_spot_automation_create_admission(
     )
     near_market = goal_key in SPOT_ELIGIBILITY_NEAR_MARKET_GOAL_KEYS
     minimum_size = goal_key in SPOT_ELIGIBILITY_MINIMUM_SIZE_GOAL_KEYS
+    atomic_snapshot = goal_key in SPOT_ELIGIBILITY_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS
+    dynamic_cap = minimum_size or atomic_snapshot
     expected_post_only = goal_key in SPOT_ELIGIBILITY_POST_ONLY_GOAL_KEYS
     fixed_cap_policy_valid = bool(
-        not minimum_size
+        not dynamic_cap
         and possible_execution_cap == MAX_EXECUTED_NOTIONAL_USDC
         and possible_execution_notional <= MAX_EXECUTED_NOTIONAL_USDC
     )
     dynamic_cap_policy_valid = bool(
-        minimum_size
+        dynamic_cap
         and possible_execution_cap < MAX_SUBMITTED_NOTIONAL_USDC
         and possible_execution_notional == submitted_notional
         and possible_execution_notional <= possible_execution_cap
@@ -363,7 +366,7 @@ def build_spot_automation_create_admission(
         or submitted_cap != MAX_SUBMITTED_NOTIONAL_USDC
         or (
             submitted_notional >= MAX_SUBMITTED_NOTIONAL_USDC
-            if minimum_size
+            if dynamic_cap
             else submitted_notional > MAX_SUBMITTED_NOTIONAL_USDC
         )
         or not (fixed_cap_policy_valid or dynamic_cap_policy_valid)
@@ -487,9 +490,13 @@ def build_spot_automation_create_admission(
         base_size=base_size,
         limit_price=limit_price,
         post_only=expected_post_only,
-        policy_revision=4 if minimum_size else 3 if near_market else 2,
+        policy_revision=(
+            5 if atomic_snapshot else 4 if minimum_size else 3 if near_market else 2
+        ),
         standing_price_policy=(
-            "NEAR_MARKET_POST_ONLY_MINIMUM_SIZE_V2"
+            "ATOMIC_MARKET_SNAPSHOT_POST_ONLY_V1"
+            if atomic_snapshot
+            else "NEAR_MARKET_POST_ONLY_MINIMUM_SIZE_V2"
             if minimum_size
             else "NEAR_MARKET_POST_ONLY_V1"
             if near_market
@@ -587,8 +594,11 @@ def build_spot_automation_cancel_ownership(
     run_state = _field(run, "state")
     near_market = goal_key in SPOT_ELIGIBILITY_NEAR_MARKET_GOAL_KEYS
     minimum_size = goal_key in SPOT_ELIGIBILITY_MINIMUM_SIZE_GOAL_KEYS
+    atomic_snapshot = goal_key in SPOT_ELIGIBILITY_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS
     post_only = goal_key in SPOT_ELIGIBILITY_POST_ONLY_GOAL_KEYS
-    expected_policy_revision = 4 if minimum_size else 3 if near_market else 2
+    expected_policy_revision = (
+        5 if atomic_snapshot else 4 if minimum_size else 3 if near_market else 2
+    )
     if str(getattr(run_state, "value", run_state)) != "ACTIVE":
         raise _fixed_error("spot_automation_cancel_binding_invalid")
     if (
@@ -651,7 +661,9 @@ def build_spot_automation_cancel_ownership(
         post_only=bool(_field(plan, "post_only")),
         policy_revision=expected_policy_revision,
         standing_price_policy=(
-            "NEAR_MARKET_POST_ONLY_MINIMUM_SIZE_V2"
+            "ATOMIC_MARKET_SNAPSHOT_POST_ONLY_V1"
+            if atomic_snapshot
+            else "NEAR_MARKET_POST_ONLY_MINIMUM_SIZE_V2"
             if minimum_size
             else "NEAR_MARKET_POST_ONLY_V1"
             if near_market

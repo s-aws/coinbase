@@ -17,6 +17,7 @@ from application.admin_api.command_service import (
     read_authoritative_coinbase_orders,
 )
 from application.admin_api.operator_spot_eligibility import (
+    SPOT_ELIGIBILITY_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS,
     SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
     SPOT_ELIGIBILITY_MINIMUM_SIZE_GOAL_KEYS,
     SPOT_ELIGIBILITY_NEAR_MARKET_GOAL_KEYS,
@@ -153,14 +154,14 @@ class SpotEligibilityPlanTerms:
             or base * price != submitted
             or (
                 submitted >= submitted_cap
-                if self.policy_revision == 4
+                if self.policy_revision in {4, 5}
                 else submitted > submitted_cap
             )
             or possible > possible_cap
             or possible > submitted
-            or self.policy_revision not in {2, 3, 4}
+            or self.policy_revision not in {2, 3, 4, 5}
             or (
-                self.policy_revision == 4
+                self.policy_revision in {4, 5}
                 and (
                     self.post_only is not True
                     or possible != submitted
@@ -435,7 +436,10 @@ class CoinbaseApprovedSpotEligibilityReader:
             SPOT_ELIGIBILITY_POST_ONLY_GOAL_KEYS
         )
         expected_policy_revision = (
-            4
+            5
+            if expected_context.goal_key
+            in SPOT_ELIGIBILITY_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS
+            else 4
             if expected_context.goal_key in SPOT_ELIGIBILITY_MINIMUM_SIZE_GOAL_KEYS
             else 3
             if expected_context.goal_key in SPOT_ELIGIBILITY_NEAR_MARKET_GOAL_KEYS
@@ -705,7 +709,9 @@ class CoinbaseApprovedSpotEligibilityReader:
         wallet_map = wallets if isinstance(wallets, Mapping) else {}
         required_currency = "USDC" if self._plan.side == "BUY" else "BTC"
         required_amount = _decimal(
-            self._plan.submitted_notional_usdc
+            self._plan.max_possible_execution_notional_usdc
+            if self._plan.side == "BUY" and self._plan.policy_revision in {4, 5}
+            else self._plan.submitted_notional_usdc
             if self._plan.side == "BUY"
             else self._plan.base_size
         )
@@ -893,7 +899,11 @@ class CoinbaseApprovedSpotEligibilityReader:
                 and plan_price is not None
                 and bid is not None
                 and ask is not None
-                and plan_price <= bid
+                and (
+                    plan_price == bid
+                    if self._plan.policy_revision == 5
+                    else plan_price <= bid
+                )
                 and plan_price < ask
                 and market_source == "coinbase_rest_market_trade_snapshot"
             )

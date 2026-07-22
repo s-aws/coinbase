@@ -645,12 +645,13 @@ class ValidatedSpotAutomationOwnershipEvidence:
         )
         if (
             type(self.policy_revision) is not int
-            or self.policy_revision not in {2, 3, 4}
+            or self.policy_revision not in {2, 3, 4, 5}
             or self.standing_price_policy
             not in {
                 "STANDARD_STANDING_V2",
                 "NEAR_MARKET_POST_ONLY_V1",
                 "NEAR_MARKET_POST_ONLY_MINIMUM_SIZE_V2",
+                "ATOMIC_MARKET_SNAPSHOT_POST_ONLY_V1",
             }
             or (
                 self.policy_revision == 2
@@ -675,6 +676,15 @@ class ValidatedSpotAutomationOwnershipEvidence:
                     or self.side != OrderSide.BUY.value
                     or self.standing_price_policy
                     != "NEAR_MARKET_POST_ONLY_MINIMUM_SIZE_V2"
+                )
+            )
+            or (
+                self.policy_revision == 5
+                and (
+                    self.post_only is not True
+                    or self.side != OrderSide.BUY.value
+                    or self.standing_price_policy
+                    != "ATOMIC_MARKET_SNAPSHOT_POST_ONLY_V1"
                 )
             )
         ):
@@ -750,7 +760,7 @@ class ValidatedSpotAutomationAdmissionEvidence(
                 != OPERATOR_MVP_MAX_EXECUTED_NOTIONAL_USDC
             )
             or (
-                self.policy_revision == 4
+                self.policy_revision in {4, 5}
                 and (
                     self.base_size * self.limit_price
                     >= self.max_submitted_notional_usdc
@@ -868,7 +878,7 @@ def _require_current_spot_automation_admission(
     required_amount = (
         evidence.max_possible_execution_notional_usdc
         if normalized_side == OrderSide.BUY.value
-        and evidence.policy_revision == 4
+        and evidence.policy_revision in {4, 5}
         else requested_size * requested_price
         if normalized_side == OrderSide.BUY.value
         else requested_size
@@ -4709,7 +4719,7 @@ class AdminApiCommandService:
                 command=command,
                 client_order_id=client_order_id,
                 message=(
-                    "Dynamic execution caps require exact policy-revision-4 "
+                    "Dynamic execution caps require exact policy-revision-4-or-5 "
                     "Spot Automation admission evidence."
                 ),
                 data={"blocker": "manual_order_dynamic_cap_forbidden"},
@@ -5163,7 +5173,13 @@ class AdminApiCommandService:
                     in {
                         "NEAR_MARKET_POST_ONLY_V1",
                         "NEAR_MARKET_POST_ONLY_MINIMUM_SIZE_V2",
+                        "ATOMIC_MARKET_SNAPSHOT_POST_ONLY_V1",
                     }
+                )
+                atomic_market_automation = bool(
+                    automation_admission is not None
+                    and automation_admission.standing_price_policy
+                    == "ATOMIC_MARKET_SNAPSHOT_POST_ONLY_V1"
                 )
                 standing_price_limit_evidence = (
                     evaluate_near_market_post_only_limit(
@@ -5184,6 +5200,17 @@ class AdminApiCommandService:
                             "observed_at"
                         ),
                         )
+                    )
+                if (
+                    atomic_market_automation
+                    and standing_price_limit_evidence.get("allowed") is True
+                    and Decimal(str(raw_price))
+                    != Decimal(str((market_reference or {}).get("best_bid")))
+                ):
+                    standing_price_limit_evidence["allowed"] = False
+                    standing_price_limit_evidence["effective_allowed"] = False
+                    standing_price_limit_evidence["blocker"] = (
+                        "atomic_market_snapshot_limit_not_at_bid"
                     )
                 intentional_fill_requested = (
                     str(command.envelope.operator_intent or "")
@@ -5229,8 +5256,13 @@ class AdminApiCommandService:
                     )
                 if not ordinary_or_override_allowed:
                     reason = (
-                        "The backend-owned near-market Automation order is not "
-                        "a post-only BUY at or below the fresh same-snapshot bid."
+                        "The backend-owned atomic-market Automation order is not "
+                        "a post-only BUY at the exact fresh same-snapshot bid."
+                        if atomic_market_automation
+                        else (
+                            "The backend-owned near-market Automation order is not "
+                            "a post-only BUY at or below the fresh same-snapshot bid."
+                        )
                         if near_market_automation
                         else (
                             "Direct Spot order violates the standing price limit "

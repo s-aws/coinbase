@@ -1,10 +1,18 @@
 # Documentation Index
 
+Current operator goal:
+[Operator Spot Automation Atomic Market Snapshot V10-V12](OPERATOR_SPOT_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_V10_V12.md).
+Goal
+`operator_spot_automation_atomic_market_snapshot_binding_and_successor_proof_v10_v12`
+is in implementation and validation. No V10-V12 Coinbase call has occurred at
+this checkpoint. The backend binds the exact eight-category atomic snapshot
+and one-use Preview claim; browser authority remains acknowledgement-only.
+
 Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 
 ## Project Entry
 
-The active successor goal is
+The completed predecessor goal is
 `operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`.
 Status: `complete_terminal_eligibility_cycles_exhausted_v7`.
 Current action: `complete_v7_cycle_10_best_bid_ask_rejected_preview_create_cancel_unconsumed`.

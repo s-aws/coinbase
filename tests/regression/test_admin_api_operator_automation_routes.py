@@ -15,6 +15,7 @@ from api.v1.app import app as _ADMIN_API_APP
 from api.v1.routes import operator_automation as operator_automation_routes
 from application.admin_api.automation_models import (
     AutomationControlAction,
+    AutomationControlPlaneItem,
     AutomationDefinitionLifecycleAction,
     AutomationEligibilityCycleMutationResponse,
     AutomationEligibilityRefreshActivity,
@@ -32,6 +33,10 @@ from application.admin_api.operator_automation import (
     AutomationRepositoryMutation,
     AutomationRepositoryPage,
     OperatorAutomationService,
+)
+from application.admin_api.operator_mvp_policy import (
+    OPERATOR_MVP_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_ROUTE,
+    OPERATOR_MVP_AUTOMATION_PREVIEW_GATED_SINGLE_CHILD_ROUTE,
 )
 from application.admin_api.route_inventory import ADMIN_API_ROUTE_INVENTORY
 from core.enums import AdminApiLiveExecutionStatus, AdminApiPermission
@@ -366,6 +371,35 @@ class _FakeRepository:
                 "preview_call_count": 0,
                 "create_call_count": 0,
                 "cancel_call_count": 0,
+            },
+            kwargs["context"].correlation_id,
+        )
+
+    def authorize_atomic_market_snapshot_candidate(
+        self,
+        **kwargs: Any,
+    ) -> AutomationRepositoryMutation:
+        self._record("authorize_atomic_market_snapshot_candidate", **kwargs)
+        return self._mutation(
+            {
+                "outcome": "BLOCKED",
+                "candidate_version": 10,
+                "cycle_number": 1,
+                "diagnostic_code": "atomic_market_snapshot_stale",
+                "completed_categories": [
+                    "api_key_permissions",
+                    "portfolio_catalog",
+                    "wallet_balances",
+                    "product_metadata",
+                    "best_bid_ask",
+                    "fee_summary",
+                    "exact_order_reconciliation",
+                    "active_order_catalog",
+                ],
+                "coinbase_api_call_count": 8,
+                "call_count_exact": True,
+                "market_snapshot_binding": "UNAVAILABLE",
+                "run": None,
             },
             kwargs["context"].correlation_id,
         )
@@ -1078,6 +1112,145 @@ def test_minimum_size_candidate_route_requires_dynamic_cap_acknowledgement(
     assert payload["max_possible_execution_notional_usdc"] == "1.01"
     assert payload["preview_call_count"] == 0
     assert repository.calls[-1][0] == "prepare_minimum_size_candidate"
+
+
+def test_atomic_market_snapshot_route_requires_all_live_acknowledgements(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = _FakeRepository()
+    monkeypatch.setattr(
+        operator_automation_routes,
+        "build_admin_api_command_runtime_readiness",
+        lambda: SimpleNamespace(runtime_ready=True),
+    )
+    monkeypatch.setattr(
+        operator_automation_routes,
+        "get_decision_backed_live_execution_service",
+        lambda: SimpleNamespace(admission_state=lambda: SimpleNamespace()),
+    )
+    monkeypatch.setattr(
+        operator_automation_routes,
+        "operator_mvp_live_service_state_allows_route_admission",
+        lambda *_args, **_kwargs: True,
+    )
+    body = {
+        "confirm_atomic_final_market_snapshot_binding": True,
+        "confirm_one_no_retry_eight_category_cycle": True,
+        "confirm_single_preview": True,
+        "confirm_conditional_identical_single_child_create": True,
+        "confirm_btc_usdc_test_portfolio_scope": True,
+        "confirm_both_notionals_strictly_below_3_10": True,
+        "confirm_unknown_consumes_applicable_allowance": True,
+        "reason": "Bind one final V10 snapshot and execute its bounded proof",
+    }
+
+    response = _client(repository).post(
+        "/api/v1/automation/atomic-market-snapshot-candidates/authorize",
+        json=body,
+        headers=_headers(
+            operator_intent=(
+                "authorize_automation_atomic_market_snapshot_candidate"
+            )
+        ),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["diagnostic_code"] == "atomic_market_snapshot_stale"
+    assert response.json()["run"] is None
+    assert repository.calls[-1][0] == (
+        "authorize_atomic_market_snapshot_candidate"
+    )
+
+    repository.calls.clear()
+    rejected = _client(repository).post(
+        "/api/v1/automation/atomic-market-snapshot-candidates/authorize",
+        json={**body, "confirm_single_preview": False},
+        headers=_headers(
+            operator_intent=(
+                "authorize_automation_atomic_market_snapshot_candidate"
+            )
+        ),
+    )
+    assert rejected.status_code == 422
+    assert repository.calls == []
+
+
+def test_atomic_market_snapshot_route_requires_its_exact_live_service_admission(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = _FakeRepository()
+    monkeypatch.setattr(
+        operator_automation_routes,
+        "build_admin_api_command_runtime_readiness",
+        lambda: SimpleNamespace(runtime_ready=True),
+    )
+    monkeypatch.setattr(
+        operator_automation_routes,
+        "get_decision_backed_live_execution_service",
+        lambda: SimpleNamespace(admission_state=lambda: SimpleNamespace()),
+    )
+    admitted_routes: list[tuple[str, str]] = []
+
+    def admit_only_legacy_preview(_state, *, method: str, route: str) -> bool:
+        admitted_routes.append((method, route))
+        return route == OPERATOR_MVP_AUTOMATION_PREVIEW_GATED_SINGLE_CHILD_ROUTE
+
+    monkeypatch.setattr(
+        operator_automation_routes,
+        "operator_mvp_live_service_state_allows_route_admission",
+        admit_only_legacy_preview,
+    )
+    response = _client(repository).post(
+        "/api/v1/automation/atomic-market-snapshot-candidates/authorize",
+        json={
+            "confirm_atomic_final_market_snapshot_binding": True,
+            "confirm_one_no_retry_eight_category_cycle": True,
+            "confirm_single_preview": True,
+            "confirm_conditional_identical_single_child_create": True,
+            "confirm_btc_usdc_test_portfolio_scope": True,
+            "confirm_both_notionals_strictly_below_3_10": True,
+            "confirm_unknown_consumes_applicable_allowance": True,
+            "reason": "Require exact atomic route admission",
+        },
+        headers=_headers(
+            operator_intent=(
+                "authorize_automation_atomic_market_snapshot_candidate"
+            )
+        ),
+    )
+
+    assert response.status_code == 503
+    assert admitted_routes == [
+        ("POST", OPERATOR_MVP_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_ROUTE)
+    ]
+    assert repository.calls == []
+
+
+def test_atomic_market_snapshot_control_actionability_requires_ledger_and_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        operator_automation_routes,
+        "_operator_automation_live_action_ready",
+        lambda action: action == "AUTHORIZE_ATOMIC_MARKET_SNAPSHOT",
+    )
+    actor = AdminApiActor(actor_id="trader", roles=["trader"])
+    available = AutomationControlPlaneItem.model_validate(
+        {
+            **_control(),
+            "atomic_market_snapshot_authorization_allowed": True,
+        }
+    )
+    exhausted = available.model_copy(
+        update={"atomic_market_snapshot_authorization_allowed": False}
+    )
+
+    assert operator_automation_routes._scope_control_item(
+        available, actor
+    ).atomic_market_snapshot_authorization_allowed is True
+    assert operator_automation_routes._scope_control_item(
+        exhausted, actor
+    ).atomic_market_snapshot_authorization_allowed is False
 
 
 @pytest.mark.parametrize(

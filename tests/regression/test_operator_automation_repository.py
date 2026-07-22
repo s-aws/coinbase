@@ -33,6 +33,10 @@ from application.admin_api.operator_spot_minimum_size_preparation import (
     MinimumSizePreparationOutcome,
     MinimumSizePreparationResult,
 )
+from application.admin_api.operator_spot_atomic_market_snapshot import (
+    AtomicMarketSnapshotAttempt,
+    canonical_atomic_spot_plan_binding,
+)
 from core.operator_spot_minimum_size_evidence import (
     MINIMUM_SIZE_POLICY_REVISION,
     minimum_size_preparation_evidence_sha256,
@@ -58,6 +62,9 @@ from database.operator_automation import (
     AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY,
     AUTOMATION_SPOT_MINIMUM_SIZE_V8_GOAL_KEY,
     AUTOMATION_SPOT_MINIMUM_SIZE_V9_GOAL_KEY,
+    AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY,
+    AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V11_GOAL_KEY,
+    AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V12_GOAL_KEY,
     AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
     AutomationDefinitionCreateCommand,
     AutomationMutationCommand,
@@ -70,6 +77,7 @@ from database.operator_automation import (
     AutomationStoreNotFound,
     OperatorAutomationRepository,
     initialize_operator_automation_schema,
+    _select_atomic_market_snapshot_successor,
 )
 
 
@@ -78,6 +86,43 @@ pytestmark = [pytest.mark.regression, pytest.mark.serial]
 TEST_DB_HOST = os.environ.get("COINBASE_DB_HOST", "coinbase-test-postgres")
 TEST_DB_PORT = int(os.environ.get("COINBASE_DB_PORT", "9876"))
 TEST_DB_NAME = os.environ.get("COINBASE_DB_NAME", "postgres")
+
+
+def test_atomic_successor_selector_fails_closed_after_acceptance_or_exhaustion() -> None:
+    ordered = (
+        (10, AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY),
+        (11, AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V11_GOAL_KEY),
+        (12, AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V12_GOAL_KEY),
+    )
+
+    fresh = {
+        goal_key: {"definition_id": None, "preview_outcome": None}
+        for _version, goal_key in ordered
+    }
+    assert _select_atomic_market_snapshot_successor(fresh, ()) == ordered[0]
+
+    accepted_v10 = dict(fresh)
+    accepted_v10[ordered[0][1]] = {
+        "definition_id": str(uuid.uuid4()),
+        "preview_outcome": "ACCEPTED",
+    }
+    assert _select_atomic_market_snapshot_successor(accepted_v10, ()) is None
+
+    rejected_v10 = dict(fresh)
+    rejected_v10[ordered[0][1]] = {
+        "definition_id": str(uuid.uuid4()),
+        "preview_outcome": "REJECTED",
+    }
+    assert _select_atomic_market_snapshot_successor(rejected_v10, ()) == ordered[1]
+
+    exhausted = {
+        goal_key: {
+            "definition_id": str(uuid.uuid4()),
+            "preview_outcome": "REJECTED" if version != 12 else "UNKNOWN",
+        }
+        for version, goal_key in ordered
+    }
+    assert _select_atomic_market_snapshot_successor(exhausted, ()) is None
 TEST_DB_USER = os.environ.get("COINBASE_DB_USER", "postgres")
 TEST_DB_PASSWORD = os.environ.get("COINBASE_DB_PASSWORD", "postgres")
 _SCHEMA_PATTERN = re.compile(r"^test_operator_automation_[0-9a-f]{32}$")
@@ -243,6 +288,7 @@ def test_schema_is_idempotent_and_persists_only_hashed_key_and_actor(
         "automation_event_outbox",
         "automation_idempotency",
         "automation_run",
+        "automation_spot_atomic_market_snapshot_cycle",
         "automation_spot_eligibility_cycle",
         "automation_spot_eligibility_attempt",
         "automation_spot_live_proof_goal",
@@ -4671,6 +4717,184 @@ def test_minimum_size_service_materializes_exact_dynamic_cap_plan(
         "max_submitted_notional_usdc": "3.10",
         "max_possible_execution_notional_usdc": "1.01",
     }
+
+
+def test_atomic_market_snapshot_materialization_and_preview_claim_are_one_transaction(
+    repository_harness: _Harness,
+) -> None:
+    repository = repository_harness.repository()
+    claim = repository.start_spot_atomic_market_snapshot_cycle(
+        _mutation("atomic-market-v10")
+    ).entity
+    assert claim.goal_key == AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY
+    definition_id = str(uuid.uuid4())
+    run_id = str(uuid.uuid4())
+    portfolio_hash = hashlib.sha256(b"approved-test-portfolio").hexdigest()
+    plan = MinimumSizeBuyPlan(
+        policy_revision=MINIMUM_SIZE_POLICY_REVISION,
+        product_id="BTC-USDC",
+        side="BUY",
+        base_size="0.00001",
+        limit_price="100000",
+        submitted_notional_usdc="1",
+        possible_execution_notional_usdc="1",
+        max_submitted_notional_usdc="3.10",
+        max_possible_execution_notional_usdc="1.01",
+        post_only=True,
+        v4_boundary_classification="minimum_size_v4_fee_reserve_conflict",
+    )
+    plan_sha256, _ = canonical_atomic_spot_plan_binding(
+        definition_id=definition_id,
+        plan=plan,
+        portfolio_id_sha256=portfolio_hash,
+    )
+    client_order_id = repository.deterministic_spot_client_order_id(
+        run_id=run_id,
+        plan_sha256=plan_sha256,
+        goal_key=claim.goal_key,
+    )
+    observed = datetime.now(timezone.utc)
+    attempts = tuple(
+        AtomicMarketSnapshotAttempt(
+            category=category,
+            coinbase_api_call_count=1,
+            observed_at=observed,
+            fresh_until=observed + timedelta(seconds=30),
+            evidence_sha256=hashlib.sha256(category.encode("utf-8")).hexdigest(),
+        )
+        for category in AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES
+    )
+    result = repository.materialize_spot_atomic_market_snapshot_and_claim_preview(
+        cycle_number=claim.cycle_number,
+        goal_key=claim.goal_key,
+        definition_id=definition_id,
+        run_id=run_id,
+        terms=AutomationSpotSingleChildPlanTerms(
+            portfolio_id_sha256=portfolio_hash,
+            product_id=plan.product_id,
+            side=plan.side,
+            base_size=plan.base_size,
+            limit_price=plan.limit_price,
+            submitted_notional_usdc=plan.submitted_notional_usdc,
+            possible_execution_notional_usdc=plan.possible_execution_notional_usdc,
+            max_submitted_notional_usdc=plan.max_submitted_notional_usdc,
+            max_possible_execution_notional_usdc=(
+                plan.max_possible_execution_notional_usdc
+            ),
+            post_only=True,
+        ),
+        expected_plan_sha256=plan_sha256,
+        expected_client_order_id=client_order_id,
+        market_snapshot_sha256=hashlib.sha256(b"market-snapshot").hexdigest(),
+        evidence_sha256=hashlib.sha256(b"atomic-binding").hexdigest(),
+        attempts=attempts,
+    ).entity
+
+    assert result.state == "MATERIALIZED"
+    assert result.definition_id == definition_id
+    assert result.run_id == run_id
+    assert result.plan_sha256 == plan_sha256
+    assert result.client_order_id == client_order_id
+    goal = repository.get_spot_preview_gated_goal(goal_key=claim.goal_key)
+    assert goal.preview_allowance_consumed is True
+    assert goal.preview_outcome is None
+    assert goal.bound_run_id == run_id
+    assert goal.plan_sha256 == plan_sha256
+    stored_plan = repository.get_spot_single_child_plan(definition_id, 1)
+    assert stored_plan is not None
+    assert stored_plan.plan_sha256 == plan_sha256
+    run = repository.get_run(run_id)
+    assert run is not None
+    assert run.state is OperatorAutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
+    assert run.live_attempt_consumed is True
+    assert len(
+        repository.list_spot_eligibility_attempts(run_id, cycle_number=1)
+    ) == 8
+    repository.finalize_spot_preview_invocation(
+        run_id,
+        outcome="UNKNOWN",
+        failure_class="TRANSPORT_UNKNOWN",
+        rejection_code=None,
+        warning_present=False,
+        preview_id_sha256=None,
+        preview_call_count=None,
+        call_count_exact=False,
+        command=_mutation("atomic-market-v10-preview-unknown"),
+    )
+    successor = repository.start_spot_atomic_market_snapshot_cycle(
+        _mutation("atomic-market-v11")
+    ).entity
+    assert successor.goal_key != claim.goal_key
+    assert successor.candidate_version == 11
+    assert successor.cycle_number == 2
+
+
+def test_atomic_market_snapshot_blocked_cycle_can_refresh_same_unclaimed_candidate(
+    repository_harness: _Harness,
+) -> None:
+    repository = repository_harness.repository()
+    first = repository.start_spot_atomic_market_snapshot_cycle(
+        _mutation("atomic-market-v10-blocked-1")
+    ).entity
+    evidence_sha256 = hashlib.sha256(b"atomic-cycle-blocked").hexdigest()
+    terminal = repository.finalize_spot_atomic_market_snapshot_terminal(
+        cycle_number=first.cycle_number,
+        goal_key=first.goal_key,
+        state="BLOCKED",
+        diagnostic_code="atomic_market_snapshot_stale",
+        completed_categories=AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES,
+        coinbase_api_call_count=8,
+        call_count_exact=True,
+        evidence_sha256=evidence_sha256,
+    ).entity
+
+    second = repository.start_spot_atomic_market_snapshot_cycle(
+        _mutation("atomic-market-v10-blocked-2")
+    ).entity
+
+    assert terminal.state == "BLOCKED"
+    assert second.cycle_number == first.cycle_number + 1
+    assert second.goal_key == first.goal_key
+    assert second.candidate_version == 10
+    goal = repository.get_spot_preview_gated_goal(goal_key=first.goal_key)
+    assert goal.definition_id is None
+    assert goal.preview_allowance_consumed is False
+
+
+def test_atomic_market_snapshot_restart_consumes_unknown_cycle_without_candidate(
+    repository_harness: _Harness,
+) -> None:
+    repository = repository_harness.repository()
+    assert repository.spot_atomic_market_snapshot_successor_available() is True
+    claimed = repository.start_spot_atomic_market_snapshot_cycle(
+        _mutation("atomic-market-restart-v10")
+    ).entity
+    assert repository.spot_atomic_market_snapshot_successor_available() is False
+
+    restarted = repository_harness.repository()
+    restarted.recover_runs_after_restart()
+
+    recovered = restarted.list_spot_atomic_market_snapshot_cycles()
+    assert len(recovered) == 1
+    assert recovered[0].cycle_number == claimed.cycle_number
+    assert recovered[0].candidate_version == 10
+    assert recovered[0].state == "UNKNOWN"
+    assert recovered[0].diagnostic_code == (
+        "automation_atomic_market_snapshot_restart_unknown"
+    )
+    assert recovered[0].definition_id is None
+    assert recovered[0].run_id is None
+    assert recovered[0].coinbase_api_call_count is None
+    assert recovered[0].call_count_exact is False
+    assert recovered[0].evidence_sha256 is None
+    assert restarted.spot_atomic_market_snapshot_successor_available() is True
+
+    next_claim = restarted.start_spot_atomic_market_snapshot_cycle(
+        _mutation("atomic-market-restart-v10-next")
+    ).entity
+    assert next_claim.goal_key == AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY
+    assert next_claim.candidate_version == 10
+    assert next_claim.cycle_number == claimed.cycle_number + 1
 
 
 def test_minimum_size_service_localizes_runner_composition_failure(

@@ -1058,6 +1058,10 @@ CONTROLLED_LIVE_MVP_ROUTES = {
     ),
     (
         "POST",
+        "/api/v1/automation/atomic-market-snapshot-candidates/authorize",
+    ),
+    (
+        "POST",
         "/api/v1/automation/runs/{run_id}/safe-closeout-child",
     ),
 }
@@ -8478,6 +8482,10 @@ class AdminApiReadService:
         operator_automation_command_surfaces = [
             "POST /api/v1/automation/near-market-candidates",
             "POST /api/v1/automation/minimum-size-candidates",
+            (
+                "POST /api/v1/automation/"
+                "atomic-market-snapshot-candidates/authorize"
+            ),
             "POST /api/v1/automation/definitions",
             "POST /api/v1/automation/definitions/{definition_id}/enable",
             "POST /api/v1/automation/definitions/{definition_id}/disable",
@@ -8505,6 +8513,12 @@ class AdminApiReadService:
         operator_automation_minimum_size_preparation_surfaces = [
             "POST /api/v1/automation/minimum-size-candidates",
         ]
+        operator_automation_atomic_market_snapshot_surfaces = [
+            (
+                "POST /api/v1/automation/"
+                "atomic-market-snapshot-candidates/authorize"
+            ),
+        ]
         operator_automation_live_command_surfaces = [
             "POST /api/v1/automation/runs/{run_id}/authorize-single-child",
             "POST /api/v1/automation/runs/{run_id}/authorize-preview-gated-single-child",
@@ -8517,6 +8531,7 @@ class AdminApiReadService:
             and surface not in operator_automation_eligibility_command_surfaces
             and surface not in operator_automation_near_market_preparation_surfaces
             and surface not in operator_automation_minimum_size_preparation_surfaces
+            and surface not in operator_automation_atomic_market_snapshot_surfaces
         ]
         operator_automation_live_service_state = (
             _decision_backed_live_service_state()
@@ -10134,6 +10149,10 @@ class AdminApiReadService:
             route_inventory_item(surface)
             for surface in operator_automation_minimum_size_preparation_surfaces
         ]
+        operator_automation_atomic_market_snapshot_rows = [
+            route_inventory_item(surface)
+            for surface in operator_automation_atomic_market_snapshot_surfaces
+        ]
         mutation_taxonomy = [
             mutation_taxonomy_item(
                 mutation_id="automation.operator_control_plane",
@@ -10472,6 +10491,158 @@ class AdminApiReadService:
                 cap_guard_required=True,
                 reconciliation_required=False,
                 live_adapter_required=False,
+            ),
+            mutation_taxonomy_item(
+                mutation_id=(
+                    "automation.spot_atomic_market_snapshot_authorization"
+                ),
+                mutation_family=(
+                    AdminApiMutationFamilyType.SPOT_CAMPAIGN_EXECUTION
+                ),
+                workflow_id="automation.operator_control_plane",
+                module_id="automation",
+                module="Automation",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                ),
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Explicit operator-triggered, PostgreSQL-claimed BTC-USDC "
+                    "V10-V12 authorization over exactly eight approved no-retry "
+                    "Coinbase read categories. One fresh documented market-trades "
+                    "bid/ask snapshot atomically binds immutable final terms, "
+                    "candidate identity, evidence, and the single-use Preview "
+                    "claim before Preview; an accepted error-free Preview alone "
+                    "may permit one identical canonical Create."
+                ),
+                command_surfaces=(
+                    operator_automation_atomic_market_snapshot_surfaces
+                ),
+                action_classes=[
+                    row.action_class
+                    for row in operator_automation_atomic_market_snapshot_rows
+                ],
+                required_permissions=[
+                    AdminApiPermission.ACCOUNT_REALITY_REFRESH,
+                    AdminApiPermission.AUTOMATION_CONFIGURE,
+                    AdminApiPermission.AUTOMATION_RESUME,
+                    AdminApiPermission.AUTOMATION_TRIGGER,
+                    AdminApiPermission.ORDER_CREATE,
+                ],
+                identity_keys=[
+                    "goal_id",
+                    "candidate_version",
+                    "cycle_number",
+                    "definition_id",
+                    "run_id",
+                    "client_order_id",
+                    "plan_sha256",
+                    "market_snapshot_sha256",
+                ],
+                payload_binding_fields=[
+                    "route",
+                    "actor",
+                    "operator_intent",
+                    "acknowledgements",
+                    "idempotency_key",
+                    "correlation_id",
+                ],
+                idempotency_contract=(
+                    "required goal-global V10-V12 cycle claim plus transactionally "
+                    "bound single-use Preview claim; terminal replay is call-free "
+                    "and changed request, actor, intent, correlation, snapshot, "
+                    "plan, candidate, or child identity conflicts"
+                ),
+                approval_contract=(
+                    "explicit fresh atomic market-snapshot, approved reads, "
+                    "one-use Preview, conditional identical Create, and unknown-"
+                    "consumption acknowledgements plus current backend RBAC; no "
+                    "predecessor acknowledgement is reused"
+                ),
+                cap_guard_contract=(
+                    "ATOMIC_MARKET_SNAPSHOT_POST_ONLY_V1 derives a post-only "
+                    "limit exactly at the fresh same-response best bid, quantized "
+                    "with documented product increments and minimums, wallet and "
+                    "maker-fee evidence; submitted and possible-execution notionals "
+                    "are each strictly below 3.10 USDC"
+                ),
+                admission_audit_contract=(
+                    "one PostgreSQL transaction persists the exact definition, "
+                    "plan revision, run, final terms, snapshot/evidence hashes, "
+                    "eight category attempts, candidate identity, and Preview "
+                    "claim; fixed sanitized diagnostics and exact or unknown call "
+                    "accounting are mandatory"
+                ),
+                reconciliation_contract=(
+                    "the same cycle owns exact-order reconciliation and one logical "
+                    "account-wide active Spot-order catalog read; canonical "
+                    "zero-active-order admission is required before Preview and "
+                    "conditional Create"
+                ),
+                owning_backend_service=(
+                    "application/admin_api/operator_automation.py::"
+                    "OperatorAutomationService"
+                ),
+                shared_command_service_method=(
+                    "authorize_atomic_market_snapshot_candidate"
+                ),
+                route_inventory_refs=[
+                    row.surface
+                    for row in operator_automation_atomic_market_snapshot_rows
+                ],
+                backend_contract_refs=[
+                    "api/v1/routes/operator_automation.py",
+                    (
+                        "application/admin_api/"
+                        "operator_spot_atomic_market_snapshot.py"
+                    ),
+                    "application/admin_api/operator_automation.py",
+                    "application/admin_api/operator_spot_automation_runtime.py",
+                    "application/admin_api/command_service.py",
+                    "database/operator_automation.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    "src/features/operator-read-models/automation",
+                ],
+                documentation_refs=[
+                    (
+                        "docs/"
+                        "OPERATOR_SPOT_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_V10_V12.md"
+                    ),
+                ],
+                required_next_contract=(
+                    "Every invocation still requires current Controlled-live "
+                    "runtime evidence, exact backend route authority, and a fresh "
+                    "unused goal-global cycle; taxonomy readback grants no exchange "
+                    "authority by itself."
+                ),
+                blockers=[],
+                frontend_boundary=(
+                    "The UI renders generated backend authority and forwards one "
+                    "acknowledgement-only request; it cannot supply market data, "
+                    "price, size, cap, candidate identity, or Coinbase terms."
+                ),
+                bff_boundary=(
+                    "The same-origin BFF forwards only the generated allowlisted "
+                    "route with server-held authentication and performs no retry, "
+                    "redirect, derivation, or exchange call."
+                ),
+                route_local_boundary=(
+                    "The route binds auth, five RBAC permissions, exact intent, "
+                    "acknowledgements, idempotency, and correlation before the typed "
+                    "coordinator; no Coinbase client or trading rule exists in the "
+                    "route."
+                ),
+                spot_rule_boundary=(
+                    "The versioned BTC-USDC atomic best-bid and dynamic-cap policy "
+                    "is isolated to V10-V12 single-child Spot Automation and cannot "
+                    "alter generic Spot, Orders, Futures, or orchestration policy."
+                ),
+                approval_required=True,
+                cap_guard_required=True,
+                reconciliation_required=True,
+                live_adapter_required=True,
             ),
             mutation_taxonomy_item(
                 mutation_id="automation.spot_eligibility_refresh",

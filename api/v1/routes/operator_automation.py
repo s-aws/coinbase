@@ -30,6 +30,7 @@ from application.admin_api.live_execution import (
     operator_mvp_live_service_state_allows_route_admission,
 )
 from application.admin_api.operator_mvp_policy import (
+    OPERATOR_MVP_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_ROUTE,
     OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_CREATE_ROUTE,
     OPERATOR_MVP_AUTOMATION_PREVIEW_GATED_SINGLE_CHILD_ROUTE,
     OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_SAFE_CLOSEOUT_ROUTE,
@@ -59,6 +60,8 @@ from application.admin_api.automation_models import (
     AutomationMutationContext,
     AutomationMinimumSizeCandidatePreparationRequest,
     AutomationMinimumSizeCandidatePreparationResponse,
+    AutomationAtomicMarketSnapshotAuthorizationRequest,
+    AutomationAtomicMarketSnapshotMutationResponse,
     AutomationNearMarketCandidatePreparationRequest,
     AutomationNearMarketCandidatePreparationResponse,
     AutomationOneShotRunRequest,
@@ -103,6 +106,10 @@ _AUTOMATION_LIVE_ACTION_ROUTES = {
     "AUTHORIZE_PREVIEW_GATED_SINGLE_CHILD": (
         "POST",
         OPERATOR_MVP_AUTOMATION_PREVIEW_GATED_SINGLE_CHILD_ROUTE,
+    ),
+    "AUTHORIZE_ATOMIC_MARKET_SNAPSHOT": (
+        "POST",
+        OPERATOR_MVP_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_ROUTE,
     ),
     "SAFE_CLOSEOUT_CHILD": (
         "POST",
@@ -201,6 +208,10 @@ _PrepareNearMarketCandidateIntent = Annotated[
 ]
 _PrepareMinimumSizeCandidateIntent = Annotated[
     Literal["prepare_automation_minimum_size_candidate"],
+    Header(alias="X-Operator-Intent"),
+]
+_AuthorizeAtomicMarketSnapshotIntent = Annotated[
+    Literal["authorize_automation_atomic_market_snapshot_candidate"],
     Header(alias="X-Operator-Intent"),
 ]
 _EnableIntent = Annotated[
@@ -356,6 +367,21 @@ def _scope_control_item(
             )
             and item.posture is AutomationControlPosture.ACTIVE
             and _operator_automation_live_action_ready("REFRESH_ELIGIBILITY"),
+            "atomic_market_snapshot_authorization_allowed": all(
+                actor_has_permission(actor, permission)
+                for permission in (
+                    AdminApiPermission.AUTOMATION_CONFIGURE,
+                    AdminApiPermission.AUTOMATION_TRIGGER,
+                    AdminApiPermission.AUTOMATION_RESUME,
+                    AdminApiPermission.ACCOUNT_REALITY_REFRESH,
+                    AdminApiPermission.ORDER_CREATE,
+                )
+            )
+            and item.posture is AutomationControlPosture.ACTIVE
+            and item.atomic_market_snapshot_authorization_allowed
+            and _operator_automation_live_action_ready(
+                "AUTHORIZE_ATOMIC_MARKET_SNAPSHOT"
+            ),
             "allowed_actions": [
                 action
                 for action in item.allowed_actions
@@ -738,6 +764,49 @@ def prepare_minimum_size_candidate(
         ),
         actor=actor,
     )
+
+
+@router.post(
+    "/automation/atomic-market-snapshot-candidates/authorize",
+    response_model=AutomationAtomicMarketSnapshotMutationResponse,
+    responses=_MUTATION_RESPONSES,
+    operation_id="authorize_operator_automation_atomic_market_snapshot_candidate",
+)
+def authorize_atomic_market_snapshot_candidate(
+    request: Request,
+    body: AutomationAtomicMarketSnapshotAuthorizationRequest,
+    actor: _Actor,
+    service: _Service,
+    idempotency_key: _IdempotencyKey,
+    correlation_id: _CorrelationId,
+    operator_intent: _AuthorizeAtomicMarketSnapshotIntent,
+) -> JSONResponse:
+    for permission in (
+        AdminApiPermission.AUTOMATION_CONFIGURE,
+        AdminApiPermission.AUTOMATION_TRIGGER,
+        AdminApiPermission.AUTOMATION_RESUME,
+        AdminApiPermission.ACCOUNT_REALITY_REFRESH,
+        AdminApiPermission.ORDER_CREATE,
+    ):
+        require_permission(actor, permission)
+    _require_query_shape(request, frozenset())
+    _require_operator_automation_action_ready(
+        "AUTHORIZE_ATOMIC_MARKET_SNAPSHOT"
+    )
+    return _mutation_result(
+        lambda: service.authorize_atomic_market_snapshot_candidate(
+            body,
+            _context(
+                actor=actor,
+                idempotency_key=idempotency_key,
+                correlation_id=correlation_id,
+                operator_intent=operator_intent,
+            ),
+        ),
+        actor=actor,
+    )
+
+
 def _definition_lifecycle(
     *,
     actor: AdminApiActor,

@@ -10410,6 +10410,117 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/automation/atomic-market-snapshot-candidates/authorize:
+    post:
+      tags:
+      - operator-automation
+      summary: Authorize Atomic Market Snapshot Candidate
+      operationId: authorize_operator_automation_atomic_market_snapshot_candidate
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: ^[\x21-\x7e]+$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: ^[\x21-\x7e]+$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: authorize_automation_atomic_market_snapshot_candidate
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutomationAtomicMarketSnapshotAuthorizationRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationAtomicMarketSnapshotMutationResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Not Found
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/automation/definitions/{definition_id}/enable:
     post:
       tags:
@@ -149777,6 +149888,156 @@ components:
       - total_balance
       title: AdminWalletRowEvidence
       description: One backend wallet inventory row.
+    AutomationAtomicMarketSnapshotAuthorizationRequest:
+      properties:
+        confirm_atomic_final_market_snapshot_binding:
+          type: boolean
+          const: true
+          title: Confirm Atomic Final Market Snapshot Binding
+        confirm_one_no_retry_eight_category_cycle:
+          type: boolean
+          const: true
+          title: Confirm One No Retry Eight Category Cycle
+        confirm_single_preview:
+          type: boolean
+          const: true
+          title: Confirm Single Preview
+        confirm_conditional_identical_single_child_create:
+          type: boolean
+          const: true
+          title: Confirm Conditional Identical Single Child Create
+        confirm_btc_usdc_test_portfolio_scope:
+          type: boolean
+          const: true
+          title: Confirm Btc Usdc Test Portfolio Scope
+        confirm_both_notionals_strictly_below_3_10:
+          type: boolean
+          const: true
+          title: Confirm Both Notionals Strictly Below 3 10
+        confirm_unknown_consumes_applicable_allowance:
+          type: boolean
+          const: true
+          title: Confirm Unknown Consumes Applicable Allowance
+        reason:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Reason
+      additionalProperties: false
+      type: object
+      required:
+      - confirm_atomic_final_market_snapshot_binding
+      - confirm_one_no_retry_eight_category_cycle
+      - confirm_single_preview
+      - confirm_conditional_identical_single_child_create
+      - confirm_btc_usdc_test_portfolio_scope
+      - confirm_both_notionals_strictly_below_3_10
+      - confirm_unknown_consumes_applicable_allowance
+      - reason
+      title: AutomationAtomicMarketSnapshotAuthorizationRequest
+      description: One explicit operator action for atomic V10-V12 Preview/Create
+        proof.
+    AutomationAtomicMarketSnapshotMutationResponse:
+      properties:
+        type:
+          type: string
+          const: automation_atomic_market_snapshot_mutation
+          title: Type
+          default: automation_atomic_market_snapshot_mutation
+        status:
+          type: string
+          const: accepted
+          title: Status
+          default: accepted
+        outcome:
+          type: string
+          enum:
+          - MATERIALIZED
+          - BLOCKED
+          - UNKNOWN
+          title: Outcome
+        candidate_version:
+          type: integer
+          enum:
+          - 10
+          - 11
+          - 12
+          title: Candidate Version
+        cycle_number:
+          type: integer
+          maximum: 10.0
+          minimum: 1.0
+          title: Cycle Number
+        diagnostic_code:
+          type: string
+          maxLength: 96
+          minLength: 1
+          pattern: ^[a-z0-9_]+$
+          title: Diagnostic Code
+        completed_categories:
+          items:
+            type: string
+            enum:
+            - api_key_permissions
+            - portfolio_catalog
+            - wallet_balances
+            - product_metadata
+            - best_bid_ask
+            - fee_summary
+            - exact_order_reconciliation
+            - active_order_catalog
+          type: array
+          maxItems: 8
+          title: Completed Categories
+        coinbase_api_call_count:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Coinbase Api Call Count
+          default: 0
+        call_count_exact:
+          type: boolean
+          title: Call Count Exact
+          default: true
+        market_snapshot_binding:
+          type: string
+          enum:
+          - HASHED
+          - UNAVAILABLE
+          title: Market Snapshot Binding
+        run:
+          anyOf:
+          - $ref: '#/components/schemas/AutomationRunItem'
+          - type: 'null'
+        replayed:
+          type: boolean
+          title: Replayed
+          default: false
+        audit_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Audit Id
+        correlation_id:
+          type: string
+          maxLength: 255
+          minLength: 1
+          pattern: ^[\x21-\x7e]+$
+          title: Correlation Id
+        activity:
+          $ref: '#/components/schemas/AutomationRunMutationActivity'
+      additionalProperties: false
+      type: object
+      required:
+      - outcome
+      - candidate_version
+      - cycle_number
+      - diagnostic_code
+      - market_snapshot_binding
+      - audit_id
+      - correlation_id
+      title: AutomationAtomicMarketSnapshotMutationResponse
+      description: Sanitized terminal result for one claimed V10-V12 cycle.
     AutomationControlEventItem:
       properties:
         event_id:
@@ -149919,6 +150180,10 @@ components:
         minimum_size_candidate_preparation_allowed:
           type: boolean
           title: Minimum Size Candidate Preparation Allowed
+          default: false
+        atomic_market_snapshot_authorization_allowed:
+          type: boolean
+          title: Atomic Market Snapshot Authorization Allowed
           default: false
         allowed_actions:
           items:
@@ -150134,6 +150399,9 @@ components:
             - MINIMUM_SIZE_POST_ONLY_V7
             - MINIMUM_SIZE_POST_ONLY_V8
             - MINIMUM_SIZE_POST_ONLY_V9
+            - ATOMIC_MARKET_SNAPSHOT_V10
+            - ATOMIC_MARKET_SNAPSHOT_V11
+            - ATOMIC_MARKET_SNAPSHOT_V12
           - type: 'null'
           title: Spot Execution Mode
         single_child_order:
@@ -151206,6 +151474,9 @@ components:
             - MINIMUM_SIZE_POST_ONLY_V7
             - MINIMUM_SIZE_POST_ONLY_V8
             - MINIMUM_SIZE_POST_ONLY_V9
+            - ATOMIC_MARKET_SNAPSHOT_V10
+            - ATOMIC_MARKET_SNAPSHOT_V11
+            - ATOMIC_MARKET_SNAPSHOT_V12
           - type: 'null'
           title: Spot Execution Mode
         preview_allowance_consumed:

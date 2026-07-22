@@ -2692,6 +2692,22 @@
     },
     {
       "module_id": "automation_control_plane",
+      "surface": "POST /api/v1/automation/atomic-market-snapshot-candidates/authorize",
+      "method": "POST",
+      "path": "/api/v1/automation/atomic-market-snapshot-candidates/authorize",
+      "action_class": "live_exchange_place",
+      "permission": "order:create",
+      "idempotency": "required durable goal-global V10-V12 cycle and single-use Preview claim; terminal replay is call-free and changed request, actor, intent, or correlation identity conflicts",
+      "approval": "required explicit atomic-snapshot, eight-category read, Preview, conditional identical Create, and unknown-consumption acknowledgements; also requires account reality refresh, automation configure, trigger, and resume",
+      "caps": "required one sequential BTC-USDC V10-V12 candidate and one child; submitted and possible-execution notionals are each strictly below 3.10 USDC",
+      "audit": "required atomic PostgreSQL binding of one fresh market snapshot, final immutable terms, candidate identity, eight category attempts, single-use Preview claim, sanitized terminal classification, and exact or unknown call accounting",
+      "shared_method": "authorize_atomic_market_snapshot_candidate",
+      "parity_test": "Coinbase calls are limited to exactly eight approved no-retry read categories feeding one atomic final-market-snapshot binding immediately before at most one Preview; only an accepted error-free Preview permits one identical canonical Create, with zero route-local retry or alternate identity",
+      "compatibility_mode": null,
+      "command_contract": true
+    },
+    {
+      "module_id": "automation_control_plane",
       "surface": "GET /api/v1/automation/definitions/{definition_id}",
       "method": "GET",
       "path": "/api/v1/automation/definitions/{definition_id}",

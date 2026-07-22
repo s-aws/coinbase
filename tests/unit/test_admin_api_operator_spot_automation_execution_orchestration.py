@@ -78,6 +78,7 @@ from database.operator_automation import (
     AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
     AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY,
     AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY,
+    AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY,
     AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
     AutomationMutationCommand,
     AutomationRunRecord,
@@ -467,7 +468,10 @@ class _ExecutionRepository:
                 ),
                 cycle_number=result.cycle_number,
                 policy_revision=(
-                    4
+                    5
+                    if self.goal_key
+                    == AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY
+                    else 4
                     if self.goal_key == AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY
                     else 3
                     if self.goal_key == AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY
@@ -590,7 +594,10 @@ class _ExecutionRepository:
             )
         self.execution = _execution_record(
             policy_revision=(
-                4
+                5
+                if self.goal_key
+                == AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY
+                else 4
                 if self.goal_key == AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY
                 else 3
                 if self.goal_key == AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY
@@ -770,7 +777,10 @@ class _ExecutionRepository:
         self.execution = replace(
             _execution_record(
                 policy_revision=(
-                    4
+                    5
+                    if self.goal_key
+                    == AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY
+                    else 4
                     if self.goal_key == AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY
                     else 3
                     if self.goal_key == AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY
@@ -941,19 +951,26 @@ class _EligibilityRunner:
                         AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
                         AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY,
                         AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY,
+                        AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY,
                     }
                     else "coinbase_rest_best_bid"
                 ),
                 best_bid=(
                     "100000"
                     if self.repository.goal_key
-                    == AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY
+                    in {
+                        AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY,
+                        AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY,
+                    }
                     else "49999"
                 ),
                 best_ask=(
                     "100001"
                     if self.repository.goal_key
-                    == AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY
+                    in {
+                        AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY,
+                        AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY,
+                    }
                     else "50000"
                 ),
             ),
@@ -1378,6 +1395,15 @@ def _harness(
             max_possible_execution_notional_usdc="1.01",
             post_only=True,
         )
+    if goal_key == AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY:
+        repository.plan = replace(
+            repository.plan,
+            limit_price="100000",
+            submitted_notional_usdc="1",
+            possible_execution_notional_usdc="1",
+            max_possible_execution_notional_usdc="3.09",
+            post_only=True,
+        )
     if goal_key != AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY:
         repository.preview_goal = replace(
             repository.preview_goal,
@@ -1411,11 +1437,15 @@ def _harness(
                 in {
                     AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY,
                     AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY,
+                    AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY,
                 }
             ),
             expected_limit_price=(
                 "100000"
-                if goal_key == AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY
+                if goal_key in {
+                    AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY,
+                    AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY,
+                }
                 else "49999"
                 if goal_key == AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY
                 else "50000"
@@ -1598,6 +1628,7 @@ def test_preview_gated_rejection_or_unknown_never_enters_create(
         AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
         AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY,
         AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY,
+        AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY,
     ],
 )
 def test_preview_gated_acceptance_previews_then_creates_the_identical_candidate(
@@ -1652,6 +1683,7 @@ def test_preview_gated_acceptance_previews_then_creates_the_identical_candidate(
             AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
             AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY,
             AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY,
+            AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY,
         }
         else "coinbase_rest_best_bid"
     )
@@ -1663,6 +1695,7 @@ def test_preview_gated_acceptance_previews_then_creates_the_identical_candidate(
         in {
             AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY,
             AUTOMATION_SPOT_MINIMUM_SIZE_V7_GOAL_KEY,
+            AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY,
         }
     )
     assert harness.events == [
@@ -1682,6 +1715,56 @@ def test_preview_gated_acceptance_previews_then_creates_the_identical_candidate(
         "finalize_create",
         "lease_exit",
     ]
+
+
+def test_atomic_precomputed_snapshot_keeps_one_profile_lease_through_preview_create(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    successor_client_order_id = derive_spot_eligibility_client_order_id(
+        run_id=RUN_ID,
+        plan_sha256=PLAN_SHA256,
+        goal_key=AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY,
+    )
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "CLIENT_ORDER_ID",
+        successor_client_order_id,
+    )
+    harness = _harness(
+        tmp_path,
+        goal_key=AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY,
+        preview_mode="accepted",
+    )
+    coordinator = harness.commands.dependencies.spot_order_admission_coordinator
+    record = harness.repository.current_run
+    plan = harness.repository.plan
+
+    with coordinator.claim(PORTFOLIO_ID) as lease:
+        bundle = harness.runner(
+            record=record,
+            plan=plan,
+            context=_context(),
+            lease=lease,
+        )
+        response = harness.adapter._authorize_single_child_workflow(
+            run_id=RUN_ID,
+            request=_preview_authorization_request().model_dump(mode="json"),
+            context=_context(),
+            preview_gated=True,
+            precomputed_bundle=bundle,
+            admission_lease=lease,
+        )
+
+    assert response.entity["state"] == "ACTIVE"
+    assert harness.events.count("lease_enter") == 1
+    assert harness.events.count("lease_exit") == 1
+    assert harness.events.index("eligibility_cycle") < harness.events.index(
+        "canonical_preview"
+    )
+    assert harness.events.index("canonical_preview") < harness.events.index(
+        "canonical_place"
+    )
 
 
 def test_accepted_preview_checkpoint_resumes_create_without_second_preview(
@@ -1742,6 +1825,70 @@ def test_accepted_preview_checkpoint_resumes_create_without_second_preview(
     assert harness.repository.start_preview_calls == []
     assert harness.preview is not None and harness.preview.calls == []
     assert len(harness.commands.place_calls) == 1
+
+
+def test_atomic_accepted_preview_checkpoint_resumes_revision_five_create(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    goal_key = AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY
+    successor_client_order_id = derive_spot_eligibility_client_order_id(
+        run_id=RUN_ID,
+        plan_sha256=PLAN_SHA256,
+        goal_key=goal_key,
+    )
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "CLIENT_ORDER_ID",
+        successor_client_order_id,
+    )
+    harness = _harness(
+        tmp_path,
+        goal_key=goal_key,
+        preview_mode="accepted",
+    )
+    harness.repository.preview_goal = replace(
+        harness.repository.preview_goal,
+        bound_run_id=RUN_ID,
+        client_order_id=successor_client_order_id,
+        eligibility_cycle=1,
+        plan_sha256=PLAN_SHA256,
+        portfolio_id_sha256=PORTFOLIO_SHA256,
+        product_id="BTC-USDC",
+        preview_allowance_consumed=True,
+        preview_outcome="ACCEPTED",
+        preview_failure_class="NONE",
+        preview_warning_present=False,
+        preview_id_sha256="f" * 64,
+        preview_call_count=1,
+        preview_call_count_exact=True,
+    )
+    harness.repository.current_run = replace(
+        harness.repository.current_run,
+        diagnostic_code="automation_spot_preview_accepted_create_ready",
+        client_order_id=successor_client_order_id,
+        live_attempt_consumed=True,
+        coinbase_api_call_count=1,
+    )
+
+    response = harness.service.authorize_preview_gated_single_child(
+        run_id=RUN_ID,
+        request=_preview_authorization_request(),
+        context=_context().model_copy(
+            update={"idempotency_key": "resume-atomic-preview-acceptance"}
+        ),
+    )
+
+    assert response.run.state is OperatorAutomationRunState.ACTIVE
+    assert response.activity.preview_call_count == 0
+    assert harness.repository.start_preview_calls == []
+    assert harness.preview is not None and harness.preview.calls == []
+    assert len(harness.commands.place_calls) == 1
+    admission = harness.commands.place_calls[0][1]
+    assert admission.policy_revision == 5
+    assert admission.standing_price_policy == (
+        "ATOMIC_MARKET_SNAPSHOT_POST_ONLY_V1"
+    )
 
 
 def test_authorize_replay_has_no_reader_proof_admission_or_command_call(
@@ -2151,6 +2298,48 @@ def test_safe_closeout_canonical_cancel_accounts_two_reads_and_one_cancel(
     assert finalized["coinbase_api_call_count"] == 1
     assert finalized["read_call_count"] == 2
     assert len(harness.commands.cancel_calls) == 1
+
+
+def test_atomic_market_snapshot_safe_closeout_preserves_revision_five_ownership(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    successor_client_order_id = derive_spot_eligibility_client_order_id(
+        run_id=RUN_ID,
+        plan_sha256=PLAN_SHA256,
+        goal_key=AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY,
+    )
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "CLIENT_ORDER_ID",
+        successor_client_order_id,
+    )
+    harness = _harness(
+        tmp_path,
+        goal_key=AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY,
+        preview_mode="accepted",
+        cancel_mode="accepted",
+    )
+    created = harness.service.authorize_preview_gated_single_child(
+        run_id=RUN_ID,
+        request=_preview_authorization_request(),
+        context=_context(),
+    )
+    assert created.run.state is OperatorAutomationRunState.ACTIVE
+
+    response = harness.adapter.safe_closeout_single_child(
+        run_id=RUN_ID,
+        request=_closeout_request().model_dump(mode="json"),
+        context=_context(),
+    )
+
+    assert response.entity["state"] == "TERMINAL"
+    assert len(harness.commands.cancel_calls) == 1
+    ownership = harness.commands.cancel_calls[0][1]
+    assert ownership.policy_revision == 5
+    assert ownership.standing_price_policy == (
+        "ATOMIC_MARKET_SNAPSHOT_POST_ONLY_V1"
+    )
 
 
 def test_safe_closeout_replay_has_no_profile_reader_or_command_call(

@@ -36,6 +36,7 @@ from core.coinbase_execution_authority import (
 )
 
 from .operator_mvp_policy import (
+    OPERATOR_MVP_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_ROUTE,
     OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_CREATE_ROUTE,
     OPERATOR_MVP_AUTOMATION_PREVIEW_GATED_SINGLE_CHILD_ROUTE,
     OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_SAFE_CLOSEOUT_ROUTE,
@@ -857,6 +858,18 @@ OPERATOR_AUTOMATION_SPOT_ADAPTER_SOURCE = (
     "canonical_operator_automation_spot_runtime"
 )
 OPERATOR_AUTOMATION_SPOT_ADAPTER_ROUTES = {
+    (
+        "POST",
+        OPERATOR_MVP_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_ROUTE,
+        "automation_control_plane",
+        "authorize_atomic_market_snapshot_candidate",
+    ): (
+        "place_manual_order",
+        "OperatorAutomationService.authorize_atomic_market_snapshot_candidate "
+        "-> PostgresOperatorAutomationRepositoryAdapter."
+        "authorize_atomic_market_snapshot_candidate -> Coinbase Preview -> "
+        "AdminApiCommandService.place_manual_order",
+    ),
     (
         "POST",
         OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_CREATE_ROUTE,

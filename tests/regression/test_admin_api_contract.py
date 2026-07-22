@@ -62825,6 +62825,11 @@ def test_admin_api_decision_backed_live_execution_service_requires_runtime_opt_i
                 "POST",
                 "/api/v1/automation/runs/{run_id}/safe-closeout-child",
             ),
+            (
+                "POST",
+                "/api/v1/automation/"
+                "atomic-market-snapshot-candidates/authorize",
+            ),
         }
     )
     unsupported = evaluate_command_live_admission(
@@ -63030,6 +63035,13 @@ def test_read_surfaces_expose_all_controlled_live_order_routes_from_backend_deci
             "/api/v1/automation/runs/{run_id}/safe-closeout-child",
         )
     ]
+    automation_atomic_snapshot_capability = command_capabilities[
+        (
+            "POST",
+            "/api/v1/automation/"
+            "atomic-market-snapshot-candidates/authorize",
+        )
+    ]
 
     assert manual_capability["availability"] == "available"
     assert manual_capability["live_enabled"] is True
@@ -63063,6 +63075,11 @@ def test_read_surfaces_expose_all_controlled_live_order_routes_from_backend_deci
     assert automation_safe_closeout_capability["shared_method"] == (
         "safe_closeout_single_child"
     )
+    assert automation_atomic_snapshot_capability["live_enabled"] is True
+    assert automation_atomic_snapshot_capability["frontend_safe"] is True
+    assert automation_atomic_snapshot_capability["shared_method"] == (
+        "authorize_atomic_market_snapshot_candidate"
+    )
     automation_inventory = {
         item["workflow_id"]: item
         for item in enterprise_readiness["functionality_inventory"]
@@ -63090,15 +63107,18 @@ def test_read_surfaces_expose_all_controlled_live_order_routes_from_backend_deci
     automation_safe_closeout_live_route = live_routes[
         "/api/v1/automation/runs/{run_id}/safe-closeout-child"
     ]
+    automation_atomic_snapshot_live_route = live_routes[
+        "/api/v1/automation/atomic-market-snapshot-candidates/authorize"
+    ]
 
     assert live_enablement["status"] == "approval_required"
-    assert live_enablement["live_enabled_path_count"] == 7
-    assert live_enablement["live_eligible_path_count"] == 7
+    assert live_enablement["live_enabled_path_count"] == 8
+    assert live_enablement["live_eligible_path_count"] == 8
     assert live_enablement["live_command_runtime_enabled"] is True
     assert live_enablement["live_command_rest_client_available"] is True
     assert live_enablement["live_command_runtime_ready"] is True
     assert live_enablement["live_command_runtime_missing_reason"] is None
-    assert live_enablement["live_command_runtime_ready_path_count"] == 7
+    assert live_enablement["live_command_runtime_ready_path_count"] == 8
     assert manual_live_route["live_enabled"] is True
     assert manual_live_route["live_eligible"] is True
     assert manual_live_route["live_command_runtime_ready"] is True
@@ -63148,6 +63168,7 @@ def test_read_surfaces_expose_all_controlled_live_order_routes_from_backend_deci
         automation_authorize_live_route,
         automation_preview_authorize_live_route,
         automation_safe_closeout_live_route,
+        automation_atomic_snapshot_live_route,
     ):
         assert path["live_enabled"] is True
         assert path["live_eligible"] is True
@@ -63245,8 +63266,11 @@ def test_live_enablement_separates_admission_from_missing_command_runtime(
     automation_safe_closeout_live_route = live_routes[
         "/api/v1/automation/runs/{run_id}/safe-closeout-child"
     ]
+    automation_atomic_snapshot_live_route = live_routes[
+        "/api/v1/automation/atomic-market-snapshot-candidates/authorize"
+    ]
 
-    assert live_enablement["live_enabled_path_count"] == 5
+    assert live_enablement["live_enabled_path_count"] == 6
     assert {
         item["route"]
         for item in live_enablement["paths"]
@@ -63258,6 +63282,7 @@ def test_live_enablement_separates_admission_from_missing_command_runtime(
         "/api/v1/automation/runs/{run_id}/"
         "authorize-preview-gated-single-child",
         "/api/v1/automation/runs/{run_id}/safe-closeout-child",
+        "/api/v1/automation/atomic-market-snapshot-candidates/authorize",
     }
     assert live_enablement["live_command_runtime_enabled"] is True
     assert live_enablement["live_command_rest_client_available"] is False
@@ -63277,6 +63302,7 @@ def test_live_enablement_separates_admission_from_missing_command_runtime(
         automation_authorize_live_route,
         automation_preview_authorize_live_route,
         automation_safe_closeout_live_route,
+        automation_atomic_snapshot_live_route,
     ):
         assert automation_route["live_enabled"] is True
         assert automation_route["live_command_runtime_ready"] is False
@@ -74506,35 +74532,35 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     )
     assert live_payload["live_enabled_path_count"] == 0
     assert live_payload["live_eligible_path_count"] == 0
-    assert live_payload["preflight_check_count"] == 112
-    assert live_payload["blocking_preflight_check_count"] == 56
-    assert live_payload["passed_preflight_check_count"] == 56
-    assert live_payload["approval_snapshot_required_count"] == 14
+    assert live_payload["preflight_check_count"] == 120
+    assert live_payload["blocking_preflight_check_count"] == 60
+    assert live_payload["passed_preflight_check_count"] == 60
+    assert live_payload["approval_snapshot_required_count"] == 15
     assert live_payload["approval_snapshot_present_count"] == 0
-    assert live_payload["approval_snapshot_missing_count"] == 14
-    assert live_payload["approval_snapshot_required_field_count"] == 210
-    assert live_payload["approval_snapshot_missing_field_count"] == 210
-    assert live_payload["approval_store_required_count"] == 14
-    assert live_payload["approval_store_configured_count"] == 14
+    assert live_payload["approval_snapshot_missing_count"] == 15
+    assert live_payload["approval_snapshot_required_field_count"] == 225
+    assert live_payload["approval_snapshot_missing_field_count"] == 225
+    assert live_payload["approval_store_required_count"] == 15
+    assert live_payload["approval_store_configured_count"] == 15
     assert live_payload["approval_store_missing_count"] == 0
-    assert live_payload["approval_store_requirement_count"] == 168
+    assert live_payload["approval_store_requirement_count"] == 180
     assert live_payload["approval_store_missing_requirement_count"] == 0
-    assert live_payload["admission_audit_required_count"] == 14
+    assert live_payload["admission_audit_required_count"] == 15
     assert live_payload["admission_audit_configured_count"] == 0
-    assert live_payload["admission_audit_missing_count"] == 14
-    assert live_payload["admission_audit_fact_count"] == 140
-    assert live_payload["admission_audit_missing_fact_count"] == 126
-    assert live_payload["cap_guard_required_count"] == 14
+    assert live_payload["admission_audit_missing_count"] == 15
+    assert live_payload["admission_audit_fact_count"] == 150
+    assert live_payload["admission_audit_missing_fact_count"] == 135
+    assert live_payload["cap_guard_required_count"] == 15
     assert live_payload["cap_guard_configured_count"] == 0
-    assert live_payload["cap_guard_missing_count"] == 14
-    assert live_payload["cap_guard_requirement_count"] == 196
-    assert live_payload["cap_guard_missing_requirement_count"] == 196
-    assert live_payload["live_execution_adapter_required_count"] == 14
-    assert live_payload["live_execution_adapter_configured_count"] == 8
+    assert live_payload["cap_guard_missing_count"] == 15
+    assert live_payload["cap_guard_requirement_count"] == 210
+    assert live_payload["cap_guard_missing_requirement_count"] == 210
+    assert live_payload["live_execution_adapter_required_count"] == 15
+    assert live_payload["live_execution_adapter_configured_count"] == 9
     assert live_payload["live_execution_adapter_missing_count"] == 6
-    assert live_payload["readiness_precondition_count"] == 126
-    assert live_payload["blocking_readiness_precondition_count"] == 75
-    assert live_payload["passed_readiness_precondition_count"] == 51
+    assert live_payload["readiness_precondition_count"] == 135
+    assert live_payload["blocking_readiness_precondition_count"] == 80
+    assert live_payload["passed_readiness_precondition_count"] == 55
     assert live_payload["live_coinbase_orders_ran"] is False
     live_routes = {item["route"]: item for item in live_payload["paths"]}
     assert "/api/v1/orders" in live_routes
@@ -74571,6 +74597,10 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         in live_routes
     )
     assert (
+        "/api/v1/automation/atomic-market-snapshot-candidates/authorize"
+        in live_routes
+    )
+    assert (
         live_routes[
             "/api/v1/automation/runs/{run_id}/authorize-single-child"
         ]["live_enabled"]
@@ -74586,6 +74616,12 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert (
         live_routes[
             "/api/v1/automation/runs/{run_id}/safe-closeout-child"
+        ]["live_enabled"]
+        is False
+    )
+    assert (
+        live_routes[
+            "/api/v1/automation/atomic-market-snapshot-candidates/authorize"
         ]["live_enabled"]
         is False
     )
@@ -74619,6 +74655,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
             "authorize-preview-gated-single-child"
         ),
         "/api/v1/automation/runs/{run_id}/safe-closeout-child",
+        "/api/v1/automation/atomic-market-snapshot-candidates/authorize",
         "/api/v1/stealth/orders/{stealth_order_id}/reveal",
     }
     executable_adapter_routes = configured_adapter_routes - {
@@ -75290,6 +75327,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "automation.operator_control_plane",
         "automation.spot_near_market_preparation",
         "automation.spot_minimum_size_preparation",
+        "automation.spot_atomic_market_snapshot_authorization",
         "automation.spot_eligibility_refresh",
         "automation.spot_single_child_execution",
         "stealth.create",
@@ -75403,6 +75441,36 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         automation_minimum_size_taxonomy["cap_guard_contract"]
     )
     assert automation_minimum_size_taxonomy["blockers"] == []
+    automation_atomic_snapshot_taxonomy = taxonomy_by_id[
+        "automation.spot_atomic_market_snapshot_authorization"
+    ]
+    assert automation_atomic_snapshot_taxonomy["mutation_family"] == (
+        AdminApiMutationFamilyType.SPOT_CAMPAIGN_EXECUTION.value
+    )
+    assert automation_atomic_snapshot_taxonomy["action_classes"] == [
+        AdminApiActionClass.LIVE_EXCHANGE_PLACE.value
+    ]
+    assert set(automation_atomic_snapshot_taxonomy["required_permissions"]) == {
+        AdminApiPermission.ACCOUNT_REALITY_REFRESH.value,
+        AdminApiPermission.AUTOMATION_CONFIGURE.value,
+        AdminApiPermission.AUTOMATION_RESUME.value,
+        AdminApiPermission.AUTOMATION_TRIGGER.value,
+        AdminApiPermission.ORDER_CREATE.value,
+    }
+    assert automation_atomic_snapshot_taxonomy["command_surfaces"] == [
+        "POST /api/v1/automation/atomic-market-snapshot-candidates/authorize"
+    ]
+    assert automation_atomic_snapshot_taxonomy["approval_required"] is True
+    assert automation_atomic_snapshot_taxonomy["cap_guard_required"] is True
+    assert automation_atomic_snapshot_taxonomy["reconciliation_required"] is True
+    assert automation_atomic_snapshot_taxonomy["live_adapter_required"] is True
+    assert "exactly eight approved" in automation_atomic_snapshot_taxonomy[
+        "summary"
+    ]
+    assert "ATOMIC_MARKET_SNAPSHOT_POST_ONLY_V1" in (
+        automation_atomic_snapshot_taxonomy["cap_guard_contract"]
+    )
+    assert automation_atomic_snapshot_taxonomy["blockers"] == []
     automation_eligibility_taxonomy = taxonomy_by_id[
         "automation.spot_eligibility_refresh"
     ]

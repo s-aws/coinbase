@@ -46,8 +46,19 @@ _MINIMUM_SIZE_SPOT_MODES = frozenset(
         "MINIMUM_SIZE_POST_ONLY_V9",
     }
 )
+_ATOMIC_MARKET_SNAPSHOT_SPOT_MODES = frozenset(
+    {
+        "ATOMIC_MARKET_SNAPSHOT_V10",
+        "ATOMIC_MARKET_SNAPSHOT_V11",
+        "ATOMIC_MARKET_SNAPSHOT_V12",
+    }
+)
 _POST_ONLY_SPOT_MODES = frozenset(
-    {*_NEAR_MARKET_SPOT_MODES, *_MINIMUM_SIZE_SPOT_MODES}
+    {
+        *_NEAR_MARKET_SPOT_MODES,
+        *_MINIMUM_SIZE_SPOT_MODES,
+        *_ATOMIC_MARKET_SNAPSHOT_SPOT_MODES,
+    }
 )
 _MINIMUM_SIZE_PREPARATION_CATEGORIES = (
     "api_key_permissions",
@@ -571,6 +582,26 @@ class AutomationMinimumSizeCandidatePreparationRequest(BaseModel):
         return _normalized_operator_text(value, code="automation_reason_invalid")
 
 
+class AutomationAtomicMarketSnapshotAuthorizationRequest(BaseModel):
+    """One explicit operator action for atomic V10-V12 Preview/Create proof."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    confirm_atomic_final_market_snapshot_binding: Literal[True]
+    confirm_one_no_retry_eight_category_cycle: Literal[True]
+    confirm_single_preview: Literal[True]
+    confirm_conditional_identical_single_child_create: Literal[True]
+    confirm_btc_usdc_test_portfolio_scope: Literal[True]
+    confirm_both_notionals_strictly_below_3_10: Literal[True]
+    confirm_unknown_consumes_applicable_allowance: Literal[True]
+    reason: str = Field(min_length=1, max_length=255)
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def normalize_reason(cls, value: object) -> object:
+        return _normalized_operator_text(value, code="automation_reason_invalid")
+
+
 class AutomationDefinitionScheduleRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -798,6 +829,7 @@ class AutomationControlPlaneItem(BaseModel):
     definition_create_allowed: bool = False
     near_market_candidate_preparation_allowed: bool = False
     minimum_size_candidate_preparation_allowed: bool = False
+    atomic_market_snapshot_authorization_allowed: bool = False
     allowed_actions: list[str] = Field(default_factory=list)
     updated_at: datetime
 
@@ -876,6 +908,9 @@ class AutomationDefinitionItem(BaseModel):
         "MINIMUM_SIZE_POST_ONLY_V7",
         "MINIMUM_SIZE_POST_ONLY_V8",
         "MINIMUM_SIZE_POST_ONLY_V9",
+        "ATOMIC_MARKET_SNAPSHOT_V10",
+        "ATOMIC_MARKET_SNAPSHOT_V11",
+        "ATOMIC_MARKET_SNAPSHOT_V12",
     ] | None = None
     single_child_order: AutomationSpotSingleChildOrderSpec | None = None
     minimum_size_preparation: AutomationMinimumSizePreparationReadback | None
@@ -965,6 +1000,9 @@ class AutomationRunItem(BaseModel):
         "MINIMUM_SIZE_POST_ONLY_V7",
         "MINIMUM_SIZE_POST_ONLY_V8",
         "MINIMUM_SIZE_POST_ONLY_V9",
+        "ATOMIC_MARKET_SNAPSHOT_V10",
+        "ATOMIC_MARKET_SNAPSHOT_V11",
+        "ATOMIC_MARKET_SNAPSHOT_V12",
     ] | None = None
     preview_allowance_consumed: bool = False
     preview_outcome: Literal["ACCEPTED", "REJECTED", "UNKNOWN"] | None = None
@@ -2116,6 +2154,58 @@ class AutomationRunMutationResponse(BaseModel):
     activity: AutomationRunMutationActivity = Field(
         default_factory=AutomationRunMutationActivity
     )
+
+
+class AutomationAtomicMarketSnapshotMutationResponse(BaseModel):
+    """Sanitized terminal result for one claimed V10-V12 cycle."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["automation_atomic_market_snapshot_mutation"] = (
+        "automation_atomic_market_snapshot_mutation"
+    )
+    status: Literal["accepted"] = "accepted"
+    outcome: Literal["MATERIALIZED", "BLOCKED", "UNKNOWN"]
+    candidate_version: Literal[10, 11, 12]
+    cycle_number: int = Field(ge=1, le=10)
+    diagnostic_code: str = Field(
+        min_length=1,
+        max_length=96,
+        pattern=r"^[a-z0-9_]+$",
+    )
+    completed_categories: list[AutomationEligibilityCategory] = Field(
+        default_factory=list,
+        max_length=8,
+    )
+    coinbase_api_call_count: int | None = Field(default=0, ge=0)
+    call_count_exact: bool = True
+    market_snapshot_binding: Literal["HASHED", "UNAVAILABLE"]
+    run: AutomationRunItem | None = None
+    replayed: bool = False
+    audit_id: str = Field(pattern=_CANONICAL_UUID_PATTERN)
+    correlation_id: str = Field(
+        min_length=1,
+        max_length=255,
+        pattern=_VISIBLE_ASCII_PATTERN,
+    )
+    activity: AutomationRunMutationActivity = Field(
+        default_factory=AutomationRunMutationActivity
+    )
+
+    @model_validator(mode="after")
+    def validate_atomic_result(self) -> Self:
+        materialized = self.outcome == "MATERIALIZED"
+        if materialized is (self.run is None):
+            raise ValueError("automation_atomic_market_snapshot_run_invalid")
+        if materialized is (self.market_snapshot_binding != "HASHED"):
+            raise ValueError(
+                "automation_atomic_market_snapshot_binding_invalid"
+            )
+        if self.call_count_exact is (self.coinbase_api_call_count is None):
+            raise ValueError(
+                "automation_atomic_market_snapshot_call_count_invalid"
+            )
+        return self
 
 
 class AutomationRunListResponse(BaseModel):

@@ -1,6 +1,20 @@
 # Operator Spot Automation Single-Child Adapter v1
 
 ## Current status
+Goal
+`operator_spot_automation_atomic_market_snapshot_binding_and_successor_proof_v10_v12`
+is in implementation and validation.
+
+The adapter now also recognizes policy-revision-5 V10-V12 atomic-market plans.
+It requires post-only BUY at the exact documented Get Market Trades best bid,
+dynamic cap and both actual notionals strictly below 3.10 USDC, and a
+precomputed eight-read bundle committed with the consumed Preview claim. It
+does not run a second eligibility cycle and does not add a parallel Preview or
+Create path. No V10-V12 Coinbase call has occurred at this checkpoint. See
+[`OPERATOR_SPOT_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_V10_V12.md`](OPERATOR_SPOT_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_V10_V12.md).
+
+### Completed V7-V9 status
+
 
 Goal
 `operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`

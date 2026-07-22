@@ -1,5 +1,18 @@
 # Maintainer Handoff
 
+## Active V10-V12 atomic-snapshot goal
+
+`operator_spot_automation_atomic_market_snapshot_binding_and_successor_proof_v10_v12`
+is in implementation and validation. Backend policy revision 5 derives final
+price, size, fee-reserved cap, plan/child identities, evidence, and the
+single-use Preview claim from one fresh documented Get Market Trades snapshot
+and commits them with the eight-read ledger in one PostgreSQL transaction.
+The canonical command service independently requires post-only BUY at the
+exact same-snapshot bid and both actual notionals strictly below 3.10 USDC.
+The generated Admin UI sends acknowledgements only. No V10-V12 Coinbase call
+has occurred at this checkpoint. See
+[Operator Spot Automation Atomic Market Snapshot V10-V12](OPERATOR_SPOT_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_V10_V12.md).
+
 This guide is the backend entry point for maintainers and contextless agents
 working on the enterprise admin platform.
 

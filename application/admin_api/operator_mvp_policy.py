@@ -29,6 +29,9 @@ OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_CREATE_ROUTE = (
 OPERATOR_MVP_AUTOMATION_PREVIEW_GATED_SINGLE_CHILD_ROUTE = (
     "/api/v1/automation/runs/{run_id}/authorize-preview-gated-single-child"
 )
+OPERATOR_MVP_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_ROUTE = (
+    "/api/v1/automation/atomic-market-snapshot-candidates/authorize"
+)
 OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_SAFE_CLOSEOUT_ROUTE = (
     "/api/v1/automation/runs/{run_id}/safe-closeout-child"
 )
@@ -44,6 +47,10 @@ OPERATOR_MVP_SUPPORTED_LIVE_ROUTES = frozenset(
         (
             "POST",
             OPERATOR_MVP_AUTOMATION_PREVIEW_GATED_SINGLE_CHILD_ROUTE,
+        ),
+        (
+            "POST",
+            OPERATOR_MVP_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_ROUTE,
         ),
         (
             "POST",

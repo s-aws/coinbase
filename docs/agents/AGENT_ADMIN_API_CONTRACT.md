@@ -20,6 +20,22 @@ frontend request
 -> durable audit
 -> typed response
 ```
+## Active V10-V12 contract
+
+Goal
+`operator_spot_automation_atomic_market_snapshot_binding_and_successor_proof_v10_v12`
+is in implementation and validation.
+
+The active generated route is
+`POST /api/v1/automation/atomic-market-snapshot-candidates/authorize`.
+Policy revision 5 binds final terms, evidence, identities, the exact eight-read
+ledger, run, and one-use Preview claim atomically. It reuses canonical
+Preview/Create/Cancel scopes and exposes only fixed sanitized diagnostics,
+hash retention, and exact-or-withheld call accounting. The browser supplies no
+trading term. No V10-V12 Coinbase call has occurred at this checkpoint.
+
+## Completed V7-V9 predecessor
+
 
 Current goal
 `operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`

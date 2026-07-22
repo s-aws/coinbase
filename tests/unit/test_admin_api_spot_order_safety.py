@@ -1521,8 +1521,82 @@ def test_minimum_size_automation_binds_backend_derived_execution_cap(
     assert len(rest_client.create_calls) == 1
 
 
-def test_minimum_size_automation_requires_fee_reserved_wallet_cap(
+@pytest.mark.parametrize(
+    ("limit_price", "expected_status"),
+    [
+        ("100.00", AdminApiCommandStatus.ACCEPTED),
+        ("99.99", AdminApiCommandStatus.REJECTED),
+    ],
+)
+def test_atomic_market_snapshot_automation_requires_exact_same_snapshot_bid(
     monkeypatch: pytest.MonkeyPatch,
+    limit_price: str,
+    expected_status: AdminApiCommandStatus,
+) -> None:
+    import configuration
+
+    monkeypatch.setattr(
+        configuration,
+        "ACTION_CONDITION_GUARDS",
+        {"wallet_available": True, "limits": []},
+        raising=False,
+    )
+    rest_client = _SpotRestClient()
+    rest_client.history = [
+        {
+            "client_order_id": "22daf1ea-4c57-4c03-98c5-e74459576228",
+            "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
+            "status": "OPEN",
+        }
+    ]
+    coordinator = SpotProfileOrderAdmissionCoordinator()
+    service = _service(rest_client, _RootRegistrar(), coordinator=coordinator)
+
+    with coordinator.claim(TEST_PORTFOLIO_ID) as lease:
+        response = service.place_manual_order(
+            _manual_command(
+                base_size="0.02",
+                limit_price=limit_price,
+                post_only=True,
+                approval_snapshot_id="approval-atomic-market-automation",
+                max_submitted_notional_usdc="3.10",
+                max_executed_notional_usdc="2.01",
+            ),
+            automation_admission=_automation_admission(
+                lease,
+                base_size="0.02",
+                limit_price=limit_price,
+                post_only=True,
+                policy_revision=5,
+                standing_price_policy=(
+                    "ATOMIC_MARKET_SNAPSHOT_POST_ONLY_V1"
+                ),
+                market_source="coinbase_rest_market_trade_snapshot",
+                max_possible_execution_notional_usdc="2.01",
+            ),
+        )
+
+    assert response.status is expected_status
+    assert len(rest_client.create_calls) == (
+        1 if expected_status is AdminApiCommandStatus.ACCEPTED else 0
+    )
+    if expected_status is AdminApiCommandStatus.REJECTED:
+        assert response.failure_stage == "standing_price_limit"
+
+
+@pytest.mark.parametrize(
+    ("policy_revision", "standing_price_policy", "approval_snapshot_id"),
+    (
+        (4, "NEAR_MARKET_POST_ONLY_MINIMUM_SIZE_V2", "approval-minimum-size-wallet"),
+        (5, "ATOMIC_MARKET_SNAPSHOT_POST_ONLY_V1", "approval-atomic-market-wallet"),
+    ),
+)
+def test_dynamic_cap_automation_requires_fee_reserved_wallet_cap(
+    monkeypatch: pytest.MonkeyPatch,
+    policy_revision: int,
+    standing_price_policy: str,
+    approval_snapshot_id: str,
 ) -> None:
     import configuration
 
@@ -1542,7 +1616,7 @@ def test_minimum_size_automation_requires_fee_reserved_wallet_cap(
                 base_size="0.01",
                 limit_price="100.00",
                 post_only=True,
-                approval_snapshot_id="approval-minimum-size-wallet",
+                approval_snapshot_id=approval_snapshot_id,
                 max_submitted_notional_usdc="3.10",
                 max_executed_notional_usdc="1.01",
             ),
@@ -1551,10 +1625,8 @@ def test_minimum_size_automation_requires_fee_reserved_wallet_cap(
                 base_size="0.01",
                 limit_price="100.00",
                 post_only=True,
-                policy_revision=4,
-                standing_price_policy=(
-                    "NEAR_MARKET_POST_ONLY_MINIMUM_SIZE_V2"
-                ),
+                policy_revision=policy_revision,
+                standing_price_policy=standing_price_policy,
                 market_source="coinbase_rest_market_trade_snapshot",
                 max_possible_execution_notional_usdc="1.01",
                 available_balance="1.00",
