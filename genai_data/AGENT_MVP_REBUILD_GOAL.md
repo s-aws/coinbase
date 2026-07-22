@@ -5,22 +5,25 @@ Goal ID:
 
 Last reviewed: 2026-07-22 UTC.
 
-Status: `ready_for_bounded_operator_proof`.
+Status: `complete_terminal_no_valid_size`.
 
 Current action:
-`commit_push_deploy_and_run_bounded_operator_proof`.
+`complete_v4_no_valid_size_preview_create_cancel_unconsumed`.
 
-Default action: `continue_authorized_workflow_without_new_authorization`.
+Default action: `await_operator_policy_or_cap_decision`.
 
 The backend-owned `BTC_USDC_POST_ONLY_BEST_BID_V1` policy is restricted to the
 approved Test portfolio, `BTC-USDC`, one child, V4-V6, and the unchanged
 3.10/1.00 USDC caps. PostgreSQL claims preparation before any read, shares the
 goal-global ten-cycle namespace with run eligibility, and preserves the
-existing one-use Preview/Create/Cancel boundaries. No goal-scoped Coinbase
-call has run; goal-global cycles are `0/10`; Preview/Create/Cancel calls are
-`0/0/0`; all live allowances remain unconsumed at this checkpoint. Complete
-backend regression, the canonical frontend release gate, installed smoke, and
-independent safety plus blind-contextless audits pass.
+existing one-use Preview/Create/Cancel boundaries. One installed V4
+preparation cycle completed all six approved categories with `6` exact
+Coinbase read calls and terminated as `near_market_no_valid_size`. No
+definition or child exists; goal-global cycles are `1/10`;
+Preview/Create/Cancel calls are `0/0/0`, and those allowances remain
+unconsumed. V5-V6 were not attempted. Complete backend regression, the
+canonical frontend release gate, installed smoke, and independent safety plus
+blind-contextless audits pass.
 
 ## Previous Preview-explainability closeout
 

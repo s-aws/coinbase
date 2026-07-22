@@ -7,18 +7,21 @@ working on the enterprise admin platform.
 
 Goal
 `operator_spot_automation_near_market_policy_and_successor_proof_v4_v6`
-is active at `ready_for_bounded_operator_proof`. Current action:
-`commit_push_deploy_and_run_bounded_operator_proof`.
-Default action: `continue_authorized_workflow_without_new_authorization`.
+is complete at `complete_terminal_no_valid_size`. Current action:
+`complete_v4_no_valid_size_preview_create_cancel_unconsumed`.
+Default action: `await_operator_policy_or_cap_decision`.
 
 The narrow `BTC_USDC_POST_ONLY_BEST_BID_V1` policy and durable V4-V6
 preparation path are implemented. The backend alone derives quantized
 best-bid `post_only=true` terms and size under product, wallet, fee, and
 3.10/1.00 USDC cap evidence. Complete backend regression, the canonical
 frontend release gate, installed smoke, and both independent audits pass. The
-first operator preparation read and bounded proof remain pending. No
-goal-scoped Coinbase call has run; goal-global cycles are `0/10` and
-Preview/Create/Cancel calls are `0/0/0`. See
+installed operator workflow completed one V4 preparation cycle and all six
+approved read categories with `6` exact Coinbase read calls, then terminated
+as `near_market_no_valid_size`. No definition or child exists; goal-global
+cycles are `1/10`; Preview/Create/Cancel calls are `0/0/0`, and those
+allowances remain unconsumed. V5-V6 were not attempted. A later local
+preparation POST failed closed with HTTP 409 before claim creation. See
 [Operator Spot Automation Near-Market V4-V6](OPERATOR_SPOT_AUTOMATION_NEAR_MARKET_V4_V6.md).
 
 ### Previous Preview-explainability closeout

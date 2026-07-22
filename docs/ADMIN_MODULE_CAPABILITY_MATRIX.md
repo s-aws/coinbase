@@ -22,13 +22,12 @@ source-disabled and call-free; its workspace exposes sanitized local evidence
 only. Automation is GET-only through one local
 `GET /api/v1/admin/capabilities`; it exposes no command or exchange action.
 
-Current validation evidence is backend full `1109 passed, 6 skipped` parallel
-and `599 passed, 150 skipped` serial, frontend full `1440 passed`, E2E
-`13 passed`, and independent safety audit `PASS`. The final blind re-audit is
-not claimed as passed; neither are the canonical release gate or final
-installed Controlled-live stack verification.
+Historical validation evidence for the core-workspaces milestone is backend
+full `1109 passed, 6 skipped` parallel and `599 passed, 150 skipped` serial,
+frontend full `1440 passed`, E2E `13 passed`, and independent safety audit
+`PASS`.
 
-Current extension status: `active_near_market_v4_v6_validation`. The
+Current extension status: `complete_terminal_no_valid_size`. The
 historical GET-only statement above is not current Automation capability
 truth. Goal
 `operator_spot_automation_near_market_policy_and_successor_proof_v4_v6` adds
@@ -38,18 +37,20 @@ UI control. That route can claim one of the shared ten no-retry cycles and
 derive only the next sequential V4-V6 BTC-USDC/Test-portfolio candidate. It
 cannot Preview, Create, or Cancel during candidate preparation.
 
-No current-goal preparation read, Preview, Create, Cancel, or other Coinbase
-call has run at this checkpoint. All V4-V6 allowances remain unconsumed.
+The one V4 preparation cycle completed `BLOCKED` with fixed diagnostic
+`near_market_no_valid_size` after exactly six approved read-only Coinbase
+calls. The durable allocator is at `1/10`; no definition, run, or child was
+created; V5 and V6 were not attempted; and Preview/Create/Cancel accounting is
+`0/0/0` with all three allowances unconsumed. A later local HTTP `409` was
+rejected before any additional claim, row, or Coinbase call.
 Current Automation has PostgreSQL-backed definition, lifecycle, one-shot run,
 eligibility, Preview-gated exact-child, safe-closeout, and near-market
 preparation routes. Every live action remains separately backend-gated by
 exact RBAC, runtime posture, durable claims, policy, caps, fresh evidence,
 operator confirmation, and the current goal's one-use call allowances. There
-is no scheduler or unattended live activation. Current V4-V6 validation and
-audit evidence is recorded in
-`docs/OPERATOR_SPOT_AUTOMATION_NEAR_MARKET_V4_V6.md`; this matrix does not
-claim a live proof until the installed routed workflow reaches a terminal
-result.
+is no scheduler or unattended live activation. The installed routed
+workflow's terminal validation, deployment, and audit evidence is recorded in
+`docs/OPERATOR_SPOT_AUTOMATION_NEAR_MARKET_V4_V6.md`.
 
 Goal `futures_preview_acceptance_recovery_r12` is terminal
 `complete_terminal_unknown_consumed`. Its single claim is consumed and cannot

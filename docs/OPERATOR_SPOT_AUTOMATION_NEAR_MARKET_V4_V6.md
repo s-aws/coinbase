@@ -3,12 +3,15 @@
 Goal ID:
 `operator_spot_automation_near_market_policy_and_successor_proof_v4_v6`
 
-Checkpoint status: `ready_for_bounded_operator_proof`.
+Checkpoint status: `complete_terminal_no_valid_size`.
 
-No goal-scoped Coinbase call has run at this checkpoint. V4-V6 preparation,
-eligibility, Preview, Create, and Cancel allowances remain unconsumed in the
-installed operator database until an authenticated operator explicitly starts
-the workflow after validation and both independent audits pass.
+The installed authenticated operator workflow completed V4 preparation cycle
+1. All six approved read categories completed with an exact count of `6`
+Coinbase read calls. Backend derivation returned `near_market_no_valid_size`,
+so no definition, run, or child was materialized. Goal-global cycles are
+`1/10`; Preview/Create/Cancel calls are `0/0/0`, and those three allowances
+remain unconsumed. V5-V6 were not attempted. A later local preparation POST
+received HTTP 409 before claim creation and made no Coinbase call.
 
 ## Narrow policy boundary
 
@@ -131,5 +134,7 @@ skipped in serial isolation. The canonical frontend release gate passed,
 including `229` deployment-focused tests, `1573` full Vitest tests, installed
 deployment smoke, and routed Playwright E2E. Independent safety and
 blind-contextless audits returned `PASS`. No Coinbase call ran during
-validation. Exact-commit Controlled-live deployment and the bounded operator
-proof remain.
+validation. Exact commits `d379bcc0` and `9eafd848` were installed in
+Controlled-live posture for the proof. The terminal result is the explicit
+no-valid-size stop boundary; proceeding requires a separate policy or cap
+decision.

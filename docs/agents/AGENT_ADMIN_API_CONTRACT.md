@@ -23,17 +23,19 @@ frontend request
 
 Current goal
 `operator_spot_automation_near_market_policy_and_successor_proof_v4_v6`
-is active at `ready_for_bounded_operator_proof`. Current action:
-`commit_push_deploy_and_run_bounded_operator_proof`.
-Default action: `continue_authorized_workflow_without_new_authorization`.
+is complete at `complete_terminal_no_valid_size`. Current action:
+`complete_v4_no_valid_size_preview_create_cancel_unconsumed`.
+Default action: `await_operator_policy_or_cap_decision`.
 The backend-owned `BTC_USDC_POST_ONLY_BEST_BID_V1` policy is confined to the
 V4-V6 Spot Automation ledgers. Its exact route, PostgreSQL claim, generated
 contract, RBAC, no-retry reads, cap evidence, Preview/Create/Cancel claims, and
 privacy boundary are documented in
 [`OPERATOR_SPOT_AUTOMATION_NEAR_MARKET_V4_V6.md`](../OPERATOR_SPOT_AUTOMATION_NEAR_MARKET_V4_V6.md).
-No goal-scoped Coinbase call has run; goal-global cycles are `0/10` and
-Preview/Create/Cancel calls are `0/0/0`. Complete validation and both
-independent audits pass.
+V4 preparation completed one cycle and all six approved categories with `6`
+exact Coinbase read calls, then terminated as `near_market_no_valid_size`.
+No definition or child exists; goal-global cycles are `1/10` and
+Preview/Create/Cancel calls are `0/0/0`, with those allowances unconsumed.
+Complete validation and both independent audits pass.
 
 ### Previous Preview-explainability closeout
 

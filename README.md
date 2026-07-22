@@ -15,9 +15,9 @@ plans.
 
 Goal
 `operator_spot_automation_near_market_policy_and_successor_proof_v4_v6`
-is active at `ready_for_bounded_operator_proof`. Current action:
-`commit_push_deploy_and_run_bounded_operator_proof`.
-Default action: `continue_authorized_workflow_without_new_authorization`.
+is complete at `complete_terminal_no_valid_size`. Current action:
+`complete_v4_no_valid_size_preview_create_cancel_unconsumed`.
+Default action: `await_operator_policy_or_cap_decision`.
 
 The versioned `BTC_USDC_POST_ONLY_BEST_BID_V1` policy is isolated to one
 approved-Test-portfolio `BTC-USDC` Automation successor. The backend derives a
@@ -26,11 +26,14 @@ size from product minimums/increments, wallet evidence, maker-fee reserve, and
 the unchanged 3.10/1.00 USDC caps. PostgreSQL owns the sequential V4-V6
 preparation claims, immutable definitions, goal-global ten-cycle accounting,
 eight-category run eligibility,
-and existing one-use Preview/Create/Cancel allowances. No goal-scoped Coinbase
-call has run at this checkpoint; goal-global cycles are `0/10` and
-Preview/Create/Cancel calls are `0/0/0`. Complete backend regression, the
-canonical frontend release gate, installed smoke, and independent safety plus
-blind-contextless audits pass. See
+and existing one-use Preview/Create/Cancel allowances. The installed operator
+workflow completed one V4 preparation cycle and all six
+approved read categories with `6` exact Coinbase read calls, then terminated
+as `near_market_no_valid_size`. No definition or child exists. Goal-global
+cycles are `1/10`; Preview/Create/Cancel calls are `0/0/0`, and those
+allowances remain unconsumed. V5-V6 were not attempted. Complete backend
+regression, the canonical frontend release gate, installed smoke, and
+independent safety plus blind-contextless audits pass. See
 [the near-market V4-V6 contract](docs/OPERATOR_SPOT_AUTOMATION_NEAR_MARKET_V4_V6.md).
 
 ### Previous Preview-explainability closeout
