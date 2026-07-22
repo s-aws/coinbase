@@ -1,12 +1,14 @@
 # Coinbase Admin MVP Goal
-## Active V10-V12 atomic market snapshot goal
+## Terminal V10-V12 atomic market snapshot goal
 
 Goal ID:
 `operator_spot_automation_atomic_market_snapshot_binding_and_successor_proof_v10_v12`
 
-Status: V10-V12 goal active at V11. V10 completed eight exact reads and
-consumed its one Preview at terminal `TRANSPORT_UNKNOWN`; Create and Cancel
-remain unconsumed with zero calls. V11 is distinct and is not a V10 retry.
+Status: terminal after V10-V12. Each candidate completed eight exact reads and
+consumed its distinct Preview allowance at terminal `TRANSPORT_UNKNOWN`, with
+exact Preview wire count withheld. The aggregate ledger is 3/10 cycles and 24
+exact reads; Create and Cancel remain unconsumed with zero calls and no
+exchange mutation. V10-V12 are distinct, and no successor remains.
 
 Backend policy revision 5 claims one no-retry eight-category cycle, derives
 final post-only best-bid terms, fee-reserved cap, evidence, plan/child

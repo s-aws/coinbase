@@ -1868,6 +1868,55 @@ def test_run_event_model_accepts_durable_source_gate_rejection_without_state_cha
     assert final_admission.state is AutomationRunState.PREPARING
 
 
+def test_run_event_model_accepts_atomic_preview_claim_as_durable_genesis():
+    event = AutomationRunEventItem(
+        event_id="218d5f34-a054-410b-9c92-ddd09dcd6b11",
+        run_id=RUN_ID,
+        sequence=1,
+        from_state=None,
+        state="AWAITING_OPERATOR_AUTHORIZATION",
+        diagnostic_code="automation_spot_preview_invocation_started",
+        audit_id=AUDIT_ID,
+        correlation_id="automation-atomic-preview-genesis",
+        recorded_at=NOW,
+    )
+
+    assert event.from_state is None
+    assert event.state is AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION
+
+
+def test_service_rejects_atomic_preview_genesis_for_a_non_atomic_run():
+    class _NonAtomicGenesisRepository(_FakeRepository):
+        def list_run_events(self, **kwargs: Any) -> AutomationRepositoryPage:
+            self._record("list_run_events", **kwargs)
+            return AutomationRepositoryPage(
+                items=(
+                    {
+                        "event_id": "218d5f34-a054-410b-9c92-ddd09dcd6b11",
+                        "run_id": RUN_ID,
+                        "sequence": 1,
+                        "from_state": None,
+                        "state": "AWAITING_OPERATOR_AUTHORIZATION",
+                        "diagnostic_code": (
+                            "automation_spot_preview_invocation_started"
+                        ),
+                        "audit_id": AUDIT_ID,
+                        "correlation_id": "automation-atomic-preview-genesis",
+                        "recorded_at": NOW.isoformat(),
+                    },
+                ),
+                total_count=1,
+            )
+
+    service = OperatorAutomationService(_NonAtomicGenesisRepository())
+
+    with pytest.raises(
+        OperatorAutomationError,
+        match="automation_run_event_atomic_genesis_invalid",
+    ):
+        service.list_run_events(run_id=RUN_ID, limit=100, offset=0)
+
+
 @pytest.mark.parametrize(
     "events",
     [

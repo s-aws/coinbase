@@ -1529,6 +1529,10 @@ class AutomationRunEventItem(BaseModel):
             },
             "automation_spot_preview_invocation_started": {
                 (
+                    None,
+                    AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION,
+                ),
+                (
                     AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION,
                     AutomationRunState.AWAITING_OPERATOR_AUTHORIZATION,
                 ),

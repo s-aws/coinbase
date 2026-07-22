@@ -4,9 +4,10 @@ Current operator goal:
 [Operator Spot Automation Atomic Market Snapshot V10-V12](OPERATOR_SPOT_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_V10_V12.md).
 Goal
 `operator_spot_automation_atomic_market_snapshot_binding_and_successor_proof_v10_v12`
-keeps the V10-V12 goal active at V12. V10 and V11 each completed eight exact
-reads and consumed one distinct Preview at terminal `TRANSPORT_UNKNOWN`;
-Create and Cancel remain unconsumed with zero calls. The backend binds the exact eight-category
+is terminal after V10-V12. Each candidate completed eight exact reads and
+consumed its distinct Preview allowance at terminal `TRANSPORT_UNKNOWN`, with
+exact Preview wire count withheld. The aggregate ledger is 3/10 cycles and 24
+exact reads; Create and Cancel remain unconsumed with zero calls. The backend binds the exact eight-category
 atomic snapshot and one-use Preview claim; browser authority remains
 acknowledgement-only. The V12 correction retains only fixed client/server/
 redirect response classes when one response proves an exact Preview call;

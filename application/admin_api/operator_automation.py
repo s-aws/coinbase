@@ -126,6 +126,10 @@ _SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS = frozenset(
         SPOT_ELIGIBILITY_ATOMIC_MARKET_SNAPSHOT_V12_GOAL_KEY,
     }
 )
+_SPOT_ATOMIC_MARKET_SNAPSHOT_MODES = frozenset(
+    _SPOT_PREVIEW_MODE_BY_GOAL[goal_key]
+    for goal_key in _SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS
+)
 _SPOT_DYNAMIC_CAP_GOAL_KEYS = frozenset(
     {*_SPOT_MINIMUM_SIZE_GOAL_KEYS, *_SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS}
 )
@@ -5347,6 +5351,21 @@ class OperatorAutomationService:
                 offset=offset,
             )
             items = [AutomationRunEventItem.model_validate(item) for item in page.items]
+            if any(
+                item.from_state is None
+                and item.diagnostic_code
+                == "automation_spot_preview_invocation_started"
+                for item in items
+            ):
+                run = self.repository.get_run(run_id)
+                if (
+                    run is None
+                    or AutomationRunItem.model_validate(run).spot_execution_mode
+                    not in _SPOT_ATOMIC_MARKET_SNAPSHOT_MODES
+                ):
+                    raise AutomationRepositoryUnavailable(
+                        "automation_run_event_atomic_genesis_invalid"
+                    )
             return AutomationRunEventListResponse(
                 run_id=run_id,
                 count=len(items),

@@ -3,11 +3,14 @@
 Goal:
 `operator_spot_automation_atomic_market_snapshot_binding_and_successor_proof_v10_v12`.
 
-Status: active at V12. V10 cycle 1 and V11 cycle 2 each completed all eight
-reads exactly, atomically materialized final terms, and consumed one distinct
-Preview at a terminal `TRANSPORT_UNKNOWN` boundary. Create and Cancel remain
-unconsumed with zero calls and no exchange mutation. V12 is distinct and is
-not a retry of V10 or V11.
+Status: terminal after V10-V12. Cycles 1-3 each completed all eight reads
+exactly, atomically materialized final terms, and consumed that candidate's
+distinct Preview allowance at a terminal `TRANSPORT_UNKNOWN` boundary. Exact
+Preview wire count is withheld for each transport-unknown outcome. The
+aggregate eligibility ledger is 3/10 cycles and 24 exact reads. Create and
+Cancel remain unconsumed with zero calls and no exchange mutation. V12 is
+distinct, is not a retry of V10 or V11, and exhausts the authorized successor
+set.
 
 ## Narrow policy
 
@@ -93,6 +96,25 @@ provable response remains `TRANSPORT_UNKNOWN` with exact call count withheld.
 The approved CDP API-key path continues to omit `retail_portfolio_id`; Coinbase
 documents that API-key connections derive the portfolio from the key, and V3
 already proved this project can reach Preview without adding that field.
+
+## Terminal proof and readback
+
+V12 completed cycle 3 with all eight eligibility categories accounted for
+exactly, then reached `UNKNOWN_CONSUMED` with the fixed diagnostic
+`automation_spot_preview_unknown_consumed` and failure class
+`TRANSPORT_UNKNOWN`. Its Preview allowance is consumed, exact Preview wire
+count is withheld, and Create and Cancel are both unconsumed at zero calls.
+The total goal evidence is three cycles, 24 exact eligibility reads, three
+distinct consumed Preview allowances, and zero exchange mutations.
+
+Atomic materialization durably creates its run and one-use Preview claim in
+the same transaction. Its append-only event chain therefore begins with
+`automation_spot_preview_invocation_started` from no prior state into
+`AWAITING_OPERATOR_AUTHORIZATION`, followed by the terminal transition. The
+API and Admin UI accept that null-source genesis only for execution modes
+V10-V12; ordinary Automation runs still require their standard claimed-run
+genesis. No stored event, candidate term, predecessor artifact, or hash is
+rewritten by this compatibility rule.
 
 ## Information and authority boundaries
 

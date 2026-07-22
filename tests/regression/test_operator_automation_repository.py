@@ -18,7 +18,10 @@ from application.admin_api.operator_automation import (
     OperatorAutomationService,
     PostgresOperatorAutomationRepositoryAdapter,
 )
-from application.admin_api.automation_models import AutomationMutationContext
+from application.admin_api.automation_models import (
+    AutomationMutationContext,
+    AutomationRunEventItem,
+)
 from application.admin_api.operator_spot_near_market_policy import (
     NearMarketBuyPlan,
 )
@@ -4821,6 +4824,42 @@ def test_atomic_market_snapshot_materialization_and_preview_claim_are_one_transa
         call_count_exact=False,
         command=_mutation("atomic-market-v10-preview-unknown"),
     )
+    events = repository.list_run_events(run_id).items
+    assert [
+        (item.sequence, item.from_state, item.to_state, item.diagnostic_code)
+        for item in events
+    ] == [
+        (
+            1,
+            None,
+            OperatorAutomationRunState.AWAITING_OPERATOR_AUTHORIZATION,
+            "automation_spot_preview_invocation_started",
+        ),
+        (
+            2,
+            OperatorAutomationRunState.AWAITING_OPERATOR_AUTHORIZATION,
+            OperatorAutomationRunState.UNKNOWN_CONSUMED,
+            "automation_spot_preview_unknown_consumed",
+        ),
+    ]
+    for item in events:
+        AutomationRunEventItem.model_validate(
+            {
+                "event_id": item.event_id,
+                "run_id": item.run_id,
+                "sequence": item.sequence,
+                "from_state": item.from_state,
+                "state": item.to_state,
+                "diagnostic_code": item.diagnostic_code,
+                "audit_id": item.audit_id,
+                "correlation_id": item.correlation_id,
+                "recorded_at": item.recorded_at,
+            }
+        )
+    public_events = OperatorAutomationService(
+        PostgresOperatorAutomationRepositoryAdapter(repository)
+    ).list_run_events(run_id=run_id, limit=100, offset=0)
+    assert [item.sequence for item in public_events.items] == [1, 2]
     successor = repository.start_spot_atomic_market_snapshot_cycle(
         _mutation("atomic-market-v11")
     ).entity

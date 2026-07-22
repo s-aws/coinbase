@@ -3,9 +3,11 @@
 ## Current status
 Goal
 `operator_spot_automation_atomic_market_snapshot_binding_and_successor_proof_v10_v12`
-keeps the V10-V12 goal active at V12. V10 and V11 each completed eight exact
-reads and consumed one distinct Preview at terminal `TRANSPORT_UNKNOWN`;
-Create and Cancel remain unconsumed with zero calls.
+is terminal after V10-V12. Each candidate completed eight exact reads and
+consumed its distinct Preview allowance at terminal `TRANSPORT_UNKNOWN`, with
+exact Preview wire count withheld. The aggregate ledger is 3/10 cycles and 24
+exact reads; Create and Cancel remain unconsumed with zero calls and no
+exchange mutation.
 
 The adapter now also recognizes policy-revision-5 V10-V12 atomic-market plans.
 It requires post-only BUY at the exact documented Get Market Trades best bid,
@@ -14,7 +16,8 @@ precomputed eight-read bundle committed with the consumed Preview claim. It
 does not run a second eligibility cycle and does not add a parallel Preview or
 Create path. The V12 boundary distinguishes response-bearing HTTP/redirect
 exceptions from genuine transport uncertainty using only fixed sanitized
-classes. V12 is distinct rather than a V10 or V11 retry. See
+classes. V12 is distinct rather than a V10 or V11 retry, and no successor
+remains. See
 [`OPERATOR_SPOT_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_V10_V12.md`](OPERATOR_SPOT_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_V10_V12.md).
 
 ### Completed V7-V9 status

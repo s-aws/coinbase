@@ -4,18 +4,20 @@
 
 Goal
 `operator_spot_automation_atomic_market_snapshot_binding_and_successor_proof_v10_v12`
-keeps the V10-V12 goal active at V12. V10 cycle 1 and V11 cycle 2 each
-completed all eight reads exactly, atomically bound final terms, and consumed
-one distinct Preview at a terminal `TRANSPORT_UNKNOWN` boundary. Create and
-Cancel remain unconsumed with zero calls and no exchange mutation. The goal replaces the terminal V7 stale-plan
+is terminal after V10-V12. Cycles 1-3 each completed all eight reads exactly,
+atomically bound final terms, and consumed that candidate's distinct Preview
+allowance at a terminal `TRANSPORT_UNKNOWN` boundary with exact Preview wire
+count withheld. The aggregate eligibility ledger is 3/10 cycles and 24 exact
+reads. Create and Cancel remain unconsumed with zero calls and no exchange
+mutation. The goal replaces the terminal V7 stale-plan
 coupling with backend policy revision 5: one no-retry eight-category cycle
 derives the exact post-only best-bid price, minimum valid size, fee-reserved
 cap, plan/child identities, evidence binding, and one-use Preview claim, then
 commits them atomically before Preview. Both notionals remain strictly below
 3.10 USDC. The V12 correction classifies a response-bearing HTTP or blocked-
 redirect exception separately from genuine transport uncertainty using only
-fixed value-blind evidence and exact call accounting. V12 is distinct rather
-than a V10 or V11 retry. See
+fixed value-blind evidence and exact-or-withheld call accounting. V12 is
+distinct rather than a V10 or V11 retry, and no successor remains. See
 [Operator Spot Automation Atomic Market Snapshot V10-V12](docs/OPERATOR_SPOT_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_V10_V12.md).
 
 This repository is the backend for the Coinbase trading system. The modern
