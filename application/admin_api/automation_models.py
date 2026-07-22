@@ -32,6 +32,20 @@ _CANONICAL_UUID_PATTERN = (
 _PRODUCT_PATTERN = r"^[A-Z0-9][A-Z0-9._-]*$"
 _POSITIVE_DECIMAL_PATTERN = r"^(0|[1-9]\d*)(\.\d+)?$"
 _SHA256_PATTERN = r"^[0-9a-f]{64}$"
+_NEAR_MARKET_SPOT_MODES = frozenset(
+    {
+        "NEAR_MARKET_POST_ONLY_V4",
+        "NEAR_MARKET_POST_ONLY_V5",
+        "NEAR_MARKET_POST_ONLY_V6",
+    }
+)
+_PREVIEW_GATED_SPOT_MODES = frozenset(
+    {
+        "PREVIEW_GATED_V2",
+        "DOCUMENTED_MARKET_FRESHNESS_V3",
+        *_NEAR_MARKET_SPOT_MODES,
+    }
+)
 
 
 class AutomationDefinitionLifecycleAction(str, Enum):
@@ -396,7 +410,7 @@ class AutomationSpotSingleChildOrderSpec(BaseModel):
     limit_price: str = Field(pattern=_POSITIVE_DECIMAL_PATTERN, max_length=64)
     order_type: Literal["LIMIT"] = "LIMIT"
     time_in_force: Literal["GOOD_UNTIL_CANCELLED"] = "GOOD_UNTIL_CANCELLED"
-    post_only: Literal[False] = False
+    post_only: bool = False
 
     @model_validator(mode="after")
     def validate_positive_values(self) -> Self:
@@ -409,6 +423,12 @@ class AutomationSpotSingleChildOrderSpec(BaseModel):
         return self
 
 
+class AutomationSpotSingleChildOrderCreateSpec(AutomationSpotSingleChildOrderSpec):
+    """Operator-supplied create terms; backend-derived maker plans are separate."""
+
+    post_only: Literal[False] = False
+
+
 class AutomationDefinitionCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -419,7 +439,7 @@ class AutomationDefinitionCreateRequest(BaseModel):
         "PREVIEW_GATED_V2",
         "DOCUMENTED_MARKET_FRESHNESS_V3",
     ] | None = None
-    single_child_order: AutomationSpotSingleChildOrderSpec | None = None
+    single_child_order: AutomationSpotSingleChildOrderCreateSpec | None = None
 
     @field_validator("display_name", mode="before")
     @classmethod
@@ -453,6 +473,11 @@ class AutomationDefinitionCreateRequest(BaseModel):
         ):
             raise ValueError("automation_single_child_job_kind_blocked")
         if (
+            self.single_child_order is not None
+            and self.single_child_order.post_only is not False
+        ):
+            raise ValueError("automation_spot_plan_post_only_invalid")
+        if (
             self.spot_execution_mode in {
                 "PREVIEW_GATED_V2",
                 "DOCUMENTED_MARKET_FRESHNESS_V3",
@@ -466,6 +491,23 @@ class AutomationDefinitionCreateRequest(BaseModel):
 class AutomationDefinitionLifecycleRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    reason: str = Field(min_length=1, max_length=255)
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def normalize_reason(cls, value: object) -> object:
+        return _normalized_operator_text(value, code="automation_reason_invalid")
+
+
+class AutomationNearMarketCandidatePreparationRequest(BaseModel):
+    """Explicit operator acknowledgement for one backend-derived proposal."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    confirm_backend_derived_terms: Literal[True]
+    confirm_one_no_retry_preparation_cycle: Literal[True]
+    confirm_btc_usdc_test_portfolio_scope: Literal[True]
+    confirm_unknown_consumes_cycle: Literal[True]
     reason: str = Field(min_length=1, max_length=255)
 
     @field_validator("reason", mode="before")
@@ -614,7 +656,7 @@ class AutomationSingleChildPlanReadback(BaseModel):
     limit_price: str = Field(pattern=_POSITIVE_DECIMAL_PATTERN, max_length=64)
     order_type: Literal["LIMIT"] = "LIMIT"
     time_in_force: Literal["GOOD_UNTIL_CANCELLED"] = "GOOD_UNTIL_CANCELLED"
-    post_only: Literal[False] = False
+    post_only: bool = False
     submitted_notional_usdc: str = Field(
         pattern=_POSITIVE_DECIMAL_PATTERN,
         max_length=64,
@@ -690,6 +732,7 @@ class AutomationControlPlaneItem(BaseModel):
     coinbase_api_call_count: Literal[0] = 0
     exchange_mutation_count: Literal[0] = 0
     definition_create_allowed: bool = False
+    near_market_candidate_preparation_allowed: bool = False
     allowed_actions: list[str] = Field(default_factory=list)
     updated_at: datetime
 
@@ -720,6 +763,9 @@ class AutomationDefinitionItem(BaseModel):
         "CREATE_ONLY_V1",
         "PREVIEW_GATED_V2",
         "DOCUMENTED_MARKET_FRESHNESS_V3",
+        "NEAR_MARKET_POST_ONLY_V4",
+        "NEAR_MARKET_POST_ONLY_V5",
+        "NEAR_MARKET_POST_ONLY_V6",
     ] | None = None
     single_child_order: AutomationSpotSingleChildOrderSpec | None = None
     schedule: AutomationDefinitionSchedule
@@ -748,6 +794,18 @@ class AutomationDefinitionItem(BaseModel):
             or self.product_ids != ["BTC-USDC"]
         ):
             raise ValueError("automation_single_child_job_kind_blocked")
+        near_market = self.spot_execution_mode in _NEAR_MARKET_SPOT_MODES
+        if near_market and (
+            self.single_child_order is None
+            or self.single_child_order.post_only is not True
+        ):
+            raise ValueError("automation_near_market_post_only_required")
+        if (
+            not near_market
+            and self.single_child_order is not None
+            and self.single_child_order.post_only is not False
+        ):
+            raise ValueError("automation_spot_plan_post_only_invalid")
         if any(action not in _DEFINITION_ALLOWED_ACTIONS for action in self.allowed_actions):
             raise ValueError("automation_definition_action_invalid")
         if len(self.allowed_actions) != len(set(self.allowed_actions)):
@@ -784,6 +842,9 @@ class AutomationRunItem(BaseModel):
         "CREATE_ONLY_V1",
         "PREVIEW_GATED_V2",
         "DOCUMENTED_MARKET_FRESHNESS_V3",
+        "NEAR_MARKET_POST_ONLY_V4",
+        "NEAR_MARKET_POST_ONLY_V5",
+        "NEAR_MARKET_POST_ONLY_V6",
     ] | None = None
     preview_allowance_consumed: bool = False
     preview_outcome: Literal["ACCEPTED", "REJECTED", "UNKNOWN"] | None = None
@@ -867,10 +928,7 @@ class AutomationRunItem(BaseModel):
         exhausted_preview_terminal = bool(
             self.state is AutomationRunState.BLOCKED
             and self.diagnostic_code == "automation_run_blocked"
-            and self.spot_execution_mode in {
-                "PREVIEW_GATED_V2",
-                "DOCUMENTED_MARKET_FRESHNESS_V3",
-            }
+            and self.spot_execution_mode in _PREVIEW_GATED_SPOT_MODES
         )
         if diagnostics is None or (
             self.diagnostic_code not in diagnostics
@@ -897,10 +955,19 @@ class AutomationRunItem(BaseModel):
             )
         ):
             raise ValueError("automation_run_allowance_invalid")
-        preview_gated = self.spot_execution_mode in {
-            "PREVIEW_GATED_V2",
-            "DOCUMENTED_MARKET_FRESHNESS_V3",
-        }
+        preview_gated = self.spot_execution_mode in _PREVIEW_GATED_SPOT_MODES
+        near_market = self.spot_execution_mode in _NEAR_MARKET_SPOT_MODES
+        if near_market and (
+            self.single_child_plan is None
+            or self.single_child_plan.post_only is not True
+        ):
+            raise ValueError("automation_near_market_post_only_required")
+        if (
+            not near_market
+            and self.single_child_plan is not None
+            and self.single_child_plan.post_only is not False
+        ):
+            raise ValueError("automation_spot_plan_post_only_invalid")
         if self.state is AutomationRunState.UNKNOWN_CONSUMED:
             if (
                 not self.live_attempt_consumed
@@ -1614,6 +1681,95 @@ class AutomationDefinitionMutationResponse(BaseModel):
     activity: AutomationNoExchangeActivity = Field(
         default_factory=AutomationNoExchangeActivity
     )
+
+
+class AutomationNearMarketCandidatePreparationResponse(BaseModel):
+    """Sanitized result of one claimed, no-retry proposal-read cycle."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["automation_near_market_candidate_preparation"] = (
+        "automation_near_market_candidate_preparation"
+    )
+    status: Literal["accepted"] = "accepted"
+    outcome: Literal["MATERIALIZED", "BLOCKED", "UNKNOWN"]
+    candidate_version: Literal[4, 5, 6]
+    spot_execution_mode: Literal[
+        "NEAR_MARKET_POST_ONLY_V4",
+        "NEAR_MARKET_POST_ONLY_V5",
+        "NEAR_MARKET_POST_ONLY_V6",
+    ]
+    cycle_number: int = Field(ge=1, le=10)
+    policy_revision: Literal["BTC_USDC_POST_ONLY_BEST_BID_V1"] = (
+        "BTC_USDC_POST_ONLY_BEST_BID_V1"
+    )
+    diagnostic_code: Literal[
+        "automation_near_market_api_key_permissions_rejected",
+        "automation_near_market_best_bid_ask_rejected",
+        "automation_near_market_fee_summary_rejected",
+        "automation_near_market_portfolio_catalog_rejected",
+        "automation_near_market_portfolio_configuration_invalid",
+        "automation_near_market_preparation_unknown",
+        "automation_near_market_product_metadata_rejected",
+        "automation_near_market_terms_derived",
+        "automation_near_market_wallet_balances_rejected",
+        "near_market_fee_invalid",
+        "near_market_no_valid_size",
+        "near_market_post_only_crossing",
+        "near_market_product_blocked",
+        "near_market_product_metadata_invalid",
+        "near_market_snapshot_future",
+        "near_market_snapshot_invalid",
+        "near_market_snapshot_stale",
+        "near_market_snapshot_timestamp_invalid",
+        "near_market_wallet_insufficient",
+    ]
+    completed_categories: list[
+        Literal[
+            "api_key_permissions",
+            "portfolio_catalog",
+            "wallet_balances",
+            "product_metadata",
+            "best_bid_ask",
+            "fee_summary",
+        ]
+    ] = Field(default_factory=list, max_length=6)
+    coinbase_api_call_count: int | None = Field(default=0, ge=0)
+    call_count_exact: bool = True
+    definition: AutomationDefinitionItem | None = None
+    preview_call_count: Literal[0] = 0
+    create_call_count: Literal[0] = 0
+    cancel_call_count: Literal[0] = 0
+    audit_id: str = Field(pattern=_CANONICAL_UUID_PATTERN)
+    correlation_id: str = Field(
+        min_length=1,
+        max_length=255,
+        pattern=_VISIBLE_ASCII_PATTERN,
+    )
+    replayed: bool = False
+
+    @model_validator(mode="after")
+    def validate_preparation_evidence(self) -> Self:
+        if self.call_count_exact is (self.coinbase_api_call_count is None):
+            raise ValueError(
+                "automation_near_market_preparation_call_count_invalid"
+            )
+        expected_mode = f"NEAR_MARKET_POST_ONLY_V{self.candidate_version}"
+        if self.spot_execution_mode != expected_mode:
+            raise ValueError("automation_near_market_preparation_mode_invalid")
+        if (self.outcome == "MATERIALIZED") is (self.definition is None):
+            raise ValueError(
+                "automation_near_market_preparation_definition_invalid"
+            )
+        if self.definition is not None and (
+            self.definition.spot_execution_mode != self.spot_execution_mode
+            or self.definition.single_child_order is None
+            or self.definition.single_child_order.post_only is not True
+        ):
+            raise ValueError(
+                "automation_near_market_preparation_definition_invalid"
+            )
+        return self
 
 
 class AutomationControlMutationResponse(BaseModel):

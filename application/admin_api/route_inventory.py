@@ -2611,6 +2611,33 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="automation_control_plane",
+        surface="POST /api/v1/automation/near-market-candidates",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.ACCOUNT_REALITY_REFRESH,
+        idempotency=(
+            "required durable goal-global preparation claim; exact replay is "
+            "call-free and changed payload, actor, or intent conflicts"
+        ),
+        approval=(
+            "required explicit backend-derived BTC-USDC/Test-scope and unknown-consumes-cycle "
+            "acknowledgements; also requires automation configure, trigger, and resume"
+        ),
+        caps=(
+            "required one sequential V4-V6 proposal, one no-retry six-category preparation read, "
+            "3.10 submitted and 1.00 possible-execution USDC ceilings"
+        ),
+        audit=(
+            "required durable preparation cycle, fixed sanitized classification, atomic immutable "
+            "definition linkage, and exact or unknown call accounting"
+        ),
+        shared_method="prepare_near_market_candidate",
+        parity_test=(
+            "bounded approved Coinbase calls for six read-only categories; zero Preview, "
+            "Create, Cancel, retry, or other exchange mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="automation_control_plane",
         surface="GET /api/v1/automation/definitions/{definition_id}",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.AUTOMATION_READ,

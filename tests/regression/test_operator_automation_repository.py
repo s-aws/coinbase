@@ -18,6 +18,14 @@ from application.admin_api.operator_automation import (
     OperatorAutomationService,
     PostgresOperatorAutomationRepositoryAdapter,
 )
+from application.admin_api.automation_models import AutomationMutationContext
+from application.admin_api.operator_spot_near_market_policy import (
+    NearMarketBuyPlan,
+)
+from application.admin_api.operator_spot_near_market_preparation import (
+    NearMarketPreparationOutcome,
+    NearMarketPreparationResult,
+)
 from core.enums import (
     OperatorAutomationControlPosture,
     OperatorAutomationDefinitionState,
@@ -26,13 +34,21 @@ from core.enums import (
     OperatorAutomationRunState,
     OperatorAutomationScheduleKind,
 )
+from core.operator_spot_near_market_evidence import (
+    NEAR_MARKET_POLICY_REVISION,
+    near_market_preparation_evidence_sha256,
+)
 from database.database import PostgresDB
 from database.operator_automation import (
     AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+    AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY,
+    AUTOMATION_SPOT_NEAR_MARKET_V5_GOAL_KEY,
+    AUTOMATION_SPOT_NEAR_MARKET_V6_GOAL_KEY,
     AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
     AutomationDefinitionCreateCommand,
     AutomationMutationCommand,
     AutomationSpotSingleChildPlanTerms,
+    AutomationSpotNearMarketMaterializationEvidence,
     AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES,
     AutomationStoreConflict,
     AutomationStoreInvalid,
@@ -215,6 +231,7 @@ def test_schema_is_idempotent_and_persists_only_hashed_key_and_actor(
         "automation_spot_eligibility_cycle",
         "automation_spot_eligibility_attempt",
         "automation_spot_live_proof_goal",
+        "automation_spot_near_market_preparation",
         "automation_spot_plan_goal",
         "automation_spot_preview_gated_goal",
         "automation_spot_run_execution",
@@ -980,6 +997,92 @@ def _spot_plan_terms(**overrides: object) -> AutomationSpotSingleChildPlanTerms:
     return AutomationSpotSingleChildPlanTerms(
         **values,
     )
+
+
+def _near_market_materialization_evidence(
+    terms: AutomationSpotSingleChildPlanTerms,
+    *,
+    cycle_number: int,
+    goal_key: str,
+) -> AutomationSpotNearMarketMaterializationEvidence:
+    diagnostic_code = "automation_near_market_terms_derived"
+    categories = tuple(AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[:6])
+    evidence_hash = near_market_preparation_evidence_sha256(
+        call_count=6,
+        categories=categories,
+        diagnostic_code=diagnostic_code,
+        outcome="MATERIALIZED",
+        policy_revision=NEAR_MARKET_POLICY_REVISION,
+        plan={
+            "base_size": terms.base_size,
+            "limit_price": terms.limit_price,
+            "max_possible_execution_notional_usdc": (
+                terms.max_possible_execution_notional_usdc
+            ),
+            "max_submitted_notional_usdc": terms.max_submitted_notional_usdc,
+            "possible_execution_notional_usdc": (
+                terms.possible_execution_notional_usdc
+            ),
+            "post_only": terms.post_only,
+            "portfolio_id_sha256": terms.portfolio_id_sha256,
+            "product_id": terms.product_id,
+            "side": terms.side,
+            "submitted_notional_usdc": terms.submitted_notional_usdc,
+        },
+    )
+    return AutomationSpotNearMarketMaterializationEvidence(
+        cycle_number=cycle_number,
+        goal_key=goal_key,
+        diagnostic_code=diagnostic_code,
+        completed_categories=categories,
+        coinbase_api_call_count=6,
+        evidence_sha256=evidence_hash,
+    )
+
+
+def _materialize_near_market_candidate(
+    repository: OperatorAutomationRepository,
+    seed: str,
+):
+    claimed = repository.start_spot_near_market_preparation(
+        _mutation(f"{seed}-preparation")
+    ).entity
+    terms = _spot_plan_terms(
+        base_size="0.00001",
+        limit_price="49999",
+        submitted_notional_usdc="0.49999",
+        possible_execution_notional_usdc="0.49999",
+        post_only=True,
+    )
+    created = repository.create_definition(
+        _definition_command(
+            f"{seed}-definition",
+            product_ids=("BTC-USDC",),
+        ),
+        spot_single_child_plan=terms,
+        spot_goal_key=claimed.goal_key,
+        spot_near_market_materialization=_near_market_materialization_evidence(
+            terms,
+            cycle_number=claimed.cycle_number,
+            goal_key=claimed.goal_key,
+        ),
+    ).entity
+    enabled = repository.transition_definition(
+        created.definition_id,
+        "enable",
+        _mutation(f"{seed}-enable"),
+    ).entity
+    run = repository.claim_one_shot_run(
+        enabled.definition_id,
+        _mutation(f"{seed}-run"),
+    ).entity
+    run = repository.transition_run(
+        run.run_id,
+        OperatorAutomationRunState.PREPARING,
+        diagnostic_code="preparing",
+        command=_mutation(f"{seed}-preparing"),
+    ).entity
+    return claimed, created, run
 
 
 def test_plan_bearing_definition_create_is_atomic_exactly_replayable_and_concurrent(
@@ -3402,6 +3505,571 @@ def test_documented_market_freshness_v3_requires_terminal_v2_and_preserves_it(
     assert repository.get_spot_preview_gated_goal(
         goal_key=AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
     ) == v2_goal_before_v3_attempt
+
+
+def _seal_rejected_v3_predecessor(
+    repository: OperatorAutomationRepository,
+    seed: str,
+) -> None:
+    _seal_rejected_predecessor(repository, f"{seed}-v1")
+    v2 = repository.create_definition(
+        _definition_command(f"{seed}-v2", product_ids=("BTC-USDC",)),
+        spot_single_child_plan=_spot_plan_terms(),
+        spot_goal_key=AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
+    ).entity
+    v2 = repository.transition_definition(
+        v2.definition_id,
+        "enable",
+        _mutation(f"{seed}-v2-enable"),
+    ).entity
+    v2_run = repository.claim_one_shot_run(
+        v2.definition_id,
+        _mutation(f"{seed}-v2-run"),
+    ).entity
+    repository.transition_run(
+        v2_run.run_id,
+        OperatorAutomationRunState.BLOCKED,
+        diagnostic_code="automation_run_blocked",
+        command=_mutation(f"{seed}-v2-terminal"),
+    )
+    v3 = repository.create_definition(
+        _definition_command(f"{seed}-v3", product_ids=("BTC-USDC",)),
+        spot_single_child_plan=_spot_plan_terms(
+            base_size="0.00001",
+            submitted_notional_usdc="0.50",
+            possible_execution_notional_usdc="0.50",
+        ),
+        spot_goal_key=AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+    ).entity
+    v3 = repository.transition_definition(
+        v3.definition_id,
+        "enable",
+        _mutation(f"{seed}-v3-enable"),
+    ).entity
+    v3_run = repository.claim_one_shot_run(
+        v3.definition_id,
+        _mutation(f"{seed}-v3-run"),
+    ).entity
+    repository.transition_run(
+        v3_run.run_id,
+        OperatorAutomationRunState.PREPARING,
+        diagnostic_code="preparing",
+        command=_mutation(f"{seed}-v3-preparing"),
+    )
+    _complete_eligible_cycle(repository, v3_run.run_id, f"{seed}-v3-cycle")
+    repository.start_spot_preview_invocation(
+        v3_run.run_id,
+        eligibility_cycle=1,
+        command=_mutation(f"{seed}-v3-preview-start"),
+    )
+    repository.finalize_spot_preview_invocation(
+        v3_run.run_id,
+        outcome="REJECTED",
+        failure_class="DOCUMENTED_REJECTION",
+        rejection_code="LIMIT_PRICE",
+        warning_present=False,
+        preview_id_sha256=None,
+        preview_call_count=1,
+        call_count_exact=True,
+        command=_mutation(f"{seed}-v3-preview-finish"),
+    )
+
+
+def test_near_market_definition_cannot_bypass_claimed_materialization(
+    repository_harness: _Harness,
+) -> None:
+    repository = repository_harness.repository()
+    _seal_rejected_v3_predecessor(repository, "near-market-bypass")
+
+    with pytest.raises(AutomationStoreInvalid) as error:
+        repository.create_definition(
+            _definition_command(
+                "near-market-bypass-v4",
+                product_ids=("BTC-USDC",),
+            ),
+            spot_single_child_plan=_spot_plan_terms(
+                base_size="0.00001",
+                limit_price="49999",
+                submitted_notional_usdc="0.49999",
+                possible_execution_notional_usdc="0.49999",
+                post_only=True,
+            ),
+            spot_goal_key=AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY,
+        )
+
+    assert error.value.code == "automation_near_market_materialization_required"
+
+
+def test_near_market_preparation_claim_atomically_materializes_v4_post_only_plan(
+    repository_harness: _Harness,
+) -> None:
+    repository = repository_harness.repository()
+    _seal_rejected_v3_predecessor(repository, "near-market")
+    claim_command = _mutation("near-market-v4-preparation")
+    claimed = repository.start_spot_near_market_preparation(claim_command)
+    assert claimed.entity.goal_key == AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY
+    assert claimed.entity.candidate_version == 4
+    assert claimed.entity.cycle_number == 1
+    assert claimed.entity.state == "CLAIMED"
+    with pytest.raises(
+        psycopg2.errors.RaiseException,
+        match="automation_spot_near_market_preparation_binding_is_immutable",
+    ):
+        with repository.database.get_cursor() as cursor:
+            cursor.execute(
+                f'UPDATE "{repository.schema}".'
+                "automation_spot_near_market_preparation "
+                "SET correlation_id = 'tampered-correlation' "
+                "WHERE cycle_number = %s",
+                (claimed.entity.cycle_number,),
+            )
+
+    terms = _spot_plan_terms(
+        base_size="0.00001",
+        limit_price="49999",
+        submitted_notional_usdc="0.49999",
+        possible_execution_notional_usdc="0.49999",
+        post_only=True,
+    )
+    with pytest.raises(AutomationStoreInvalid) as unbound_evidence:
+        repository.create_definition(
+            _definition_command(
+                "near-market-v4-definition-unbound",
+                product_ids=("BTC-USDC",),
+            ),
+            spot_single_child_plan=terms,
+            spot_goal_key=AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY,
+            spot_near_market_materialization=(
+                AutomationSpotNearMarketMaterializationEvidence(
+                    cycle_number=claimed.entity.cycle_number,
+                    goal_key=claimed.entity.goal_key,
+                    diagnostic_code="automation_near_market_terms_derived",
+                    completed_categories=tuple(
+                        AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[:6]
+                    ),
+                    coinbase_api_call_count=6,
+                    evidence_sha256="f" * 64,
+                )
+            ),
+        )
+    assert unbound_evidence.value.code == (
+        "automation_near_market_materialization_invalid"
+    )
+    with pytest.raises(AutomationStoreInvalid) as portfolio_drift:
+        repository.create_definition(
+            _definition_command(
+                "near-market-v4-definition-portfolio-drift",
+                product_ids=("BTC-USDC",),
+            ),
+            spot_single_child_plan=replace(
+                terms,
+                portfolio_id_sha256="b" * 64,
+            ),
+            spot_goal_key=AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY,
+            spot_near_market_materialization=(
+                _near_market_materialization_evidence(
+                    terms,
+                    cycle_number=claimed.entity.cycle_number,
+                    goal_key=claimed.entity.goal_key,
+                )
+            ),
+        )
+    assert portfolio_drift.value.code == (
+        "automation_near_market_materialization_invalid"
+    )
+    created = repository.create_definition(
+        _definition_command(
+            "near-market-v4-definition",
+            product_ids=("BTC-USDC",),
+        ),
+        spot_single_child_plan=terms,
+        spot_goal_key=AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY,
+        spot_near_market_materialization=_near_market_materialization_evidence(
+            terms,
+            cycle_number=claimed.entity.cycle_number,
+            goal_key=claimed.entity.goal_key,
+        ),
+    )
+    plan = repository.get_spot_single_child_plan(
+        created.entity.definition_id,
+        created.entity.revision,
+    )
+    assert plan is not None and plan.post_only is True
+    finalized = repository.list_spot_near_market_preparations()
+    assert len(finalized) == 1
+    assert finalized[0].state == "MATERIALIZED"
+    assert finalized[0].definition_id == created.entity.definition_id
+    assert finalized[0].coinbase_api_call_count == 6
+    with pytest.raises(
+        psycopg2.errors.RaiseException,
+        match="automation_spot_near_market_preparation_is_immutable",
+    ):
+        with repository.database.get_cursor() as cursor:
+            cursor.execute(
+                f'DELETE FROM "{repository.schema}".'
+                "automation_spot_near_market_preparation "
+                "WHERE cycle_number = %s",
+                (claimed.entity.cycle_number,),
+            )
+    assert repository.start_spot_near_market_preparation(
+        claim_command
+    ).entity == finalized[0]
+    with pytest.raises(AutomationStoreConflict) as correlation_conflict:
+        repository.start_spot_near_market_preparation(
+            replace(
+                claim_command,
+                correlation_id="correlation-near-market-v4-preparation-drift",
+            )
+        )
+    assert correlation_conflict.value.code == (
+        "automation_near_market_preparation_idempotency_conflict"
+    )
+
+    enabled = repository.transition_definition(
+        created.entity.definition_id,
+        "enable",
+        _mutation("near-market-v4-enable"),
+    ).entity
+    run = repository.claim_one_shot_run(
+        enabled.definition_id,
+        _mutation("near-market-v4-run"),
+    ).entity
+    repository.transition_run(
+        run.run_id,
+        OperatorAutomationRunState.PREPARING,
+        diagnostic_code="preparing",
+        command=_mutation("near-market-v4-preparing"),
+    )
+    _complete_eligible_cycle(repository, run.run_id, "near-market-v4-cycle")
+    cycle = repository.list_spot_eligibility_cycles(
+        goal_key=AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY,
+    )[-1]
+    assert cycle.policy_revision == 3
+    repository.start_spot_preview_invocation(
+        run.run_id,
+        eligibility_cycle=cycle.cycle_number,
+        command=_mutation("near-market-v4-preview-start"),
+    )
+    repository.finalize_spot_preview_invocation(
+        run.run_id,
+        outcome="ACCEPTED",
+        failure_class="NONE",
+        rejection_code=None,
+        warning_present=False,
+        preview_id_sha256="a" * 64,
+        preview_call_count=1,
+        call_count_exact=True,
+        command=_mutation("near-market-v4-preview-finish"),
+    )
+    started = repository.start_spot_create_invocation(
+        run.run_id,
+        eligibility_cycle=cycle.cycle_number,
+        command=_mutation("near-market-v4-create-start"),
+    )
+    assert started.entity.policy_revision == 3
+    repository.finalize_spot_create_invocation(
+        run.run_id,
+        outcome="ACCEPTED",
+        child_terminal=False,
+        coinbase_api_call_count=1,
+        call_count_exact=True,
+        read_call_count=1,
+        read_call_count_exact=True,
+        command=_mutation("near-market-v4-create-finish"),
+    )
+    repository.start_spot_cancel_invocation(
+        run.run_id,
+        client_order_id=started.entity.client_order_id,
+        command=_mutation("near-market-v4-cancel-start"),
+    )
+    repository.finalize_spot_cancel_invocation(
+        run.run_id,
+        outcome="ACCEPTED",
+        child_terminal=True,
+        coinbase_api_call_count=1,
+        call_count_exact=True,
+        read_call_count=2,
+        read_call_count_exact=True,
+        command=_mutation("near-market-v4-cancel-finish"),
+    )
+    terminal = repository.get_run(run.run_id)
+    assert terminal is not None
+    assert terminal.state is OperatorAutomationRunState.TERMINAL
+
+
+def test_near_market_service_materializes_the_exact_hashed_runner_plan(
+    repository_harness: _Harness,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = repository_harness.repository()
+    _seal_rejected_v3_predecessor(repository, "near-market-service")
+    portfolio_id = "11111111-1111-4111-8111-111111111111"
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID", portfolio_id)
+    plan = NearMarketBuyPlan(
+        policy_revision=NEAR_MARKET_POLICY_REVISION,
+        product_id="BTC-USDC",
+        side="BUY",
+        base_size="0.00001",
+        limit_price="49999",
+        submitted_notional_usdc="0.49999",
+        possible_execution_notional_usdc="0.49999",
+        max_submitted_notional_usdc="3.10",
+        max_possible_execution_notional_usdc="1.00",
+        post_only=True,
+    )
+    evidence = near_market_preparation_evidence_sha256(
+        call_count=6,
+        categories=AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[:6],
+        diagnostic_code="automation_near_market_terms_derived",
+        outcome="MATERIALIZED",
+        policy_revision=NEAR_MARKET_POLICY_REVISION,
+        plan={
+            "base_size": plan.base_size,
+            "limit_price": plan.limit_price,
+            "max_possible_execution_notional_usdc": (
+                plan.max_possible_execution_notional_usdc
+            ),
+            "max_submitted_notional_usdc": plan.max_submitted_notional_usdc,
+            "possible_execution_notional_usdc": (
+                plan.possible_execution_notional_usdc
+            ),
+            "post_only": plan.post_only,
+            "portfolio_id_sha256": hashlib.sha256(
+                portfolio_id.encode("utf-8")
+            ).hexdigest(),
+            "product_id": plan.product_id,
+            "side": plan.side,
+            "submitted_notional_usdc": plan.submitted_notional_usdc,
+        },
+    )
+    result = NearMarketPreparationResult(
+        outcome=NearMarketPreparationOutcome.MATERIALIZED,
+        diagnostic_code="automation_near_market_terms_derived",
+        completed_categories=tuple(AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[:6]),
+        coinbase_api_call_count=6,
+        call_count_exact=True,
+        evidence_sha256=evidence,
+        plan=plan,
+    )
+    adapter = PostgresOperatorAutomationRepositoryAdapter(
+        repository,
+        spot_near_market_preparation_runner=lambda: result,
+    )
+
+    mutation = adapter.prepare_near_market_candidate(
+        request={
+            "confirm_backend_derived_terms": True,
+            "confirm_one_no_retry_preparation_cycle": True,
+            "confirm_btc_usdc_test_portfolio_scope": True,
+            "confirm_unknown_consumes_cycle": True,
+            "reason": "Prepare exact backend-derived terms",
+        },
+        context=AutomationMutationContext(
+            actor_id="operator-near-market",
+            roles=("operator",),
+            idempotency_key="k" * 255,
+            correlation_id="near-market-service-correlation",
+            operator_intent="prepare_automation_near_market_candidate",
+        ),
+    )
+
+    assert mutation.entity["outcome"] == "MATERIALIZED"
+    assert mutation.entity["diagnostic_code"] == (
+        "automation_near_market_terms_derived"
+    )
+    stored = repository.list_spot_near_market_preparations()
+    assert stored[-1].state == "MATERIALIZED"
+    assert stored[-1].evidence_sha256 == evidence
+
+
+def test_near_market_preparation_restart_consumes_unknown_cycle_without_candidate(
+    repository_harness: _Harness,
+) -> None:
+    repository = repository_harness.repository()
+    _seal_rejected_v3_predecessor(repository, "near-market-restart")
+    claimed = repository.start_spot_near_market_preparation(
+        _mutation("near-market-restart-v4-preparation")
+    ).entity
+
+    restarted = repository_harness.repository()
+    restarted.recover_runs_after_restart()
+
+    recovered = restarted.list_spot_near_market_preparations()
+    assert len(recovered) == 1
+    assert recovered[0].cycle_number == claimed.cycle_number
+    assert recovered[0].state == "UNKNOWN"
+    assert recovered[0].definition_id is None
+    assert recovered[0].coinbase_api_call_count is None
+    assert recovered[0].call_count_exact is False
+    assert recovered[0].evidence_sha256 is None
+    next_claim = restarted.start_spot_near_market_preparation(
+        _mutation("near-market-restart-v4-preparation-next")
+    ).entity
+    assert next_claim.goal_key == AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY
+    assert next_claim.cycle_number == claimed.cycle_number + 1
+
+
+def test_near_market_v4_v6_sequence_has_distinct_single_use_allowances(
+    repository_harness: _Harness,
+) -> None:
+    repository = repository_harness.repository()
+    _seal_rejected_v3_predecessor(repository, "near-market-sequence")
+    expected = (
+        (4, AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY),
+        (5, AUTOMATION_SPOT_NEAR_MARKET_V5_GOAL_KEY),
+        (6, AUTOMATION_SPOT_NEAR_MARKET_V6_GOAL_KEY),
+    )
+    runs = []
+    for version, goal_key in expected:
+        claimed, _definition, run = _materialize_near_market_candidate(
+            repository,
+            f"near-market-sequence-v{version}",
+        )
+        assert claimed.candidate_version == version
+        assert claimed.goal_key == goal_key
+        _complete_eligible_cycle(
+            repository,
+            run.run_id,
+            f"near-market-sequence-v{version}-eligibility",
+        )
+        cycle = repository.list_spot_eligibility_cycles(
+            goal_key=goal_key,
+        )[-1]
+        repository.start_spot_preview_invocation(
+            run.run_id,
+            eligibility_cycle=cycle.cycle_number,
+            command=_mutation(f"near-market-sequence-v{version}-preview-start"),
+        )
+        outcome = (
+            "REJECTED" if version == 4 else "UNKNOWN" if version == 5 else "ACCEPTED"
+        )
+        failure_class = {
+            "REJECTED": "DOCUMENTED_REJECTION",
+            "UNKNOWN": "TRANSPORT_UNKNOWN",
+            "ACCEPTED": "NONE",
+        }[outcome]
+        repository.finalize_spot_preview_invocation(
+            run.run_id,
+            outcome=outcome,
+            failure_class=failure_class,
+            rejection_code=("LIMIT_PRICE" if outcome == "REJECTED" else None),
+            warning_present=False,
+            preview_id_sha256=("a" * 64 if outcome == "ACCEPTED" else None),
+            preview_call_count=(None if outcome == "UNKNOWN" else 1),
+            call_count_exact=outcome != "UNKNOWN",
+            command=_mutation(f"near-market-sequence-v{version}-preview-finish"),
+        )
+        goal = repository.get_spot_preview_gated_goal(goal_key=goal_key)
+        assert goal.preview_allowance_consumed is True
+        assert goal.preview_outcome == outcome
+        assert goal.create_allowance_consumed is False
+        runs.append(run)
+
+    accepted_run = runs[-1]
+    accepted_cycle = repository.list_spot_eligibility_cycles(
+        goal_key=AUTOMATION_SPOT_NEAR_MARKET_V6_GOAL_KEY,
+    )[-1]
+    started = repository.start_spot_create_invocation(
+        accepted_run.run_id,
+        eligibility_cycle=accepted_cycle.cycle_number,
+        command=_mutation("near-market-sequence-v6-create-start"),
+    ).entity
+    repository.finalize_spot_create_invocation(
+        accepted_run.run_id,
+        outcome="ACCEPTED",
+        child_terminal=False,
+        coinbase_api_call_count=1,
+        call_count_exact=True,
+        read_call_count=1,
+        read_call_count_exact=True,
+        command=_mutation("near-market-sequence-v6-create-finish"),
+    )
+    repository.start_spot_cancel_invocation(
+        accepted_run.run_id,
+        client_order_id=started.client_order_id,
+        command=_mutation("near-market-sequence-v6-cancel-start"),
+    )
+    repository.finalize_spot_cancel_invocation(
+        accepted_run.run_id,
+        outcome="ACCEPTED",
+        child_terminal=True,
+        coinbase_api_call_count=1,
+        call_count_exact=True,
+        read_call_count=2,
+        read_call_count_exact=True,
+        command=_mutation("near-market-sequence-v6-cancel-finish"),
+    )
+    v6_goal = repository.get_spot_preview_gated_goal(
+        goal_key=AUTOMATION_SPOT_NEAR_MARKET_V6_GOAL_KEY,
+    )
+    assert v6_goal.create_allowance_consumed is True
+    assert v6_goal.create_outcome == "ACCEPTED"
+    assert v6_goal.cancel_allowance_consumed is True
+    assert v6_goal.cancel_outcome == "ACCEPTED"
+    with pytest.raises(AutomationStoreConflict) as exhausted:
+        repository.start_spot_near_market_preparation(
+            _mutation("near-market-sequence-v7-forbidden")
+        )
+    assert exhausted.value.code == "automation_near_market_successor_not_available"
+
+
+def test_near_market_preparation_and_eligibility_share_ten_cycle_budget(
+    repository_harness: _Harness,
+) -> None:
+    repository = repository_harness.repository()
+    _seal_rejected_v3_predecessor(repository, "near-market-global-budget")
+    claimed, _definition, run = _materialize_near_market_candidate(
+        repository,
+        "near-market-global-budget-v4",
+    )
+    assert claimed.cycle_number == 1
+    plan = repository.get_spot_single_child_plan(
+        run.definition_id,
+        run.definition_revision,
+    )
+    assert plan is not None
+
+    for cycle_number in range(2, 11):
+        _, cycle = _allocate_spot_eligibility_cycle(
+            repository,
+            run.run_id,
+            plan.plan_sha256,
+            f"near-market-global-budget-cycle-{cycle_number}",
+        )
+        assert cycle.cycle_number == cycle_number
+        category = AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[0]
+        repository.start_spot_eligibility_attempt(
+            run.run_id,
+            category=category,
+            command=_mutation(
+                f"near-market-global-budget-{cycle_number}-start"
+            ),
+        )
+        repository.finalize_spot_eligibility_attempt(
+            run.run_id,
+            category=category,
+            outcome="REJECTED",
+            eligible=False,
+            coinbase_api_call_count=1,
+            call_count_exact=True,
+            portfolio_id_sha256=None,
+            **_eligibility_evidence(
+                f"near-market-global-budget-{cycle_number}",
+                "REJECTED",
+            ),
+            command=_mutation(
+                f"near-market-global-budget-{cycle_number}-finish"
+            ),
+        )
+
+    with pytest.raises(AutomationStoreConflict) as exhausted:
+        _allocate_spot_eligibility_cycle(
+            repository,
+            run.run_id,
+            plan.plan_sha256,
+            "near-market-global-budget-eleventh",
+        )
+    assert exhausted.value.code == "automation_spot_eligibility_cycles_exhausted"
 
 
 def test_preview_claim_is_single_use_and_rejection_leaves_create_unconsumed(

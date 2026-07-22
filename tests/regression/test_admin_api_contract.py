@@ -75259,6 +75259,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "spot.usdc_pair_snapshot_order_plan",
         "spot.usdc_pair_snapshot_allowlist_live_handoff",
         "automation.operator_control_plane",
+        "automation.spot_near_market_preparation",
         "automation.spot_eligibility_refresh",
         "automation.spot_single_child_execution",
         "stealth.create",
@@ -75316,6 +75317,34 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "POST /api/v1/automation/runs/{run_id}/eligibility-cycles"
         not in automation_control_taxonomy["command_surfaces"]
     )
+    automation_near_market_taxonomy = taxonomy_by_id[
+        "automation.spot_near_market_preparation"
+    ]
+    assert automation_near_market_taxonomy["mutation_family"] == (
+        AdminApiMutationFamilyType.ADMIN_ACCOUNT_REALITY_REFRESH.value
+    )
+    assert automation_near_market_taxonomy["action_classes"] == [
+        AdminApiActionClass.LOCAL_STATE_MUTATION.value
+    ]
+    assert set(automation_near_market_taxonomy["required_permissions"]) == {
+        AdminApiPermission.ACCOUNT_REALITY_REFRESH.value,
+        AdminApiPermission.AUTOMATION_CONFIGURE.value,
+        AdminApiPermission.AUTOMATION_RESUME.value,
+        AdminApiPermission.AUTOMATION_TRIGGER.value,
+    }
+    assert automation_near_market_taxonomy["command_surfaces"] == [
+        "POST /api/v1/automation/near-market-candidates"
+    ]
+    assert automation_near_market_taxonomy["approval_required"] is False
+    assert automation_near_market_taxonomy["cap_guard_required"] is True
+    assert automation_near_market_taxonomy["reconciliation_required"] is False
+    assert automation_near_market_taxonomy["live_adapter_required"] is False
+    assert automation_near_market_taxonomy["live_coinbase_execution"] == "not_run"
+    assert "six approved read-only" in automation_near_market_taxonomy["summary"]
+    assert "BTC_USDC_POST_ONLY_BEST_BID_V1" in (
+        automation_near_market_taxonomy["cap_guard_contract"]
+    )
+    assert automation_near_market_taxonomy["blockers"] == []
     automation_eligibility_taxonomy = taxonomy_by_id[
         "automation.spot_eligibility_refresh"
     ]

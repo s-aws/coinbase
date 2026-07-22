@@ -49,6 +49,7 @@ from .operator_spot_eligibility import (
     SpotEligibilityReadOutcome,
     derive_spot_eligibility_client_order_id,
 )
+from .operator_spot_eligibility import SPOT_ELIGIBILITY_NEAR_MARKET_GOAL_KEYS
 from .operator_spot_eligibility_reader import SpotEligibilityReadSnapshot
 from .spot_portfolio_binding import SpotPortfolioBindingEvidence
 
@@ -335,6 +336,8 @@ def build_spot_automation_create_admission(
         code="spot_automation_plan_binding_invalid",
         positive=True,
     )
+    near_market = goal_key in SPOT_ELIGIBILITY_NEAR_MARKET_GOAL_KEYS
+    expected_post_only = near_market
     if (
         type(definition_revision) is not int
         or definition_revision < 1
@@ -347,7 +350,7 @@ def build_spot_automation_create_admission(
         or possible_execution_notional > MAX_EXECUTED_NOTIONAL_USDC
         or possible_execution_notional > submitted_notional
         or submitted_notional != base_size * limit_price
-        or _field(plan, "post_only") is not False
+        or _field(plan, "post_only") is not expected_post_only
         or cycle.replayed
         or cycle.outcome is not SpotEligibilityReadOutcome.SUCCEEDED
         or not cycle.eligible
@@ -464,6 +467,13 @@ def build_spot_automation_create_admission(
         side=side,
         base_size=base_size,
         limit_price=limit_price,
+        post_only=expected_post_only,
+        policy_revision=3 if near_market else 2,
+        standing_price_policy=(
+            "NEAR_MARKET_POST_ONLY_V1"
+            if near_market
+            else "STANDARD_STANDING_V2"
+        ),
         portfolio_id_sha256=portfolio_sha256,
         fresh_until=cycle.fresh_until.astimezone(timezone.utc),
         portfolio_binding=portfolio_binding,
@@ -525,6 +535,7 @@ def build_spot_automation_cancel_ownership(
     lease: SpotProfileAdmissionLease,
     configured_portfolio_id: str,
     now: datetime,
+    goal_key: str,
 ) -> ValidatedSpotAutomationOwnershipEvidence:
     """Build risk-reducing Cancel ownership from durable Create provenance."""
 
@@ -551,10 +562,13 @@ def build_spot_automation_cancel_ownership(
         code="spot_automation_client_order_binding_invalid",
     )
     run_state = _field(run, "state")
+    near_market = goal_key in SPOT_ELIGIBILITY_NEAR_MARKET_GOAL_KEYS
+    expected_policy_revision = 3 if near_market else 2
     if str(getattr(run_state, "value", run_state)) != "ACTIVE":
         raise _fixed_error("spot_automation_cancel_binding_invalid")
     if (
-        _field(execution, "policy_revision") != 2
+        _field(execution, "policy_revision") != expected_policy_revision
+        or _field(plan, "post_only") is not near_market
         or _field(execution, "run_id") != run_id
         or _field(execution, "definition_id") != definition_id
         or _field(execution, "definition_revision")
@@ -571,7 +585,8 @@ def build_spot_automation_cancel_ownership(
         or _field(execution, "child_terminal") is not False
         or type(cycle_number) is not int
         or _field(eligibility_cycle, "cycle_number") != cycle_number
-        or _field(eligibility_cycle, "policy_revision") != 2
+        or _field(eligibility_cycle, "policy_revision")
+        != expected_policy_revision
         or _field(eligibility_cycle, "state") != "SUCCEEDED"
         or _field(eligibility_cycle, "run_id") != run_id
         or _field(eligibility_cycle, "plan_sha256") != plan_sha256
@@ -607,6 +622,13 @@ def build_spot_automation_cancel_ownership(
             _field(plan, "limit_price"),
             code="spot_automation_plan_binding_invalid",
             positive=True,
+        ),
+        post_only=bool(_field(plan, "post_only")),
+        policy_revision=expected_policy_revision,
+        standing_price_policy=(
+            "NEAR_MARKET_POST_ONLY_V1"
+            if near_market
+            else "STANDARD_STANDING_V2"
         ),
         portfolio_id_sha256=portfolio_sha256,
         # This freshness covers the request-local revalidation of immutable

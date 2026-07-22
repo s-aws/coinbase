@@ -247,6 +247,53 @@ class _FakeRepository:
         self._record("create_definition", **kwargs)
         return self._mutation(_definition(), kwargs["context"].correlation_id)
 
+    def prepare_near_market_candidate(
+        self,
+        **kwargs: Any,
+    ) -> AutomationRepositoryMutation:
+        self._record("prepare_near_market_candidate", **kwargs)
+        definition = _definition()
+        definition.update(
+            {
+                "display_name": "BTC-USDC near-market successor V4",
+                "job_kind": "SPOT_CAMPAIGN",
+                "spot_execution_mode": "NEAR_MARKET_POST_ONLY_V4",
+                "single_child_order": {
+                    "side": "BUY",
+                    "base_size": "0.00001",
+                    "limit_price": "50000.00",
+                    "order_type": "LIMIT",
+                    "time_in_force": "GOOD_UNTIL_CANCELLED",
+                    "post_only": True,
+                },
+            }
+        )
+        return self._mutation(
+            {
+                "outcome": "MATERIALIZED",
+                "candidate_version": 4,
+                "spot_execution_mode": "NEAR_MARKET_POST_ONLY_V4",
+                "cycle_number": 1,
+                "policy_revision": "BTC_USDC_POST_ONLY_BEST_BID_V1",
+                "diagnostic_code": "automation_near_market_terms_derived",
+                "completed_categories": [
+                    "api_key_permissions",
+                    "portfolio_catalog",
+                    "wallet_balances",
+                    "product_metadata",
+                    "best_bid_ask",
+                    "fee_summary",
+                ],
+                "coinbase_api_call_count": 6,
+                "call_count_exact": True,
+                "definition": definition,
+                "preview_call_count": 0,
+                "create_call_count": 0,
+                "cancel_call_count": 0,
+            },
+            kwargs["context"].correlation_id,
+        )
+
     def transition_definition(self, **kwargs: Any) -> AutomationRepositoryMutation:
         self._record("transition_definition", **kwargs)
         state = {
@@ -525,30 +572,51 @@ def test_definition_list_rejects_cross_domain_filter_without_repository_access()
 
 
 @pytest.mark.parametrize(
-    ("roles", "can_create", "control_actions", "definition_actions"),
+    (
+        "roles",
+        "can_create",
+        "can_prepare_near_market",
+        "control_actions",
+        "definition_actions",
+    ),
     [
-        ("viewer", False, [], []),
+        ("viewer", False, False, [], []),
         (
             "operator",
             True,
+            False,
             ["PAUSE", "DRAIN", "SHUTDOWN"],
             ["ENABLE", "DISABLE", "SET_SCHEDULE"],
         ),
         (
             "trader",
             True,
+            True,
             ["PAUSE", "DRAIN", "SHUTDOWN"],
             ["ENABLE", "DISABLE", "SET_SCHEDULE", "RUN_ONCE"],
         ),
-        ("emergency", False, ["PAUSE", "DRAIN", "SHUTDOWN"], []),
+        (
+            "emergency",
+            False,
+            False,
+            ["PAUSE", "DRAIN", "SHUTDOWN"],
+            [],
+        ),
     ],
 )
 def test_readback_actions_are_scoped_by_backend_rbac(
+    monkeypatch: pytest.MonkeyPatch,
     roles: str,
     can_create: bool,
+    can_prepare_near_market: bool,
     control_actions: list[str],
     definition_actions: list[str],
 ):
+    monkeypatch.setattr(
+        operator_automation_routes,
+        "_operator_automation_live_action_ready",
+        lambda action: action == "REFRESH_ELIGIBILITY",
+    )
     repository = _FakeRepository()
     client = _client(repository)
 
@@ -563,9 +631,36 @@ def test_readback_actions_are_scoped_by_backend_rbac(
 
     assert control.status_code == 200
     assert control.json()["control_plane"]["definition_create_allowed"] is can_create
+    assert (
+        control.json()["control_plane"][
+            "near_market_candidate_preparation_allowed"
+        ]
+        is can_prepare_near_market
+    )
     assert control.json()["control_plane"]["allowed_actions"] == control_actions
     assert definitions.status_code == 200
     assert definitions.json()["items"][0]["allowed_actions"] == definition_actions
+
+
+def test_near_market_preparation_readback_fails_closed_outside_active_posture(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(
+        operator_automation_routes,
+        "_operator_automation_live_action_ready",
+        lambda _action: True,
+    )
+    repository = _FakeRepository(control_posture="PAUSED")
+
+    response = _client(repository).get(
+        "/api/v1/automation/control-plane",
+        headers=_headers(roles="trader"),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["control_plane"][
+        "near_market_candidate_preparation_allowed"
+    ] is False
 
 
 def test_single_child_live_readback_is_scoped_by_backend_rbac(
@@ -830,6 +925,50 @@ def test_create_route_derives_spot_domain_and_rejects_futures_or_generic_payload
         headers=_headers(operator_intent="create_automation_definition"),
     )
     assert rejected.status_code == 422
+
+
+def test_near_market_candidate_route_requires_explicit_backend_derived_acknowledgement(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repository = _FakeRepository()
+    monkeypatch.setattr(
+        operator_automation_routes,
+        "build_admin_api_command_runtime_readiness",
+        lambda: SimpleNamespace(runtime_ready=True),
+    )
+    body = {
+        "confirm_backend_derived_terms": True,
+        "confirm_one_no_retry_preparation_cycle": True,
+        "confirm_btc_usdc_test_portfolio_scope": True,
+        "confirm_unknown_consumes_cycle": True,
+        "reason": "Prepare one exact near-market successor",
+    }
+    response = _client(repository).post(
+        "/api/v1/automation/near-market-candidates",
+        json=body,
+        headers=_headers(
+            operator_intent="prepare_automation_near_market_candidate"
+        ),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["outcome"] == "MATERIALIZED"
+    assert payload["definition"]["single_child_order"]["post_only"] is True
+    assert payload["coinbase_api_call_count"] == 6
+    assert payload["preview_call_count"] == 0
+    assert repository.calls[-1][0] == "prepare_near_market_candidate"
+
+    repository.calls.clear()
+    rejected = _client(repository).post(
+        "/api/v1/automation/near-market-candidates",
+        json={**body, "confirm_backend_derived_terms": False},
+        headers=_headers(
+            operator_intent="prepare_automation_near_market_candidate"
+        ),
+    )
+    assert rejected.status_code == 422
+    assert repository.calls == []
 
 
 @pytest.mark.parametrize(

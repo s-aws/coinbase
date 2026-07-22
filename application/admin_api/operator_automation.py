@@ -43,6 +43,8 @@ from .automation_models import (
     AutomationFilters,
     AutomationJobKind,
     AutomationMutationContext,
+    AutomationNearMarketCandidatePreparationRequest,
+    AutomationNearMarketCandidatePreparationResponse,
     AutomationOneShotRunRequest,
     AutomationPreviewGatedSingleChildAuthorizationRequest,
     AutomationSingleChildAuthorizationRequest,
@@ -61,6 +63,9 @@ from .automation_models import (
 )
 from .operator_spot_eligibility import (
     SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+    SPOT_ELIGIBILITY_NEAR_MARKET_V4_GOAL_KEY,
+    SPOT_ELIGIBILITY_NEAR_MARKET_V5_GOAL_KEY,
+    SPOT_ELIGIBILITY_NEAR_MARKET_V6_GOAL_KEY,
     SPOT_ELIGIBILITY_PREVIEW_GATED_GOAL_KEY,
 )
 
@@ -72,6 +77,9 @@ _SPOT_PREVIEW_MODE_BY_GOAL = {
     SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY: (
         "DOCUMENTED_MARKET_FRESHNESS_V3"
     ),
+    SPOT_ELIGIBILITY_NEAR_MARKET_V4_GOAL_KEY: "NEAR_MARKET_POST_ONLY_V4",
+    SPOT_ELIGIBILITY_NEAR_MARKET_V5_GOAL_KEY: "NEAR_MARKET_POST_ONLY_V5",
+    SPOT_ELIGIBILITY_NEAR_MARKET_V6_GOAL_KEY: "NEAR_MARKET_POST_ONLY_V6",
 }
 _SPOT_PREVIEW_GOAL_KEYS = frozenset(_SPOT_PREVIEW_MODE_BY_GOAL)
 
@@ -153,6 +161,13 @@ class OperatorAutomationRepository(Protocol):
         self,
         *,
         definition: Mapping[str, Any],
+        context: AutomationMutationContext,
+    ) -> AutomationRepositoryMutation: ...
+
+    def prepare_near_market_candidate(
+        self,
+        *,
+        request: Mapping[str, Any],
         context: AutomationMutationContext,
     ) -> AutomationRepositoryMutation: ...
 
@@ -360,6 +375,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
         spot_command_service: Any | None = None,
         spot_preview_invoker: Callable[..., Any] | None = None,
         spot_execution_scope_factory: Callable[[str], Any] | None = None,
+        spot_near_market_preparation_runner: Callable[[], Any] | None = None,
         spot_proof_chain_recorder: Callable[..., Mapping[str, Any]] | None = None,
         spot_live_admission_evaluator: Callable[..., Any] | None = None,
         now_factory: Callable[[], datetime] | None = None,
@@ -375,6 +391,9 @@ class PostgresOperatorAutomationRepositoryAdapter:
         self._spot_command_service = spot_command_service
         self._spot_preview_invoker = spot_preview_invoker
         self._spot_execution_scope_factory = spot_execution_scope_factory
+        self._spot_near_market_preparation_runner = (
+            spot_near_market_preparation_runner
+        )
         self._spot_proof_chain_recorder = spot_proof_chain_recorder
         self._spot_live_admission_evaluator = spot_live_admission_evaluator
         self._spot_proof_stores: tuple[Any, Any, Any, Any] | None = None
@@ -514,7 +533,8 @@ class PostgresOperatorAutomationRepositoryAdapter:
         try:
             return bool(
                 execution.run_id == record.run_id
-                and execution.policy_revision == 2
+                and execution.policy_revision
+                == (3 if plan.post_only is True else 2)
                 and execution.definition_id == record.definition_id
                 and execution.definition_revision == record.definition_revision
                 and execution.eligibility_cycle == eligibility_cycle
@@ -562,7 +582,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 "limit_limit_gtc": {
                     "base_size": plan.base_size,
                     "limit_price": plan.limit_price,
-                    "post_only": False,
+                    "post_only": bool(plan.post_only),
                 }
             },
         )
@@ -987,6 +1007,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
             "coinbase_api_call_count": 0,
             "exchange_mutation_count": 0,
             "definition_create_allowed": False,
+            "near_market_candidate_preparation_allowed": False,
             "allowed_actions": _control_allowed_actions(record.posture),
             "updated_at": record.updated_at,
         }
@@ -1735,6 +1756,280 @@ class PostgresOperatorAutomationRepositoryAdapter:
         if record is None:
             return None
         return self._definition_with_plan(record)
+
+    @staticmethod
+    def _near_market_public_category(category: str) -> str:
+        return {
+            "API_KEY_PERMISSIONS": "api_key_permissions",
+            "PORTFOLIO_CATALOG": "portfolio_catalog",
+            "ACCOUNT_WALLET_BALANCES": "wallet_balances",
+            "PRODUCT_METADATA": "product_metadata",
+            "BEST_BID_ASK": "best_bid_ask",
+            "FEE_SUMMARY": "fee_summary",
+        }[category]
+
+    def _near_market_preparation_entity(self, record: Any) -> Mapping[str, Any]:
+        definition = None
+        if record.definition_id is not None:
+            definition_record = self._call(
+                lambda: self.repository.get_definition(record.definition_id)
+            )
+            if definition_record is None:
+                raise AutomationRepositoryUnavailable(
+                    "automation_near_market_definition_unavailable"
+                )
+            definition = self._definition_with_plan(definition_record)
+        mode = _SPOT_PREVIEW_MODE_BY_GOAL.get(record.goal_key)
+        if mode is None:
+            raise AutomationRepositoryUnavailable(
+                "automation_near_market_goal_binding_invalid"
+            )
+        return {
+            "outcome": record.state,
+            "candidate_version": record.candidate_version,
+            "spot_execution_mode": mode,
+            "cycle_number": record.cycle_number,
+            "policy_revision": "BTC_USDC_POST_ONLY_BEST_BID_V1",
+            "diagnostic_code": record.diagnostic_code,
+            "completed_categories": [
+                self._near_market_public_category(category)
+                for category in record.completed_categories
+            ],
+            "coinbase_api_call_count": record.coinbase_api_call_count,
+            "call_count_exact": record.call_count_exact,
+            "definition": definition,
+            "preview_call_count": 0,
+            "create_call_count": 0,
+            "cancel_call_count": 0,
+        }
+
+    def prepare_near_market_candidate(
+        self,
+        *,
+        request: Mapping[str, Any],
+        context: AutomationMutationContext,
+    ) -> AutomationRepositoryMutation:
+        """Claim one read cycle and atomically materialize backend-owned terms."""
+
+        from database.operator_automation import (
+            AutomationDefinitionCreateCommand,
+            AutomationSpotNearMarketMaterializationEvidence,
+            AutomationSpotSingleChildPlanTerms,
+        )
+        from application.admin_api.operator_spot_near_market_preparation import (
+            NearMarketPreparationOutcome,
+        )
+
+        self._require_active_control_posture()
+        claim_command = self._command(
+            context=context,
+            payload={
+                "operation": "prepare_near_market_candidate",
+                "request": request,
+            },
+        )
+        claim = self._call(
+            lambda: self.repository.start_spot_near_market_preparation(
+                claim_command
+            )
+        )
+        claimed = claim.entity
+        if claim.replayed:
+            if claimed.state == "CLAIMED":
+                raise AutomationRepositoryConflict(
+                    "automation_near_market_preparation_in_progress"
+                )
+            return AutomationRepositoryMutation(
+                entity=self._near_market_preparation_entity(claimed),
+                audit_id=claim.audit_id,
+                correlation_id=claim.correlation_id,
+                replayed=True,
+            )
+
+        runner = self._spot_near_market_preparation_runner
+        if not callable(runner):
+            result = None
+        else:
+            try:
+                result = runner()
+            except Exception:
+                result = None
+        if result is None:
+            finalized = self._call(
+                lambda: self.repository.finalize_spot_near_market_preparation(
+                    cycle_number=claimed.cycle_number,
+                    goal_key=claimed.goal_key,
+                    state="UNKNOWN",
+                    diagnostic_code=(
+                        "automation_near_market_preparation_unknown"
+                    ),
+                    completed_categories=(),
+                    coinbase_api_call_count=None,
+                    call_count_exact=False,
+                    evidence_sha256=None,
+                    definition_id=None,
+                )
+            )
+        elif result.outcome is NearMarketPreparationOutcome.MATERIALIZED:
+            plan = result.plan
+            if (
+                plan is None
+                or result.evidence_sha256 is None
+                or result.coinbase_api_call_count is None
+                or not result.call_count_exact
+            ):
+                raise AutomationRepositoryUnavailable(
+                    "automation_near_market_preparation_result_invalid"
+                )
+            definition_command = AutomationDefinitionCreateCommand(
+                **self._command(
+                    context=context,
+                    idempotency_key="near-market-definition:"
+                    + hashlib.sha256(
+                        json.dumps(
+                            {
+                                "actor_id": context.actor_id,
+                                "cycle_number": claimed.cycle_number,
+                                "goal_key": claimed.goal_key,
+                                "source_idempotency_key": (
+                                    context.idempotency_key
+                                ),
+                            },
+                            sort_keys=True,
+                            separators=(",", ":"),
+                            ensure_ascii=True,
+                        ).encode("utf-8")
+                    ).hexdigest(),
+                    operator_intent="materialize_near_market_candidate",
+                    payload={
+                        "operation": "materialize_near_market_candidate",
+                        "candidate_version": claimed.candidate_version,
+                        "cycle_number": claimed.cycle_number,
+                        "goal_key": claimed.goal_key,
+                        "policy_revision": plan.policy_revision,
+                        "plan": {
+                            "product_id": plan.product_id,
+                            "side": plan.side,
+                            "base_size": plan.base_size,
+                            "limit_price": plan.limit_price,
+                            "submitted_notional_usdc": (
+                                plan.submitted_notional_usdc
+                            ),
+                            "possible_execution_notional_usdc": (
+                                plan.possible_execution_notional_usdc
+                            ),
+                            "post_only": plan.post_only,
+                        },
+                    },
+                ).__dict__,
+                domain=AutomationDomain.SPOT,
+                job_kind=AutomationJobKind.SPOT_CAMPAIGN,
+                label=(
+                    "BTC-USDC near-market successor "
+                    f"V{claimed.candidate_version}"
+                ),
+                product_ids=("BTC-USDC",),
+            )
+            terms = AutomationSpotSingleChildPlanTerms(
+                portfolio_id_sha256=_configured_spot_portfolio_hash(),
+                product_id=plan.product_id,
+                side=plan.side,
+                base_size=plan.base_size,
+                limit_price=plan.limit_price,
+                submitted_notional_usdc=plan.submitted_notional_usdc,
+                possible_execution_notional_usdc=(
+                    plan.possible_execution_notional_usdc
+                ),
+                max_submitted_notional_usdc=(
+                    plan.max_submitted_notional_usdc
+                ),
+                max_possible_execution_notional_usdc=(
+                    plan.max_possible_execution_notional_usdc
+                ),
+                post_only=True,
+            )
+            try:
+                created = self._call(
+                    lambda: self.repository.create_definition(
+                        definition_command,
+                        spot_single_child_plan=terms,
+                        spot_goal_key=claimed.goal_key,
+                        spot_near_market_materialization=(
+                            AutomationSpotNearMarketMaterializationEvidence(
+                                cycle_number=claimed.cycle_number,
+                                goal_key=claimed.goal_key,
+                                diagnostic_code=(
+                                    result.diagnostic_code
+                                ),
+                                completed_categories=tuple(
+                                    result.completed_categories
+                                ),
+                                coinbase_api_call_count=(
+                                    result.coinbase_api_call_count
+                                ),
+                                evidence_sha256=result.evidence_sha256,
+                            )
+                        ),
+                    )
+                )
+            except Exception:
+                finalized = self._call(
+                    lambda: self.repository.finalize_spot_near_market_preparation(
+                        cycle_number=claimed.cycle_number,
+                        goal_key=claimed.goal_key,
+                        state="UNKNOWN",
+                        diagnostic_code=(
+                            "automation_near_market_preparation_unknown"
+                        ),
+                        completed_categories=(),
+                        coinbase_api_call_count=None,
+                        call_count_exact=False,
+                        evidence_sha256=None,
+                        definition_id=None,
+                    )
+                )
+            else:
+                preparations = self._call(
+                    lambda: self.repository.list_spot_near_market_preparations()
+                )
+                record = next(
+                    (
+                        item
+                        for item in preparations
+                        if item.cycle_number == claimed.cycle_number
+                        and item.goal_key == claimed.goal_key
+                    ),
+                    None,
+                )
+                if record is None or record.state != "MATERIALIZED":
+                    raise AutomationRepositoryUnavailable(
+                        "automation_near_market_materialization_unavailable"
+                    )
+                finalized = AutomationRepositoryMutation(
+                    entity=record,
+                    audit_id=created.audit_id,
+                    correlation_id=created.correlation_id,
+                )
+        else:
+            finalized = self._call(
+                lambda: self.repository.finalize_spot_near_market_preparation(
+                    cycle_number=claimed.cycle_number,
+                    goal_key=claimed.goal_key,
+                    state=result.outcome.value,
+                    diagnostic_code=result.diagnostic_code,
+                    completed_categories=tuple(result.completed_categories),
+                    coinbase_api_call_count=result.coinbase_api_call_count,
+                    call_count_exact=result.call_count_exact,
+                    evidence_sha256=result.evidence_sha256,
+                    definition_id=None,
+                )
+            )
+        return AutomationRepositoryMutation(
+            entity=self._near_market_preparation_entity(finalized.entity),
+            audit_id=finalized.audit_id,
+            correlation_id=finalized.correlation_id,
+            replayed=finalized.replayed,
+        )
 
     def create_definition(
         self,
@@ -2972,6 +3267,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
                     lease=lease,
                     configured_portfolio_id=configured_portfolio_id,
                     now=self._now_factory(),
+                    goal_key=spot_goal_key,
                 )
                 prepared = prepare_spot_automation_cancel_command(
                     run=record,
@@ -3617,6 +3913,27 @@ class OperatorAutomationService:
             )
         )
 
+    def prepare_near_market_candidate(
+        self,
+        request: AutomationNearMarketCandidatePreparationRequest,
+        context: AutomationMutationContext,
+    ) -> AutomationNearMarketCandidatePreparationResponse:
+        try:
+            result = self.repository.prepare_near_market_candidate(
+                request=request.model_dump(mode="json"),
+                context=context,
+            )
+            return AutomationNearMarketCandidatePreparationResponse(
+                **result.entity,
+                replayed=result.replayed,
+                audit_id=result.audit_id,
+                correlation_id=result.correlation_id,
+            )
+        except OperatorAutomationError:
+            raise
+        except Exception as exc:
+            raise self._translate_error(exc) from None
+
     def transition_definition(
         self,
         *,
@@ -4022,6 +4339,25 @@ def _default_spot_eligibility_reader_factory(
     )
 
 
+def _default_near_market_preparation_runner() -> Any:
+    """Run exactly one claimed six-category preparation read without retry."""
+
+    from application.admin_api.operator_spot_near_market_preparation import (
+        run_near_market_candidate_preparation,
+    )
+    from configuration import REST_CLIENT
+
+    portfolio_id = str(
+        os.environ.get("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID") or ""
+    ).strip()
+    return run_near_market_candidate_preparation(
+        rest_client=REST_CLIENT,
+        approved_portfolio_id=portfolio_id,
+        approved_portfolio_label="Test",
+        now_factory=lambda: datetime.now(timezone.utc),
+    )
+
+
 def get_default_operator_automation_service() -> OperatorAutomationService:
     """Resolve the PostgreSQL repository lazily to keep imports local-only."""
 
@@ -4036,6 +4372,9 @@ def get_default_operator_automation_service() -> OperatorAutomationService:
                 repository,
                 spot_eligibility_reader_factory=(
                     _default_spot_eligibility_reader_factory
+                ),
+                spot_near_market_preparation_runner=(
+                    _default_near_market_preparation_runner
                 ),
             )
         )

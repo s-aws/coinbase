@@ -20,11 +20,28 @@ SPOT_ELIGIBILITY_PREVIEW_GATED_GOAL_KEY = (
 SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY = (
     "operator_spot_automation_documented_market_freshness_successor_v3"
 )
+SPOT_ELIGIBILITY_NEAR_MARKET_V4_GOAL_KEY = (
+    "operator_spot_automation_near_market_successor_v4"
+)
+SPOT_ELIGIBILITY_NEAR_MARKET_V5_GOAL_KEY = (
+    "operator_spot_automation_near_market_successor_v5"
+)
+SPOT_ELIGIBILITY_NEAR_MARKET_V6_GOAL_KEY = (
+    "operator_spot_automation_near_market_successor_v6"
+)
+SPOT_ELIGIBILITY_NEAR_MARKET_GOAL_KEYS = frozenset(
+    {
+        SPOT_ELIGIBILITY_NEAR_MARKET_V4_GOAL_KEY,
+        SPOT_ELIGIBILITY_NEAR_MARKET_V5_GOAL_KEY,
+        SPOT_ELIGIBILITY_NEAR_MARKET_V6_GOAL_KEY,
+    }
+)
 _SPOT_ELIGIBILITY_GOAL_KEYS = frozenset(
     {
         SPOT_ELIGIBILITY_CREATE_ONLY_GOAL_KEY,
         SPOT_ELIGIBILITY_PREVIEW_GATED_GOAL_KEY,
         SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+        *SPOT_ELIGIBILITY_NEAR_MARKET_GOAL_KEYS,
     }
 )
 _SPOT_ELIGIBILITY_CLIENT_ORDER_NAMESPACE = UUID(
@@ -866,7 +883,10 @@ class SpotEligibilityCoordinator:
         if read_result.observed_at is None:
             if (
                 goal_key
-                != SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY
+                not in {
+                    SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+                    *SPOT_ELIGIBILITY_NEAR_MARKET_GOAL_KEYS,
+                }
                 or category is not ApprovedSpotEligibilityCategory.BEST_BID_ASK
                 or read_result.outcome is not SpotEligibilityReadOutcome.REJECTED
                 or read_result.evidence_sha256 is not None
@@ -890,7 +910,10 @@ class SpotEligibilityCoordinator:
         bounded_documented_market_skew = bool(
             observed_in_future
             and goal_key
-            == SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY
+            in {
+                SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+                *SPOT_ELIGIBILITY_NEAR_MARKET_GOAL_KEYS,
+            }
             and category is ApprovedSpotEligibilityCategory.BEST_BID_ASK
             and read_result.observed_at - now
             <= _DOCUMENTED_MARKET_CLOCK_SKEW_TOLERANCE

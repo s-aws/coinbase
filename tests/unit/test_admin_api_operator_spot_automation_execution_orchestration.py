@@ -76,6 +76,7 @@ from core.enums import (
 from database.operator_automation import (
     AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
     AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY,
+    AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY,
     AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
     AutomationMutationCommand,
     AutomationRunRecord,
@@ -462,7 +463,12 @@ class _ExecutionRepository:
                     self.goal_key
                 ),
                 cycle_number=result.cycle_number,
-                policy_revision=2,
+                policy_revision=(
+                    3
+                    if self.goal_key
+                    == AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY
+                    else 2
+                ),
                 run_id=RUN_ID,
                 definition_id=DEFINITION_ID,
                 definition_revision=1,
@@ -578,7 +584,13 @@ class _ExecutionRepository:
                 self.preview_goal,
                 create_allowance_consumed=True,
             )
-        self.execution = _execution_record()
+        self.execution = _execution_record(
+            policy_revision=(
+                3
+                if self.goal_key == AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY
+                else 2
+            )
+        )
         self.current_run = replace(
             self.current_run,
             state=OperatorAutomationRunState.INVOCATION_STARTED,
@@ -750,7 +762,14 @@ class _ExecutionRepository:
     def seed_create_success(self) -> None:
         self.install_fresh_cycle(_cycle_result())
         self.execution = replace(
-            _execution_record(),
+            _execution_record(
+                policy_revision=(
+                    3
+                    if self.goal_key
+                    == AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY
+                    else 2
+                )
+            ),
             create_outcome="ACCEPTED",
             create_call_count=1,
             create_call_count_exact=True,
@@ -789,10 +808,13 @@ class _ExecutionRepository:
         )
 
 
-def _execution_record() -> AutomationSpotRunExecutionRecord:
+def _execution_record(
+    *,
+    policy_revision: int = 2,
+) -> AutomationSpotRunExecutionRecord:
     return AutomationSpotRunExecutionRecord(
         run_id=RUN_ID,
-        policy_revision=2,
+        policy_revision=policy_revision,
         definition_id=DEFINITION_ID,
         definition_revision=1,
         eligibility_cycle=1,
@@ -908,7 +930,10 @@ class _EligibilityRunner:
                 market_source=(
                     "coinbase_rest_market_trade_snapshot"
                     if self.repository.goal_key
-                    == AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY
+                    in {
+                        AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+                        AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY,
+                    }
                     else "coinbase_rest_best_bid"
                 )
             ),
@@ -1056,7 +1081,10 @@ class _CanonicalCommandService:
         assert command.request.product_id == "BTC-USDC"
         assert command.request.side.value == "BUY"
         assert command.request.base_size == "0.00001"
-        assert command.request.limit_price == "50000"
+        assert Decimal(command.request.limit_price or "0") == (
+            automation_admission.limit_price
+        )
+        assert command.request.post_only is automation_admission.post_only
         assert command.request.manual_live_acknowledgement is True
         assert command.allow_live_execution is True
         assert command.admin_max_submitted_notional_usdc == "3.10"
@@ -1114,10 +1142,14 @@ class _PreviewInvoker:
         events: list[str],
         *,
         mode: str,
+        expected_post_only: bool = False,
+        expected_limit_price: str = "50000",
     ) -> None:
         self.scopes = scopes
         self.events = events
         self.mode = mode
+        self.expected_post_only = expected_post_only
+        self.expected_limit_price = expected_limit_price
         self.calls: list[dict[str, Any]] = []
 
     def __call__(self, **kwargs: Any) -> Any:
@@ -1128,8 +1160,8 @@ class _PreviewInvoker:
             "order_configuration": {
                 "limit_limit_gtc": {
                     "base_size": "0.00001",
-                    "limit_price": "50000",
-                    "post_only": False,
+                    "limit_price": self.expected_limit_price,
+                    "post_only": self.expected_post_only,
                 }
             },
         }
@@ -1141,7 +1173,11 @@ class _PreviewInvoker:
             return SimpleNamespace(errs=[])
         return PreviewOrderResponse(
             {
-                "order_total": "0.5005",
+                "order_total": (
+                    "0.50049"
+                    if self.expected_limit_price == "49999"
+                    else "0.5005"
+                ),
                 "commission_total": "0.0005",
                 "errs": (
                     []
@@ -1152,7 +1188,11 @@ class _PreviewInvoker:
                 ),
                 "warning": [],
                 "quote_size": (
-                    "0.6" if self.mode == "economics_mismatch" else "0.5"
+                    "0.6"
+                    if self.mode == "economics_mismatch"
+                    else "0.49999"
+                    if self.expected_limit_price == "49999"
+                    else "0.5"
                 ),
                 "base_size": "0.00001",
                 "best_bid": "49999",
@@ -1283,6 +1323,14 @@ def _harness(
     events: list[str] = []
     repository = _ExecutionRepository(events)
     repository.goal_key = goal_key
+    if goal_key == AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY:
+        repository.plan = replace(
+            repository.plan,
+            limit_price="49999",
+            submitted_notional_usdc="0.49999",
+            possible_execution_notional_usdc="0.49999",
+            post_only=True,
+        )
     if goal_key != AUTOMATION_SPOT_LIVE_PROOF_GOAL_KEY:
         repository.preview_goal = replace(
             repository.preview_goal,
@@ -1307,7 +1355,19 @@ def _harness(
         cancel_mode=cancel_mode,
     )
     preview = (
-        _PreviewInvoker(scopes, events, mode=preview_mode)
+        _PreviewInvoker(
+            scopes,
+            events,
+            mode=preview_mode,
+            expected_post_only=(
+                goal_key == AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY
+            ),
+            expected_limit_price=(
+                "49999"
+                if goal_key == AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY
+                else "50000"
+            ),
+        )
         if preview_mode is not None
         else None
     )
@@ -1371,7 +1431,13 @@ def test_authorize_orchestrates_one_fresh_cycle_claim_and_canonical_create(
     )
 
     assert response.replayed is False
-    assert response.run.state is OperatorAutomationRunState.ACTIVE
+    assert response.run.state is OperatorAutomationRunState.ACTIVE, (
+        response.run.preview_outcome,
+        response.run.preview_failure_class,
+        response.run.preview_rejection_code,
+        response.run.diagnostic_code,
+        harness.events,
+    )
     assert response.run.client_order_id == CLIENT_ORDER_ID
     assert response.activity.operation == "CREATE"
     assert response.activity.coinbase_api_call_count == 2
@@ -1477,6 +1543,7 @@ def test_preview_gated_rejection_or_unknown_never_enters_create(
     [
         AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
         AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+        AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY,
     ],
 )
 def test_preview_gated_acceptance_previews_then_creates_the_identical_candidate(
@@ -1506,7 +1573,13 @@ def test_preview_gated_acceptance_previews_then_creates_the_identical_candidate(
         context=_context(),
     )
 
-    assert response.run.state is OperatorAutomationRunState.ACTIVE
+    assert response.run.state is OperatorAutomationRunState.ACTIVE, (
+        response.run.preview_outcome,
+        response.run.preview_failure_class,
+        response.run.preview_rejection_code,
+        response.run.diagnostic_code,
+        harness.events,
+    )
     assert response.run.client_order_id == successor_client_order_id
     assert response.run.preview_outcome == "ACCEPTED"
     assert response.run.preview_identity_retention == "HASHED"
@@ -1520,9 +1593,17 @@ def test_preview_gated_acceptance_previews_then_creates_the_identical_candidate(
     assert len(harness.commands.place_calls) == 1
     assert harness.commands.place_calls[0][1].market_evidence.source == (
         "coinbase_rest_market_trade_snapshot"
-        if goal_key == AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY
+        if goal_key
+        in {
+            AUTOMATION_SPOT_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+            AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY,
+        }
         else "coinbase_rest_best_bid"
     )
+    assert harness.preview is not None
+    assert harness.preview.calls[0]["order_configuration"]["limit_limit_gtc"][
+        "post_only"
+    ] is (goal_key == AUTOMATION_SPOT_NEAR_MARKET_V4_GOAL_KEY)
     assert harness.events == [
         "lease_enter",
         "eligibility_cycle",

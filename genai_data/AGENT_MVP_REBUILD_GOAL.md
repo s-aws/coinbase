@@ -1,6 +1,30 @@
 # Coinbase Admin MVP Goal
 
 Goal ID:
+`operator_spot_automation_near_market_policy_and_successor_proof_v4_v6`
+
+Last reviewed: 2026-07-22 UTC.
+
+Status: `ready_for_bounded_operator_proof`.
+
+Current action:
+`commit_push_deploy_and_run_bounded_operator_proof`.
+
+Default action: `continue_authorized_workflow_without_new_authorization`.
+
+The backend-owned `BTC_USDC_POST_ONLY_BEST_BID_V1` policy is restricted to the
+approved Test portfolio, `BTC-USDC`, one child, V4-V6, and the unchanged
+3.10/1.00 USDC caps. PostgreSQL claims preparation before any read, shares the
+goal-global ten-cycle namespace with run eligibility, and preserves the
+existing one-use Preview/Create/Cancel boundaries. No goal-scoped Coinbase
+call has run; goal-global cycles are `0/10`; Preview/Create/Cancel calls are
+`0/0/0`; all live allowances remain unconsumed at this checkpoint. Complete
+backend regression, the canonical frontend release gate, installed smoke, and
+independent safety plus blind-contextless audits pass.
+
+## Previous Preview-explainability closeout
+
+Goal ID:
 `operator_spot_automation_preview_explainability_and_successor_proof_v4_v6`
 
 Last reviewed: 2026-07-21 UTC.

@@ -21,6 +21,22 @@ frontend request
 -> typed response
 ```
 
+Current goal
+`operator_spot_automation_near_market_policy_and_successor_proof_v4_v6`
+is active at `ready_for_bounded_operator_proof`. Current action:
+`commit_push_deploy_and_run_bounded_operator_proof`.
+Default action: `continue_authorized_workflow_without_new_authorization`.
+The backend-owned `BTC_USDC_POST_ONLY_BEST_BID_V1` policy is confined to the
+V4-V6 Spot Automation ledgers. Its exact route, PostgreSQL claim, generated
+contract, RBAC, no-retry reads, cap evidence, Preview/Create/Cancel claims, and
+privacy boundary are documented in
+[`OPERATOR_SPOT_AUTOMATION_NEAR_MARKET_V4_V6.md`](../OPERATOR_SPOT_AUTOMATION_NEAR_MARKET_V4_V6.md).
+No goal-scoped Coinbase call has run; goal-global cycles are `0/10` and
+Preview/Create/Cancel calls are `0/0/0`. Complete validation and both
+independent audits pass.
+
+### Previous Preview-explainability closeout
+
 Goal
 `operator_spot_automation_preview_explainability_and_successor_proof_v4_v6`
 is complete at `complete_no_documented_successor_correction`, the authorized

@@ -13,6 +13,7 @@ import pytest
 
 from application.admin_api.operator_spot_eligibility import (
     SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+    SPOT_ELIGIBILITY_NEAR_MARKET_V4_GOAL_KEY,
     SpotEligibilityReadContext,
     SpotEligibilityReadOutcome,
     SpotEligibilityRunContext,
@@ -238,18 +239,24 @@ def _read_context(
     )
 
 
-def _plan(*, side: str = "BUY") -> SpotEligibilityPlanTerms:
+def _plan(
+    *,
+    side: str = "BUY",
+    post_only: bool = False,
+    base_size: str = "0.02",
+    limit_price: str = "50",
+) -> SpotEligibilityPlanTerms:
     return SpotEligibilityPlanTerms(
         plan_sha256=PLAN_SHA256,
         product_id="BTC-USDC",
         side=side,
-        base_size="0.02",
-        limit_price="50",
+        base_size=base_size,
+        limit_price=limit_price,
         submitted_notional_usdc="1.00",
         possible_execution_notional_usdc="1.00",
         max_submitted_notional_usdc="3.10",
         max_possible_execution_notional_usdc="1.00",
-        post_only=False,
+        post_only=post_only,
     )
 
 
@@ -322,6 +329,46 @@ def test_reader_executes_only_exact_category_methods_with_sanitized_evidence():
         "withheld-private-fee-value",
     ):
         assert forbidden not in serialized
+
+
+def test_near_market_reader_uses_documented_trade_snapshot_and_post_only_bid() -> None:
+    client = _StrictClient(best_bid="100", best_ask="101")
+    reader = _reader(
+        client,
+        plan=_plan(post_only=True, base_size="0.01", limit_price="100"),
+        goal_key=SPOT_ELIGIBILITY_NEAR_MARKET_V4_GOAL_KEY,
+    )
+    context = _read_context(goal_key=SPOT_ELIGIBILITY_NEAR_MARKET_V4_GOAL_KEY)
+
+    results = [
+        reader.read_api_key_permissions(context),
+        reader.read_portfolio_catalog(context),
+        reader.read_account_wallet_balances(context),
+        reader.read_product_metadata(context),
+        reader.read_best_bid_ask(context),
+    ]
+
+    assert all(result.outcome is SpotEligibilityReadOutcome.SUCCEEDED for result in results)
+    assert [name for name, _kwargs in client.calls][-1] == "get_market_trades"
+
+
+def test_near_market_reader_rejects_plan_above_current_same_snapshot_bid() -> None:
+    client = _StrictClient(best_bid="99", best_ask="101")
+    reader = _reader(
+        client,
+        plan=_plan(post_only=True, base_size="0.01", limit_price="100"),
+        goal_key=SPOT_ELIGIBILITY_NEAR_MARKET_V4_GOAL_KEY,
+    )
+    context = _read_context(goal_key=SPOT_ELIGIBILITY_NEAR_MARKET_V4_GOAL_KEY)
+    reader.read_api_key_permissions(context)
+    reader.read_portfolio_catalog(context)
+    reader.read_account_wallet_balances(context)
+    reader.read_product_metadata(context)
+
+    result = reader.read_best_bid_ask(context)
+
+    assert result.outcome is SpotEligibilityReadOutcome.REJECTED
+    assert result.eligible is False
 
 
 def test_reader_rejects_insufficient_wallet_with_exact_page_accounting():

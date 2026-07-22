@@ -14,6 +14,28 @@ plans.
 ## Current MVP Goal
 
 Goal
+`operator_spot_automation_near_market_policy_and_successor_proof_v4_v6`
+is active at `ready_for_bounded_operator_proof`. Current action:
+`commit_push_deploy_and_run_bounded_operator_proof`.
+Default action: `continue_authorized_workflow_without_new_authorization`.
+
+The versioned `BTC_USDC_POST_ONLY_BEST_BID_V1` policy is isolated to one
+approved-Test-portfolio `BTC-USDC` Automation successor. The backend derives a
+post-only BUY at the quantized, fresh Get Market Trades best bid and derives
+size from product minimums/increments, wallet evidence, maker-fee reserve, and
+the unchanged 3.10/1.00 USDC caps. PostgreSQL owns the sequential V4-V6
+preparation claims, immutable definitions, goal-global ten-cycle accounting,
+eight-category run eligibility,
+and existing one-use Preview/Create/Cancel allowances. No goal-scoped Coinbase
+call has run at this checkpoint; goal-global cycles are `0/10` and
+Preview/Create/Cancel calls are `0/0/0`. Complete backend regression, the
+canonical frontend release gate, installed smoke, and independent safety plus
+blind-contextless audits pass. See
+[the near-market V4-V6 contract](docs/OPERATOR_SPOT_AUTOMATION_NEAR_MARKET_V4_V6.md).
+
+### Previous Preview-explainability closeout
+
+Goal
 `operator_spot_automation_preview_explainability_and_successor_proof_v4_v6`
 is complete at `complete_no_documented_successor_correction`. Current action:
 `complete_preview_explainability_v4_v6_allowances_unconsumed`. Default action:

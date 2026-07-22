@@ -25,6 +25,9 @@ from core.action_condition_guard import (
     get_action_condition_guard_policy,
     normalize_action_guard_wallet_policy,
 )
+from application.admin_api.operator_spot_near_market_policy import (
+    evaluate_near_market_post_only_limit,
+)
 from core.enums import (
     ActionConditionType,
     ActionGuardPhase,
@@ -587,6 +590,9 @@ class ValidatedSpotAutomationOwnershipEvidence:
     side: str
     base_size: Decimal
     limit_price: Decimal
+    post_only: bool
+    policy_revision: int
+    standing_price_policy: str
     portfolio_id_sha256: str
     fresh_until: datetime
     portfolio_binding: SpotPortfolioBindingEvidence
@@ -624,6 +630,29 @@ class ValidatedSpotAutomationOwnershipEvidence:
             self.limit_price,
             code="spot_automation_limit_price_invalid",
         )
+        if (
+            type(self.policy_revision) is not int
+            or self.policy_revision not in {2, 3}
+            or self.standing_price_policy
+            not in {"STANDARD_STANDING_V2", "NEAR_MARKET_POST_ONLY_V1"}
+            or (
+                self.policy_revision == 2
+                and (
+                    self.post_only is not False
+                    or self.standing_price_policy != "STANDARD_STANDING_V2"
+                )
+            )
+            or (
+                self.policy_revision == 3
+                and (
+                    self.post_only is not True
+                    or self.side != OrderSide.BUY.value
+                    or self.standing_price_policy
+                    != "NEAR_MARKET_POST_ONLY_V1"
+                )
+            )
+        ):
+            raise ValueError("spot_automation_price_policy_invalid")
         _require_aware_automation_datetime(
             self.fresh_until,
             code="spot_automation_fresh_until_invalid",
@@ -729,6 +758,7 @@ def _require_current_spot_automation_admission(
     side: str,
     base_size: Any,
     limit_price: Any,
+    post_only: Any,
     command: ManualOrderCommand,
 ) -> None:
     if not isinstance(evidence, ValidatedSpotAutomationAdmissionEvidence):
@@ -766,6 +796,7 @@ def _require_current_spot_automation_admission(
         or evidence.side != normalized_side
         or evidence.base_size != requested_size
         or evidence.limit_price != requested_price
+        or evidence.post_only is not post_only
         or submitted_cap != OPERATOR_MVP_MAX_SUBMITTED_NOTIONAL_USDC
         or executed_cap != OPERATOR_MVP_MAX_EXECUTED_NOTIONAL_USDC
         or not command.admin_approval_snapshot_id
@@ -4696,6 +4727,7 @@ class AdminApiCommandService:
                         side=str(order_params.get("side") or ""),
                         base_size=raw_size,
                         limit_price=raw_price,
+                        post_only=inner.get("post_only"),
                         command=command,
                     )
                 except SpotAutomationAdmissionError as exc:
@@ -5050,8 +5082,22 @@ class AdminApiCommandService:
                     if automation_admission is not None
                     else deps.spot_market_reference_getter(product_id)
                 )
+                near_market_automation = bool(
+                    automation_admission is not None
+                    and automation_admission.standing_price_policy
+                    == "NEAR_MARKET_POST_ONLY_V1"
+                )
                 standing_price_limit_evidence = (
-                    evaluate_spot_standing_price_limit(
+                    evaluate_near_market_post_only_limit(
+                        side=order_params.get("side"),
+                        limit_price=raw_price,
+                        post_only=inner.get("post_only"),
+                        best_bid=(market_reference or {}).get("best_bid"),
+                        best_ask=(market_reference or {}).get("best_ask"),
+                        market_source=(market_reference or {}).get("source"),
+                    )
+                    if near_market_automation
+                    else evaluate_spot_standing_price_limit(
                         side=order_params.get("side"),
                         limit_price=raw_price,
                         best_bid=(market_reference or {}).get("best_bid"),
@@ -5066,8 +5112,11 @@ class AdminApiCommandService:
                     == INTENTIONAL_FILL_OPERATOR_INTENT
                 )
                 if (
-                    intentional_fill_requested
-                    or not standing_price_limit_evidence["allowed"]
+                    not near_market_automation
+                    and (
+                        intentional_fill_requested
+                        or not standing_price_limit_evidence["allowed"]
+                    )
                 ):
                     intentional_fill_override = (
                         _evaluate_intentional_fill_standing_price_override(
@@ -5094,7 +5143,7 @@ class AdminApiCommandService:
                             "intentional_fill_override", {}
                         ).get("allowed")
                     )
-                elif not ordinary_or_override_allowed:
+                elif not ordinary_or_override_allowed and not near_market_automation:
                     ordinary_or_override_allowed = bool(
                         standing_price_limit_evidence.get(
                             "intentional_fill_override", {}
@@ -5102,9 +5151,14 @@ class AdminApiCommandService:
                     )
                 if not ordinary_or_override_allowed:
                     reason = (
-                        "Direct Spot order violates the standing price limit "
-                        "or lacks a fresh backend market bid: BUY must be at or below "
-                        "50% of bid; SELL must be at or above 150% of bid."
+                        "The backend-owned near-market Automation order is not "
+                        "a post-only BUY at or below the fresh same-snapshot bid."
+                        if near_market_automation
+                        else (
+                            "Direct Spot order violates the standing price limit "
+                            "or lacks a fresh backend market bid: BUY must be at or below "
+                            "50% of bid; SELL must be at or above 150% of bid."
+                        )
                     )
                     return self._place_rejected(
                         command=command,
@@ -5167,6 +5221,7 @@ class AdminApiCommandService:
                             side=str(order_params.get("side") or ""),
                             base_size=raw_size,
                             limit_price=raw_price,
+                            post_only=inner.get("post_only"),
                             command=command,
                         )
                     except SpotAutomationAdmissionError as exc:
@@ -5544,6 +5599,7 @@ class AdminApiCommandService:
                         side=str(order_params.get("side") or ""),
                         base_size=raw_size,
                         limit_price=raw_price,
+                        post_only=inner.get("post_only"),
                         command=command,
                     )
                 except SpotAutomationAdmissionError as exc:

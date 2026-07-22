@@ -10188,6 +10188,117 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/automation/near-market-candidates:
+    post:
+      tags:
+      - operator-automation
+      summary: Prepare Near Market Candidate
+      operationId: prepare_operator_automation_near_market_candidate
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: ^[\x21-\x7e]+$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: ^[\x21-\x7e]+$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: prepare_automation_near_market_candidate
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutomationNearMarketCandidatePreparationRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationNearMarketCandidatePreparationResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Not Found
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/automation/definitions/{definition_id}/enable:
     post:
       tags:
@@ -149690,6 +149801,10 @@ components:
           type: boolean
           title: Definition Create Allowed
           default: false
+        near_market_candidate_preparation_allowed:
+          type: boolean
+          title: Near Market Candidate Preparation Allowed
+          default: false
         allowed_actions:
           items:
             type: string
@@ -149759,7 +149874,7 @@ components:
           title: Spot Execution Mode
         single_child_order:
           anyOf:
-          - $ref: '#/components/schemas/AutomationSpotSingleChildOrderSpec'
+          - $ref: '#/components/schemas/AutomationSpotSingleChildOrderCreateSpec'
           - type: 'null'
       additionalProperties: false
       type: object
@@ -149898,6 +150013,9 @@ components:
             - CREATE_ONLY_V1
             - PREVIEW_GATED_V2
             - DOCUMENTED_MARKET_FRESHNESS_V3
+            - NEAR_MARKET_POST_ONLY_V4
+            - NEAR_MARKET_POST_ONLY_V5
+            - NEAR_MARKET_POST_ONLY_V6
           - type: 'null'
           title: Spot Execution Mode
         single_child_order:
@@ -150200,6 +150318,174 @@ components:
       - limit
       - offset
       title: AutomationFilters
+    AutomationNearMarketCandidatePreparationRequest:
+      properties:
+        confirm_backend_derived_terms:
+          type: boolean
+          const: true
+          title: Confirm Backend Derived Terms
+        confirm_one_no_retry_preparation_cycle:
+          type: boolean
+          const: true
+          title: Confirm One No Retry Preparation Cycle
+        confirm_btc_usdc_test_portfolio_scope:
+          type: boolean
+          const: true
+          title: Confirm Btc Usdc Test Portfolio Scope
+        confirm_unknown_consumes_cycle:
+          type: boolean
+          const: true
+          title: Confirm Unknown Consumes Cycle
+        reason:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Reason
+      additionalProperties: false
+      type: object
+      required:
+      - confirm_backend_derived_terms
+      - confirm_one_no_retry_preparation_cycle
+      - confirm_btc_usdc_test_portfolio_scope
+      - confirm_unknown_consumes_cycle
+      - reason
+      title: AutomationNearMarketCandidatePreparationRequest
+      description: Explicit operator acknowledgement for one backend-derived proposal.
+    AutomationNearMarketCandidatePreparationResponse:
+      properties:
+        type:
+          type: string
+          const: automation_near_market_candidate_preparation
+          title: Type
+          default: automation_near_market_candidate_preparation
+        status:
+          type: string
+          const: accepted
+          title: Status
+          default: accepted
+        outcome:
+          type: string
+          enum:
+          - MATERIALIZED
+          - BLOCKED
+          - UNKNOWN
+          title: Outcome
+        candidate_version:
+          type: integer
+          enum:
+          - 4
+          - 5
+          - 6
+          title: Candidate Version
+        spot_execution_mode:
+          type: string
+          enum:
+          - NEAR_MARKET_POST_ONLY_V4
+          - NEAR_MARKET_POST_ONLY_V5
+          - NEAR_MARKET_POST_ONLY_V6
+          title: Spot Execution Mode
+        cycle_number:
+          type: integer
+          maximum: 10.0
+          minimum: 1.0
+          title: Cycle Number
+        policy_revision:
+          type: string
+          const: BTC_USDC_POST_ONLY_BEST_BID_V1
+          title: Policy Revision
+          default: BTC_USDC_POST_ONLY_BEST_BID_V1
+        diagnostic_code:
+          type: string
+          enum:
+          - automation_near_market_api_key_permissions_rejected
+          - automation_near_market_best_bid_ask_rejected
+          - automation_near_market_fee_summary_rejected
+          - automation_near_market_portfolio_catalog_rejected
+          - automation_near_market_portfolio_configuration_invalid
+          - automation_near_market_preparation_unknown
+          - automation_near_market_product_metadata_rejected
+          - automation_near_market_terms_derived
+          - automation_near_market_wallet_balances_rejected
+          - near_market_fee_invalid
+          - near_market_no_valid_size
+          - near_market_post_only_crossing
+          - near_market_product_blocked
+          - near_market_product_metadata_invalid
+          - near_market_snapshot_future
+          - near_market_snapshot_invalid
+          - near_market_snapshot_stale
+          - near_market_snapshot_timestamp_invalid
+          - near_market_wallet_insufficient
+          title: Diagnostic Code
+        completed_categories:
+          items:
+            type: string
+            enum:
+            - api_key_permissions
+            - portfolio_catalog
+            - wallet_balances
+            - product_metadata
+            - best_bid_ask
+            - fee_summary
+          type: array
+          maxItems: 6
+          title: Completed Categories
+        coinbase_api_call_count:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Coinbase Api Call Count
+          default: 0
+        call_count_exact:
+          type: boolean
+          title: Call Count Exact
+          default: true
+        definition:
+          anyOf:
+          - $ref: '#/components/schemas/AutomationDefinitionItem'
+          - type: 'null'
+        preview_call_count:
+          type: integer
+          const: 0
+          title: Preview Call Count
+          default: 0
+        create_call_count:
+          type: integer
+          const: 0
+          title: Create Call Count
+          default: 0
+        cancel_call_count:
+          type: integer
+          const: 0
+          title: Cancel Call Count
+          default: 0
+        audit_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Audit Id
+        correlation_id:
+          type: string
+          maxLength: 255
+          minLength: 1
+          pattern: ^[\x21-\x7e]+$
+          title: Correlation Id
+        replayed:
+          type: boolean
+          title: Replayed
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - outcome
+      - candidate_version
+      - spot_execution_mode
+      - cycle_number
+      - diagnostic_code
+      - audit_id
+      - correlation_id
+      title: AutomationNearMarketCandidatePreparationResponse
+      description: Sanitized result of one claimed, no-retry proposal-read cycle.
     AutomationNoExchangeActivity:
       properties:
         coinbase_api_call_count:
@@ -150517,6 +150803,9 @@ components:
             - CREATE_ONLY_V1
             - PREVIEW_GATED_V2
             - DOCUMENTED_MARKET_FRESHNESS_V3
+            - NEAR_MARKET_POST_ONLY_V4
+            - NEAR_MARKET_POST_ONLY_V5
+            - NEAR_MARKET_POST_ONLY_V6
           - type: 'null'
           title: Spot Execution Mode
         preview_allowance_consumed:
@@ -150988,7 +151277,6 @@ components:
           default: GOOD_UNTIL_CANCELLED
         post_only:
           type: boolean
-          const: false
           title: Post Only
           default: false
         submitted_notional_usdc:
@@ -151051,7 +151339,7 @@ components:
       - reason
       title: AutomationSingleChildSafeCloseoutRequest
       description: Cancel-only exact-child safe-closeout acknowledgement.
-    AutomationSpotSingleChildOrderSpec:
+    AutomationSpotSingleChildOrderCreateSpec:
       properties:
         side:
           type: string
@@ -151082,6 +151370,47 @@ components:
         post_only:
           type: boolean
           const: false
+          title: Post Only
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - side
+      - base_size
+      - limit_price
+      title: AutomationSpotSingleChildOrderCreateSpec
+      description: Operator-supplied create terms; backend-derived maker plans are
+        separate.
+    AutomationSpotSingleChildOrderSpec:
+      properties:
+        side:
+          type: string
+          enum:
+          - BUY
+          - SELL
+          title: Side
+        base_size:
+          type: string
+          maxLength: 64
+          pattern: ^(0|[1-9]\d*)(\.\d+)?$
+          title: Base Size
+        limit_price:
+          type: string
+          maxLength: 64
+          pattern: ^(0|[1-9]\d*)(\.\d+)?$
+          title: Limit Price
+        order_type:
+          type: string
+          const: LIMIT
+          title: Order Type
+          default: LIMIT
+        time_in_force:
+          type: string
+          const: GOOD_UNTIL_CANCELLED
+          title: Time In Force
+          default: GOOD_UNTIL_CANCELLED
+        post_only:
+          type: boolean
           title: Post Only
           default: false
       additionalProperties: false

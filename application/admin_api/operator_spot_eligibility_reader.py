@@ -18,6 +18,7 @@ from application.admin_api.command_service import (
 )
 from application.admin_api.operator_spot_eligibility import (
     SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY,
+    SPOT_ELIGIBILITY_NEAR_MARKET_GOAL_KEYS,
     SPOT_ELIGIBILITY_PRODUCT_ID,
     SpotEligibilityReadContext,
     SpotEligibilityReadOutcome,
@@ -129,7 +130,7 @@ class SpotEligibilityPlanTerms:
         side = str(self.side).upper()
         if side not in {"BUY", "SELL"} or self.side != side:
             raise ValueError("spot_eligibility_reader_side_invalid")
-        if type(self.post_only) is not bool or self.post_only is not False:
+        if type(self.post_only) is not bool:
             raise ValueError("spot_eligibility_reader_post_only_invalid")
         base = _decimal(self.base_size)
         price = _decimal(self.limit_price)
@@ -414,6 +415,11 @@ class CoinbaseApprovedSpotEligibilityReader:
             raise ValueError("spot_eligibility_reader_portfolio_label_invalid")
         if not isinstance(plan, SpotEligibilityPlanTerms):
             raise ValueError("spot_eligibility_reader_plan_invalid")
+        near_market = expected_context.goal_key in (
+            SPOT_ELIGIBILITY_NEAR_MARKET_GOAL_KEYS
+        )
+        if plan.post_only is not near_market:
+            raise ValueError("spot_eligibility_reader_post_only_invalid")
         if plan.plan_sha256 != expected_context.plan_sha256:
             raise ValueError("spot_eligibility_reader_plan_mismatch")
         if not callable(now_factory):
@@ -799,9 +805,11 @@ class CoinbaseApprovedSpotEligibilityReader:
     ) -> SpotEligibilityReadResult:
         self._validate_context(context)
         self._market_reference = None
-        documented_market_freshness = (
+        near_market = context.goal_key in SPOT_ELIGIBILITY_NEAR_MARKET_GOAL_KEYS
+        documented_market_freshness = bool(
             context.goal_key
             == SPOT_ELIGIBILITY_DOCUMENTED_MARKET_FRESHNESS_GOAL_KEY
+            or near_market
         )
         method = self._method(
             "get_market_trades"
@@ -851,14 +859,28 @@ class CoinbaseApprovedSpotEligibilityReader:
             market_timestamp = _aware_utc(row.get("time"))
             market_source = "coinbase_rest_best_bid"
         observed_at = market_timestamp
-        standing = evaluate_spot_standing_price_limit(
-            side=self._plan.side,
-            limit_price=self._plan.limit_price,
-            best_bid=bid,
-            market_source=market_source,
-            market_observed_at=observed_at,
-            evaluated_at=self._now(),
-        )
+        if near_market:
+            plan_price = _decimal(self._plan.limit_price)
+            standing_allowed = bool(
+                self._plan.side == "BUY"
+                and self._plan.post_only is True
+                and plan_price is not None
+                and bid is not None
+                and ask is not None
+                and plan_price <= bid
+                and plan_price < ask
+                and market_source == "coinbase_rest_market_trade_snapshot"
+            )
+        else:
+            standing = evaluate_spot_standing_price_limit(
+                side=self._plan.side,
+                limit_price=self._plan.limit_price,
+                best_bid=bid,
+                market_source=market_source,
+                market_observed_at=observed_at,
+                evaluated_at=self._now(),
+            )
+            standing_allowed = standing.get("allowed") is True
         ready = bool(
             row.get("product_id") == SPOT_ELIGIBILITY_PRODUCT_ID
             and bid is not None
@@ -866,7 +888,7 @@ class CoinbaseApprovedSpotEligibilityReader:
             and bid > 0
             and ask >= bid
             and market_timestamp is not None
-            and standing.get("allowed") is True
+            and standing_allowed
         )
         if not ready:
             return self._rejected(

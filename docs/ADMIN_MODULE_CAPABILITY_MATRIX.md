@@ -5,6 +5,8 @@ support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
 Status: `complete`.
+
+Historical core-workspaces completion record (retained as milestone evidence):
 Goal `operator_core_workspaces_origin_prod_alignment_v1` is complete. Current
 action is `complete_core_operator_workspaces_origin_prod_alignment`; default
 action is `await_operator_direction_for_next_mvp`. It delivered the persistent
@@ -25,6 +27,29 @@ and `599 passed, 150 skipped` serial, frontend full `1440 passed`, E2E
 `13 passed`, and independent safety audit `PASS`. The final blind re-audit is
 not claimed as passed; neither are the canonical release gate or final
 installed Controlled-live stack verification.
+
+Current extension status: `active_near_market_v4_v6_validation`. The
+historical GET-only statement above is not current Automation capability
+truth. Goal
+`operator_spot_automation_near_market_policy_and_successor_proof_v4_v6` adds
+the backend-owned, authenticated
+`POST /api/v1/automation/near-market-candidates` workflow and its routed Admin
+UI control. That route can claim one of the shared ten no-retry cycles and
+derive only the next sequential V4-V6 BTC-USDC/Test-portfolio candidate. It
+cannot Preview, Create, or Cancel during candidate preparation.
+
+No current-goal preparation read, Preview, Create, Cancel, or other Coinbase
+call has run at this checkpoint. All V4-V6 allowances remain unconsumed.
+Current Automation has PostgreSQL-backed definition, lifecycle, one-shot run,
+eligibility, Preview-gated exact-child, safe-closeout, and near-market
+preparation routes. Every live action remains separately backend-gated by
+exact RBAC, runtime posture, durable claims, policy, caps, fresh evidence,
+operator confirmation, and the current goal's one-use call allowances. There
+is no scheduler or unattended live activation. Current V4-V6 validation and
+audit evidence is recorded in
+`docs/OPERATOR_SPOT_AUTOMATION_NEAR_MARKET_V4_V6.md`; this matrix does not
+claim a live proof until the installed routed workflow reaches a terminal
+result.
 
 Goal `futures_preview_acceptance_recovery_r12` is terminal
 `complete_terminal_unknown_consumed`. Its single claim is consumed and cannot

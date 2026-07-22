@@ -31,6 +31,8 @@ from application.admin_api.automation_models import (
     AutomationEligibilityRefreshRequest,
     AutomationJobKind,
     AutomationMutationContext,
+    AutomationNearMarketCandidatePreparationRequest,
+    AutomationNearMarketCandidatePreparationResponse,
     AutomationOneShotRunRequest,
     AutomationPreviewGatedSingleChildAuthorizationRequest,
     AutomationSingleChildAuthorizationRequest,
@@ -38,6 +40,7 @@ from application.admin_api.automation_models import (
     AutomationSingleChildEligibilityReadback,
     AutomationSingleChildPlanReadback,
     AutomationSpotSingleChildOrderSpec,
+    AutomationSpotSingleChildOrderCreateSpec,
     AutomationPagination,
     AutomationRunEventItem,
     AutomationRunEventListResponse,
@@ -272,6 +275,56 @@ class _FakeRepository:
             replayed=self.replayed,
         )
 
+    def prepare_near_market_candidate(
+        self,
+        **kwargs: Any,
+    ) -> AutomationRepositoryMutation:
+        self._record("prepare_near_market_candidate", **kwargs)
+        definition = _definition(
+            job_kind="SPOT_CAMPAIGN",
+            product_ids=["BTC-USDC"],
+        )
+        definition.update(
+            {
+                "spot_execution_mode": "NEAR_MARKET_POST_ONLY_V4",
+                "single_child_order": {
+                    "side": "BUY",
+                    "base_size": "0.00001",
+                    "limit_price": "50000.00",
+                    "order_type": "LIMIT",
+                    "time_in_force": "GOOD_UNTIL_CANCELLED",
+                    "post_only": True,
+                },
+            }
+        )
+        return AutomationRepositoryMutation(
+            entity={
+                "outcome": "MATERIALIZED",
+                "candidate_version": 4,
+                "spot_execution_mode": "NEAR_MARKET_POST_ONLY_V4",
+                "cycle_number": 1,
+                "policy_revision": "BTC_USDC_POST_ONLY_BEST_BID_V1",
+                "diagnostic_code": "automation_near_market_terms_derived",
+                "completed_categories": [
+                    "api_key_permissions",
+                    "portfolio_catalog",
+                    "wallet_balances",
+                    "product_metadata",
+                    "best_bid_ask",
+                    "fee_summary",
+                ],
+                "coinbase_api_call_count": 6,
+                "call_count_exact": True,
+                "definition": definition,
+                "preview_call_count": 0,
+                "create_call_count": 0,
+                "cancel_call_count": 0,
+            },
+            audit_id=AUDIT_ID,
+            correlation_id=kwargs["context"].correlation_id,
+            replayed=self.replayed,
+        )
+
     def transition_definition(self, **kwargs: Any) -> AutomationRepositoryMutation:
         self._record("transition_definition", **kwargs)
         action = kwargs["action"]
@@ -488,7 +541,7 @@ def test_create_request_is_strict_and_never_accepts_a_futures_domain_or_payload(
 
 
 def test_single_child_definition_spec_is_typed_btc_usdc_campaign_only():
-    spec = AutomationSpotSingleChildOrderSpec(
+    spec = AutomationSpotSingleChildOrderCreateSpec(
         side="BUY",
         base_size="0.00001",
         limit_price="50000.00",
@@ -532,6 +585,15 @@ def test_single_child_definition_spec_is_typed_btc_usdc_campaign_only():
                 "base_size": "0.00001",
                 "limit_price": "50000.00",
                 "order_type": "MARKET",
+            }
+        )
+    with pytest.raises(ValidationError):
+        AutomationSpotSingleChildOrderCreateSpec.model_validate(
+            {
+                "side": "BUY",
+                "base_size": "0.00001",
+                "limit_price": "50000.00",
+                "post_only": True,
             }
         )
 
@@ -580,6 +642,143 @@ def test_documented_market_freshness_v3_mode_requires_an_exact_single_child_plan
             product_ids=["BTC-USDC"],
             spot_execution_mode="DOCUMENTED_MARKET_FRESHNESS_V3",
         )
+
+
+def test_near_market_successor_terms_are_backend_owned_and_post_only():
+    request = AutomationNearMarketCandidatePreparationRequest(
+        confirm_backend_derived_terms=True,
+        confirm_one_no_retry_preparation_cycle=True,
+        confirm_btc_usdc_test_portfolio_scope=True,
+        confirm_unknown_consumes_cycle=True,
+        reason="Prepare one backend-derived near-market successor",
+    )
+    assert request.confirm_backend_derived_terms is True
+
+    with pytest.raises(ValidationError):
+        AutomationDefinitionCreateRequest(
+            display_name="Operator-supplied near-market candidate",
+            job_kind=AutomationJobKind.SPOT_CAMPAIGN,
+            product_ids=["BTC-USDC"],
+            spot_execution_mode="NEAR_MARKET_POST_ONLY_V4",
+            single_child_order=AutomationSpotSingleChildOrderSpec(
+                side="BUY",
+                base_size="0.00001",
+                limit_price="50000.00",
+            ),
+        )
+
+    definition = AutomationDefinitionItem.model_validate(
+        {
+            **_definition(
+                job_kind="SPOT_CAMPAIGN",
+                product_ids=["BTC-USDC"],
+            ),
+            "spot_execution_mode": "NEAR_MARKET_POST_ONLY_V4",
+            "single_child_order": {
+                "side": "BUY",
+                "base_size": "0.00001",
+                "limit_price": "50000.00",
+                "order_type": "LIMIT",
+                "time_in_force": "GOOD_UNTIL_CANCELLED",
+                "post_only": True,
+            },
+        }
+    )
+    assert definition.single_child_order is not None
+    assert definition.single_child_order.post_only is True
+
+    with pytest.raises(ValidationError, match="automation_near_market_post_only_required"):
+        AutomationDefinitionItem.model_validate(
+            {
+                **definition.model_dump(mode="json"),
+                "single_child_order": {
+                    **definition.single_child_order.model_dump(mode="json"),
+                    "post_only": False,
+                },
+            }
+        )
+
+
+def test_near_market_preparation_response_is_sanitized_and_call_accounted():
+    response = AutomationNearMarketCandidatePreparationResponse.model_validate(
+        {
+            "outcome": "MATERIALIZED",
+            "candidate_version": 4,
+            "spot_execution_mode": "NEAR_MARKET_POST_ONLY_V4",
+            "cycle_number": 1,
+            "policy_revision": "BTC_USDC_POST_ONLY_BEST_BID_V1",
+            "diagnostic_code": "automation_near_market_terms_derived",
+            "completed_categories": [
+                "api_key_permissions",
+                "portfolio_catalog",
+                "wallet_balances",
+                "product_metadata",
+                "best_bid_ask",
+                "fee_summary",
+            ],
+            "coinbase_api_call_count": 6,
+            "call_count_exact": True,
+            "definition": {
+                **_definition(
+                    job_kind="SPOT_CAMPAIGN",
+                    product_ids=["BTC-USDC"],
+                ),
+                "spot_execution_mode": "NEAR_MARKET_POST_ONLY_V4",
+                "single_child_order": {
+                    "side": "BUY",
+                    "base_size": "0.00001",
+                    "limit_price": "50000.00",
+                    "order_type": "LIMIT",
+                    "time_in_force": "GOOD_UNTIL_CANCELLED",
+                    "post_only": True,
+                },
+            },
+            "preview_call_count": 0,
+            "create_call_count": 0,
+            "cancel_call_count": 0,
+            "audit_id": AUDIT_ID,
+            "correlation_id": "automation-correlation-1",
+            "replayed": False,
+        }
+    )
+    assert response.definition is not None
+    assert response.preview_call_count == 0
+
+    with pytest.raises(ValidationError, match="automation_near_market_preparation_call_count_invalid"):
+        AutomationNearMarketCandidatePreparationResponse.model_validate(
+            {
+                **response.model_dump(mode="json"),
+                "coinbase_api_call_count": None,
+            }
+        )
+
+
+def test_service_forwards_only_near_market_acknowledgements_and_returns_backend_terms():
+    repository = _FakeRepository()
+    service = OperatorAutomationService(repository)
+    request = AutomationNearMarketCandidatePreparationRequest(
+        confirm_backend_derived_terms=True,
+        confirm_one_no_retry_preparation_cycle=True,
+        confirm_btc_usdc_test_portfolio_scope=True,
+        confirm_unknown_consumes_cycle=True,
+        reason="Prepare exact backend-owned terms",
+    )
+
+    result = service.prepare_near_market_candidate(request, _context())
+
+    assert result.outcome == "MATERIALIZED"
+    assert result.definition is not None
+    assert result.definition.single_child_order is not None
+    assert result.definition.single_child_order.post_only is True
+    assert repository.calls == [
+        (
+            "prepare_near_market_candidate",
+            {
+                "request": request.model_dump(mode="json"),
+                "context": _context(),
+            },
+        )
+    ]
 
 
 def test_exact_run_authorization_accepts_only_acknowledgements_and_plan_hash():

@@ -1211,6 +1211,11 @@ def _automation_ownership(
     *,
     fresh_until: datetime | None = None,
     client_order_id: str = "22daf1ea-4c57-4c03-98c5-e74459576228",
+    base_size: str = "0.02",
+    limit_price: str = "50.00",
+    post_only: bool = False,
+    policy_revision: int = 2,
+    standing_price_policy: str = "STANDARD_STANDING_V2",
 ) -> ValidatedSpotAutomationOwnershipEvidence:
     return ValidatedSpotAutomationOwnershipEvidence(
         run_id=AUTOMATION_RUN_ID,
@@ -1220,8 +1225,11 @@ def _automation_ownership(
         client_order_id=client_order_id,
         product_id="BTC-USDC",
         side="BUY",
-        base_size=Decimal("0.02"),
-        limit_price=Decimal("50.00"),
+        base_size=Decimal(base_size),
+        limit_price=Decimal(limit_price),
+        post_only=post_only,
+        policy_revision=policy_revision,
+        standing_price_policy=standing_price_policy,
         portfolio_id_sha256=hashlib.sha256(
             TEST_PORTFOLIO_ID.encode("utf-8")
         ).hexdigest(),
@@ -1237,6 +1245,12 @@ def _automation_admission(
     *,
     fresh_until: datetime | None = None,
     client_order_id: str = "22daf1ea-4c57-4c03-98c5-e74459576228",
+    base_size: str = "0.02",
+    limit_price: str = "50.00",
+    post_only: bool = False,
+    policy_revision: int = 2,
+    standing_price_policy: str = "STANDARD_STANDING_V2",
+    market_source: str = "coinbase_rest_best_bid",
 ) -> ValidatedSpotAutomationAdmissionEvidence:
     now = datetime.now(timezone.utc)
     expires = fresh_until or now + timedelta(seconds=30)
@@ -1245,6 +1259,11 @@ def _automation_admission(
         lease,
         fresh_until=expires,
         client_order_id=client_order_id,
+        base_size=base_size,
+        limit_price=limit_price,
+        post_only=post_only,
+        policy_revision=policy_revision,
+        standing_price_policy=standing_price_policy,
     )
     return ValidatedSpotAutomationAdmissionEvidence(
         **{
@@ -1267,7 +1286,7 @@ def _automation_admission(
             best_ask=Decimal("100.01"),
             observed_at=now,
             fresh_until=transient_expires,
-            source="coinbase_rest_best_bid",
+            source=market_source,
             evidence_sha256="c" * 64,
         ),
         zero_active_order_evidence=SpotAutomationZeroActiveOrderEvidence(
@@ -1360,6 +1379,7 @@ def test_automation_submit_reuses_evidence_without_duplicate_reads_and_registers
                 approval_snapshot_id="approval-automation-1",
                 max_submitted_notional_usdc="3.10",
                 max_executed_notional_usdc="1.00",
+                post_only=False,
             ),
             automation_admission=_automation_admission(lease),
         )
@@ -1378,6 +1398,108 @@ def test_automation_submit_reuses_evidence_without_duplicate_reads_and_registers
     assert registrar.rows[client_order_id]["ownership_provenance"] == (
         "ADMIN_AUTOMATION_ROOT"
     )
+
+
+def test_near_market_automation_uses_typed_post_only_bid_policy_without_global_half_bid_rule(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import configuration
+
+    monkeypatch.setattr(
+        configuration,
+        "ACTION_CONDITION_GUARDS",
+        {"wallet_available": True, "limits": []},
+        raising=False,
+    )
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+    rest_client = _SpotRestClient()
+    rest_client.history = [
+        {
+            "client_order_id": client_order_id,
+            "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
+            "status": "OPEN",
+        }
+    ]
+    registrar = _RootRegistrar()
+    coordinator = SpotProfileOrderAdmissionCoordinator()
+    service = _service(rest_client, registrar, coordinator=coordinator)
+
+    with coordinator.claim(TEST_PORTFOLIO_ID) as lease:
+        response = service.place_manual_order(
+            _manual_command(
+                client_order_id,
+                base_size="0.01",
+                limit_price="100.00",
+                post_only=True,
+                approval_snapshot_id="approval-near-market-automation",
+                max_submitted_notional_usdc="3.10",
+                max_executed_notional_usdc="1.00",
+            ),
+            automation_admission=_automation_admission(
+                lease,
+                base_size="0.01",
+                limit_price="100.00",
+                post_only=True,
+                policy_revision=3,
+                standing_price_policy="NEAR_MARKET_POST_ONLY_V1",
+                market_source="coinbase_rest_market_trade_snapshot",
+            ),
+        )
+
+    assert response.status == AdminApiCommandStatus.ACCEPTED, (
+        response.failure_stage,
+        response.message,
+        response.data,
+    )
+    assert len(rest_client.create_calls) == 1
+    configuration = rest_client.create_calls[0]["order_configuration"]
+    assert configuration["limit_limit_gtc"]["post_only"] is True
+
+
+def test_near_market_automation_rejects_non_trade_snapshot_before_create(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import configuration
+
+    monkeypatch.setattr(
+        configuration,
+        "ACTION_CONDITION_GUARDS",
+        {"wallet_available": True, "limits": []},
+        raising=False,
+    )
+    rest_client = _SpotRestClient()
+    registrar = _RootRegistrar()
+    coordinator = SpotProfileOrderAdmissionCoordinator()
+    service = _service(rest_client, registrar, coordinator=coordinator)
+
+    with coordinator.claim(TEST_PORTFOLIO_ID) as lease:
+        response = service.place_manual_order(
+            _manual_command(
+                base_size="0.01",
+                limit_price="100.00",
+                post_only=True,
+                approval_snapshot_id="approval-near-market-automation",
+                max_submitted_notional_usdc="3.10",
+                max_executed_notional_usdc="1.00",
+            ),
+            automation_admission=_automation_admission(
+                lease,
+                base_size="0.01",
+                limit_price="100.00",
+                post_only=True,
+                policy_revision=3,
+                standing_price_policy="NEAR_MARKET_POST_ONLY_V1",
+                market_source="coinbase_rest_best_bid",
+            ),
+        )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "standing_price_limit"
+    assert response.data["standing_price_limit"]["blocker"] == (
+        "near_market_market_source_invalid"
+    )
+    assert rest_client.create_calls == []
 
 
 def test_manual_submit_after_restart_blocks_on_unresolved_automation_root() -> None:
