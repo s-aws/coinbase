@@ -6,24 +6,25 @@ implicit platform model.
 
 Active bounded proof goal
 `operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`
-is `generic_unknown_cycles_5_outer_boundary_remediation_in_progress`. Current
-action: `validate_deploy_then_execute_distinct_cycle_6`. Default action:
+is `materialization_unknown_cycle_6_legacy_cap_schema_remediation_in_progress`. Current
+action: `validate_deploy_then_execute_distinct_cycle_7`. Default action:
 `complete_readiness_then_execute_first_valid_v7_v9_successor`. The Automation
 domain owns policy `BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2`, six-category
-preparation and eight-category eligibility with `5/10` shared no-retry cycles.
+preparation and eight-category eligibility with `6/10` shared no-retry cycles.
 Get Market Trades supplies same-snapshot market evidence. Cycles 1–5 remain
 immutable generic `automation_minimum_size_preparation_unknown` records with
 zero completed categories and exact call count withheld; the first approved
 category was not confirmed. Cycle 3 exposed an unprotected REST-client method
 lookup, and cycle 4 exposed response processing outside the fixed stage
-envelope. Cycle 5 remained generic after both fixes, localizing the remaining
-ambiguity to runner composition before reader entry or atomic materialization
-after valid terms. Fixed outer-boundary classifications apply only after this
-remediation is validated and deployed.
+envelope. The deployed outer-boundary split classified cycle 6 as
+`automation_minimum_size_materialization_unknown` after all six read
+categories completed. Schema-only inspection localized two obsolete fixed-
+1.00-USDC PostgreSQL CHECK constraints beside the dynamic-cap constraints.
+The current migration removes only those legacy checks.
 Preview/Create/Cancel calls are `0/0/0`; all those successor allowances remain
 unconsumed. Prior readiness gates passed; the remediation must pass focused and
 full validation, deployment, and both independent audits before distinct
-cycle 6.
+cycle 7.
 
 Status: `complete`.
 

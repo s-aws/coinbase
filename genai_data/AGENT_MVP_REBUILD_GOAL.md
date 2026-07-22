@@ -5,10 +5,10 @@ Goal ID:
 
 Last reviewed: 2026-07-22 UTC.
 
-Status: `generic_unknown_cycles_5_outer_boundary_remediation_in_progress`.
+Status: `materialization_unknown_cycle_6_legacy_cap_schema_remediation_in_progress`.
 
 Current action:
-`validate_deploy_then_execute_distinct_cycle_6`.
+`validate_deploy_then_execute_distinct_cycle_7`.
 
 Default action: `complete_readiness_then_execute_first_valid_v7_v9_successor`.
 
@@ -18,19 +18,15 @@ derives the smallest valid post-only fresh Get Market Trades best-bid terms,
 submitted notional, and fee-reserved dynamic execution cap, with both caps
 strictly below 3.10 USDC. Product minimum, increment, fee, wallet, freshness,
 and cap failures use fixed sanitized classifications. Six-category preparation
-and eight-category run eligibility share `5/10` durable no-retry cycles.
+and eight-category run eligibility share `6/10` durable no-retry cycles.
 Cycles 1–5 remain immutable generic
 `automation_minimum_size_preparation_unknown` records with zero completed
 categories and exact call count withheld; the first approved category was not
 confirmed. Cycle 3 exposed an unprotected REST-client method lookup, and cycle
-4 exposed response processing outside the fixed stage envelope. Cycle 5
-remained generic after both fixes, localizing the remaining ambiguity to
-runner composition before reader entry or atomic materialization after valid
-terms. Fixed outer-boundary classification applies only after the current
-remediation is validated and deployed. Preview/Create/Cancel calls are
+4 exposed response processing outside the fixed stage envelope. Cycle 5 remained generic after both fixes. The deployed outer-boundary split classified cycle 6 as `automation_minimum_size_materialization_unknown` after all six read categories completed. Schema-only inspection localized a concrete materialization blocker: two obsolete fixed-1.00-USDC PostgreSQL CHECK constraints remained active beside the dynamic-cap constraints. The current remediation removes only those legacy constraints and proves a synthetic 1.01-USDC dynamic-cap row survives startup migration. Preview/Create/Cancel calls are
 `0/0/0`; all those allowances remain unconsumed. Prior readiness gates passed;
-the remediation still requires focused/full validation, deployment, and both
-independent audits before distinct cycle 6.
+the schema remediation still requires focused/full validation, deployment, and
+both independent audits before distinct cycle 7.
 
 ## V4 near-market predecessor closeout
 

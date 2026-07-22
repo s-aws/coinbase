@@ -841,6 +841,20 @@ class OperatorAutomationRepository:
                 f"""
                 ALTER TABLE {self._prefix}automation_spot_single_child_plan
                 DROP CONSTRAINT IF EXISTS
+                    automation_spot_single_child_plan_check1
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_single_child_plan
+                DROP CONSTRAINT IF EXISTS
+                    automation_spot_single_child_max_possible_execution_notio_check
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_single_child_plan
+                DROP CONSTRAINT IF EXISTS
                     automation_spot_single_child_plan_possible_execution_notional_usdc_check
                 """
             )

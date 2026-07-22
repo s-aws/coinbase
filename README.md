@@ -15,8 +15,8 @@ plans.
 
 Goal
 `operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`
-is active at `generic_unknown_cycles_5_outer_boundary_remediation_in_progress`.
-Current action: `validate_deploy_then_execute_distinct_cycle_6`.
+is active at `materialization_unknown_cycle_6_legacy_cap_schema_remediation_in_progress`.
+Current action: `validate_deploy_then_execute_distinct_cycle_7`.
 Default action: `complete_readiness_then_execute_first_valid_v7_v9_successor`.
 
 The backend-owned successor policy
@@ -25,22 +25,24 @@ post-only fresh Get Market Trades best-bid candidate for the approved Test
 portfolio and BTC-USDC. It uses fixed sanitized minimum/increment/fee/wallet/
 freshness/cap classifications and a submitted plus fee-reserved dynamic cap
 strictly below 3.10 USDC. Six-category preparation and eight-category run
-eligibility share `5/10` durable no-retry cycles. Cycles 1–5 remain
+eligibility share `6/10` durable no-retry cycles. Cycles 1–5 remain
 immutable generic `automation_minimum_size_preparation_unknown` records with
 zero completed categories and exact call count conservatively withheld; the
 first approved category was not confirmed. Cycle 3 exposed an unprotected
 REST-client method lookup, and cycle 4 exposed response processing outside the
-fixed stage envelope. Cycle 5 remained generic after both fixes, localizing the
-remaining ambiguity to runner composition before reader entry or atomic
-materialization after valid terms. The current remediation assigns those two
-outer boundaries distinct fixed UNKNOWN classifications.
+fixed stage envelope. The deployed outer-boundary split classified cycle 6 as
+`automation_minimum_size_materialization_unknown` after all six read
+categories completed. Schema-only inspection localized two obsolete fixed-
+1.00-USDC PostgreSQL CHECK constraints beside the dynamic-cap constraints.
+The current migration removes only those legacy checks and proves a synthetic
+1.01-USDC dynamic-cap row survives startup migration.
 Preview/Create/Cancel calls are
 `0/0/0`; all those allowances remain unconsumed. The readiness backend gate passed
-with `1209 passed, 6 skipped` parallel and `685 passed, 150 skipped` serial;
+with `1209 passed, 6 skipped` parallel and `687 passed, 150 skipped` serial;
 the canonical frontend release gate and installed deployment validation pass,
 and the independent safety plus blind-contextless code audits passed for the
-prior readiness checkpoint. The stage-specific remediation must pass focused and full
-validation, deployment, and both audits before distinct cycle 6.
+prior readiness checkpoint. The schema remediation must pass focused and full
+validation, deployment, and both audits before distinct cycle 7.
 
 ### V4 near-market predecessor closeout
 

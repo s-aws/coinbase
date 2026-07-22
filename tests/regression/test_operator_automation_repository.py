@@ -994,6 +994,109 @@ def test_startup_initialization_installs_schema_then_recovers_runs(monkeypatch):
     assert events == ["schema", "recovery"]
 
 
+def test_schema_upgrade_removes_legacy_fixed_execution_cap_constraints(
+    repository_harness: _Harness,
+) -> None:
+    repository = repository_harness.repository()
+    table = sql.SQL("{}.automation_spot_single_child_plan").format(
+        sql.Identifier(repository_harness.schema)
+    )
+    with repository_harness.database.get_cursor() as cursor:
+        cursor.execute(
+            sql.SQL(
+                "ALTER TABLE {} DROP CONSTRAINT IF EXISTS "
+                "automation_spot_single_child_plan_check1"
+            ).format(table)
+        )
+        cursor.execute(
+            sql.SQL(
+                "ALTER TABLE {} DROP CONSTRAINT IF EXISTS "
+                "automation_spot_single_child_max_possible_execution_notio_check"
+            ).format(table)
+        )
+        cursor.execute(
+            sql.SQL(
+                "ALTER TABLE {} ADD CONSTRAINT "
+                "automation_spot_single_child_plan_check1 "
+                "CHECK (possible_execution_notional_usdc <= 1.00)"
+            ).format(table)
+        )
+        cursor.execute(
+            sql.SQL(
+                "ALTER TABLE {} ADD CONSTRAINT "
+                "automation_spot_single_child_max_possible_execution_notio_check "
+                "CHECK (max_possible_execution_notional_usdc = 1.00)"
+            ).format(table)
+        )
+
+    repository.ensure_schema()
+
+    constraint_names = {
+        row["conname"]
+        for row in repository_harness.rows(
+            """
+            SELECT conname
+            FROM pg_constraint
+            WHERE conrelid = %s::regclass
+            """,
+            (
+                f"{repository_harness.schema}."
+                "automation_spot_single_child_plan",
+            ),
+        )
+    }
+    assert "automation_spot_single_child_plan_check1" not in constraint_names
+    assert (
+        "automation_spot_single_child_max_possible_execution_notio_check"
+        not in constraint_names
+    )
+    definition_id = str(uuid.uuid4())
+    with repository_harness.database.get_cursor() as cursor:
+        cursor.execute(
+            sql.SQL(
+                """
+                INSERT INTO {}.automation_definition (
+                    definition_id, revision, label, domain, job_kind,
+                    lifecycle_state, product_ids, schedule_kind,
+                    interval_seconds, next_review_at, created_at, updated_at
+                ) VALUES (
+                    %s, 1, %s, 'SPOT', 'SPOT_CAMPAIGN', 'DRAFT',
+                    '[\"BTC-USDC\"]'::jsonb, 'MANUAL_ONLY', NULL, NULL,
+                    NOW(), NOW()
+                )
+                """
+            ).format(sql.Identifier(repository_harness.schema)),
+            (definition_id, "legacy-cap-migration-proof"),
+        )
+        cursor.execute(
+            sql.SQL(
+                """
+                INSERT INTO {}.automation_spot_single_child_plan (
+                    definition_id, definition_revision,
+                    portfolio_id_sha256, product_id, side,
+                    base_size, limit_price, submitted_notional_usdc,
+                    possible_execution_notional_usdc,
+                    max_submitted_notional_usdc,
+                    max_possible_execution_notional_usdc,
+                    post_only, plan_sha256, audit_id,
+                    correlation_id, created_at
+                ) VALUES (
+                    %s, 1, %s, 'BTC-USDC', 'BUY',
+                    1, 1.01, 1.01, 1.01, 3.10, 1.01,
+                    TRUE, %s, %s, %s, NOW()
+                )
+                """
+            ).format(sql.Identifier(repository_harness.schema)),
+            (
+                definition_id,
+                "a" * 64,
+                "b" * 64,
+                str(uuid.uuid4()),
+                "legacy-cap-migration-correlation",
+            ),
+        )
+
+
 def _spot_plan_terms(**overrides: object) -> AutomationSpotSingleChildPlanTerms:
     values: dict[str, object] = {
         "portfolio_id_sha256": hashlib.sha256(

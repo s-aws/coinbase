@@ -2,8 +2,8 @@
 
 Goal
 `operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`
-is active at `generic_unknown_cycles_5_outer_boundary_remediation_in_progress`.
-Current action: `validate_deploy_then_execute_distinct_cycle_6`.
+is active at `materialization_unknown_cycle_6_legacy_cap_schema_remediation_in_progress`.
+Current action: `validate_deploy_then_execute_distinct_cycle_7`.
 Default action: `complete_readiness_then_execute_first_valid_v7_v9_successor`.
 
 ## Boundary and policy
@@ -85,14 +85,17 @@ and one-winner concurrent preparation claiming.
 
 ## Current accounting
 
-Goal-global cycles are `5/10`. Cycles 1–5 are immutable terminal generic
+Goal-global cycles are `6/10`. Cycles 1–5 are immutable terminal generic
 `automation_minimum_size_preparation_unknown` records with zero completed
 categories and exact call count conservatively withheld; the first approved
 category was not confirmed. Cycle 3 exposed an unprotected REST-client method
 lookup, and cycle 4 exposed response processing outside the fixed stage
-envelope. Cycle 5 remained generic after both fixes, localizing the remaining
-ambiguity to runner composition before reader entry or atomic materialization
-after valid terms. Coinbase
+envelope. The deployed outer-boundary split classified cycle 6 as
+`automation_minimum_size_materialization_unknown` after all six read
+categories completed. Schema-only inspection localized two obsolete fixed-
+1.00-USDC PostgreSQL CHECK constraints beside the dynamic-cap constraints.
+The current migration removes only those legacy checks and proves a synthetic
+1.01-USDC dynamic-cap row survives startup migration. Coinbase
 Preview/Create/Cancel calls are `0/0/0`; every such live allowance is
 unconsumed. No V7-V9 candidate currently exists. Remediation retains the fixed
 per-category codes and adds
@@ -101,14 +104,14 @@ boundary plus `automation_minimum_size_materialization_unknown` for the
 six-category-prefix outer boundary, without retaining response content or
 exception text. The readiness backend gate
 passed with `1209 passed, 6 skipped` parallel and
-`685 passed, 150 skipped` serial. The canonical frontend release gate passed
-`1581` Vitest tests, `229` deployment tests, `17` Playwright tests, generated
+`687 passed, 150 skipped` serial. The canonical frontend release gate passed
+`1583` Vitest tests, `229` deployment tests, `17` Playwright tests, generated
 contract checks, and installed Controlled-live deployment validation with zero
 live Coinbase execution. The independent safety audit passed; the
-blind-contextless code audit passed for the response-processing checkpoint.
-The outer-boundary split is now under remediation. Focused and full validation,
-installed deployment checks, and both independent audits must pass before the
-distinct cycle 6 operator action.
+blind-contextless code audit passed for the outer-boundary checkpoint. The
+legacy-cap schema migration is now under remediation. Focused and full
+validation, installed deployment checks, and both independent audits must pass
+before the distinct cycle 7 operator action.
 
 ## Legacy comparison
 

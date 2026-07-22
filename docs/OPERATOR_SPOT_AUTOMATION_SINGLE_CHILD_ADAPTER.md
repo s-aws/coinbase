@@ -4,22 +4,19 @@
 
 Goal
 `operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`
-is active at `generic_unknown_cycles_5_outer_boundary_remediation_in_progress`.
-Current action: `validate_deploy_then_execute_distinct_cycle_6`.
+is active at `materialization_unknown_cycle_6_legacy_cap_schema_remediation_in_progress`.
+Current action: `validate_deploy_then_execute_distinct_cycle_7`.
 Default action: `complete_readiness_then_execute_first_valid_v7_v9_successor`.
 The adapter recognizes typed policy-revision-4 V7-V9 plans under
 `BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2`, preserving exact dynamic caps
 strictly below 3.10 USDC through eight-category eligibility, Preview, Create,
-and exact-child Cancel. Six-category preparation and eligibility share `5/10`
+and exact-child Cancel. Get Market Trades remains the documented same-snapshot
+price and freshness source. Six-category preparation and eligibility share `6/10`
 durable no-retry cycles. Cycles 1–5 remain immutable generic
 `automation_minimum_size_preparation_unknown` records with zero completed
 categories and exact call count withheld; the first approved category was not
 confirmed. Cycle 3 exposed an unprotected REST-client method lookup, and cycle
-4 exposed response processing outside the fixed stage envelope. Cycle 5
-remained generic after both fixes, localizing the remaining ambiguity to
-runner composition before reader entry or atomic materialization after valid
-terms. Fixed outer-boundary classification applies only after the current
-remediation is validated and deployed. Preview/Create/Cancel calls are
+4 exposed response processing outside the fixed stage envelope. Cycle 5 remained generic after both fixes. The deployed outer-boundary split classified cycle 6 as `automation_minimum_size_materialization_unknown` after all six read categories completed. Schema-only inspection localized a concrete materialization blocker: two obsolete fixed-1.00-USDC PostgreSQL CHECK constraints remained active beside the dynamic-cap constraints. The current remediation removes only those legacy constraints and proves a synthetic 1.01-USDC dynamic-cap row survives startup migration. Preview/Create/Cancel calls are
 `0/0/0`, and those allowances remain unconsumed. See
 [`OPERATOR_SPOT_AUTOMATION_MINIMUM_SIZE_V7_V9.md`](OPERATOR_SPOT_AUTOMATION_MINIMUM_SIZE_V7_V9.md).
 

@@ -6,27 +6,29 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 
 The active successor goal is
 `operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`.
-Status: `generic_unknown_cycles_5_outer_boundary_remediation_in_progress`.
-Current action: `validate_deploy_then_execute_distinct_cycle_6`.
+Status: `materialization_unknown_cycle_6_legacy_cap_schema_remediation_in_progress`.
+Current action: `validate_deploy_then_execute_distinct_cycle_7`.
 Default action: `complete_readiness_then_execute_first_valid_v7_v9_successor`.
 The backend-owned `BTC_USDC_POST_ONLY_BEST_BID_MINIMUM_SIZE_V2` policy,
 six-category preparation, eight-category eligibility, fixed sanitized boundary
 classification, and strict below-3.10 dynamic cap are documented in
 [`OPERATOR_SPOT_AUTOMATION_MINIMUM_SIZE_V7_V9.md`](OPERATOR_SPOT_AUTOMATION_MINIMUM_SIZE_V7_V9.md).
-Goal-global cycles are `5/10`; all five remain immutable generic
+Get Market Trades supplies the same-snapshot price and freshness evidence.
+Goal-global cycles are `6/10`; cycles 1–5 remain immutable generic
 `automation_minimum_size_preparation_unknown` records with zero completed
 categories and conservatively withheld exact call count. The first approved
 category was not confirmed. Cycle 3 exposed an unprotected REST-client method
 lookup, and cycle 4 exposed response processing outside the fixed stage
-envelope. Cycle 5 remained generic after both fixes, localizing the remaining
-ambiguity to runner composition before reader entry or atomic materialization
-after valid terms. Fixed outer-boundary classification applies only after the
-current remediation is validated and deployed.
+envelope. The deployed outer-boundary split classified cycle 6 as
+`automation_minimum_size_materialization_unknown` after all six read
+categories completed. Schema-only inspection localized two obsolete fixed-
+1.00-USDC PostgreSQL CHECK constraints beside the dynamic-cap constraints.
+The current migration removes only those legacy checks.
 Preview/Create/Cancel calls are `0/0/0`, and all those allowances remain
 unconsumed. Complete backend/frontend gates, installed
 deployment validation, and independent safety plus blind-contextless code
-audits passed for the prior readiness checkpoint; the remediation must pass
-those gates before distinct cycle 6.
+audits passed for the prior readiness checkpoint; the schema remediation must
+pass those gates before distinct cycle 7.
 
 ### V4 near-market predecessor entry
 
