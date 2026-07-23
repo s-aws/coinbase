@@ -7,8 +7,9 @@ classes and fixed
 no-HTTP DNS/TCP/TLS readiness statuses/counts. It never exposes addresses,
 certificates, exception messages, response bodies, or raw Preview identity.
 Validation, deployment, and both audits passed. V13 is terminal at
-`TRANSPORT_UNKNOWN` after one successful DNS/TCP/TLS sequence and eight exact
-eligibility reads. Its Preview allowance is consumed with exact wire count
+`TRANSPORT_UNKNOWN` after one successful DNS/TCP/TLS sequence and one
+eight-category cycle with eight exact eligibility reads. Its Preview allowance
+is consumed with exact wire count
 withheld; Create and Cancel remain unconsumed. V14/V15 remain unused because no
 documented correction exists. The completed V10-V12 predecessor remains
 immutable. Current action: `close_v13_transport_unknown_v14_v15_unused`.

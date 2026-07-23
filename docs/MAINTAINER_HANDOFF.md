@@ -5,7 +5,7 @@
 `operator_spot_automation_transport_explainability_and_successor_proof_v13_v15`
 passed validation, installed deployment checks, safety audit, and blind audit.
 V13 is terminal at `TRANSPORT_UNKNOWN` after one successful no-HTTP DNS/TCP/TLS
-sequence, one cycle, eight exact eligibility reads, and one consumed Preview
+sequence, one eight-category cycle, eight exact eligibility reads, and one consumed Preview
 allowance with exact wire count withheld. Create and Cancel remain unconsumed.
 V14/V15 remain unused and fail-closed: official Coinbase, pinned SDK, and
 Requests documentation provide no concrete correction for the generic
