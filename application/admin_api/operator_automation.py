@@ -1954,11 +1954,11 @@ class PostgresOperatorAutomationRepositoryAdapter:
             "spot_transport_successor_available",
             None,
         )
-        transport_available = (
-            bool(self._call(transport_availability_reader))
-            if callable(transport_availability_reader)
-            else False
-        )
+        if not callable(transport_availability_reader):
+            raise AutomationRepositoryUnavailable(
+                "automation_transport_successor_availability_unavailable"
+            )
+        transport_available = bool(self._call(transport_availability_reader))
         return self._control(
             record,
             atomic_market_snapshot_authorization_allowed=(

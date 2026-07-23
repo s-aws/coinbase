@@ -218,6 +218,10 @@ class _RawRepository:
             updated_at=NOW,
         )
 
+    def spot_transport_successor_available(self) -> bool:
+        self.calls.append(("spot_transport_successor_available", (), {}))
+        return True
+
     def list_definitions(self, **kwargs: Any) -> AutomationStorePage:
         self.calls.append(("list_definitions", (), kwargs))
         return AutomationStorePage(items=(_definition(),), total_count=1)
@@ -1544,6 +1548,40 @@ def test_adapter_removes_run_action_when_global_control_is_not_active():
     )._definition(record)
 
     assert "RUN_ONCE" not in projected["allowed_actions"]
+
+
+def test_adapter_rejects_control_projection_without_transport_actionability_reader():
+    class MissingTransportActionabilityRepository:
+        def get_control_posture(self) -> AutomationControlPlaneRecord:
+            return AutomationControlPlaneRecord(
+                posture=OperatorAutomationControlPosture.ACTIVE,
+                updated_at=NOW,
+            )
+
+    adapter = PostgresOperatorAutomationRepositoryAdapter(
+        MissingTransportActionabilityRepository()
+    )
+
+    with pytest.raises(
+        AutomationRepositoryUnavailable,
+        match="automation_transport_successor_availability_unavailable",
+    ):
+        adapter.get_control_posture()
+
+
+def test_adapter_exposes_transport_actionability_from_typed_store_reader():
+    repository = _RawRepository()
+
+    projected = PostgresOperatorAutomationRepositoryAdapter(
+        repository
+    ).get_control_posture()
+
+    assert projected["atomic_market_snapshot_authorization_allowed"] is True
+    assert repository.calls[-1] == (
+        "spot_transport_successor_available",
+        (),
+        {},
+    )
 
 
 def test_adapter_omits_definition_identity_from_control_event_projection():
