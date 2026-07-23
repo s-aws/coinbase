@@ -8079,6 +8079,91 @@ class AdminApiReadService:
                 ),
             ),
             module_item(
+                module_id="stealth_definitions",
+                module="Stealth Operations / Definitions",
+                primary_owner="admin_api_contract",
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                unsupported_actions=[
+                    "definition materialization",
+                    "automatic reveal or scheduling",
+                    "runtime or exchange cancellation",
+                ],
+                command_gaps=[
+                    command_gap(
+                        action="definition materialization",
+                        status=(
+                            AdminApiModuleSupportStatus.NOT_MODELED
+                        ),
+                        reason=(
+                            "Goal 5 definitions are pre-runtime PostgreSQL "
+                            "configuration and grant no reveal or placement "
+                            "authority."
+                        ),
+                        required_backend_contract=(
+                            "A separate exact-definition materialization and "
+                            "reveal workflow with wallet, cap, claim, exchange "
+                            "truth, audit, and reconciliation authority."
+                        ),
+                        frontend_boundary=(
+                            "Render the backend runtime interlock and navigate "
+                            "to a later reveal/closeout workflow; never create "
+                            "or infer a runtime order in the browser."
+                        ),
+                    ),
+                ],
+                identity_keys=[
+                    "definition_id",
+                    "revision",
+                    "preview_id",
+                    "manifest_sha256",
+                ],
+                constraints=[
+                    "Definitions are DRAFT, CANCELLED, or CLEARED local rows.",
+                    (
+                        "Any canonical stealth_orders row for the same "
+                        "definition_id blocks definition mutation."
+                    ),
+                    (
+                        "Import preview and apply are distinct durable "
+                        "operator commands."
+                    ),
+                ],
+                verification=[
+                    "stealth definition policy and repository tests",
+                    "Admin API route and OpenAPI contract regression",
+                    "frontend operator workflow and contextless review",
+                ],
+                backend_contract_refs=[
+                    (
+                        "application/admin_api/"
+                        "operator_stealth_definition.py"
+                    ),
+                    (
+                        "application/admin_api/"
+                        "operator_stealth_definition_service.py"
+                    ),
+                    "database/operator_stealth_definition.py",
+                    "api/v1/routes/operator_stealth_definition.py",
+                ],
+                frontend_contract_refs=[
+                    (
+                        "src/features/stealth-orders/"
+                        "StealthDefinitionWorkspace.tsx"
+                    ),
+                    "src/shared/api/contracts/backendApiClient.ts",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_STEALTH_DEFINITION_LIFECYCLE_V1.md",
+                    "docs/ADMIN_MODULE_CAPABILITY_MATRIX.md",
+                ],
+                spot_rule_boundary=(
+                    "The v1 definition terms use the approved Test portfolio "
+                    "hash and active Spot Product Catalog only. They do not "
+                    "grant Spot wallet, cap, execution, reveal, movement, or "
+                    "Futures authority."
+                ),
+            ),
+            module_item(
                 module_id="stealth_orders",
                 module="Stealth Orders",
                 primary_owner="stealth_lifecycle",
@@ -10132,6 +10217,28 @@ class AdminApiReadService:
             route_inventory_item(surface)
             for surface in operator_parent_strategy_surfaces
         ]
+        operator_stealth_definition_surfaces = [
+            "POST /api/v1/stealth/definitions",
+            (
+                "POST /api/v1/stealth/definitions/"
+                "{definition_id}/edit"
+            ),
+            (
+                "POST /api/v1/stealth/definitions/"
+                "{definition_id}/cancel"
+            ),
+            "POST /api/v1/stealth/definitions/clear",
+            "POST /api/v1/stealth/definition-exports",
+            "POST /api/v1/stealth/definition-import-previews",
+            (
+                "POST /api/v1/stealth/definition-import-previews/"
+                "{preview_id}/apply"
+            ),
+        ]
+        operator_stealth_definition_rows = [
+            route_inventory_item(surface)
+            for surface in operator_stealth_definition_surfaces
+        ]
         account_reality_refresh_surfaces = [
             "POST /api/v1/admin/account-reality/refresh",
         ]
@@ -11810,6 +11917,120 @@ class AdminApiReadService:
                     "Catalog admission, target movement, replacement, "
                     "partial-fill, and fixed child policy are Spot-specific "
                     "and must not become Futures defaults."
+                ),
+                approval_required=False,
+                cap_guard_required=False,
+                reconciliation_required=True,
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_item(
+                mutation_id="stealth.definition_lifecycle",
+                mutation_family=(
+                    AdminApiMutationFamilyType.STEALTH_DEFINITION_LIFECYCLE
+                ),
+                workflow_id="operator_stealth_definition_lifecycle_v1",
+                module_id="stealth_definitions",
+                module="Stealth Operations / Definitions",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                ),
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Stealth definition create, exact-revision edit, local "
+                    "cancel, exact-set clear, export, import preview, and "
+                    "atomic import apply are PostgreSQL commands with zero "
+                    "Coinbase-call or exchange-mutation authority."
+                ),
+                command_surfaces=operator_stealth_definition_surfaces,
+                action_classes=[
+                    row.action_class
+                    for row in operator_stealth_definition_rows
+                ],
+                required_permissions=[
+                    row.permission
+                    for row in operator_stealth_definition_rows
+                ],
+                identity_keys=[
+                    "definition_id",
+                    "revision",
+                    "preview_id",
+                    "manifest_sha256",
+                    "idempotency_key",
+                    "correlation_id",
+                ],
+                idempotency_contract=(
+                    "required durable exact-payload claim and exact result "
+                    "snapshot replay; changed actor, reason, selection, or "
+                    "payload conflicts"
+                ),
+                approval_contract=(
+                    "explicit action-specific acknowledgement with exact "
+                    "revision, selection, or manifest preconditions"
+                ),
+                cap_guard_contract=(
+                    "one local definition or an exact set of at most 100; "
+                    "fixed policy allowlist and zero exchange-call allowance"
+                ),
+                admission_audit_contract=(
+                    "durable sanitized command and per-definition events with "
+                    "actor, correlation, admitted Product Catalog revision, "
+                    "approved-portfolio hash, and import/export digest"
+                ),
+                reconciliation_contract=(
+                    "every local mutation checks canonical stealth_orders "
+                    "presence under the same transaction; active, revealed, "
+                    "terminal, unknown, or missing-runtime-table evidence "
+                    "fails closed"
+                ),
+                owning_backend_service=(
+                    "application/admin_api/"
+                    "operator_stealth_definition_service.py"
+                ),
+                shared_command_service_method=None,
+                route_inventory_refs=operator_stealth_definition_surfaces,
+                backend_contract_refs=[
+                    (
+                        "application/admin_api/"
+                        "operator_stealth_definition.py"
+                    ),
+                    (
+                        "application/admin_api/"
+                        "operator_stealth_definition_service.py"
+                    ),
+                    "database/operator_stealth_definition.py",
+                    "api/v1/routes/operator_stealth_definition.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    (
+                        "src/features/stealth-orders/"
+                        "StealthDefinitionWorkspace.tsx"
+                    ),
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_STEALTH_DEFINITION_LIFECYCLE_V1.md"
+                ],
+                frontend_boundary=(
+                    "The frontend renders generated backend authority and "
+                    "forwards explicit operator intent only; it cannot infer "
+                    "definition eligibility, runtime state, or trading terms."
+                ),
+                bff_boundary=(
+                    "BFF forwards each authenticated local command once and "
+                    "must not retry an unknown outcome, expose credentials, "
+                    "or call Coinbase."
+                ),
+                route_local_boundary=(
+                    "Routes enforce backend RBAC, exact intent, idempotency, "
+                    "revision/manifest binding, fixed diagnostics, and zero "
+                    "exchange evidence; they invoke no runtime or Coinbase "
+                    "service."
+                ),
+                spot_rule_boundary=(
+                    "Approved Test-portfolio hashing and active Spot Product "
+                    "Catalog admission are definition-stage constraints only; "
+                    "materialization, wallet, cap, reveal, movement, and "
+                    "exchange rules remain separate domain authority."
                 ),
                 approval_required=False,
                 cap_guard_required=False,

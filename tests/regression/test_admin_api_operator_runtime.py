@@ -156,6 +156,9 @@ def test_operator_runtime_initializes_enabled_durable_schemas_before_composition
     environment[
         "COINBASE_ADMIN_API_OPERATOR_PARENT_STRATEGIES_ENABLED"
     ] = "1"
+    environment[
+        "COINBASE_ADMIN_API_OPERATOR_STEALTH_DEFINITIONS_ENABLED"
+    ] = "1"
     lifecycle: list[object] = []
     monkeypatch.setattr(
         operator_runtime,
@@ -175,6 +178,12 @@ def test_operator_runtime_initializes_enabled_durable_schemas_before_composition
         lambda: lifecycle.append("operator_parent_strategy_schema"),
         raising=False,
     )
+    monkeypatch.setattr(
+        operator_runtime,
+        "initialize_operator_stealth_definition_schema",
+        lambda: lifecycle.append("operator_stealth_definition_schema"),
+        raising=False,
+    )
 
     result = operator_runtime.main(
         ["--host", "127.0.0.1", "--port", "8877"],
@@ -191,6 +200,7 @@ def test_operator_runtime_initializes_enabled_durable_schemas_before_composition
         "operator_automation_schema",
         "operator_product_catalog_schema",
         "operator_parent_strategy_schema",
+        "operator_stealth_definition_schema",
         "compose",
         ("serve", "127.0.0.1", 8877),
     ]

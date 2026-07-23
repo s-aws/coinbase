@@ -15389,6 +15389,1125 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/stealth/definitions:
+    get:
+      tags:
+      - operator-stealth-definition
+      summary: List local operator stealth definitions
+      operationId: list_operator_stealth_definitions_api_v1_stealth_definitions_get
+      parameters:
+      - name: lifecycle_state
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - enum:
+            - DRAFT
+            - CANCELLED
+            - CLEARED
+            type: string
+          - type: 'null'
+          title: Lifecycle State
+      - name: product_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            pattern: ^[A-Z0-9]{1,32}(?:-[A-Z0-9]{1,32}){1,3}$
+          - type: 'null'
+          title: Product Id
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 25
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: command_limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 25
+          title: Command Limit
+      - name: command_offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Command Offset
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthDefinitionListResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Not Found
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - operator-stealth-definition
+      summary: Create one local unrevealed stealth definition
+      operationId: create_operator_stealth_definition_api_v1_stealth_definitions_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: create_stealth_definition
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StealthDefinitionCreateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthDefinitionMutationResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Not Found
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthDefinitionMutationResponse'
+          description: Bad Request
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthDefinitionMutationResponse'
+          description: Conflict
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/stealth/definitions/{definition_id}:
+    get:
+      tags:
+      - operator-stealth-definition
+      summary: Review one local stealth definition and its events
+      operationId: get_operator_stealth_definition_api_v1_stealth_definitions__definition_id__get
+      parameters:
+      - name: definition_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Definition Id
+      - name: event_limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 25
+          title: Event Limit
+      - name: event_offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Event Offset
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthDefinitionDetailResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Not Found
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/stealth/definition-import-previews/{preview_id}:
+    get:
+      tags:
+      - operator-stealth-definition
+      summary: Read one durable stealth-definition import preview
+      operationId: get_operator_stealth_definition_import_preview_api_v1_stealth_definition_import_previews__preview_id__get
+      parameters:
+      - name: preview_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Preview Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthDefinitionImportPreview'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Not Found
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/stealth/definitions/{definition_id}/edit:
+    post:
+      tags:
+      - operator-stealth-definition
+      summary: Edit one exact unrevealed stealth-definition revision
+      operationId: edit_operator_stealth_definition_api_v1_stealth_definitions__definition_id__edit_post
+      parameters:
+      - name: definition_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Definition Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: edit_stealth_definition
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StealthDefinitionEditRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthDefinitionMutationResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Not Found
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthDefinitionMutationResponse'
+          description: Bad Request
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthDefinitionMutationResponse'
+          description: Conflict
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/stealth/definitions/{definition_id}/cancel:
+    post:
+      tags:
+      - operator-stealth-definition
+      summary: Cancel one exact unrevealed local stealth definition
+      operationId: cancel_operator_stealth_definition_api_v1_stealth_definitions__definition_id__cancel_post
+      parameters:
+      - name: definition_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Definition Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: cancel_stealth_definition
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StealthDefinitionCancelRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthDefinitionMutationResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Not Found
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthDefinitionMutationResponse'
+          description: Bad Request
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthDefinitionMutationResponse'
+          description: Conflict
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/stealth/definitions/clear:
+    post:
+      tags:
+      - operator-stealth-definition
+      summary: Clear an exact set of unrevealed local stealth definitions
+      operationId: clear_operator_stealth_definitions_api_v1_stealth_definitions_clear_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: clear_stealth_definitions
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StealthDefinitionClearRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthDefinitionMutationResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Not Found
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthDefinitionMutationResponse'
+          description: Bad Request
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthDefinitionMutationResponse'
+          description: Conflict
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/stealth/definition-exports:
+    post:
+      tags:
+      - operator-stealth-definition
+      summary: Export an exact set of unrevealed stealth definitions
+      operationId: export_operator_stealth_definitions_api_v1_stealth_definition_exports_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: export_stealth_definitions
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StealthDefinitionExportRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthDefinitionMutationResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Not Found
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthDefinitionMutationResponse'
+          description: Bad Request
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthDefinitionMutationResponse'
+          description: Conflict
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/stealth/definition-import-previews:
+    post:
+      tags:
+      - operator-stealth-definition
+      summary: Validate and durably preview one stealth-definition import
+      operationId: preview_operator_stealth_definition_import_api_v1_stealth_definition_import_previews_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: preview_stealth_definition_import
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StealthDefinitionImportPreviewRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthDefinitionMutationResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Not Found
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthDefinitionMutationResponse'
+          description: Bad Request
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthDefinitionMutationResponse'
+          description: Conflict
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/stealth/definition-import-previews/{preview_id}/apply:
+    post:
+      tags:
+      - operator-stealth-definition
+      summary: Apply one exact valid stealth-definition import preview
+      operationId: apply_operator_stealth_definition_import_api_v1_stealth_definition_import_previews__preview_id__apply_post
+      parameters:
+      - name: preview_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Preview Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: apply_stealth_definition_import
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StealthDefinitionImportApplyRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthDefinitionMutationResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Not Found
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthDefinitionMutationResponse'
+          description: Bad Request
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthDefinitionMutationResponse'
+          description: Conflict
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/spot/readiness:
     get:
       tags:
@@ -21767,6 +22886,7 @@ components:
       - spot_order_cancel
       - spot_follow_up_intent
       - spot_parent_strategy
+      - stealth_definition_lifecycle
       - spot_manual_order_proof_chain
       - spot_order_cancel_proof_chain
       - spot_campaign_execution
@@ -181225,6 +182345,1282 @@ components:
       - reveal_condition
       title: StealthCreateRequest
       description: Stealth create request shape for future gated lifecycle writes.
+    StealthDefinitionCancelRequest:
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 1.0
+          title: Expected Revision
+        operator_reason:
+          type: string
+          maxLength: 240
+          minLength: 1
+          title: Operator Reason
+        confirm_stealth_definition_cancel:
+          type: boolean
+          const: true
+          title: Confirm Stealth Definition Cancel
+      additionalProperties: false
+      type: object
+      required:
+      - expected_revision
+      - operator_reason
+      - confirm_stealth_definition_cancel
+      title: StealthDefinitionCancelRequest
+    StealthDefinitionClearRequest:
+      properties:
+        selections:
+          items:
+            $ref: '#/components/schemas/StealthDefinitionSelection'
+          type: array
+          maxItems: 100
+          minItems: 1
+          title: Selections
+        operator_reason:
+          type: string
+          maxLength: 240
+          minLength: 1
+          title: Operator Reason
+        confirm_stealth_definition_clear:
+          type: boolean
+          const: true
+          title: Confirm Stealth Definition Clear
+      additionalProperties: false
+      type: object
+      required:
+      - selections
+      - operator_reason
+      - confirm_stealth_definition_clear
+      title: StealthDefinitionClearRequest
+    StealthDefinitionCommandEvidence:
+      properties:
+        operation:
+          type: string
+          enum:
+          - CREATE
+          - EDIT
+          - CANCEL
+          - CLEAR
+          - EXPORT
+          - IMPORT_PREVIEW
+          - IMPORT_APPLY
+          title: Operation
+        state:
+          type: string
+          enum:
+          - IN_PROGRESS
+          - COMPLETED
+          - REJECTED
+          title: State
+        diagnostic_code:
+          type: string
+          pattern: ^[a-z][a-z0-9_]{0,95}$
+          title: Diagnostic Code
+        definition_id:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          - type: 'null'
+          title: Definition Id
+        result_revision:
+          anyOf:
+          - type: integer
+            minimum: 1.0
+          - type: 'null'
+          title: Result Revision
+        actor_id:
+          type: string
+          pattern: ^[A-Za-z0-9._:@|/-]{1,255}$
+          title: Actor Id
+        correlation_id:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Correlation Id
+        idempotency_key:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Idempotency Key
+        created_at:
+          type: string
+          title: Created At
+        updated_at:
+          type: string
+          title: Updated At
+      additionalProperties: false
+      type: object
+      required:
+      - operation
+      - state
+      - diagnostic_code
+      - actor_id
+      - correlation_id
+      - idempotency_key
+      - created_at
+      - updated_at
+      title: StealthDefinitionCommandEvidence
+    StealthDefinitionCreateRequest:
+      properties:
+        name:
+          type: string
+          maxLength: 80
+          minLength: 1
+          title: Name
+        product_id:
+          type: string
+          pattern: ^[A-Z0-9]{1,32}(?:-[A-Z0-9]{1,32}){1,3}$
+          title: Product Id
+        side:
+          type: string
+          enum:
+          - BUY
+          - SELL
+          title: Side
+        total_size:
+          type: string
+          pattern: ^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,18})?$
+          title: Total Size
+        limit_price:
+          type: string
+          pattern: ^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,18})?$
+          title: Limit Price
+        reveal_condition_type:
+          type: string
+          enum:
+          - PRICE
+          - TIME_DELAY
+          title: Reveal Condition Type
+        reveal_price_threshold:
+          anyOf:
+          - type: string
+            pattern: ^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,18})?$
+          - type: 'null'
+          title: Reveal Price Threshold
+        reveal_direction:
+          anyOf:
+          - type: string
+            enum:
+            - ABOVE
+            - BELOW
+          - type: 'null'
+          title: Reveal Direction
+        hold_duration_seconds:
+          type: integer
+          maximum: 86400.0
+          minimum: 0.0
+          title: Hold Duration Seconds
+        delay_seconds:
+          anyOf:
+          - type: integer
+            maximum: 604800.0
+            minimum: 0.0
+          - type: 'null'
+          title: Delay Seconds
+        reveal_pricing_policy:
+          type: string
+          enum:
+          - CONFIGURED_LIMIT
+          - TOP_OF_BOOK
+          - MIDPOINT
+          title: Reveal Pricing Policy
+        sizing_mode:
+          type: string
+          const: FIXED
+          title: Sizing Mode
+        follow_up_reveal_direction:
+          type: string
+          enum:
+          - SAME
+          - OPPOSITE
+          title: Follow Up Reveal Direction
+        target_movement:
+          type: string
+          pattern: ^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,18})?$
+          title: Target Movement
+        target_movement_type:
+          type: string
+          enum:
+          - P
+          - A
+          title: Target Movement Type
+        max_order_replacements:
+          type: integer
+          maximum: 100.0
+          minimum: 0.0
+          title: Max Order Replacements
+        allow_partial_fills:
+          type: boolean
+          title: Allow Partial Fills
+        post_only:
+          type: boolean
+          const: true
+          title: Post Only
+        definition_id:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          - type: 'null'
+          title: Definition Id
+        operator_reason:
+          type: string
+          maxLength: 240
+          minLength: 1
+          title: Operator Reason
+        confirm_stealth_definition_create:
+          type: boolean
+          const: true
+          title: Confirm Stealth Definition Create
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - product_id
+      - side
+      - total_size
+      - limit_price
+      - reveal_condition_type
+      - hold_duration_seconds
+      - reveal_pricing_policy
+      - sizing_mode
+      - follow_up_reveal_direction
+      - target_movement
+      - target_movement_type
+      - max_order_replacements
+      - allow_partial_fills
+      - post_only
+      - operator_reason
+      - confirm_stealth_definition_create
+      title: StealthDefinitionCreateRequest
+    StealthDefinitionDetailResponse:
+      properties:
+        definition:
+          $ref: '#/components/schemas/StealthDefinitionItem'
+        events:
+          items:
+            $ref: '#/components/schemas/StealthDefinitionEvent'
+          type: array
+          title: Events
+        event_total_count:
+          type: integer
+          minimum: 0.0
+          title: Event Total Count
+        event_limit:
+          type: integer
+          maximum: 100.0
+          minimum: 1.0
+          title: Event Limit
+        event_offset:
+          type: integer
+          minimum: 0.0
+          title: Event Offset
+        event_next_offset:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Event Next Offset
+        trading_authority_granted:
+          type: boolean
+          const: false
+          title: Trading Authority Granted
+          default: false
+        exchange_call_count:
+          type: integer
+          const: 0
+          title: Exchange Call Count
+          default: 0
+        exchange_mutation_count:
+          type: integer
+          const: 0
+          title: Exchange Mutation Count
+          default: 0
+      additionalProperties: false
+      type: object
+      required:
+      - definition
+      - events
+      - event_total_count
+      - event_limit
+      - event_offset
+      title: StealthDefinitionDetailResponse
+    StealthDefinitionEditRequest:
+      properties:
+        name:
+          type: string
+          maxLength: 80
+          minLength: 1
+          title: Name
+        product_id:
+          type: string
+          pattern: ^[A-Z0-9]{1,32}(?:-[A-Z0-9]{1,32}){1,3}$
+          title: Product Id
+        side:
+          type: string
+          enum:
+          - BUY
+          - SELL
+          title: Side
+        total_size:
+          type: string
+          pattern: ^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,18})?$
+          title: Total Size
+        limit_price:
+          type: string
+          pattern: ^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,18})?$
+          title: Limit Price
+        reveal_condition_type:
+          type: string
+          enum:
+          - PRICE
+          - TIME_DELAY
+          title: Reveal Condition Type
+        reveal_price_threshold:
+          anyOf:
+          - type: string
+            pattern: ^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,18})?$
+          - type: 'null'
+          title: Reveal Price Threshold
+        reveal_direction:
+          anyOf:
+          - type: string
+            enum:
+            - ABOVE
+            - BELOW
+          - type: 'null'
+          title: Reveal Direction
+        hold_duration_seconds:
+          type: integer
+          maximum: 86400.0
+          minimum: 0.0
+          title: Hold Duration Seconds
+        delay_seconds:
+          anyOf:
+          - type: integer
+            maximum: 604800.0
+            minimum: 0.0
+          - type: 'null'
+          title: Delay Seconds
+        reveal_pricing_policy:
+          type: string
+          enum:
+          - CONFIGURED_LIMIT
+          - TOP_OF_BOOK
+          - MIDPOINT
+          title: Reveal Pricing Policy
+        sizing_mode:
+          type: string
+          const: FIXED
+          title: Sizing Mode
+        follow_up_reveal_direction:
+          type: string
+          enum:
+          - SAME
+          - OPPOSITE
+          title: Follow Up Reveal Direction
+        target_movement:
+          type: string
+          pattern: ^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,18})?$
+          title: Target Movement
+        target_movement_type:
+          type: string
+          enum:
+          - P
+          - A
+          title: Target Movement Type
+        max_order_replacements:
+          type: integer
+          maximum: 100.0
+          minimum: 0.0
+          title: Max Order Replacements
+        allow_partial_fills:
+          type: boolean
+          title: Allow Partial Fills
+        post_only:
+          type: boolean
+          const: true
+          title: Post Only
+        expected_revision:
+          type: integer
+          minimum: 1.0
+          title: Expected Revision
+        operator_reason:
+          type: string
+          maxLength: 240
+          minLength: 1
+          title: Operator Reason
+        confirm_stealth_definition_edit:
+          type: boolean
+          const: true
+          title: Confirm Stealth Definition Edit
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - product_id
+      - side
+      - total_size
+      - limit_price
+      - reveal_condition_type
+      - hold_duration_seconds
+      - reveal_pricing_policy
+      - sizing_mode
+      - follow_up_reveal_direction
+      - target_movement
+      - target_movement_type
+      - max_order_replacements
+      - allow_partial_fills
+      - post_only
+      - expected_revision
+      - operator_reason
+      - confirm_stealth_definition_edit
+      title: StealthDefinitionEditRequest
+    StealthDefinitionEvent:
+      properties:
+        event_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Event Id
+        definition_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Definition Id
+        event_type:
+          type: string
+          enum:
+          - STEALTH_DEFINITION_CREATED
+          - STEALTH_DEFINITION_EDITED
+          - STEALTH_DEFINITION_CANCELLED
+          - STEALTH_DEFINITION_CLEARED
+          - STEALTH_DEFINITION_EXPORTED
+          - STEALTH_DEFINITION_IMPORTED
+          title: Event Type
+        revision:
+          type: integer
+          minimum: 1.0
+          title: Revision
+        actor_id:
+          type: string
+          pattern: ^[A-Za-z0-9._:@|/-]{1,255}$
+          title: Actor Id
+        correlation_id:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Correlation Id
+        evidence:
+          $ref: '#/components/schemas/StealthDefinitionEventEvidence'
+        recorded_at:
+          type: string
+          title: Recorded At
+      additionalProperties: false
+      type: object
+      required:
+      - event_id
+      - definition_id
+      - event_type
+      - revision
+      - actor_id
+      - correlation_id
+      - evidence
+      - recorded_at
+      title: StealthDefinitionEvent
+    StealthDefinitionEventEvidence:
+      properties:
+        lifecycle_state:
+          anyOf:
+          - type: string
+            enum:
+            - DRAFT
+            - CANCELLED
+            - CLEARED
+          - type: 'null'
+          title: Lifecycle State
+        revision:
+          anyOf:
+          - type: integer
+            minimum: 1.0
+          - type: 'null'
+          title: Revision
+        import_preview_id:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          - type: 'null'
+          title: Import Preview Id
+        export_id:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          - type: 'null'
+          title: Export Id
+        manifest_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Manifest Sha256
+      additionalProperties: false
+      type: object
+      title: StealthDefinitionEventEvidence
+    StealthDefinitionExportManifest:
+      properties:
+        export_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Export Id
+        schema_version:
+          type: string
+          const: operator-stealth-definition/v1
+          title: Schema Version
+        manifest_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Manifest Sha256
+        item_count:
+          type: integer
+          maximum: 100.0
+          minimum: 1.0
+          title: Item Count
+        items:
+          items:
+            $ref: '#/components/schemas/StealthDefinitionImportItem'
+          type: array
+          title: Items
+      additionalProperties: false
+      type: object
+      required:
+      - export_id
+      - schema_version
+      - manifest_sha256
+      - item_count
+      - items
+      title: StealthDefinitionExportManifest
+    StealthDefinitionExportRequest:
+      properties:
+        definition_ids:
+          items:
+            type: string
+          type: array
+          maxItems: 100
+          minItems: 1
+          title: Definition Ids
+        operator_reason:
+          type: string
+          maxLength: 240
+          minLength: 1
+          title: Operator Reason
+        confirm_stealth_definition_export:
+          type: boolean
+          const: true
+          title: Confirm Stealth Definition Export
+      additionalProperties: false
+      type: object
+      required:
+      - definition_ids
+      - operator_reason
+      - confirm_stealth_definition_export
+      title: StealthDefinitionExportRequest
+    StealthDefinitionImportApplyRequest:
+      properties:
+        expected_manifest_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Expected Manifest Sha256
+        operator_reason:
+          type: string
+          maxLength: 240
+          minLength: 1
+          title: Operator Reason
+        confirm_stealth_definition_import_apply:
+          type: boolean
+          const: true
+          title: Confirm Stealth Definition Import Apply
+      additionalProperties: false
+      type: object
+      required:
+      - expected_manifest_sha256
+      - operator_reason
+      - confirm_stealth_definition_import_apply
+      title: StealthDefinitionImportApplyRequest
+    StealthDefinitionImportItem:
+      properties:
+        name:
+          type: string
+          maxLength: 80
+          minLength: 1
+          title: Name
+        product_id:
+          type: string
+          pattern: ^[A-Z0-9]{1,32}(?:-[A-Z0-9]{1,32}){1,3}$
+          title: Product Id
+        side:
+          type: string
+          enum:
+          - BUY
+          - SELL
+          title: Side
+        total_size:
+          type: string
+          pattern: ^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,18})?$
+          title: Total Size
+        limit_price:
+          type: string
+          pattern: ^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,18})?$
+          title: Limit Price
+        reveal_condition_type:
+          type: string
+          enum:
+          - PRICE
+          - TIME_DELAY
+          title: Reveal Condition Type
+        reveal_price_threshold:
+          anyOf:
+          - type: string
+            pattern: ^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,18})?$
+          - type: 'null'
+          title: Reveal Price Threshold
+        reveal_direction:
+          anyOf:
+          - type: string
+            enum:
+            - ABOVE
+            - BELOW
+          - type: 'null'
+          title: Reveal Direction
+        hold_duration_seconds:
+          type: integer
+          maximum: 86400.0
+          minimum: 0.0
+          title: Hold Duration Seconds
+        delay_seconds:
+          anyOf:
+          - type: integer
+            maximum: 604800.0
+            minimum: 0.0
+          - type: 'null'
+          title: Delay Seconds
+        reveal_pricing_policy:
+          type: string
+          enum:
+          - CONFIGURED_LIMIT
+          - TOP_OF_BOOK
+          - MIDPOINT
+          title: Reveal Pricing Policy
+        sizing_mode:
+          type: string
+          const: FIXED
+          title: Sizing Mode
+        follow_up_reveal_direction:
+          type: string
+          enum:
+          - SAME
+          - OPPOSITE
+          title: Follow Up Reveal Direction
+        target_movement:
+          type: string
+          pattern: ^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,18})?$
+          title: Target Movement
+        target_movement_type:
+          type: string
+          enum:
+          - P
+          - A
+          title: Target Movement Type
+        max_order_replacements:
+          type: integer
+          maximum: 100.0
+          minimum: 0.0
+          title: Max Order Replacements
+        allow_partial_fills:
+          type: boolean
+          title: Allow Partial Fills
+        post_only:
+          type: boolean
+          const: true
+          title: Post Only
+        definition_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Definition Id
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - product_id
+      - side
+      - total_size
+      - limit_price
+      - reveal_condition_type
+      - hold_duration_seconds
+      - reveal_pricing_policy
+      - sizing_mode
+      - follow_up_reveal_direction
+      - target_movement
+      - target_movement_type
+      - max_order_replacements
+      - allow_partial_fills
+      - post_only
+      - definition_id
+      title: StealthDefinitionImportItem
+    StealthDefinitionImportPreview:
+      properties:
+        preview_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Preview Id
+        manifest_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Manifest Sha256
+        state:
+          type: string
+          enum:
+          - PREVIEWED
+          - REJECTED
+          - APPLIED
+          title: State
+        item_count:
+          type: integer
+          maximum: 100.0
+          minimum: 1.0
+          title: Item Count
+        valid_item_count:
+          type: integer
+          maximum: 100.0
+          minimum: 0.0
+          title: Valid Item Count
+        all_items_valid:
+          type: boolean
+          title: All Items Valid
+        items:
+          items:
+            $ref: '#/components/schemas/StealthDefinitionImportPreviewItem'
+          type: array
+          title: Items
+        created_at:
+          type: string
+          title: Created At
+        updated_at:
+          type: string
+          title: Updated At
+        applied_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Applied At
+        local_state_mutated:
+          type: boolean
+          title: Local State Mutated
+        trading_authority_granted:
+          type: boolean
+          const: false
+          title: Trading Authority Granted
+          default: false
+        exchange_call_count:
+          type: integer
+          const: 0
+          title: Exchange Call Count
+          default: 0
+        exchange_mutation_count:
+          type: integer
+          const: 0
+          title: Exchange Mutation Count
+          default: 0
+      additionalProperties: false
+      type: object
+      required:
+      - preview_id
+      - manifest_sha256
+      - state
+      - item_count
+      - valid_item_count
+      - all_items_valid
+      - items
+      - created_at
+      - updated_at
+      - applied_at
+      - local_state_mutated
+      title: StealthDefinitionImportPreview
+    StealthDefinitionImportPreviewItem:
+      properties:
+        ordinal:
+          type: integer
+          maximum: 100.0
+          minimum: 1.0
+          title: Ordinal
+        definition_id:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          - type: 'null'
+          title: Definition Id
+        valid:
+          type: boolean
+          title: Valid
+        diagnostic_code:
+          type: string
+          pattern: ^[a-z][a-z0-9_]{0,95}$
+          title: Diagnostic Code
+      additionalProperties: false
+      type: object
+      required:
+      - ordinal
+      - valid
+      - diagnostic_code
+      title: StealthDefinitionImportPreviewItem
+    StealthDefinitionImportPreviewRequest:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/StealthDefinitionImportItem'
+          type: array
+          maxItems: 100
+          minItems: 1
+          title: Items
+        operator_reason:
+          type: string
+          maxLength: 240
+          minLength: 1
+          title: Operator Reason
+        confirm_stealth_definition_import_preview:
+          type: boolean
+          const: true
+          title: Confirm Stealth Definition Import Preview
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      - operator_reason
+      - confirm_stealth_definition_import_preview
+      title: StealthDefinitionImportPreviewRequest
+    StealthDefinitionItem:
+      properties:
+        definition_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Definition Id
+        name:
+          type: string
+          title: Name
+        portfolio_scope_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Portfolio Scope Sha256
+        admitted_product_catalog_revision_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Admitted Product Catalog Revision Id
+        admitted_product_catalog_snapshot_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Admitted Product Catalog Snapshot Sha256
+        product_id:
+          type: string
+          pattern: ^[A-Z0-9]{1,32}(?:-[A-Z0-9]{1,32}){1,3}$
+          title: Product Id
+        side:
+          type: string
+          enum:
+          - BUY
+          - SELL
+          title: Side
+        total_size:
+          type: string
+          title: Total Size
+        limit_price:
+          type: string
+          title: Limit Price
+        reveal_condition_type:
+          type: string
+          enum:
+          - PRICE
+          - TIME_DELAY
+          title: Reveal Condition Type
+        reveal_price_threshold:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reveal Price Threshold
+        reveal_direction:
+          anyOf:
+          - type: string
+            enum:
+            - ABOVE
+            - BELOW
+          - type: 'null'
+          title: Reveal Direction
+        hold_duration_seconds:
+          type: integer
+          maximum: 86400.0
+          minimum: 0.0
+          title: Hold Duration Seconds
+        delay_seconds:
+          anyOf:
+          - type: integer
+            maximum: 604800.0
+            minimum: 0.0
+          - type: 'null'
+          title: Delay Seconds
+        reveal_pricing_policy:
+          type: string
+          enum:
+          - CONFIGURED_LIMIT
+          - TOP_OF_BOOK
+          - MIDPOINT
+          title: Reveal Pricing Policy
+        sizing_mode:
+          type: string
+          const: FIXED
+          title: Sizing Mode
+        follow_up_reveal_direction:
+          type: string
+          enum:
+          - SAME
+          - OPPOSITE
+          title: Follow Up Reveal Direction
+        target_movement:
+          type: string
+          title: Target Movement
+        target_movement_type:
+          type: string
+          enum:
+          - P
+          - A
+          title: Target Movement Type
+        max_order_replacements:
+          type: integer
+          maximum: 100.0
+          minimum: 0.0
+          title: Max Order Replacements
+        allow_partial_fills:
+          type: boolean
+          title: Allow Partial Fills
+        post_only:
+          type: boolean
+          const: true
+          title: Post Only
+        lifecycle_state:
+          type: string
+          enum:
+          - DRAFT
+          - CANCELLED
+          - CLEARED
+          title: Lifecycle State
+        revision:
+          type: integer
+          minimum: 1.0
+          title: Revision
+        definition_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Definition Sha256
+        imported_from_preview_id:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          - type: 'null'
+          title: Imported From Preview Id
+        runtime_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Runtime Status
+        runtime_classification:
+          type: string
+          enum:
+          - UNMATERIALIZED
+          - ACTIVE
+          - REVEALED
+          - TERMINAL
+          - UNKNOWN
+          title: Runtime Classification
+        blocked_navigation:
+          anyOf:
+          - type: string
+            enum:
+            - REVEAL_CLOSEOUT
+            - MOVEMENT_REPRICING
+          - type: 'null'
+          title: Blocked Navigation
+        local_mutation_allowed:
+          type: boolean
+          title: Local Mutation Allowed
+        allowed_actions:
+          items:
+            type: string
+            enum:
+            - EDIT
+            - CANCEL
+            - EXPORT
+            - CLEAR
+          type: array
+          title: Allowed Actions
+        created_at:
+          type: string
+          title: Created At
+        updated_at:
+          type: string
+          title: Updated At
+        terminal_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Terminal At
+        trading_authority_granted:
+          type: boolean
+          const: false
+          title: Trading Authority Granted
+          default: false
+        exchange_call_count:
+          type: integer
+          const: 0
+          title: Exchange Call Count
+          default: 0
+        exchange_mutation_count:
+          type: integer
+          const: 0
+          title: Exchange Mutation Count
+          default: 0
+      additionalProperties: false
+      type: object
+      required:
+      - definition_id
+      - name
+      - portfolio_scope_sha256
+      - admitted_product_catalog_revision_id
+      - admitted_product_catalog_snapshot_sha256
+      - product_id
+      - side
+      - total_size
+      - limit_price
+      - reveal_condition_type
+      - reveal_price_threshold
+      - reveal_direction
+      - hold_duration_seconds
+      - reveal_pricing_policy
+      - sizing_mode
+      - follow_up_reveal_direction
+      - target_movement
+      - target_movement_type
+      - max_order_replacements
+      - allow_partial_fills
+      - post_only
+      - lifecycle_state
+      - revision
+      - definition_sha256
+      - runtime_status
+      - runtime_classification
+      - blocked_navigation
+      - local_mutation_allowed
+      - allowed_actions
+      - created_at
+      - updated_at
+      - terminal_at
+      title: StealthDefinitionItem
+    StealthDefinitionListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/StealthDefinitionItem'
+          type: array
+          title: Items
+        total_matching_count:
+          type: integer
+          minimum: 0.0
+          title: Total Matching Count
+        limit:
+          type: integer
+          maximum: 100.0
+          minimum: 1.0
+          title: Limit
+        offset:
+          type: integer
+          minimum: 0.0
+          title: Offset
+        next_offset:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Next Offset
+        lifecycle_filter:
+          anyOf:
+          - type: string
+            enum:
+            - DRAFT
+            - CANCELLED
+            - CLEARED
+          - type: 'null'
+          title: Lifecycle Filter
+        product_filter:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Filter
+        commands:
+          items:
+            $ref: '#/components/schemas/StealthDefinitionCommandEvidence'
+          type: array
+          title: Commands
+        command_total_count:
+          type: integer
+          minimum: 0.0
+          title: Command Total Count
+        command_limit:
+          type: integer
+          maximum: 100.0
+          minimum: 1.0
+          title: Command Limit
+        command_offset:
+          type: integer
+          minimum: 0.0
+          title: Command Offset
+        command_next_offset:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Command Next Offset
+        trading_authority_granted:
+          type: boolean
+          const: false
+          title: Trading Authority Granted
+          default: false
+        exchange_call_count:
+          type: integer
+          const: 0
+          title: Exchange Call Count
+          default: 0
+        exchange_mutation_count:
+          type: integer
+          const: 0
+          title: Exchange Mutation Count
+          default: 0
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      - total_matching_count
+      - limit
+      - offset
+      - lifecycle_filter
+      - product_filter
+      - commands
+      - command_total_count
+      - command_limit
+      - command_offset
+      title: StealthDefinitionListResponse
+    StealthDefinitionMutationResponse:
+      properties:
+        status:
+          type: string
+          enum:
+          - accepted
+          - rejected
+          - conflict
+          title: Status
+        message:
+          type: string
+          pattern: ^[a-z][a-z0-9_]{0,95}$
+          title: Message
+        service_method:
+          type: string
+          enum:
+          - create_definition
+          - edit_definition
+          - cancel_definition
+          - clear_definitions
+          - export_definitions
+          - preview_import
+          - apply_import
+          title: Service Method
+        definition:
+          anyOf:
+          - $ref: '#/components/schemas/StealthDefinitionItem'
+          - type: 'null'
+        definitions:
+          items:
+            $ref: '#/components/schemas/StealthDefinitionItem'
+          type: array
+          title: Definitions
+        cleared_count:
+          type: integer
+          maximum: 100.0
+          minimum: 0.0
+          title: Cleared Count
+          default: 0
+        imported_count:
+          type: integer
+          maximum: 100.0
+          minimum: 0.0
+          title: Imported Count
+          default: 0
+        export:
+          anyOf:
+          - $ref: '#/components/schemas/StealthDefinitionExportManifest'
+          - type: 'null'
+        preview:
+          anyOf:
+          - $ref: '#/components/schemas/StealthDefinitionImportPreview'
+          - type: 'null'
+        correlation_id:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Correlation Id
+        idempotency_key:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Idempotency Key
+        command_replayed:
+          type: boolean
+          title: Command Replayed
+          default: false
+        local_state_mutated:
+          type: boolean
+          title: Local State Mutated
+        audit_state_mutated:
+          type: boolean
+          title: Audit State Mutated
+          default: true
+        trading_authority_granted:
+          type: boolean
+          const: false
+          title: Trading Authority Granted
+          default: false
+        exchange_call_count:
+          type: integer
+          const: 0
+          title: Exchange Call Count
+          default: 0
+        exchange_mutation_count:
+          type: integer
+          const: 0
+          title: Exchange Mutation Count
+          default: 0
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - message
+      - service_method
+      - correlation_id
+      - idempotency_key
+      - local_state_mutated
+      title: StealthDefinitionMutationResponse
+    StealthDefinitionSelection:
+      properties:
+        definition_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Definition Id
+        expected_revision:
+          type: integer
+          minimum: 1.0
+          title: Expected Revision
+      additionalProperties: false
+      type: object
+      required:
+      - definition_id
+      - expected_revision
+      title: StealthDefinitionSelection
     StealthExchangeTruthEvidenceSource:
       type: string
       enum:

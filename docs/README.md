@@ -1,5 +1,13 @@
 # Documentation Index
 
+Completed independent Goal 5:
+[Operator Stealth Definition Lifecycle V1](OPERATOR_STEALTH_DEFINITION_LIFECYCLE_V1.md).
+Goal `operator_stealth_definition_lifecycle_v1` provides routed,
+authenticated, PostgreSQL-backed definition lifecycle, exact revision and
+idempotency control, runtime-state interlocks, versioned export, durable
+schema-validated import preview/apply, and fixed audit readback with zero
+Coinbase calls or exchange mutations.
+
 Completed independent Goal 4:
 [Operator Parent Order Management V1](OPERATOR_PARENT_ORDER_MANAGEMENT_V1.md).
 Goal `operator_parent_order_management_v1` provides routed, authenticated,

@@ -1,5 +1,17 @@
 # Coinbase Trading Backend
 
+## Completed independent Goal 5 — Stealth definition lifecycle
+
+`operator_stealth_definition_lifecycle_v1` adds the authenticated Stealth
+Operations workflow for PostgreSQL-backed list/detail/create/edit/cancel,
+exact-set clear/export, and schema-validated preview/apply import. The backend
+owns Product Catalog admission, approved-portfolio hashing, revisions,
+idempotency, runtime interlocks, restart recovery, and fixed audit readback.
+Active or revealed canonical placements fail closed into their separate domain
+workflows. Goal 5 invokes no stealth runtime component, grants no trading
+authority, and makes zero Coinbase calls or exchange mutations. See
+[the Goal 5 design](docs/OPERATOR_STEALTH_DEFINITION_LIFECYCLE_V1.md).
+
 ## Completed independent Goal 4 — Parent strategy management
 
 `operator_parent_order_management_v1` adds the authenticated Parent Strategies

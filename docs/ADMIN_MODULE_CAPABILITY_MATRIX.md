@@ -1,5 +1,13 @@
 # Admin Module Capability Matrix
 
+Completed independent goal `operator_stealth_definition_lifecycle_v1` adds
+PostgreSQL-backed Stealth definition list/detail/create/edit/cancel, exact-set
+clear/export, durable preview/apply import, runtime-state interlocks, and fixed
+audit readback. It is a pre-runtime local lifecycle only: it invokes no
+evaluator, manager, bridge, Coinbase adapter, or exchange mutation. Active,
+revealed, terminal, or unverifiable runtime associations fail closed into the
+separate reveal/closeout or movement domain.
+
 Active independent goal
 `operator_spot_recovery_and_reconciliation_execution_v1` provides a
 PostgreSQL-backed exact-order Spot recovery domain service and generated Admin

@@ -1,5 +1,28 @@
 # Maintainer Handoff
 
+## Completed independent Goal 5 — Stealth definition lifecycle
+
+Goal `operator_stealth_definition_lifecycle_v1` translates the legacy stealth
+create/cancel/export/import/clear/threshold/target-movement handlers into a
+normal routed lifecycle for definitions that have not entered the runtime.
+PostgreSQL owns approved-portfolio hashing, active Product Catalog admission,
+identity, exact revisions, command result snapshots, import previews, events,
+restart recovery, and the canonical-runtime interlock.
+
+The workflow supports list/detail/create/edit/cancel, exact-set clear/export,
+and one-use preview/apply import. A matching canonical `stealth_orders` row
+blocks local mutation and routes active or terminal evidence to
+reveal/closeout and revealed evidence to movement/repricing. Missing or unknown
+runtime evidence fails closed. The browser verifies exact durable
+postconditions and freezes mutations after an unknown or unverifiable result.
+No evaluator, bridge, manager, SDK, or exchange adapter is invoked. See
+[Operator Stealth Definition Lifecycle V1](OPERATOR_STEALTH_DEFINITION_LIFECYCLE_V1.md).
+
+Historical comparison covered `origin/prod:dashboard_server.py`,
+`origin/prod:core/stealth_order_manager.py`, and
+`origin/prod:database/order.py`. The next independent goal is
+`operator_stealth_reveal_and_exact_closeout_v1`.
+
 ## Completed independent Goal 4 — Parent strategy management
 
 Goal `operator_parent_order_management_v1` is the active fourth independent

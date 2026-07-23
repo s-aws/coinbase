@@ -349,6 +349,171 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         ),
     ),
     AdminApiRouteInventoryItem(
+        module_id="stealth_definitions",
+        surface="GET /api/v1/stealth/definitions",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not required; PostgreSQL definition readback only",
+        caps="backend pagination up to 100 local definitions",
+        audit="returns fixed lifecycle, runtime interlock, and command evidence",
+        shared_method="list_operator_stealth_definitions",
+        parity_test=(
+            "call-free local definition readback; zero Coinbase calls and "
+            "zero exchange mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_definitions",
+        surface="GET /api/v1/stealth/definitions/{definition_id}",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not required; exact local definition readback only",
+        caps="one exact definition and paginated fixed audit events",
+        audit="returns runtime interlock, allowed actions, and fixed events",
+        shared_method="get_operator_stealth_definition",
+        parity_test=(
+            "call-free exact definition projection; canonical runtime "
+            "presence fails local mutations closed"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_definitions",
+        surface=(
+            "GET /api/v1/stealth/definition-import-previews/{preview_id}"
+        ),
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not required; durable sanitized preview readback only",
+        caps="one import preview of at most 100 definitions",
+        audit="returns fixed per-item validation codes only",
+        shared_method="get_operator_stealth_definition_import_preview",
+        parity_test=(
+            "readback cannot create a definition, activate a runtime order, "
+            "or call Coinbase"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_definitions",
+        surface="POST /api/v1/stealth/definitions",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.CONFIG_UPDATE,
+        idempotency="required; exact payload replay only",
+        approval="explicit local-definition create acknowledgement",
+        caps="one DRAFT definition for one enabled Spot product",
+        audit="required actor, hashed reason, revision, and correlation",
+        shared_method="create_operator_stealth_definition",
+        parity_test=(
+            "PostgreSQL definition creation only; no manager, evaluator, "
+            "order, Coinbase call, or exchange mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_definitions",
+        surface=(
+            "POST /api/v1/stealth/definitions/{definition_id}/edit"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.CONFIG_UPDATE,
+        idempotency="required; exact payload replay only",
+        approval="explicit exact-revision edit acknowledgement",
+        caps="one DRAFT definition with immutable product and side",
+        audit="required actor, hashed reason, revision, and correlation",
+        shared_method="edit_operator_stealth_definition",
+        parity_test=(
+            "threshold, target movement, and allowlisted terms update only "
+            "when no canonical stealth runtime row exists"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_definitions",
+        surface=(
+            "POST /api/v1/stealth/definitions/{definition_id}/cancel"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.CONFIG_UPDATE,
+        idempotency="required; exact payload replay only",
+        approval="explicit exact-revision local cancellation acknowledgement",
+        caps="one DRAFT, unmaterialized definition",
+        audit="required durable terminal event and fixed blocker evidence",
+        shared_method="cancel_operator_stealth_definition",
+        parity_test=(
+            "local DRAFT to CANCELLED transition only; active or revealed "
+            "runtime rows fail closed without Coinbase cancellation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_definitions",
+        surface="POST /api/v1/stealth/definitions/clear",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.CONFIG_UPDATE,
+        idempotency="required; exact payload replay only",
+        approval="explicit exact-set clear acknowledgement",
+        caps="atomic exact set of one to 100 DRAFT definitions",
+        audit="required one fixed clear event per selected definition",
+        shared_method="clear_operator_stealth_definitions",
+        parity_test=(
+            "atomic local DRAFT to CLEARED transitions; any runtime or "
+            "revision conflict rolls back the entire set"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_definitions",
+        surface="POST /api/v1/stealth/definition-exports",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.CONFIG_UPDATE,
+        idempotency="required; exact payload replay only",
+        approval="explicit exact-set export acknowledgement",
+        caps="one to 100 DRAFT unmaterialized definitions",
+        audit="required one fixed export event per definition and manifest hash",
+        shared_method="export_operator_stealth_definitions",
+        parity_test=(
+            "allowlisted definition fields only; runtime state, exchange ids, "
+            "responses, and secrets are excluded"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_definitions",
+        surface="POST /api/v1/stealth/definition-import-previews",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.CONFIG_UPDATE,
+        idempotency="required; exact payload replay only",
+        approval="explicit schema-validation preview acknowledgement",
+        caps="one manifest with one to 100 definitions",
+        audit=(
+            "required fixed per-item schema, identity, product, and increment "
+            "codes"
+        ),
+        shared_method="preview_operator_stealth_definition_import",
+        parity_test=(
+            "preview stores no definition and invokes no runtime or Coinbase "
+            "path"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_definitions",
+        surface=(
+            "POST /api/v1/stealth/definition-import-previews/"
+            "{preview_id}/apply"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.CONFIG_UPDATE,
+        idempotency="required; exact payload replay only",
+        approval="explicit exact-manifest apply acknowledgement",
+        caps="atomic apply of one valid preview with at most 100 definitions",
+        audit=(
+            "required one imported event per definition and durable preview "
+            "linkage"
+        ),
+        shared_method="apply_operator_stealth_definition_import",
+        parity_test=(
+            "atomic PostgreSQL import only; no manager, evaluator, Coinbase "
+            "call, or exchange mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
         module_id="stealth_orders",
         surface="GET /api/v1/stealth/orders",
         action_class=AdminApiActionClass.READ_ONLY,

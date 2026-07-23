@@ -75341,6 +75341,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "admin.live_adapter_decisions",
         "admin.operator_product_catalog",
         "spot.operator_parent_strategy",
+        "stealth.definition_lifecycle",
         "spot.manual_order",
         "spot.order_cancel",
         "spot.selected_root_reconciliation",
@@ -76359,6 +76360,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "admin_system_health",
         "spot_operations",
         "futures_perpetuals",
+        "stealth_definitions",
         "stealth_orders",
         "movement_repricing",
         "guard_risk_policy",
@@ -76400,10 +76402,13 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert module_statuses["Futures / Perpetuals"] == (
         AdminApiModuleSupportStatus.UNSUPPORTED.value
     )
+    assert module_statuses["Stealth Operations / Definitions"] == (
+        AdminApiModuleSupportStatus.PLATFORM_READY.value
+    )
     assert module_statuses["Legacy Dashboard WebSocket"] == (
         AdminApiModuleSupportStatus.UNSUPPORTED.value
     )
-    assert enterprise_payload["supported_module_count"] == 6
+    assert enterprise_payload["supported_module_count"] == 7
     assert enterprise_payload["unsupported_module_count"] == 2
     spot_module = next(
         item
@@ -76525,6 +76530,33 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert spot_module["action_posture"]["command_route_count"] == 31
     assert spot_module["action_posture"]["live_route_count"] == 7
     assert spot_module["action_posture"]["command_gap_count"] == 2
+    stealth_definition_module = registry_by_id["stealth_definitions"]
+    assert stealth_definition_module["identity_keys"] == [
+        "definition_id",
+        "revision",
+        "preview_id",
+        "manifest_sha256",
+    ]
+    assert stealth_definition_module["read_routes"] == [
+        "GET /api/v1/stealth/definitions",
+        "GET /api/v1/stealth/definitions/{definition_id}",
+        (
+            "GET /api/v1/stealth/definition-import-previews/"
+            "{preview_id}"
+        ),
+    ]
+    assert stealth_definition_module["action_posture"][
+        "read_route_count"
+    ] == 3
+    assert stealth_definition_module["action_posture"][
+        "command_route_count"
+    ] == 7
+    assert stealth_definition_module["action_posture"][
+        "live_route_count"
+    ] == 0
+    assert stealth_definition_module["action_posture"][
+        "command_gap_count"
+    ] == 1
     admin_module = registry_by_id["admin_system_health"]
     assert "GET /api/v1/admin/guard-risk-policy" not in admin_module["read_routes"]
     assert "GET /api/v1/admin/audit-workbench" not in admin_module["read_routes"]
