@@ -2,6 +2,13 @@
 
 ## Current status
 Goal
+`operator_spot_automation_transport_explainability_and_successor_proof_v13_v15`
+is implementation-complete and validation-pending. It preserves the canonical
+single-child adapter while adding fixed/type-only future Preview diagnostics,
+a separate V13-V15 ledger, and one no-HTTP DNS/TCP/TLS readiness sequence. No
+V13-V15 probe, Coinbase read, Preview, Create, or Cancel has run.
+
+Completed predecessor goal
 `operator_spot_automation_atomic_market_snapshot_binding_and_successor_proof_v10_v12`
 is terminal after V10-V12. Each candidate completed eight exact reads and
 consumed its distinct Preview allowance at terminal `TRANSPORT_UNKNOWN`, with

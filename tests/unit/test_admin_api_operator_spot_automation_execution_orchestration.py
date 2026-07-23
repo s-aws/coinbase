@@ -1623,7 +1623,7 @@ def test_authorize_orchestrates_one_fresh_cycle_claim_and_canonical_create(
             "json_decode",
             OperatorAutomationRunState.UNKNOWN_CONSUMED,
             True,
-            "RESPONSE_SCHEMA_INVALID",
+            "RESPONSE_DECODING_FAILURE",
         ),
         (
             "classifier_raise",
@@ -1641,7 +1641,7 @@ def test_authorize_orchestrates_one_fresh_cycle_claim_and_canonical_create(
             "raise",
             OperatorAutomationRunState.UNKNOWN_CONSUMED,
             False,
-            "TRANSPORT_UNKNOWN",
+            "SDK_INVOCATION_UNKNOWN",
         ),
     ],
 )

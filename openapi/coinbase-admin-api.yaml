@@ -149894,6 +149894,10 @@ components:
           type: boolean
           const: true
           title: Confirm Atomic Final Market Snapshot Binding
+        confirm_one_no_http_transport_readiness_sequence:
+          type: boolean
+          const: true
+          title: Confirm One No Http Transport Readiness Sequence
         confirm_one_no_retry_eight_category_cycle:
           type: boolean
           const: true
@@ -149927,6 +149931,7 @@ components:
       type: object
       required:
       - confirm_atomic_final_market_snapshot_binding
+      - confirm_one_no_http_transport_readiness_sequence
       - confirm_one_no_retry_eight_category_cycle
       - confirm_single_preview
       - confirm_conditional_identical_single_child_create
@@ -149935,7 +149940,7 @@ components:
       - confirm_unknown_consumes_applicable_allowance
       - reason
       title: AutomationAtomicMarketSnapshotAuthorizationRequest
-      description: One explicit operator action for atomic V10-V12 Preview/Create
+      description: One explicit operator action for atomic V10-V15 Preview/Create
         proof.
     AutomationAtomicMarketSnapshotMutationResponse:
       properties:
@@ -149959,9 +149964,9 @@ components:
         candidate_version:
           type: integer
           enum:
-          - 10
-          - 11
-          - 12
+          - 13
+          - 14
+          - 15
           title: Candidate Version
         cycle_number:
           type: integer
@@ -150006,6 +150011,58 @@ components:
           - HASHED
           - UNAVAILABLE
           title: Market Snapshot Binding
+        transport_readiness:
+          type: string
+          enum:
+          - PASSED
+          - FAILED
+          title: Transport Readiness
+        transport_failure_class:
+          type: string
+          enum:
+          - NONE
+          - DNS_RESOLUTION_FAILURE
+          - TCP_CONNECTION_FAILURE
+          - CONNECT_TIMEOUT
+          - TLS_OR_CERTIFICATE_FAILURE
+          - UNKNOWN_TRANSPORT
+          title: Transport Failure Class
+        dns_status:
+          type: string
+          enum:
+          - NOT_ATTEMPTED
+          - SUCCEEDED
+          - FAILED
+          title: Dns Status
+        tcp_status:
+          type: string
+          enum:
+          - NOT_ATTEMPTED
+          - SUCCEEDED
+          - FAILED
+          title: Tcp Status
+        tls_status:
+          type: string
+          enum:
+          - NOT_ATTEMPTED
+          - SUCCEEDED
+          - FAILED
+          title: Tls Status
+        dns_probe_count:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Dns Probe Count
+        tcp_probe_count:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Tcp Probe Count
+        tls_probe_count:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Tls Probe Count
         run:
           anyOf:
           - $ref: '#/components/schemas/AutomationRunItem'
@@ -150034,10 +150091,18 @@ components:
       - cycle_number
       - diagnostic_code
       - market_snapshot_binding
+      - transport_readiness
+      - transport_failure_class
+      - dns_status
+      - tcp_status
+      - tls_status
+      - dns_probe_count
+      - tcp_probe_count
+      - tls_probe_count
       - audit_id
       - correlation_id
       title: AutomationAtomicMarketSnapshotMutationResponse
-      description: Sanitized terminal result for one claimed V10-V12 cycle.
+      description: Sanitized terminal result for one claimed V13-V15 successor cycle.
     AutomationControlEventItem:
       properties:
         event_id:
@@ -150402,6 +150467,9 @@ components:
             - ATOMIC_MARKET_SNAPSHOT_V10
             - ATOMIC_MARKET_SNAPSHOT_V11
             - ATOMIC_MARKET_SNAPSHOT_V12
+            - TRANSPORT_EXPLAINABLE_V13
+            - TRANSPORT_EXPLAINABLE_V14
+            - TRANSPORT_EXPLAINABLE_V15
           - type: 'null'
           title: Spot Execution Mode
         single_child_order:
@@ -151477,6 +151545,9 @@ components:
             - ATOMIC_MARKET_SNAPSHOT_V10
             - ATOMIC_MARKET_SNAPSHOT_V11
             - ATOMIC_MARKET_SNAPSHOT_V12
+            - TRANSPORT_EXPLAINABLE_V13
+            - TRANSPORT_EXPLAINABLE_V14
+            - TRANSPORT_EXPLAINABLE_V15
           - type: 'null'
           title: Spot Execution Mode
         preview_allowance_consumed:
@@ -151504,6 +151575,16 @@ components:
             - HTTP_SERVER_RESPONSE
             - HTTP_REDIRECT_RESPONSE
             - HTTP_RESPONSE_INVALID
+            - REQUEST_COMPOSITION_FAILURE
+            - SDK_INVOCATION_UNKNOWN
+            - DNS_RESOLUTION_FAILURE
+            - TCP_CONNECTION_FAILURE
+            - CONNECT_TIMEOUT
+            - TLS_OR_CERTIFICATE_FAILURE
+            - PROXY_FAILURE
+            - READ_TIMEOUT
+            - CONNECTION_RESET
+            - RESPONSE_DECODING_FAILURE
             - TRANSPORT_UNKNOWN
           - type: 'null'
           title: Preview Failure Class

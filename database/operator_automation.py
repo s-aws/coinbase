@@ -91,10 +91,29 @@ _AUTOMATION_SPOT_MUTATION_OUTCOMES = frozenset(
 _AUTOMATION_SPOT_EXACT_PREVIEW_UNKNOWN_FAILURE_CLASSES = frozenset(
     {
         "RESPONSE_SCHEMA_INVALID",
+        "RESPONSE_DECODING_FAILURE",
         "HTTP_CLIENT_RESPONSE",
         "HTTP_SERVER_RESPONSE",
         "HTTP_REDIRECT_RESPONSE",
         "HTTP_RESPONSE_INVALID",
+        "READ_TIMEOUT",
+    }
+)
+_AUTOMATION_SPOT_EXACT_ZERO_PREVIEW_UNKNOWN_FAILURE_CLASSES = frozenset(
+    {
+        "REQUEST_COMPOSITION_FAILURE",
+        "DNS_RESOLUTION_FAILURE",
+        "TCP_CONNECTION_FAILURE",
+        "CONNECT_TIMEOUT",
+        "PROXY_FAILURE",
+    }
+)
+_AUTOMATION_SPOT_INEXACT_PREVIEW_UNKNOWN_FAILURE_CLASSES = frozenset(
+    {
+        "SDK_INVOCATION_UNKNOWN",
+        "TLS_OR_CERTIFICATE_FAILURE",
+        "CONNECTION_RESET",
+        "TRANSPORT_UNKNOWN",
     }
 )
 _AUTOMATION_SPOT_PREVIEW_REJECTION_CODES = frozenset(
@@ -173,13 +192,75 @@ AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V11_GOAL_KEY = (
 AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V12_GOAL_KEY = (
     "operator_spot_automation_atomic_market_snapshot_successor_v12"
 )
-AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS = frozenset(
+AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_PREDECESSOR_GOAL_KEYS = frozenset(
     {
         AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY,
         AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V11_GOAL_KEY,
         AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V12_GOAL_KEY,
     }
 )
+AUTOMATION_SPOT_TRANSPORT_V13_GOAL_KEY = (
+    "operator_spot_automation_transport_successor_v13"
+)
+AUTOMATION_SPOT_TRANSPORT_V14_GOAL_KEY = (
+    "operator_spot_automation_transport_successor_v14"
+)
+AUTOMATION_SPOT_TRANSPORT_V15_GOAL_KEY = (
+    "operator_spot_automation_transport_successor_v15"
+)
+AUTOMATION_SPOT_TRANSPORT_GOAL_KEYS = frozenset(
+    {
+        AUTOMATION_SPOT_TRANSPORT_V13_GOAL_KEY,
+        AUTOMATION_SPOT_TRANSPORT_V14_GOAL_KEY,
+        AUTOMATION_SPOT_TRANSPORT_V15_GOAL_KEY,
+    }
+)
+# V14/V15 remain fail-closed until a post-terminal offline remediation adds a
+# reviewed official-documentation-backed correction for that exact version.
+_AUTOMATION_SPOT_DOCUMENTED_TRANSPORT_SUCCESSOR_CORRECTIONS: frozenset[int] = (
+    frozenset()
+)
+AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS = frozenset(
+    {
+        *AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_PREDECESSOR_GOAL_KEYS,
+        *AUTOMATION_SPOT_TRANSPORT_GOAL_KEYS,
+    }
+)
+
+
+def _select_transport_successor(
+    goals: Mapping[str, Mapping[str, Any]],
+    cycles: tuple[Mapping[str, Any], ...] | list[Mapping[str, Any]],
+    *,
+    documented_corrections: frozenset[int] = frozenset(),
+) -> tuple[int, str] | None:
+    """Select V13, then only successors enabled by a reviewed correction."""
+
+    ordered = (
+        (13, AUTOMATION_SPOT_TRANSPORT_V13_GOAL_KEY),
+        (14, AUTOMATION_SPOT_TRANSPORT_V14_GOAL_KEY),
+        (15, AUTOMATION_SPOT_TRANSPORT_V15_GOAL_KEY),
+    )
+    if set(goals) != set(AUTOMATION_SPOT_TRANSPORT_GOAL_KEYS) or len(cycles) >= 10:
+        return None
+    target: tuple[int, str] | None = None
+    for version, goal_key in ordered:
+        goal = goals[goal_key]
+        if goal.get("definition_id") is None:
+            if version != 13 and version not in documented_corrections:
+                return None
+            target = (version, goal_key)
+            break
+        if goal.get("preview_outcome") not in {"REJECTED", "UNKNOWN"}:
+            return None
+    if target is None:
+        return None
+    target_cycles = [cycle for cycle in cycles if cycle.get("goal_key") == target[1]]
+    if target_cycles:
+        latest = max(target_cycles, key=lambda cycle: int(cycle["cycle_number"]))
+        if latest.get("state") in {"CLAIMED", "READINESS_PASSED", "MATERIALIZED"}:
+            return None
+    return target
 
 
 def _select_atomic_market_snapshot_successor(
@@ -193,7 +274,7 @@ def _select_atomic_market_snapshot_successor(
         (11, AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V11_GOAL_KEY),
         (12, AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V12_GOAL_KEY),
     )
-    if set(goals) != set(AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS):
+    if set(goals) != set(AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_PREDECESSOR_GOAL_KEYS):
         return None
     if len(cycles) >= 10:
         return None
@@ -703,6 +784,38 @@ class AutomationSpotAtomicMarketSnapshotCycleRecord:
 
 
 @dataclass(frozen=True)
+class AutomationSpotTransportSuccessorCycleRecord:
+    cycle_number: int
+    goal_key: str
+    candidate_version: int
+    state: Literal[
+        "CLAIMED", "READINESS_PASSED", "MATERIALIZED", "BLOCKED", "UNKNOWN"
+    ]
+    definition_id: str | None
+    run_id: str | None
+    plan_sha256: str | None
+    client_order_id: str | None
+    diagnostic_code: str
+    dns_status: Literal["NOT_ATTEMPTED", "SUCCEEDED", "FAILED"]
+    tcp_status: Literal["NOT_ATTEMPTED", "SUCCEEDED", "FAILED"]
+    tls_status: Literal["NOT_ATTEMPTED", "SUCCEEDED", "FAILED"]
+    readiness_failure_class: str | None
+    dns_probe_count: int
+    tcp_probe_count: int
+    tls_probe_count: int
+    readiness_evidence_sha256: str | None
+    completed_categories: tuple[str, ...]
+    coinbase_api_call_count: int | None
+    call_count_exact: bool
+    market_snapshot_sha256: str | None
+    evidence_sha256: str | None
+    audit_id: str
+    correlation_id: str
+    started_at: str
+    finalized_at: str | None
+
+
+@dataclass(frozen=True)
 class AutomationRunEventRecord:
     event_id: str
     run_id: str
@@ -807,8 +920,12 @@ class OperatorAutomationRepository:
         atomic_market_snapshot_goal_keys = ", ".join(
             f"'{goal_key}'"
             for goal_key in sorted(
-                AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS
+                AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_PREDECESSOR_GOAL_KEYS
             )
+        )
+        transport_goal_keys = ", ".join(
+            f"'{goal_key}'"
+            for goal_key in sorted(AUTOMATION_SPOT_TRANSPORT_GOAL_KEYS)
         )
         with self.database.get_cursor() as cursor:
             cursor.execute(f'CREATE SCHEMA IF NOT EXISTS "{self.schema}"')
@@ -2011,6 +2128,13 @@ class OperatorAutomationRepository:
                             'RESPONSE_SCHEMA_INVALID',
                             'HTTP_CLIENT_RESPONSE', 'HTTP_SERVER_RESPONSE',
                             'HTTP_REDIRECT_RESPONSE', 'HTTP_RESPONSE_INVALID',
+                            'REQUEST_COMPOSITION_FAILURE',
+                            'SDK_INVOCATION_UNKNOWN',
+                            'DNS_RESOLUTION_FAILURE',
+                            'TCP_CONNECTION_FAILURE', 'CONNECT_TIMEOUT',
+                            'TLS_OR_CERTIFICATE_FAILURE', 'PROXY_FAILURE',
+                            'READ_TIMEOUT', 'CONNECTION_RESET',
+                            'RESPONSE_DECODING_FAILURE',
                             'TRANSPORT_UNKNOWN'
                         )
                     ),
@@ -2024,7 +2148,7 @@ class OperatorAutomationRepository:
                     ),
                     preview_call_count INTEGER CHECK (
                         preview_call_count IS NULL
-                        OR preview_call_count = 1
+                        OR preview_call_count IN (0, 1)
                     ),
                     preview_call_count_exact BOOLEAN NOT NULL DEFAULT FALSE,
                     create_allowance_consumed BOOLEAN NOT NULL DEFAULT FALSE,
@@ -2077,7 +2201,7 @@ class OperatorAutomationRepository:
                             AND preview_warning_present IS NOT NULL
                             AND (
                                 (preview_call_count_exact
-                                    AND preview_call_count = 1)
+                                    AND preview_call_count IN (0, 1))
                                 OR
                                 (NOT preview_call_count_exact
                                     AND preview_call_count IS NULL
@@ -2121,6 +2245,30 @@ class OperatorAutomationRepository:
                 f"""
                 ALTER TABLE {self._prefix}automation_spot_preview_gated_goal
                 DROP CONSTRAINT IF EXISTS
+                    automation_spot_preview_gated_goal_preview_call_count_check
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_preview_gated_goal
+                DROP CONSTRAINT IF EXISTS
+                    automation_spot_preview_call_count_check
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_preview_gated_goal
+                ADD CONSTRAINT automation_spot_preview_call_count_check
+                CHECK (
+                    preview_call_count IS NULL
+                    OR preview_call_count IN (0, 1)
+                )
+                """
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self._prefix}automation_spot_preview_gated_goal
+                DROP CONSTRAINT IF EXISTS
                     automation_spot_preview_unknown_accounting_shape_valid
                 """
             )
@@ -2134,14 +2282,30 @@ class OperatorAutomationRepository:
                     OR (
                         preview_failure_class IN (
                             'RESPONSE_SCHEMA_INVALID',
+                            'RESPONSE_DECODING_FAILURE',
                             'HTTP_CLIENT_RESPONSE', 'HTTP_SERVER_RESPONSE',
-                            'HTTP_REDIRECT_RESPONSE', 'HTTP_RESPONSE_INVALID'
+                            'HTTP_REDIRECT_RESPONSE', 'HTTP_RESPONSE_INVALID',
+                            'READ_TIMEOUT'
                         )
                         AND preview_call_count_exact
                         AND preview_call_count = 1
                     )
                     OR (
-                        preview_failure_class = 'TRANSPORT_UNKNOWN'
+                        preview_failure_class IN (
+                            'REQUEST_COMPOSITION_FAILURE',
+                            'DNS_RESOLUTION_FAILURE',
+                            'TCP_CONNECTION_FAILURE', 'CONNECT_TIMEOUT',
+                            'PROXY_FAILURE'
+                        )
+                        AND preview_call_count_exact
+                        AND preview_call_count = 0
+                    )
+                    OR (
+                        preview_failure_class IN (
+                            'SDK_INVOCATION_UNKNOWN',
+                            'TLS_OR_CERTIFICATE_FAILURE',
+                            'CONNECTION_RESET', 'TRANSPORT_UNKNOWN'
+                        )
                         AND NOT preview_call_count_exact
                         AND preview_call_count IS NULL
                     )
@@ -2173,6 +2337,13 @@ class OperatorAutomationRepository:
                         'RESPONSE_SCHEMA_INVALID',
                         'HTTP_CLIENT_RESPONSE', 'HTTP_SERVER_RESPONSE',
                         'HTTP_REDIRECT_RESPONSE', 'HTTP_RESPONSE_INVALID',
+                        'REQUEST_COMPOSITION_FAILURE',
+                        'SDK_INVOCATION_UNKNOWN',
+                        'DNS_RESOLUTION_FAILURE',
+                        'TCP_CONNECTION_FAILURE', 'CONNECT_TIMEOUT',
+                        'TLS_OR_CERTIFICATE_FAILURE', 'PROXY_FAILURE',
+                        'READ_TIMEOUT', 'CONNECTION_RESET',
+                        'RESPONSE_DECODING_FAILURE',
                         'TRANSPORT_UNKNOWN'
                     )
                 )
@@ -2454,6 +2625,235 @@ class OperatorAutomationRepository:
                         (state = 'UNKNOWN' AND definition_id IS NULL
                             AND run_id IS NULL AND plan_sha256 IS NULL
                             AND client_order_id IS NULL
+                            AND coinbase_api_call_count IS NULL
+                            AND NOT call_count_exact
+                            AND market_snapshot_sha256 IS NULL
+                            AND evidence_sha256 IS NULL
+                            AND finalized_at IS NOT NULL)
+                    )
+                )
+                """
+            )
+            cursor.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS {self._prefix}automation_spot_transport_successor_cycle (
+                    cycle_number SMALLINT PRIMARY KEY
+                        CHECK (cycle_number BETWEEN 1 AND 10),
+                    goal_key TEXT NOT NULL
+                        CHECK (goal_key IN ({transport_goal_keys})),
+                    candidate_version SMALLINT NOT NULL
+                        CHECK (candidate_version BETWEEN 13 AND 15),
+                    state TEXT NOT NULL CHECK (
+                        state IN (
+                            'CLAIMED','READINESS_PASSED','MATERIALIZED',
+                            'BLOCKED','UNKNOWN'
+                        )
+                    ),
+                    definition_id UUID UNIQUE REFERENCES
+                        {self._prefix}automation_definition(definition_id),
+                    run_id UUID UNIQUE REFERENCES
+                        {self._prefix}automation_run(run_id),
+                    plan_sha256 CHAR(64) UNIQUE CHECK (
+                        plan_sha256 IS NULL
+                        OR plan_sha256 ~ '^[0-9a-f]{{64}}$'
+                    ),
+                    client_order_id UUID UNIQUE,
+                    idempotency_key_sha256 CHAR(64) NOT NULL UNIQUE
+                        CHECK (idempotency_key_sha256 ~ '^[0-9a-f]{{64}}$'),
+                    payload_sha256 CHAR(64) NOT NULL
+                        CHECK (payload_sha256 ~ '^[0-9a-f]{{64}}$'),
+                    actor_id_sha256 CHAR(64) NOT NULL
+                        CHECK (actor_id_sha256 ~ '^[0-9a-f]{{64}}$'),
+                    operator_intent_sha256 CHAR(64) NOT NULL
+                        CHECK (operator_intent_sha256 ~ '^[0-9a-f]{{64}}$'),
+                    diagnostic_code TEXT NOT NULL
+                        CHECK (char_length(diagnostic_code) BETWEEN 1 AND 96),
+                    dns_status TEXT NOT NULL DEFAULT 'NOT_ATTEMPTED' CHECK (
+                        dns_status IN ('NOT_ATTEMPTED','SUCCEEDED','FAILED')
+                    ),
+                    tcp_status TEXT NOT NULL DEFAULT 'NOT_ATTEMPTED' CHECK (
+                        tcp_status IN ('NOT_ATTEMPTED','SUCCEEDED','FAILED')
+                    ),
+                    tls_status TEXT NOT NULL DEFAULT 'NOT_ATTEMPTED' CHECK (
+                        tls_status IN ('NOT_ATTEMPTED','SUCCEEDED','FAILED')
+                    ),
+                    readiness_failure_class TEXT CHECK (
+                        readiness_failure_class IN (
+                            'NONE','DNS_RESOLUTION_FAILURE',
+                            'TCP_CONNECTION_FAILURE','CONNECT_TIMEOUT',
+                            'TLS_OR_CERTIFICATE_FAILURE','UNKNOWN_TRANSPORT'
+                        )
+                    ),
+                    dns_probe_count SMALLINT NOT NULL DEFAULT 0
+                        CHECK (dns_probe_count IN (0, 1)),
+                    tcp_probe_count SMALLINT NOT NULL DEFAULT 0
+                        CHECK (tcp_probe_count IN (0, 1)),
+                    tls_probe_count SMALLINT NOT NULL DEFAULT 0
+                        CHECK (tls_probe_count IN (0, 1)),
+                    readiness_evidence_sha256 CHAR(64) CHECK (
+                        readiness_evidence_sha256 IS NULL
+                        OR readiness_evidence_sha256 ~ '^[0-9a-f]{{64}}$'
+                    ),
+                    completed_categories JSONB NOT NULL DEFAULT '[]'::jsonb,
+                    coinbase_api_call_count INTEGER CHECK (
+                        coinbase_api_call_count IS NULL
+                        OR coinbase_api_call_count >= 0
+                    ),
+                    call_count_exact BOOLEAN NOT NULL DEFAULT FALSE,
+                    market_snapshot_sha256 CHAR(64) CHECK (
+                        market_snapshot_sha256 IS NULL
+                        OR market_snapshot_sha256 ~ '^[0-9a-f]{{64}}$'
+                    ),
+                    evidence_sha256 CHAR(64) CHECK (
+                        evidence_sha256 IS NULL
+                        OR evidence_sha256 ~ '^[0-9a-f]{{64}}$'
+                    ),
+                    audit_id UUID NOT NULL,
+                    correlation_id TEXT NOT NULL
+                        CHECK (char_length(correlation_id) BETWEEN 1 AND 255),
+                    started_at TIMESTAMPTZ NOT NULL,
+                    finalized_at TIMESTAMPTZ,
+                    CHECK (
+                        (candidate_version = 13 AND goal_key = '{AUTOMATION_SPOT_TRANSPORT_V13_GOAL_KEY}')
+                        OR (candidate_version = 14 AND goal_key = '{AUTOMATION_SPOT_TRANSPORT_V14_GOAL_KEY}')
+                        OR (candidate_version = 15 AND goal_key = '{AUTOMATION_SPOT_TRANSPORT_V15_GOAL_KEY}')
+                    ),
+                    CONSTRAINT automation_spot_transport_readiness_shape CHECK (
+                        (readiness_failure_class IS NULL
+                            AND dns_status = 'NOT_ATTEMPTED'
+                            AND tcp_status = 'NOT_ATTEMPTED'
+                            AND tls_status = 'NOT_ATTEMPTED'
+                            AND dns_probe_count = 0
+                            AND tcp_probe_count = 0
+                            AND tls_probe_count = 0)
+                        OR
+                        (readiness_failure_class = 'NONE'
+                            AND dns_status = 'SUCCEEDED'
+                            AND tcp_status = 'SUCCEEDED'
+                            AND tls_status = 'SUCCEEDED'
+                            AND dns_probe_count = 1
+                            AND tcp_probe_count = 1
+                            AND tls_probe_count = 1)
+                        OR
+                        (readiness_failure_class = 'DNS_RESOLUTION_FAILURE'
+                            AND dns_status = 'FAILED'
+                            AND tcp_status = 'NOT_ATTEMPTED'
+                            AND tls_status = 'NOT_ATTEMPTED'
+                            AND dns_probe_count = 1
+                            AND tcp_probe_count = 0
+                            AND tls_probe_count = 0)
+                        OR
+                        (readiness_failure_class IN (
+                                'TCP_CONNECTION_FAILURE','CONNECT_TIMEOUT'
+                            )
+                            AND dns_status = 'SUCCEEDED'
+                            AND tcp_status = 'FAILED'
+                            AND tls_status = 'NOT_ATTEMPTED'
+                            AND dns_probe_count = 1
+                            AND tcp_probe_count = 1
+                            AND tls_probe_count = 0)
+                        OR
+                        (readiness_failure_class = 'TLS_OR_CERTIFICATE_FAILURE'
+                            AND dns_status = 'SUCCEEDED'
+                            AND tcp_status = 'SUCCEEDED'
+                            AND tls_status = 'FAILED'
+                            AND dns_probe_count = 1
+                            AND tcp_probe_count = 1
+                            AND tls_probe_count = 1)
+                        OR
+                        (readiness_failure_class = 'UNKNOWN_TRANSPORT'
+                            AND (
+                                (dns_status = 'FAILED'
+                                    AND tcp_status = 'NOT_ATTEMPTED'
+                                    AND tls_status = 'NOT_ATTEMPTED'
+                                    AND dns_probe_count = 1
+                                    AND tcp_probe_count = 0
+                                    AND tls_probe_count = 0)
+                                OR
+                                (dns_status = 'SUCCEEDED'
+                                    AND tcp_status = 'FAILED'
+                                    AND tls_status = 'NOT_ATTEMPTED'
+                                    AND dns_probe_count = 1
+                                    AND tcp_probe_count = 1
+                                    AND tls_probe_count = 0)
+                                OR
+                                (dns_status = 'SUCCEEDED'
+                                    AND tcp_status = 'SUCCEEDED'
+                                    AND tls_status = 'FAILED'
+                                    AND dns_probe_count = 1
+                                    AND tcp_probe_count = 1
+                                    AND tls_probe_count = 1)
+                            ))
+                    ),
+                    CONSTRAINT automation_spot_transport_cycle_state_shape CHECK (
+                        (state = 'CLAIMED'
+                            AND definition_id IS NULL AND run_id IS NULL
+                            AND plan_sha256 IS NULL AND client_order_id IS NULL
+                            AND readiness_failure_class IS NULL
+                            AND dns_status = 'NOT_ATTEMPTED'
+                            AND tcp_status = 'NOT_ATTEMPTED'
+                            AND tls_status = 'NOT_ATTEMPTED'
+                            AND dns_probe_count = 0 AND tcp_probe_count = 0
+                            AND tls_probe_count = 0
+                            AND readiness_evidence_sha256 IS NULL
+                            AND coinbase_api_call_count IS NULL
+                            AND NOT call_count_exact
+                            AND market_snapshot_sha256 IS NULL
+                            AND evidence_sha256 IS NULL
+                            AND finalized_at IS NULL)
+                        OR
+                        (state = 'READINESS_PASSED'
+                            AND definition_id IS NULL AND run_id IS NULL
+                            AND plan_sha256 IS NULL AND client_order_id IS NULL
+                            AND readiness_failure_class = 'NONE'
+                            AND dns_probe_count = 1 AND tcp_probe_count = 1
+                            AND tls_probe_count = 1
+                            AND readiness_evidence_sha256 IS NOT NULL
+                            AND coinbase_api_call_count IS NULL
+                            AND NOT call_count_exact
+                            AND market_snapshot_sha256 IS NULL
+                            AND evidence_sha256 IS NULL
+                            AND finalized_at IS NULL)
+                        OR
+                        (state = 'MATERIALIZED'
+                            AND definition_id IS NOT NULL AND run_id IS NOT NULL
+                            AND plan_sha256 IS NOT NULL
+                            AND client_order_id IS NOT NULL
+                            AND readiness_failure_class = 'NONE'
+                            AND readiness_evidence_sha256 IS NOT NULL
+                            AND coinbase_api_call_count IS NOT NULL
+                            AND call_count_exact
+                            AND market_snapshot_sha256 IS NOT NULL
+                            AND evidence_sha256 IS NOT NULL
+                            AND finalized_at IS NOT NULL)
+                        OR
+                        (state = 'BLOCKED'
+                            AND definition_id IS NULL AND run_id IS NULL
+                            AND plan_sha256 IS NULL AND client_order_id IS NULL
+                            AND readiness_failure_class IS NOT NULL
+                            AND readiness_evidence_sha256 IS NOT NULL
+                            AND coinbase_api_call_count IS NOT NULL
+                            AND call_count_exact
+                            AND market_snapshot_sha256 IS NULL
+                            AND evidence_sha256 IS NOT NULL
+                            AND finalized_at IS NOT NULL)
+                        OR
+                        (state = 'UNKNOWN'
+                            AND definition_id IS NULL AND run_id IS NULL
+                            AND plan_sha256 IS NULL AND client_order_id IS NULL
+                            AND (
+                                (readiness_failure_class IS NULL
+                                    AND dns_status = 'NOT_ATTEMPTED'
+                                    AND tcp_status = 'NOT_ATTEMPTED'
+                                    AND tls_status = 'NOT_ATTEMPTED'
+                                    AND dns_probe_count = 0
+                                    AND tcp_probe_count = 0
+                                    AND tls_probe_count = 0
+                                    AND readiness_evidence_sha256 IS NULL)
+                                OR
+                                (readiness_failure_class = 'NONE'
+                                    AND readiness_evidence_sha256 IS NOT NULL)
+                            )
                             AND coinbase_api_call_count IS NULL
                             AND NOT call_count_exact
                             AND market_snapshot_sha256 IS NULL
@@ -5817,10 +6217,20 @@ class OperatorAutomationRepository:
             "DOCUMENTED_REJECTION",
             "UNCLASSIFIED_REJECTION",
             "RESPONSE_SCHEMA_INVALID",
+            "RESPONSE_DECODING_FAILURE",
             "HTTP_CLIENT_RESPONSE",
             "HTTP_SERVER_RESPONSE",
             "HTTP_REDIRECT_RESPONSE",
             "HTTP_RESPONSE_INVALID",
+            "REQUEST_COMPOSITION_FAILURE",
+            "SDK_INVOCATION_UNKNOWN",
+            "DNS_RESOLUTION_FAILURE",
+            "TCP_CONNECTION_FAILURE",
+            "CONNECT_TIMEOUT",
+            "TLS_OR_CERTIFICATE_FAILURE",
+            "PROXY_FAILURE",
+            "READ_TIMEOUT",
+            "CONNECTION_RESET",
             "TRANSPORT_UNKNOWN",
         }
         if (
@@ -5835,7 +6245,7 @@ class OperatorAutomationRepository:
             or type(call_count_exact) is not bool
             or (
                 call_count_exact
-                and preview_call_count != 1
+                and preview_call_count not in {0, 1}
             )
             or (
                 not call_count_exact
@@ -5858,10 +6268,20 @@ class OperatorAutomationRepository:
             })
             or (normalized == "UNKNOWN" and failure_class not in {
                 "RESPONSE_SCHEMA_INVALID",
+                "RESPONSE_DECODING_FAILURE",
                 "HTTP_CLIENT_RESPONSE",
                 "HTTP_SERVER_RESPONSE",
                 "HTTP_REDIRECT_RESPONSE",
                 "HTTP_RESPONSE_INVALID",
+                "REQUEST_COMPOSITION_FAILURE",
+                "SDK_INVOCATION_UNKNOWN",
+                "DNS_RESOLUTION_FAILURE",
+                "TCP_CONNECTION_FAILURE",
+                "CONNECT_TIMEOUT",
+                "TLS_OR_CERTIFICATE_FAILURE",
+                "PROXY_FAILURE",
+                "READ_TIMEOUT",
+                "CONNECTION_RESET",
                 "TRANSPORT_UNKNOWN",
             })
             or (
@@ -5875,7 +6295,17 @@ class OperatorAutomationRepository:
             )
             or (
                 normalized == "UNKNOWN"
-                and failure_class == "TRANSPORT_UNKNOWN"
+                and failure_class
+                in _AUTOMATION_SPOT_EXACT_ZERO_PREVIEW_UNKNOWN_FAILURE_CLASSES
+                and (
+                    not call_count_exact
+                    or preview_call_count != 0
+                )
+            )
+            or (
+                normalized == "UNKNOWN"
+                and failure_class
+                in _AUTOMATION_SPOT_INEXACT_PREVIEW_UNKNOWN_FAILURE_CLASSES
                 and (
                     call_count_exact
                     or preview_call_count is not None
@@ -7671,7 +8101,7 @@ class OperatorAutomationRepository:
             cursor.execute(
                 f"SELECT * FROM {self._prefix}automation_spot_preview_gated_goal "
                 "WHERE goal_key = ANY(%s)",
-                (list(sorted(AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS)),),
+                (list(sorted(AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_PREDECESSOR_GOAL_KEYS)),),
             )
             goals = {str(row["goal_key"]): row for row in self._rows(cursor)}
             cursor.execute(
@@ -7732,10 +8162,10 @@ class OperatorAutomationRepository:
                 ORDER BY goal_key
                 FOR UPDATE
                 """,
-                (list(sorted(AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS)),),
+                (list(sorted(AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_PREDECESSOR_GOAL_KEYS)),),
             )
             goals = {str(row["goal_key"]): row for row in self._rows(cursor)}
-            if set(goals) != set(AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS):
+            if set(goals) != set(AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_PREDECESSOR_GOAL_KEYS):
                 raise AutomationStoreUnavailable(
                     "automation_atomic_market_snapshot_goal_ledger_unavailable"
                 )
@@ -7817,7 +8247,7 @@ class OperatorAutomationRepository:
         """Close a failed cycle without creating any candidate or allowance."""
 
         if (
-            goal_key not in AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS
+            goal_key not in AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_PREDECESSOR_GOAL_KEYS
             or state not in {"BLOCKED", "UNKNOWN"}
             or not diagnostic_code.startswith(("atomic_", "minimum_", "automation_"))
             or tuple(completed_categories)
@@ -7924,7 +8354,7 @@ class OperatorAutomationRepository:
         _validate_id(definition_id, code="automation_definition_id_invalid")
         _validate_id(run_id, code="automation_run_id_invalid")
         if (
-            goal_key not in AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS
+            goal_key not in AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_PREDECESSOR_GOAL_KEYS
             or _SHA256_PATTERN.fullmatch(expected_plan_sha256) is None
             or _SHA256_PATTERN.fullmatch(market_snapshot_sha256) is None
             or _SHA256_PATTERN.fullmatch(evidence_sha256) is None
@@ -8236,6 +8666,838 @@ class OperatorAutomationRepository:
                 recorded_at=now,
             )
             record = self._atomic_market_snapshot_cycle_from_row(row)
+            return AutomationStoreMutation(record, audit_id, correlation_id)
+
+    @staticmethod
+    def _transport_successor_cycle_from_row(
+        row: Mapping[str, Any],
+    ) -> AutomationSpotTransportSuccessorCycleRecord:
+        categories = row.get("completed_categories") or []
+        if isinstance(categories, str):
+            categories = json.loads(categories)
+        return AutomationSpotTransportSuccessorCycleRecord(
+            cycle_number=int(row["cycle_number"]),
+            goal_key=str(row["goal_key"]),
+            candidate_version=int(row["candidate_version"]),
+            state=str(row["state"]),
+            definition_id=(
+                str(row["definition_id"])
+                if row.get("definition_id") is not None
+                else None
+            ),
+            run_id=(
+                str(row["run_id"])
+                if row.get("run_id") is not None
+                else None
+            ),
+            plan_sha256=row.get("plan_sha256"),
+            client_order_id=(
+                str(row["client_order_id"])
+                if row.get("client_order_id") is not None
+                else None
+            ),
+            diagnostic_code=str(row["diagnostic_code"]),
+            dns_status=str(row["dns_status"]),
+            tcp_status=str(row["tcp_status"]),
+            tls_status=str(row["tls_status"]),
+            readiness_failure_class=row.get("readiness_failure_class"),
+            dns_probe_count=int(row["dns_probe_count"]),
+            tcp_probe_count=int(row["tcp_probe_count"]),
+            tls_probe_count=int(row["tls_probe_count"]),
+            readiness_evidence_sha256=row.get("readiness_evidence_sha256"),
+            completed_categories=tuple(str(item) for item in categories),
+            coinbase_api_call_count=(
+                int(row["coinbase_api_call_count"])
+                if row.get("coinbase_api_call_count") is not None
+                else None
+            ),
+            call_count_exact=bool(row["call_count_exact"]),
+            market_snapshot_sha256=row.get("market_snapshot_sha256"),
+            evidence_sha256=row.get("evidence_sha256"),
+            audit_id=str(row["audit_id"]),
+            correlation_id=str(row["correlation_id"]),
+            started_at=_iso(row["started_at"]) or "",
+            finalized_at=_iso(row.get("finalized_at")),
+        )
+
+    def list_spot_transport_successor_cycles(
+        self,
+    ) -> tuple[AutomationSpotTransportSuccessorCycleRecord, ...]:
+        rows = self.database.execute_query(
+            f"SELECT * FROM {self._prefix}automation_spot_transport_successor_cycle "
+            "ORDER BY cycle_number"
+        )
+        return tuple(self._transport_successor_cycle_from_row(row) for row in rows)
+
+    def spot_transport_successor_available(self) -> bool:
+        """Return V13-V15 ledger actionability without reserving a cycle."""
+
+        with self.database.get_cursor() as cursor:
+            cursor.execute(
+                f"SELECT * FROM {self._prefix}automation_spot_preview_gated_goal "
+                "WHERE goal_key = ANY(%s)",
+                (list(sorted(AUTOMATION_SPOT_TRANSPORT_GOAL_KEYS)),),
+            )
+            goals = {str(row["goal_key"]): row for row in self._rows(cursor)}
+            cursor.execute(
+                f"SELECT cycle_number, goal_key, state FROM "
+                f"{self._prefix}automation_spot_transport_successor_cycle "
+                "ORDER BY cycle_number"
+            )
+            cycles = self._rows(cursor)
+        return (
+            _select_transport_successor(
+                goals,
+                cycles,
+                documented_corrections=(
+                    _AUTOMATION_SPOT_DOCUMENTED_TRANSPORT_SUCCESSOR_CORRECTIONS
+                ),
+            )
+            is not None
+        )
+
+    def start_spot_transport_successor_cycle(
+        self,
+        command: AutomationMutationCommand,
+    ) -> AutomationStoreMutation[AutomationSpotTransportSuccessorCycleRecord]:
+        """Claim one goal-global V13-V15 cycle before any probe or API read."""
+
+        self._validate_command(command)
+        idempotency_hash = _hash(command.idempotency_key)
+        with self.database.get_cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT *
+                FROM {self._prefix}automation_spot_transport_successor_cycle
+                WHERE idempotency_key_sha256 = %s
+                FOR UPDATE
+                """,
+                (idempotency_hash,),
+            )
+            replay = self._row(cursor)
+            if replay is not None:
+                if (
+                    replay["payload_sha256"] != command.payload_sha256
+                    or replay["actor_id_sha256"] != _hash(command.actor_id)
+                    or replay["operator_intent_sha256"]
+                    != _hash(command.operator_intent)
+                    or replay["correlation_id"] != command.correlation_id
+                ):
+                    raise AutomationStoreConflict(
+                        "automation_transport_successor_idempotency_conflict"
+                    )
+                record = self._transport_successor_cycle_from_row(replay)
+                return AutomationStoreMutation(
+                    record,
+                    record.audit_id,
+                    record.correlation_id,
+                    True,
+                )
+            posture = self._current_control(cursor, for_update=True)
+            if posture is not OperatorAutomationControlPosture.ACTIVE:
+                raise AutomationStoreConflict("automation_control_plane_not_active")
+            cursor.execute(
+                f"""
+                SELECT *
+                FROM {self._prefix}automation_spot_preview_gated_goal
+                WHERE goal_key = ANY(%s)
+                ORDER BY goal_key
+                FOR UPDATE
+                """,
+                (list(sorted(AUTOMATION_SPOT_TRANSPORT_GOAL_KEYS)),),
+            )
+            goals = {str(row["goal_key"]): row for row in self._rows(cursor)}
+            if set(goals) != set(AUTOMATION_SPOT_TRANSPORT_GOAL_KEYS):
+                raise AutomationStoreUnavailable(
+                    "automation_transport_successor_goal_ledger_unavailable"
+                )
+            cursor.execute(
+                f"SELECT cycle_number, goal_key, state FROM "
+                f"{self._prefix}automation_spot_transport_successor_cycle "
+                "ORDER BY cycle_number FOR UPDATE"
+            )
+            existing_cycles = self._rows(cursor)
+            target = _select_transport_successor(
+                goals,
+                existing_cycles,
+                documented_corrections=(
+                    _AUTOMATION_SPOT_DOCUMENTED_TRANSPORT_SUCCESSOR_CORRECTIONS
+                ),
+            )
+            if target is None:
+                raise AutomationStoreConflict(
+                    "automation_transport_successor_not_available"
+                )
+            candidate_version, goal_key = target
+            cycle_number = max(
+                (int(cycle["cycle_number"]) for cycle in existing_cycles),
+                default=0,
+            ) + 1
+            if cycle_number > 10:
+                raise AutomationStoreConflict(
+                    "automation_transport_successor_cycles_exhausted"
+                )
+            now = _utc_now()
+            audit_id = _new_id()
+            cursor.execute(
+                f"""
+                INSERT INTO {self._prefix}automation_spot_transport_successor_cycle (
+                    cycle_number, goal_key, candidate_version, state,
+                    definition_id, run_id, plan_sha256, client_order_id,
+                    idempotency_key_sha256, payload_sha256, actor_id_sha256,
+                    operator_intent_sha256, diagnostic_code,
+                    dns_status, tcp_status, tls_status,
+                    readiness_failure_class, dns_probe_count, tcp_probe_count,
+                    tls_probe_count, readiness_evidence_sha256,
+                    completed_categories, coinbase_api_call_count,
+                    call_count_exact, market_snapshot_sha256,
+                    evidence_sha256, audit_id, correlation_id,
+                    started_at, finalized_at
+                ) VALUES (
+                    %s,%s,%s,'CLAIMED',NULL,NULL,NULL,NULL,%s,%s,%s,%s,
+                    'transport_readiness_cycle_claimed',
+                    'NOT_ATTEMPTED','NOT_ATTEMPTED','NOT_ATTEMPTED',
+                    NULL,0,0,0,NULL,'[]'::jsonb,NULL,FALSE,NULL,NULL,
+                    %s,%s,%s,NULL
+                ) RETURNING *
+                """,
+                (
+                    cycle_number,
+                    goal_key,
+                    candidate_version,
+                    idempotency_hash,
+                    command.payload_sha256,
+                    _hash(command.actor_id),
+                    _hash(command.operator_intent),
+                    audit_id,
+                    command.correlation_id,
+                    now,
+                ),
+            )
+            row = self._row(cursor)
+            assert row is not None
+            return AutomationStoreMutation(
+                self._transport_successor_cycle_from_row(row),
+                audit_id,
+                command.correlation_id,
+            )
+
+    def finalize_spot_transport_readiness(
+        self,
+        *,
+        cycle_number: int,
+        goal_key: str,
+        ready: bool,
+        failure_class: str,
+        dns_status: str,
+        tcp_status: str,
+        tls_status: str,
+        dns_probe_count: int,
+        tcp_probe_count: int,
+        tls_probe_count: int,
+    ) -> AutomationStoreMutation[AutomationSpotTransportSuccessorCycleRecord]:
+        """Persist only fixed probe stages; never accept address/cert/error values."""
+
+        allowed_failures = {
+            "NONE",
+            "DNS_RESOLUTION_FAILURE",
+            "TCP_CONNECTION_FAILURE",
+            "CONNECT_TIMEOUT",
+            "TLS_OR_CERTIFICATE_FAILURE",
+            "UNKNOWN_TRANSPORT",
+        }
+        statuses = {"NOT_ATTEMPTED", "SUCCEEDED", "FAILED"}
+        success_shape = (
+            failure_class == "NONE"
+            and (dns_status, tcp_status, tls_status)
+            == ("SUCCEEDED", "SUCCEEDED", "SUCCEEDED")
+            and (dns_probe_count, tcp_probe_count, tls_probe_count) == (1, 1, 1)
+        )
+        probe_shape = (
+            dns_status,
+            tcp_status,
+            tls_status,
+            dns_probe_count,
+            tcp_probe_count,
+            tls_probe_count,
+        )
+        dns_failure_shape = (
+            "FAILED",
+            "NOT_ATTEMPTED",
+            "NOT_ATTEMPTED",
+            1,
+            0,
+            0,
+        )
+        tcp_failure_shape = (
+            "SUCCEEDED",
+            "FAILED",
+            "NOT_ATTEMPTED",
+            1,
+            1,
+            0,
+        )
+        tls_failure_shape = (
+            "SUCCEEDED",
+            "SUCCEEDED",
+            "FAILED",
+            1,
+            1,
+            1,
+        )
+        failure_shape = (
+            failure_class == "DNS_RESOLUTION_FAILURE"
+            and probe_shape == dns_failure_shape
+        ) or (
+            failure_class in {"TCP_CONNECTION_FAILURE", "CONNECT_TIMEOUT"}
+            and probe_shape == tcp_failure_shape
+        ) or (
+            failure_class == "TLS_OR_CERTIFICATE_FAILURE"
+            and probe_shape == tls_failure_shape
+        ) or (
+            failure_class == "UNKNOWN_TRANSPORT"
+            and probe_shape
+            in {dns_failure_shape, tcp_failure_shape, tls_failure_shape}
+        )
+        if (
+            goal_key not in AUTOMATION_SPOT_TRANSPORT_GOAL_KEYS
+            or type(ready) is not bool
+            or failure_class not in allowed_failures
+            or {dns_status, tcp_status, tls_status} - statuses
+            or any(
+                type(value) is not int or value not in {0, 1}
+                for value in (dns_probe_count, tcp_probe_count, tls_probe_count)
+            )
+            or ready is not success_shape
+            or (not ready and failure_class == "NONE")
+            or (not ready and not failure_shape)
+        ):
+            raise AutomationStoreInvalid("automation_transport_readiness_invalid")
+        readiness_evidence_sha256 = _hash(
+            json.dumps(
+                {
+                    "hostname": "api.coinbase.com",
+                    "port": 443,
+                    "failure_class": failure_class,
+                    "dns_status": dns_status,
+                    "tcp_status": tcp_status,
+                    "tls_status": tls_status,
+                    "dns_probe_count": dns_probe_count,
+                    "tcp_probe_count": tcp_probe_count,
+                    "tls_probe_count": tls_probe_count,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        )
+        target_state = "READINESS_PASSED" if ready else "BLOCKED"
+        diagnostic = (
+            "transport_readiness_succeeded"
+            if ready
+            else f"transport_readiness_{failure_class.lower()}"
+        )
+        terminal_evidence = (
+            None
+            if ready
+            else _hash(
+                json.dumps(
+                    {
+                        "cycle_number": cycle_number,
+                        "goal_key": goal_key,
+                        "readiness_evidence_sha256": readiness_evidence_sha256,
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+            )
+        )
+        with self.database.get_cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT * FROM {self._prefix}automation_spot_transport_successor_cycle
+                WHERE cycle_number = %s AND goal_key = %s FOR UPDATE
+                """,
+                (cycle_number, goal_key),
+            )
+            current = self._row(cursor)
+            if current is None:
+                raise AutomationStoreNotFound(
+                    "automation_transport_successor_cycle_not_found"
+                )
+            if current["state"] != "CLAIMED":
+                record = self._transport_successor_cycle_from_row(current)
+                return AutomationStoreMutation(
+                    record, record.audit_id, record.correlation_id, True
+                )
+            now = _utc_now()
+            audit_id = _new_id()
+            cursor.execute(
+                f"""
+                UPDATE {self._prefix}automation_spot_transport_successor_cycle
+                SET state = %s, diagnostic_code = %s,
+                    dns_status = %s, tcp_status = %s, tls_status = %s,
+                    readiness_failure_class = %s,
+                    dns_probe_count = %s, tcp_probe_count = %s,
+                    tls_probe_count = %s, readiness_evidence_sha256 = %s,
+                    coinbase_api_call_count = %s, call_count_exact = %s,
+                    evidence_sha256 = %s, audit_id = %s, finalized_at = %s
+                WHERE cycle_number = %s AND goal_key = %s AND state = 'CLAIMED'
+                RETURNING *
+                """,
+                (
+                    target_state,
+                    diagnostic,
+                    dns_status,
+                    tcp_status,
+                    tls_status,
+                    failure_class,
+                    dns_probe_count,
+                    tcp_probe_count,
+                    tls_probe_count,
+                    readiness_evidence_sha256,
+                    None if ready else 0,
+                    False if ready else True,
+                    terminal_evidence,
+                    audit_id,
+                    None if ready else now,
+                    cycle_number,
+                    goal_key,
+                ),
+            )
+            row = self._row(cursor)
+            if row is None:
+                raise AutomationStoreConflict(
+                    "automation_transport_readiness_already_finalized"
+                )
+            record = self._transport_successor_cycle_from_row(row)
+            return AutomationStoreMutation(
+                record, audit_id, record.correlation_id
+            )
+
+    def finalize_spot_transport_successor_terminal(
+        self,
+        *,
+        cycle_number: int,
+        goal_key: str,
+        state: Literal["BLOCKED", "UNKNOWN"],
+        diagnostic_code: str,
+        completed_categories: tuple[str, ...],
+        coinbase_api_call_count: int | None,
+        call_count_exact: bool,
+        evidence_sha256: str | None,
+    ) -> AutomationStoreMutation[AutomationSpotTransportSuccessorCycleRecord]:
+        """Close a post-readiness failed cycle without creating a candidate."""
+
+        if (
+            goal_key not in AUTOMATION_SPOT_TRANSPORT_GOAL_KEYS
+            or state not in {"BLOCKED", "UNKNOWN"}
+            or not diagnostic_code.startswith(("atomic_", "minimum_", "automation_"))
+            or tuple(completed_categories)
+            != AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES[: len(completed_categories)]
+            or len(completed_categories) > 8
+            or (state == "UNKNOWN")
+            is not (
+                coinbase_api_call_count is None
+                and not call_count_exact
+                and evidence_sha256 is None
+            )
+            or (
+                state == "BLOCKED"
+                and (
+                    type(coinbase_api_call_count) is not int
+                    or coinbase_api_call_count < 0
+                    or not call_count_exact
+                    or evidence_sha256 is None
+                )
+            )
+            or (
+                evidence_sha256 is not None
+                and _SHA256_PATTERN.fullmatch(evidence_sha256) is None
+            )
+        ):
+            raise AutomationStoreInvalid(
+                "automation_transport_successor_result_invalid"
+            )
+        with self.database.get_cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT * FROM {self._prefix}automation_spot_transport_successor_cycle
+                WHERE cycle_number = %s AND goal_key = %s FOR UPDATE
+                """,
+                (cycle_number, goal_key),
+            )
+            current = self._row(cursor)
+            if current is None:
+                raise AutomationStoreNotFound(
+                    "automation_transport_successor_cycle_not_found"
+                )
+            if current["state"] != "READINESS_PASSED":
+                record = self._transport_successor_cycle_from_row(current)
+                return AutomationStoreMutation(
+                    record, record.audit_id, record.correlation_id, True
+                )
+            now = _utc_now()
+            audit_id = _new_id()
+            cursor.execute(
+                f"""
+                UPDATE {self._prefix}automation_spot_transport_successor_cycle
+                SET state = %s, diagnostic_code = %s,
+                    completed_categories = %s::jsonb,
+                    coinbase_api_call_count = %s, call_count_exact = %s,
+                    evidence_sha256 = %s, audit_id = %s, finalized_at = %s
+                WHERE cycle_number = %s AND goal_key = %s
+                  AND state = 'READINESS_PASSED'
+                RETURNING *
+                """,
+                (
+                    state,
+                    diagnostic_code,
+                    json.dumps(list(completed_categories)),
+                    coinbase_api_call_count,
+                    call_count_exact,
+                    evidence_sha256,
+                    audit_id,
+                    now,
+                    cycle_number,
+                    goal_key,
+                ),
+            )
+            row = self._row(cursor)
+            if row is None:
+                raise AutomationStoreConflict(
+                    "automation_transport_successor_already_finalized"
+                )
+            record = self._transport_successor_cycle_from_row(row)
+            return AutomationStoreMutation(
+                record, audit_id, record.correlation_id
+            )
+
+    def materialize_spot_transport_successor_and_claim_preview(
+        self,
+        *,
+        cycle_number: int,
+        goal_key: str,
+        definition_id: str,
+        run_id: str,
+        terms: AutomationSpotSingleChildPlanTerms,
+        expected_plan_sha256: str,
+        expected_client_order_id: str,
+        market_snapshot_sha256: str,
+        evidence_sha256: str,
+        attempts: tuple[Any, ...],
+    ) -> AutomationStoreMutation[AutomationSpotTransportSuccessorCycleRecord]:
+        """Persist V13-V15 terms/evidence and consume one Preview claim atomically."""
+
+        _validate_id(definition_id, code="automation_definition_id_invalid")
+        _validate_id(run_id, code="automation_run_id_invalid")
+        if (
+            goal_key not in AUTOMATION_SPOT_TRANSPORT_GOAL_KEYS
+            or _SHA256_PATTERN.fullmatch(expected_plan_sha256) is None
+            or _SHA256_PATTERN.fullmatch(market_snapshot_sha256) is None
+            or _SHA256_PATTERN.fullmatch(evidence_sha256) is None
+            or len(attempts) != len(AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES)
+            or tuple(item.category for item in attempts)
+            != AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES
+        ):
+            raise AutomationStoreInvalid(
+                "automation_transport_successor_materialization_invalid"
+            )
+        values = self._validated_spot_plan_values(
+            self._spot_plan_command_for_revision(
+                definition_id=definition_id,
+                definition_revision=1,
+                terms=terms,
+                command=AutomationMutationCommand(
+                    idempotency_key="transport-successor-materialization",
+                    payload_sha256=evidence_sha256,
+                    actor_id="backend-owned-transport-successor",
+                    correlation_id="transport-successor-binding",
+                    operator_intent="materialize_transport_successor",
+                ),
+            ),
+            post_only_required=True,
+            dynamic_execution_cap=True,
+        )
+        if (
+            values["plan_sha256"] != expected_plan_sha256
+            or Decimal(values["submitted_notional_usdc"]) >= Decimal("3.10")
+            or Decimal(values["possible_execution_notional_usdc"])
+            >= Decimal("3.10")
+        ):
+            raise AutomationStoreInvalid(
+                "automation_transport_successor_plan_binding_invalid"
+            )
+        expected_identity = self.deterministic_spot_client_order_id(
+            run_id=run_id,
+            plan_sha256=expected_plan_sha256,
+            goal_key=goal_key,
+        )
+        if expected_identity != expected_client_order_id:
+            raise AutomationStoreInvalid(
+                "automation_transport_successor_identity_invalid"
+            )
+        total_calls = 0
+        fresh_until_values: list[datetime] = []
+        for item in attempts:
+            observed_at = _aware_utc_datetime(item.observed_at)
+            fresh_until = _aware_utc_datetime(item.fresh_until)
+            if (
+                type(item.coinbase_api_call_count) is not int
+                or item.coinbase_api_call_count < 1
+                or observed_at is None
+                or fresh_until is None
+                or fresh_until <= observed_at
+                or _SHA256_PATTERN.fullmatch(item.evidence_sha256) is None
+            ):
+                raise AutomationStoreInvalid(
+                    "automation_transport_successor_attempt_invalid"
+                )
+            total_calls += item.coinbase_api_call_count
+            fresh_until_values.append(fresh_until)
+        now = _utc_now()
+        if min(fresh_until_values) <= now:
+            raise AutomationStoreConflict("automation_transport_successor_stale")
+        with self.database.get_cursor() as cursor:
+            posture = self._current_control(cursor, for_update=True)
+            if posture is not OperatorAutomationControlPosture.ACTIVE:
+                raise AutomationStoreConflict("automation_control_plane_not_active")
+            cursor.execute(
+                f"""
+                SELECT * FROM {self._prefix}automation_spot_transport_successor_cycle
+                WHERE cycle_number = %s AND goal_key = %s FOR UPDATE
+                """,
+                (cycle_number, goal_key),
+            )
+            current = self._row(cursor)
+            if current is None:
+                raise AutomationStoreNotFound(
+                    "automation_transport_successor_cycle_not_found"
+                )
+            if current["state"] != "READINESS_PASSED":
+                record = self._transport_successor_cycle_from_row(current)
+                return AutomationStoreMutation(
+                    record, record.audit_id, record.correlation_id, True
+                )
+            cursor.execute(
+                f"""
+                SELECT * FROM {self._prefix}automation_spot_preview_gated_goal
+                WHERE goal_key = %s FOR UPDATE
+                """,
+                (goal_key,),
+            )
+            goal = self._row(cursor)
+            if (
+                goal is None
+                or goal.get("definition_id") is not None
+                or bool(goal.get("preview_allowance_consumed"))
+            ):
+                raise AutomationStoreConflict(
+                    "automation_spot_preview_allowance_consumed"
+                )
+            audit_id = _new_id()
+            correlation_id = str(current["correlation_id"])
+            cursor.execute(
+                f"""
+                INSERT INTO {self._prefix}automation_definition (
+                    definition_id, revision, label, domain, job_kind,
+                    lifecycle_state, product_ids, schedule_kind,
+                    interval_seconds, next_review_at, created_at, updated_at
+                ) VALUES (
+                    %s,1,%s,'SPOT','SPOT_CAMPAIGN','ENABLED',
+                    '["BTC-USDC"]'::jsonb,'MANUAL_ONLY',NULL,NULL,%s,%s
+                )
+                """,
+                (
+                    definition_id,
+                    f"BTC-USDC transport explainable V{int(current['candidate_version'])}",
+                    now,
+                    now,
+                ),
+            )
+            self._insert_spot_single_child_plan(
+                cursor,
+                values=values,
+                audit_id=audit_id,
+                correlation_id=correlation_id,
+                recorded_at=now,
+            )
+            cursor.execute(
+                f"""
+                INSERT INTO {self._prefix}automation_spot_plan_goal (
+                    definition_id, goal_key, created_at
+                ) VALUES (%s,%s,%s)
+                """,
+                (definition_id, goal_key, now),
+            )
+            cursor.execute(
+                f"""
+                INSERT INTO {self._prefix}automation_run (
+                    run_id, definition_id, definition_revision, domain,
+                    job_kind, state, diagnostic_code, audit_id,
+                    correlation_id, client_order_id, live_attempt_consumed,
+                    coinbase_api_call_count, create_call_count,
+                    cancel_call_count, claimed_at, updated_at
+                ) VALUES (
+                    %s,%s,1,'SPOT','SPOT_CAMPAIGN',
+                    'AWAITING_OPERATOR_AUTHORIZATION',
+                    'automation_spot_preview_invocation_started',%s,%s,%s,
+                    TRUE,%s,0,0,%s,%s
+                )
+                """,
+                (
+                    run_id,
+                    definition_id,
+                    audit_id,
+                    correlation_id,
+                    expected_client_order_id,
+                    total_calls,
+                    now,
+                    now,
+                ),
+            )
+            cursor.execute(
+                f"""
+                INSERT INTO {self._prefix}automation_spot_eligibility_cycle (
+                    goal_key, cycle_number, policy_revision, run_id,
+                    definition_id, definition_revision, plan_sha256,
+                    portfolio_id_sha256, product_id, client_order_id,
+                    state, coinbase_api_call_count, call_count_exact,
+                    fresh_until, diagnostic_code, audit_id, correlation_id,
+                    started_at, finalized_at
+                ) VALUES (
+                    %s,%s,5,%s,%s,1,%s,%s,'BTC-USDC',%s,'SUCCEEDED',
+                    %s,TRUE,%s,'automation_spot_eligibility_succeeded',
+                    %s,%s,%s,%s
+                )
+                """,
+                (
+                    goal_key,
+                    cycle_number,
+                    run_id,
+                    definition_id,
+                    expected_plan_sha256,
+                    values["portfolio_id_sha256"],
+                    expected_client_order_id,
+                    total_calls,
+                    min(fresh_until_values),
+                    audit_id,
+                    correlation_id,
+                    now,
+                    now,
+                ),
+            )
+            for item in attempts:
+                portfolio_evidence = (
+                    values["portfolio_id_sha256"]
+                    if item.category == "PORTFOLIO_CATALOG"
+                    else None
+                )
+                cursor.execute(
+                    f"""
+                    INSERT INTO {self._prefix}automation_spot_eligibility_attempt (
+                        run_id, goal_key, cycle_number, category,
+                        allowance_consumed, outcome, eligible,
+                        coinbase_api_call_count, call_count_exact,
+                        diagnostic_code, audit_id, correlation_id,
+                        started_at, finalized_at, observed_at, fresh_until,
+                        evidence_sha256, portfolio_id_sha256
+                    ) VALUES (
+                        %s,%s,%s,%s,TRUE,'SUCCEEDED',TRUE,%s,TRUE,%s,%s,%s,
+                        %s,%s,%s,%s,%s,%s
+                    )
+                    """,
+                    (
+                        run_id,
+                        goal_key,
+                        cycle_number,
+                        item.category,
+                        item.coinbase_api_call_count,
+                        f"automation_spot_eligibility_{item.category.lower()}_succeeded",
+                        audit_id,
+                        correlation_id,
+                        now,
+                        now,
+                        item.observed_at,
+                        item.fresh_until,
+                        item.evidence_sha256,
+                        portfolio_evidence,
+                    ),
+                )
+            cursor.execute(
+                f"""
+                UPDATE {self._prefix}automation_spot_preview_gated_goal
+                SET definition_id = %s, bound_run_id = %s,
+                    client_order_id = %s, eligibility_cycle = %s,
+                    plan_sha256 = %s, portfolio_id_sha256 = %s,
+                    product_id = 'BTC-USDC', preview_allowance_consumed = TRUE,
+                    updated_at = %s
+                WHERE goal_key = %s AND definition_id IS NULL
+                  AND preview_allowance_consumed = FALSE
+                """,
+                (
+                    definition_id,
+                    run_id,
+                    expected_client_order_id,
+                    cycle_number,
+                    expected_plan_sha256,
+                    values["portfolio_id_sha256"],
+                    now,
+                    goal_key,
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise AutomationStoreConflict(
+                    "automation_spot_preview_allowance_consumed"
+                )
+            cursor.execute(
+                f"""
+                UPDATE {self._prefix}automation_spot_transport_successor_cycle
+                SET state = 'MATERIALIZED', definition_id = %s, run_id = %s,
+                    plan_sha256 = %s, client_order_id = %s,
+                    diagnostic_code = 'atomic_market_snapshot_terms_bound',
+                    completed_categories = %s::jsonb,
+                    coinbase_api_call_count = %s, call_count_exact = TRUE,
+                    market_snapshot_sha256 = %s, evidence_sha256 = %s,
+                    audit_id = %s, finalized_at = %s
+                WHERE cycle_number = %s AND goal_key = %s
+                  AND state = 'READINESS_PASSED'
+                RETURNING *
+                """,
+                (
+                    definition_id,
+                    run_id,
+                    expected_plan_sha256,
+                    expected_client_order_id,
+                    json.dumps(list(AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES)),
+                    total_calls,
+                    market_snapshot_sha256,
+                    evidence_sha256,
+                    audit_id,
+                    now,
+                    cycle_number,
+                    goal_key,
+                ),
+            )
+            row = self._row(cursor)
+            if row is None:
+                raise AutomationStoreConflict(
+                    "automation_transport_successor_already_finalized"
+                )
+            self._append_event(
+                cursor,
+                definition_id=definition_id,
+                run_id=run_id,
+                from_state=None,
+                to_state=(
+                    OperatorAutomationRunState.AWAITING_OPERATOR_AUTHORIZATION.value
+                ),
+                diagnostic_code="automation_spot_preview_invocation_started",
+                audit_id=audit_id,
+                idempotency_key_sha256=str(current["idempotency_key_sha256"]),
+                correlation_id=correlation_id,
+                recorded_at=now,
+            )
+            record = self._transport_successor_cycle_from_row(row)
             return AutomationStoreMutation(record, audit_id, correlation_id)
 
     def has_spot_single_child_run(
@@ -9401,6 +10663,33 @@ class OperatorAutomationRepository:
                         audit_id = %s,
                         finalized_at = %s
                     WHERE cycle_number = %s AND state = 'CLAIMED'
+                    """,
+                    (
+                        _new_id(),
+                        _utc_now(),
+                        int(cycle["cycle_number"]),
+                    ),
+                )
+            cursor.execute(
+                f"SELECT cycle_number FROM "
+                f"{self._prefix}automation_spot_transport_successor_cycle "
+                "WHERE state IN ('CLAIMED','READINESS_PASSED') FOR UPDATE"
+            )
+            for cycle in self._rows(cursor):
+                cursor.execute(
+                    f"""
+                    UPDATE {self._prefix}automation_spot_transport_successor_cycle
+                    SET state = 'UNKNOWN',
+                        diagnostic_code = 'automation_transport_successor_restart_unknown',
+                        completed_categories = '[]'::jsonb,
+                        coinbase_api_call_count = NULL,
+                        call_count_exact = FALSE,
+                        market_snapshot_sha256 = NULL,
+                        evidence_sha256 = NULL,
+                        audit_id = %s,
+                        finalized_at = %s
+                    WHERE cycle_number = %s
+                      AND state IN ('CLAIMED','READINESS_PASSED')
                     """,
                     (
                         _new_id(),

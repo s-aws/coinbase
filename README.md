@@ -3,6 +3,18 @@
 ## Current operator MVP
 
 Goal
+`operator_spot_automation_transport_explainability_and_successor_proof_v13_v15`
+implements prospective value-blind Preview transport classification, a
+separate durable V13-V15 ten-cycle ledger, and one DNS/TCP/TLS readiness
+sequence that sends no HTTP bytes. Status: implementation complete and
+validation in progress; V13-V15 probes, eligibility reads, Preview, Create,
+and Cancel have not run. V14/V15 remain backend-blocked without a reviewed
+official-documentation-backed correction. See
+[`docs/OPERATOR_SPOT_AUTOMATION_TRANSPORT_EXPLAINABILITY_V13_V15.md`](docs/OPERATOR_SPOT_AUTOMATION_TRANSPORT_EXPLAINABILITY_V13_V15.md).
+Current action:
+`validate_transport_boundary_then_execute_one_authorized_v13_successor_proof`.
+
+Completed predecessor goal
 `operator_spot_automation_atomic_market_snapshot_binding_and_successor_proof_v10_v12`
 is terminal after V10-V12. Cycles 1-3 each completed all eight reads exactly,
 atomically bound final terms, and consumed that candidate's distinct Preview
@@ -31,7 +43,13 @@ This README is intentionally a short orientation. It does not enumerate every
 workflow or module; detailed behavior lives in the linked docs and durable MVP
 plans.
 
-## Current MVP Goal
+## Current MVP Goal: V13-V15
+
+The current goal and its no-HTTP transport-readiness boundary are summarized
+under [Current operator MVP](#current-operator-mvp) and specified in
+[`docs/OPERATOR_SPOT_AUTOMATION_TRANSPORT_EXPLAINABILITY_V13_V15.md`](docs/OPERATOR_SPOT_AUTOMATION_TRANSPORT_EXPLAINABILITY_V13_V15.md).
+
+### Completed V7-V9 predecessor
 
 Goal
 `operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`

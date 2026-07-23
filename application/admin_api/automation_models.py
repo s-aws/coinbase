@@ -51,6 +51,9 @@ _ATOMIC_MARKET_SNAPSHOT_SPOT_MODES = frozenset(
         "ATOMIC_MARKET_SNAPSHOT_V10",
         "ATOMIC_MARKET_SNAPSHOT_V11",
         "ATOMIC_MARKET_SNAPSHOT_V12",
+        "TRANSPORT_EXPLAINABLE_V13",
+        "TRANSPORT_EXPLAINABLE_V14",
+        "TRANSPORT_EXPLAINABLE_V15",
     }
 )
 _POST_ONLY_SPOT_MODES = frozenset(
@@ -94,10 +97,29 @@ _PREVIEW_GATED_SPOT_MODES = frozenset(
 _EXACT_PREVIEW_UNKNOWN_FAILURE_CLASSES = frozenset(
     {
         "RESPONSE_SCHEMA_INVALID",
+        "RESPONSE_DECODING_FAILURE",
         "HTTP_CLIENT_RESPONSE",
         "HTTP_SERVER_RESPONSE",
         "HTTP_REDIRECT_RESPONSE",
         "HTTP_RESPONSE_INVALID",
+        "READ_TIMEOUT",
+    }
+)
+_EXACT_ZERO_PREVIEW_UNKNOWN_FAILURE_CLASSES = frozenset(
+    {
+        "REQUEST_COMPOSITION_FAILURE",
+        "DNS_RESOLUTION_FAILURE",
+        "TCP_CONNECTION_FAILURE",
+        "CONNECT_TIMEOUT",
+        "PROXY_FAILURE",
+    }
+)
+_INEXACT_PREVIEW_UNKNOWN_FAILURE_CLASSES = frozenset(
+    {
+        "SDK_INVOCATION_UNKNOWN",
+        "TLS_OR_CERTIFICATE_FAILURE",
+        "CONNECTION_RESET",
+        "TRANSPORT_UNKNOWN",
     }
 )
 
@@ -592,11 +614,12 @@ class AutomationMinimumSizeCandidatePreparationRequest(BaseModel):
 
 
 class AutomationAtomicMarketSnapshotAuthorizationRequest(BaseModel):
-    """One explicit operator action for atomic V10-V12 Preview/Create proof."""
+    """One explicit operator action for atomic V10-V15 Preview/Create proof."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     confirm_atomic_final_market_snapshot_binding: Literal[True]
+    confirm_one_no_http_transport_readiness_sequence: Literal[True]
     confirm_one_no_retry_eight_category_cycle: Literal[True]
     confirm_single_preview: Literal[True]
     confirm_conditional_identical_single_child_create: Literal[True]
@@ -920,6 +943,9 @@ class AutomationDefinitionItem(BaseModel):
         "ATOMIC_MARKET_SNAPSHOT_V10",
         "ATOMIC_MARKET_SNAPSHOT_V11",
         "ATOMIC_MARKET_SNAPSHOT_V12",
+        "TRANSPORT_EXPLAINABLE_V13",
+        "TRANSPORT_EXPLAINABLE_V14",
+        "TRANSPORT_EXPLAINABLE_V15",
     ] | None = None
     single_child_order: AutomationSpotSingleChildOrderSpec | None = None
     minimum_size_preparation: AutomationMinimumSizePreparationReadback | None
@@ -1012,6 +1038,9 @@ class AutomationRunItem(BaseModel):
         "ATOMIC_MARKET_SNAPSHOT_V10",
         "ATOMIC_MARKET_SNAPSHOT_V11",
         "ATOMIC_MARKET_SNAPSHOT_V12",
+        "TRANSPORT_EXPLAINABLE_V13",
+        "TRANSPORT_EXPLAINABLE_V14",
+        "TRANSPORT_EXPLAINABLE_V15",
     ] | None = None
     preview_allowance_consumed: bool = False
     preview_outcome: Literal["ACCEPTED", "REJECTED", "UNKNOWN"] | None = None
@@ -1024,6 +1053,16 @@ class AutomationRunItem(BaseModel):
         "HTTP_SERVER_RESPONSE",
         "HTTP_REDIRECT_RESPONSE",
         "HTTP_RESPONSE_INVALID",
+        "REQUEST_COMPOSITION_FAILURE",
+        "SDK_INVOCATION_UNKNOWN",
+        "DNS_RESOLUTION_FAILURE",
+        "TCP_CONNECTION_FAILURE",
+        "CONNECT_TIMEOUT",
+        "TLS_OR_CERTIFICATE_FAILURE",
+        "PROXY_FAILURE",
+        "READ_TIMEOUT",
+        "CONNECTION_RESET",
+        "RESPONSE_DECODING_FAILURE",
         "TRANSPORT_UNKNOWN",
     ] | None = None
     preview_rejection_code: Literal[
@@ -1147,7 +1186,7 @@ class AutomationRunItem(BaseModel):
                     and not (
                         preview_gated
                         and self.preview_outcome == "UNKNOWN"
-                        and self.preview_call_count == 1
+                        and self.preview_call_count in {0, 1}
                     )
                 )
             ):
@@ -1207,6 +1246,16 @@ class AutomationRunItem(BaseModel):
                         "HTTP_SERVER_RESPONSE",
                         "HTTP_REDIRECT_RESPONSE",
                         "HTTP_RESPONSE_INVALID",
+                        "REQUEST_COMPOSITION_FAILURE",
+                        "SDK_INVOCATION_UNKNOWN",
+                        "DNS_RESOLUTION_FAILURE",
+                        "TCP_CONNECTION_FAILURE",
+                        "CONNECT_TIMEOUT",
+                        "TLS_OR_CERTIFICATE_FAILURE",
+                        "PROXY_FAILURE",
+                        "READ_TIMEOUT",
+                        "CONNECTION_RESET",
+                        "RESPONSE_DECODING_FAILURE",
                         "TRANSPORT_UNKNOWN",
                     }
                 )
@@ -1221,7 +1270,17 @@ class AutomationRunItem(BaseModel):
                 )
                 or (
                     self.preview_outcome == "UNKNOWN"
-                    and self.preview_failure_class == "TRANSPORT_UNKNOWN"
+                    and self.preview_failure_class
+                    in _EXACT_ZERO_PREVIEW_UNKNOWN_FAILURE_CLASSES
+                    and (
+                        not self.call_count_exact
+                        or self.preview_call_count != 0
+                    )
+                )
+                or (
+                    self.preview_outcome == "UNKNOWN"
+                    and self.preview_failure_class
+                    in _INEXACT_PREVIEW_UNKNOWN_FAILURE_CLASSES
                     and (
                         self.call_count_exact
                         or self.preview_call_count is not None
@@ -2198,7 +2257,7 @@ class AutomationRunMutationResponse(BaseModel):
 
 
 class AutomationAtomicMarketSnapshotMutationResponse(BaseModel):
-    """Sanitized terminal result for one claimed V10-V12 cycle."""
+    """Sanitized terminal result for one claimed V13-V15 successor cycle."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -2207,7 +2266,7 @@ class AutomationAtomicMarketSnapshotMutationResponse(BaseModel):
     )
     status: Literal["accepted"] = "accepted"
     outcome: Literal["MATERIALIZED", "BLOCKED", "UNKNOWN"]
-    candidate_version: Literal[10, 11, 12]
+    candidate_version: Literal[13, 14, 15]
     cycle_number: int = Field(ge=1, le=10)
     diagnostic_code: str = Field(
         min_length=1,
@@ -2221,6 +2280,27 @@ class AutomationAtomicMarketSnapshotMutationResponse(BaseModel):
     coinbase_api_call_count: int | None = Field(default=0, ge=0)
     call_count_exact: bool = True
     market_snapshot_binding: Literal["HASHED", "UNAVAILABLE"]
+    transport_readiness: Literal["PASSED", "FAILED"]
+    transport_failure_class: Literal[
+        "NONE",
+        "DNS_RESOLUTION_FAILURE",
+        "TCP_CONNECTION_FAILURE",
+        "CONNECT_TIMEOUT",
+        "TLS_OR_CERTIFICATE_FAILURE",
+        "UNKNOWN_TRANSPORT",
+    ]
+    dns_status: Literal[
+        "NOT_ATTEMPTED", "SUCCEEDED", "FAILED"
+    ]
+    tcp_status: Literal[
+        "NOT_ATTEMPTED", "SUCCEEDED", "FAILED"
+    ]
+    tls_status: Literal[
+        "NOT_ATTEMPTED", "SUCCEEDED", "FAILED"
+    ]
+    dns_probe_count: int = Field(ge=0, le=1)
+    tcp_probe_count: int = Field(ge=0, le=1)
+    tls_probe_count: int = Field(ge=0, le=1)
     run: AutomationRunItem | None = None
     replayed: bool = False
     audit_id: str = Field(pattern=_CANONICAL_UUID_PATTERN)
@@ -2246,6 +2326,66 @@ class AutomationAtomicMarketSnapshotMutationResponse(BaseModel):
             raise ValueError(
                 "automation_atomic_market_snapshot_call_count_invalid"
             )
+        readiness_passed = self.transport_failure_class == "NONE"
+        probe_shape = (
+            self.dns_status,
+            self.tcp_status,
+            self.tls_status,
+            self.dns_probe_count,
+            self.tcp_probe_count,
+            self.tls_probe_count,
+        )
+        dns_failure_shape = (
+            "FAILED",
+            "NOT_ATTEMPTED",
+            "NOT_ATTEMPTED",
+            1,
+            0,
+            0,
+        )
+        tcp_failure_shape = (
+            "SUCCEEDED",
+            "FAILED",
+            "NOT_ATTEMPTED",
+            1,
+            1,
+            0,
+        )
+        tls_failure_shape = (
+            "SUCCEEDED",
+            "SUCCEEDED",
+            "FAILED",
+            1,
+            1,
+            1,
+        )
+        failed_shape_valid = (
+            self.transport_failure_class == "DNS_RESOLUTION_FAILURE"
+            and probe_shape == dns_failure_shape
+        ) or (
+            self.transport_failure_class
+            in {"TCP_CONNECTION_FAILURE", "CONNECT_TIMEOUT"}
+            and probe_shape == tcp_failure_shape
+        ) or (
+            self.transport_failure_class
+            == "TLS_OR_CERTIFICATE_FAILURE"
+            and probe_shape == tls_failure_shape
+        ) or (
+            self.transport_failure_class == "UNKNOWN_TRANSPORT"
+            and probe_shape
+            in {dns_failure_shape, tcp_failure_shape, tls_failure_shape}
+        )
+        if (
+            self.transport_readiness
+            != ("PASSED" if readiness_passed else "FAILED")
+            or (
+                readiness_passed
+                and probe_shape
+                != ("SUCCEEDED", "SUCCEEDED", "SUCCEEDED", 1, 1, 1)
+            )
+            or (not readiness_passed and not failed_shape_valid)
+        ):
+            raise ValueError("automation_transport_readiness_invalid")
         return self
 
 

@@ -1,5 +1,18 @@
 # Maintainer Handoff
 
+## Current V13-V15 transport-explainability goal
+
+`operator_spot_automation_transport_explainability_and_successor_proof_v13_v15`
+is implementation-complete and validation-pending. It adds a separate durable
+ten-cycle ledger, fixed exception-type-only future Preview diagnostics, and a
+single DNS/TCP/TLS readiness sequence with no HTTP bytes before the unchanged
+atomic eight-category policy. No goal-scoped probe,
+Coinbase read, Preview, Create, or Cancel has run. V14/V15 remain fail-closed
+without a reviewed official-documentation-backed correction. See
+[`OPERATOR_SPOT_AUTOMATION_TRANSPORT_EXPLAINABILITY_V13_V15.md`](OPERATOR_SPOT_AUTOMATION_TRANSPORT_EXPLAINABILITY_V13_V15.md).
+Current action:
+`validate_transport_boundary_then_execute_one_authorized_v13_successor_proof`.
+
 ## Terminal V10-V12 atomic-snapshot goal
 
 `operator_spot_automation_atomic_market_snapshot_binding_and_successor_proof_v10_v12`

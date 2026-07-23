@@ -10508,7 +10508,9 @@ class AdminApiReadService:
                 support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
                 summary=(
                     "Explicit operator-triggered, PostgreSQL-claimed BTC-USDC "
-                    "V10-V12 authorization over exactly eight approved no-retry "
+                    "V13-V15 transport-explainable authorization. A separate "
+                    "durable cycle first records at most one no-HTTP DNS, TCP, "
+                    "and TLS readiness probe, then exactly eight approved no-retry "
                     "Coinbase read categories. One fresh documented market-trades "
                     "bid/ask snapshot atomically binds immutable final terms, "
                     "candidate identity, evidence, and the single-use Preview "
@@ -10548,10 +10550,11 @@ class AdminApiReadService:
                     "correlation_id",
                 ],
                 idempotency_contract=(
-                    "required goal-global V10-V12 cycle claim plus transactionally "
-                    "bound single-use Preview claim; terminal replay is call-free "
-                    "and changed request, actor, intent, correlation, snapshot, "
-                    "plan, candidate, or child identity conflicts"
+                    "required goal-global V13-V15 transport cycle claim plus "
+                    "transactionally bound single-use Preview claim; terminal "
+                    "replay is call-free and changed request, actor, intent, "
+                    "correlation, snapshot, plan, candidate, or child identity "
+                    "conflicts"
                 ),
                 approval_contract=(
                     "explicit fresh atomic market-snapshot, approved reads, "
@@ -10567,11 +10570,13 @@ class AdminApiReadService:
                     "are each strictly below 3.10 USDC"
                 ),
                 admission_audit_contract=(
-                    "one PostgreSQL transaction persists the exact definition, "
-                    "plan revision, run, final terms, snapshot/evidence hashes, "
-                    "eight category attempts, candidate identity, and Preview "
-                    "claim; fixed sanitized diagnostics and exact or unknown call "
-                    "accounting are mandatory"
+                    "a separate PostgreSQL ledger persists fixed value-blind "
+                    "DNS/TCP/TLS readiness stage outcomes without addresses, "
+                    "certificates, messages, or HTTP bytes; one later transaction "
+                    "persists the exact definition, plan revision, run, final "
+                    "terms, snapshot/evidence hashes, eight category attempts, "
+                    "candidate identity, and Preview claim; fixed sanitized "
+                    "diagnostics and exact or unknown call accounting are mandatory"
                 ),
                 reconciliation_contract=(
                     "the same cycle owns exact-order reconciliation and one logical "
@@ -10600,12 +10605,20 @@ class AdminApiReadService:
                     "application/admin_api/operator_spot_automation_runtime.py",
                     "application/admin_api/command_service.py",
                     "database/operator_automation.py",
+                    (
+                        "application/admin_api/"
+                        "operator_spot_transport_readiness.py"
+                    ),
                 ],
                 frontend_contract_refs=[
                     "src/shared/api/contracts/backendApiClient.ts",
                     "src/features/operator-read-models/automation",
                 ],
                 documentation_refs=[
+                    (
+                        "docs/"
+                        "OPERATOR_SPOT_AUTOMATION_TRANSPORT_EXPLAINABILITY_V13_V15.md"
+                    ),
                     (
                         "docs/"
                         "OPERATOR_SPOT_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_V10_V12.md"
@@ -10636,8 +10649,10 @@ class AdminApiReadService:
                 ),
                 spot_rule_boundary=(
                     "The versioned BTC-USDC atomic best-bid and dynamic-cap policy "
-                    "is isolated to V10-V12 single-child Spot Automation and cannot "
-                    "alter generic Spot, Orders, Futures, or orchestration policy."
+                    "is retained by V13-V15 single-child Spot Automation; the "
+                    "transport taxonomy is prospective and does not reinterpret "
+                    "immutable V10-V12 outcomes or alter generic Spot, Orders, "
+                    "Futures, or orchestration policy."
                 ),
                 approval_required=True,
                 cap_guard_required=True,

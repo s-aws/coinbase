@@ -2674,9 +2674,9 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
         permission=AdminApiPermission.ORDER_CREATE,
         idempotency=(
-            "required durable goal-global V10-V12 cycle and single-use Preview "
-            "claim; terminal replay is call-free and changed request, actor, "
-            "intent, or correlation identity conflicts"
+            "required durable goal-global V13-V15 transport cycle and single-use "
+            "Preview claim; terminal replay is call-free and changed request, "
+            "actor, intent, or correlation identity conflicts"
         ),
         approval=(
             "required explicit atomic-snapshot, eight-category read, Preview, "
@@ -2685,15 +2685,16 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
             "automation configure, trigger, and resume"
         ),
         caps=(
-            "required one sequential BTC-USDC V10-V12 candidate and one child; "
+            "required one sequential BTC-USDC V13-V15 candidate and one child; "
             "submitted and possible-execution notionals are each strictly below "
             "3.10 USDC"
         ),
         audit=(
-            "required atomic PostgreSQL binding of one fresh market snapshot, "
-            "final immutable terms, candidate identity, eight category attempts, "
-            "single-use Preview claim, sanitized terminal classification, and "
-            "exact or unknown call accounting"
+            "required separate PostgreSQL value-blind no-HTTP DNS/TCP/TLS "
+            "readiness record followed by atomic binding of one fresh market "
+            "snapshot, final immutable terms, candidate identity, eight category "
+            "attempts, single-use Preview claim, sanitized terminal "
+            "classification, and exact or unknown call accounting"
         ),
         shared_method="authorize_atomic_market_snapshot_candidate",
         parity_test=(

@@ -1,19 +1,28 @@
 from __future__ import annotations
 
 from importlib.metadata import version
+import socket
 from types import SimpleNamespace
 
 from coinbase.rest.types.orders_types import PreviewOrderResponse
 from requests import Response
 from requests.exceptions import (
+    ConnectTimeout,
+    ConnectionError as RequestsConnectionError,
+    ContentDecodingError,
     HTTPError,
+    InvalidURL,
     JSONDecodeError as RequestsJSONDecodeError,
+    ProxyError,
+    ReadTimeout,
+    SSLError,
     Timeout,
     TooManyRedirects,
 )
 
 from application.admin_api.operator_spot_automation_preview import (
     SpotAutomationPreviewFailureClass,
+    SpotAutomationPreviewInvocationStage,
     SpotAutomationPreviewOutcome,
     SpotAutomationPreviewRejectionCode,
     classify_spot_automation_preview_exception,
@@ -301,6 +310,105 @@ def test_transport_exception_remains_inexact_and_value_blind() -> None:
     assert "withheld" not in repr(result)
 
 
+def test_future_preview_request_composition_failure_is_exact_and_value_blind() -> None:
+    result = classify_spot_automation_preview_exception(
+        InvalidURL("withheld-private-exception"),
+        stage=SpotAutomationPreviewInvocationStage.REQUEST_COMPOSITION,
+    )
+
+    assert result.outcome is SpotAutomationPreviewOutcome.UNKNOWN
+    assert (
+        result.failure_class
+        is SpotAutomationPreviewFailureClass.REQUEST_COMPOSITION_FAILURE
+    )
+    assert result.preview_call_count == 0
+    assert result.preview_call_count_exact is True
+    assert "withheld" not in repr(result)
+
+
+def test_future_preview_sdk_and_transport_failures_are_type_only() -> None:
+    expected = (
+        (
+            RuntimeError("withheld-private-exception"),
+            SpotAutomationPreviewFailureClass.SDK_INVOCATION_UNKNOWN,
+            None,
+            False,
+        ),
+        (
+            socket.gaierror("withheld-private-exception"),
+            SpotAutomationPreviewFailureClass.DNS_RESOLUTION_FAILURE,
+            0,
+            True,
+        ),
+        (
+            ConnectionRefusedError("withheld-private-exception"),
+            SpotAutomationPreviewFailureClass.TCP_CONNECTION_FAILURE,
+            0,
+            True,
+        ),
+        (
+            ConnectTimeout("withheld-private-exception"),
+            SpotAutomationPreviewFailureClass.CONNECT_TIMEOUT,
+            0,
+            True,
+        ),
+        (
+            SSLError("withheld-private-exception"),
+            SpotAutomationPreviewFailureClass.TLS_OR_CERTIFICATE_FAILURE,
+            None,
+            False,
+        ),
+        (
+            ProxyError("withheld-private-exception"),
+            SpotAutomationPreviewFailureClass.PROXY_FAILURE,
+            0,
+            True,
+        ),
+        (
+            ReadTimeout("withheld-private-exception"),
+            SpotAutomationPreviewFailureClass.READ_TIMEOUT,
+            1,
+            True,
+        ),
+        (
+            ConnectionResetError("withheld-private-exception"),
+            SpotAutomationPreviewFailureClass.CONNECTION_RESET,
+            None,
+            False,
+        ),
+        (
+            RequestsConnectionError("withheld-private-exception"),
+            SpotAutomationPreviewFailureClass.TRANSPORT_UNKNOWN,
+            None,
+            False,
+        ),
+    )
+
+    for exception, failure_class, call_count, exact in expected:
+        result = classify_spot_automation_preview_exception(exception)
+
+        assert result.outcome is SpotAutomationPreviewOutcome.UNKNOWN
+        assert result.failure_class is failure_class
+        assert result.preview_call_count == call_count
+        assert result.preview_call_count_exact is exact
+        assert "withheld" not in repr(result)
+
+
+def test_future_preview_response_decode_failure_is_distinct_from_schema() -> None:
+    result = classify_spot_automation_preview_exception(
+        ContentDecodingError("withheld-private-exception")
+    )
+
+    assert result.outcome is SpotAutomationPreviewOutcome.UNKNOWN
+    assert (
+        result.failure_class
+        is SpotAutomationPreviewFailureClass.RESPONSE_DECODING_FAILURE
+    )
+    assert result.preview_call_count == 1
+    assert result.preview_call_count_exact is True
+    assert "withheld" not in repr(result)
+
+
 def test_response_json_decode_failure_is_exact_schema_invalid_evidence() -> None:
     result = classify_spot_automation_preview_exception(
         RequestsJSONDecodeError(
@@ -313,7 +421,7 @@ def test_response_json_decode_failure_is_exact_schema_invalid_evidence() -> None
     assert result.outcome is SpotAutomationPreviewOutcome.UNKNOWN
     assert (
         result.failure_class
-        is SpotAutomationPreviewFailureClass.RESPONSE_SCHEMA_INVALID
+        is SpotAutomationPreviewFailureClass.RESPONSE_DECODING_FAILURE
     )
     assert result.preview_call_count == 1
     assert result.preview_call_count_exact is True

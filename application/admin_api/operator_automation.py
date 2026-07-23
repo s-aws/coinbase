@@ -77,6 +77,9 @@ from .operator_spot_eligibility import (
     SPOT_ELIGIBILITY_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY,
     SPOT_ELIGIBILITY_ATOMIC_MARKET_SNAPSHOT_V11_GOAL_KEY,
     SPOT_ELIGIBILITY_ATOMIC_MARKET_SNAPSHOT_V12_GOAL_KEY,
+    SPOT_ELIGIBILITY_TRANSPORT_V13_GOAL_KEY,
+    SPOT_ELIGIBILITY_TRANSPORT_V14_GOAL_KEY,
+    SPOT_ELIGIBILITY_TRANSPORT_V15_GOAL_KEY,
     SPOT_ELIGIBILITY_PREVIEW_GATED_GOAL_KEY,
 )
 
@@ -103,6 +106,9 @@ _SPOT_PREVIEW_MODE_BY_GOAL = {
     SPOT_ELIGIBILITY_ATOMIC_MARKET_SNAPSHOT_V12_GOAL_KEY: (
         "ATOMIC_MARKET_SNAPSHOT_V12"
     ),
+    SPOT_ELIGIBILITY_TRANSPORT_V13_GOAL_KEY: "TRANSPORT_EXPLAINABLE_V13",
+    SPOT_ELIGIBILITY_TRANSPORT_V14_GOAL_KEY: "TRANSPORT_EXPLAINABLE_V14",
+    SPOT_ELIGIBILITY_TRANSPORT_V15_GOAL_KEY: "TRANSPORT_EXPLAINABLE_V15",
 }
 _SPOT_PREVIEW_GOAL_KEYS = frozenset(_SPOT_PREVIEW_MODE_BY_GOAL)
 _SPOT_NEAR_MARKET_GOAL_KEYS = frozenset(
@@ -124,6 +130,9 @@ _SPOT_ATOMIC_MARKET_SNAPSHOT_GOAL_KEYS = frozenset(
         SPOT_ELIGIBILITY_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY,
         SPOT_ELIGIBILITY_ATOMIC_MARKET_SNAPSHOT_V11_GOAL_KEY,
         SPOT_ELIGIBILITY_ATOMIC_MARKET_SNAPSHOT_V12_GOAL_KEY,
+        SPOT_ELIGIBILITY_TRANSPORT_V13_GOAL_KEY,
+        SPOT_ELIGIBILITY_TRANSPORT_V14_GOAL_KEY,
+        SPOT_ELIGIBILITY_TRANSPORT_V15_GOAL_KEY,
     }
 )
 _SPOT_ATOMIC_MARKET_SNAPSHOT_MODES = frozenset(
@@ -471,6 +480,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
         spot_near_market_preparation_runner: Callable[[], Any] | None = None,
         spot_minimum_size_preparation_runner: Callable[[], Any] | None = None,
         spot_atomic_market_snapshot_runner: Callable[..., Any] | None = None,
+        spot_transport_readiness_probe: Callable[..., Any] | None = None,
         spot_proof_chain_recorder: Callable[..., Mapping[str, Any]] | None = None,
         spot_live_admission_evaluator: Callable[..., Any] | None = None,
         now_factory: Callable[[], datetime] | None = None,
@@ -495,6 +505,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
         self._spot_atomic_market_snapshot_runner = (
             spot_atomic_market_snapshot_runner
         )
+        self._spot_transport_readiness_probe = spot_transport_readiness_probe
         self._spot_proof_chain_recorder = spot_proof_chain_recorder
         self._spot_live_admission_evaluator = spot_live_admission_evaluator
         self._spot_proof_stores: tuple[Any, Any, Any, Any] | None = None
@@ -681,11 +692,37 @@ class PostgresOperatorAutomationRepositoryAdapter:
             self._spot_command_service = build_admin_api_command_service()
         return self._spot_command_service
 
+    @staticmethod
+    def _compose_spot_preview_request(plan: Any) -> Mapping[str, Any]:
+        """Build one fixed SDK request without reading any response value."""
+
+        if (
+            getattr(plan, "product_id", None) != "BTC-USDC"
+            or getattr(plan, "side", None) not in {"BUY", "SELL"}
+            or not isinstance(getattr(plan, "base_size", None), str)
+            or not getattr(plan, "base_size", "").strip()
+            or not isinstance(getattr(plan, "limit_price", None), str)
+            or not getattr(plan, "limit_price", "").strip()
+            or type(getattr(plan, "post_only", None)) is not bool
+        ):
+            raise ValueError("automation_spot_preview_request_invalid")
+        return {
+            "product_id": plan.product_id,
+            "side": plan.side,
+            "order_configuration": {
+                "limit_limit_gtc": {
+                    "base_size": plan.base_size,
+                    "limit_price": plan.limit_price,
+                    "post_only": plan.post_only,
+                }
+            },
+        }
+
     def _invoke_spot_preview(
         self,
         *,
         command_service: Any,
-        plan: Any,
+        preview_request: Mapping[str, Any],
     ) -> Any:
         invoker = self._spot_preview_invoker
         if invoker is None:
@@ -696,17 +733,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
             invoker = getattr(rest_client, "preview_order", None)
         if not callable(invoker):
             raise RuntimeError("automation_spot_preview_client_unavailable")
-        return invoker(
-            product_id=plan.product_id,
-            side=plan.side,
-            order_configuration={
-                "limit_limit_gtc": {
-                    "base_size": plan.base_size,
-                    "limit_price": plan.limit_price,
-                    "post_only": bool(plan.post_only),
-                }
-            },
-        )
+        return invoker(**dict(preview_request))
 
     def _resolve_spot_profile_coordinator(self, command_service: Any) -> Any:
         coordinator = self._spot_profile_admission_coordinator
@@ -1922,19 +1949,21 @@ class PostgresOperatorAutomationRepositoryAdapter:
 
     def get_control_posture(self) -> Mapping[str, Any]:
         record = self._call(self.repository.get_control_posture)
-        availability_reader = getattr(
+        transport_availability_reader = getattr(
             self.repository,
-            "spot_atomic_market_snapshot_successor_available",
+            "spot_transport_successor_available",
             None,
         )
-        atomic_available = (
-            bool(self._call(availability_reader))
-            if callable(availability_reader)
+        transport_available = (
+            bool(self._call(transport_availability_reader))
+            if callable(transport_availability_reader)
             else False
         )
         return self._control(
             record,
-            atomic_market_snapshot_authorization_allowed=atomic_available,
+            atomic_market_snapshot_authorization_allowed=(
+                transport_available
+            ),
         )
 
     def list_definitions(
@@ -2566,6 +2595,10 @@ class PostgresOperatorAutomationRepositoryAdapter:
         run: Mapping[str, Any] | None = None,
         diagnostic_code: str | None = None,
     ) -> Mapping[str, Any]:
+        readiness_failure_class = getattr(
+            record, "readiness_failure_class", None
+        )
+        transport_candidate = int(record.candidate_version) >= 13
         return {
             "outcome": record.state,
             "candidate_version": record.candidate_version,
@@ -2580,6 +2613,46 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 "HASHED"
                 if record.market_snapshot_sha256 is not None
                 else "UNAVAILABLE"
+            ),
+            "transport_readiness": (
+                "PASSED"
+                if transport_candidate and readiness_failure_class == "NONE"
+                else "FAILED"
+                if transport_candidate
+                else "NOT_APPLICABLE"
+            ),
+            "transport_failure_class": (
+                readiness_failure_class if transport_candidate else None
+            ),
+            "dns_status": (
+                getattr(record, "dns_status")
+                if transport_candidate
+                else "NOT_APPLICABLE"
+            ),
+            "tcp_status": (
+                getattr(record, "tcp_status")
+                if transport_candidate
+                else "NOT_APPLICABLE"
+            ),
+            "tls_status": (
+                getattr(record, "tls_status")
+                if transport_candidate
+                else "NOT_APPLICABLE"
+            ),
+            "dns_probe_count": (
+                int(getattr(record, "dns_probe_count"))
+                if transport_candidate
+                else 0
+            ),
+            "tcp_probe_count": (
+                int(getattr(record, "tcp_probe_count"))
+                if transport_candidate
+                else 0
+            ),
+            "tls_probe_count": (
+                int(getattr(record, "tls_probe_count"))
+                if transport_candidate
+                else 0
             ),
             "run": run,
         }
@@ -2621,7 +2694,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
         command_service: Any,
         admission_lease: Any,
     ) -> AutomationRepositoryMutation:
-        """Claim, bind, Preview, and conditionally Create one V10-V12 child."""
+        """Claim, bind, Preview, and conditionally Create one V13-V15 child."""
 
         from application.admin_api.operator_spot_atomic_market_snapshot import (
             AtomicMarketSnapshotOutcome,
@@ -2632,8 +2705,9 @@ class PostgresOperatorAutomationRepositoryAdapter:
         )
 
         self._require_active_control_posture()
+        cycle_starter = self.repository.start_spot_transport_successor_cycle
         claim = self._call(
-            lambda: self.repository.start_spot_atomic_market_snapshot_cycle(
+            lambda: cycle_starter(
                 self._command(
                     context=context,
                     payload={
@@ -2646,8 +2720,13 @@ class PostgresOperatorAutomationRepositoryAdapter:
             )
         )
         claimed = claim.entity
+        transport_cycle = claimed.candidate_version in {13, 14, 15}
+        if not transport_cycle:
+            raise AutomationRepositoryUnavailable(
+                "automation_transport_successor_claim_invalid"
+            )
         if claim.replayed:
-            if claimed.state == "CLAIMED":
+            if claimed.state in {"CLAIMED", "READINESS_PASSED"}:
                 raise AutomationRepositoryConflict(
                     "automation_atomic_market_snapshot_cycle_in_progress"
                 )
@@ -2749,6 +2828,49 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 ),
             )
 
+        if transport_cycle:
+            from application.admin_api.operator_spot_transport_readiness import (
+                probe_coinbase_transport_readiness,
+            )
+
+            probe = (
+                self._spot_transport_readiness_probe
+                or probe_coinbase_transport_readiness
+            )
+            try:
+                readiness_result = probe()
+                readiness = self._call(
+                    lambda: self.repository.finalize_spot_transport_readiness(
+                        cycle_number=claimed.cycle_number,
+                        goal_key=claimed.goal_key,
+                        ready=readiness_result.ready,
+                        failure_class=readiness_result.failure_class.value,
+                        dns_status=readiness_result.dns_status.value,
+                        tcp_status=readiness_result.tcp_status.value,
+                        tls_status=readiness_result.tls_status.value,
+                        dns_probe_count=readiness_result.dns_probe_count,
+                        tcp_probe_count=readiness_result.tcp_probe_count,
+                        tls_probe_count=readiness_result.tls_probe_count,
+                    )
+                )
+            except AutomationRepositoryError:
+                raise
+            except Exception:
+                raise AutomationRepositoryUnavailable(
+                    "automation_transport_readiness_unknown"
+                ) from None
+            claimed = readiness.entity
+            if claimed.state != "READINESS_PASSED":
+                return AutomationRepositoryMutation(
+                    entity=self._atomic_market_snapshot_entity(claimed),
+                    audit_id=readiness.audit_id,
+                    correlation_id=readiness.correlation_id,
+                    activity=_atomic_market_snapshot_read_activity(
+                        coinbase_api_call_count=0,
+                        call_count_exact=True,
+                    ),
+                )
+
         definition_id = str(uuid.uuid4())
         run_id = str(uuid.uuid4())
         dependencies = getattr(command_service, "dependencies", None)
@@ -2773,8 +2895,11 @@ class PostgresOperatorAutomationRepositoryAdapter:
         except Exception:
             result = None
         if result is None:
+            terminal_finalizer = (
+                self.repository.finalize_spot_transport_successor_terminal
+            )
             finalized = self._call(
-                lambda: self.repository.finalize_spot_atomic_market_snapshot_terminal(
+                lambda: terminal_finalizer(
                     cycle_number=claimed.cycle_number,
                     goal_key=claimed.goal_key,
                     state="UNKNOWN",
@@ -2797,8 +2922,11 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 ),
             )
         if result.outcome is not AtomicMarketSnapshotOutcome.MATERIALIZED:
+            terminal_finalizer = (
+                self.repository.finalize_spot_transport_successor_terminal
+            )
             finalized = self._call(
-                lambda: self.repository.finalize_spot_atomic_market_snapshot_terminal(
+                lambda: terminal_finalizer(
                     cycle_number=claimed.cycle_number,
                     goal_key=claimed.goal_key,
                     state=result.outcome.value,
@@ -2830,8 +2958,11 @@ class PostgresOperatorAutomationRepositoryAdapter:
                 "automation_atomic_market_snapshot_result_invalid"
             )
         plan = result.plan
+        materializer = (
+            self.repository.materialize_spot_transport_successor_and_claim_preview
+        )
         materialized = self._call(
-            lambda: self.repository.materialize_spot_atomic_market_snapshot_and_claim_preview(
+            lambda: materializer(
                 cycle_number=claimed.cycle_number,
                 goal_key=claimed.goal_key,
                 definition_id=definition_id,
@@ -3560,6 +3691,7 @@ class PostgresOperatorAutomationRepositoryAdapter:
         )
         from application.admin_api.operator_spot_automation_preview import (
             SpotAutomationPreviewOutcome,
+            SpotAutomationPreviewInvocationStage,
             classify_spot_automation_preview_exception,
             classify_spot_automation_preview_response,
             unknown_spot_automation_preview_classification,
@@ -3760,33 +3892,50 @@ class PostgresOperatorAutomationRepositoryAdapter:
                             )
                         else:
                             try:
-                                raw_preview = self._invoke_spot_preview(
-                                    command_service=command_service,
-                                    plan=plan,
+                                preview_request = (
+                                    self._compose_spot_preview_request(plan)
                                 )
                             except Exception as exc:
                                 preview_classification = (
                                     classify_spot_automation_preview_exception(
-                                        exc
+                                        exc,
+                                        stage=(
+                                            SpotAutomationPreviewInvocationStage.REQUEST_COMPOSITION
+                                        ),
                                     )
                                 )
                             else:
                                 try:
+                                    raw_preview = self._invoke_spot_preview(
+                                        command_service=command_service,
+                                        preview_request=preview_request,
+                                    )
+                                except Exception as exc:
                                     preview_classification = (
-                                        classify_spot_automation_preview_response(
-                                            raw_preview,
-                                            expected_base_size=plan.base_size,
-                                            expected_quote_size=(
-                                                plan.submitted_notional_usdc
+                                        classify_spot_automation_preview_exception(
+                                            exc,
+                                            stage=(
+                                                SpotAutomationPreviewInvocationStage.SDK_INVOCATION
                                             ),
                                         )
                                     )
-                                except Exception:
-                                    preview_classification = (
-                                        unknown_spot_automation_preview_classification(
-                                            transport_unknown=False
+                                else:
+                                    try:
+                                        preview_classification = (
+                                            classify_spot_automation_preview_response(
+                                                raw_preview,
+                                                expected_base_size=plan.base_size,
+                                                expected_quote_size=(
+                                                    plan.submitted_notional_usdc
+                                                ),
+                                            )
                                         )
-                                    )
+                                    except Exception:
+                                        preview_classification = (
+                                            unknown_spot_automation_preview_classification(
+                                                transport_unknown=False
+                                            )
+                                        )
                 except AutomationRepositoryError:
                     raise
 

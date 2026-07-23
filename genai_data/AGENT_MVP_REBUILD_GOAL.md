@@ -1,4 +1,18 @@
 # Coinbase Admin MVP Goal
+## Current V13-V15 transport-explainability goal
+
+Goal ID:
+`operator_spot_automation_transport_explainability_and_successor_proof_v13_v15`
+
+Status: implementation complete and validation pending. The backend adds a
+separate ten-cycle ledger, fixed exception-type-only prospective Preview
+classification, and one no-HTTP DNS/TCP/TLS readiness sequence. No V13-V15
+probe, Coinbase read, Preview, Create, or Cancel has run. V14/V15 are blocked
+until an official-documentation-backed correction is reviewed and installed.
+Current action:
+`validate_transport_boundary_then_execute_one_authorized_v13_successor_proof`.
+
+Completed predecessor:
 ## Terminal V10-V12 atomic market snapshot goal
 
 Goal ID:

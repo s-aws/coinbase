@@ -1,5 +1,15 @@
 # Admin API Contract Agent
 
+Current MVP:
+`operator_spot_automation_transport_explainability_and_successor_proof_v13_v15`.
+The contract exposes only fixed value-blind Preview failure classes and fixed
+no-HTTP DNS/TCP/TLS readiness statuses/counts. It never exposes addresses,
+certificates, exception messages, response bodies, or raw Preview identity.
+Implementation is complete and validation is pending; no V13-V15 external
+operation has run. The completed V10-V12 predecessor remains immutable.
+Current action:
+`validate_transport_boundary_then_execute_one_authorized_v13_successor_proof`.
+
 ## Owns
 
 - `api/**` FastAPI route modules

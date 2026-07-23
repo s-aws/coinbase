@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 import hashlib
 import os
 import re
 import threading
+from types import SimpleNamespace
 import uuid
 
 import psycopg2
@@ -19,6 +21,7 @@ from application.admin_api.operator_automation import (
     PostgresOperatorAutomationRepositoryAdapter,
 )
 from application.admin_api.automation_models import (
+    AutomationAtomicMarketSnapshotAuthorizationRequest,
     AutomationMutationContext,
     AutomationRunEventItem,
 )
@@ -39,6 +42,11 @@ from application.admin_api.operator_spot_minimum_size_preparation import (
 from application.admin_api.operator_spot_atomic_market_snapshot import (
     AtomicMarketSnapshotAttempt,
     canonical_atomic_spot_plan_binding,
+)
+from application.admin_api.operator_spot_transport_readiness import (
+    SpotTransportReadinessFailureClass,
+    SpotTransportReadinessResult,
+    SpotTransportReadinessStageStatus,
 )
 from core.operator_spot_minimum_size_evidence import (
     MINIMUM_SIZE_POLICY_REVISION,
@@ -68,6 +76,9 @@ from database.operator_automation import (
     AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V10_GOAL_KEY,
     AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V11_GOAL_KEY,
     AUTOMATION_SPOT_ATOMIC_MARKET_SNAPSHOT_V12_GOAL_KEY,
+    AUTOMATION_SPOT_TRANSPORT_V13_GOAL_KEY,
+    AUTOMATION_SPOT_TRANSPORT_V14_GOAL_KEY,
+    AUTOMATION_SPOT_TRANSPORT_V15_GOAL_KEY,
     AUTOMATION_SPOT_PREVIEW_GATED_GOAL_KEY,
     AutomationDefinitionCreateCommand,
     AutomationMutationCommand,
@@ -81,6 +92,7 @@ from database.operator_automation import (
     OperatorAutomationRepository,
     initialize_operator_automation_schema,
     _select_atomic_market_snapshot_successor,
+    _select_transport_successor,
 )
 
 
@@ -126,6 +138,42 @@ def test_atomic_successor_selector_fails_closed_after_acceptance_or_exhaustion()
         for version, goal_key in ordered
     }
     assert _select_atomic_market_snapshot_successor(exhausted, ()) is None
+
+
+def test_transport_selector_requires_documented_basis_for_v14_or_v15() -> None:
+    ordered = (
+        (13, AUTOMATION_SPOT_TRANSPORT_V13_GOAL_KEY),
+        (14, AUTOMATION_SPOT_TRANSPORT_V14_GOAL_KEY),
+        (15, AUTOMATION_SPOT_TRANSPORT_V15_GOAL_KEY),
+    )
+    fresh = {
+        goal_key: {"definition_id": None, "preview_outcome": None}
+        for _version, goal_key in ordered
+    }
+    assert _select_transport_successor(fresh, ()) == ordered[0]
+
+    rejected_v13 = dict(fresh)
+    rejected_v13[ordered[0][1]] = {
+        "definition_id": str(uuid.uuid4()),
+        "preview_outcome": "UNKNOWN",
+    }
+    assert _select_transport_successor(rejected_v13, ()) is None
+    assert _select_transport_successor(
+        rejected_v13,
+        (),
+        documented_corrections=frozenset({14}),
+    ) == ordered[1]
+
+    accepted_v13 = dict(rejected_v13)
+    accepted_v13[ordered[0][1]] = {
+        "definition_id": str(uuid.uuid4()),
+        "preview_outcome": "ACCEPTED",
+    }
+    assert _select_transport_successor(
+        accepted_v13,
+        (),
+        documented_corrections=frozenset({14, 15}),
+    ) is None
 TEST_DB_USER = os.environ.get("COINBASE_DB_USER", "postgres")
 TEST_DB_PASSWORD = os.environ.get("COINBASE_DB_PASSWORD", "postgres")
 _SCHEMA_PATTERN = re.compile(r"^test_operator_automation_[0-9a-f]{32}$")
@@ -301,6 +349,7 @@ def test_schema_is_idempotent_and_persists_only_hashed_key_and_actor(
         "automation_spot_preview_gated_goal",
         "automation_spot_run_execution",
         "automation_spot_single_child_plan",
+        "automation_spot_transport_successor_cycle",
     }
 
     created = repository.create_definition(_definition_command("hashed-only"))
@@ -4866,6 +4915,381 @@ def test_atomic_market_snapshot_materialization_and_preview_claim_are_one_transa
     assert successor.goal_key != claim.goal_key
     assert successor.candidate_version == 11
     assert successor.cycle_number == 2
+
+
+def test_transport_v13_readiness_and_materialization_are_durable_and_separate(
+    repository_harness: _Harness,
+) -> None:
+    repository = repository_harness.repository()
+    claim = repository.start_spot_transport_successor_cycle(
+        _mutation("transport-v13")
+    ).entity
+    assert claim.goal_key == AUTOMATION_SPOT_TRANSPORT_V13_GOAL_KEY
+    assert claim.candidate_version == 13
+    assert claim.cycle_number == 1
+    assert claim.state == "CLAIMED"
+    assert repository.list_spot_atomic_market_snapshot_cycles() == ()
+
+    readiness = repository.finalize_spot_transport_readiness(
+        cycle_number=claim.cycle_number,
+        goal_key=claim.goal_key,
+        ready=True,
+        failure_class="NONE",
+        dns_status="SUCCEEDED",
+        tcp_status="SUCCEEDED",
+        tls_status="SUCCEEDED",
+        dns_probe_count=1,
+        tcp_probe_count=1,
+        tls_probe_count=1,
+    ).entity
+    assert readiness.state == "READINESS_PASSED"
+    assert readiness.readiness_evidence_sha256 is not None
+
+    definition_id = str(uuid.uuid4())
+    run_id = str(uuid.uuid4())
+    portfolio_hash = hashlib.sha256(b"approved-test-portfolio").hexdigest()
+    plan = MinimumSizeBuyPlan(
+        policy_revision=MINIMUM_SIZE_POLICY_REVISION,
+        product_id="BTC-USDC",
+        side="BUY",
+        base_size="0.00001",
+        limit_price="100000",
+        submitted_notional_usdc="1",
+        possible_execution_notional_usdc="1",
+        max_submitted_notional_usdc="3.10",
+        max_possible_execution_notional_usdc="1.01",
+        post_only=True,
+        v4_boundary_classification="minimum_size_v4_fee_reserve_conflict",
+    )
+    plan_sha256, _ = canonical_atomic_spot_plan_binding(
+        definition_id=definition_id,
+        plan=plan,
+        portfolio_id_sha256=portfolio_hash,
+    )
+    client_order_id = repository.deterministic_spot_client_order_id(
+        run_id=run_id,
+        plan_sha256=plan_sha256,
+        goal_key=claim.goal_key,
+    )
+    observed = datetime.now(timezone.utc)
+    attempts = tuple(
+        AtomicMarketSnapshotAttempt(
+            category=category,
+            coinbase_api_call_count=1,
+            observed_at=observed,
+            fresh_until=observed + timedelta(seconds=30),
+            evidence_sha256=hashlib.sha256(category.encode("utf-8")).hexdigest(),
+        )
+        for category in AUTOMATION_SPOT_ELIGIBILITY_CATEGORIES
+    )
+    result = repository.materialize_spot_transport_successor_and_claim_preview(
+        cycle_number=claim.cycle_number,
+        goal_key=claim.goal_key,
+        definition_id=definition_id,
+        run_id=run_id,
+        terms=AutomationSpotSingleChildPlanTerms(
+            portfolio_id_sha256=portfolio_hash,
+            product_id=plan.product_id,
+            side=plan.side,
+            base_size=plan.base_size,
+            limit_price=plan.limit_price,
+            submitted_notional_usdc=plan.submitted_notional_usdc,
+            possible_execution_notional_usdc=(
+                plan.possible_execution_notional_usdc
+            ),
+            max_submitted_notional_usdc=plan.max_submitted_notional_usdc,
+            max_possible_execution_notional_usdc=(
+                plan.max_possible_execution_notional_usdc
+            ),
+            post_only=True,
+        ),
+        expected_plan_sha256=plan_sha256,
+        expected_client_order_id=client_order_id,
+        market_snapshot_sha256=hashlib.sha256(b"market-snapshot-v13").hexdigest(),
+        evidence_sha256=hashlib.sha256(b"transport-binding-v13").hexdigest(),
+        attempts=attempts,
+    ).entity
+
+    assert result.state == "MATERIALIZED"
+    assert result.definition_id == definition_id
+    assert result.run_id == run_id
+    assert result.readiness_failure_class == "NONE"
+    assert (result.dns_probe_count, result.tcp_probe_count, result.tls_probe_count) == (
+        1,
+        1,
+        1,
+    )
+    assert repository.list_spot_atomic_market_snapshot_cycles() == ()
+    goal = repository.get_spot_preview_gated_goal(goal_key=claim.goal_key)
+    assert goal.preview_allowance_consumed is True
+    assert goal.preview_outcome is None
+    terminal = repository.finalize_spot_preview_invocation(
+        run_id,
+        outcome="UNKNOWN",
+        failure_class="CONNECT_TIMEOUT",
+        rejection_code=None,
+        warning_present=False,
+        preview_id_sha256=None,
+        preview_call_count=0,
+        call_count_exact=True,
+        command=_mutation("transport-v13-preview-connect-timeout"),
+    ).entity
+    assert terminal.preview_outcome == "UNKNOWN"
+    assert terminal.preview_failure_class == "CONNECT_TIMEOUT"
+    assert terminal.preview_call_count == 0
+    assert terminal.preview_call_count_exact is True
+    run = repository.get_run(run_id)
+    assert run is not None
+    assert run.state is OperatorAutomationRunState.UNKNOWN_CONSUMED
+    assert run.coinbase_api_call_count == 8
+
+
+def test_transport_readiness_failure_consumes_cycle_but_not_candidate(
+    repository_harness: _Harness,
+) -> None:
+    repository = repository_harness.repository()
+    claim = repository.start_spot_transport_successor_cycle(
+        _mutation("transport-v13-dns-failure")
+    ).entity
+    terminal = repository.finalize_spot_transport_readiness(
+        cycle_number=claim.cycle_number,
+        goal_key=claim.goal_key,
+        ready=False,
+        failure_class="DNS_RESOLUTION_FAILURE",
+        dns_status="FAILED",
+        tcp_status="NOT_ATTEMPTED",
+        tls_status="NOT_ATTEMPTED",
+        dns_probe_count=1,
+        tcp_probe_count=0,
+        tls_probe_count=0,
+    ).entity
+
+    assert terminal.state == "BLOCKED"
+    assert terminal.coinbase_api_call_count == 0
+    assert terminal.call_count_exact is True
+    goal = repository.get_spot_preview_gated_goal(goal_key=claim.goal_key)
+    assert goal.definition_id is None
+    assert goal.preview_allowance_consumed is False
+    retry = repository.start_spot_transport_successor_cycle(
+        _mutation("transport-v13-after-remediation")
+    ).entity
+    assert retry.cycle_number == 2
+    assert retry.goal_key == claim.goal_key
+
+
+@pytest.mark.parametrize(
+    (
+        "failure_class",
+        "dns_status",
+        "tcp_status",
+        "tls_status",
+        "dns_probe_count",
+        "tcp_probe_count",
+        "tls_probe_count",
+    ),
+    [
+        (
+            "DNS_RESOLUTION_FAILURE",
+            "SUCCEEDED",
+            "FAILED",
+            "NOT_ATTEMPTED",
+            1,
+            1,
+            0,
+        ),
+        (
+            "TCP_CONNECTION_FAILURE",
+            "FAILED",
+            "NOT_ATTEMPTED",
+            "NOT_ATTEMPTED",
+            1,
+            0,
+            0,
+        ),
+        (
+            "TLS_OR_CERTIFICATE_FAILURE",
+            "SUCCEEDED",
+            "SUCCEEDED",
+            "FAILED",
+            1,
+            1,
+            0,
+        ),
+        (
+            "UNKNOWN_TRANSPORT",
+            "SUCCEEDED",
+            "NOT_ATTEMPTED",
+            "NOT_ATTEMPTED",
+            1,
+            0,
+            0,
+        ),
+    ],
+)
+def test_transport_readiness_store_rejects_stage_or_count_mismatch(
+    repository_harness: _Harness,
+    failure_class: str,
+    dns_status: str,
+    tcp_status: str,
+    tls_status: str,
+    dns_probe_count: int,
+    tcp_probe_count: int,
+    tls_probe_count: int,
+) -> None:
+    repository = repository_harness.repository()
+    claim = repository.start_spot_transport_successor_cycle(
+        _mutation(f"transport-invalid-{failure_class}")
+    ).entity
+
+    with pytest.raises(
+        AutomationStoreInvalid,
+        match="automation_transport_readiness_invalid",
+    ):
+        repository.finalize_spot_transport_readiness(
+            cycle_number=claim.cycle_number,
+            goal_key=claim.goal_key,
+            ready=False,
+            failure_class=failure_class,
+            dns_status=dns_status,
+            tcp_status=tcp_status,
+            tls_status=tls_status,
+            dns_probe_count=dns_probe_count,
+            tcp_probe_count=tcp_probe_count,
+            tls_probe_count=tls_probe_count,
+        )
+
+    persisted = repository.list_spot_transport_successor_cycles()[0]
+    assert persisted.state == "CLAIMED"
+    assert persisted.readiness_failure_class is None
+
+
+def test_transport_service_records_readiness_failure_before_any_coinbase_read(
+    repository_harness: _Harness,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = repository_harness.repository()
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID",
+        "11111111-2222-4333-8444-555555555555",
+    )
+    assert repository.spot_atomic_market_snapshot_successor_available() is True
+    coordinator = SimpleNamespace(
+        claim=lambda _portfolio_id: nullcontext(SimpleNamespace())
+    )
+    command_service = SimpleNamespace(
+        dependencies=SimpleNamespace(
+            spot_order_admission_coordinator=coordinator,
+        )
+    )
+    probe_calls = 0
+
+    def fixed_dns_failure() -> SpotTransportReadinessResult:
+        nonlocal probe_calls
+        probe_calls += 1
+        return SpotTransportReadinessResult(
+            ready=False,
+            failure_class=(
+                SpotTransportReadinessFailureClass.DNS_RESOLUTION_FAILURE
+            ),
+            dns_status=SpotTransportReadinessStageStatus.FAILED,
+            tcp_status=SpotTransportReadinessStageStatus.NOT_ATTEMPTED,
+            tls_status=SpotTransportReadinessStageStatus.NOT_ATTEMPTED,
+            dns_probe_count=1,
+            tcp_probe_count=0,
+            tls_probe_count=0,
+        )
+
+    service = OperatorAutomationService(
+        PostgresOperatorAutomationRepositoryAdapter(
+            repository,
+            spot_command_service=command_service,
+            spot_profile_admission_coordinator=coordinator,
+            spot_transport_readiness_probe=fixed_dns_failure,
+        )
+    )
+    response = service.authorize_atomic_market_snapshot_candidate(
+        AutomationAtomicMarketSnapshotAuthorizationRequest(
+            confirm_atomic_final_market_snapshot_binding=True,
+            confirm_one_no_http_transport_readiness_sequence=True,
+            confirm_one_no_retry_eight_category_cycle=True,
+            confirm_single_preview=True,
+            confirm_conditional_identical_single_child_create=True,
+            confirm_btc_usdc_test_portfolio_scope=True,
+            confirm_both_notionals_strictly_below_3_10=True,
+            confirm_unknown_consumes_applicable_allowance=True,
+            reason="Record one bounded transport readiness result",
+        ),
+        AutomationMutationContext(
+            actor_id="operator-transport-readiness",
+            roles=("admin",),
+            idempotency_key="transport-readiness-service",
+            correlation_id="transport-readiness-service-correlation",
+            operator_intent=(
+                "authorize_automation_atomic_market_snapshot_candidate"
+            ),
+        ),
+    )
+
+    assert probe_calls == 1
+    assert response.outcome == "BLOCKED"
+    assert response.candidate_version == 13
+    assert response.transport_readiness == "FAILED"
+    assert response.transport_failure_class == "DNS_RESOLUTION_FAILURE"
+    assert response.dns_probe_count == 1
+    assert response.tcp_probe_count == 0
+    assert response.tls_probe_count == 0
+    assert response.coinbase_api_call_count == 0
+    assert response.activity.coinbase_api_call_count == 0
+    assert repository.spot_atomic_market_snapshot_successor_available() is True
+    assert response.activity.preview_call_count == 0
+    assert response.activity.exchange_mutation_count == 0
+    cycle = repository.list_spot_transport_successor_cycles()[0]
+    assert cycle.state == "BLOCKED"
+    assert cycle.completed_categories == ()
+    goal = repository.get_spot_preview_gated_goal(goal_key=cycle.goal_key)
+    assert goal.definition_id is None
+    assert goal.preview_allowance_consumed is False
+
+
+@pytest.mark.parametrize("readiness_passed", [False, True])
+def test_transport_restart_consumes_cycle_without_replaying_probe_or_reads(
+    repository_harness: _Harness,
+    readiness_passed: bool,
+) -> None:
+    repository = repository_harness.repository()
+    claim = repository.start_spot_transport_successor_cycle(
+        _mutation(f"transport-restart-{readiness_passed}")
+    ).entity
+    if readiness_passed:
+        repository.finalize_spot_transport_readiness(
+            cycle_number=claim.cycle_number,
+            goal_key=claim.goal_key,
+            ready=True,
+            failure_class="NONE",
+            dns_status="SUCCEEDED",
+            tcp_status="SUCCEEDED",
+            tls_status="SUCCEEDED",
+            dns_probe_count=1,
+            tcp_probe_count=1,
+            tls_probe_count=1,
+        )
+
+    restarted = repository_harness.repository()
+    restarted.recover_runs_after_restart()
+    recovered = restarted.list_spot_transport_successor_cycles()
+    assert len(recovered) == 1
+    assert recovered[0].state == "UNKNOWN"
+    assert recovered[0].coinbase_api_call_count is None
+    assert recovered[0].call_count_exact is False
+    assert recovered[0].definition_id is None
+    assert recovered[0].run_id is None
+    goal = restarted.get_spot_preview_gated_goal(goal_key=claim.goal_key)
+    assert goal.preview_allowance_consumed is False
+    next_cycle = restarted.start_spot_transport_successor_cycle(
+        _mutation(f"transport-restart-next-{readiness_passed}")
+    ).entity
+    assert next_cycle.cycle_number == 2
+    assert next_cycle.goal_key == claim.goal_key
 
 
 def test_atomic_market_snapshot_blocked_cycle_can_refresh_same_unclaimed_candidate(

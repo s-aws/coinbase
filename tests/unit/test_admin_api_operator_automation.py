@@ -14,6 +14,7 @@ from pydantic import ValidationError
 
 from application.admin_api.automation_models import (
     AUTOMATION_SPOT_SINGLE_CHILD_SUCCESSOR_DIAGNOSTICS,
+    AutomationAtomicMarketSnapshotMutationResponse,
     AutomationControlAction,
     AutomationControlEventItem,
     AutomationControlPlaneItem,
@@ -1584,6 +1585,91 @@ def test_preview_unknown_failure_class_is_cross_bound_to_call_accounting(
         match="automation_run_preview_evidence_invalid",
     ):
         AutomationRunItem.model_validate(run)
+
+
+def test_transport_preview_connect_timeout_retains_exact_zero_wire_count() -> None:
+    run = _single_child_run(
+        state=AutomationRunState.UNKNOWN_CONSUMED,
+        diagnostic_code="automation_spot_preview_unknown_consumed",
+        coinbase_api_call_count=8,
+        create_call_count=0,
+        cancel_call_count=0,
+        reconciliation_call_count=0,
+        call_count_exact=True,
+        child_terminal=None,
+    )
+    run.update(
+        {
+            "spot_execution_mode": "TRANSPORT_EXPLAINABLE_V13",
+            "preview_allowance_consumed": True,
+            "preview_outcome": "UNKNOWN",
+            "preview_failure_class": "CONNECT_TIMEOUT",
+            "preview_warning_present": False,
+            "preview_call_count": 0,
+            "preview_identity_retention": "UNAVAILABLE",
+            "create_allowance_consumed": False,
+            "cancel_allowance_consumed": False,
+            "single_child_plan": {
+                **run["single_child_plan"],
+                "post_only": True,
+            },
+        }
+    )
+
+    item = AutomationRunItem.model_validate(run)
+    assert item.preview_failure_class == "CONNECT_TIMEOUT"
+    assert item.preview_call_count == 0
+    assert item.coinbase_api_call_count == 8
+    assert item.call_count_exact is True
+
+
+def test_transport_mutation_readback_rejects_failure_class_stage_mismatch() -> None:
+    with pytest.raises(
+        ValidationError,
+        match="automation_transport_readiness_invalid",
+    ):
+        AutomationAtomicMarketSnapshotMutationResponse.model_validate(
+            {
+                "outcome": "BLOCKED",
+                "candidate_version": 13,
+                "cycle_number": 1,
+                "diagnostic_code": "transport_readiness_dns_resolution_failure",
+                "completed_categories": [],
+                "coinbase_api_call_count": 0,
+                "call_count_exact": True,
+                "market_snapshot_binding": "UNAVAILABLE",
+                "transport_readiness": "FAILED",
+                "transport_failure_class": "DNS_RESOLUTION_FAILURE",
+                "dns_status": "SUCCEEDED",
+                "tcp_status": "FAILED",
+                "tls_status": "NOT_ATTEMPTED",
+                "dns_probe_count": 1,
+                "tcp_probe_count": 1,
+                "tls_probe_count": 0,
+                "run": None,
+                "audit_id": "26371b41-f16e-4dad-83cc-946055440c62",
+                "correlation_id": "transport-stage-mismatch",
+            }
+        )
+
+
+def test_transport_mutation_readback_rejects_predecessor_candidate() -> None:
+    with pytest.raises(ValidationError):
+        AutomationAtomicMarketSnapshotMutationResponse.model_validate(
+            {
+                "outcome": "BLOCKED",
+                "candidate_version": 10,
+                "cycle_number": 1,
+                "diagnostic_code": "atomic_market_snapshot_stale",
+                "completed_categories": [],
+                "coinbase_api_call_count": 0,
+                "call_count_exact": True,
+                "market_snapshot_binding": "UNAVAILABLE",
+                "run": None,
+                "audit_id": "26371b41-f16e-4dad-83cc-946055440c62",
+                "correlation_id": "predecessor-candidate",
+            }
+        )
 
 
 def test_run_mutation_activity_is_operation_local_and_truthful():

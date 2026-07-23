@@ -12,13 +12,28 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from enum import Enum
 import hashlib
+import socket
 from typing import Any
 
 from coinbase.rest.types.orders_types import PreviewOrderResponse
 from requests.exceptions import (
+    ConnectTimeout,
+    ChunkedEncodingError,
+    ConnectionError as RequestsConnectionError,
+    ContentDecodingError,
     HTTPError,
+    InvalidHeader,
+    InvalidProxyURL,
+    InvalidSchema,
+    InvalidURL,
     JSONDecodeError as RequestsJSONDecodeError,
+    MissingSchema,
+    ProxyError,
+    ReadTimeout,
+    SSLError,
+    Timeout,
     TooManyRedirects,
+    URLRequired,
 )
 
 
@@ -205,7 +220,24 @@ class SpotAutomationPreviewFailureClass(str, Enum):
     HTTP_SERVER_RESPONSE = "HTTP_SERVER_RESPONSE"
     HTTP_REDIRECT_RESPONSE = "HTTP_REDIRECT_RESPONSE"
     HTTP_RESPONSE_INVALID = "HTTP_RESPONSE_INVALID"
+    REQUEST_COMPOSITION_FAILURE = "REQUEST_COMPOSITION_FAILURE"
+    SDK_INVOCATION_UNKNOWN = "SDK_INVOCATION_UNKNOWN"
+    DNS_RESOLUTION_FAILURE = "DNS_RESOLUTION_FAILURE"
+    TCP_CONNECTION_FAILURE = "TCP_CONNECTION_FAILURE"
+    CONNECT_TIMEOUT = "CONNECT_TIMEOUT"
+    TLS_OR_CERTIFICATE_FAILURE = "TLS_OR_CERTIFICATE_FAILURE"
+    PROXY_FAILURE = "PROXY_FAILURE"
+    READ_TIMEOUT = "READ_TIMEOUT"
+    CONNECTION_RESET = "CONNECTION_RESET"
+    RESPONSE_DECODING_FAILURE = "RESPONSE_DECODING_FAILURE"
     TRANSPORT_UNKNOWN = "TRANSPORT_UNKNOWN"
+
+
+class SpotAutomationPreviewInvocationStage(str, Enum):
+    """Fixed caller-owned boundary; never derived from exception text."""
+
+    REQUEST_COMPOSITION = "REQUEST_COMPOSITION"
+    SDK_INVOCATION = "SDK_INVOCATION"
 
 
 class SpotAutomationPreviewRejectionCode(str, Enum):
@@ -355,21 +387,125 @@ def unknown_spot_automation_preview_classification(
 
 def classify_spot_automation_preview_exception(
     exception: Exception,
+    *,
+    stage: SpotAutomationPreviewInvocationStage = (
+        SpotAutomationPreviewInvocationStage.SDK_INVOCATION
+    ),
 ) -> SpotAutomationPreviewClassification:
     """Classify an invocation failure without reading its message or body.
 
-    A Requests HTTP/redirect exception carrying a response proves that exactly
-    one Preview request returned to the pinned SDK.  Everything else remains
-    transport-unknown because the wire boundary cannot be proven locally.
+    The caller supplies the stage; neither messages nor nested causes are read.
+    The pinned SDK has one Requests call with zero configured retries and zero
+    followed redirects.  Only exception types that prove a boundary receive a
+    narrower fixed class.  Generic Requests connection failures remain
+    transport-unknown because Requests collapses DNS/TCP/TLS causes.
     """
 
-    if isinstance(exception, RequestsJSONDecodeError):
-        return unknown_spot_automation_preview_classification(
-            transport_unknown=False
+    if stage is SpotAutomationPreviewInvocationStage.REQUEST_COMPOSITION:
+        return SpotAutomationPreviewClassification(
+            outcome=SpotAutomationPreviewOutcome.UNKNOWN,
+            failure_class=(
+                SpotAutomationPreviewFailureClass.REQUEST_COMPOSITION_FAILURE
+            ),
+            warning_present=False,
+            rejection_code=None,
+            preview_id_sha256=None,
+            preview_call_count=0,
+            preview_call_count_exact=True,
+        )
+
+    def classified(
+        failure_class: SpotAutomationPreviewFailureClass,
+        *,
+        count: int | None,
+        exact: bool,
+    ) -> SpotAutomationPreviewClassification:
+        return SpotAutomationPreviewClassification(
+            outcome=SpotAutomationPreviewOutcome.UNKNOWN,
+            failure_class=failure_class,
+            warning_present=False,
+            rejection_code=None,
+            preview_id_sha256=None,
+            preview_call_count=count,
+            preview_call_count_exact=exact,
+        )
+
+    if isinstance(
+        exception,
+        (RequestsJSONDecodeError, ContentDecodingError, ChunkedEncodingError),
+    ):
+        return classified(
+            SpotAutomationPreviewFailureClass.RESPONSE_DECODING_FAILURE,
+            count=1,
+            exact=True,
+        )
+    if isinstance(exception, ConnectTimeout):
+        return classified(
+            SpotAutomationPreviewFailureClass.CONNECT_TIMEOUT,
+            count=0,
+            exact=True,
+        )
+    if isinstance(exception, ReadTimeout):
+        return classified(
+            SpotAutomationPreviewFailureClass.READ_TIMEOUT,
+            count=1,
+            exact=True,
+        )
+    if isinstance(exception, ProxyError):
+        return classified(
+            SpotAutomationPreviewFailureClass.PROXY_FAILURE,
+            count=0,
+            exact=True,
+        )
+    if isinstance(exception, SSLError):
+        return classified(
+            SpotAutomationPreviewFailureClass.TLS_OR_CERTIFICATE_FAILURE,
+            count=None,
+            exact=False,
+        )
+    if isinstance(exception, socket.gaierror):
+        return classified(
+            SpotAutomationPreviewFailureClass.DNS_RESOLUTION_FAILURE,
+            count=0,
+            exact=True,
+        )
+    if isinstance(exception, ConnectionResetError):
+        return classified(
+            SpotAutomationPreviewFailureClass.CONNECTION_RESET,
+            count=None,
+            exact=False,
+        )
+    if isinstance(exception, ConnectionRefusedError):
+        return classified(
+            SpotAutomationPreviewFailureClass.TCP_CONNECTION_FAILURE,
+            count=0,
+            exact=True,
+        )
+    if isinstance(
+        exception,
+        (
+            URLRequired,
+            MissingSchema,
+            InvalidSchema,
+            InvalidURL,
+            InvalidHeader,
+            InvalidProxyURL,
+        ),
+    ):
+        return classified(
+            SpotAutomationPreviewFailureClass.REQUEST_COMPOSITION_FAILURE,
+            count=0,
+            exact=True,
         )
     if not isinstance(exception, (HTTPError, TooManyRedirects)):
-        return unknown_spot_automation_preview_classification(
-            transport_unknown=True
+        if isinstance(exception, (RequestsConnectionError, Timeout)):
+            return unknown_spot_automation_preview_classification(
+                transport_unknown=True
+            )
+        return classified(
+            SpotAutomationPreviewFailureClass.SDK_INVOCATION_UNKNOWN,
+            count=None,
+            exact=False,
         )
     response = getattr(exception, "response", None)
     status_code = getattr(response, "status_code", None)
@@ -533,6 +669,7 @@ def classify_spot_automation_preview_response(
 __all__ = [
     "SpotAutomationPreviewClassification",
     "SpotAutomationPreviewFailureClass",
+    "SpotAutomationPreviewInvocationStage",
     "SpotAutomationPreviewOutcome",
     "SpotAutomationPreviewRejectionCode",
     "classify_spot_automation_preview_exception",

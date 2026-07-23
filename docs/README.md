@@ -1,6 +1,18 @@
 # Documentation Index
 
 Current operator goal:
+[Operator Spot Automation Transport Explainability V13-V15](OPERATOR_SPOT_AUTOMATION_TRANSPORT_EXPLAINABILITY_V13_V15.md).
+Goal
+`operator_spot_automation_transport_explainability_and_successor_proof_v13_v15`
+adds prospective fixed/type-only Preview invocation classification and a
+durable no-HTTP DNS/TCP/TLS readiness sequence before the unchanged atomic
+eight-category policy. Status: implementation complete and validation in
+progress; V13-V15 probes, Coinbase reads, Preview, Create, and Cancel remain
+unconsumed. V14/V15 require a reviewed documented correction.
+Current action:
+`validate_transport_boundary_then_execute_one_authorized_v13_successor_proof`.
+
+Completed predecessor:
 [Operator Spot Automation Atomic Market Snapshot V10-V12](OPERATOR_SPOT_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_V10_V12.md).
 Goal
 `operator_spot_automation_atomic_market_snapshot_binding_and_successor_proof_v10_v12`
@@ -15,7 +27,7 @@ otherwise the boundary remains transport-unknown and inexact.
 
 Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 
-## Project Entry
+## Completed V7-V9 predecessor entry
 
 The completed predecessor goal is
 `operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`.
@@ -46,7 +58,7 @@ child exists, and V8–V9 were not created.
 
 ### V4 near-market predecessor entry
 
-The active successor goal is
+The completed V4 successor goal is
 `operator_spot_automation_near_market_policy_and_successor_proof_v4_v6`.
 Status: `complete_terminal_no_valid_size`. Current action:
 `complete_v4_no_valid_size_preview_create_cancel_unconsumed`.

@@ -1,10 +1,17 @@
 # Admin Module Capability Matrix
 
+Current bounded proof goal
+`operator_spot_automation_transport_explainability_and_successor_proof_v13_v15`
+is implementation-complete and validation-pending. The Automation module owns
+fixed prospective Preview transport classification, a separate V13-V15
+PostgreSQL ledger, and one no-HTTP DNS/TCP/TLS readiness sequence. No V13-V15
+external operation has run; V14/V15 require a reviewed documented correction.
+
 This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Active bounded proof goal
+Completed bounded predecessor goal
 `operator_spot_automation_minimum_size_explainability_and_successor_proof_v7_v9`
 is `complete_terminal_eligibility_cycles_exhausted_v7`. Current action:
 `complete_v7_cycle_10_best_bid_ask_rejected_preview_create_cancel_unconsumed`. Default action:

@@ -75467,6 +75467,14 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "exactly eight approved" in automation_atomic_snapshot_taxonomy[
         "summary"
     ]
+    assert "V13-V15" in automation_atomic_snapshot_taxonomy["summary"]
+    assert "DNS/TCP/TLS" in automation_atomic_snapshot_taxonomy[
+        "admission_audit_contract"
+    ]
+    assert (
+        "docs/OPERATOR_SPOT_AUTOMATION_TRANSPORT_EXPLAINABILITY_V13_V15.md"
+        in automation_atomic_snapshot_taxonomy["documentation_refs"]
+    )
     assert "ATOMIC_MARKET_SNAPSHOT_POST_ONLY_V1" in (
         automation_atomic_snapshot_taxonomy["cap_guard_contract"]
     )

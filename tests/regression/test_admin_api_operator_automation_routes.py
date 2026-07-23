@@ -383,7 +383,7 @@ class _FakeRepository:
         return self._mutation(
             {
                 "outcome": "BLOCKED",
-                "candidate_version": 10,
+                "candidate_version": 13,
                 "cycle_number": 1,
                 "diagnostic_code": "atomic_market_snapshot_stale",
                 "completed_categories": [
@@ -399,6 +399,14 @@ class _FakeRepository:
                 "coinbase_api_call_count": 8,
                 "call_count_exact": True,
                 "market_snapshot_binding": "UNAVAILABLE",
+                "transport_readiness": "PASSED",
+                "transport_failure_class": "NONE",
+                "dns_status": "SUCCEEDED",
+                "tcp_status": "SUCCEEDED",
+                "tls_status": "SUCCEEDED",
+                "dns_probe_count": 1,
+                "tcp_probe_count": 1,
+                "tls_probe_count": 1,
                 "run": None,
             },
             kwargs["context"].correlation_id,
@@ -1135,6 +1143,7 @@ def test_atomic_market_snapshot_route_requires_all_live_acknowledgements(
     )
     body = {
         "confirm_atomic_final_market_snapshot_binding": True,
+        "confirm_one_no_http_transport_readiness_sequence": True,
         "confirm_one_no_retry_eight_category_cycle": True,
         "confirm_single_preview": True,
         "confirm_conditional_identical_single_child_create": True,
@@ -1174,6 +1183,22 @@ def test_atomic_market_snapshot_route_requires_all_live_acknowledgements(
     assert rejected.status_code == 422
     assert repository.calls == []
 
+    missing_transport_acknowledgement = _client(repository).post(
+        "/api/v1/automation/atomic-market-snapshot-candidates/authorize",
+        json={
+            key: value
+            for key, value in body.items()
+            if key != "confirm_one_no_http_transport_readiness_sequence"
+        },
+        headers=_headers(
+            operator_intent=(
+                "authorize_automation_atomic_market_snapshot_candidate"
+            )
+        ),
+    )
+    assert missing_transport_acknowledgement.status_code == 422
+    assert repository.calls == []
+
 
 def test_atomic_market_snapshot_route_requires_its_exact_live_service_admission(
     monkeypatch: pytest.MonkeyPatch,
@@ -1204,6 +1229,7 @@ def test_atomic_market_snapshot_route_requires_its_exact_live_service_admission(
         "/api/v1/automation/atomic-market-snapshot-candidates/authorize",
         json={
             "confirm_atomic_final_market_snapshot_binding": True,
+            "confirm_one_no_http_transport_readiness_sequence": True,
             "confirm_one_no_retry_eight_category_cycle": True,
             "confirm_single_preview": True,
             "confirm_conditional_identical_single_child_create": True,
