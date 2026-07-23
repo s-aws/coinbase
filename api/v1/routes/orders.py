@@ -35,6 +35,7 @@ from application.admin_api.command_service import (
     CONTROLLED_FIRST_CHILD_REVEAL_OPERATOR_INTENT,
     CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT,
     CONTROLLED_V15_FIRST_CHILD_REVEAL_OPERATOR_INTENT,
+    ValidatedSpotRecoveryCancelEvidence,
 )
 from application.admin_api.spot_portfolio_binding import (
     DEFAULT_SPOT_PORTFOLIO_LABEL,
@@ -190,6 +191,10 @@ from core.enums import (
     FollowUpSdkMutationInvocationState,
     FollowUpTransportSubmissionState,
 )
+from database.operator_spot_recovery import (
+    OperatorSpotRecoveryRepository,
+    get_default_operator_spot_recovery_repository,
+)
 
 
 router = APIRouter()
@@ -198,6 +203,18 @@ _CANONICAL_UUID_PATH_PATTERN = (
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
 )
 _VISIBLE_ASCII_HEADER_PATTERN = r"^[!-~]+$"
+
+
+def _build_operator_spot_recovery_cancel_repository(
+) -> OperatorSpotRecoveryRepository:
+    return get_default_operator_spot_recovery_repository()
+
+
+def get_operator_spot_recovery_cancel_repository(
+) -> Callable[[], OperatorSpotRecoveryRepository]:
+    """Defer recovery PostgreSQL initialization for ordinary cancel requests."""
+
+    return _build_operator_spot_recovery_cancel_repository
 
 COMMAND_ROUTE_RESPONSES = {
     200: {
@@ -3442,6 +3459,10 @@ def cancel_order_by_client_order_id(
         AdminApiLiveExecutionService,
         Depends(get_live_execution_service),
     ],
+    recovery_repository_factory: Annotated[
+        Callable[[], OperatorSpotRecoveryRepository],
+        Depends(get_operator_spot_recovery_cancel_repository),
+    ],
 ) -> JSONResponse:
     """Route adapter for cancel-by-client-order-id."""
 
@@ -3465,17 +3486,139 @@ def cancel_order_by_client_order_id(
     def run_cancel_with_admission(
         admission_decision: AdminLiveAdmissionDecisionEvidence,
     ) -> AdminApiCommandResponse:
+        recovery_evidence = None
+        claimed_case = None
+        if body.recovery_case_id is not None:
+            recovery_repository = recovery_repository_factory()
+            try:
+                if admission_decision.allowed:
+                    claimed_case = recovery_repository.begin_cancel(
+                        case_id=body.recovery_case_id,
+                        expected_revision=int(body.recovery_case_revision or 0),
+                        plan_sha256=str(body.recovery_plan_sha256 or ""),
+                        actor_id=actor.actor_id,
+                        operator_reason=(
+                            body.reason or "operator_recovery_cancel"
+                        ),
+                        correlation_id=correlation_id,
+                    )
+                    recovery_case = claimed_case
+                else:
+                    recovery_case = (
+                        recovery_repository.read_cancel_candidate(
+                            case_id=body.recovery_case_id,
+                            expected_revision=int(
+                                body.recovery_case_revision or 0
+                            ),
+                            plan_sha256=str(
+                                body.recovery_plan_sha256 or ""
+                            ),
+                        )
+                    )
+                local_order = recovery_repository.read_local_order(
+                    client_order_id
+                )
+                plan = recovery_case.get("plan")
+                if not isinstance(local_order, dict) or not isinstance(plan, dict):
+                    raise ValueError("recovery_cancel_binding_unavailable")
+                recovery_evidence = ValidatedSpotRecoveryCancelEvidence(
+                    case_id=recovery_case["case_id"],
+                    case_revision=int(recovery_case["revision"]),
+                    plan_sha256=str(recovery_case["plan_sha256"]),
+                    client_order_id=recovery_case["client_order_id"],
+                    product_id=recovery_case["product_id"],
+                    portfolio_id_sha256=recovery_case[
+                        "portfolio_id_sha256"
+                    ],
+                    ownership_provenance=str(
+                        local_order.get("ownership_provenance") or ""
+                    ),
+                    expected_local_status=str(plan.get("from_status") or ""),
+                )
+            except Exception:
+                if claimed_case is not None:
+                    recovery_repository.record_cancel_result(
+                        case_id=claimed_case["case_id"],
+                        expected_revision=claimed_case["revision"],
+                        actor_id=actor.actor_id,
+                        correlation_id=correlation_id,
+                        exchange_call_ran=False,
+                        accepted=False,
+                        diagnostic_code="recovery_cancel_binding_invalid",
+                    )
+                return AdminApiCommandResponse(
+                    status=AdminApiCommandStatus.REJECTED,
+                    action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                    required_permission=AdminApiPermission.ORDER_CANCEL,
+                    service_method="cancel_order_by_client_order_id",
+                    message="recovery_cancel_binding_invalid",
+                    client_order_id=client_order_id,
+                    correlation_id=correlation_id,
+                    idempotency_key=idempotency_key,
+                    failure_stage="recovery_admission",
+                )
         with canonical_coinbase_execution_scope(
             COINBASE_EXECUTION_SCOPE_SPOT_CANCEL
         ):
-            return service.cancel_order_by_client_order_id(
+            response = service.cancel_order_by_client_order_id(
                 CancelOrderCommand(
                     envelope=envelope,
                     client_order_id=client_order_id,
                     request=body,
                     allow_live_execution=admission_decision.allowed,
+                ),
+                **(
+                    {"recovery_ownership": recovery_evidence}
+                    if recovery_evidence is not None
+                    else {}
+                ),
+            )
+        if claimed_case is not None:
+            exchange_call_ran = bool(response.live_coinbase_orders_ran)
+            accepted = bool(
+                exchange_call_ran
+                and response.status is AdminApiCommandStatus.ACCEPTED
+            )
+            diagnostic_code = (
+                "recovery_cancel_confirmed"
+                if accepted
+                else (
+                    "recovery_cancel_outcome_unknown"
+                    if exchange_call_ran
+                    else "recovery_cancel_preboundary_blocked"
                 )
             )
+            closed_case = recovery_repository.record_cancel_result(
+                case_id=claimed_case["case_id"],
+                expected_revision=claimed_case["revision"],
+                actor_id=actor.actor_id,
+                correlation_id=correlation_id,
+                exchange_call_ran=exchange_call_ran,
+                accepted=accepted,
+                diagnostic_code=diagnostic_code,
+            )
+            response = response.model_copy(
+                update={
+                    "data": {
+                        **dict(response.data or {}),
+                        "recovery_case": {
+                            "case_id": closed_case["case_id"],
+                            "state": closed_case["state"],
+                            "revision": closed_case["revision"],
+                            "cancel_call_count": closed_case[
+                                "cancel_call_count"
+                            ],
+                            "cancel_allowance_consumed": closed_case[
+                                "cancel_allowance_consumed"
+                            ],
+                            "diagnostic_code": closed_case[
+                                "diagnostic_code"
+                            ],
+                        },
+                    }
+                }
+            )
+        return response
 
     return _execute_idempotent_command(
         idempotency_key=idempotency_key,

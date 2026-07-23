@@ -65,6 +65,40 @@ class OrderOwnershipProvenance(str, Enum):
     EXTERNAL_WS_OBSERVED = "EXTERNAL_WS_OBSERVED"
 
 
+class SpotRecoveryCaseState(str, Enum):
+    """Durable lifecycle for one operator-selected Spot recovery case."""
+
+    OPEN = "OPEN"
+    REFRESHING = "REFRESHING"
+    PLAN_READY = "PLAN_READY"
+    APPLIED = "APPLIED"
+    ROLLED_BACK = "ROLLED_BACK"
+    CANCEL_PENDING = "CANCEL_PENDING"
+    CANCELLED = "CANCELLED"
+    COMPLETE = "COMPLETE"
+    BLOCKED = "BLOCKED"
+    UNKNOWN = "UNKNOWN"
+
+
+class SpotRecoveryPlanKind(str, Enum):
+    """Backend-owned disposition derived from exact order and fill truth."""
+
+    NO_CHANGE = "NO_CHANGE"
+    SET_LOCAL_STATUS = "SET_LOCAL_STATUS"
+    CANCEL_ACTIVE_ORPHAN = "CANCEL_ACTIVE_ORPHAN"
+    BLOCKED = "BLOCKED"
+
+
+class SpotRecoveryAction(str, Enum):
+    """Idempotent operator actions supported by the recovery workflow."""
+
+    CREATE_CASE = "CREATE_CASE"
+    REFRESH = "REFRESH"
+    APPLY = "APPLY"
+    ROLLBACK = "ROLLBACK"
+    CANCEL = "CANCEL"
+
+
 class StandingPriceLimitPolicy(str, Enum):
     """Named standing-limit policy applied at backend placement boundaries."""
 
@@ -339,6 +373,7 @@ class AdminApiMutationFamilyType(str, Enum):
     SPOT_CAMPAIGN_EXECUTION = "spot_campaign_execution"
     SPOT_SWEEP_AUTOMATION = "spot_sweep_automation"
     SPOT_PNL_CHECKPOINT = "spot_pnl_checkpoint"
+    SPOT_OPERATOR_RECOVERY_WORKFLOW = "spot_operator_recovery_workflow"
     SPOT_RECOVERY_APPLY_EXECUTION = "spot_recovery_apply_execution"
     SPOT_RECOVERY_ROLLBACK_EXECUTION = "spot_recovery_rollback_execution"
     SPOT_RECOVERY_EXCHANGE_STATE_PROOF = "spot_recovery_exchange_state_proof"

@@ -1290,8 +1290,10 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         audit="required",
         shared_method="cancel_order_by_client_order_id",
         parity_test=(
-            "controlled-live HTTP vs cancel_order parity with full request "
-            "admission and final execution-authority enforcement"
+            "controlled-live HTTP vs canonical cancel_order parity with full "
+            "request admission and final execution-authority enforcement; an "
+            "optional complete PostgreSQL recovery binding must atomically "
+            "claim and close its sole allowance around the same wrapper"
         ),
     ),
     AdminApiRouteInventoryItem(
@@ -1639,6 +1641,99 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
             "and disabled live-service decision evidence to durable no-live "
             "order-plan rows; no Coinbase order submission, no wallet "
             "allocation, and no browser execution authority"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface="GET /api/v1/spot/recovery/cases",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not required; PostgreSQL case readback only",
+        caps="reports per-case ten-cycle and one-Cancel accounting",
+        audit="returns immutable sanitized recovery events",
+        shared_method="list_operator_spot_recovery_cases",
+        parity_test=(
+            "backend-paginated PostgreSQL case list; zero Coinbase reads or "
+            "exchange mutations"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface="GET /api/v1/spot/recovery/cases/{case_id}",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not required; exact case readback only",
+        caps="reports per-case ten-cycle and one-Cancel accounting",
+        audit="returns immutable sanitized recovery events",
+        shared_method="get_operator_spot_recovery_case",
+        parity_test=(
+            "exact PostgreSQL case readback keyed by backend case identity; "
+            "zero Coinbase reads or exchange mutations"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface="POST /api/v1/spot/recovery/cases",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.SPOT_RECOVERY_RECORD,
+        idempotency="required; exact payload replay only",
+        approval="explicit operator intent; no live authority",
+        caps="one exact system-owned client_order_id per case",
+        audit="required actor and hashed reason evidence",
+        shared_method="create_operator_spot_recovery_case",
+        parity_test=(
+            "verifies durable system ownership and approved Test portfolio "
+            "binding before one PostgreSQL case write; zero Coinbase calls"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface="POST /api/v1/spot/recovery/cases/{case_id}/refresh",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.SPOT_RECOVERY_EXECUTE,
+        idempotency="required; exact payload replay only",
+        approval="explicit manual live-read acknowledgement required",
+        caps=(
+            "maximum ten cycles; one logical exact-order read and one logical "
+            "fill-catalog read per claimed cycle, with no page retry"
+        ),
+        audit="required fixed diagnostic and logical call accounting",
+        shared_method="refresh_operator_spot_recovery_case",
+        parity_test=(
+            "canonical exact-order and fill readers produce a backend-owned "
+            "immutable repair plan; no Coinbase mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface="POST /api/v1/spot/recovery/cases/{case_id}/apply",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.SPOT_RECOVERY_EXECUTE,
+        idempotency="required; exact payload replay only",
+        approval="explicit reviewed-plan acknowledgement required",
+        caps="one exact local status transition from immutable plan",
+        audit="required actor and hashed reason evidence",
+        shared_method="apply_operator_spot_recovery_case",
+        parity_test=(
+            "atomic PostgreSQL plan/revision/status precondition and local "
+            "order repair; zero Coinbase calls"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface="POST /api/v1/spot/recovery/cases/{case_id}/rollback",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.SPOT_RECOVERY_EXECUTE,
+        idempotency="required; exact payload replay only",
+        approval="explicit safe-rollback acknowledgement required",
+        caps="one exact terminal-to-terminal local rollback only",
+        audit="required actor and hashed reason evidence",
+        shared_method="rollback_operator_spot_recovery_case",
+        parity_test=(
+            "atomic PostgreSQL revision/status precondition blocks unsafe "
+            "nonterminal restoration; zero Coinbase calls"
         ),
     ),
     AdminApiRouteInventoryItem(

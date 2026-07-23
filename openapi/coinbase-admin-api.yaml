@@ -12696,6 +12696,594 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/recovery/cases:
+    get:
+      tags:
+      - operator-spot-recovery
+      summary: List durable operator Spot recovery cases
+      operationId: list_operator_spot_recovery_cases_api_v1_spot_recovery_cases_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSpotRecoveryCaseListResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks recovery read authority.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '404':
+          description: Recovery case was not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - operator-spot-recovery
+      summary: Create one operator-selected Spot recovery case
+      operationId: create_operator_spot_recovery_case_api_v1_spot_recovery_cases_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorSpotRecoveryCaseCreateRequest'
+      responses:
+        '200':
+          description: Recovery action accepted or idempotently replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSpotRecoveryCaseResponse'
+        '400':
+          description: Recovery action rejected before an authorized side effect.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSpotRecoveryCaseResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks recovery read authority.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Recovery revision or idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSpotRecoveryCaseResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/recovery/cases/{case_id}:
+    get:
+      tags:
+      - operator-spot-recovery
+      summary: Read one durable operator Spot recovery case
+      operationId: get_operator_spot_recovery_case_api_v1_spot_recovery_cases__case_id__get
+      parameters:
+      - name: case_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 36
+          maxLength: 36
+          title: Case Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSpotRecoveryCaseResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks recovery read authority.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '404':
+          description: Recovery case was not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/recovery/cases/{case_id}/refresh:
+    post:
+      tags:
+      - operator-spot-recovery
+      summary: Refresh one case from exact Coinbase order and fill truth
+      operationId: refresh_operator_spot_recovery_case_api_v1_spot_recovery_cases__case_id__refresh_post
+      parameters:
+      - name: case_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 36
+          maxLength: 36
+          title: Case Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorSpotRecoveryRefreshRequest'
+      responses:
+        '200':
+          description: Recovery action accepted or idempotently replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSpotRecoveryCaseResponse'
+        '400':
+          description: Recovery action rejected before an authorized side effect.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSpotRecoveryCaseResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks recovery read authority.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Recovery revision or idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSpotRecoveryCaseResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/recovery/cases/{case_id}/apply:
+    post:
+      tags:
+      - operator-spot-recovery
+      summary: Apply one reviewed local recovery repair
+      operationId: apply_operator_spot_recovery_case_api_v1_spot_recovery_cases__case_id__apply_post
+      parameters:
+      - name: case_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 36
+          maxLength: 36
+          title: Case Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorSpotRecoveryLocalActionRequest'
+      responses:
+        '200':
+          description: Recovery action accepted or idempotently replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSpotRecoveryCaseResponse'
+        '400':
+          description: Recovery action rejected before an authorized side effect.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSpotRecoveryCaseResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks recovery read authority.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Recovery revision or idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSpotRecoveryCaseResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/recovery/cases/{case_id}/rollback:
+    post:
+      tags:
+      - operator-spot-recovery
+      summary: Safely roll back one reviewed local recovery repair
+      operationId: rollback_operator_spot_recovery_case_api_v1_spot_recovery_cases__case_id__rollback_post
+      parameters:
+      - name: case_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 36
+          maxLength: 36
+          title: Case Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorSpotRecoveryLocalActionRequest'
+      responses:
+        '200':
+          description: Recovery action accepted or idempotently replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSpotRecoveryCaseResponse'
+        '400':
+          description: Recovery action rejected before an authorized side effect.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSpotRecoveryCaseResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks recovery read authority.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Recovery revision or idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSpotRecoveryCaseResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/spot/readiness:
     get:
       tags:
@@ -19078,6 +19666,7 @@ components:
       - spot_campaign_execution
       - spot_sweep_automation
       - spot_pnl_checkpoint
+      - spot_operator_recovery_workflow
       - spot_recovery_apply_execution
       - spot_recovery_rollback_execution
       - spot_recovery_exchange_state_proof
@@ -152244,6 +152833,24 @@ components:
           type: boolean
           title: Manual Live Acknowledgement
           default: false
+        recovery_case_id:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          - type: 'null'
+          title: Recovery Case Id
+        recovery_case_revision:
+          anyOf:
+          - type: integer
+            minimum: 1.0
+          - type: 'null'
+          title: Recovery Case Revision
+        recovery_plan_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Recovery Plan Sha256
       additionalProperties: false
       type: object
       title: CancelOrderRequest
@@ -153251,6 +153858,325 @@ components:
       - INTERVAL_REVIEW_ONLY
       title: OperatorAutomationScheduleKind
       description: Review-only schedule types supported by the v1 control plane.
+    OperatorSpotRecoveryCaseCreateRequest:
+      properties:
+        client_order_id:
+          type: string
+          maxLength: 36
+          minLength: 36
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Client Order Id
+        operator_reason:
+          type: string
+          maxLength: 240
+          minLength: 1
+          title: Operator Reason
+      additionalProperties: false
+      type: object
+      required:
+      - client_order_id
+      - operator_reason
+      title: OperatorSpotRecoveryCaseCreateRequest
+      description: Create one local recovery case keyed only by ``client_order_id``.
+    OperatorSpotRecoveryCaseItem:
+      properties:
+        case_id:
+          type: string
+          title: Case Id
+        client_order_id:
+          type: string
+          title: Client Order Id
+        product_id:
+          type: string
+          title: Product Id
+        portfolio_scope:
+          type: string
+          title: Portfolio Scope
+          default: approved_test_portfolio
+        portfolio_binding_verified:
+          type: boolean
+          title: Portfolio Binding Verified
+          default: true
+        state:
+          $ref: '#/components/schemas/SpotRecoveryCaseState'
+        revision:
+          type: integer
+          minimum: 1.0
+          title: Revision
+        refresh_count:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: Refresh Count
+        refresh_limit:
+          type: integer
+          title: Refresh Limit
+          default: 10
+        order_read_logical_count:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: Order Read Logical Count
+        fill_read_logical_count:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: Fill Read Logical Count
+        cancel_call_count:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Cancel Call Count
+        cancel_allowance_consumed:
+          type: boolean
+          title: Cancel Allowance Consumed
+        plan:
+          anyOf:
+          - $ref: '#/components/schemas/SpotRecoveryPlan'
+          - type: 'null'
+        diagnostic_code:
+          type: string
+          title: Diagnostic Code
+        correlation_id:
+          type: string
+          title: Correlation Id
+        created_at:
+          type: string
+          title: Created At
+        updated_at:
+          type: string
+          title: Updated At
+        allowed_actions:
+          items:
+            $ref: '#/components/schemas/SpotRecoveryAction'
+          type: array
+          title: Allowed Actions
+        rollback_safety_detail:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Rollback Safety Detail
+        events:
+          items:
+            $ref: '#/components/schemas/OperatorSpotRecoveryEventItem'
+          type: array
+          title: Events
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_and_forward_only
+        backend_authority:
+          type: string
+          title: Backend Authority
+          default: authoritative
+        raw_coinbase_response_exposed:
+          type: boolean
+          title: Raw Coinbase Response Exposed
+          default: false
+        exchange_identifier_exposed:
+          type: boolean
+          title: Exchange Identifier Exposed
+          default: false
+        exception_message_exposed:
+          type: boolean
+          title: Exception Message Exposed
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - case_id
+      - client_order_id
+      - product_id
+      - state
+      - revision
+      - refresh_count
+      - order_read_logical_count
+      - fill_read_logical_count
+      - cancel_call_count
+      - cancel_allowance_consumed
+      - diagnostic_code
+      - correlation_id
+      - created_at
+      - updated_at
+      title: OperatorSpotRecoveryCaseItem
+      description: Normal operator readback for one durable recovery case.
+    OperatorSpotRecoveryCaseListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/OperatorSpotRecoveryCaseItem'
+          type: array
+          title: Items
+        total_count:
+          type: integer
+          minimum: 0.0
+          title: Total Count
+        returned_count:
+          type: integer
+          minimum: 0.0
+          title: Returned Count
+        limit:
+          type: integer
+          maximum: 100.0
+          minimum: 1.0
+          title: Limit
+        offset:
+          type: integer
+          minimum: 0.0
+          title: Offset
+        next_offset:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Next Offset
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      - total_count
+      - returned_count
+      - limit
+      - offset
+      title: OperatorSpotRecoveryCaseListResponse
+      description: Paginated backend-owned recovery case list.
+    OperatorSpotRecoveryCaseResponse:
+      properties:
+        status:
+          $ref: '#/components/schemas/AdminApiCommandStatus'
+        required_permission:
+          $ref: '#/components/schemas/AdminApiPermission'
+        service_method:
+          type: string
+          title: Service Method
+        message:
+          type: string
+          title: Message
+        case:
+          anyOf:
+          - $ref: '#/components/schemas/OperatorSpotRecoveryCaseItem'
+          - type: 'null'
+        correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+        idempotency_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency Key
+        replayed:
+          type: boolean
+          title: Replayed
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - required_permission
+      - service_method
+      - message
+      title: OperatorSpotRecoveryCaseResponse
+      description: Accepted, replayed, or rejected recovery command response.
+    OperatorSpotRecoveryEventItem:
+      properties:
+        event_id:
+          type: string
+          title: Event Id
+        case_id:
+          type: string
+          title: Case Id
+        event_type:
+          type: string
+          title: Event Type
+        actor_id:
+          type: string
+          title: Actor Id
+        correlation_id:
+          type: string
+          title: Correlation Id
+        evidence:
+          additionalProperties: true
+          type: object
+          title: Evidence
+        recorded_at:
+          type: string
+          title: Recorded At
+      additionalProperties: false
+      type: object
+      required:
+      - event_id
+      - case_id
+      - event_type
+      - actor_id
+      - correlation_id
+      - recorded_at
+      title: OperatorSpotRecoveryEventItem
+      description: Fixed, sanitized audit readback for one recovery transition.
+    OperatorSpotRecoveryLocalActionRequest:
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 1.0
+          title: Expected Revision
+        operator_reason:
+          type: string
+          maxLength: 240
+          minLength: 1
+          title: Operator Reason
+        operator_acknowledgement:
+          type: boolean
+          title: Operator Acknowledgement
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - expected_revision
+      - operator_reason
+      title: OperatorSpotRecoveryLocalActionRequest
+      description: Explicit local apply or rollback request.
+    OperatorSpotRecoveryRefreshRequest:
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 1.0
+          title: Expected Revision
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - expected_revision
+      title: OperatorSpotRecoveryRefreshRequest
+      description: Explicit request for one no-retry logical order/fill refresh cycle.
     OrderOwnershipProvenance:
       type: string
       enum:
@@ -155111,6 +156037,16 @@ components:
       type: object
       title: SpotReadinessResponse
       description: Spot readiness response.
+    SpotRecoveryAction:
+      type: string
+      enum:
+      - CREATE_CASE
+      - REFRESH
+      - APPLY
+      - ROLLBACK
+      - CANCEL
+      title: SpotRecoveryAction
+      description: Idempotent operator actions supported by the recovery workflow.
     SpotRecoveryApplyExecutionRequest:
       properties:
         client_order_id:
@@ -155399,6 +156335,21 @@ components:
       - detail
       title: SpotRecoveryApplyReviewResponse
       description: Read-only Spot recovery apply-review contract evidence.
+    SpotRecoveryCaseState:
+      type: string
+      enum:
+      - OPEN
+      - REFRESHING
+      - PLAN_READY
+      - APPLIED
+      - ROLLED_BACK
+      - CANCEL_PENDING
+      - CANCELLED
+      - COMPLETE
+      - BLOCKED
+      - UNKNOWN
+      title: SpotRecoveryCaseState
+      description: Durable lifecycle for one operator-selected Spot recovery case.
     SpotRecoveryCompletionRecordItem:
       properties:
         completion_id:
@@ -156447,6 +157398,72 @@ components:
       - detail
       title: SpotRecoveryExecutionRecordItem
       description: Read-only Spot recovery apply/rollback journal evidence.
+    SpotRecoveryPlan:
+      properties:
+        kind:
+          $ref: '#/components/schemas/SpotRecoveryPlanKind'
+        client_order_id:
+          type: string
+          maxLength: 40
+          minLength: 1
+          title: Client Order Id
+        product_id:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Product Id
+        from_status:
+          $ref: '#/components/schemas/OrderStatus'
+        to_status:
+          anyOf:
+          - $ref: '#/components/schemas/OrderStatus'
+          - type: 'null'
+        fill_count:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Fill Count
+        apply_available:
+          type: boolean
+          title: Apply Available
+          default: false
+        cancel_available:
+          type: boolean
+          title: Cancel Available
+          default: false
+        rollback_after_apply_available:
+          type: boolean
+          title: Rollback After Apply Available
+          default: false
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        plan_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Plan Sha256
+      additionalProperties: false
+      type: object
+      required:
+      - kind
+      - client_order_id
+      - product_id
+      - from_status
+      - plan_sha256
+      title: SpotRecoveryPlan
+      description: Immutable backend disposition for one exact local/exchange snapshot.
+    SpotRecoveryPlanKind:
+      type: string
+      enum:
+      - NO_CHANGE
+      - SET_LOCAL_STATUS
+      - CANCEL_ACTIVE_ORPHAN
+      - BLOCKED
+      title: SpotRecoveryPlanKind
+      description: Backend-owned disposition derived from exact order and fill truth.
     SpotRecoveryPreApplySnapshotItem:
       properties:
         snapshot_id:

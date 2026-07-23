@@ -1,5 +1,15 @@
 # Coinbase Trading Backend
 
+## Active independent Goal 1
+
+Goal `operator_spot_recovery_and_reconciliation_execution_v1` provides a
+PostgreSQL-backed, authenticated recovery workflow for one exact system-owned
+`client_order_id`: bounded authoritative order/fill refresh, immutable plan,
+guarded local apply/rollback, and an optional one-use canonical Cancel binding
+for a proven zero-fill active orphan. It permits no Create or unrelated
+mutation. See
+[`docs/OPERATOR_SPOT_RECOVERY_AND_RECONCILIATION_V1.md`](docs/OPERATOR_SPOT_RECOVERY_AND_RECONCILIATION_V1.md).
+
 ## Current operator MVP
 
 Goal

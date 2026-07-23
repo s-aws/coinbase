@@ -1,5 +1,12 @@
 # Documentation Index
 
+Active independent Goal 1:
+[Operator Spot Recovery and Reconciliation V1](OPERATOR_SPOT_RECOVERY_AND_RECONCILIATION_V1.md).
+Goal `operator_spot_recovery_and_reconciliation_execution_v1` provides the
+PostgreSQL-backed exact-`client_order_id` recovery workflow, guarded local
+apply/rollback, and optional canonical active-orphan Cancel binding. It grants
+no Create or unrelated mutation authority.
+
 Current operator goal:
 [Operator Spot Automation Transport Explainability V13-V15](OPERATOR_SPOT_AUTOMATION_TRANSPORT_EXPLAINABILITY_V13_V15.md).
 Goal

@@ -719,6 +719,77 @@ class ValidatedSpotAutomationOwnershipEvidence:
 
 
 @dataclass(frozen=True, slots=True)
+class ValidatedSpotRecoveryCancelEvidence:
+    """Durable one-use recovery claim accepted by canonical Spot Cancel."""
+
+    case_id: str
+    case_revision: int
+    plan_sha256: str
+    client_order_id: str
+    product_id: str
+    portfolio_id_sha256: str
+    ownership_provenance: str
+    expected_local_status: str
+
+    def __post_init__(self) -> None:
+        _require_automation_uuid(
+            self.case_id,
+            code="spot_recovery_case_id_invalid",
+        )
+        _require_automation_uuid(
+            self.client_order_id,
+            code="spot_recovery_client_order_id_invalid",
+        )
+        if type(self.case_revision) is not int or self.case_revision < 1:
+            raise ValueError("spot_recovery_case_revision_invalid")
+        _require_automation_sha256(
+            self.plan_sha256,
+            code="spot_recovery_plan_hash_invalid",
+        )
+        _require_automation_sha256(
+            self.portfolio_id_sha256,
+            code="spot_recovery_portfolio_hash_invalid",
+        )
+        if not self.product_id or "-" not in self.product_id:
+            raise ValueError("spot_recovery_product_invalid")
+        if self.ownership_provenance not in {
+            OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value,
+            OrderOwnershipProvenance.ADMIN_AUTOMATION_ROOT.value,
+            OrderOwnershipProvenance.ADMIN_FILL_FOLLOW_UP.value,
+        }:
+            raise ValueError("spot_recovery_ownership_invalid")
+        if self.expected_local_status not in {
+            OrderStatus.FILLED.value,
+            OrderStatus.CANCELLED.value,
+            OrderStatus.EXPIRED.value,
+            OrderStatus.FAILED.value,
+        }:
+            raise ValueError("spot_recovery_local_status_invalid")
+
+
+def _require_current_spot_recovery_cancel_evidence(
+    evidence: ValidatedSpotRecoveryCancelEvidence,
+    *,
+    configured_portfolio_id: str | None,
+    configured_portfolio_label: str,
+    client_order_id: str,
+    product_id: str | None = None,
+) -> None:
+    if not isinstance(evidence, ValidatedSpotRecoveryCancelEvidence):
+        raise ValueError("spot_recovery_cancel_evidence_invalid")
+    configured_id = str(configured_portfolio_id or "").strip()
+    if (
+        not configured_id
+        or configured_portfolio_label != DEFAULT_SPOT_PORTFOLIO_LABEL
+        or hashlib.sha256(configured_id.encode("utf-8")).hexdigest()
+        != evidence.portfolio_id_sha256
+        or evidence.client_order_id != client_order_id
+        or (product_id is not None and evidence.product_id != product_id)
+    ):
+        raise ValueError("spot_recovery_cancel_evidence_mismatch")
+
+
+@dataclass(frozen=True, slots=True)
 class ValidatedSpotAutomationAdmissionEvidence(
     ValidatedSpotAutomationOwnershipEvidence
 ):
@@ -2493,18 +2564,47 @@ def _readback_matches_internal_spot_portfolio(
     )
 
 
-def exact_coinbase_fill_readback(
+def _recovery_order_readback_proves_zero_fill(
+    readback: Mapping[str, Any],
+) -> bool:
+    """Require at least one documented nonnegative fill indicator at zero."""
+
+    matched_order = readback.get("matched_order")
+    if not isinstance(matched_order, Mapping):
+        return False
+    observed = False
+    for field in (
+        "filled_size",
+        "filled_quantity",
+        "filled_value",
+        "number_of_fills",
+    ):
+        raw = matched_order.get(field)
+        if raw is None:
+            continue
+        observed = True
+        try:
+            value = Decimal(str(raw))
+        except (ArithmeticError, ValueError):
+            return False
+        if not value.is_finite() or value != Decimal("0"):
+            return False
+    return observed
+
+
+def read_authoritative_coinbase_fills(
     rest_client: Any,
     *,
     exchange_order_id: str,
     product_id: str,
+    maximum_pages: int = 200,
 ) -> dict[str, Any]:
-    """Return one complete, fixed-summary fill page for an exact Spot order.
+    """Return a value-blind summary of one complete logical fill catalog read.
 
-    The selected-root workflow deliberately permits one page of at most 100
-    rows. A continuation cursor, malformed row, identity mismatch, or empty
-    fill set for a Coinbase ``FILLED`` order is unresolved evidence and fails
-    closed. Raw rows and exchange identifiers are never returned.
+    Required cursor pages complete the same logical read without retrying a
+    page. A malformed page, missing/repeated cursor, identity mismatch, or
+    bounded-page exhaustion fails closed. Raw fill rows and exchange
+    identifiers are never returned.
     """
 
     if not exchange_order_id or not product_id:
@@ -2518,80 +2618,138 @@ def exact_coinbase_fill_readback(
             "fill_read_unavailable",
             "Coinbase list_fills is unavailable",
         )
-    try:
-        response = list_fills(
-            order_id=exchange_order_id,
-            product_id=product_id,
-            limit=100,
-        )
-    except CoinbaseFillReadbackError:
-        raise
-    except Exception as exc:
+    if type(maximum_pages) is not int or maximum_pages < 1 or maximum_pages > 200:
         raise CoinbaseFillReadbackError(
-            "fill_read_failed",
-            "Coinbase fill read failed: "
-            f"{_value_blind_exception_detail(exc)}",
-        ) from exc
+            "fill_read_pagination_limit",
+            "Coinbase fill read requires a bounded page limit",
+        )
 
-    try:
-        data = coinbase_order_response_to_dict(response)
-    except Exception as exc:
-        raise CoinbaseFillReadbackError(
-            "fill_read_normalization_failed",
-            "Coinbase fill response normalization failed: "
-            f"{_value_blind_exception_detail(exc)}",
-        ) from exc
-    raw_fills = data.get("fills")
-    has_next = data.get("has_next")
-    if not isinstance(raw_fills, list) or not isinstance(has_next, bool):
-        raise CoinbaseFillReadbackError(
-            "fill_read_malformed",
-            "Coinbase fill page requires fills:list and has_next:bool",
-        )
-    if has_next:
-        raise CoinbaseFillReadbackError(
-            "fill_read_pagination_incomplete",
-            "Coinbase fill evidence exceeded the single bounded page",
-        )
-    if not raw_fills:
+    cursor: str | None = None
+    seen_cursors: set[str] = set()
+    page_count = 0
+    fill_count = 0
+    while True:
+        page_count += 1
+        if page_count > maximum_pages:
+            raise CoinbaseFillReadbackError(
+                "fill_read_pagination_incomplete",
+                "Coinbase fill evidence exceeded the bounded page limit",
+            )
+        kwargs: dict[str, Any] = {
+            "order_id": exchange_order_id,
+            "product_id": product_id,
+            "limit": 100,
+        }
+        if cursor is not None:
+            kwargs["cursor"] = cursor
+        try:
+            response = list_fills(**kwargs)
+        except CoinbaseFillReadbackError:
+            raise
+        except Exception as exc:
+            raise CoinbaseFillReadbackError(
+                "fill_read_failed",
+                "Coinbase fill read failed: "
+                f"{_value_blind_exception_detail(exc)}",
+            ) from exc
+
+        try:
+            data = coinbase_order_response_to_dict(response)
+        except Exception as exc:
+            raise CoinbaseFillReadbackError(
+                "fill_read_normalization_failed",
+                "Coinbase fill response normalization failed: "
+                f"{_value_blind_exception_detail(exc)}",
+            ) from exc
+        raw_fills = data.get("fills")
+        has_next = data.get("has_next")
+        if not isinstance(raw_fills, list) or not isinstance(has_next, bool):
+            raise CoinbaseFillReadbackError(
+                "fill_read_malformed",
+                "Coinbase fill page requires fills:list and has_next:bool",
+            )
+
+        for raw_fill in raw_fills:
+            if not isinstance(raw_fill, Mapping):
+                raise CoinbaseFillReadbackError(
+                    "fill_read_malformed",
+                    "Coinbase fill page contains a non-object fill row",
+                )
+            observed_order_id = str(raw_fill.get("order_id") or "").strip()
+            observed_product_id = str(raw_fill.get("product_id") or "").strip()
+            if not observed_order_id or not observed_product_id:
+                raise CoinbaseFillReadbackError(
+                    "fill_read_malformed",
+                    "Coinbase fill row lacks order_id or product_id",
+                )
+            if observed_order_id != exchange_order_id:
+                raise CoinbaseFillReadbackError(
+                    "fill_read_order_identity_mismatch",
+                    "Coinbase fill row does not match the exact exchange order",
+                )
+            if observed_product_id != product_id:
+                raise CoinbaseFillReadbackError(
+                    "fill_read_product_identity_mismatch",
+                    "Coinbase fill row does not match the exact order product",
+                )
+        fill_count += len(raw_fills)
+
+        if not has_next:
+            return {
+                "authoritative": True,
+                "fill_count": fill_count,
+                "page_count": page_count,
+                "pagination_complete": True,
+            }
+        if page_count >= maximum_pages:
+            raise CoinbaseFillReadbackError(
+                "fill_read_pagination_incomplete",
+                "Coinbase fill evidence exceeded the bounded page limit",
+            )
+        next_cursor = data.get("cursor")
+        if not isinstance(next_cursor, str) or not next_cursor.strip():
+            raise CoinbaseFillReadbackError(
+                "fill_read_malformed_pagination",
+                "Coinbase fill continuation page lacks a usable cursor",
+            )
+        next_cursor = next_cursor.strip()
+        if next_cursor in seen_cursors:
+            raise CoinbaseFillReadbackError(
+                "fill_read_malformed_pagination",
+                "Coinbase fill pagination repeated a cursor",
+            )
+        seen_cursors.add(next_cursor)
+        cursor = next_cursor
+
+
+def exact_coinbase_fill_readback(
+    rest_client: Any,
+    *,
+    exchange_order_id: str,
+    product_id: str,
+) -> dict[str, Any]:
+    """Return one complete fixed-summary fill page for a FILLED Spot order."""
+
+    summary = read_authoritative_coinbase_fills(
+        rest_client,
+        exchange_order_id=exchange_order_id,
+        product_id=product_id,
+        maximum_pages=1,
+    )
+    if summary["fill_count"] < 1:
         raise CoinbaseFillReadbackError(
             "fill_read_empty_for_filled_order",
             "Coinbase FILLED status requires at least one exact fill row",
         )
-
-    for raw_fill in raw_fills:
-        if not isinstance(raw_fill, Mapping):
-            raise CoinbaseFillReadbackError(
-                "fill_read_malformed",
-                "Coinbase fill page contains a non-object fill row",
-            )
-        observed_order_id = str(raw_fill.get("order_id") or "").strip()
-        observed_product_id = str(raw_fill.get("product_id") or "").strip()
-        if not observed_order_id or not observed_product_id:
-            raise CoinbaseFillReadbackError(
-                "fill_read_malformed",
-                "Coinbase fill row lacks order_id or product_id",
-            )
-        if observed_order_id != exchange_order_id:
-            raise CoinbaseFillReadbackError(
-                "fill_read_order_identity_mismatch",
-                "Coinbase fill row does not match the exact exchange order",
-            )
-        if observed_product_id != product_id:
-            raise CoinbaseFillReadbackError(
-                "fill_read_product_identity_mismatch",
-                "Coinbase fill row does not match the exact order product",
-            )
-
     return {
         "authoritative": True,
         "fill_read_attempted": True,
         "fill_read_succeeded": True,
-        "page_count": 1,
+        "page_count": summary["page_count"],
         "page_limit": 100,
         "pagination_complete": True,
         "fills_have_more_pages": False,
-        "fill_count": len(raw_fills),
+        "fill_count": summary["fill_count"],
         "fill_read_status": "filled",
         "exchange_order_id_present": True,
         "exchange_order_id_evidence_only": True,
@@ -6782,12 +6940,14 @@ class AdminApiCommandService:
         command: CancelOrderCommand,
         *,
         automation_ownership: ValidatedSpotAutomationOwnershipEvidence | None = None,
+        recovery_ownership: ValidatedSpotRecoveryCancelEvidence | None = None,
     ) -> AdminApiCommandResponse:
-        """Cancel with Automation-local Coinbase read accounting."""
+        """Cancel through one canonical wrapper with typed ownership evidence."""
 
         response = self._cancel_order_by_client_order_id(
             command,
             automation_ownership=automation_ownership,
+            recovery_ownership=recovery_ownership,
         )
         if automation_ownership is None:
             return response
@@ -6807,9 +6967,16 @@ class AdminApiCommandService:
         command: CancelOrderCommand,
         *,
         automation_ownership: ValidatedSpotAutomationOwnershipEvidence | None = None,
+        recovery_ownership: ValidatedSpotRecoveryCancelEvidence | None = None,
     ) -> AdminApiCommandResponse:
         """Cancel one proven order through the canonical verified-ID wrapper."""
 
+        if automation_ownership is not None and recovery_ownership is not None:
+            return self._cancel_rejected(
+                command=command,
+                message="Multiple typed cancellation ownership scopes are forbidden.",
+                failure_stage="order_ownership",
+            )
         execution_authority_missing = bool(
             command.allow_live_execution
             and not coinbase_execution_authority_enabled()
@@ -6938,7 +7105,36 @@ class AdminApiCommandService:
                 failure_stage="cancellation_uncertainty",
             )
 
-        if automation_ownership is not None:
+        if recovery_ownership is not None:
+            try:
+                _require_current_spot_recovery_cancel_evidence(
+                    recovery_ownership,
+                    configured_portfolio_id=deps.spot_portfolio_id,
+                    configured_portfolio_label=deps.spot_portfolio_label,
+                    client_order_id=client_order_id,
+                    product_id=recovery_ownership.product_id,
+                )
+            except ValueError:
+                return self._cancel_rejected(
+                    command=command,
+                    message="Typed Spot recovery ownership evidence is invalid.",
+                    failure_stage="recovery_admission",
+                )
+            configured_portfolio_id = str(deps.spot_portfolio_id or "").strip()
+            portfolio_binding = SpotPortfolioBindingEvidence(
+                ready=True,
+                blocker=None,
+                expected_portfolio_id=configured_portfolio_id,
+                expected_portfolio_label=DEFAULT_SPOT_PORTFOLIO_LABEL,
+                expected_portfolio_type="CONSUMER",
+                observed_portfolio_id=configured_portfolio_id,
+                observed_portfolio_label=DEFAULT_SPOT_PORTFOLIO_LABEL,
+                observed_portfolio_type="CONSUMER",
+                can_view=True,
+                can_trade=True,
+                source="durable_recovery_case_and_configured_test_portfolio",
+            )
+        elif automation_ownership is not None:
             try:
                 _require_current_spot_automation_ownership(
                     automation_ownership,
@@ -6974,9 +7170,13 @@ class AdminApiCommandService:
                 failure_stage="portfolio_scope",
             )
         expected_root_provenance = (
-            OrderOwnershipProvenance.ADMIN_AUTOMATION_ROOT.value
-            if automation_ownership is not None
-            else OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+            recovery_ownership.ownership_provenance
+            if recovery_ownership is not None
+            else (
+                OrderOwnershipProvenance.ADMIN_AUTOMATION_ROOT.value
+                if automation_ownership is not None
+                else OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+            )
         )
         local_order_is_admin_direct_root = bool(
             isinstance(local_order, Mapping)
@@ -6985,11 +7185,23 @@ class AdminApiCommandService:
             == str(portfolio_binding.observed_portfolio_id or "")
             and str(local_order.get("ownership_provenance") or "")
             == expected_root_provenance
-            and local_order.get("parent_order_id") is None
+            and (
+                recovery_ownership is not None
+                or local_order.get("parent_order_id") is None
+            )
             and (
                 automation_ownership is None
                 or str(local_order.get("product_id") or "")
                 == automation_ownership.product_id
+            )
+            and (
+                recovery_ownership is None
+                or (
+                    str(local_order.get("product_id") or "")
+                    == recovery_ownership.product_id
+                    and str(local_order.get("status") or "").upper()
+                    == recovery_ownership.expected_local_status
+                )
             )
         )
         if not local_order_is_admin_direct_root:
@@ -7117,6 +7329,24 @@ class AdminApiCommandService:
                         data={"blocker": str(exc)},
                         failure_stage="automation_admission",
                     )
+            if recovery_ownership is not None:
+                try:
+                    _require_current_spot_recovery_cancel_evidence(
+                        recovery_ownership,
+                        configured_portfolio_id=deps.spot_portfolio_id,
+                        configured_portfolio_label=deps.spot_portfolio_label,
+                        client_order_id=client_order_id,
+                        product_id=product_id,
+                    )
+                except ValueError:
+                    return self._cancel_rejected(
+                        command=command,
+                        message=(
+                            "Typed Spot recovery ownership evidence is no "
+                            "longer current."
+                        ),
+                        failure_stage="recovery_admission",
+                    )
             # The ownership read above intentionally precedes Coinbase profile
             # verification, but it is stale after waiting for another worker's
             # profile claim. Re-read under the cross-worker claim before any
@@ -7169,7 +7399,10 @@ class AdminApiCommandService:
                 == profile_id
                 and str(claimed_local_order.get("ownership_provenance") or "")
                 == expected_root_provenance
-                and claimed_local_order.get("parent_order_id") is None
+                and (
+                    recovery_ownership is not None
+                    or claimed_local_order.get("parent_order_id") is None
+                )
                 and str(claimed_local_order.get("product_id") or "")
                 == product_id
                 and str(claimed_local_order.get("exchange_order_id") or "").strip()
@@ -7185,7 +7418,12 @@ class AdminApiCommandService:
                     data={"portfolio_scope": portfolio_scope},
                     failure_stage="order_ownership",
                 )
-            if claimed_status not in cancellable_active_statuses:
+            eligible_local_statuses = (
+                {recovery_ownership.expected_local_status}
+                if recovery_ownership is not None
+                else cancellable_active_statuses
+            )
+            if claimed_status not in eligible_local_statuses:
                 return self._cancel_rejected(
                     command=command,
                     message=(
@@ -7251,6 +7489,26 @@ class AdminApiCommandService:
                         "cancellation_readback": cancellation_readback,
                     },
                     failure_stage="cancellation_preflight_readback",
+                )
+            if (
+                recovery_ownership is not None
+                and not _recovery_order_readback_proves_zero_fill(
+                    pre_cancel_readback
+                )
+            ):
+                return self._cancel_rejected(
+                    command=command,
+                    message=(
+                        "Fresh authoritative order evidence does not prove "
+                        "the recovery orphan remains zero-fill."
+                    ),
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "recovery_fill_revalidation": {
+                            "zero_fill_proven": False,
+                        },
+                    },
+                    failure_stage="recovery_fill_revalidation",
                 )
             if exact_authoritative_identity and authoritative_status in terminal_statuses:
                 cancellation_readback["terminal_status_proven"] = True

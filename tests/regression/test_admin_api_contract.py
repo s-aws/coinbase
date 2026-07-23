@@ -76366,6 +76366,27 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "GET /api/v1/spot/recovery/reconciliation-proof"
         in spot_module["read_routes"]
     )
+    assert "GET /api/v1/spot/recovery/cases" in spot_module["read_routes"]
+    assert (
+        "GET /api/v1/spot/recovery/cases/{case_id}"
+        in spot_module["read_routes"]
+    )
+    assert (
+        "POST /api/v1/spot/recovery/cases"
+        in spot_module["command_routes"]
+    )
+    assert (
+        "POST /api/v1/spot/recovery/cases/{case_id}/refresh"
+        in spot_module["command_routes"]
+    )
+    assert (
+        "POST /api/v1/spot/recovery/cases/{case_id}/apply"
+        in spot_module["command_routes"]
+    )
+    assert (
+        "POST /api/v1/spot/recovery/cases/{case_id}/rollback"
+        in spot_module["command_routes"]
+    )
     assert "GET /api/v1/spot/pnl/checkpoints" in spot_module["read_routes"]
     assert (
         "GET /api/v1/spot/pnl/checkpoints/{checkpoint_id}"
@@ -76394,8 +76415,8 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "materialization/safe-closeout"
         in spot_module["command_routes"]
     )
-    assert spot_module["action_posture"]["read_route_count"] == 24
-    assert spot_module["action_posture"]["command_route_count"] == 19
+    assert spot_module["action_posture"]["read_route_count"] == 26
+    assert spot_module["action_posture"]["command_route_count"] == 23
     assert spot_module["action_posture"]["live_route_count"] == 7
     assert spot_module["action_posture"]["command_gap_count"] == 2
     admin_module = registry_by_id["admin_system_health"]

@@ -25,6 +25,7 @@ from .routes.live_execution import router as live_execution_router
 from .routes.movement_repricing import router as movement_repricing_router
 from .routes.orders import router as orders_router
 from .routes.operator_automation import router as operator_automation_router
+from .routes.operator_spot_recovery import router as operator_spot_recovery_router
 from .routes.reconciliation import router as reconciliation_router
 from .routes.spot import router as spot_router
 from .routes.stealth import router as stealth_router
@@ -335,6 +336,11 @@ def create_app() -> FastAPI:
         operator_automation_router,
         prefix="/api/v1",
         tags=["operator-automation"],
+    )
+    app.include_router(
+        operator_spot_recovery_router,
+        prefix="/api/v1",
+        tags=["operator-spot-recovery"],
     )
     app.include_router(spot_router, prefix="/api/v1", tags=["spot"])
     app.include_router(stealth_router, prefix="/api/v1", tags=["stealth"])

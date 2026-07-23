@@ -12672,6 +12672,179 @@ class AdminApiReadService:
                 ),
             ),
             mutation_taxonomy_from_surface(
+                surface="POST /api/v1/spot/recovery/cases",
+                mutation_id="spot.operator_recovery_case_create",
+                mutation_family=(
+                    AdminApiMutationFamilyType.SPOT_OPERATOR_RECOVERY_WORKFLOW
+                ),
+                workflow_id="spot.recovery_workflow",
+                module="Spot Operations",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Create one PostgreSQL-backed recovery case for an exact "
+                    "system-owned client_order_id without calling Coinbase."
+                ),
+                identity_keys=["client_order_id"],
+                owning_backend_service=(
+                    "application/admin_api/operator_spot_recovery.py"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/operator_spot_recovery.py",
+                    "database/operator_spot_recovery.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/operator-read-models/spot-recovery/SpotRecoveryWorkspace.tsx",
+                    "src/shared/api/contracts/backendApiClient.ts",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_SPOT_RECOVERY_AND_RECONCILIATION_V1.md",
+                ],
+                frontend_boundary=(
+                    "The browser forwards one exact client_order_id and operator "
+                    "reason; it does not decide ownership, scope, or eligibility."
+                ),
+                route_local_boundary=(
+                    "The route authenticates, authorizes, deduplicates, audits, "
+                    "and persists one local case; it makes no Coinbase call."
+                ),
+                spot_rule_boundary=(
+                    "This is a Spot order recovery workflow and grants no "
+                    "Futures, Automation, or unrelated-order authority."
+                ),
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_from_surface(
+                surface="POST /api/v1/spot/recovery/cases/{case_id}/refresh",
+                mutation_id="spot.operator_recovery_case_refresh",
+                mutation_family=(
+                    AdminApiMutationFamilyType.SPOT_OPERATOR_RECOVERY_WORKFLOW
+                ),
+                workflow_id="spot.recovery_workflow",
+                module="Spot Operations",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Claim one bounded cycle and refresh exact order and fill "
+                    "truth without retrying a call or cursor page."
+                ),
+                identity_keys=["case_id", "client_order_id"],
+                owning_backend_service=(
+                    "application/admin_api/operator_spot_recovery.py"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/operator_spot_recovery.py",
+                    "application/admin_api/command_service.py::read_authoritative_coinbase_fills",
+                    "database/operator_spot_recovery.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/operator-read-models/spot-recovery/SpotRecoveryWorkspace.tsx",
+                    "src/shared/api/contracts/backendApiClient.ts",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_SPOT_RECOVERY_AND_RECONCILIATION_V1.md",
+                ],
+                frontend_boundary=(
+                    "The browser supplies confirmation only and cannot choose "
+                    "Coinbase methods, evidence, classifications, or repair terms."
+                ),
+                route_local_boundary=(
+                    "The backend claims the cycle before one logical exact-order "
+                    "and one logical fill read, then persists fixed evidence."
+                ),
+                spot_rule_boundary=(
+                    "Exact Spot order/fill truth must not become a Futures "
+                    "position, close, reduce, or margin rule."
+                ),
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_from_surface(
+                surface="POST /api/v1/spot/recovery/cases/{case_id}/apply",
+                mutation_id="spot.operator_recovery_case_apply",
+                mutation_family=(
+                    AdminApiMutationFamilyType.SPOT_OPERATOR_RECOVERY_WORKFLOW
+                ),
+                workflow_id="spot.recovery_workflow",
+                module="Spot Operations",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Apply one reviewed immutable local status-repair plan "
+                    "without an exchange mutation."
+                ),
+                identity_keys=["case_id", "client_order_id"],
+                owning_backend_service=(
+                    "application/admin_api/operator_spot_recovery.py"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/operator_spot_recovery.py",
+                    "database/operator_spot_recovery.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/operator-read-models/spot-recovery/SpotRecoveryWorkspace.tsx",
+                    "src/shared/api/contracts/backendApiClient.ts",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_SPOT_RECOVERY_AND_RECONCILIATION_V1.md",
+                ],
+                frontend_boundary=(
+                    "The browser confirms the immutable backend plan and cannot "
+                    "supply or alter the target status."
+                ),
+                route_local_boundary=(
+                    "A PostgreSQL row lock and revision check guard exactly one "
+                    "local status update; Coinbase is not called."
+                ),
+                spot_rule_boundary=(
+                    "Local Spot order repair is not reusable Futures position "
+                    "or collateral mutation authority."
+                ),
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_from_surface(
+                surface="POST /api/v1/spot/recovery/cases/{case_id}/rollback",
+                mutation_id="spot.operator_recovery_case_rollback",
+                mutation_family=(
+                    AdminApiMutationFamilyType.SPOT_OPERATOR_RECOVERY_WORKFLOW
+                ),
+                workflow_id="spot.recovery_workflow",
+                module="Spot Operations",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Roll back only a backend-approved terminal local repair "
+                    "while its exact state snapshot remains current."
+                ),
+                identity_keys=["case_id", "client_order_id"],
+                owning_backend_service=(
+                    "application/admin_api/operator_spot_recovery.py"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/operator_spot_recovery.py",
+                    "database/operator_spot_recovery.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/operator-read-models/spot-recovery/SpotRecoveryWorkspace.tsx",
+                    "src/shared/api/contracts/backendApiClient.ts",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_SPOT_RECOVERY_AND_RECONCILIATION_V1.md",
+                ],
+                frontend_boundary=(
+                    "The browser confirms rollback but cannot choose the restored "
+                    "status or bypass terminal-state safety."
+                ),
+                route_local_boundary=(
+                    "A PostgreSQL row lock restores only the immutable terminal "
+                    "snapshot; Coinbase is not called."
+                ),
+                spot_rule_boundary=(
+                    "Safe Spot local rollback grants no exchange, Futures, or "
+                    "unrelated-order mutation."
+                ),
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_from_surface(
                 surface="POST /api/v1/spot/recovery/apply-executions",
                 mutation_id="spot.recovery_apply_execution",
                 mutation_family=AdminApiMutationFamilyType.SPOT_RECOVERY_APPLY_EXECUTION,

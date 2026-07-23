@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
+import hashlib
 import sys
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -17,6 +18,7 @@ from application.admin_api.spot_portfolio_binding import (
 from application.admin_api.command_service import (
     AdminApiCommandDependencies,
     AdminApiCommandService,
+    ValidatedSpotRecoveryCancelEvidence,
 )
 from application.admin_api.models import (
     AdminApiActor,
@@ -1519,6 +1521,237 @@ def test_manual_spot_cancel_uses_verified_exchange_id_and_confirms_terminal_stat
     assert cancellation["fallback_attempted"] is False
     assert cancellation["authoritative_status"] == "CANCELLED"
     assert cancellation["terminal_status_proven"] is True
+
+
+def test_recovery_cancel_uses_typed_claim_and_canonical_cancel_wrapper() -> None:
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+
+    class _RecoveryClient:
+        def __init__(self) -> None:
+            self.order = {
+                "client_order_id": client_order_id,
+                "order_id": "exchange-recovery-order",
+                "product_id": "BTC-USDC",
+                "status": "OPEN",
+                "retail_portfolio_id": TEST_PORTFOLIO_ID,
+                "filled_size": "0",
+            }
+            self.cancel_calls: list[str] = []
+
+        def get_api_key_permissions(self):
+            raise AssertionError("recovery cancel must not add a profile read")
+
+        def get_order(self, order_id: str):
+            assert order_id == "exchange-recovery-order"
+            return {"order": dict(self.order)}
+
+        def cancel_order(
+            self,
+            requested_client_order_id: str,
+            *,
+            verified_exchange_order_id: str | None = None,
+            return_evidence: bool = False,
+        ):
+            assert requested_client_order_id == client_order_id
+            assert verified_exchange_order_id == "exchange-recovery-order"
+            assert return_evidence is True
+            self.cancel_calls.append(verified_exchange_order_id)
+            self.order["status"] = "CANCELLED"
+            return {
+                "outcome": "succeeded",
+                "explicit_rejection": False,
+                "identity_rejection": False,
+                "identity_match": True,
+            }
+
+    class _RecoveryRegistrar:
+        def read_registered_order(self, requested_client_order_id: str):
+            assert requested_client_order_id == client_order_id
+            return {
+                "client_order_id": client_order_id,
+                "retail_portfolio_id": TEST_PORTFOLIO_ID,
+                "ownership_provenance": "ADMIN_MANUAL_ROOT",
+                "parent_order_id": None,
+                "product_id": "BTC-USDC",
+                "status": OrderStatus.CANCELLED.value,
+                "exchange_order_id": "exchange-recovery-order",
+            }
+
+        def mark_submission_status(self, **_kwargs: object) -> None:
+            return None
+
+    class _RuntimeController:
+        def track_inflight(self, _name: str):
+            return self
+
+        def __enter__(self):
+            return None
+
+        def __exit__(self, *_args: object) -> bool:
+            return False
+
+    rest_client = _RecoveryClient()
+    service = AdminApiCommandService(
+        AdminApiCommandDependencies(
+            rest_client=rest_client,
+            rest_client_available=True,
+            live_runtime_enabled=True,
+            command_runtime_ready=True,
+            spot_portfolio_id=TEST_PORTFOLIO_ID,
+            spot_portfolio_label="Test",
+            order_root_registrar_getter=lambda: _RecoveryRegistrar(),
+            runtime_controller_factory=lambda: _RuntimeController(),
+        )
+    )
+    command = CancelOrderCommand(
+        envelope=AdminApiCommandEnvelope(
+            idempotency_key="idem-recovery-cancel",
+            correlation_id="corr-recovery-cancel",
+            operator_intent="cancel_exact_recovery_orphan",
+            actor=AdminApiActor(
+                actor_id="operator-001",
+                roles=[AdminApiRole.ADMIN],
+            ),
+        ),
+        client_order_id=client_order_id,
+        request=CancelOrderRequest(
+            reason="cancel exact recovery orphan",
+            manual_live_acknowledgement=True,
+            recovery_case_id="0d756620-2ce5-4fd3-a24a-a14c4d8bf3c1",
+            recovery_case_revision=4,
+            recovery_plan_sha256="a" * 64,
+        ),
+        allow_live_execution=True,
+    )
+    evidence = ValidatedSpotRecoveryCancelEvidence(
+        case_id="0d756620-2ce5-4fd3-a24a-a14c4d8bf3c1",
+        case_revision=4,
+        plan_sha256="a" * 64,
+        client_order_id=client_order_id,
+        product_id="BTC-USDC",
+        portfolio_id_sha256=hashlib.sha256(
+            TEST_PORTFOLIO_ID.encode()
+        ).hexdigest(),
+        ownership_provenance="ADMIN_MANUAL_ROOT",
+        expected_local_status=OrderStatus.CANCELLED.value,
+    )
+
+    response = service.cancel_order_by_client_order_id(
+        command,
+        recovery_ownership=evidence,
+    )
+
+    assert response.status == AdminApiCommandStatus.ACCEPTED
+    assert rest_client.cancel_calls == ["exchange-recovery-order"]
+    assert response.data["cancellation_readback"][
+        "canonical_cancel_attempted"
+    ] is True
+
+
+def test_recovery_cancel_rejects_fresh_partial_fill_before_cancel() -> None:
+    client_order_id = "32daf1ea-4c57-4c03-98c5-e74459576228"
+
+    class _RecoveryClient:
+        def __init__(self) -> None:
+            self.cancel_calls: list[str] = []
+
+        def get_order(self, order_id: str):
+            assert order_id == "exchange-recovery-partial"
+            return {
+                "order": {
+                    "client_order_id": client_order_id,
+                    "order_id": order_id,
+                    "product_id": "BTC-USDC",
+                    "status": "OPEN",
+                    "retail_portfolio_id": TEST_PORTFOLIO_ID,
+                    "filled_size": "0.00001",
+                }
+            }
+
+        def cancel_order(self, *_args: object, **_kwargs: object):
+            self.cancel_calls.append("unexpected")
+            raise AssertionError("partial fill must block Cancel")
+
+    class _RecoveryRegistrar:
+        def read_registered_order(self, requested_client_order_id: str):
+            assert requested_client_order_id == client_order_id
+            return {
+                "client_order_id": client_order_id,
+                "retail_portfolio_id": TEST_PORTFOLIO_ID,
+                "ownership_provenance": "ADMIN_MANUAL_ROOT",
+                "parent_order_id": None,
+                "product_id": "BTC-USDC",
+                "status": OrderStatus.CANCELLED.value,
+                "exchange_order_id": "exchange-recovery-partial",
+            }
+
+        def mark_submission_status(self, **_kwargs: object) -> None:
+            return None
+
+    class _RuntimeController:
+        def track_inflight(self, _name: str):
+            return self
+
+        def __enter__(self):
+            return None
+
+        def __exit__(self, *_args: object) -> bool:
+            return False
+
+    rest_client = _RecoveryClient()
+    service = AdminApiCommandService(
+        AdminApiCommandDependencies(
+            rest_client=rest_client,
+            rest_client_available=True,
+            live_runtime_enabled=True,
+            command_runtime_ready=True,
+            spot_portfolio_id=TEST_PORTFOLIO_ID,
+            spot_portfolio_label="Test",
+            order_root_registrar_getter=lambda: _RecoveryRegistrar(),
+            runtime_controller_factory=lambda: _RuntimeController(),
+        )
+    )
+    command = CancelOrderCommand(
+        envelope=AdminApiCommandEnvelope(
+            idempotency_key="idem-recovery-partial",
+            correlation_id="corr-recovery-partial",
+            operator_intent="cancel_exact_recovery_orphan",
+            actor=AdminApiActor(
+                actor_id="operator-001",
+                roles=[AdminApiRole.ADMIN],
+            ),
+        ),
+        client_order_id=client_order_id,
+        request=CancelOrderRequest(
+            reason="cancel exact recovery orphan",
+            manual_live_acknowledgement=True,
+            recovery_case_id="0d756620-2ce5-4fd3-a24a-a14c4d8bf3c1",
+            recovery_case_revision=4,
+            recovery_plan_sha256="a" * 64,
+        ),
+        allow_live_execution=True,
+    )
+    evidence = ValidatedSpotRecoveryCancelEvidence(
+        case_id="0d756620-2ce5-4fd3-a24a-a14c4d8bf3c1",
+        case_revision=4,
+        plan_sha256="a" * 64,
+        client_order_id=client_order_id,
+        product_id="BTC-USDC",
+        portfolio_id_sha256=hashlib.sha256(
+            TEST_PORTFOLIO_ID.encode()
+        ).hexdigest(),
+        ownership_provenance="ADMIN_MANUAL_ROOT",
+        expected_local_status=OrderStatus.CANCELLED.value,
+    )
+
+    response = service.cancel_order_by_client_order_id(
+        command,
+        recovery_ownership=evidence,
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "recovery_fill_revalidation"
+    assert rest_client.cancel_calls == []
 
 
 def test_test_profile_runtime_rejects_derivatives_before_submit() -> None:

@@ -610,6 +610,31 @@ class CancelOrderRequest(BaseModel):
 
     reason: str | None = None
     manual_live_acknowledgement: bool = False
+    recovery_case_id: str | None = Field(
+        default=None,
+        pattern=(
+            r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-"
+            r"[0-9a-f]{4}-[0-9a-f]{12}$"
+        ),
+    )
+    recovery_case_revision: int | None = Field(default=None, ge=1)
+    recovery_plan_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
+
+    @model_validator(mode="after")
+    def _require_complete_recovery_binding(self) -> Self:
+        recovery_values = (
+            self.recovery_case_id,
+            self.recovery_case_revision,
+            self.recovery_plan_sha256,
+        )
+        if any(value is not None for value in recovery_values) and not all(
+            value is not None for value in recovery_values
+        ):
+            raise ValueError("recovery_cancel_binding_incomplete")
+        return self
 
 
 class StealthCancelRequest(BaseModel):

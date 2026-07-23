@@ -1,5 +1,18 @@
 # Maintainer Handoff
 
+## Active independent Goal 1 — Spot recovery
+
+`operator_spot_recovery_and_reconciliation_execution_v1` adds the
+PostgreSQL-backed exact-`client_order_id` recovery case service, no-retry
+exact-order/fill refresh, immutable repair plans, guarded local
+apply/rollback, fixed audit readback, and an optional one-use binding into the
+canonical exact-order Cancel path. It grants no Create or unrelated mutation.
+Historical comparison references were
+`origin/prod:business/fill_reconciler.py`,
+`origin/prod:core/periodic_reconciler.py`, and
+`origin/prod:core/startup_reconciler.py`. See
+[`OPERATOR_SPOT_RECOVERY_AND_RECONCILIATION_V1.md`](OPERATOR_SPOT_RECOVERY_AND_RECONCILIATION_V1.md).
+
 ## Current V13-V15 transport-explainability goal
 
 `operator_spot_automation_transport_explainability_and_successor_proof_v13_v15`

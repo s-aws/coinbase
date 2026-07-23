@@ -1,5 +1,16 @@
 # Admin Module Capability Matrix
 
+Active independent goal
+`operator_spot_recovery_and_reconciliation_execution_v1` provides a
+PostgreSQL-backed exact-order Spot recovery domain service and generated Admin
+API routes. It owns system provenance, approved-Test portfolio binding,
+ten-cycle no-retry order/fill read accounting, immutable repair plans, guarded
+local apply/rollback, one optional active-orphan Cancel claim, restart
+recovery, and fixed sanitized audit readback. The Cancel branch delegates to
+the canonical exact-`client_order_id` Spot Cancel service; it is not a second
+placement or mutation adapter. No Create, Futures, Automation, or unrelated
+order authority follows from this module.
+
 Current bounded proof goal
 `operator_spot_automation_transport_explainability_and_successor_proof_v13_v15`
 passed validation, deployment checks, and both audits. The Automation module
