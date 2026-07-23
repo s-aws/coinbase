@@ -4,13 +4,12 @@
 Goal ID:
 `operator_spot_automation_transport_explainability_and_successor_proof_v13_v15`
 
-Status: implementation complete and validation pending. The backend adds a
-separate ten-cycle ledger, fixed exception-type-only prospective Preview
-classification, and one no-HTTP DNS/TCP/TLS readiness sequence. No V13-V15
-probe, Coinbase read, Preview, Create, or Cancel has run. V14/V15 are blocked
-until an official-documentation-backed correction is reviewed and installed.
-Current action:
-`validate_transport_boundary_then_execute_one_authorized_v13_successor_proof`.
+Status: terminal after V13. Validation, deployment, and both audits passed.
+V13 is terminal at `TRANSPORT_UNKNOWN` after one successful no-HTTP DNS/TCP/TLS
+sequence, one cycle, eight exact eligibility reads, and one consumed Preview
+allowance with exact wire count withheld. Create and Cancel remain unconsumed.
+V14/V15 remain unused because no official-documentation-backed correction
+exists. Current action: `close_v13_transport_unknown_v14_v15_unused`.
 
 Completed predecessor:
 ## Terminal V10-V12 atomic market snapshot goal

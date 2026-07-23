@@ -6,11 +6,12 @@ Goal
 `operator_spot_automation_transport_explainability_and_successor_proof_v13_v15`
 adds prospective fixed/type-only Preview invocation classification and a
 durable no-HTTP DNS/TCP/TLS readiness sequence before the unchanged atomic
-eight-category policy. Status: implementation complete and validation in
-progress; V13-V15 probes, Coinbase reads, Preview, Create, and Cancel remain
-unconsumed. V14/V15 require a reviewed documented correction.
-Current action:
-`validate_transport_boundary_then_execute_one_authorized_v13_successor_proof`.
+eight-category policy. Validation, deployment, and both audits passed. V13 is
+terminal at `TRANSPORT_UNKNOWN` after one successful readiness sequence,
+eight exact eligibility reads, and one consumed Preview allowance with exact
+wire count withheld. Create and Cancel remain unconsumed. V14/V15 remain
+unused because no official-documentation-backed correction exists.
+Current action: `close_v13_transport_unknown_v14_v15_unused`.
 
 Completed predecessor:
 [Operator Spot Automation Atomic Market Snapshot V10-V12](OPERATOR_SPOT_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_V10_V12.md).

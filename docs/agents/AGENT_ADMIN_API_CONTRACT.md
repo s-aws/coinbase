@@ -2,13 +2,16 @@
 
 Current MVP:
 `operator_spot_automation_transport_explainability_and_successor_proof_v13_v15`.
-The contract exposes only fixed value-blind Preview failure classes and fixed
+This terminal V13-V15 contract exposes only fixed value-blind Preview failure
+classes and fixed
 no-HTTP DNS/TCP/TLS readiness statuses/counts. It never exposes addresses,
 certificates, exception messages, response bodies, or raw Preview identity.
-Implementation is complete and validation is pending; no V13-V15 external
-operation has run. The completed V10-V12 predecessor remains immutable.
-Current action:
-`validate_transport_boundary_then_execute_one_authorized_v13_successor_proof`.
+Validation, deployment, and both audits passed. V13 is terminal at
+`TRANSPORT_UNKNOWN` after one successful DNS/TCP/TLS sequence and eight exact
+eligibility reads. Its Preview allowance is consumed with exact wire count
+withheld; Create and Cancel remain unconsumed. V14/V15 remain unused because no
+documented correction exists. The completed V10-V12 predecessor remains
+immutable. Current action: `close_v13_transport_unknown_v14_v15_unused`.
 
 ## Owns
 

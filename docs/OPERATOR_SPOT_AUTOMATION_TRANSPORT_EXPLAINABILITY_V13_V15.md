@@ -3,10 +3,31 @@
 Goal:
 `operator_spot_automation_transport_explainability_and_successor_proof_v13_v15`.
 
-Status: implementation complete and validation in progress. No V13-V15
-network-readiness probe, Coinbase eligibility read, Preview, Create, or Cancel
-has run. All V13-V15 allowances and the separate 10-cycle budget remain
-unconsumed.
+Status: terminal after V13. Validation, installed deployment checks,
+independent safety audit, and blind-contextless audit passed. V13 is terminal
+at `TRANSPORT_UNKNOWN` after one successful no-HTTP DNS/TCP/TLS sequence, one
+cycle, eight exact eligibility reads, and one consumed Preview allowance with
+exact wire count withheld. Create and Cancel remain unconsumed. V14/V15 remain
+unused and fail-closed because no official-documentation-backed correction
+exists.
+
+## Terminal diagnosis
+
+The durable value-blind result proves that request composition completed and
+that no response status or response schema was available for classification.
+The readiness sequence separately proved one DNS resolution, TCP connection,
+and TLS handshake immediately before the eight approved reads. It does not
+prove the later authenticated HTTP exchange.
+
+The pinned SDK passes Preview directly to one bounded Requests call. Official
+Requests documentation deliberately groups DNS failure, refused connection,
+and related network problems under generic `ConnectionError`; its documented
+type alone cannot prove a narrower boundary. No exception message, nested
+text, response body, raw response, private identifier, or raw Preview identity
+was inspected or persisted. Therefore V13 is not reinterpreted and V14/V15
+cannot be justified as corrected successors. The goal stops with 1/10 cycles,
+one readiness sequence, eight exact eligibility reads, one consumed V13
+Preview allowance, and zero Create/Cancel calls.
 
 ## Preserved predecessor boundary
 

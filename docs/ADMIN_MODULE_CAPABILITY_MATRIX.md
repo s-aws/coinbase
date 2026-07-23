@@ -2,10 +2,12 @@
 
 Current bounded proof goal
 `operator_spot_automation_transport_explainability_and_successor_proof_v13_v15`
-is implementation-complete and validation-pending. The Automation module owns
-fixed prospective Preview transport classification, a separate V13-V15
-PostgreSQL ledger, and one no-HTTP DNS/TCP/TLS readiness sequence. No V13-V15
-external operation has run; V14/V15 require a reviewed documented correction.
+passed validation, deployment checks, and both audits. The Automation module
+owns fixed Preview transport classification and a no-HTTP DNS/TCP/TLS readiness
+sequence. V13 is terminal at `TRANSPORT_UNKNOWN` after eight exact eligibility
+reads and one consumed Preview allowance with exact wire count withheld.
+Create and Cancel remain unconsumed. V14/V15 remain unused because no documented
+correction exists.
 
 This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the

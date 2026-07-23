@@ -6,13 +6,15 @@ Goal
 `operator_spot_automation_transport_explainability_and_successor_proof_v13_v15`
 implements prospective value-blind Preview transport classification, a
 separate durable V13-V15 ten-cycle ledger, and one DNS/TCP/TLS readiness
-sequence that sends no HTTP bytes. Status: implementation complete and
-validation in progress; V13-V15 probes, eligibility reads, Preview, Create,
-and Cancel have not run. V14/V15 remain backend-blocked without a reviewed
-official-documentation-backed correction. See
+sequence that sends no HTTP bytes. Validation, deployment, and both audits
+passed. V13 is terminal at `TRANSPORT_UNKNOWN` after one successful no-HTTP
+DNS/TCP/TLS sequence, one eight-category cycle, eight exact eligibility reads,
+and one consumed Preview allowance with exact wire count withheld. Create and
+Cancel remain unconsumed. V14/V15 remain unused because official Coinbase,
+SDK, and Requests documentation establishes no concrete correction for the
+generic connection boundary. See
 [`docs/OPERATOR_SPOT_AUTOMATION_TRANSPORT_EXPLAINABILITY_V13_V15.md`](docs/OPERATOR_SPOT_AUTOMATION_TRANSPORT_EXPLAINABILITY_V13_V15.md).
-Current action:
-`validate_transport_boundary_then_execute_one_authorized_v13_successor_proof`.
+Current action: `close_v13_transport_unknown_v14_v15_unused`.
 
 Completed predecessor goal
 `operator_spot_automation_atomic_market_snapshot_binding_and_successor_proof_v10_v12`
