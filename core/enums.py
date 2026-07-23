@@ -99,6 +99,35 @@ class SpotRecoveryAction(str, Enum):
     CANCEL = "CANCEL"
 
 
+class FillInventoryRepairSelectorType(str, Enum):
+    """Backend-owned selector for one bounded fill-catalog repair case."""
+
+    EXACT_ORDER = "EXACT_ORDER"
+    PRODUCT = "PRODUCT"
+    TIME_WINDOW = "TIME_WINDOW"
+
+
+class FillInventoryRepairCaseState(str, Enum):
+    """Durable lifecycle for a fill-ledger and inventory repair case."""
+
+    OPEN = "OPEN"
+    REFRESHING = "REFRESHING"
+    PLAN_READY = "PLAN_READY"
+    APPLYING = "APPLYING"
+    APPLIED = "APPLIED"
+    ROLLING_BACK = "ROLLING_BACK"
+    ROLLED_BACK = "ROLLED_BACK"
+    BLOCKED = "BLOCKED"
+
+
+class FillInventoryRepairAction(str, Enum):
+    """Operator actions available for a fill and inventory repair case."""
+
+    REFRESH = "REFRESH"
+    APPLY = "APPLY"
+    ROLLBACK = "ROLLBACK"
+
+
 class StandingPriceLimitPolicy(str, Enum):
     """Named standing-limit policy applied at backend placement boundaries."""
 
@@ -240,6 +269,8 @@ class AdminApiPermission(str, Enum):
     SPOT_PNL_RECORD = "spot_pnl:record"
     SPOT_RECOVERY_EXECUTE = "spot_recovery:execute"
     SPOT_RECOVERY_RECORD = "spot_recovery:record"
+    SPOT_FILL_INVENTORY_REPAIR_EXECUTE = "spot_fill_inventory_repair:execute"
+    SPOT_FILL_INVENTORY_REPAIR_RECORD = "spot_fill_inventory_repair:record"
     STEALTH_EXCHANGE_TRUTH_RECORD = "stealth_exchange_truth:record"
     STEALTH_LIFECYCLE_WRITE_RECORD = "stealth_lifecycle_write:record"
     STEALTH_MUTATION_CLAIM_RECORD = "stealth_mutation_claim:record"
@@ -374,6 +405,7 @@ class AdminApiMutationFamilyType(str, Enum):
     SPOT_SWEEP_AUTOMATION = "spot_sweep_automation"
     SPOT_PNL_CHECKPOINT = "spot_pnl_checkpoint"
     SPOT_OPERATOR_RECOVERY_WORKFLOW = "spot_operator_recovery_workflow"
+    SPOT_FILL_INVENTORY_REPAIR = "spot_fill_inventory_repair"
     SPOT_RECOVERY_APPLY_EXECUTION = "spot_recovery_apply_execution"
     SPOT_RECOVERY_ROLLBACK_EXECUTION = "spot_recovery_rollback_execution"
     SPOT_RECOVERY_EXCHANGE_STATE_PROOF = "spot_recovery_exchange_state_proof"

@@ -1,11 +1,16 @@
 # Documentation Index
 
-Active independent Goal 1:
+Active independent Goal 2:
+[Operator Fill Ledger and Inventory Repair V1](OPERATOR_FILL_LEDGER_AND_INVENTORY_REPAIR_V1.md).
+Goal `operator_fill_ledger_and_inventory_repair_v1` provides the authenticated
+PostgreSQL workflow for one exact `client_order_id`, approved `BTC-USDC`
+product, or bounded time window; one no-retry logical fill catalog; immutable
+missing-fill and FIFO inventory projection; exact-batch apply; and exact-batch
+rollback. It grants no Coinbase order mutation.
+
+Completed independent Goal 1:
 [Operator Spot Recovery and Reconciliation V1](OPERATOR_SPOT_RECOVERY_AND_RECONCILIATION_V1.md).
-Goal `operator_spot_recovery_and_reconciliation_execution_v1` provides the
-PostgreSQL-backed exact-`client_order_id` recovery workflow, guarded local
-apply/rollback, and optional canonical active-orphan Cancel binding. It grants
-no Create or unrelated mutation authority.
+Its optional canonical active-orphan Cancel allowance remains unconsumed.
 
 Current operator goal:
 [Operator Spot Automation Transport Explainability V13-V15](OPERATOR_SPOT_AUTOMATION_TRANSPORT_EXPLAINABILITY_V13_V15.md).

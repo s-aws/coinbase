@@ -1167,6 +1167,46 @@ class CoinbaseRestClient:
         data = coinbase_sdk_response_to_dict(response)
         return data if isinstance(data, dict) else {}
 
+    def get_fills(
+        self,
+        *,
+        order_ids: Optional[List[str]] = None,
+        product_ids: Optional[List[str]] = None,
+        start_sequence_timestamp: Optional[str] = None,
+        end_sequence_timestamp: Optional[str] = None,
+        retail_portfolio_id: Optional[str] = None,
+        limit: Optional[int] = None,
+        cursor: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Invoke the pinned SDK List Fills method with exact wire names.
+
+        This is the canonical Admin API adapter. It preserves the approved
+        portfolio filter, hardens timeout/TLS/redirect behavior, performs one
+        SDK invocation, and returns only the SDK's normalized mapping.
+        """
+
+        kwargs: Dict[str, Any] = {}
+        if order_ids is not None:
+            kwargs["order_ids"] = order_ids
+        if product_ids is not None:
+            kwargs["product_ids"] = product_ids
+        if start_sequence_timestamp is not None:
+            kwargs["start_sequence_timestamp"] = start_sequence_timestamp
+        if end_sequence_timestamp is not None:
+            kwargs["end_sequence_timestamp"] = end_sequence_timestamp
+        if retail_portfolio_id is not None:
+            kwargs["retail_portfolio_id"] = retail_portfolio_id
+        if limit is not None:
+            kwargs["limit"] = limit
+        if cursor is not None:
+            kwargs["cursor"] = cursor
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
+        response = self._client.get_fills(**kwargs)
+        data = coinbase_sdk_response_to_dict(response)
+        if not isinstance(data, dict):
+            raise ValueError("coinbase_fill_catalog_response_invalid")
+        return data
+
     def list_fills(
         self,
         *,
@@ -1174,6 +1214,7 @@ class CoinbaseRestClient:
         product_id: Optional[str] = None,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
+        retail_portfolio_id: Optional[str] = None,
         cursor: Optional[str] = None,
         limit: int = 100,
     ) -> Dict[str, Any]:
@@ -1190,6 +1231,7 @@ class CoinbaseRestClient:
             product_id: Filter to one product (e.g. ``"BTC-USDC"``).
             start_date: ISO-8601 lower bound for ``trade_time``.
             end_date: ISO-8601 upper bound for ``trade_time``.
+            retail_portfolio_id: Exact Coinbase portfolio scope.
             cursor: Opaque pagination cursor returned by a prior call.
             limit: Page size; Coinbase caps at 100.
 
@@ -1219,11 +1261,12 @@ class CoinbaseRestClient:
             kwargs["start_sequence_timestamp"] = start_date
         if end_date is not None:
             kwargs["end_sequence_timestamp"] = end_date
+        if retail_portfolio_id is not None:
+            kwargs["retail_portfolio_id"] = retail_portfolio_id
         if cursor is not None:
             kwargs["cursor"] = cursor
 
-        response = self._client.get_fills(**kwargs)
-        return coinbase_sdk_response_to_dict(response)
+        return self.get_fills(**kwargs)
 
     def get_candles(
         self,

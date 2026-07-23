@@ -1,5 +1,9 @@
 # Operator Spot Recovery and Reconciliation V1
 
+This independent Goal 1 is complete. The active successor is
+`operator_fill_ledger_and_inventory_repair_v1`; it does not transfer or consume
+Goal 1's optional Cancel allowance.
+
 Goal: `operator_spot_recovery_and_reconciliation_execution_v1`
 
 This goal translates the useful recovery invariants from

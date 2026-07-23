@@ -709,6 +709,55 @@ def test_command_dependencies_do_not_read_coinbase_before_route_gates(
     assert client.calls == 0
 
 
+def test_command_dependencies_expose_the_canonical_fill_adapter_without_calling_it(
+    monkeypatch,
+) -> None:
+    from application.admin_api import command_runtime
+    from external.coinbase_client import CoinbaseRestClient
+
+    monkeypatch.setenv(command_runtime.LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
+    monkeypatch.setenv(command_runtime.SPOT_PORTFOLIO_ID_ENV, TEST_PORTFOLIO_ID)
+    monkeypatch.setattr(command_runtime, "rest_credentials_configured", lambda: True)
+    monkeypatch.setattr(
+        command_runtime,
+        "get_admin_api_order_root_registrar",
+        _ready_runtime_root_registrar,
+    )
+    monkeypatch.setattr(
+        command_runtime,
+        "get_admin_api_order_event_stream_publisher",
+        _ready_order_event_publisher,
+    )
+
+    class _Sdk:
+        session = None
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def get_fills(self, **_kwargs):
+            self.calls += 1
+            return {"fills": []}
+
+    sdk = _Sdk()
+    client = CoinbaseRestClient(sdk)  # type: ignore[arg-type]
+    monkeypatch.setattr(
+        command_runtime,
+        "load_admin_api_rest_client",
+        lambda: command_runtime.AdminApiRestClientBinding(
+            client=client,
+            available=True,
+        ),
+    )
+
+    dependencies = command_runtime.build_admin_api_command_dependencies()
+
+    assert dependencies.rest_client is client
+    assert callable(dependencies.rest_client.get_fills)
+    assert sdk.calls == 0
+
+
 def test_command_dependencies_fail_closed_without_embedded_root_registrar(
     monkeypatch,
 ) -> None:

@@ -1,14 +1,25 @@
 # Coinbase Trading Backend
 
-## Active independent Goal 1
+## Completed independent Goal 2
 
-Goal `operator_spot_recovery_and_reconciliation_execution_v1` provides a
-PostgreSQL-backed, authenticated recovery workflow for one exact system-owned
-`client_order_id`: bounded authoritative order/fill refresh, immutable plan,
-guarded local apply/rollback, and an optional one-use canonical Cancel binding
-for a proven zero-fill active orphan. It permits no Create or unrelated
-mutation. See
-[`docs/OPERATOR_SPOT_RECOVERY_AND_RECONCILIATION_V1.md`](docs/OPERATOR_SPOT_RECOVERY_AND_RECONCILIATION_V1.md).
+Goal `operator_fill_ledger_and_inventory_repair_v1` provides an authenticated
+PostgreSQL workflow for an operator-selected exact `client_order_id`,
+`BTC-USDC` product, or bounded time window. One explicit no-retry logical fill
+catalog produces an immutable missing-fill plan and FIFO inventory/cost-basis/
+P&L projection; the operator can apply and roll back the exact import batch.
+Exact ownership and scoped-ledger hashes plus a product advisory lock shared
+by every production fill writer prevent same-count substitution, stale
+projection restoration, saved prior-projection/provenance drift, and a
+concurrent writer commit across the repair boundary. It permits no Coinbase
+order mutation. See
+[`docs/OPERATOR_FILL_LEDGER_AND_INVENTORY_REPAIR_V1.md`](docs/OPERATOR_FILL_LEDGER_AND_INVENTORY_REPAIR_V1.md).
+Its canonical backend regression, complete frontend release gate, installed
+deployment checks, and independent safety plus blind-contextless audits pass.
+No Coinbase call ran and its ten-cycle fill-read allowance remains unconsumed.
+
+Completed independent Goal 1 is documented in
+[`docs/OPERATOR_SPOT_RECOVERY_AND_RECONCILIATION_V1.md`](docs/OPERATOR_SPOT_RECOVERY_AND_RECONCILIATION_V1.md);
+its optional exact-order Cancel allowance remains unconsumed.
 
 ## Current operator MVP
 

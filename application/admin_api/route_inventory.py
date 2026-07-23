@@ -1738,6 +1738,120 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="spot_operations",
+        surface="GET /api/v1/spot/fill-inventory-repair/cases",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not required; PostgreSQL case readback only",
+        caps="reports the independent goal-global ten-cycle fill-read budget",
+        audit="returns immutable sanitized import-batch events",
+        shared_method="list_operator_fill_inventory_repair_cases",
+        parity_test=(
+            "backend-paginated repair cases and FIFO inventory projections; "
+            "zero Coinbase reads or exchange mutations"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface="GET /api/v1/spot/fill-inventory-repair/cases/{case_id}",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not required; exact case readback only",
+        caps="one exact durable repair case",
+        audit="returns immutable sanitized import-batch events",
+        shared_method="get_operator_fill_inventory_repair_case",
+        parity_test=(
+            "exact PostgreSQL case and lot/P&L readback; zero Coinbase calls"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface="POST /api/v1/spot/fill-inventory-repair/cases",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.SPOT_FILL_INVENTORY_REPAIR_RECORD,
+        idempotency="required; exact payload replay only",
+        approval="explicit operator selector and reason required",
+        caps=(
+            "one exact system-owned order, approved BTC-USDC product, or "
+            "bounded 24-hour BTC-USDC window"
+        ),
+        audit="required actor and hashed reason evidence",
+        shared_method="create_operator_fill_inventory_repair_case",
+        parity_test=(
+            "binds one PostgreSQL case to the configured Test portfolio; "
+            "zero Coinbase calls"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface=(
+            "POST /api/v1/spot/fill-inventory-repair/cases/"
+            "{case_id}/refresh"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.SPOT_FILL_INVENTORY_REPAIR_EXECUTE,
+        idempotency="required; exact payload replay only",
+        approval="explicit manual live-read acknowledgement required",
+        caps=(
+            "maximum ten goal-global cycles across all repair cases; one "
+            "logical fill-catalog read per claimed cycle, required cursor "
+            "pages, and no page retry"
+        ),
+        audit=(
+            "required actor audit, fixed diagnostics, and exact logical/page "
+            "call accounting"
+        ),
+        shared_method="refresh_operator_fill_inventory_repair_case",
+        parity_test=(
+            "normalizes only allowlisted fill values, hashes all documented "
+            "exchange identity aliases, and builds one scoped immutable "
+            "import/projection plan; zero Coinbase order mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface=(
+            "POST /api/v1/spot/fill-inventory-repair/cases/{case_id}/apply"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.SPOT_FILL_INVENTORY_REPAIR_EXECUTE,
+        idempotency="required; exact payload replay only",
+        approval="explicit immutable-plan acknowledgement required",
+        caps="one exact missing-fill import batch and one BTC-USDC projection",
+        audit="required actor, hashed reason, and inserted-row count",
+        shared_method="apply_operator_fill_inventory_repair_case",
+        parity_test=(
+            "atomic PostgreSQL identity claims and reviewed-ledger baseline "
+            "checks import only missing fills and rebuild FIFO lots, cost "
+            "basis, fees, and operational P/L; zero Coinbase calls"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface=(
+            "POST /api/v1/spot/fill-inventory-repair/cases/"
+            "{case_id}/rollback"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.SPOT_FILL_INVENTORY_REPAIR_EXECUTE,
+        idempotency="required; exact payload replay only",
+        approval=(
+            "explicit exact-batch rollback acknowledgement and applied-plan "
+            "hash required"
+        ),
+        caps="deletes only rows linked to the selected import batch",
+        audit="required actor, hashed reason, and deleted-row count",
+        shared_method="rollback_operator_fill_inventory_repair_case",
+        parity_test=(
+            "atomic rollback verifies locked post-apply projection content/"
+            "hash and exact fill/alias ownership, rejects superseded state, "
+            "and restores the prior projection with its prior source "
+            "provenance; zero Coinbase calls"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
         surface="POST /api/v1/spot/recovery/apply-executions",
         action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
         permission=AdminApiPermission.SPOT_RECOVERY_EXECUTE,

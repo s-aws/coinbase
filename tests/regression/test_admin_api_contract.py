@@ -75300,7 +75300,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert enterprise_payload["mutation_taxonomy_count"] >= 10
     assert enterprise_payload["route_bound_mutation_taxonomy_count"] >= 8
     assert enterprise_payload["live_disabled_mutation_count"] >= 5
-    assert enterprise_payload["backend_contract_required_mutation_count"] >= 1
+    assert enterprise_payload["backend_contract_required_mutation_count"] == 0
     assert enterprise_payload["compatibility_mutation_count"] >= 3
     inventory_by_id = {
         item["workflow_id"]: item
@@ -75934,10 +75934,31 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         AdminApiFunctionalityWorkflowType.REPAIR.value
     )
     assert repair_inventory["exposure_status"] == (
-        AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED.value
+        AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED.value
     )
-    assert "Admin API repair mutation contract missing" in repair_inventory[
-        "blockers"
+    assert repair_inventory["support_status"] == (
+        AdminApiModuleSupportStatus.PLATFORM_READY.value
+    )
+    assert repair_inventory["admin_api_exposed"] is True
+    assert repair_inventory["frontend_exposed"] is True
+    assert repair_inventory["command_capable"] is True
+    assert repair_inventory["live_designated"] is False
+    assert repair_inventory["live_enabled"] is False
+    assert repair_inventory["blockers"] == []
+    assert repair_inventory["command_routes"] == [
+        "POST /api/v1/spot/fill-inventory-repair/cases",
+        (
+            "POST /api/v1/spot/fill-inventory-repair/cases/"
+            "{case_id}/refresh"
+        ),
+        (
+            "POST /api/v1/spot/fill-inventory-repair/cases/"
+            "{case_id}/apply"
+        ),
+        (
+            "POST /api/v1/spot/fill-inventory-repair/cases/"
+            "{case_id}/rollback"
+        ),
     ]
     spot_cancel_taxonomy = taxonomy_by_id["spot.order_cancel"]
     assert spot_cancel_taxonomy["mutation_family"] == (
@@ -76249,12 +76270,33 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "append-only local evidence" in futures_risk_proof_taxonomy["summary"]
     repair_taxonomy = taxonomy_by_id["audit.fill_ledger_repair_contract_required"]
     assert repair_taxonomy["mutation_family"] == (
-        AdminApiMutationFamilyType.FILL_LEDGER_REPAIR_CONTRACT_REQUIRED.value
+        AdminApiMutationFamilyType.SPOT_FILL_INVENTORY_REPAIR.value
     )
     assert repair_taxonomy["action_classes"] == ["local_state_mutation"]
-    assert repair_taxonomy["required_permissions"] == ["config:update"]
-    assert repair_taxonomy["command_surfaces"] == []
-    assert "preview/apply" in repair_taxonomy["frontend_boundary"]
+    assert set(repair_taxonomy["required_permissions"]) == {
+        "spot_fill_inventory_repair:record",
+        "spot_fill_inventory_repair:execute",
+    }
+    assert repair_taxonomy["command_surfaces"] == [
+        "POST /api/v1/spot/fill-inventory-repair/cases",
+        (
+            "POST /api/v1/spot/fill-inventory-repair/cases/"
+            "{case_id}/refresh"
+        ),
+        (
+            "POST /api/v1/spot/fill-inventory-repair/cases/"
+            "{case_id}/apply"
+        ),
+        (
+            "POST /api/v1/spot/fill-inventory-repair/cases/"
+            "{case_id}/rollback"
+        ),
+    ]
+    assert repair_taxonomy["blockers"] == []
+    assert repair_taxonomy["live_adapter_required"] is False
+    assert "generated backend authority" in repair_taxonomy[
+        "frontend_boundary"
+    ]
     legacy_taxonomy = taxonomy_by_id["legacy.dashboard_place"]
     assert legacy_taxonomy["exposure_status"] == (
         AdminApiFunctionalityExposureStatus.COMPATIBILITY_ONLY.value
@@ -76415,8 +76457,18 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "materialization/safe-closeout"
         in spot_module["command_routes"]
     )
-    assert spot_module["action_posture"]["read_route_count"] == 26
-    assert spot_module["action_posture"]["command_route_count"] == 23
+    assert (
+        "GET /api/v1/spot/fill-inventory-repair/cases"
+        in spot_module["read_routes"]
+    )
+    assert (
+        "GET /api/v1/spot/fill-inventory-repair/cases/{case_id}"
+        in spot_module["read_routes"]
+    )
+    for surface in repair_taxonomy["command_surfaces"]:
+        assert surface in spot_module["command_routes"]
+    assert spot_module["action_posture"]["read_route_count"] == 28
+    assert spot_module["action_posture"]["command_route_count"] == 27
     assert spot_module["action_posture"]["live_route_count"] == 7
     assert spot_module["action_posture"]["command_gap_count"] == 2
     admin_module = registry_by_id["admin_system_health"]

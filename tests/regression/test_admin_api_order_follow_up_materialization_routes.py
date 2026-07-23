@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 import pytest
 from fastapi.testclient import TestClient
 
-from api.v1.app import create_app
+from api.v1.app import app as admin_api_app, create_app
 from api.v1.routes import orders as order_routes
 from application.admin_api.models import (
     AdminOrderFollowUpMaterializationCancelResponse,
@@ -1343,7 +1343,8 @@ def test_materialization_openapi_uses_typed_durable_400_and_409_bodies(
     path: str,
     expected_schema: str,
 ) -> None:
-    operation = create_app().openapi()["paths"][path]["post"]
+    openapi_schema = admin_api_app.openapi()
+    operation = openapi_schema["paths"][path]["post"]
 
     for status_code in ("400", "409"):
         schema = operation["responses"][status_code]["content"][
@@ -1358,7 +1359,7 @@ def test_materialization_openapi_uses_typed_durable_400_and_409_bodies(
                 )
             },
         ]
-    error_schema = create_app().openapi()["components"]["schemas"][
+    error_schema = openapi_schema["components"]["schemas"][
         "AdminOrderFollowUpMaterializationErrorResponse"
     ]
     assert "current_request_activity" in error_schema["required"]

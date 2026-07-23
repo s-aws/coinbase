@@ -1,17 +1,31 @@
 # Maintainer Handoff
 
-## Active independent Goal 1 — Spot recovery
+## Completed independent Goal 2 — Fill ledger and inventory repair
 
-`operator_spot_recovery_and_reconciliation_execution_v1` adds the
-PostgreSQL-backed exact-`client_order_id` recovery case service, no-retry
-exact-order/fill refresh, immutable repair plans, guarded local
-apply/rollback, fixed audit readback, and an optional one-use binding into the
-canonical exact-order Cancel path. It grants no Create or unrelated mutation.
-Historical comparison references were
-`origin/prod:business/fill_reconciler.py`,
-`origin/prod:core/periodic_reconciler.py`, and
-`origin/prod:core/startup_reconciler.py`. See
-[`OPERATOR_SPOT_RECOVERY_AND_RECONCILIATION_V1.md`](OPERATOR_SPOT_RECOVERY_AND_RECONCILIATION_V1.md).
+`operator_fill_ledger_and_inventory_repair_v1` adds an authenticated
+PostgreSQL repair case service for one exact system-owned `client_order_id`,
+approved `BTC-USDC` product, or bounded time window. It durably claims one
+no-retry logical fill catalog per cycle, produces an immutable missing-fill
+plan and FIFO inventory/cost-basis/P&L projection, imports only missing hashed
+fill identities, and rolls back only the exact import batch. Exact fill/alias
+ownership and full scoped-ledger hashes are checked under the product advisory
+lock shared by every production fill writer; the saved pre-apply projection
+and its source case have one combined snapshot hash. Pre-binding legacy
+snapshots remain explicitly unverified and non-rollbackable rather than being
+trusted during migration. Public response and diagnostic evidence is
+fixed-allowlisted. Historical
+comparison references were `origin/prod:business/fill_ledger.py`,
+`origin/prod:business/position_lot.py`, and the fill pipeline in
+`origin/prod:core/order_engine.py`. See
+[`OPERATOR_FILL_LEDGER_AND_INVENTORY_REPAIR_V1.md`](OPERATOR_FILL_LEDGER_AND_INVENTORY_REPAIR_V1.md).
+Closeout passed backend canonical regression (`1,213 passed, 6 skipped`
+parallel; `747 passed, 150 skipped` serial), frontend full regression
+(`1,621/1,621`), Playwright (`20/20`), the canonical release and installed
+deployment gates, and both independent audits. No Coinbase call or exchange
+mutation ran; the ten-cycle fill-read allowance remains unconsumed.
+
+Independent Goal 1 Spot recovery is complete; its optional exact-order Cancel
+allowance remains unconsumed.
 
 ## Current V13-V15 transport-explainability goal
 

@@ -13284,6 +13284,594 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/fill-inventory-repair/cases:
+    get:
+      tags:
+      - operator-fill-inventory-repair
+      summary: List durable fill-ledger and inventory repair cases
+      operationId: list_operator_fill_inventory_repair_cases_api_v1_spot_fill_inventory_repair_cases_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFillInventoryRepairCaseListResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks fill repair read authority.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '404':
+          description: Fill and inventory repair case was not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - operator-fill-inventory-repair
+      summary: Create one bounded fill-ledger and inventory repair case
+      operationId: create_operator_fill_inventory_repair_case_api_v1_spot_fill_inventory_repair_cases_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorFillInventoryRepairCaseCreateRequest'
+      responses:
+        '200':
+          description: Repair action accepted or idempotently replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFillInventoryRepairCaseResponse'
+        '400':
+          description: Repair action rejected before an authorized side effect.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFillInventoryRepairCaseResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks fill repair read authority.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Repair revision or idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFillInventoryRepairCaseResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/fill-inventory-repair/cases/{case_id}:
+    get:
+      tags:
+      - operator-fill-inventory-repair
+      summary: Read one durable fill-ledger and inventory repair case
+      operationId: get_operator_fill_inventory_repair_case_api_v1_spot_fill_inventory_repair_cases__case_id__get
+      parameters:
+      - name: case_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 36
+          maxLength: 36
+          title: Case Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFillInventoryRepairCaseResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks fill repair read authority.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '404':
+          description: Fill and inventory repair case was not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/fill-inventory-repair/cases/{case_id}/refresh:
+    post:
+      tags:
+      - operator-fill-inventory-repair
+      summary: Read one bounded no-retry Coinbase fill catalog
+      operationId: refresh_operator_fill_inventory_repair_case_api_v1_spot_fill_inventory_repair_cases__case_id__refresh_post
+      parameters:
+      - name: case_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 36
+          maxLength: 36
+          title: Case Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorFillInventoryRepairRefreshRequest'
+      responses:
+        '200':
+          description: Repair action accepted or idempotently replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFillInventoryRepairCaseResponse'
+        '400':
+          description: Repair action rejected before an authorized side effect.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFillInventoryRepairCaseResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks fill repair read authority.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Repair revision or idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFillInventoryRepairCaseResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/fill-inventory-repair/cases/{case_id}/apply:
+    post:
+      tags:
+      - operator-fill-inventory-repair
+      summary: Apply one reviewed local missing-fill import batch
+      operationId: apply_operator_fill_inventory_repair_case_api_v1_spot_fill_inventory_repair_cases__case_id__apply_post
+      parameters:
+      - name: case_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 36
+          maxLength: 36
+          title: Case Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorFillInventoryRepairLocalActionRequest'
+      responses:
+        '200':
+          description: Repair action accepted or idempotently replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFillInventoryRepairCaseResponse'
+        '400':
+          description: Repair action rejected before an authorized side effect.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFillInventoryRepairCaseResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks fill repair read authority.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Repair revision or idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFillInventoryRepairCaseResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/fill-inventory-repair/cases/{case_id}/rollback:
+    post:
+      tags:
+      - operator-fill-inventory-repair
+      summary: Roll back the exact applied local import batch
+      operationId: rollback_operator_fill_inventory_repair_case_api_v1_spot_fill_inventory_repair_cases__case_id__rollback_post
+      parameters:
+      - name: case_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 36
+          maxLength: 36
+          title: Case Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorFillInventoryRepairLocalActionRequest'
+      responses:
+        '200':
+          description: Repair action accepted or idempotently replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFillInventoryRepairCaseResponse'
+        '400':
+          description: Repair action rejected before an authorized side effect.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFillInventoryRepairCaseResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks fill repair read authority.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Repair revision or idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFillInventoryRepairCaseResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/spot/readiness:
     get:
       tags:
@@ -19667,6 +20255,7 @@ components:
       - spot_sweep_automation
       - spot_pnl_checkpoint
       - spot_operator_recovery_workflow
+      - spot_fill_inventory_repair
       - spot_recovery_apply_execution
       - spot_recovery_rollback_execution
       - spot_recovery_exchange_state_proof
@@ -19734,6 +20323,8 @@ components:
       - spot_pnl:record
       - spot_recovery:execute
       - spot_recovery:record
+      - spot_fill_inventory_repair:execute
+      - spot_fill_inventory_repair:record
       - stealth_exchange_truth:record
       - stealth_lifecycle_write:record
       - stealth_mutation_claim:record
@@ -152878,6 +153469,116 @@ components:
         \  |    no      |     no        |       no        |    no     |\n\n\"Soft\
         \ pause\" -- pause stops *originating* new orders but keeps WS, fills,\nand\
         \ cancellations active so existing positions remain manageable."
+    FillInventoryLotProjection:
+      properties:
+        lot_identity_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Lot Identity Sha256
+        product_id:
+          type: string
+          pattern: ^BTC-USDC$
+          title: Product Id
+        remaining_quantity:
+          type: string
+          title: Remaining Quantity
+        unit_cost_basis:
+          type: string
+          title: Unit Cost Basis
+        remaining_cost_basis:
+          type: string
+          title: Remaining Cost Basis
+        acquired_at:
+          type: string
+          format: date-time
+          title: Acquired At
+      additionalProperties: false
+      type: object
+      required:
+      - lot_identity_sha256
+      - product_id
+      - remaining_quantity
+      - unit_cost_basis
+      - remaining_cost_basis
+      - acquired_at
+      title: FillInventoryLotProjection
+      description: Rebuilt open FIFO inventory lot.
+    FillInventoryProductProjection:
+      properties:
+        product_id:
+          type: string
+          pattern: ^BTC-USDC$
+          title: Product Id
+        fill_count:
+          type: integer
+          minimum: 0.0
+          title: Fill Count
+        open_lot_count:
+          type: integer
+          minimum: 0.0
+          title: Open Lot Count
+        open_quantity:
+          type: string
+          title: Open Quantity
+        average_cost_basis:
+          type: string
+          title: Average Cost Basis
+        remaining_cost_basis:
+          type: string
+          title: Remaining Cost Basis
+        realized_operational_pnl:
+          type: string
+          title: Realized Operational Pnl
+        total_fees:
+          type: string
+          title: Total Fees
+        lots:
+          items:
+            $ref: '#/components/schemas/FillInventoryLotProjection'
+          type: array
+          title: Lots
+      additionalProperties: false
+      type: object
+      required:
+      - product_id
+      - fill_count
+      - open_lot_count
+      - open_quantity
+      - average_cost_basis
+      - remaining_cost_basis
+      - realized_operational_pnl
+      - total_fees
+      title: FillInventoryProductProjection
+      description: Backend-derived inventory, cost basis, fee, and realized P/L readback.
+    FillInventoryRepairAction:
+      type: string
+      enum:
+      - REFRESH
+      - APPLY
+      - ROLLBACK
+      title: FillInventoryRepairAction
+      description: Operator actions available for a fill and inventory repair case.
+    FillInventoryRepairCaseState:
+      type: string
+      enum:
+      - OPEN
+      - REFRESHING
+      - PLAN_READY
+      - APPLYING
+      - APPLIED
+      - ROLLING_BACK
+      - ROLLED_BACK
+      - BLOCKED
+      title: FillInventoryRepairCaseState
+      description: Durable lifecycle for a fill-ledger and inventory repair case.
+    FillInventoryRepairSelectorType:
+      type: string
+      enum:
+      - EXACT_ORDER
+      - PRODUCT
+      - TIME_WINDOW
+      title: FillInventoryRepairSelectorType
+      description: Backend-owned selector for one bounded fill-catalog repair case.
     FollowUpExchangeMutationState:
       type: string
       enum:
@@ -153858,6 +154559,457 @@ components:
       - INTERVAL_REVIEW_ONLY
       title: OperatorAutomationScheduleKind
       description: Review-only schedule types supported by the v1 control plane.
+    OperatorFillInventoryRepairCaseCreateRequest:
+      properties:
+        selector_type:
+          $ref: '#/components/schemas/FillInventoryRepairSelectorType'
+        client_order_id:
+          anyOf:
+          - type: string
+            maxLength: 36
+            minLength: 36
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          - type: 'null'
+          title: Client Order Id
+        product_id:
+          anyOf:
+          - type: string
+            maxLength: 255
+            minLength: 1
+          - type: 'null'
+          title: Product Id
+        window_start:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Window Start
+        window_end:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Window End
+        operator_reason:
+          type: string
+          maxLength: 240
+          minLength: 1
+          title: Operator Reason
+      additionalProperties: false
+      type: object
+      required:
+      - selector_type
+      - operator_reason
+      title: OperatorFillInventoryRepairCaseCreateRequest
+      description: Create a bounded operator-selected fill and inventory repair case.
+    OperatorFillInventoryRepairCaseItem:
+      properties:
+        case_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Case Id
+        selector_type:
+          $ref: '#/components/schemas/FillInventoryRepairSelectorType'
+        client_order_id:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          - type: 'null'
+          title: Client Order Id
+        product_id:
+          type: string
+          pattern: ^BTC-USDC$
+          title: Product Id
+        window_start:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Window Start
+        window_end:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Window End
+        state:
+          $ref: '#/components/schemas/FillInventoryRepairCaseState'
+        revision:
+          type: integer
+          minimum: 1.0
+          title: Revision
+        cycle_count:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: Cycle Count
+        goal_cycle_count:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: Goal Cycle Count
+        goal_cycle_limit:
+          type: integer
+          maximum: 10.0
+          minimum: 10.0
+          title: Goal Cycle Limit
+          default: 10
+        goal_fill_read_logical_count:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: Goal Fill Read Logical Count
+        goal_fill_read_page_count:
+          type: integer
+          minimum: 0.0
+          title: Goal Fill Read Page Count
+        fill_read_logical_count:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: Fill Read Logical Count
+        fill_read_page_count:
+          type: integer
+          minimum: 0.0
+          title: Fill Read Page Count
+        last_cycle_fill_read_page_count:
+          type: integer
+          maximum: 200.0
+          minimum: 0.0
+          title: Last Cycle Fill Read Page Count
+        last_refresh_coinbase_read_state:
+          type: string
+          pattern: ^(NOT_RUN|RETURNED|UNKNOWN_AFTER_PAGE_CLAIM)$
+          title: Last Refresh Coinbase Read State
+        catalog_fill_count:
+          type: integer
+          minimum: 0.0
+          title: Catalog Fill Count
+        missing_fill_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Fill Count
+        existing_fill_count:
+          type: integer
+          minimum: 0.0
+          title: Existing Fill Count
+        unmatched_fill_count:
+          type: integer
+          minimum: 0.0
+          title: Unmatched Fill Count
+        affected_product_count:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Affected Product Count
+        imported_fill_count:
+          type: integer
+          minimum: 0.0
+          title: Imported Fill Count
+        rolled_back_fill_count:
+          type: integer
+          minimum: 0.0
+          title: Rolled Back Fill Count
+        plan:
+          anyOf:
+          - $ref: '#/components/schemas/OperatorFillInventoryRepairPlanItem'
+          - type: 'null'
+        diagnostic_code:
+          type: string
+          pattern: ^(?:apply_operator_fill_inventory_repair_case_accepted|create_operator_fill_inventory_repair_case_accepted|fill_inventory_apply_acknowledgement_required|fill_inventory_apply_baseline_changed|fill_inventory_apply_conflict|fill_inventory_apply_existing_projection_invalid|fill_inventory_apply_identity_alias_conflict|fill_inventory_apply_identity_conflict|fill_inventory_apply_not_available|fill_inventory_apply_ownership_mismatch|fill_inventory_apply_plan_required|fill_inventory_apply_projection_changed|fill_inventory_case_conflict|fill_inventory_case_created|fill_inventory_case_not_found|fill_inventory_catalog_call_failed|fill_inventory_catalog_client_order_mismatch|fill_inventory_catalog_duplicate_identity|fill_inventory_catalog_fee_invalid|fill_inventory_catalog_identity_invalid|fill_inventory_catalog_normalization_failed|fill_inventory_catalog_order_mismatch|fill_inventory_catalog_schema_invalid|fill_inventory_catalog_scope_mismatch|fill_inventory_catalog_side_invalid|fill_inventory_catalog_size_mode_invalid|fill_inventory_catalog_time_invalid|fill_inventory_catalog_unavailable|fill_inventory_catalog_unknown|fill_inventory_catalog_value_invalid|fill_inventory_catalog_window_mismatch|fill_inventory_cursor_invalid|fill_inventory_cursor_missing|fill_inventory_cursor_repeated|fill_inventory_cycles_exhausted|fill_inventory_fee_invalid|fill_inventory_goal_cycles_exhausted|fill_inventory_idempotency_conflict|fill_inventory_identity_aliases_invalid|fill_inventory_import_applied|fill_inventory_import_rolled_back|fill_inventory_internal_failure|fill_inventory_negative_inventory|fill_inventory_order_not_eligible|fill_inventory_order_not_found|fill_inventory_page_accounting_mismatch|fill_inventory_page_claim_conflict|fill_inventory_page_claim_sequence_invalid|fill_inventory_page_cursor_hash_invalid|fill_inventory_page_ordinal_invalid|fill_inventory_page_return_conflict|fill_inventory_page_return_incomplete|fill_inventory_pagination_incomplete|fill_inventory_pagination_limit_invalid|fill_inventory_plan_binding_invalid|fill_inventory_plan_ready|fill_inventory_plan_unknown|fill_inventory_portfolio_binding_stale|fill_inventory_portfolio_not_configured|fill_inventory_product_mismatch|fill_inventory_product_not_approved|fill_inventory_refresh_acknowledgement_required|fill_inventory_refresh_claimed|fill_inventory_refresh_failed|fill_inventory_refresh_interrupted_before_call|fill_inventory_refresh_interrupted_returned|fill_inventory_refresh_interrupted_unknown|fill_inventory_refresh_not_available|fill_inventory_refresh_not_claimed|fill_inventory_repository_row_count_invalid|fill_inventory_rest_client_unavailable|fill_inventory_revision_conflict|fill_inventory_rollback_acknowledgement_required|fill_inventory_rollback_alias_count_mismatch|fill_inventory_rollback_alias_ownership_mismatch|fill_inventory_rollback_already_complete|fill_inventory_rollback_baseline_changed|fill_inventory_rollback_conflict|fill_inventory_rollback_fill_count_mismatch|fill_inventory_rollback_fill_ownership_mismatch|fill_inventory_rollback_ledger_changed|fill_inventory_rollback_plan_required|fill_inventory_rollback_prior_projection_changed|fill_inventory_rollback_prior_projection_unverified|fill_inventory_rollback_provenance_missing|fill_inventory_rollback_superseded|fill_inventory_schema_invalid|fill_inventory_selector_invalid|fill_inventory_storage_precision_invalid|fill_inventory_timestamp_invalid|fill_inventory_unmatched_system_order|fill_inventory_value_invalid|fill_inventory_window_invalid|fill_inventory_window_too_wide|operator_fill_inventory_repair_case_loaded|refresh_operator_fill_inventory_repair_case_accepted|rollback_operator_fill_inventory_repair_case_accepted)$
+          title: Diagnostic Code
+        portfolio_binding_verified:
+          type: boolean
+          title: Portfolio Binding Verified
+        allowed_actions:
+          items:
+            $ref: '#/components/schemas/FillInventoryRepairAction'
+          type: array
+          title: Allowed Actions
+        correlation_id:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Correlation Id
+        created_at:
+          type: string
+          title: Created At
+        updated_at:
+          type: string
+          title: Updated At
+        events:
+          items:
+            $ref: '#/components/schemas/OperatorFillInventoryRepairEventItem'
+          type: array
+          title: Events
+      additionalProperties: false
+      type: object
+      required:
+      - case_id
+      - selector_type
+      - product_id
+      - state
+      - revision
+      - cycle_count
+      - goal_cycle_count
+      - goal_fill_read_logical_count
+      - goal_fill_read_page_count
+      - fill_read_logical_count
+      - fill_read_page_count
+      - last_cycle_fill_read_page_count
+      - last_refresh_coinbase_read_state
+      - catalog_fill_count
+      - missing_fill_count
+      - existing_fill_count
+      - unmatched_fill_count
+      - affected_product_count
+      - imported_fill_count
+      - rolled_back_fill_count
+      - diagnostic_code
+      - portfolio_binding_verified
+      - correlation_id
+      - created_at
+      - updated_at
+      title: OperatorFillInventoryRepairCaseItem
+      description: Normal operator readback for one durable repair case.
+    OperatorFillInventoryRepairCaseListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/OperatorFillInventoryRepairCaseItem'
+          type: array
+          title: Items
+        total_count:
+          type: integer
+          minimum: 0.0
+          title: Total Count
+        returned_count:
+          type: integer
+          minimum: 0.0
+          title: Returned Count
+        limit:
+          type: integer
+          maximum: 100.0
+          minimum: 1.0
+          title: Limit
+        offset:
+          type: integer
+          minimum: 0.0
+          title: Offset
+        next_offset:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Next Offset
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      - total_count
+      - returned_count
+      - limit
+      - offset
+      title: OperatorFillInventoryRepairCaseListResponse
+      description: Paginated repair-case list.
+    OperatorFillInventoryRepairCaseResponse:
+      properties:
+        status:
+          $ref: '#/components/schemas/AdminApiCommandStatus'
+        required_permission:
+          $ref: '#/components/schemas/AdminApiPermission'
+        service_method:
+          type: string
+          pattern: ^(?:apply_operator_fill_inventory_repair_case|create_operator_fill_inventory_repair_case|get_operator_fill_inventory_repair_case|refresh_operator_fill_inventory_repair_case|rollback_operator_fill_inventory_repair_case)$
+          title: Service Method
+        message:
+          type: string
+          pattern: ^(?:apply_operator_fill_inventory_repair_case_accepted|create_operator_fill_inventory_repair_case_accepted|fill_inventory_apply_acknowledgement_required|fill_inventory_apply_baseline_changed|fill_inventory_apply_conflict|fill_inventory_apply_existing_projection_invalid|fill_inventory_apply_identity_alias_conflict|fill_inventory_apply_identity_conflict|fill_inventory_apply_not_available|fill_inventory_apply_ownership_mismatch|fill_inventory_apply_plan_required|fill_inventory_apply_projection_changed|fill_inventory_case_conflict|fill_inventory_case_created|fill_inventory_case_not_found|fill_inventory_catalog_call_failed|fill_inventory_catalog_client_order_mismatch|fill_inventory_catalog_duplicate_identity|fill_inventory_catalog_fee_invalid|fill_inventory_catalog_identity_invalid|fill_inventory_catalog_normalization_failed|fill_inventory_catalog_order_mismatch|fill_inventory_catalog_schema_invalid|fill_inventory_catalog_scope_mismatch|fill_inventory_catalog_side_invalid|fill_inventory_catalog_size_mode_invalid|fill_inventory_catalog_time_invalid|fill_inventory_catalog_unavailable|fill_inventory_catalog_unknown|fill_inventory_catalog_value_invalid|fill_inventory_catalog_window_mismatch|fill_inventory_cursor_invalid|fill_inventory_cursor_missing|fill_inventory_cursor_repeated|fill_inventory_cycles_exhausted|fill_inventory_fee_invalid|fill_inventory_goal_cycles_exhausted|fill_inventory_idempotency_conflict|fill_inventory_identity_aliases_invalid|fill_inventory_import_applied|fill_inventory_import_rolled_back|fill_inventory_internal_failure|fill_inventory_negative_inventory|fill_inventory_order_not_eligible|fill_inventory_order_not_found|fill_inventory_page_accounting_mismatch|fill_inventory_page_claim_conflict|fill_inventory_page_claim_sequence_invalid|fill_inventory_page_cursor_hash_invalid|fill_inventory_page_ordinal_invalid|fill_inventory_page_return_conflict|fill_inventory_page_return_incomplete|fill_inventory_pagination_incomplete|fill_inventory_pagination_limit_invalid|fill_inventory_plan_binding_invalid|fill_inventory_plan_ready|fill_inventory_plan_unknown|fill_inventory_portfolio_binding_stale|fill_inventory_portfolio_not_configured|fill_inventory_product_mismatch|fill_inventory_product_not_approved|fill_inventory_refresh_acknowledgement_required|fill_inventory_refresh_claimed|fill_inventory_refresh_failed|fill_inventory_refresh_interrupted_before_call|fill_inventory_refresh_interrupted_returned|fill_inventory_refresh_interrupted_unknown|fill_inventory_refresh_not_available|fill_inventory_refresh_not_claimed|fill_inventory_repository_row_count_invalid|fill_inventory_rest_client_unavailable|fill_inventory_revision_conflict|fill_inventory_rollback_acknowledgement_required|fill_inventory_rollback_alias_count_mismatch|fill_inventory_rollback_alias_ownership_mismatch|fill_inventory_rollback_already_complete|fill_inventory_rollback_baseline_changed|fill_inventory_rollback_conflict|fill_inventory_rollback_fill_count_mismatch|fill_inventory_rollback_fill_ownership_mismatch|fill_inventory_rollback_ledger_changed|fill_inventory_rollback_plan_required|fill_inventory_rollback_prior_projection_changed|fill_inventory_rollback_prior_projection_unverified|fill_inventory_rollback_provenance_missing|fill_inventory_rollback_superseded|fill_inventory_schema_invalid|fill_inventory_selector_invalid|fill_inventory_storage_precision_invalid|fill_inventory_timestamp_invalid|fill_inventory_unmatched_system_order|fill_inventory_value_invalid|fill_inventory_window_invalid|fill_inventory_window_too_wide|operator_fill_inventory_repair_case_loaded|refresh_operator_fill_inventory_repair_case_accepted|rollback_operator_fill_inventory_repair_case_accepted)$
+          title: Message
+        case:
+          anyOf:
+          - $ref: '#/components/schemas/OperatorFillInventoryRepairCaseItem'
+          - type: 'null'
+        audit_id:
+          anyOf:
+          - type: string
+            pattern: ^[A-Za-z0-9._:-]{1,255}$
+          - type: 'null'
+          title: Audit Id
+        correlation_id:
+          anyOf:
+          - type: string
+            pattern: ^[A-Za-z0-9._:-]{1,255}$
+          - type: 'null'
+          title: Correlation Id
+        idempotency_key:
+          anyOf:
+          - type: string
+            pattern: ^[A-Za-z0-9._:-]{1,255}$
+          - type: 'null'
+          title: Idempotency Key
+        replayed:
+          type: boolean
+          title: Replayed
+          default: false
+        live_coinbase_read_ran:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Live Coinbase Read Ran
+          default: false
+        coinbase_read_state:
+          type: string
+          pattern: ^(NOT_RUN|RETURNED|UNKNOWN_AFTER_PAGE_CLAIM)$
+          title: Coinbase Read State
+          default: NOT_RUN
+        live_coinbase_order_mutation_ran:
+          type: boolean
+          title: Live Coinbase Order Mutation Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - required_permission
+      - service_method
+      - message
+      title: OperatorFillInventoryRepairCaseResponse
+      description: Mutation/read response for one repair case.
+    OperatorFillInventoryRepairEventItem:
+      properties:
+        event_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Event Id
+        case_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Case Id
+        event_type:
+          type: string
+          title: Event Type
+        actor_id:
+          type: string
+          const: withheld
+          title: Actor Id
+        correlation_id:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Correlation Id
+        evidence:
+          additionalProperties: true
+          type: object
+          title: Evidence
+        recorded_at:
+          type: string
+          title: Recorded At
+      additionalProperties: false
+      type: object
+      required:
+      - event_id
+      - case_id
+      - event_type
+      - actor_id
+      - correlation_id
+      - recorded_at
+      title: OperatorFillInventoryRepairEventItem
+      description: Fixed sanitized audit event for one repair case.
+    OperatorFillInventoryRepairLocalActionRequest:
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 1.0
+          title: Expected Revision
+        plan_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Plan Sha256
+        operator_reason:
+          type: string
+          maxLength: 240
+          minLength: 1
+          title: Operator Reason
+        operator_acknowledgement:
+          type: boolean
+          title: Operator Acknowledgement
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - expected_revision
+      - operator_reason
+      title: OperatorFillInventoryRepairLocalActionRequest
+      description: Explicit consent for one reviewed local apply or rollback.
+    OperatorFillInventoryRepairPlanItem:
+      properties:
+        selector_type:
+          $ref: '#/components/schemas/FillInventoryRepairSelectorType'
+        catalog_fill_count:
+          type: integer
+          minimum: 0.0
+          title: Catalog Fill Count
+        missing_fill_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Fill Count
+        existing_fill_count:
+          type: integer
+          minimum: 0.0
+          title: Existing Fill Count
+        unmatched_fill_count:
+          type: integer
+          minimum: 0.0
+          title: Unmatched Fill Count
+        affected_product_count:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Affected Product Count
+        apply_available:
+          type: boolean
+          title: Apply Available
+        projection:
+          anyOf:
+          - $ref: '#/components/schemas/FillInventoryProductProjection'
+          - type: 'null'
+        diagnostic_code:
+          type: string
+          pattern: ^(?:apply_operator_fill_inventory_repair_case_accepted|create_operator_fill_inventory_repair_case_accepted|fill_inventory_apply_acknowledgement_required|fill_inventory_apply_baseline_changed|fill_inventory_apply_conflict|fill_inventory_apply_existing_projection_invalid|fill_inventory_apply_identity_alias_conflict|fill_inventory_apply_identity_conflict|fill_inventory_apply_not_available|fill_inventory_apply_ownership_mismatch|fill_inventory_apply_plan_required|fill_inventory_apply_projection_changed|fill_inventory_case_conflict|fill_inventory_case_created|fill_inventory_case_not_found|fill_inventory_catalog_call_failed|fill_inventory_catalog_client_order_mismatch|fill_inventory_catalog_duplicate_identity|fill_inventory_catalog_fee_invalid|fill_inventory_catalog_identity_invalid|fill_inventory_catalog_normalization_failed|fill_inventory_catalog_order_mismatch|fill_inventory_catalog_schema_invalid|fill_inventory_catalog_scope_mismatch|fill_inventory_catalog_side_invalid|fill_inventory_catalog_size_mode_invalid|fill_inventory_catalog_time_invalid|fill_inventory_catalog_unavailable|fill_inventory_catalog_unknown|fill_inventory_catalog_value_invalid|fill_inventory_catalog_window_mismatch|fill_inventory_cursor_invalid|fill_inventory_cursor_missing|fill_inventory_cursor_repeated|fill_inventory_cycles_exhausted|fill_inventory_fee_invalid|fill_inventory_goal_cycles_exhausted|fill_inventory_idempotency_conflict|fill_inventory_identity_aliases_invalid|fill_inventory_import_applied|fill_inventory_import_rolled_back|fill_inventory_internal_failure|fill_inventory_negative_inventory|fill_inventory_order_not_eligible|fill_inventory_order_not_found|fill_inventory_page_accounting_mismatch|fill_inventory_page_claim_conflict|fill_inventory_page_claim_sequence_invalid|fill_inventory_page_cursor_hash_invalid|fill_inventory_page_ordinal_invalid|fill_inventory_page_return_conflict|fill_inventory_page_return_incomplete|fill_inventory_pagination_incomplete|fill_inventory_pagination_limit_invalid|fill_inventory_plan_binding_invalid|fill_inventory_plan_ready|fill_inventory_plan_unknown|fill_inventory_portfolio_binding_stale|fill_inventory_portfolio_not_configured|fill_inventory_product_mismatch|fill_inventory_product_not_approved|fill_inventory_refresh_acknowledgement_required|fill_inventory_refresh_claimed|fill_inventory_refresh_failed|fill_inventory_refresh_interrupted_before_call|fill_inventory_refresh_interrupted_returned|fill_inventory_refresh_interrupted_unknown|fill_inventory_refresh_not_available|fill_inventory_refresh_not_claimed|fill_inventory_repository_row_count_invalid|fill_inventory_rest_client_unavailable|fill_inventory_revision_conflict|fill_inventory_rollback_acknowledgement_required|fill_inventory_rollback_alias_count_mismatch|fill_inventory_rollback_alias_ownership_mismatch|fill_inventory_rollback_already_complete|fill_inventory_rollback_baseline_changed|fill_inventory_rollback_conflict|fill_inventory_rollback_fill_count_mismatch|fill_inventory_rollback_fill_ownership_mismatch|fill_inventory_rollback_ledger_changed|fill_inventory_rollback_plan_required|fill_inventory_rollback_prior_projection_changed|fill_inventory_rollback_prior_projection_unverified|fill_inventory_rollback_provenance_missing|fill_inventory_rollback_superseded|fill_inventory_schema_invalid|fill_inventory_selector_invalid|fill_inventory_storage_precision_invalid|fill_inventory_timestamp_invalid|fill_inventory_unmatched_system_order|fill_inventory_value_invalid|fill_inventory_window_invalid|fill_inventory_window_too_wide|operator_fill_inventory_repair_case_loaded|refresh_operator_fill_inventory_repair_case_accepted|rollback_operator_fill_inventory_repair_case_accepted)$
+          title: Diagnostic Code
+        plan_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Plan Sha256
+      additionalProperties: false
+      type: object
+      required:
+      - selector_type
+      - catalog_fill_count
+      - missing_fill_count
+      - existing_fill_count
+      - unmatched_fill_count
+      - affected_product_count
+      - apply_available
+      - diagnostic_code
+      - plan_sha256
+      title: OperatorFillInventoryRepairPlanItem
+      description: Sanitized plan readback; internal import candidates are withheld.
+    OperatorFillInventoryRepairRefreshRequest:
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 1.0
+          title: Expected Revision
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - expected_revision
+      title: OperatorFillInventoryRepairRefreshRequest
+      description: Explicit consent for one no-retry logical fill-catalog read.
     OperatorSpotRecoveryCaseCreateRequest:
       properties:
         client_order_id:

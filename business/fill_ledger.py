@@ -39,6 +39,7 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 from core.enums import OrderSide
 from logging_service import get_logger
+from database.fill_ledger_lock import fill_ledger_product_lock_key
 
 logger = get_logger("FillLedger")
 
@@ -192,15 +193,20 @@ class FillLedgerRepository:
         """
         try:
             query = """
+            WITH product_lock AS MATERIALIZED (
+                SELECT pg_advisory_xact_lock(hashtext(%s))
+            )
             INSERT INTO fill_ledger
             (derived_trade_key, exchange_trade_id, exchange_entry_id,
              instrument, side, quantity, price, timestamp, fees,
              commission_percentage, client_order_id, reconciliation_status)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            FROM product_lock
             ON CONFLICT (derived_trade_key) DO NOTHING
             """
 
             params = (
+                fill_ledger_product_lock_key(fill.instrument),
                 fill.derived_trade_key,
                 fill.exchange_trade_id,
                 fill.exchange_entry_id,

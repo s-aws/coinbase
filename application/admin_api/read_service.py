@@ -9950,36 +9950,70 @@ class AdminApiReadService:
             ),
             functionality_item(
                 workflow_id="audit.fill_ledger_repair_contract_required",
-                module_id="audit_workbench",
-                module="Audit Workbench",
+                module_id="spot_operations",
+                module="Spot Operations",
                 workflow_type=AdminApiFunctionalityWorkflowType.REPAIR,
-                exposure_status=AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED,
-                support_status=AdminApiModuleSupportStatus.NOT_MODELED,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
                 summary=(
-                    "Fill-ledger repair tools and planning evidence exist outside the "
-                    "enterprise Admin API mutation plane."
+                    "Authenticated operators can create, refresh, apply, and "
+                    "exactly roll back a PostgreSQL-backed BTC-USDC fill-ledger "
+                    "and FIFO inventory repair case. The stable workflow id is "
+                    "retained for compatibility."
                 ),
                 backend_supported=True,
-                admin_api_exposed=False,
-                frontend_exposed=False,
-                identity_keys=["client_order_id", "trade_id"],
-                backend_contract_refs=[
-                    "tools/run_spot_fill_ledger_repair.py",
-                    "business/fill_reconciler.py",
+                admin_api_exposed=True,
+                frontend_exposed=True,
+                command_capable=True,
+                live_designated=False,
+                live_enabled=False,
+                command_routes=[
+                    "POST /api/v1/spot/fill-inventory-repair/cases",
+                    (
+                        "POST /api/v1/spot/fill-inventory-repair/cases/"
+                        "{case_id}/refresh"
+                    ),
+                    (
+                        "POST /api/v1/spot/fill-inventory-repair/cases/"
+                        "{case_id}/apply"
+                    ),
+                    (
+                        "POST /api/v1/spot/fill-inventory-repair/cases/"
+                        "{case_id}/rollback"
+                    ),
                 ],
-                documentation_refs=["docs/SPOT_READINESS_ROADMAP.md"],
-                required_next_contract=(
-                    "Backend-owned repair command with RBAC, idempotency, audit, "
-                    "dry-run preview, and reconciliation proof."
-                ),
-                blockers=["Admin API repair mutation contract missing"],
+                identity_keys=[
+                    "case_id",
+                    "client_order_id",
+                    "product_id",
+                    "selector_sha256",
+                ],
+                backend_contract_refs=[
+                    "api/v1/routes/operator_fill_inventory_repair.py",
+                    "application/admin_api/operator_fill_inventory_repair.py",
+                    "database/operator_fill_inventory_repair.py",
+                ],
+                frontend_contract_refs=[
+                    (
+                        "src/features/operator-read-models/"
+                        "fill-inventory-repair/"
+                        "FillInventoryRepairWorkspace.tsx"
+                    ),
+                    "src/shared/api/contracts/backendApiClient.ts",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_FILL_LEDGER_AND_INVENTORY_REPAIR_V1.md",
+                ],
+                blockers=[],
                 frontend_boundary=(
-                    "Do not expose ledger repair buttons until the backend mutation "
-                    "contract exists."
+                    "Render generated backend authority and forward explicit "
+                    "operator intent only; do not infer fill ownership, repair "
+                    "eligibility, projection terms, or rollback safety."
                 ),
                 spot_rule_boundary=(
-                    "Current repair tooling is spot/fill-ledger oriented and must not "
-                    "be generalized to futures or stealth state mutation."
+                    "This workflow is restricted to the approved BTC-USDC Spot "
+                    "portfolio and must not be generalized to Futures, Stealth, "
+                    "movement, or unrelated products."
                 ),
             ),
             functionality_item(
@@ -14670,53 +14704,123 @@ class AdminApiReadService:
             mutation_taxonomy_item(
                 mutation_id="audit.fill_ledger_repair_contract_required",
                 mutation_family=(
-                    AdminApiMutationFamilyType.FILL_LEDGER_REPAIR_CONTRACT_REQUIRED
+                    AdminApiMutationFamilyType.SPOT_FILL_INVENTORY_REPAIR
                 ),
                 workflow_id="audit.fill_ledger_repair_contract_required",
-                module_id="audit_workbench",
-                module="Audit Workbench",
-                exposure_status=AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED,
-                support_status=AdminApiModuleSupportStatus.NOT_MODELED,
+                module_id="spot_operations",
+                module="Spot Operations",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
                 summary=(
-                    "Fill-ledger repair requires a backend-owned preview, apply, audit, "
-                    "and reconciliation contract before any admin repair control exists."
+                    "One routed operator workflow creates a durable repair case, "
+                    "claims bounded fill-catalog reads, applies an immutable "
+                    "missing-fill/FIFO projection plan, and rolls back only its "
+                    "exact import batch."
                 ),
-                identity_keys=["client_order_id", "trade_id", "audit_id"],
-                action_classes=[AdminApiActionClass.LOCAL_STATE_MUTATION],
-                required_permissions=[AdminApiPermission.CONFIG_UPDATE],
-                idempotency_contract="backend repair idempotency contract missing",
-                approval_contract="repair approval/preview contract missing",
-                cap_guard_contract="repair policy and blast-radius guard contract missing",
-                admission_audit_contract="append-only repair audit contract missing",
-                reconciliation_contract="repair reconciliation/proof contract missing",
-                owning_backend_service="backend fill-ledger repair service missing",
-                backend_contract_refs=[
-                    "tools/run_spot_fill_ledger_repair.py",
-                    "business/fill_reconciler.py",
+                command_surfaces=[
+                    "POST /api/v1/spot/fill-inventory-repair/cases",
+                    (
+                        "POST /api/v1/spot/fill-inventory-repair/cases/"
+                        "{case_id}/refresh"
+                    ),
+                    (
+                        "POST /api/v1/spot/fill-inventory-repair/cases/"
+                        "{case_id}/apply"
+                    ),
+                    (
+                        "POST /api/v1/spot/fill-inventory-repair/cases/"
+                        "{case_id}/rollback"
+                    ),
                 ],
-                documentation_refs=["docs/SPOT_READINESS_ROADMAP.md"],
-                required_next_contract=(
-                    "Backend repair command with dry-run preview, idempotency, RBAC, "
-                    "append-only audit, bounded apply, rollback/proof, and "
-                    "reconciliation evidence."
+                identity_keys=[
+                    "case_id",
+                    "client_order_id",
+                    "product_id",
+                    "selector_sha256",
+                    "plan_sha256",
+                    "audit_id",
+                ],
+                action_classes=[AdminApiActionClass.LOCAL_STATE_MUTATION],
+                required_permissions=[
+                    AdminApiPermission.SPOT_FILL_INVENTORY_REPAIR_RECORD,
+                    AdminApiPermission.SPOT_FILL_INVENTORY_REPAIR_EXECUTE,
+                ],
+                payload_binding_fields=[
+                    "endpoint",
+                    "actor",
+                    "operator_intent",
+                    "body",
+                    "case_id",
+                    "expected_revision",
+                    "plan_sha256",
+                ],
+                idempotency_contract=(
+                    "Every mutation binds one idempotency key to the exact "
+                    "actor, endpoint, intent, and payload; accepted replay is "
+                    "read-only and conflicting reuse is rejected."
                 ),
-                blockers=["Admin API repair mutation contract missing"],
+                approval_contract=(
+                    "Create requires an explicit selector/reason; refresh, apply, "
+                    "and rollback require action-specific operator acknowledgement."
+                ),
+                cap_guard_contract=(
+                    "The backend enforces BTC-USDC/Test-portfolio scope, a "
+                    "24-hour maximum window, ten goal-global refresh cycles, "
+                    "one logical fill catalog per cycle, and exact-batch rollback."
+                ),
+                admission_audit_contract=(
+                    "Each accepted or rejected command returns fixed sanitized "
+                    "audit, correlation, idempotency, call-accounting, and "
+                    "zero-order-mutation evidence."
+                ),
+                reconciliation_contract=(
+                    "Apply binds the reviewed ledger/projection and ownership "
+                    "hashes; rollback verifies exact post-apply state and restores "
+                    "only a cryptographically bound prior projection."
+                ),
+                owning_backend_service=(
+                    "application/admin_api/operator_fill_inventory_repair.py"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/operator_fill_inventory_repair.py",
+                    "application/admin_api/operator_fill_inventory_repair.py",
+                    "database/operator_fill_inventory_repair.py",
+                ],
+                frontend_contract_refs=[
+                    (
+                        "src/features/operator-read-models/"
+                        "fill-inventory-repair/"
+                        "FillInventoryRepairWorkspace.tsx"
+                    ),
+                    "src/shared/api/contracts/backendApiClient.ts",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_FILL_LEDGER_AND_INVENTORY_REPAIR_V1.md",
+                ],
+                blockers=[],
                 frontend_boundary=(
-                    "Do not expose ledger repair buttons until backend preview/apply "
-                    "contracts exist."
+                    "Render generated backend authority and forward explicit "
+                    "operator intent only; the browser never selects Coinbase "
+                    "methods, fill ownership, projection terms, or rollback safety."
                 ),
                 spot_rule_boundary=(
-                    "Current repair tooling is spot/fill-ledger oriented and must "
-                    "not mutate futures, stealth, or movement state."
+                    "This is an approved BTC-USDC Spot repair workflow only and "
+                    "must not mutate Futures, Stealth, movement, or unrelated state."
                 ),
-                idempotency_required=False,
-                operator_intent_required=False,
-                rbac_required=False,
+                idempotency_required=True,
+                operator_intent_required=True,
+                rbac_required=True,
                 approval_required=False,
                 cap_guard_required=False,
-                admission_audit_required=False,
-                reconciliation_required=False,
+                admission_audit_required=True,
+                reconciliation_required=True,
                 live_adapter_required=False,
+                route_local_boundary=(
+                    "Routes bind backend RBAC, durable idempotency, immutable "
+                    "revision/plan preconditions, audit, and exact call evidence. "
+                    "Only refresh may perform the bounded fill-catalog read; no "
+                    "route may place, cancel, close, reduce, or mutate an order."
+                ),
             ),
             mutation_taxonomy_from_surface(
                 surface="place_order WebSocket",

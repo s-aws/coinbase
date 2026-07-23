@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
 from logging_service import get_logger
 from database.database import PostgresDB
+from database.fill_ledger_lock import fill_ledger_product_lock_key
 from database.order_follow_up_intent import (
     FOLLOW_UP_INTENT_DURABLE_SLOT_REQUIRED,
     complete_automatic_order_follow_up_claim,
@@ -3805,6 +3806,8 @@ def create_fill_ledger_table() -> None:
         derived_trade_key UUID UNIQUE NOT NULL,
         exchange_trade_id TEXT,
         exchange_entry_id VARCHAR(80),
+        exchange_fill_identity_sha256 CHAR(64),
+        operator_import_batch_id UUID,
         instrument VARCHAR(32) NOT NULL,
         side VARCHAR(10) NOT NULL CHECK (side IN ('BUY', 'SELL')),
         quantity DECIMAL(16, 8) NOT NULL,
@@ -3826,6 +3829,9 @@ def create_fill_ledger_table() -> None:
     additive_migrations = """
     ALTER TABLE fill_ledger ADD COLUMN IF NOT EXISTS exchange_trade_id TEXT;
     ALTER TABLE fill_ledger ADD COLUMN IF NOT EXISTS exchange_entry_id VARCHAR(80);
+    ALTER TABLE fill_ledger ADD COLUMN IF NOT EXISTS
+        exchange_fill_identity_sha256 CHAR(64);
+    ALTER TABLE fill_ledger ADD COLUMN IF NOT EXISTS operator_import_batch_id UUID;
     ALTER TABLE fill_ledger ADD COLUMN IF NOT EXISTS reconciliation_status VARCHAR(16)
         NOT NULL DEFAULT 'WS_DERIVED';
     ALTER TABLE fill_ledger ADD COLUMN IF NOT EXISTS reconciled_at TIMESTAMP;
@@ -3861,6 +3867,12 @@ def create_fill_ledger_table() -> None:
         ON fill_ledger(exchange_trade_id) WHERE exchange_trade_id IS NOT NULL;
     CREATE INDEX IF NOT EXISTS idx_fill_ledger_reconciliation_status
         ON fill_ledger(reconciliation_status);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_fill_ledger_exchange_fill_identity_sha256
+        ON fill_ledger(exchange_fill_identity_sha256)
+        WHERE exchange_fill_identity_sha256 IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_fill_ledger_operator_import_batch
+        ON fill_ledger(operator_import_batch_id)
+        WHERE operator_import_batch_id IS NOT NULL;
     """
     create_only = """
     CREATE TABLE IF NOT EXISTS fill_ledger (
@@ -3869,6 +3881,8 @@ def create_fill_ledger_table() -> None:
         derived_trade_key UUID UNIQUE NOT NULL,
         exchange_trade_id TEXT,
         exchange_entry_id VARCHAR(80),
+        exchange_fill_identity_sha256 CHAR(64),
+        operator_import_batch_id UUID,
         instrument VARCHAR(32) NOT NULL,
         side VARCHAR(10) NOT NULL CHECK (side IN ('BUY', 'SELL')),
         quantity DECIMAL(16, 8) NOT NULL,
@@ -4179,6 +4193,9 @@ def insert_fill_record(
         The inserted row id on success, ``None`` on duplicate or error.
     """
     query = """
+    WITH product_lock AS MATERIALIZED (
+        SELECT pg_advisory_xact_lock(hashtext(%s))
+    )
     INSERT INTO fill_ledger (
         derived_trade_key,
         exchange_trade_id,
@@ -4192,11 +4209,13 @@ def insert_fill_record(
         commission_percentage,
         client_order_id
     )
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+    FROM product_lock
     ON CONFLICT (derived_trade_key) DO NOTHING
     RETURNING id
     """
     params = (
+        fill_ledger_product_lock_key(instrument),
         derived_trade_key,
         exchange_trade_id,
         exchange_entry_id,

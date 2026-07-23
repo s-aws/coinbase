@@ -34,6 +34,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from database.fill_ledger_lock import FILL_LEDGER_PRODUCT_LOCK_NAMESPACE
+
 
 logger = logging.getLogger(__name__)
 
@@ -320,13 +322,25 @@ class FillReconciler:
         if not matched:
             return 0
         query = """
-            UPDATE fill_ledger
+            WITH target_product AS MATERIALIZED (
+                SELECT instrument
+                FROM fill_ledger
+                WHERE derived_trade_key = %s
+            ),
+            product_lock AS MATERIALIZED (
+                SELECT pg_advisory_xact_lock(
+                    hashtext(%s || target_product.instrument)
+                )
+                FROM target_product
+            )
+            UPDATE fill_ledger AS target
                SET exchange_trade_id     = %s,
                    exchange_entry_id     = %s,
                    reconciliation_status = 'RECONCILED',
                    reconciled_at         = %s
-             WHERE derived_trade_key     = %s
-               AND reconciliation_status = 'WS_DERIVED'
+              FROM product_lock
+             WHERE target.derived_trade_key = %s
+               AND target.reconciliation_status = 'WS_DERIVED'
         """
         now = datetime.utcnow()
         affected = 0
@@ -335,6 +349,8 @@ class FillReconciler:
                 rows = self.db.execute_update(
                     query,
                     (
+                        m.derived_trade_key,
+                        FILL_LEDGER_PRODUCT_LOCK_NAMESPACE,
                         m.exchange_trade_id or None,
                         m.exchange_entry_id or None,
                         now,
@@ -356,11 +372,23 @@ class FillReconciler:
         if not ws_unmatched:
             return 0
         query = """
-            UPDATE fill_ledger
+            WITH target_product AS MATERIALIZED (
+                SELECT instrument
+                FROM fill_ledger
+                WHERE derived_trade_key = %s
+            ),
+            product_lock AS MATERIALIZED (
+                SELECT pg_advisory_xact_lock(
+                    hashtext(%s || target_product.instrument)
+                )
+                FROM target_product
+            )
+            UPDATE fill_ledger AS target
                SET reconciliation_status = 'MISMATCH',
                    reconciled_at         = %s
-             WHERE derived_trade_key     = %s
-               AND reconciliation_status = 'WS_DERIVED'
+              FROM product_lock
+             WHERE target.derived_trade_key = %s
+               AND target.reconciliation_status = 'WS_DERIVED'
         """
         now = datetime.utcnow()
         affected = 0
@@ -369,7 +397,15 @@ class FillReconciler:
             if not key:
                 continue
             try:
-                rows = self.db.execute_update(query, (now, key))
+                rows = self.db.execute_update(
+                    query,
+                    (
+                        key,
+                        FILL_LEDGER_PRODUCT_LOCK_NAMESPACE,
+                        now,
+                        key,
+                    ),
+                )
                 affected += int(rows or 0)
             except Exception as e:
                 logger.error(

@@ -328,6 +328,7 @@ def test_list_fills_maps_friendly_names_to_sdk_param_names():
 
     client = CoinbaseRestClient.__new__(CoinbaseRestClient)
     client._client = MagicMock()
+    client._client.session = None
     client._client.get_fills.return_value = fake_sdk_response
 
     client.list_fills(
@@ -336,6 +337,7 @@ def test_list_fills_maps_friendly_names_to_sdk_param_names():
         start_date="2026-04-29T08:00:00Z",
         end_date="2026-04-30T08:00:00Z",
         cursor="cur-1",
+        retail_portfolio_id="test-portfolio-id",
         limit=42,
     )
 
@@ -354,6 +356,7 @@ def test_list_fills_maps_friendly_names_to_sdk_param_names():
         f"end_date must be mapped to end_sequence_timestamp; got {forwarded!r}"
     )
     assert forwarded.get("cursor") == "cur-1"
+    assert forwarded.get("retail_portfolio_id") == "test-portfolio-id"
     assert forwarded.get("limit") == 42
 
     # And the user-facing names must NOT appear, since the SDK silently
@@ -375,6 +378,7 @@ def test_list_fills_omits_filter_kwargs_when_none():
     fake.to_dict.return_value = {"fills": []}
     client = CoinbaseRestClient.__new__(CoinbaseRestClient)
     client._client = MagicMock()
+    client._client.session = None
     client._client.get_fills.return_value = fake
 
     client.list_fills()
@@ -384,11 +388,47 @@ def test_list_fills_omits_filter_kwargs_when_none():
         "product_ids", "order_ids",
         "start_sequence_timestamp", "end_sequence_timestamp",
         "cursor",
+        "retail_portfolio_id",
     ):
         assert key not in forwarded, (
             f"{key!r} must be omitted when caller did not supply a value; "
             f"got {forwarded!r}"
         )
+
+
+@pytest.mark.regression
+def test_get_fills_is_the_exact_portfolio_scoped_admin_adapter():
+    """Canonical runtime wrapper exposes the pinned SDK contract directly."""
+
+    from external.coinbase_client import CoinbaseRestClient
+
+    fake = MagicMock()
+    fake.to_dict.return_value = {"fills": [], "cursor": ""}
+    client = CoinbaseRestClient.__new__(CoinbaseRestClient)
+    client._client = MagicMock()
+    client._client.session = None
+    client._client.get_fills.return_value = fake
+
+    response = client.get_fills(
+        order_ids=["ord-1"],
+        product_ids=["BTC-USDC"],
+        start_sequence_timestamp="2026-07-22T00:00:00Z",
+        end_sequence_timestamp="2026-07-22T12:00:00Z",
+        retail_portfolio_id="test-portfolio-id",
+        limit=100,
+        cursor="next-page",
+    )
+
+    assert response == {"fills": [], "cursor": ""}
+    client._client.get_fills.assert_called_once_with(
+        order_ids=["ord-1"],
+        product_ids=["BTC-USDC"],
+        start_sequence_timestamp="2026-07-22T00:00:00Z",
+        end_sequence_timestamp="2026-07-22T12:00:00Z",
+        retail_portfolio_id="test-portfolio-id",
+        limit=100,
+        cursor="next-page",
+    )
 
 
 @pytest.mark.regression

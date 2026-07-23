@@ -22,6 +22,7 @@ from core.enums import (
     SpotFillLedgerHealthStatus,
     SpotFillLedgerRepairStatus,
 )
+from database.fill_ledger_lock import FILL_LEDGER_PRODUCT_LOCK_NAMESPACE
 
 
 DEFAULT_QUOTE_CURRENCY = "USDC"
@@ -115,6 +116,7 @@ def _finding_types_for_row(row: Mapping[str, Any]) -> list[str]:
         == FillLedgerReconciliationStatus.RECONCILED.value
         and not _text(row.get("exchange_trade_id"))
         and not _text(row.get("exchange_entry_id"))
+        and not _text(row.get("exchange_fill_identity_sha256"))
     ):
         findings.append(
             SpotFillLedgerFindingType.MISSING_RECONCILED_EXCHANGE_EVIDENCE.value
@@ -237,6 +239,7 @@ def fetch_spot_fill_ledger_rows(
     query = """
     SELECT id, created_at, derived_trade_key::text AS derived_trade_key,
            exchange_trade_id::text AS exchange_trade_id, exchange_entry_id,
+           exchange_fill_identity_sha256,
            instrument, side, quantity, price, timestamp, fees,
            commission_percentage, client_order_id, reconciliation_status,
            reconciled_at
@@ -388,7 +391,19 @@ def apply_spot_fill_ledger_repair_actions(
             })
             continue
         query = """
-        UPDATE fill_ledger
+        WITH target_product AS MATERIALIZED (
+            SELECT instrument
+            FROM fill_ledger
+            WHERE id = %s
+              AND derived_trade_key = %s
+        ),
+        product_lock AS MATERIALIZED (
+            SELECT pg_advisory_xact_lock(
+                hashtext(%s || target_product.instrument)
+            )
+            FROM target_product
+        )
+        UPDATE fill_ledger AS target
            SET quantity = %s,
                price = %s,
                fees = %s,
@@ -397,10 +412,14 @@ def apply_spot_fill_ledger_repair_actions(
                exchange_entry_id = %s,
                reconciliation_status = %s,
                reconciled_at = CURRENT_TIMESTAMP
-         WHERE id = %s
-           AND derived_trade_key = %s
+          FROM product_lock
+         WHERE target.id = %s
+           AND target.derived_trade_key = %s
         """
         params = (
+            row_id,
+            derived_trade_key,
+            FILL_LEDGER_PRODUCT_LOCK_NAMESPACE,
             action["new_quantity"],
             action["new_price"],
             action["new_fees"],

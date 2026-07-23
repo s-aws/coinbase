@@ -15,6 +15,7 @@ from unittest.mock import MagicMock, patch
 
 from business.fill_ledger import FillLedger, FillLedgerRepository
 from business.order_progress import OrderSnapshotDelta
+from database.fill_ledger_lock import fill_ledger_product_lock_key
 
 
 def _make_delta(
@@ -79,6 +80,7 @@ class TestAppendDerivedFill(unittest.TestCase):
         _, params = self.db.execute_update.call_args[0]
         # Param order matches append_fill INSERT signature.
         (
+            product_lock_key,
             derived_trade_key,
             exchange_trade_id,
             exchange_entry_id,
@@ -92,6 +94,10 @@ class TestAppendDerivedFill(unittest.TestCase):
             client_order_id,
             reconciliation_status,
         ) = params
+        self.assertEqual(
+            product_lock_key,
+            fill_ledger_product_lock_key("ETH-USDC"),
+        )
         self.assertEqual(derived_trade_key, delta.derived_trade_key)
         self.assertIsNone(exchange_trade_id)
         self.assertIsNone(exchange_entry_id)
