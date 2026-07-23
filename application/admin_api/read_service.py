@@ -10119,6 +10119,19 @@ class AdminApiReadService:
             route_inventory_item(surface)
             for surface in operator_product_catalog_surfaces
         ]
+        operator_parent_strategy_surfaces = [
+            "POST /api/v1/parent-strategies",
+            "POST /api/v1/parent-strategies/{strategy_id}/edit",
+            (
+                "POST /api/v1/parent-strategies/"
+                "{strategy_id}/deactivate"
+            ),
+            "POST /api/v1/parent-strategies/{strategy_id}/delete",
+        ]
+        operator_parent_strategy_rows = [
+            route_inventory_item(surface)
+            for surface in operator_parent_strategy_surfaces
+        ]
         account_reality_refresh_surfaces = [
             "POST /api/v1/admin/account-reality/refresh",
         ]
@@ -11690,6 +11703,113 @@ class AdminApiReadService:
                 spot_rule_boundary=(
                     "Administrative catalog lifecycle is not Spot or Futures "
                     "portfolio, wallet, admission, cap, or execution policy."
+                ),
+                approval_required=False,
+                cap_guard_required=False,
+                reconciliation_required=True,
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_item(
+                mutation_id="spot.operator_parent_strategy",
+                mutation_family=(
+                    AdminApiMutationFamilyType.SPOT_PARENT_STRATEGY
+                ),
+                workflow_id="operator_parent_order_management_v1",
+                module_id="spot_operations",
+                module="Spot Operations / Parent Strategies",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                ),
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Parent strategy create, edit, deactivate, and "
+                    "dependency-safe delete are revision-bound PostgreSQL "
+                    "configuration commands with zero Coinbase-call or "
+                    "exchange-mutation authority."
+                ),
+                command_surfaces=operator_parent_strategy_surfaces,
+                action_classes=[
+                    row.action_class
+                    for row in operator_parent_strategy_rows
+                ],
+                required_permissions=[
+                    row.permission
+                    for row in operator_parent_strategy_rows
+                ],
+                identity_keys=[
+                    "strategy_id",
+                    "revision",
+                    "idempotency_key",
+                    "correlation_id",
+                ],
+                idempotency_contract=(
+                    "required durable exact-payload claim and exact result "
+                    "snapshot replay; changed actor, reason, or payload "
+                    "conflicts"
+                ),
+                approval_contract=(
+                    "explicit action-specific acknowledgement and exact "
+                    "revision preconditions"
+                ),
+                cap_guard_contract=(
+                    "one local definition command; fixed LIMIT/GTC/post-only "
+                    "child policy and zero exchange-call allowance"
+                ),
+                admission_audit_contract=(
+                    "durable sanitized command and event evidence with "
+                    "actor, correlation, admitted Product Catalog revision, "
+                    "and approved-portfolio hash"
+                ),
+                reconciliation_contract=(
+                    "dependency-safe delete rechecks root, placements, "
+                    "children, claims, partial-fill progress, and "
+                    "reconciliation state under the shared root lock"
+                ),
+                owning_backend_service=(
+                    "application/admin_api/"
+                    "operator_parent_strategy_service.py"
+                ),
+                shared_command_service_method=None,
+                route_inventory_refs=operator_parent_strategy_surfaces,
+                backend_contract_refs=[
+                    "application/admin_api/operator_parent_strategy.py",
+                    (
+                        "application/admin_api/"
+                        "operator_parent_strategy_service.py"
+                    ),
+                    "database/operator_parent_strategy.py",
+                    "api/v1/routes/operator_parent_strategy.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    (
+                        "src/features/operator-read-models/"
+                        "parent-strategies/ParentStrategyWorkspace.tsx"
+                    ),
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_PARENT_ORDER_MANAGEMENT_V1.md"
+                ],
+                frontend_boundary=(
+                    "The frontend renders generated backend authority and "
+                    "forwards explicit operator intent only; it cannot infer "
+                    "strategy eligibility, dependencies, or trading terms."
+                ),
+                bff_boundary=(
+                    "BFF forwards each authenticated local command once and "
+                    "must not retry an unknown outcome, expose credentials, "
+                    "or call Coinbase."
+                ),
+                route_local_boundary=(
+                    "Routes enforce backend RBAC, exact intent, idempotency, "
+                    "revision, fixed diagnostics, and zero exchange evidence; "
+                    "they perform no Coinbase or order mutation."
+                ),
+                spot_rule_boundary=(
+                    "Approved Test-portfolio hashing, active Spot Product "
+                    "Catalog admission, target movement, replacement, "
+                    "partial-fill, and fixed child policy are Spot-specific "
+                    "and must not become Futures defaults."
                 ),
                 approval_required=False,
                 cap_guard_required=False,

@@ -367,7 +367,7 @@ class AdminApiActor(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    actor_id: str = Field(min_length=1)
+    actor_id: str = Field(pattern=r"^[A-Za-z0-9._:@|/-]{1,255}$")
     roles: list[AdminApiRole] = Field(default_factory=list)
 
 

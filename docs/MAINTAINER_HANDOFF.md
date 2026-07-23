@@ -1,6 +1,30 @@
 # Maintainer Handoff
 
-## Independent Goal 3 — Product Catalog administration
+## Completed independent Goal 4 — Parent strategy management
+
+Goal `operator_parent_order_management_v1` is the active fourth independent
+goal. It translates the legacy parent CRUD and target-movement handlers into
+an authenticated, revision-bound PostgreSQL workflow with an allowlisted
+parent/child policy, approved Test-portfolio hash, active Product Catalog
+admission bound to the exact Goal 3 revision/hash under lock, exact stored
+replay results, durable accepted/rejected command audit, root-interlocked
+dependency-aware deletion, restart recovery, and typed fixed audit readback.
+The routed Admin UI supports
+list/detail/create/edit/deactivate/delete and freezes after an unknown or
+unverifiable command outcome, including ambiguous 5xx/BFF 502 results. It makes
+zero Coinbase calls or exchange mutations. See
+[Operator Parent Order Management V1](OPERATOR_PARENT_ORDER_MANAGEMENT_V1.md).
+
+Closeout passed backend canonical regression
+(`1,215 passed, 6 skipped` parallel; `783 passed, 150 skipped` serial),
+frontend full regression (`1,655/1,655`), Playwright (`22/22`), generated
+contract coverage for `195` paths, the canonical release and installed
+deployment gates (`229` deployment-focused tests), and independent safety plus
+blind-contextless audits. Validation made zero Coinbase calls and zero exchange
+mutations. The next independent goal is
+`operator_stealth_definition_lifecycle_v1`.
+
+## Completed independent Goal 3 — Product Catalog administration
 
 Goal `operator_product_catalog_administration_v1` is complete and implements immutable
 PostgreSQL catalog revisions, a shared ten-cycle no-retry List Products budget,

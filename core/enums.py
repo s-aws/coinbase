@@ -399,6 +399,7 @@ class AdminApiMutationFamilyType(str, Enum):
     SPOT_MANUAL_ORDER = "spot_manual_order"
     SPOT_ORDER_CANCEL = "spot_order_cancel"
     SPOT_FOLLOW_UP_INTENT = "spot_follow_up_intent"
+    SPOT_PARENT_STRATEGY = "spot_parent_strategy"
     SPOT_MANUAL_ORDER_PROOF_CHAIN = "spot_manual_order_proof_chain"
     SPOT_ORDER_CANCEL_PROOF_CHAIN = "spot_order_cancel_proof_chain"
     SPOT_CAMPAIGN_EXECUTION = "spot_campaign_execution"

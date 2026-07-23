@@ -38,6 +38,9 @@ OPERATOR_AUTOMATION_ENABLED_ENV = (
 OPERATOR_PRODUCT_CATALOG_ENABLED_ENV = (
     "COINBASE_ADMIN_API_OPERATOR_PRODUCT_CATALOG_ENABLED"
 )
+OPERATOR_PARENT_STRATEGIES_ENABLED_ENV = (
+    "COINBASE_ADMIN_API_OPERATOR_PARENT_STRATEGIES_ENABLED"
+)
 DISABLED_ENV_VALUES = {"0", "false", "no", "off", "disabled"}
 ENABLED_ENV_VALUES = {"1", "true", "yes", "on"}
 OIDC_REQUIRED_ENV_VARS = (
@@ -54,6 +57,9 @@ OPERATOR_AUTOMATION_SCHEMA_STARTUP_ERROR = (
 )
 OPERATOR_PRODUCT_CATALOG_SCHEMA_STARTUP_ERROR = (
     "Admin API operator product catalog schema initialization failed."
+)
+OPERATOR_PARENT_STRATEGY_SCHEMA_STARTUP_ERROR = (
+    "Admin API operator parent strategy schema initialization failed."
 )
 
 
@@ -331,6 +337,16 @@ def initialize_operator_product_catalog_schema() -> None:
     initialize_schema()
 
 
+def initialize_operator_parent_strategy_schema() -> None:
+    """Create the durable parent-strategy schema before serving."""
+
+    from database.operator_parent_strategy import (
+        initialize_operator_parent_strategy_schema as initialize_schema,
+    )
+
+    initialize_schema()
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the local Admin API server."""
 
@@ -368,6 +384,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         except Exception:
             print(
                 OPERATOR_PRODUCT_CATALOG_SCHEMA_STARTUP_ERROR,
+                file=sys.stderr,
+            )
+            return 2
+
+    if os.environ.get(OPERATOR_PARENT_STRATEGIES_ENABLED_ENV) == "1":
+        try:
+            initialize_operator_parent_strategy_schema()
+        except Exception:
+            print(
+                OPERATOR_PARENT_STRATEGY_SCHEMA_STARTUP_ERROR,
                 file=sys.stderr,
             )
             return 2

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import json
+import re
 from dataclasses import dataclass
 from typing import Annotated, Mapping
 from urllib.error import URLError
@@ -126,6 +127,7 @@ _OIDC_JWT_CLAIMS_CONTRACT = {
 
 _OIDC_JWT_NOT_CONFIGURED_REASON = "Admin API OIDC/JWT verifier is not configured"
 _OIDC_JWT_ALGORITHMS = ("RS256",)
+_ADMIN_ACTOR_ID = re.compile(r"^[A-Za-z0-9._:@|/-]{1,255}$")
 
 
 class OidcJwtVerificationError(ValueError):
@@ -307,7 +309,7 @@ def _select_oidc_signing_key(jwks: Mapping[str, object], kid: str):
 
 def _actor_from_oidc_claims(claims: Mapping[str, object]) -> AdminApiActor:
     subject = str(claims.get("sub") or "").strip()
-    if not subject:
+    if _ADMIN_ACTOR_ID.fullmatch(subject) is None:
         raise OidcJwtVerificationError("Missing Admin API actor identity")
 
     raw_roles = claims.get("roles")
@@ -412,10 +414,10 @@ def _get_bootstrap_bearer_actor(
         )
 
     actor_text = (actor_id or "").strip()
-    if not actor_text:
+    if _ADMIN_ACTOR_ID.fullmatch(actor_text) is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing Admin API actor identity",
+            detail="Invalid Admin API actor identity",
         )
 
     parsed_roles = _parse_roles(roles)

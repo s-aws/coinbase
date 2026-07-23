@@ -1,6 +1,16 @@
 # Documentation Index
 
-Active independent Goal 3:
+Completed independent Goal 4:
+[Operator Parent Order Management V1](OPERATOR_PARENT_ORDER_MANAGEMENT_V1.md).
+Goal `operator_parent_order_management_v1` provides routed, authenticated,
+PostgreSQL-backed parent-strategy list/detail/create/edit/deactivate/delete,
+exact revision and idempotency control, dependency-aware tombstoning, and
+fixed audit readback with zero Coinbase calls or exchange mutations.
+Closeout passed all canonical validation, deployment, safety, and
+blind-contextless gates. The next independent goal is
+`operator_stealth_definition_lifecycle_v1`.
+
+Completed independent Goal 3:
 [Operator Product Catalog Administration V1](OPERATOR_PRODUCT_CATALOG_ADMINISTRATION_V1.md).
 Goal `operator_product_catalog_administration_v1` provides immutable
 PostgreSQL catalog revisions, a bounded no-retry List Products refresh,

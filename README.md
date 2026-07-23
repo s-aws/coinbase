@@ -1,6 +1,19 @@
 # Coinbase Trading Backend
 
-## Independent Goal 3 — Product Catalog administration
+## Completed independent Goal 4 — Parent strategy management
+
+`operator_parent_order_management_v1` adds the authenticated Parent Strategies
+workflow. PostgreSQL owns backend-validated create/edit/deactivate/delete
+commands, exact revisions, fixed child policy, approved-portfolio hashing,
+Product Catalog admission, dependency-aware tombstoning, idempotency, restart
+recovery, and fixed audit readback. It grants no trading authority and makes
+zero Coinbase calls or exchange mutations. See
+[the Goal 4 design](docs/OPERATOR_PARENT_ORDER_MANAGEMENT_V1.md).
+Closeout passed the complete backend/frontend regression, release, installed
+deployment, safety, and blind-contextless gates. The next independent goal is
+`operator_stealth_definition_lifecycle_v1`.
+
+## Completed independent Goal 3 — Product Catalog administration
 
 `operator_product_catalog_administration_v1` adds the authenticated Product
 Administration workflow. PostgreSQL owns immutable product-catalog revisions,

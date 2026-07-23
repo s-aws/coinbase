@@ -31,6 +31,9 @@ from .routes.operator_fill_inventory_repair import (
 from .routes.operator_product_catalog import (
     router as operator_product_catalog_router,
 )
+from .routes.operator_parent_strategy import (
+    router as operator_parent_strategy_router,
+)
 from .routes.operator_spot_recovery import router as operator_spot_recovery_router
 from .routes.reconciliation import router as reconciliation_router
 from .routes.spot import router as spot_router
@@ -357,6 +360,11 @@ def create_app() -> FastAPI:
         operator_product_catalog_router,
         prefix="/api/v1",
         tags=["operator-product-catalog"],
+    )
+    app.include_router(
+        operator_parent_strategy_router,
+        prefix="/api/v1",
+        tags=["operator-parent-strategy"],
     )
     app.include_router(spot_router, prefix="/api/v1", tags=["spot"])
     app.include_router(stealth_router, prefix="/api/v1", tags=["stealth"])

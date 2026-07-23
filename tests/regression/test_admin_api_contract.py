@@ -10079,6 +10079,21 @@ def test_admin_api_mutating_routes_fail_closed_without_auth(monkeypatch):
 
 
 @pytest.mark.regression
+def test_admin_api_auth_rejects_actor_identity_outside_public_evidence_contract(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    headers = _headers()
+    headers["X-Admin-Actor"] = "operator with spaces"
+
+    response = client.get("/api/v1/admin/session", headers=headers)
+
+    assert response.status_code == 401
+    assert response.json()["code"] == AdminApiErrorCode.AUTH_REQUIRED.value
+    assert response.headers["x-live-execution-enabled"] == "false"
+
+
+@pytest.mark.regression
 def test_admin_api_oidc_auth_mode_fails_closed_without_required_config(monkeypatch):
     monkeypatch.setenv("COINBASE_ADMIN_API_AUTH_MODE", AdminApiAuthMode.OIDC_JWT.value)
     monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-admin-token")
@@ -10284,6 +10299,14 @@ def test_admin_api_oidc_verifier_maps_roles_from_jwt_claims():
         (
             lambda key: _oidc_token(key, roles=None),
             "Missing Admin API role evidence",
+        ),
+        (
+            lambda key: _oidc_token(
+                key,
+                subject="unsafe actor",
+                roles=[AdminApiRole.VIEWER.value],
+            ),
+            "Missing Admin API actor identity",
         ),
         (
             lambda key: _oidc_token(
@@ -75317,6 +75340,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "admin.live_service_decisions",
         "admin.live_adapter_decisions",
         "admin.operator_product_catalog",
+        "spot.operator_parent_strategy",
         "spot.manual_order",
         "spot.order_cancel",
         "spot.selected_root_reconciliation",
@@ -75358,6 +75382,28 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     ]
     assert sorted(taxonomy_surfaces) == sorted(command_surfaces)
     assert len(taxonomy_surfaces) == len(set(taxonomy_surfaces))
+    parent_strategy_taxonomy = taxonomy_by_id[
+        "spot.operator_parent_strategy"
+    ]
+    assert parent_strategy_taxonomy["mutation_family"] == (
+        AdminApiMutationFamilyType.SPOT_PARENT_STRATEGY.value
+    )
+    assert parent_strategy_taxonomy["command_surfaces"] == [
+        "POST /api/v1/parent-strategies",
+        "POST /api/v1/parent-strategies/{strategy_id}/edit",
+        "POST /api/v1/parent-strategies/{strategy_id}/deactivate",
+        "POST /api/v1/parent-strategies/{strategy_id}/delete",
+    ]
+    assert parent_strategy_taxonomy["action_classes"] == [
+        AdminApiActionClass.LOCAL_STATE_MUTATION.value
+    ] * 4
+    assert parent_strategy_taxonomy["required_permissions"] == [
+        AdminApiPermission.CONFIG_UPDATE.value
+    ] * 4
+    assert parent_strategy_taxonomy["approval_required"] is False
+    assert parent_strategy_taxonomy["cap_guard_required"] is False
+    assert parent_strategy_taxonomy["reconciliation_required"] is True
+    assert parent_strategy_taxonomy["live_adapter_required"] is False
     automation_control_taxonomy = taxonomy_by_id[
         "automation.operator_control_plane"
     ]
@@ -76468,8 +76514,15 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     )
     for surface in repair_taxonomy["command_surfaces"]:
         assert surface in spot_module["command_routes"]
-    assert spot_module["action_posture"]["read_route_count"] == 28
-    assert spot_module["action_posture"]["command_route_count"] == 27
+    assert "GET /api/v1/parent-strategies" in spot_module["read_routes"]
+    assert (
+        "GET /api/v1/parent-strategies/{strategy_id}"
+        in spot_module["read_routes"]
+    )
+    for surface in parent_strategy_taxonomy["command_surfaces"]:
+        assert surface in spot_module["command_routes"]
+    assert spot_module["action_posture"]["read_route_count"] == 30
+    assert spot_module["action_posture"]["command_route_count"] == 31
     assert spot_module["action_posture"]["live_route_count"] == 7
     assert spot_module["action_posture"]["command_gap_count"] == 2
     admin_module = registry_by_id["admin_system_health"]
