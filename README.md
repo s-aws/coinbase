@@ -1,5 +1,15 @@
 # Coinbase Trading Backend
 
+## Independent Goal 3 — Product Catalog administration
+
+`operator_product_catalog_administration_v1` adds the authenticated Product
+Administration workflow. PostgreSQL owns immutable product-catalog revisions,
+one shared ten-cycle/no-retry refresh ledger, page claims, metadata diffs,
+approval, enable/disable/retire lifecycle, rollback-as-new-revision, restart
+recovery, idempotency, and fixed audit readback. Catalog lifecycle grants no
+trading authority and makes no exchange mutation. See
+[the Goal 3 design](docs/OPERATOR_PRODUCT_CATALOG_ADMINISTRATION_V1.md).
+
 ## Completed independent Goal 2
 
 Goal `operator_fill_ledger_and_inventory_repair_v1` provides an authenticated

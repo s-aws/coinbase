@@ -35,6 +35,9 @@ LIVE_RUNTIME_ENABLED_ENV = "COINBASE_ADMIN_API_LIVE_EXECUTION_ENABLED"
 OPERATOR_AUTOMATION_ENABLED_ENV = (
     "COINBASE_ADMIN_API_OPERATOR_AUTOMATION_ENABLED"
 )
+OPERATOR_PRODUCT_CATALOG_ENABLED_ENV = (
+    "COINBASE_ADMIN_API_OPERATOR_PRODUCT_CATALOG_ENABLED"
+)
 DISABLED_ENV_VALUES = {"0", "false", "no", "off", "disabled"}
 ENABLED_ENV_VALUES = {"1", "true", "yes", "on"}
 OIDC_REQUIRED_ENV_VARS = (
@@ -48,6 +51,9 @@ FOLLOW_UP_INTENT_SCHEMA_STARTUP_ERROR = (
 )
 OPERATOR_AUTOMATION_SCHEMA_STARTUP_ERROR = (
     "Admin API operator automation schema initialization failed."
+)
+OPERATOR_PRODUCT_CATALOG_SCHEMA_STARTUP_ERROR = (
+    "Admin API operator product catalog schema initialization failed."
 )
 
 
@@ -315,6 +321,16 @@ def initialize_operator_automation_schema() -> None:
     initialize_schema()
 
 
+def initialize_operator_product_catalog_schema() -> None:
+    """Create and recover the Product Catalog schema before serving."""
+
+    from database.operator_product_catalog import (
+        initialize_operator_product_catalog_schema as initialize_schema,
+    )
+
+    initialize_schema()
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the local Admin API server."""
 
@@ -344,6 +360,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             initialize_operator_automation_schema()
         except Exception:
             print(OPERATOR_AUTOMATION_SCHEMA_STARTUP_ERROR, file=sys.stderr)
+            return 2
+
+    if os.environ.get(OPERATOR_PRODUCT_CATALOG_ENABLED_ENV) == "1":
+        try:
+            initialize_operator_product_catalog_schema()
+        except Exception:
+            print(
+                OPERATOR_PRODUCT_CATALOG_SCHEMA_STARTUP_ERROR,
+                file=sys.stderr,
+            )
             return 2
 
     try:

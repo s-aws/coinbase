@@ -13872,6 +13872,824 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/product-catalog:
+    get:
+      tags:
+      - operator-product-catalog
+      summary: List immutable Product Catalog revisions
+      operationId: list_operator_product_catalog_api_v1_product_catalog_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 25
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: event_limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 25
+          title: Event Limit
+      - name: event_offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Event Offset
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCatalogListResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks Product Catalog read authority.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '404':
+          description: Product Catalog revision was not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/product-catalog/revisions/{revision_id}:
+    get:
+      tags:
+      - operator-product-catalog
+      summary: Review one immutable Product Catalog revision and diff
+      operationId: get_operator_product_catalog_revision_api_v1_product_catalog_revisions__revision_id__get
+      parameters:
+      - name: revision_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Revision Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCatalogRevisionResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks Product Catalog read authority.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '404':
+          description: Product Catalog revision was not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/product-catalog/refresh:
+    post:
+      tags:
+      - operator-product-catalog
+      summary: Claim and read one no-retry logical Coinbase product catalog
+      operationId: refresh_operator_product_catalog_api_v1_product_catalog_refresh_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: refresh_operator_product_catalog
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductCatalogRefreshRequest'
+      responses:
+        '200':
+          description: Catalog command accepted or idempotently replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCatalogMutationResponse'
+        '400':
+          description: Catalog command rejected before an authorized effect.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCatalogMutationResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks Product Catalog read authority.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Catalog revision, allowance, or idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCatalogMutationResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/product-catalog/revisions/{revision_id}/approve:
+    post:
+      tags:
+      - operator-product-catalog
+      summary: Approve one exact reviewed Product Catalog revision
+      operationId: approve_operator_product_catalog_revision_api_v1_product_catalog_revisions__revision_id__approve_post
+      parameters:
+      - name: revision_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Revision Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: approve_operator_product_catalog_revision
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductCatalogApproveRequest'
+      responses:
+        '200':
+          description: Catalog command accepted or idempotently replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCatalogMutationResponse'
+        '400':
+          description: Catalog command rejected before an authorized effect.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCatalogMutationResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks Product Catalog read authority.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Catalog revision, allowance, or idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCatalogMutationResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/product-catalog/products/{product_id}/enable:
+    post:
+      tags:
+      - operator-product-catalog
+      summary: Enable one reviewed product in the administrative catalog
+      operationId: enable_operator_product_catalog_product_api_v1_product_catalog_products__product_id__enable_post
+      parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Z0-9]{1,32}(?:-[A-Z0-9]{1,32}){1,3}$
+          title: Product Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: enable_operator_product_catalog_product
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductCatalogLifecycleRequest'
+      responses:
+        '200':
+          description: Catalog command accepted or idempotently replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCatalogMutationResponse'
+        '400':
+          description: Catalog command rejected before an authorized effect.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCatalogMutationResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks Product Catalog read authority.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Catalog revision, allowance, or idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCatalogMutationResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/product-catalog/products/{product_id}/disable:
+    post:
+      tags:
+      - operator-product-catalog
+      summary: Disable one reviewed product in the administrative catalog
+      operationId: disable_operator_product_catalog_product_api_v1_product_catalog_products__product_id__disable_post
+      parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Z0-9]{1,32}(?:-[A-Z0-9]{1,32}){1,3}$
+          title: Product Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: disable_operator_product_catalog_product
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductCatalogLifecycleRequest'
+      responses:
+        '200':
+          description: Catalog command accepted or idempotently replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCatalogMutationResponse'
+        '400':
+          description: Catalog command rejected before an authorized effect.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCatalogMutationResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks Product Catalog read authority.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Catalog revision, allowance, or idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCatalogMutationResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/product-catalog/products/{product_id}/retire:
+    post:
+      tags:
+      - operator-product-catalog
+      summary: Retire one reviewed product from the administrative catalog
+      operationId: retire_operator_product_catalog_product_api_v1_product_catalog_products__product_id__retire_post
+      parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Z0-9]{1,32}(?:-[A-Z0-9]{1,32}){1,3}$
+          title: Product Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: retire_operator_product_catalog_product
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductCatalogLifecycleRequest'
+      responses:
+        '200':
+          description: Catalog command accepted or idempotently replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCatalogMutationResponse'
+        '400':
+          description: Catalog command rejected before an authorized effect.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCatalogMutationResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks Product Catalog read authority.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Catalog revision, allowance, or idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCatalogMutationResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/product-catalog/revisions/{target_revision_id}/rollback:
+    post:
+      tags:
+      - operator-product-catalog
+      summary: Restore an exact prior Product Catalog snapshot as a new revision
+      operationId: rollback_operator_product_catalog_revision_api_v1_product_catalog_revisions__target_revision_id__rollback_post
+      parameters:
+      - name: target_revision_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Target Revision Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: rollback_operator_product_catalog_revision
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductCatalogRollbackRequest'
+      responses:
+        '200':
+          description: Catalog command accepted or idempotently replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCatalogMutationResponse'
+        '400':
+          description: Catalog command rejected before an authorized effect.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCatalogMutationResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks Product Catalog read authority.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Catalog revision, allowance, or idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductCatalogMutationResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/spot/readiness:
     get:
       tags:
@@ -155425,6 +156243,816 @@ components:
       - funding_check
       title: ProductCapability
       description: Feature/action capability controlled by product type policy.
+    ProductCatalogApproveRequest:
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 1.0
+          title: Expected Revision
+        snapshot_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Snapshot Sha256
+        operator_reason:
+          type: string
+          maxLength: 240
+          minLength: 1
+          title: Operator Reason
+        confirm_catalog_approval:
+          type: boolean
+          const: true
+          title: Confirm Catalog Approval
+      additionalProperties: false
+      type: object
+      required:
+      - expected_revision
+      - snapshot_sha256
+      - operator_reason
+      - confirm_catalog_approval
+      title: ProductCatalogApproveRequest
+    ProductCatalogCycleItem:
+      properties:
+        cycle_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Cycle Id
+        cycle_number:
+          type: integer
+          maximum: 10.0
+          minimum: 1.0
+          title: Cycle Number
+        state:
+          type: string
+          enum:
+          - CLAIMED
+          - READING
+          - PROPOSED
+          - FAILED
+          - UNKNOWN
+          title: State
+        read_state:
+          type: string
+          enum:
+          - NOT_STARTED
+          - IN_PROGRESS
+          - RETURNED
+          - RETURNED_INCOMPLETE
+          - NOT_RETURNED
+          - UNKNOWN_AFTER_PAGE_CLAIM
+          title: Read State
+        expected_active_revision_id:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          - type: 'null'
+          title: Expected Active Revision Id
+        proposed_revision_id:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          - type: 'null'
+          title: Proposed Revision Id
+        logical_read_count:
+          type: integer
+          const: 1
+          title: Logical Read Count
+          default: 1
+        page_count:
+          type: integer
+          maximum: 100.0
+          minimum: 0.0
+          title: Page Count
+        diagnostic_code:
+          type: string
+          pattern: ^[a-z][a-z0-9_]{0,95}$
+          title: Diagnostic Code
+        correlation_id:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Correlation Id
+        events:
+          items:
+            $ref: '#/components/schemas/ProductCatalogEventItem'
+          type: array
+          title: Events
+        created_at:
+          type: string
+          title: Created At
+        updated_at:
+          type: string
+          title: Updated At
+      additionalProperties: false
+      type: object
+      required:
+      - cycle_id
+      - cycle_number
+      - state
+      - read_state
+      - page_count
+      - diagnostic_code
+      - correlation_id
+      - created_at
+      - updated_at
+      title: ProductCatalogCycleItem
+    ProductCatalogEventItem:
+      properties:
+        event_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Event Id
+        event_type:
+          type: string
+          pattern: ^[A-Z][A-Z0-9_]{0,95}$
+          title: Event Type
+        revision_id:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          - type: 'null'
+          title: Revision Id
+        cycle_id:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          - type: 'null'
+          title: Cycle Id
+        product_id:
+          anyOf:
+          - type: string
+            pattern: ^[A-Z0-9]{1,32}(?:-[A-Z0-9]{1,32}){1,3}$
+          - type: 'null'
+          title: Product Id
+        correlation_id:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Correlation Id
+        evidence:
+          additionalProperties: true
+          type: object
+          title: Evidence
+        recorded_at:
+          type: string
+          title: Recorded At
+      additionalProperties: false
+      type: object
+      required:
+      - event_id
+      - event_type
+      - correlation_id
+      - recorded_at
+      title: ProductCatalogEventItem
+    ProductCatalogGoalBudget:
+      properties:
+        cycle_count:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: Cycle Count
+        cycle_limit:
+          type: integer
+          const: 10
+          title: Cycle Limit
+          default: 10
+        logical_read_count:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: Logical Read Count
+        page_count:
+          type: integer
+          maximum: 1000.0
+          minimum: 0.0
+          title: Page Count
+        trading_authority_granted:
+          type: boolean
+          const: false
+          title: Trading Authority Granted
+          default: false
+        portfolio_scope_expanded:
+          type: boolean
+          const: false
+          title: Portfolio Scope Expanded
+          default: false
+        exchange_mutation_count:
+          type: integer
+          const: 0
+          title: Exchange Mutation Count
+          default: 0
+      additionalProperties: false
+      type: object
+      required:
+      - cycle_count
+      - logical_read_count
+      - page_count
+      title: ProductCatalogGoalBudget
+    ProductCatalogLifecycle:
+      type: string
+      enum:
+      - PENDING
+      - ENABLED
+      - DISABLED
+      - RETIRED
+      title: ProductCatalogLifecycle
+    ProductCatalogLifecycleRequest:
+      properties:
+        expected_active_revision_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Expected Active Revision Id
+        expected_active_revision:
+          type: integer
+          minimum: 1.0
+          title: Expected Active Revision
+        operator_reason:
+          type: string
+          maxLength: 240
+          minLength: 1
+          title: Operator Reason
+        confirm_product_lifecycle_change:
+          type: boolean
+          const: true
+          title: Confirm Product Lifecycle Change
+      additionalProperties: false
+      type: object
+      required:
+      - expected_active_revision_id
+      - expected_active_revision
+      - operator_reason
+      - confirm_product_lifecycle_change
+      title: ProductCatalogLifecycleRequest
+    ProductCatalogListResponse:
+      properties:
+        type:
+          type: string
+          const: operator_product_catalog
+          title: Type
+          default: operator_product_catalog
+        status:
+          type: string
+          const: ready
+          title: Status
+          default: ready
+        items:
+          items:
+            $ref: '#/components/schemas/ProductCatalogRevisionItem'
+          type: array
+          title: Items
+        total_count:
+          type: integer
+          minimum: 0.0
+          title: Total Count
+        returned_count:
+          type: integer
+          minimum: 0.0
+          title: Returned Count
+        limit:
+          type: integer
+          maximum: 100.0
+          minimum: 1.0
+          title: Limit
+        offset:
+          type: integer
+          minimum: 0.0
+          title: Offset
+        next_offset:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Next Offset
+        active_revision_id:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          - type: 'null'
+          title: Active Revision Id
+        active_revision:
+          anyOf:
+          - $ref: '#/components/schemas/ProductCatalogRevisionItem'
+          - type: 'null'
+        cycles:
+          items:
+            $ref: '#/components/schemas/ProductCatalogCycleItem'
+          type: array
+          title: Cycles
+        events:
+          items:
+            $ref: '#/components/schemas/ProductCatalogEventItem'
+          type: array
+          title: Events
+        event_total_count:
+          type: integer
+          minimum: 0.0
+          title: Event Total Count
+        event_returned_count:
+          type: integer
+          minimum: 0.0
+          title: Event Returned Count
+        event_limit:
+          type: integer
+          maximum: 100.0
+          minimum: 1.0
+          title: Event Limit
+        event_offset:
+          type: integer
+          minimum: 0.0
+          title: Event Offset
+        event_next_offset:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Event Next Offset
+        goal_budget:
+          $ref: '#/components/schemas/ProductCatalogGoalBudget'
+        allowed_actions:
+          items:
+            type: string
+            const: REFRESH
+          type: array
+          title: Allowed Actions
+        live_coinbase_read_ran:
+          type: boolean
+          const: false
+          title: Live Coinbase Read Ran
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          const: false
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_execution:
+          type: string
+          const: not_run
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          const: '0'
+          title: Notional Usdc
+          default: '0'
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      - total_count
+      - returned_count
+      - limit
+      - offset
+      - event_total_count
+      - event_returned_count
+      - event_limit
+      - event_offset
+      - goal_budget
+      title: ProductCatalogListResponse
+    ProductCatalogMutationResponse:
+      properties:
+        type:
+          type: string
+          const: operator_product_catalog_mutation
+          title: Type
+          default: operator_product_catalog_mutation
+        status:
+          type: string
+          enum:
+          - accepted
+          - replayed
+          - rejected
+          - conflict
+          title: Status
+        message:
+          type: string
+          pattern: ^[a-z][a-z0-9_]{0,95}$
+          title: Message
+        service_method:
+          type: string
+          enum:
+          - refresh_catalog
+          - approve_revision
+          - change_product_lifecycle
+          - rollback_revision
+          title: Service Method
+        required_permission:
+          type: string
+          const: config:update
+          title: Required Permission
+          default: config:update
+        revision:
+          anyOf:
+          - $ref: '#/components/schemas/ProductCatalogRevisionItem'
+          - type: 'null'
+        correlation_id:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Correlation Id
+        idempotency_key:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Idempotency Key
+        coinbase_read_state:
+          type: string
+          enum:
+          - NOT_RUN
+          - RETURNED
+          - NOT_RETURNED
+          - RETURNED_INCOMPLETE
+          - UNKNOWN_AFTER_PAGE_CLAIM
+          title: Coinbase Read State
+          default: NOT_RUN
+        live_coinbase_read_ran:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Live Coinbase Read Ran
+          default: false
+        local_state_mutated:
+          type: boolean
+          title: Local State Mutated
+          default: true
+        trading_authority_granted:
+          type: boolean
+          const: false
+          title: Trading Authority Granted
+          default: false
+        portfolio_scope_expanded:
+          type: boolean
+          const: false
+          title: Portfolio Scope Expanded
+          default: false
+        exchange_mutation_count:
+          type: integer
+          const: 0
+          title: Exchange Mutation Count
+          default: 0
+        live_coinbase_orders_ran:
+          type: boolean
+          const: false
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_execution:
+          type: string
+          const: not_run
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          const: '0'
+          title: Notional Usdc
+          default: '0'
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - message
+      - service_method
+      - correlation_id
+      - idempotency_key
+      title: ProductCatalogMutationResponse
+    ProductCatalogProductItem:
+      properties:
+        product_id:
+          type: string
+          pattern: ^[A-Z0-9]{1,32}(?:-[A-Z0-9]{1,32}){1,3}$
+          title: Product Id
+        product_type:
+          type: string
+          enum:
+          - SPOT
+          - FUTURE
+          title: Product Type
+        base_currency:
+          type: string
+          title: Base Currency
+        quote_currency:
+          type: string
+          title: Quote Currency
+        base_increment:
+          type: string
+          title: Base Increment
+        quote_increment:
+          type: string
+          title: Quote Increment
+        price_increment:
+          type: string
+          title: Price Increment
+        base_min_size:
+          type: string
+          title: Base Min Size
+        base_max_size:
+          type: string
+          title: Base Max Size
+        quote_min_size:
+          type: string
+          title: Quote Min Size
+        quote_max_size:
+          type: string
+          title: Quote Max Size
+        display_name:
+          type: string
+          title: Display Name
+        exchange_status:
+          type: string
+          enum:
+          - ONLINE
+          - OFFLINE
+          - DELISTED
+          - UNKNOWN
+          title: Exchange Status
+        exchange_disabled:
+          type: boolean
+          title: Exchange Disabled
+        cancel_only:
+          type: boolean
+          title: Cancel Only
+        limit_only:
+          type: boolean
+          title: Limit Only
+        post_only:
+          type: boolean
+          title: Post Only
+        view_only:
+          type: boolean
+          title: View Only
+        lifecycle:
+          $ref: '#/components/schemas/ProductCatalogLifecycle'
+        change_type:
+          type: string
+          enum:
+          - ADDED
+          - CHANGED
+          - REMOVED
+          - UNCHANGED
+          - LIFECYCLE_CHANGED
+          - ROLLBACK_RESTORED
+          title: Change Type
+        allowed_actions:
+          items:
+            type: string
+            enum:
+            - ENABLE
+            - DISABLE
+            - RETIRE
+          type: array
+          title: Allowed Actions
+      additionalProperties: false
+      type: object
+      required:
+      - product_id
+      - product_type
+      - base_currency
+      - quote_currency
+      - base_increment
+      - quote_increment
+      - price_increment
+      - base_min_size
+      - base_max_size
+      - quote_min_size
+      - quote_max_size
+      - display_name
+      - exchange_status
+      - exchange_disabled
+      - cancel_only
+      - limit_only
+      - post_only
+      - view_only
+      - lifecycle
+      - change_type
+      title: ProductCatalogProductItem
+    ProductCatalogRefreshRequest:
+      properties:
+        expected_active_revision_id:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          - type: 'null'
+          title: Expected Active Revision Id
+        operator_reason:
+          type: string
+          maxLength: 240
+          minLength: 1
+          title: Operator Reason
+        confirm_one_no_retry_product_catalog_read:
+          type: boolean
+          const: true
+          title: Confirm One No Retry Product Catalog Read
+      additionalProperties: false
+      type: object
+      required:
+      - operator_reason
+      - confirm_one_no_retry_product_catalog_read
+      title: ProductCatalogRefreshRequest
+    ProductCatalogRevisionItem:
+      properties:
+        revision_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Revision Id
+        sequence_number:
+          type: integer
+          minimum: 1.0
+          title: Sequence Number
+        revision:
+          type: integer
+          minimum: 1.0
+          title: Revision
+        state:
+          type: string
+          enum:
+          - PROPOSED
+          - APPROVED
+          - APPLIED
+          - ROLLED_BACK
+          title: State
+        source:
+          type: string
+          enum:
+          - COINBASE_CATALOG
+          - OPERATOR_LIFECYCLE
+          - ROLLBACK
+          title: Source
+        source_cycle_id:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          - type: 'null'
+          title: Source Cycle Id
+        parent_revision_id:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          - type: 'null'
+          title: Parent Revision Id
+        rollback_of_revision_id:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          - type: 'null'
+          title: Rollback Of Revision Id
+        snapshot_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Snapshot Sha256
+        diff_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Diff Sha256
+        product_count:
+          type: integer
+          minimum: 0.0
+          title: Product Count
+        added_count:
+          type: integer
+          minimum: 0.0
+          title: Added Count
+        changed_count:
+          type: integer
+          minimum: 0.0
+          title: Changed Count
+        removed_count:
+          type: integer
+          minimum: 0.0
+          title: Removed Count
+        unchanged_count:
+          type: integer
+          minimum: 0.0
+          title: Unchanged Count
+        active:
+          type: boolean
+          title: Active
+        allowed_actions:
+          items:
+            type: string
+            enum:
+            - APPROVE
+            - ROLLBACK
+          type: array
+          title: Allowed Actions
+        trading_authority_granted:
+          type: boolean
+          const: false
+          title: Trading Authority Granted
+          default: false
+        portfolio_scope_expanded:
+          type: boolean
+          const: false
+          title: Portfolio Scope Expanded
+          default: false
+        exchange_mutation_count:
+          type: integer
+          const: 0
+          title: Exchange Mutation Count
+          default: 0
+        created_at:
+          type: string
+          title: Created At
+        updated_at:
+          type: string
+          title: Updated At
+      additionalProperties: false
+      type: object
+      required:
+      - revision_id
+      - sequence_number
+      - revision
+      - state
+      - source
+      - snapshot_sha256
+      - diff_sha256
+      - product_count
+      - added_count
+      - changed_count
+      - removed_count
+      - unchanged_count
+      - active
+      - created_at
+      - updated_at
+      title: ProductCatalogRevisionItem
+    ProductCatalogRevisionResponse:
+      properties:
+        type:
+          type: string
+          const: operator_product_catalog_revision
+          title: Type
+          default: operator_product_catalog_revision
+        status:
+          type: string
+          const: ready
+          title: Status
+          default: ready
+        revision:
+          $ref: '#/components/schemas/ProductCatalogRevisionItem'
+        products:
+          items:
+            $ref: '#/components/schemas/ProductCatalogProductItem'
+          type: array
+          title: Products
+        events:
+          items:
+            $ref: '#/components/schemas/ProductCatalogEventItem'
+          type: array
+          title: Events
+        goal_budget:
+          $ref: '#/components/schemas/ProductCatalogGoalBudget'
+        live_coinbase_read_ran:
+          type: boolean
+          const: false
+          title: Live Coinbase Read Ran
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          const: false
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_execution:
+          type: string
+          const: not_run
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          const: '0'
+          title: Notional Usdc
+          default: '0'
+      additionalProperties: false
+      type: object
+      required:
+      - revision
+      - products
+      - events
+      - goal_budget
+      title: ProductCatalogRevisionResponse
+    ProductCatalogRollbackRequest:
+      properties:
+        expected_active_revision_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Expected Active Revision Id
+        expected_active_revision:
+          type: integer
+          minimum: 1.0
+          title: Expected Active Revision
+        target_snapshot_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Target Snapshot Sha256
+        operator_reason:
+          type: string
+          maxLength: 240
+          minLength: 1
+          title: Operator Reason
+        confirm_exact_catalog_rollback:
+          type: boolean
+          const: true
+          title: Confirm Exact Catalog Rollback
+      additionalProperties: false
+      type: object
+      required:
+      - expected_active_revision_id
+      - expected_active_revision
+      - target_snapshot_sha256
+      - operator_reason
+      - confirm_exact_catalog_rollback
+      title: ProductCatalogRollbackRequest
     ProductType:
       type: string
       enum:

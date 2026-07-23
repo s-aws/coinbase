@@ -1,6 +1,13 @@
 # Documentation Index
 
-Active independent Goal 2:
+Active independent Goal 3:
+[Operator Product Catalog Administration V1](OPERATOR_PRODUCT_CATALOG_ADMINISTRATION_V1.md).
+Goal `operator_product_catalog_administration_v1` provides immutable
+PostgreSQL catalog revisions, a bounded no-retry List Products refresh,
+metadata-diff approval, administrative product lifecycle, rollback, and audit
+readback without granting trading authority.
+
+Completed independent Goal 2:
 [Operator Fill Ledger and Inventory Repair V1](OPERATOR_FILL_LEDGER_AND_INVENTORY_REPAIR_V1.md).
 Goal `operator_fill_ledger_and_inventory_repair_v1` provides the authenticated
 PostgreSQL workflow for one exact `client_order_id`, approved `BTC-USDC`

@@ -580,6 +580,42 @@ class CoinbaseRestClient:
             products[product_id] = data
         return products
 
+    def get_product_catalog_page(
+        self,
+        *,
+        limit: int,
+        get_tradability_status: bool,
+        cursor: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Read one authenticated List Products page without retry.
+
+        Coinbase Advanced API documents cursor pagination for List Products.
+        The pinned 1.8.4 SDK accepts newer query parameters through
+        ``**kwargs``; this wrapper keeps that compatibility boundary in one
+        canonical place and returns a plain envelope for strict normalization.
+        """
+
+        if type(limit) is not int or limit != 100:
+            raise ValueError("product_catalog_page_limit_invalid")
+        if get_tradability_status is not True:
+            raise ValueError("product_catalog_tradability_status_required")
+        if cursor is not None and (
+            not isinstance(cursor, str) or not cursor
+        ):
+            raise ValueError("product_catalog_cursor_invalid")
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
+        kwargs: Dict[str, Any] = {
+            "limit": limit,
+            "get_tradability_status": True,
+        }
+        if cursor is not None:
+            kwargs["cursor"] = cursor
+        response = self._client.get_products(**kwargs)
+        data = coinbase_sdk_response_to_dict(response)
+        if not isinstance(data, dict):
+            raise ValueError("product_catalog_response_invalid")
+        return data
+
     def get_best_bid_ask(self, *, product_ids: List[str]) -> Dict[str, Any]:
         """Return exact best-bid/ask evidence for the requested products."""
 

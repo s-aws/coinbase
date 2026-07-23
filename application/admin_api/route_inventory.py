@@ -1737,6 +1737,114 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         ),
     ),
     AdminApiRouteInventoryItem(
+        module_id="account_management",
+        surface="GET /api/v1/product-catalog",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not required; PostgreSQL revision readback only",
+        caps="backend pagination up to 100 immutable revisions",
+        audit="returns fixed authority and goal-budget evidence",
+        shared_method="list_operator_product_catalog",
+        parity_test=(
+            "call-free PostgreSQL revision list with zero trading authority "
+            "and zero exchange mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="account_management",
+        surface="GET /api/v1/product-catalog/revisions/{revision_id}",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not required; exact immutable revision readback only",
+        caps="one exact revision, allowlisted metadata diff, and audit events",
+        audit="fixed sanitized revision events only",
+        shared_method="get_operator_product_catalog_revision",
+        parity_test=(
+            "call-free exact revision, per-product diff, and lifecycle "
+            "readback; zero exchange mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="account_management",
+        surface="POST /api/v1/product-catalog/refresh",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.CONFIG_UPDATE,
+        idempotency="required; exact payload replay only",
+        approval="explicit one-no-retry-read acknowledgement required",
+        caps=(
+            "maximum ten goal-global logical catalog reads; required cursor "
+            "pages once each with no retry"
+        ),
+        audit=(
+            "required durable page claims, call accounting, and fixed "
+            "diagnostics"
+        ),
+        shared_method="refresh_operator_product_catalog",
+        parity_test=(
+            "one documented List Products read builds an immutable proposed "
+            "metadata revision; zero exchange mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="account_management",
+        surface=(
+            "POST /api/v1/product-catalog/revisions/"
+            "{revision_id}/approve"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.CONFIG_UPDATE,
+        idempotency="required; exact payload replay only",
+        approval="explicit exact revision and snapshot acknowledgement",
+        caps="one proposed revision activation",
+        audit="required actor, hashed reason, and snapshot binding",
+        shared_method="approve_operator_product_catalog_revision",
+        parity_test=(
+            "atomic revision and parent preconditions activate only the "
+            "reviewed administrative snapshot; no trading authority"
+        ),
+    ),
+    *(
+        AdminApiRouteInventoryItem(
+            module_id="account_management",
+            surface=(
+                "POST /api/v1/product-catalog/products/{product_id}/"
+                f"{action}"
+            ),
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            permission=AdminApiPermission.CONFIG_UPDATE,
+            idempotency="required; exact payload replay only",
+            approval="explicit exact active-revision acknowledgement",
+            caps="one exact administrative product lifecycle transition",
+            audit="required actor, hashed reason, product, and lifecycle",
+            shared_method="change_operator_product_catalog_lifecycle",
+            parity_test=(
+                "atomic active-revision clone changes one catalog lifecycle "
+                "without modifying trading policy or calling Coinbase"
+            ),
+        )
+        for action in ("enable", "disable", "retire")
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="account_management",
+        surface=(
+            "POST /api/v1/product-catalog/revisions/"
+            "{target_revision_id}/rollback"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.CONFIG_UPDATE,
+        idempotency="required; exact payload replay only",
+        approval="explicit active and target snapshot acknowledgement",
+        caps="one exact prior administrative snapshot restored as a new revision",
+        audit="required actor, hashed reason, and target revision linkage",
+        shared_method="rollback_operator_product_catalog_revision",
+        parity_test=(
+            "atomic active and target snapshot preconditions restore one "
+            "reviewed catalog; zero exchange mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
         module_id="spot_operations",
         surface="GET /api/v1/spot/fill-inventory-repair/cases",
         action_class=AdminApiActionClass.READ_ONLY,

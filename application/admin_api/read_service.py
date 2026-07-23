@@ -10092,6 +10092,33 @@ class AdminApiReadService:
             route_inventory_item(surface)
             for surface in account_products_refresh_surfaces
         ]
+        operator_product_catalog_surfaces = [
+            "POST /api/v1/product-catalog/refresh",
+            (
+                "POST /api/v1/product-catalog/revisions/"
+                "{revision_id}/approve"
+            ),
+            (
+                "POST /api/v1/product-catalog/products/"
+                "{product_id}/enable"
+            ),
+            (
+                "POST /api/v1/product-catalog/products/"
+                "{product_id}/disable"
+            ),
+            (
+                "POST /api/v1/product-catalog/products/"
+                "{product_id}/retire"
+            ),
+            (
+                "POST /api/v1/product-catalog/revisions/"
+                "{target_revision_id}/rollback"
+            ),
+        ]
+        operator_product_catalog_rows = [
+            route_inventory_item(surface)
+            for surface in operator_product_catalog_surfaces
+        ]
         account_reality_refresh_surfaces = [
             "POST /api/v1/admin/account-reality/refresh",
         ]
@@ -11565,6 +11592,108 @@ class AdminApiReadService:
                 approval_required=False,
                 cap_guard_required=False,
                 reconciliation_required=False,
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_item(
+                mutation_id="admin.operator_product_catalog",
+                mutation_family=(
+                    AdminApiMutationFamilyType.ADMIN_ACCOUNT_PRODUCTS_REFRESH
+                ),
+                workflow_id="operator_product_catalog_administration_v1",
+                module_id="account_management",
+                module="Account Management / Product Administration",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                ),
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Product Catalog refresh, review, approval, lifecycle, "
+                    "and rollback are backend-owned administrative metadata "
+                    "commands with no trading or exchange-mutation authority."
+                ),
+                command_surfaces=operator_product_catalog_surfaces,
+                action_classes=[
+                    row.action_class
+                    for row in operator_product_catalog_rows
+                ],
+                required_permissions=[
+                    row.permission for row in operator_product_catalog_rows
+                ],
+                identity_keys=[
+                    "revision_id",
+                    "product_id",
+                    "idempotency_key",
+                    "correlation_id",
+                ],
+                idempotency_contract=(
+                    "required durable exact-payload claim; terminal replay "
+                    "is call-free and changed actor/reason/payload conflicts"
+                ),
+                approval_contract=(
+                    "explicit action-specific acknowledgement plus exact "
+                    "revision and snapshot preconditions"
+                ),
+                cap_guard_contract=(
+                    "ten goal-global no-retry refresh reads; one exact local "
+                    "administrative transition per other command"
+                ),
+                admission_audit_contract=(
+                    "durable sanitized cycle, page, revision, command, and "
+                    "event evidence required"
+                ),
+                reconciliation_contract=(
+                    "durable revision/product digest and active-parent "
+                    "readback; no order reconciliation"
+                ),
+                owning_backend_service=(
+                    "application/admin_api/"
+                    "operator_product_catalog_service.py"
+                ),
+                shared_command_service_method=None,
+                route_inventory_refs=operator_product_catalog_surfaces,
+                backend_contract_refs=[
+                    "application/admin_api/operator_product_catalog.py",
+                    (
+                        "application/admin_api/"
+                        "operator_product_catalog_service.py"
+                    ),
+                    "database/operator_product_catalog.py",
+                    "api/v1/routes/operator_product_catalog.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    (
+                        "src/features/operator-read-models/"
+                        "product-catalog/ProductCatalogWorkspace.tsx"
+                    ),
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_PRODUCT_CATALOG_ADMINISTRATION_V1.md"
+                ],
+                frontend_boundary=(
+                    "The frontend may render generated administrative "
+                    "authority and forward explicit intent only; it cannot "
+                    "call Coinbase, alter product policy, or infer trading "
+                    "eligibility."
+                ),
+                bff_boundary=(
+                    "BFF forwards exact authenticated commands once and "
+                    "cannot expose Coinbase credentials, retry, or interpret "
+                    "catalog lifecycle as exchange authority."
+                ),
+                route_local_boundary=(
+                    "Routes enforce backend RBAC, intent, idempotency, fixed "
+                    "read accounting, and local revision preconditions; only "
+                    "refresh may invoke List Products and no route may mutate "
+                    "an exchange order."
+                ),
+                spot_rule_boundary=(
+                    "Administrative catalog lifecycle is not Spot or Futures "
+                    "portfolio, wallet, admission, cap, or execution policy."
+                ),
+                approval_required=False,
+                cap_guard_required=False,
+                reconciliation_required=True,
                 live_adapter_required=False,
             ),
             mutation_taxonomy_item(

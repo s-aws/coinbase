@@ -150,11 +150,20 @@ def test_operator_runtime_initializes_enabled_durable_schemas_before_composition
 ) -> None:
     environment = _authorized_environment(tmp_path)
     environment["COINBASE_ADMIN_API_OPERATOR_AUTOMATION_ENABLED"] = "1"
+    environment[
+        "COINBASE_ADMIN_API_OPERATOR_PRODUCT_CATALOG_ENABLED"
+    ] = "1"
     lifecycle: list[object] = []
     monkeypatch.setattr(
         operator_runtime,
         "initialize_operator_automation_schema",
         lambda: lifecycle.append("operator_automation_schema"),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        operator_runtime,
+        "initialize_operator_product_catalog_schema",
+        lambda: lifecycle.append("operator_product_catalog_schema"),
         raising=False,
     )
 
@@ -171,6 +180,7 @@ def test_operator_runtime_initializes_enabled_durable_schemas_before_composition
     assert result == 0
     assert lifecycle == [
         "operator_automation_schema",
+        "operator_product_catalog_schema",
         "compose",
         ("serve", "127.0.0.1", 8877),
     ]

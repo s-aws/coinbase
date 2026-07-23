@@ -75316,6 +75316,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "admin.reconciliation_plans",
         "admin.live_service_decisions",
         "admin.live_adapter_decisions",
+        "admin.operator_product_catalog",
         "spot.manual_order",
         "spot.order_cancel",
         "spot.selected_root_reconciliation",

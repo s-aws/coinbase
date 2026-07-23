@@ -32,8 +32,10 @@ from tools.coinbase_live_credentials import ensure_live_coinbase_credentials
 from tools.run_admin_api import (
     AdminApiRunConfig,
     OPERATOR_AUTOMATION_ENABLED_ENV,
+    OPERATOR_PRODUCT_CATALOG_ENABLED_ENV,
     apply_local_environment,
     initialize_operator_automation_schema,
+    initialize_operator_product_catalog_schema,
     parse_run_config,
     prepare_live_coinbase_credentials,
     run_uvicorn_server,
@@ -213,6 +215,13 @@ def initialize_enabled_operator_schemas(
         except Exception:
             raise OperatorAdminRuntimeError(
                 "operator_automation_schema_init_failed"
+            ) from None
+    if target.get(OPERATOR_PRODUCT_CATALOG_ENABLED_ENV) == "1":
+        try:
+            initialize_operator_product_catalog_schema()
+        except Exception:
+            raise OperatorAdminRuntimeError(
+                "operator_product_catalog_schema_init_failed"
             ) from None
 
 
