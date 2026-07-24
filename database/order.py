@@ -28,6 +28,10 @@ from database.order_follow_up_intent import (
     release_automatic_order_follow_up_claim,
     try_claim_automatic_order_follow_up,
 )
+from database.operator_fill_triggered_follow_up_activation import (
+    create_operator_fill_triggered_follow_up_activation_tables,
+    get_default_operator_fill_triggered_follow_up_activation_repository,
+)
 from typing import Dict, List, Any, NoReturn, Optional
 from core.action_condition_guard import SPOT_STANDING_MARKET_SOURCES
 from core.constants import get_local_now
@@ -44,6 +48,37 @@ from configuration import DEFAULT_MAX_ORDER_REPLACEMENT
 logger = get_logger("OrderDB")
 DB_CLIENT: PostgresDB = PostgresDB()
 FOLLOW_UP_INTENT_DURABLE_SLOT_APPLIES = operator_follow_up_intent_slot_applies
+
+
+def dispatch_operator_fill_triggered_follow_up(
+    *,
+    source_client_order_id: str,
+    trigger_evidence_sha256: str,
+) -> dict[str, object]:
+    """Dispatch one local attached intent; return fixed sanitized evidence."""
+
+    repository = (
+        get_default_operator_fill_triggered_follow_up_activation_repository()
+    )
+    if not repository.has_attached_intent(source_client_order_id):
+        return {"managed": False}
+    from application.admin_api.operator_fill_triggered_follow_up_activation import (
+        get_default_fill_triggered_follow_up_activation_service,
+    )
+
+    record = (
+        get_default_fill_triggered_follow_up_activation_service()
+        .dispatch_authoritative_full_fill(
+            source_client_order_id=source_client_order_id,
+            trigger_evidence_sha256=trigger_evidence_sha256,
+        )
+    )
+    return {
+        "managed": True,
+        "control_state": record.control_state.value,
+        "trigger_state": record.trigger_state.value,
+        "diagnostic_code": record.diagnostic_code,
+    }
 
 
 _CONTROLLED_ADMIN_CHILD_MAX_MARKET_AGE_SECONDS = Decimal("30")

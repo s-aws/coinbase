@@ -56,6 +56,15 @@ FOLLOW_UP_INTENT_AUDIT_MESSAGE = "follow_up_intent_attached"
 OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID = (
     "operator_follow_up_operations_queue_and_single_live_proof"
 )
+FILL_TRIGGERED_FOLLOW_UP_LIVE_PROOF_GOAL_ID = (
+    "operator_fill_triggered_follow_up_activation_v1"
+)
+_ALLOWED_FOLLOW_UP_LIVE_PROOF_GOAL_IDS = frozenset(
+    {
+        OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        FILL_TRIGGERED_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+    }
+)
 
 _SCHEMA_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _AUTOMATIC_CLAIM_KINDS = {
@@ -2743,7 +2752,12 @@ class OperatorFollowUpIntentRepository:
         source_client_order_id: str,
         *,
         existing_attempt: FollowUpMaterializationAttemptRecord | None,
+        live_proof_goal_id: str = OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
     ) -> FollowUpMaterializationReadiness:
+        if live_proof_goal_id not in _ALLOWED_FOLLOW_UP_LIVE_PROOF_GOAL_IDS:
+            raise FollowUpIntentStoreConflict(
+                "follow_up_live_proof_goal_id_invalid"
+            )
         blockers: list[str] = []
         portfolio_hash = _portfolio_sha256(self.configured_spot_portfolio_id)
         cursor.execute(
@@ -2813,7 +2827,7 @@ class OperatorFollowUpIntentRepository:
                         WHERE goal_id = %s
                    )
             """,
-            (OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,),
+            (live_proof_goal_id,),
         )
         terminal_goal_row = cursor.fetchone()
         terminal_goal_sealed = bool(
@@ -3399,6 +3413,8 @@ class OperatorFollowUpIntentRepository:
     def read_materialization(
         self,
         source_client_order_id: str,
+        *,
+        live_proof_goal_id: str = OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
     ) -> FollowUpMaterializationReadback:
         """Read durable readiness/state without running schema initialization."""
 
@@ -3414,6 +3430,7 @@ class OperatorFollowUpIntentRepository:
                     cursor,
                     source_client_order_id,
                     existing_attempt=attempt,
+                    live_proof_goal_id=live_proof_goal_id,
                 )
                 return FollowUpMaterializationReadback(
                     readiness=readiness,
@@ -3426,7 +3443,15 @@ class OperatorFollowUpIntentRepository:
                 "follow_up_materialization_evidence_unavailable"
             ) from None
 
-    def _follow_up_operations_projection_cte(self) -> str:
+    def _follow_up_operations_projection_cte(
+        self,
+        *,
+        live_proof_goal_id: str = OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+    ) -> str:
+        if live_proof_goal_id not in _ALLOWED_FOLLOW_UP_LIVE_PROOF_GOAL_IDS:
+            raise FollowUpIntentStoreConflict(
+                "follow_up_live_proof_goal_id_invalid"
+            )
         """Return the local-only set projection shared by count and page SQL."""
 
         attempt_state_case = _follow_up_operation_attempt_case(
@@ -3523,7 +3548,7 @@ class OperatorFollowUpIntentRepository:
             SELECT EXISTS (
                        SELECT 1
                          FROM {self._table('operator_follow_up_live_proof_terminal_goal')}
-                        WHERE goal_id = '{OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID}'
+                        WHERE goal_id = '{live_proof_goal_id}'
                    ) AS live_proof_goal_terminal
         ),
         latest_live_proof AS (
@@ -3605,7 +3630,7 @@ class OperatorFollowUpIntentRepository:
                    latest.state AS materialization_attempt_state,
                    (
                        create_proof.event_sequence IS NOT NULL
-                       AND create_proof.goal_id = '{OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID}'
+                       AND create_proof.goal_id = '{live_proof_goal_id}'
                        AND create_proof.operation_kind = 'CREATE'
                        AND create_proof.source_client_order_id = intent.source_client_order_id
                        AND create_proof.root_client_order_id = intent.root_client_order_id
@@ -4321,7 +4346,7 @@ class OperatorFollowUpIntentRepository:
         normalized_goal_id = str(goal_id or "").strip()
         normalized_operation = str(operation_kind or "").strip().upper()
         normalized_source = str(source_client_order_id or "").strip()
-        if normalized_goal_id != OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID:
+        if normalized_goal_id not in _ALLOWED_FOLLOW_UP_LIVE_PROOF_GOAL_IDS:
             raise FollowUpIntentStoreConflict(
                 "follow_up_live_proof_goal_id_invalid"
             )
@@ -4504,7 +4529,9 @@ class OperatorFollowUpIntentRepository:
                         raise FollowUpIntentStoreConflict(
                             "follow_up_live_proof_operation_consumed"
                         )
-                    projection_cte = self._follow_up_operations_projection_cte()
+                    projection_cte = self._follow_up_operations_projection_cte(
+                        live_proof_goal_id=normalized_goal,
+                    )
                     cursor.execute(
                         projection_cte
                         + """
@@ -4542,7 +4569,7 @@ class OperatorFollowUpIntentRepository:
                           LEFT JOIN inserted ON TRUE
                         """,
                         (
-                            OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+                            normalized_goal,
                             list(self.configured_spot_product_ids),
                             self.configured_spot_portfolio_id,
                             self.configured_spot_portfolio_id,
@@ -5183,7 +5210,7 @@ class OperatorFollowUpIntentRepository:
 
         normalized_goal = str(goal_id or "").strip()
         source_id = str(source_client_order_id or "").strip()
-        if normalized_goal != OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID:
+        if normalized_goal not in _ALLOWED_FOLLOW_UP_LIVE_PROOF_GOAL_IDS:
             raise FollowUpIntentStoreConflict(
                 "follow_up_live_proof_goal_id_invalid"
             )
@@ -7447,7 +7474,7 @@ class OperatorFollowUpIntentRepository:
                         }
                         or proof is None
                         or proof.goal_id
-                        != OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID
+                        not in _ALLOWED_FOLLOW_UP_LIVE_PROOF_GOAL_IDS
                         or proof.operation_kind
                         != FollowUpLiveProofOperationKind.RECONCILIATION_READ.value
                         or proof.event_state

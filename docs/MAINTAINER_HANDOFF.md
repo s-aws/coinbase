@@ -1,6 +1,40 @@
 # Maintainer Handoff
 
-## Active independent Goal 7 — Revealed-order movement and repricing
+## Active independent Goal 8 — Fill-triggered follow-up activation
+
+Goal `operator_fill_triggered_follow_up_activation_v1` connects one
+previously attached intent to the existing order-engine full-fill boundary.
+PostgreSQL owns revision-bound enable/disable/pause/drain controls,
+authoritative source and fill-ledger revalidation, a single trigger claim,
+terminal classification, exact child linkage, restart recovery, and audit.
+The winner delegates through the existing canonical follow-up materializer
+with Goal 8's distinct exchange-call ledger; no parallel Create path exists.
+
+The order-engine interlock treats every attached intent as managed even while
+disabled, paused, drained, blocked, or unknown, so it cannot fall through to
+legacy automatic follow-up behavior. A full-fill claim also requires zero
+partial-fill children. The Admin API exposes sanitized activation and
+materialization readback, local control commands, and only the exact child's
+conditional safe-closeout route.
+
+Historical source comparison used `origin/prod:core/order_engine.py` for
+full-fill and partial-fill event-flow context. It did not copy legacy
+dashboard authority, implicit activation, partial-fill fan-out, retries, or
+child-term derivation outside the canonical backend service.
+
+Goal 8 closeout passed canonical backend regression (`1,282 passed, 6
+skipped` parallel; `819 passed, 150 skipped` serial), frontend full regression
+(`1,692/1,692`), Playwright (`23/23`), generated-contract coverage for `214`
+paths, the canonical release and installed deployment gates, and independent
+safety plus blind-contextless audits. The final concurrency audit proved that
+one advisory-lock interval covers claim, canonical materialization, and
+activation terminal persistence without a recovery gap.
+
+A read-only count check found zero attached intents and zero exact full-fill
+candidates. No Coinbase call or exchange mutation ran, so Goal 8's one Create
+and conditional exact-child Cancel allowances remain unconsumed.
+
+## Completed independent Goal 7 — Revealed-order movement and repricing
 
 Goal `operator_revealed_order_movement_and_repricing_v1` continues one exact
 Goal 6 revealed placement through backend-owned plan and execution routes.

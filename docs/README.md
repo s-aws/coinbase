@@ -1,6 +1,13 @@
 # Documentation Index
 
-Active independent Goal 7:
+Active independent Goal 8:
+[Operator Fill-Triggered Follow-Up Activation V1](OPERATOR_FILL_TRIGGERED_FOLLOW_UP_ACTIVATION_V1.md).
+Goal `operator_fill_triggered_follow_up_activation_v1` provides one
+revision-bound activation control, authoritative full-fill proof,
+exactly-once trigger/materialization, distinct call accounting, and
+exact-child closeout readback for a previously attached intent.
+
+Completed independent Goal 7:
 [Operator Revealed Order Movement and Repricing V1](OPERATOR_REVEALED_ORDER_MOVEMENT_AND_REPRICING_V1.md).
 Goal `operator_revealed_order_movement_and_repricing_v1` provides one explicit
 operator-reviewed zero-fill movement, immutable quantized post-only plan, one

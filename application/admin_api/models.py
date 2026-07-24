@@ -5971,6 +5971,118 @@ class AdminOrderFollowUpIntentAttachResponse(BaseModel):
     browser_authority: str = "display_and_forward_only"
 
 
+class AdminOrderFillTriggeredFollowUpActivationItem(BaseModel):
+    """Sanitized durable activation state; actor and trigger claim stay private."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    goal_id: Literal["operator_fill_triggered_follow_up_activation_v1"] = (
+        "operator_fill_triggered_follow_up_activation_v1"
+    )
+    source_client_order_id: str = Field(min_length=1)
+    follow_up_intent_id: str = Field(min_length=1)
+    control_state: Literal[
+        "DISABLED",
+        "ENABLED",
+        "PAUSED",
+        "DRAINING",
+        "DRAINED",
+    ]
+    trigger_state: Literal[
+        "UNCLAIMED",
+        "CLAIMED",
+        "COMPLETED",
+        "BLOCKED",
+        "UNKNOWN",
+    ]
+    revision: int = Field(ge=0)
+    delegated_create_authority: bool
+    trigger_claimed: bool
+    materialization_state: str | None = Field(default=None, min_length=1)
+    child_client_order_id: str | None = Field(default=None, min_length=1)
+    diagnostic_code: str = Field(min_length=1)
+    correlation_id: str = Field(min_length=1)
+    audit_id: str = Field(min_length=1)
+    recorded_at: str = Field(min_length=1)
+    updated_at: str = Field(min_length=1)
+
+
+class AdminOrderFillTriggeredFollowUpActivationReadResponse(BaseModel):
+    """Call-free backend authority readback for one attached intent."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_order_fill_triggered_follow_up_activation_readback"
+    activation: AdminOrderFillTriggeredFollowUpActivationItem
+    required_control_operator_intent: Literal[
+        "control_fill_triggered_follow_up"
+    ] = "control_fill_triggered_follow_up"
+    delegated_create_operator_intent: Literal[
+        "materialize_enabled_fill_triggered_follow_up"
+    ] = "materialize_enabled_fill_triggered_follow_up"
+    environment: str = Field(min_length=1)
+    portfolio_scope: Literal["approved_test_portfolio"] = (
+        "approved_test_portfolio"
+    )
+    max_submitted_notional_usdc: str = Field(min_length=1)
+    max_possible_execution_notional_usdc: str = Field(min_length=1)
+    read_only: Literal[True] = True
+    live_coinbase_read_ran: Literal[False] = False
+    live_coinbase_orders_ran: Literal[False] = False
+    exchange_state_mutated: Literal[False] = False
+    browser_authority: str = "display_only"
+
+
+class AdminOrderFillTriggeredFollowUpActivationControlRequest(BaseModel):
+    """One revision-bound operator control; no child terms are accepted."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    action: Literal["ENABLE", "DISABLE", "PAUSE", "DRAIN"]
+    expected_revision: int = Field(ge=0)
+    confirm_control_action: Literal[True]
+    authorize_single_fill_triggered_materialization: bool = False
+    acknowledge_unknown_outcome_consumes_create_allowance: bool = False
+    acknowledge_child_terms_are_backend_derived: bool = False
+
+
+class AdminOrderFillTriggeredFollowUpActivationControlResponse(BaseModel):
+    """Audited local activation transition with zero Coinbase calls."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_order_fill_triggered_follow_up_activation_control"
+    status: AdminApiCommandStatus
+    action_class: Literal[AdminApiActionClass.LOCAL_STATE_MUTATION] = (
+        AdminApiActionClass.LOCAL_STATE_MUTATION
+    )
+    required_permission: Literal[AdminApiPermission.ORDER_CREATE] = (
+        AdminApiPermission.ORDER_CREATE
+    )
+    operator_intent: Literal["control_fill_triggered_follow_up"] = (
+        "control_fill_triggered_follow_up"
+    )
+    delegated_create_operator_intent: Literal[
+        "materialize_enabled_fill_triggered_follow_up"
+    ] = "materialize_enabled_fill_triggered_follow_up"
+    environment: str = Field(min_length=1)
+    portfolio_scope: Literal["approved_test_portfolio"] = (
+        "approved_test_portfolio"
+    )
+    max_submitted_notional_usdc: str = Field(min_length=1)
+    max_possible_execution_notional_usdc: str = Field(min_length=1)
+    correlation_id: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    audit_id: str = Field(min_length=1)
+    activation: AdminOrderFillTriggeredFollowUpActivationItem
+    local_state_mutated: Literal[True] = True
+    live_coinbase_read_ran: Literal[False] = False
+    live_coinbase_orders_ran: Literal[False] = False
+    live_exchange_submitted: Literal[False] = False
+    exchange_state_mutated: Literal[False] = False
+    browser_authority: str = "display_and_forward_only"
+
+
 class AdminOrderFollowUpMaterializationRequest(BaseModel):
     """Fresh operator authority for one attached intent's one-shot Create."""
 
@@ -6516,10 +6628,12 @@ class AdminOrderFollowUpMaterializationReadResponse(BaseModel):
         "approved_test_portfolio"
     )
     required_materialization_operator_intent: Literal[
-        "authorize_and_materialize_follow_up_intent"
+        "authorize_and_materialize_follow_up_intent",
+        "materialize_enabled_fill_triggered_follow_up",
     ] = "authorize_and_materialize_follow_up_intent"
     required_safe_closeout_operator_intent: Literal[
-        "safe_closeout_materialized_follow_up_intent"
+        "safe_closeout_materialized_follow_up_intent",
+        "safe_closeout_fill_triggered_follow_up",
     ] = "safe_closeout_materialized_follow_up_intent"
     eligibility: AdminOrderFollowUpMaterializationEligibilityEvidence
     authorization_request_forwardability: (
@@ -6587,7 +6701,8 @@ class AdminOrderFollowUpMaterializationCommandResponse(BaseModel):
         "approved_test_portfolio"
     )
     operator_intent: Literal[
-        "authorize_and_materialize_follow_up_intent"
+        "authorize_and_materialize_follow_up_intent",
+        "materialize_enabled_fill_triggered_follow_up",
     ]
     correlation_id: str = Field(
         min_length=1,
@@ -6693,7 +6808,8 @@ class AdminOrderFollowUpMaterializationCancelResponse(BaseModel):
         "approved_test_portfolio"
     )
     operator_intent: Literal[
-        "safe_closeout_materialized_follow_up_intent"
+        "safe_closeout_materialized_follow_up_intent",
+        "safe_closeout_fill_triggered_follow_up",
     ]
     correlation_id: str = Field(
         min_length=1,

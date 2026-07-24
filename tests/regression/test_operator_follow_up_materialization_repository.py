@@ -28,6 +28,7 @@ from core.enums import (
     FollowUpTransportSubmissionState,
 )
 from database.order_follow_up_intent import (
+    FILL_TRIGGERED_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
     OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
     FollowUpIntentStoreConflict,
     FollowUpIntentStoreUnavailable,
@@ -2279,6 +2280,67 @@ def test_live_proof_rejects_wrong_goal_and_wrong_exact_candidate_source(
         f'SELECT COUNT(*) FROM "{repository_harness.schema}".'
         "operator_follow_up_live_proof_event"
     ) == 0
+
+
+def test_fill_triggered_goal_claims_a_distinct_live_proof_ledger(
+    repository_harness: _RepositoryHarness,
+):
+    repository, _root_id, source_id, _intent_id = _attach_then_fill(
+        repository_harness
+    )
+
+    claimed = repository.claim_follow_up_live_proof_operation(
+        goal_id=FILL_TRIGGERED_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        operation_kind=FollowUpLiveProofOperationKind.ELIGIBILITY_READ.value,
+        source_client_order_id=source_id,
+        correlation_id="fill-triggered-proof-correlation",
+        audit_id=str(uuid.uuid4()),
+        operation_idempotency_key_sha256="1" * 64,
+    )
+    operation_set = repository.read_follow_up_live_proof_operation_set(
+        goal_id=FILL_TRIGGERED_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        source_client_order_id=source_id,
+    )
+
+    assert claimed.goal_id == FILL_TRIGGERED_FOLLOW_UP_LIVE_PROOF_GOAL_ID
+    assert claimed.event_state == (
+        FollowUpLiveProofEventState.INVOCATION_STARTED.value
+    )
+    assert operation_set.eligibility_read == claimed
+
+
+def test_fill_triggered_readiness_uses_its_own_terminal_goal_boundary(
+    repository_harness: _RepositoryHarness,
+):
+    root_id, source_id = _insert_chain(repository_harness)
+    repository = repository_harness.repository(
+        terminal_live_proof_goal_ids=(OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,),
+    )
+    repository.attach(_command(source_id))
+    repository_harness.execute(
+        f'UPDATE "{repository_harness.schema}".order_parent '
+        "SET status = 'FILLED' WHERE client_order_id = %s",
+        (source_id,),
+    )
+    repository_harness.execute(
+        f"""
+        INSERT INTO "{repository_harness.schema}".fill_ledger (
+            derived_trade_key, instrument, side, quantity, price,
+            client_order_id
+        ) VALUES (%s, %s, 'BUY', 1, 100, %s)
+        """,
+        (str(uuid.uuid4()), KNOWN_PRODUCT_ID, source_id),
+    )
+
+    predecessor = repository.read_materialization(source_id)
+    successor = repository.read_materialization(
+        source_id,
+        live_proof_goal_id=FILL_TRIGGERED_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+    )
+
+    assert "follow_up_live_proof_goal_terminal" in predecessor.readiness.blockers
+    assert "follow_up_live_proof_goal_terminal" not in successor.readiness.blockers
+    assert successor.readiness.root_client_order_id == root_id
 
 
 def test_live_proof_terminal_requires_start_fixed_diagnostic_and_is_single_use(

@@ -118,6 +118,91 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         module_id="spot_operations",
         surface=(
             "GET /api/v1/orders/{source_client_order_id}/follow-up-intent/"
+            "fill-triggered-activation"
+        ),
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not applicable; authoritative local control readback only",
+        caps="reports no exchange authority and no child terms",
+        audit="returns sanitized correlation and audit binding only",
+        shared_method="read_fill_triggered_follow_up_activation",
+        parity_test=(
+            "PostgreSQL activation state only; withholds actor, roles, trigger "
+            "claim, and evidence hash and makes zero Coinbase calls"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface=(
+            "POST /api/v1/orders/{source_client_order_id}/follow-up-intent/"
+            "fill-triggered-activation"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.ORDER_CREATE,
+        idempotency=(
+            "required revision-bound exact replay; changed action or revision "
+            "conflicts"
+        ),
+        approval=(
+            "required explicit enable, disable, pause, or drain confirmation; "
+            "ENABLE delegates one future canonical Create authority"
+        ),
+        caps=(
+            "required exact current 3.10 submitted and 1.00 possible-execution "
+            "USDC caps; exactly one attached intent, full-fill claim, and "
+            "backend-derived child"
+        ),
+        audit=(
+            "required durable actor, roles, source, action, revision, "
+            "correlation, and audit binding"
+        ),
+        shared_method="control_fill_triggered_follow_up_activation",
+        parity_test=(
+            "controls only one previously attached intent; backend owns the "
+            "later full-fill trigger and exactly-once claim"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface=(
+            "GET /api/v1/orders/{source_client_order_id}/follow-up-intent/"
+            "fill-triggered-activation/materialization"
+        ),
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not applicable; Goal 8 local evidence readback only",
+        caps="reports Goal 8's one Create and one conditional Cancel allowance",
+        audit="returns append-only Goal 8 operation and child evidence",
+        shared_method="read_fill_triggered_follow_up_materialization",
+        parity_test=(
+            "reads the Goal 8 ledger and exact child locally without a "
+            "Coinbase read or mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface=(
+            "POST /api/v1/orders/{source_client_order_id}/follow-up-intent/"
+            "fill-triggered-activation/safe-closeout"
+        ),
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        permission=AdminApiPermission.ORDER_CANCEL,
+        idempotency="required Goal 8 exact-child one-use Cancel claim",
+        approval="required explicit Goal 8 safe-closeout acknowledgement",
+        caps="required at most one Cancel solely for Goal 8's exact child",
+        audit="required append-only Goal 8 reconciliation and Cancel evidence",
+        shared_method="safe_closeout_fill_triggered_follow_up",
+        parity_test=(
+            "authoritative exact-child read followed by at most one Cancel; "
+            "zero retry, fallback, redirect, or alternate identity"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface=(
+            "GET /api/v1/orders/{source_client_order_id}/follow-up-intent/"
             "materialization"
         ),
         action_class=AdminApiActionClass.READ_ONLY,

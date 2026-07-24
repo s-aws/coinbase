@@ -1,6 +1,21 @@
 # Coinbase Trading Backend
 
-## Active independent Goal 7 — Revealed-order movement and repricing
+## Active independent Goal 8 — Fill-triggered follow-up activation
+
+`operator_fill_triggered_follow_up_activation_v1` adds PostgreSQL-backed
+enable, disable, pause, and drain controls for one previously attached
+follow-up intent. The order engine claims only an enabled authoritative full
+fill, proves exact fill-ledger equality and zero partial-fill child, and
+delegates one backend-derived child to the canonical follow-up materializer.
+Goal 8 uses a distinct single-use exchange-call ledger, fixed sanitized
+diagnostics, restart-safe readback, and conditional exact-child safe closeout.
+Managed attached intents never fall through to the legacy automatic
+follow-up path. Control/read routes make no Coinbase call; ENABLE explicitly
+delegates at most one future canonical Create under the displayed
+Controlled-live, approved Test-portfolio, policy, wallet, and exact current
+`3.10/1.00 USDC` cap boundaries.
+
+## Completed independent Goal 7 — Revealed-order movement and repricing
 
 `operator_revealed_order_movement_and_repricing_v1` adds one authenticated
 operator-controlled movement for an exact zero-fill revealed placement.

@@ -319,8 +319,12 @@ def initialize_order_follow_up_intent_schema() -> None:
     from database.order_follow_up_intent import (
         create_order_follow_up_intent_tables,
     )
+    from database.operator_fill_triggered_follow_up_activation import (
+        create_operator_fill_triggered_follow_up_activation_tables,
+    )
 
     create_order_follow_up_intent_tables()
+    create_operator_fill_triggered_follow_up_activation_tables()
 
 
 def initialize_operator_automation_schema() -> None:

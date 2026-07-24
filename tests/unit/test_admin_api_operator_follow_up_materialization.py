@@ -1195,6 +1195,41 @@ def test_materialize_rejects_attachment_ack_missing_fresh_ack_or_missing_rbac(
     assert exchange.events == []
 
 
+def test_materialize_accepts_a_separately_configured_operator_intent() -> None:
+    repository = FakeRepository()
+    runtime = FakeRuntime()
+    exchange = FakeExchange()
+    service = OperatorFollowUpMaterializationService(
+        repository=repository,
+        runtime=runtime,
+        exchange=exchange,
+        materialization_operator_intent=(
+            "materialize_enabled_fill_triggered_follow_up"
+        ),
+    )
+
+    with pytest.raises(OperatorFollowUpMaterializationError) as rejected:
+        service.materialize(
+            source_client_order_id="source-001",
+            request=_authorization(
+                authorize_materialization_of_attached_intent=False
+            ),
+            context=_context(
+                operator_intent=(
+                    "materialize_enabled_fill_triggered_follow_up"
+                )
+            ),
+        )
+
+    assert (
+        rejected.value.code
+        == "follow_up_materialization_fresh_authorization_required"
+    )
+    assert repository.events == []
+    assert runtime.events == []
+    assert exchange.events == []
+
+
 def test_materialize_derives_exact_candidate_from_backend_and_orders_boundary_before_call():
     candidate = _candidate()
     runtime = FakeRuntime(eligibility=_eligibility(candidate))

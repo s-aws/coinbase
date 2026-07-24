@@ -55,6 +55,7 @@ from application.admin_api.live_execution import (
     operator_mvp_live_service_state_allows_route_admission,
 )
 from application.admin_api.operator_mvp_policy import (
+    OPERATOR_MVP_FILL_TRIGGERED_FOLLOW_UP_SAFE_CLOSEOUT_ROUTE,
     OPERATOR_MVP_FOLLOW_UP_MATERIALIZATION_ROUTE,
     OPERATOR_MVP_FOLLOW_UP_SAFE_CLOSEOUT_ROUTE,
 )
@@ -112,6 +113,10 @@ from application.admin_api.models import (
     AdminOrderFollowUpIntentAttachRequest,
     AdminOrderFollowUpIntentAttachResponse,
     AdminOrderFollowUpIntentReadResponse,
+    AdminOrderFillTriggeredFollowUpActivationControlRequest,
+    AdminOrderFillTriggeredFollowUpActivationControlResponse,
+    AdminOrderFillTriggeredFollowUpActivationItem,
+    AdminOrderFillTriggeredFollowUpActivationReadResponse,
     AdminOrderFillFollowUpChildCancelReadinessResponse,
     AdminOrderFillFollowUpChildCancelRequest,
     AdminOrderFillFollowUpChainResponse,
@@ -158,11 +163,23 @@ from application.admin_api.operator_follow_up_intent import (
 )
 from application.admin_api.operator_follow_up_materialization import (
     AUTHORIZE_AND_MATERIALIZE_FOLLOW_UP_INTENT,
+    CURRENT_MAX_EXECUTED_NOTIONAL_USDC,
+    CURRENT_MAX_SUBMITTED_NOTIONAL_USDC,
     SAFE_CLOSEOUT_MATERIALIZED_FOLLOW_UP_INTENT,
     OperatorFollowUpMaterializationError,
     OperatorFollowUpMaterializationRequestContext,
     OperatorFollowUpMaterializationService,
     get_default_operator_follow_up_materialization_service,
+)
+from application.admin_api.operator_fill_triggered_follow_up_activation import (
+    CONTROL_FILL_TRIGGERED_FOLLOW_UP,
+    FillTriggeredActivationControlAction,
+    FillTriggeredActivationRecord,
+    FillTriggeredActivationRequestContext,
+    FillTriggeredFollowUpActivationError,
+    FillTriggeredFollowUpActivationService,
+    get_default_fill_triggered_follow_up_activation_service,
+    get_default_fill_triggered_follow_up_materialization_service,
 )
 from application.admin_api.mvp_service import (
     AdminMvpRequestContext,
@@ -528,6 +545,20 @@ def get_order_follow_up_materialization_service(
     return get_default_operator_follow_up_materialization_service()
 
 
+def get_fill_triggered_follow_up_activation_service(
+) -> FillTriggeredFollowUpActivationService:
+    """Return the durable per-intent activation control authority."""
+
+    return get_default_fill_triggered_follow_up_activation_service()
+
+
+def get_fill_triggered_follow_up_materialization_service(
+) -> OperatorFollowUpMaterializationService:
+    """Return the canonical materializer bound to Goal 8's ledger."""
+
+    return get_default_fill_triggered_follow_up_materialization_service()
+
+
 def _require_follow_up_live_service_route_admission(
     *,
     live_execution_service: AdminApiLiveExecutionService,
@@ -592,6 +623,37 @@ def _raise_follow_up_materialization_error(
         status_code=exc.http_status_code,
         detail=exc.code,
     ) from exc
+
+
+def _raise_fill_triggered_follow_up_error(
+    exc: FillTriggeredFollowUpActivationError,
+) -> NoReturn:
+    raise HTTPException(
+        status_code=exc.http_status_code,
+        detail=exc.code,
+    ) from exc
+
+
+def _public_fill_triggered_activation(
+    record: FillTriggeredActivationRecord,
+) -> AdminOrderFillTriggeredFollowUpActivationItem:
+    return AdminOrderFillTriggeredFollowUpActivationItem(
+        goal_id=record.goal_id,
+        source_client_order_id=record.source_client_order_id,
+        follow_up_intent_id=record.follow_up_intent_id,
+        control_state=record.control_state.value,
+        trigger_state=record.trigger_state.value,
+        revision=record.revision,
+        delegated_create_authority=record.delegated_create_authority,
+        trigger_claimed=record.trigger_state.is_claimed,
+        materialization_state=record.materialization_state,
+        child_client_order_id=record.child_client_order_id,
+        diagnostic_code=record.diagnostic_code,
+        correlation_id=record.correlation_id,
+        audit_id=record.audit_id,
+        recorded_at=record.recorded_at,
+        updated_at=record.updated_at,
+    )
 
 
 _FOLLOW_UP_MATERIALIZATION_RECEIPT_MESSAGE = (
@@ -2306,6 +2368,333 @@ def attach_order_follow_up_intent(
     except OperatorFollowUpIntentError as exc:
         _raise_follow_up_intent_error(exc)
     return _follow_up_intent_attach_response(payload)
+
+
+@router.get(
+    "/orders/{source_client_order_id}/follow-up-intent/fill-triggered-activation",
+    response_model=AdminOrderFillTriggeredFollowUpActivationReadResponse,
+    responses=FOLLOW_UP_INTENT_READ_ROUTE_RESPONSES,
+    summary="Read per-intent fill-triggered activation authority",
+)
+def get_fill_triggered_follow_up_activation(
+    source_client_order_id: Annotated[
+        str,
+        Path(
+            min_length=36,
+            max_length=36,
+            pattern=_CANONICAL_UUID_PATH_PATTERN,
+        ),
+    ],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    _feature_enabled: Annotated[
+        None,
+        Depends(require_operator_follow_up_intent_enabled),
+    ],
+    service: Annotated[
+        FillTriggeredFollowUpActivationService,
+        Depends(get_fill_triggered_follow_up_activation_service),
+    ],
+) -> JSONResponse:
+    """Read PostgreSQL activation state without invoking Coinbase."""
+
+    require_permission(actor, AdminApiPermission.AUDIT_READ)
+    try:
+        record = service.read(source_client_order_id=source_client_order_id)
+    except FillTriggeredFollowUpActivationError as exc:
+        _raise_fill_triggered_follow_up_error(exc)
+    return _read_response(
+        AdminOrderFillTriggeredFollowUpActivationReadResponse(
+            activation=_public_fill_triggered_activation(record),
+            environment=_follow_up_materialization_environment(),
+            max_submitted_notional_usdc=str(
+                CURRENT_MAX_SUBMITTED_NOTIONAL_USDC
+            ),
+            max_possible_execution_notional_usdc=str(
+                CURRENT_MAX_EXECUTED_NOTIONAL_USDC
+            ),
+        )
+    )
+
+
+@router.post(
+    "/orders/{source_client_order_id}/follow-up-intent/fill-triggered-activation",
+    response_model=AdminOrderFillTriggeredFollowUpActivationControlResponse,
+    status_code=status.HTTP_200_OK,
+    responses={
+        code: response
+        for code, response in FOLLOW_UP_INTENT_ATTACH_ROUTE_RESPONSES.items()
+        if code != 200
+    },
+    summary="Enable, disable, pause, or drain one attached intent",
+)
+def control_fill_triggered_follow_up_activation(
+    body: AdminOrderFillTriggeredFollowUpActivationControlRequest,
+    source_client_order_id: Annotated[
+        str,
+        Path(
+            min_length=36,
+            max_length=36,
+            pattern=_CANONICAL_UUID_PATH_PATTERN,
+        ),
+    ],
+    idempotency_key: Annotated[
+        str,
+        Header(
+            alias="Idempotency-Key",
+            min_length=1,
+            max_length=255,
+            pattern=_VISIBLE_ASCII_HEADER_PATTERN,
+        ),
+    ],
+    correlation_id: Annotated[
+        str,
+        Header(
+            alias="X-Correlation-Id",
+            min_length=1,
+            max_length=255,
+            pattern=_VISIBLE_ASCII_HEADER_PATTERN,
+        ),
+    ],
+    operator_intent: Annotated[
+        Literal["control_fill_triggered_follow_up"],
+        Header(alias="X-Operator-Intent"),
+    ],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    _feature_enabled: Annotated[
+        None,
+        Depends(require_operator_follow_up_intent_enabled),
+    ],
+    service: Annotated[
+        FillTriggeredFollowUpActivationService,
+        Depends(get_fill_triggered_follow_up_activation_service),
+    ],
+) -> JSONResponse:
+    """Persist one local control transition; it cannot contact Coinbase."""
+
+    require_permission(actor, AdminApiPermission.ORDER_CREATE)
+    audit_id = _follow_up_materialization_operation_audit_id(
+        endpoint=(
+            "POST /api/v1/orders/{source_client_order_id}/follow-up-intent/"
+            "fill-triggered-activation"
+        ),
+        actor=actor,
+        source_client_order_id=source_client_order_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        environment=_follow_up_materialization_environment(),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.ORDER_CREATE,
+    )
+    try:
+        record = service.control(
+            source_client_order_id=source_client_order_id,
+            action=FillTriggeredActivationControlAction(body.action),
+            expected_revision=body.expected_revision,
+            confirm_control_action=body.confirm_control_action,
+            authorize_single_fill_triggered_materialization=(
+                body.authorize_single_fill_triggered_materialization
+            ),
+            acknowledge_unknown_outcome_consumes_create_allowance=(
+                body.acknowledge_unknown_outcome_consumes_create_allowance
+            ),
+            acknowledge_child_terms_are_backend_derived=(
+                body.acknowledge_child_terms_are_backend_derived
+            ),
+            context=FillTriggeredActivationRequestContext(
+                actor_id=actor.actor_id,
+                roles=tuple(role.value for role in actor.roles),
+                idempotency_key=idempotency_key,
+                correlation_id=correlation_id,
+                audit_id=audit_id,
+                operator_intent=CONTROL_FILL_TRIGGERED_FOLLOW_UP,
+            ),
+        )
+    except FillTriggeredFollowUpActivationError as exc:
+        _raise_fill_triggered_follow_up_error(exc)
+    return _read_response(
+        AdminOrderFillTriggeredFollowUpActivationControlResponse(
+            status=AdminApiCommandStatus.ACCEPTED,
+            correlation_id=correlation_id,
+            idempotency_key=idempotency_key,
+            audit_id=audit_id,
+            activation=_public_fill_triggered_activation(record),
+            environment=_follow_up_materialization_environment(),
+            max_submitted_notional_usdc=str(
+                CURRENT_MAX_SUBMITTED_NOTIONAL_USDC
+            ),
+            max_possible_execution_notional_usdc=str(
+                CURRENT_MAX_EXECUTED_NOTIONAL_USDC
+            ),
+        )
+    )
+
+
+@router.get(
+    "/orders/{source_client_order_id}/follow-up-intent/"
+    "fill-triggered-activation/materialization",
+    response_model=AdminOrderFollowUpMaterializationReadResponse,
+    responses=FOLLOW_UP_MATERIALIZATION_READ_ROUTE_RESPONSES,
+    summary="Read Goal 8 materialization and exact-child closeout authority",
+)
+def get_fill_triggered_follow_up_materialization(
+    source_client_order_id: Annotated[
+        str,
+        Path(
+            min_length=36,
+            max_length=36,
+            pattern=_CANONICAL_UUID_PATH_PATTERN,
+        ),
+    ],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    _feature_enabled: Annotated[
+        None,
+        Depends(require_operator_follow_up_intent_enabled),
+    ],
+    service: Annotated[
+        OperatorFollowUpMaterializationService,
+        Depends(get_fill_triggered_follow_up_materialization_service),
+    ],
+) -> JSONResponse:
+    """Read Goal 8 PostgreSQL evidence only; this cannot contact Coinbase."""
+
+    require_permission(actor, AdminApiPermission.AUDIT_READ)
+    try:
+        payload = service.read(source_client_order_id=source_client_order_id)
+    except OperatorFollowUpMaterializationError as exc:
+        _raise_follow_up_materialization_error(exc)
+    return _read_response(payload)
+
+
+@router.post(
+    "/orders/{source_client_order_id}/follow-up-intent/"
+    "fill-triggered-activation/safe-closeout",
+    response_model=AdminOrderFollowUpMaterializationCancelResponse,
+    status_code=status.HTTP_200_OK,
+    responses=FOLLOW_UP_MATERIALIZATION_CANCEL_ROUTE_RESPONSES,
+    summary="Authorize one exact-child Goal 8 safe closeout",
+)
+def safe_closeout_fill_triggered_follow_up(
+    body: AdminOrderFollowUpMaterializationCancelRequest,
+    source_client_order_id: Annotated[
+        str,
+        Path(
+            min_length=36,
+            max_length=36,
+            pattern=_CANONICAL_UUID_PATH_PATTERN,
+        ),
+    ],
+    idempotency_key: Annotated[
+        str,
+        Header(
+            alias="Idempotency-Key",
+            min_length=1,
+            max_length=255,
+            pattern=_VISIBLE_ASCII_HEADER_PATTERN,
+        ),
+    ],
+    correlation_id: Annotated[
+        str,
+        Header(
+            alias="X-Correlation-Id",
+            min_length=1,
+            max_length=255,
+            pattern=_VISIBLE_ASCII_HEADER_PATTERN,
+        ),
+    ],
+    operator_intent: Annotated[
+        Literal["safe_closeout_fill_triggered_follow_up"],
+        Header(alias="X-Operator-Intent"),
+    ],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    _feature_enabled: Annotated[
+        None,
+        Depends(require_operator_follow_up_intent_enabled),
+    ],
+    service: Annotated[
+        OperatorFollowUpMaterializationService,
+        Depends(get_fill_triggered_follow_up_materialization_service),
+    ],
+    live_execution_service: Annotated[
+        AdminApiLiveExecutionService,
+        Depends(get_live_execution_service),
+    ],
+) -> JSONResponse:
+    """Resolve and optionally cancel only Goal 8's exact durable child."""
+
+    permission = AdminApiPermission.ORDER_CANCEL
+    environment = _follow_up_materialization_environment()
+    operation_audit_id = _follow_up_materialization_operation_audit_id(
+        endpoint=(
+            "POST /api/v1/orders/{source_client_order_id}/follow-up-intent/"
+            "fill-triggered-activation/safe-closeout"
+        ),
+        actor=actor,
+        source_client_order_id=source_client_order_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        environment=environment,
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        permission=permission,
+    )
+    context = OperatorFollowUpMaterializationRequestContext(
+        actor_id=actor.actor_id,
+        roles=tuple(role.value for role in actor.roles),
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        audit_id=operation_audit_id,
+        environment=environment,
+    )
+    try:
+        require_permission(actor, permission)
+        _require_follow_up_live_service_route_admission(
+            live_execution_service=live_execution_service,
+            route=OPERATOR_MVP_FILL_TRIGGERED_FOLLOW_UP_SAFE_CLOSEOUT_ROUTE,
+        )
+        payload = service.safe_closeout(
+            source_client_order_id=source_client_order_id,
+            request=body,
+            context=context,
+        )
+    except HTTPException as exc:
+        return _follow_up_materialization_error_response(
+            http_status_code=exc.status_code,
+            diagnostic_code=str(exc.detail),
+            correlation_id=correlation_id,
+            audit_id=operation_audit_id,
+            current_request_activity=_follow_up_zero_current_request_activity(),
+        )
+    except OperatorFollowUpMaterializationError as exc:
+        (
+            _failure_stage,
+            _live_read_ran,
+            live_orders_ran,
+            _live_submitted,
+            current_activity,
+        ) = _follow_up_materialization_execution_evidence(exc)
+        return _follow_up_materialization_error_response(
+            http_status_code=exc.http_status_code,
+            diagnostic_code=exc.code,
+            correlation_id=correlation_id,
+            audit_id=operation_audit_id,
+            live_coinbase_orders_ran=live_orders_ran,
+            current_request_activity=current_activity,
+        )
+    if (
+        str(getattr(payload, "audit_id", "")) != operation_audit_id
+        or str(getattr(getattr(payload, "attempt", None), "audit_id", ""))
+        != operation_audit_id
+    ):
+        return _follow_up_materialization_error_response(
+            http_status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            diagnostic_code="follow_up_materialization_audit_binding_conflict",
+            correlation_id=correlation_id,
+            audit_id=operation_audit_id,
+            current_request_activity=(
+                _follow_up_unknown_current_request_activity()
+            ),
+        )
+    return _follow_up_materialization_response(payload)
 
 
 @router.get(

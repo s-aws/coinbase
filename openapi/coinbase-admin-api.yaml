@@ -7401,6 +7401,451 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
+  /api/v1/orders/{source_client_order_id}/follow-up-intent/fill-triggered-activation:
+    get:
+      tags:
+      - orders
+      summary: Read per-intent fill-triggered activation authority
+      description: Read PostgreSQL activation state without invoking Coinbase.
+      operationId: get_fill_triggered_follow_up_activation_api_v1_orders__source_client_order_id__follow_up_intent_fill_triggered_activation_get
+      parameters:
+      - name: source_client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 36
+          maxLength: 36
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Source Client Order Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOrderFillTriggeredFollowUpActivationReadResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '404':
+          description: The backend-owned source order was not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Authoritative source eligibility evidence conflicts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '503':
+          description: Authoritative local eligibility evidence is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - orders
+      summary: Enable, disable, pause, or drain one attached intent
+      description: Persist one local control transition; it cannot contact Coinbase.
+      operationId: control_fill_triggered_follow_up_activation_api_v1_orders__source_client_order_id__follow_up_intent_fill_triggered_activation_post
+      parameters:
+      - name: source_client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 36
+          maxLength: 36
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Source Client Order Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: ^[!-~]+$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: ^[!-~]+$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: control_fill_triggered_follow_up
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminOrderFillTriggeredFollowUpActivationControlRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOrderFillTriggeredFollowUpActivationControlResponse'
+        '400':
+          description: The exact attach request was rejected before persistence.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '404':
+          description: The backend-owned source order was not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency, source-slot, or semantic-claim conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Required headers or the acknowledgement are invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '503':
+          description: Authoritative local eligibility evidence is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+  /api/v1/orders/{source_client_order_id}/follow-up-intent/fill-triggered-activation/materialization:
+    get:
+      tags:
+      - orders
+      summary: Read Goal 8 materialization and exact-child closeout authority
+      description: Read Goal 8 PostgreSQL evidence only; this cannot contact Coinbase.
+      operationId: get_fill_triggered_follow_up_materialization_api_v1_orders__source_client_order_id__follow_up_intent_fill_triggered_activation_materialization_get
+      parameters:
+      - name: source_client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 36
+          maxLength: 36
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Source Client Order Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOrderFollowUpMaterializationReadResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '404':
+          description: The backend-owned source order or attached intent was not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: The durable materialization evidence is inconsistent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '503':
+          description: Authoritative local materialization evidence is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/orders/{source_client_order_id}/follow-up-intent/fill-triggered-activation/safe-closeout:
+    post:
+      tags:
+      - orders
+      summary: Authorize one exact-child Goal 8 safe closeout
+      description: Resolve and optionally cancel only Goal 8's exact durable child.
+      operationId: safe_closeout_fill_triggered_follow_up_api_v1_orders__source_client_order_id__follow_up_intent_fill_triggered_activation_safe_closeout_post
+      parameters:
+      - name: source_client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 36
+          maxLength: 36
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Source Client Order Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: ^[!-~]+$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: ^[!-~]+$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: safe_closeout_fill_triggered_follow_up
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminOrderFollowUpMaterializationCancelRequest'
+      responses:
+        '200':
+          description: The exact child closeout reached a durable classification.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOrderFollowUpMaterializationCancelResponse'
+        '400':
+          description: The Cancel boundary returned durable evidence, or explicit
+            safe-closeout authorization was rejected before a durable result.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: '#/components/schemas/AdminOrderFollowUpMaterializationCancelResponse'
+                - $ref: '#/components/schemas/AdminOrderFollowUpMaterializationErrorResponse'
+                title: Response 400 Safe Closeout Fill Triggered Follow Up Api V1
+                  Orders  Source Client Order Id  Follow Up Intent Fill Triggered
+                  Activation Safe Closeout Post
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required live follow-up permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOrderFollowUpMaterializationErrorResponse'
+        '404':
+          description: The backend-owned source or attached intent was not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOrderFollowUpMaterializationErrorResponse'
+        '409':
+          description: The Cancel boundary returned durable evidence, or safe-closeout
+            idempotency or the one-use boundary conflicts.
+          content:
+            application/json:
+              schema:
+                anyOf:
+                - $ref: '#/components/schemas/AdminOrderFollowUpMaterializationCancelResponse'
+                - $ref: '#/components/schemas/AdminOrderFollowUpMaterializationErrorResponse'
+                title: Response 409 Safe Closeout Fill Triggered Follow Up Api V1
+                  Orders  Source Client Order Id  Follow Up Intent Fill Triggered
+                  Activation Safe Closeout Post
+        '422':
+          description: Required headers or fixed acknowledgements are invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '503':
+          description: The boundary failed with fixed current-request activity evidence.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOrderFollowUpMaterializationErrorResponse'
   /api/v1/orders/{source_client_order_id}/follow-up-intent/materialization:
     get:
       tags:
@@ -149940,6 +150385,306 @@ components:
       type: object
       title: AdminOrderFillFollowUpTriggerRequest
       description: Prerequisite refs for a fill-follow-up trigger attempt.
+    AdminOrderFillTriggeredFollowUpActivationControlRequest:
+      properties:
+        action:
+          type: string
+          enum:
+          - ENABLE
+          - DISABLE
+          - PAUSE
+          - DRAIN
+          title: Action
+        expected_revision:
+          type: integer
+          minimum: 0.0
+          title: Expected Revision
+        confirm_control_action:
+          type: boolean
+          const: true
+          title: Confirm Control Action
+        authorize_single_fill_triggered_materialization:
+          type: boolean
+          title: Authorize Single Fill Triggered Materialization
+          default: false
+        acknowledge_unknown_outcome_consumes_create_allowance:
+          type: boolean
+          title: Acknowledge Unknown Outcome Consumes Create Allowance
+          default: false
+        acknowledge_child_terms_are_backend_derived:
+          type: boolean
+          title: Acknowledge Child Terms Are Backend Derived
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - action
+      - expected_revision
+      - confirm_control_action
+      title: AdminOrderFillTriggeredFollowUpActivationControlRequest
+      description: One revision-bound operator control; no child terms are accepted.
+    AdminOrderFillTriggeredFollowUpActivationControlResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_order_fill_triggered_follow_up_activation_control
+        status:
+          $ref: '#/components/schemas/AdminApiCommandStatus'
+        action_class:
+          type: string
+          const: local_state_mutation
+          title: Action Class
+          default: local_state_mutation
+        required_permission:
+          type: string
+          const: order:create
+          title: Required Permission
+          default: order:create
+        operator_intent:
+          type: string
+          const: control_fill_triggered_follow_up
+          title: Operator Intent
+          default: control_fill_triggered_follow_up
+        delegated_create_operator_intent:
+          type: string
+          const: materialize_enabled_fill_triggered_follow_up
+          title: Delegated Create Operator Intent
+          default: materialize_enabled_fill_triggered_follow_up
+        environment:
+          type: string
+          minLength: 1
+          title: Environment
+        portfolio_scope:
+          type: string
+          const: approved_test_portfolio
+          title: Portfolio Scope
+          default: approved_test_portfolio
+        max_submitted_notional_usdc:
+          type: string
+          minLength: 1
+          title: Max Submitted Notional Usdc
+        max_possible_execution_notional_usdc:
+          type: string
+          minLength: 1
+          title: Max Possible Execution Notional Usdc
+        correlation_id:
+          type: string
+          minLength: 1
+          title: Correlation Id
+        idempotency_key:
+          type: string
+          minLength: 1
+          title: Idempotency Key
+        audit_id:
+          type: string
+          minLength: 1
+          title: Audit Id
+        activation:
+          $ref: '#/components/schemas/AdminOrderFillTriggeredFollowUpActivationItem'
+        local_state_mutated:
+          type: boolean
+          const: true
+          title: Local State Mutated
+          default: true
+        live_coinbase_read_ran:
+          type: boolean
+          const: false
+          title: Live Coinbase Read Ran
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          const: false
+          title: Live Coinbase Orders Ran
+          default: false
+        live_exchange_submitted:
+          type: boolean
+          const: false
+          title: Live Exchange Submitted
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          const: false
+          title: Exchange State Mutated
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_and_forward_only
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - environment
+      - max_submitted_notional_usdc
+      - max_possible_execution_notional_usdc
+      - correlation_id
+      - idempotency_key
+      - audit_id
+      - activation
+      title: AdminOrderFillTriggeredFollowUpActivationControlResponse
+      description: Audited local activation transition with zero Coinbase calls.
+    AdminOrderFillTriggeredFollowUpActivationItem:
+      properties:
+        goal_id:
+          type: string
+          const: operator_fill_triggered_follow_up_activation_v1
+          title: Goal Id
+          default: operator_fill_triggered_follow_up_activation_v1
+        source_client_order_id:
+          type: string
+          minLength: 1
+          title: Source Client Order Id
+        follow_up_intent_id:
+          type: string
+          minLength: 1
+          title: Follow Up Intent Id
+        control_state:
+          type: string
+          enum:
+          - DISABLED
+          - ENABLED
+          - PAUSED
+          - DRAINING
+          - DRAINED
+          title: Control State
+        trigger_state:
+          type: string
+          enum:
+          - UNCLAIMED
+          - CLAIMED
+          - COMPLETED
+          - BLOCKED
+          - UNKNOWN
+          title: Trigger State
+        revision:
+          type: integer
+          minimum: 0.0
+          title: Revision
+        delegated_create_authority:
+          type: boolean
+          title: Delegated Create Authority
+        trigger_claimed:
+          type: boolean
+          title: Trigger Claimed
+        materialization_state:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Materialization State
+        child_client_order_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Child Client Order Id
+        diagnostic_code:
+          type: string
+          minLength: 1
+          title: Diagnostic Code
+        correlation_id:
+          type: string
+          minLength: 1
+          title: Correlation Id
+        audit_id:
+          type: string
+          minLength: 1
+          title: Audit Id
+        recorded_at:
+          type: string
+          minLength: 1
+          title: Recorded At
+        updated_at:
+          type: string
+          minLength: 1
+          title: Updated At
+      additionalProperties: false
+      type: object
+      required:
+      - source_client_order_id
+      - follow_up_intent_id
+      - control_state
+      - trigger_state
+      - revision
+      - delegated_create_authority
+      - trigger_claimed
+      - diagnostic_code
+      - correlation_id
+      - audit_id
+      - recorded_at
+      - updated_at
+      title: AdminOrderFillTriggeredFollowUpActivationItem
+      description: Sanitized durable activation state; actor and trigger claim stay
+        private.
+    AdminOrderFillTriggeredFollowUpActivationReadResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_order_fill_triggered_follow_up_activation_readback
+        activation:
+          $ref: '#/components/schemas/AdminOrderFillTriggeredFollowUpActivationItem'
+        required_control_operator_intent:
+          type: string
+          const: control_fill_triggered_follow_up
+          title: Required Control Operator Intent
+          default: control_fill_triggered_follow_up
+        delegated_create_operator_intent:
+          type: string
+          const: materialize_enabled_fill_triggered_follow_up
+          title: Delegated Create Operator Intent
+          default: materialize_enabled_fill_triggered_follow_up
+        environment:
+          type: string
+          minLength: 1
+          title: Environment
+        portfolio_scope:
+          type: string
+          const: approved_test_portfolio
+          title: Portfolio Scope
+          default: approved_test_portfolio
+        max_submitted_notional_usdc:
+          type: string
+          minLength: 1
+          title: Max Submitted Notional Usdc
+        max_possible_execution_notional_usdc:
+          type: string
+          minLength: 1
+          title: Max Possible Execution Notional Usdc
+        read_only:
+          type: boolean
+          const: true
+          title: Read Only
+          default: true
+        live_coinbase_read_ran:
+          type: boolean
+          const: false
+          title: Live Coinbase Read Ran
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          const: false
+          title: Live Coinbase Orders Ran
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          const: false
+          title: Exchange State Mutated
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+      additionalProperties: false
+      type: object
+      required:
+      - activation
+      - environment
+      - max_submitted_notional_usdc
+      - max_possible_execution_notional_usdc
+      title: AdminOrderFillTriggeredFollowUpActivationReadResponse
+      description: Call-free backend authority readback for one attached intent.
     AdminOrderFollowUpCurrentRequestActivity:
       properties:
         sdk_mutation_invocation_state:
@@ -150836,7 +151581,9 @@ components:
           default: approved_test_portfolio
         operator_intent:
           type: string
-          const: safe_closeout_materialized_follow_up_intent
+          enum:
+          - safe_closeout_materialized_follow_up_intent
+          - safe_closeout_fill_triggered_follow_up
           title: Operator Intent
         correlation_id:
           type: string
@@ -151046,7 +151793,9 @@ components:
           default: approved_test_portfolio
         operator_intent:
           type: string
-          const: authorize_and_materialize_follow_up_intent
+          enum:
+          - authorize_and_materialize_follow_up_intent
+          - materialize_enabled_fill_triggered_follow_up
           title: Operator Intent
         correlation_id:
           type: string
@@ -151364,12 +152113,16 @@ components:
           default: approved_test_portfolio
         required_materialization_operator_intent:
           type: string
-          const: authorize_and_materialize_follow_up_intent
+          enum:
+          - authorize_and_materialize_follow_up_intent
+          - materialize_enabled_fill_triggered_follow_up
           title: Required Materialization Operator Intent
           default: authorize_and_materialize_follow_up_intent
         required_safe_closeout_operator_intent:
           type: string
-          const: safe_closeout_materialized_follow_up_intent
+          enum:
+          - safe_closeout_materialized_follow_up_intent
+          - safe_closeout_fill_triggered_follow_up
           title: Required Safe Closeout Operator Intent
           default: safe_closeout_materialized_follow_up_intent
         eligibility:

@@ -51,6 +51,7 @@ Example: resolve parent linkage
     True
 """
 
+import hashlib
 import json
 import threading
 import uuid
@@ -2761,6 +2762,90 @@ class OrderEngine:
             self._websocket_monitoring_ready.set()
             return True
 
+    def _dispatch_fill_triggered_operator_follow_up(
+        self,
+        order: dict,
+    ) -> bool:
+        """Dispatch one attached intent before entering the legacy fill path.
+
+        The return value means that the durable operator slot owns this fill,
+        including disabled, paused, drained, blocked, and unknown outcomes.
+        Only a validated ``managed=False`` response may continue into the
+        legacy automatic follow-up claim.
+        """
+
+        client_order_id = str(order.get("client_order_id") or "").strip()
+        if not client_order_id:
+            return True
+        db_module = getattr(self, "db_module", None)
+        dispatcher = getattr(
+            db_module,
+            "dispatch_operator_fill_triggered_follow_up",
+            None,
+        )
+        durable_required = _durable_follow_up_slot_required(
+            db_module,
+            client_order_id,
+        )
+        if not callable(dispatcher):
+            if durable_required:
+                self.log_message(
+                    "error",
+                    {"event": "fill_triggered_follow_up_dispatch_unavailable"},
+                )
+            return durable_required
+        evidence_payload = {
+            "client_order_id": client_order_id,
+            "filled_size": str(order.get("filled_size") or ""),
+            "product_id": str(order.get("product_id") or ""),
+            "size": str(order.get("size") or ""),
+            "status": str(order.get("status") or "").upper(),
+        }
+        evidence_sha256 = hashlib.sha256(
+            json.dumps(
+                evidence_payload,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        try:
+            result = dispatcher(
+                source_client_order_id=client_order_id,
+                trigger_evidence_sha256=evidence_sha256,
+            )
+        except Exception:
+            if durable_required:
+                self.log_message(
+                    "error",
+                    {"event": "fill_triggered_follow_up_dispatch_unknown"},
+                )
+                return True
+            return False
+        if not isinstance(result, dict) or type(result.get("managed")) is not bool:
+            self.log_message(
+                "error",
+                {"event": "fill_triggered_follow_up_dispatch_invalid"},
+            )
+            return durable_required
+        if result["managed"] is not True:
+            return False
+        diagnostic = str(result.get("diagnostic_code") or "")
+        self.log_message(
+            "order",
+            {
+                "event": "fill_triggered_follow_up_dispatch_terminal",
+                "control_state": str(result.get("control_state") or "UNKNOWN"),
+                "trigger_state": str(result.get("trigger_state") or "UNKNOWN"),
+                "diagnostic_code": (
+                    diagnostic
+                    if diagnostic.startswith("fill_triggered_follow_up_")
+                    or diagnostic.startswith("follow_up_materialization_")
+                    else "fill_triggered_follow_up_dispatch_invalid"
+                ),
+            },
+        )
+        return True
+
     def _mark_websocket_worker_inactive(self, websocket_worker_token: str) -> None:
         """Remove terminal WS worker evidence and revoke stale readiness."""
         monitoring_lost_callback = None
@@ -4597,6 +4682,9 @@ class OrderEngine:
             None
         """
         client_order_id = order["client_order_id"]
+
+        if self._dispatch_fill_triggered_operator_follow_up(order):
+            return
 
         # CRITICAL: Claim follow-up processing FIRST to prevent race conditions
         # Must happen BEFORE any other processing (including registration, fill recording) 

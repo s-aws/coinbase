@@ -23,6 +23,14 @@ OPERATOR_MVP_FOLLOW_UP_SAFE_CLOSEOUT_ROUTE = (
     "/api/v1/orders/{source_client_order_id}/follow-up-intent/"
     "materialization/safe-closeout"
 )
+OPERATOR_MVP_FILL_TRIGGERED_FOLLOW_UP_MATERIALIZATION_ROUTE = (
+    "/api/v1/orders/{source_client_order_id}/follow-up-intent/"
+    "fill-triggered-activation/materialization"
+)
+OPERATOR_MVP_FILL_TRIGGERED_FOLLOW_UP_SAFE_CLOSEOUT_ROUTE = (
+    "/api/v1/orders/{source_client_order_id}/follow-up-intent/"
+    "fill-triggered-activation/safe-closeout"
+)
 OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_CREATE_ROUTE = (
     "/api/v1/automation/runs/{run_id}/authorize-single-child"
 )
@@ -43,6 +51,14 @@ OPERATOR_MVP_SUPPORTED_LIVE_ROUTES = frozenset(
         ("POST", OPERATOR_MVP_CANCEL_ORDER_ROUTE),
         ("POST", OPERATOR_MVP_FOLLOW_UP_MATERIALIZATION_ROUTE),
         ("POST", OPERATOR_MVP_FOLLOW_UP_SAFE_CLOSEOUT_ROUTE),
+        (
+            "POST",
+            OPERATOR_MVP_FILL_TRIGGERED_FOLLOW_UP_MATERIALIZATION_ROUTE,
+        ),
+        (
+            "POST",
+            OPERATOR_MVP_FILL_TRIGGERED_FOLLOW_UP_SAFE_CLOSEOUT_ROUTE,
+        ),
         ("POST", OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_CREATE_ROUTE),
         (
             "POST",

@@ -62840,6 +62840,16 @@ def test_admin_api_decision_backed_live_execution_service_requires_runtime_opt_i
             ),
             (
                 "POST",
+                "/api/v1/orders/{source_client_order_id}/"
+                "follow-up-intent/fill-triggered-activation/materialization",
+            ),
+            (
+                "POST",
+                "/api/v1/orders/{source_client_order_id}/"
+                "follow-up-intent/fill-triggered-activation/safe-closeout",
+            ),
+            (
+                "POST",
                 "/api/v1/automation/runs/{run_id}/authorize-single-child",
             ),
             (
@@ -74558,35 +74568,35 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     )
     assert live_payload["live_enabled_path_count"] == 0
     assert live_payload["live_eligible_path_count"] == 0
-    assert live_payload["preflight_check_count"] == 152
-    assert live_payload["blocking_preflight_check_count"] == 76
-    assert live_payload["passed_preflight_check_count"] == 76
-    assert live_payload["approval_snapshot_required_count"] == 19
+    assert live_payload["preflight_check_count"] == 160
+    assert live_payload["blocking_preflight_check_count"] == 80
+    assert live_payload["passed_preflight_check_count"] == 80
+    assert live_payload["approval_snapshot_required_count"] == 20
     assert live_payload["approval_snapshot_present_count"] == 0
-    assert live_payload["approval_snapshot_missing_count"] == 19
-    assert live_payload["approval_snapshot_required_field_count"] == 285
-    assert live_payload["approval_snapshot_missing_field_count"] == 285
-    assert live_payload["approval_store_required_count"] == 19
-    assert live_payload["approval_store_configured_count"] == 19
+    assert live_payload["approval_snapshot_missing_count"] == 20
+    assert live_payload["approval_snapshot_required_field_count"] == 300
+    assert live_payload["approval_snapshot_missing_field_count"] == 300
+    assert live_payload["approval_store_required_count"] == 20
+    assert live_payload["approval_store_configured_count"] == 20
     assert live_payload["approval_store_missing_count"] == 0
-    assert live_payload["approval_store_requirement_count"] == 228
+    assert live_payload["approval_store_requirement_count"] == 240
     assert live_payload["approval_store_missing_requirement_count"] == 0
-    assert live_payload["admission_audit_required_count"] == 19
+    assert live_payload["admission_audit_required_count"] == 20
     assert live_payload["admission_audit_configured_count"] == 0
-    assert live_payload["admission_audit_missing_count"] == 19
-    assert live_payload["admission_audit_fact_count"] == 190
-    assert live_payload["admission_audit_missing_fact_count"] == 171
-    assert live_payload["cap_guard_required_count"] == 19
+    assert live_payload["admission_audit_missing_count"] == 20
+    assert live_payload["admission_audit_fact_count"] == 200
+    assert live_payload["admission_audit_missing_fact_count"] == 180
+    assert live_payload["cap_guard_required_count"] == 20
     assert live_payload["cap_guard_configured_count"] == 0
-    assert live_payload["cap_guard_missing_count"] == 19
-    assert live_payload["cap_guard_requirement_count"] == 266
-    assert live_payload["cap_guard_missing_requirement_count"] == 266
-    assert live_payload["live_execution_adapter_required_count"] == 19
+    assert live_payload["cap_guard_missing_count"] == 20
+    assert live_payload["cap_guard_requirement_count"] == 280
+    assert live_payload["cap_guard_missing_requirement_count"] == 280
+    assert live_payload["live_execution_adapter_required_count"] == 20
     assert live_payload["live_execution_adapter_configured_count"] == 9
-    assert live_payload["live_execution_adapter_missing_count"] == 10
-    assert live_payload["readiness_precondition_count"] == 171
-    assert live_payload["blocking_readiness_precondition_count"] == 104
-    assert live_payload["passed_readiness_precondition_count"] == 67
+    assert live_payload["live_execution_adapter_missing_count"] == 11
+    assert live_payload["readiness_precondition_count"] == 180
+    assert live_payload["blocking_readiness_precondition_count"] == 110
+    assert live_payload["passed_readiness_precondition_count"] == 70
     assert live_payload["live_coinbase_orders_ran"] is False
     live_routes = {item["route"]: item for item in live_payload["paths"]}
     assert "/api/v1/orders" in live_routes
@@ -76572,6 +76582,26 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         in spot_module["command_routes"]
     )
     assert (
+        "GET /api/v1/orders/{source_client_order_id}/follow-up-intent/"
+        "fill-triggered-activation"
+        in spot_module["read_routes"]
+    )
+    assert (
+        "POST /api/v1/orders/{source_client_order_id}/follow-up-intent/"
+        "fill-triggered-activation"
+        in spot_module["command_routes"]
+    )
+    assert (
+        "GET /api/v1/orders/{source_client_order_id}/follow-up-intent/"
+        "fill-triggered-activation/materialization"
+        in spot_module["read_routes"]
+    )
+    assert (
+        "POST /api/v1/orders/{source_client_order_id}/follow-up-intent/"
+        "fill-triggered-activation/safe-closeout"
+        in spot_module["command_routes"]
+    )
+    assert (
         "GET /api/v1/spot/fill-inventory-repair/cases"
         in spot_module["read_routes"]
     )
@@ -76588,9 +76618,9 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     )
     for surface in parent_strategy_taxonomy["command_surfaces"]:
         assert surface in spot_module["command_routes"]
-    assert spot_module["action_posture"]["read_route_count"] == 30
-    assert spot_module["action_posture"]["command_route_count"] == 31
-    assert spot_module["action_posture"]["live_route_count"] == 7
+    assert spot_module["action_posture"]["read_route_count"] == 32
+    assert spot_module["action_posture"]["command_route_count"] == 33
+    assert spot_module["action_posture"]["live_route_count"] == 8
     assert spot_module["action_posture"]["command_gap_count"] == 2
     stealth_definition_module = registry_by_id["stealth_definitions"]
     assert stealth_definition_module["identity_keys"] == [

@@ -1525,10 +1525,27 @@ class OperatorFollowUpMaterializationService:
         repository: OperatorFollowUpMaterializationRepository,
         runtime: OperatorFollowUpMaterializationRuntime,
         exchange: OperatorFollowUpMaterializationExchange,
+        materialization_operator_intent: str = (
+            AUTHORIZE_AND_MATERIALIZE_FOLLOW_UP_INTENT
+        ),
+        safe_closeout_operator_intent: str = (
+            SAFE_CLOSEOUT_MATERIALIZED_FOLLOW_UP_INTENT
+        ),
     ) -> None:
         self.repository = repository
         self.runtime = runtime
         self.exchange = exchange
+        self.materialization_operator_intent = _clean_text(
+            materialization_operator_intent
+        )
+        self.safe_closeout_operator_intent = _clean_text(
+            safe_closeout_operator_intent
+        )
+        if (
+            not self.materialization_operator_intent
+            or not self.safe_closeout_operator_intent
+        ):
+            raise ValueError("follow_up_materialization_operator_intent_invalid")
 
     def _claim_live_proof_operation(
         self,
@@ -2103,6 +2120,33 @@ class OperatorFollowUpMaterializationService:
                 live_exchange_submitted=False,
             ) from None
 
+    def materialize_under_existing_invocation_guard(
+        self,
+        *,
+        source_client_order_id: str,
+        request: MaterializationAuthorization,
+        context: OperatorFollowUpMaterializationRequestContext,
+    ) -> MaterializationOperationResult:
+        """Materialize while a specialized caller owns this goal's guard."""
+
+        try:
+            return self._materialize_under_guard(
+                source_client_order_id=source_client_order_id,
+                request=request,
+                context=context,
+            )
+        except OperatorFollowUpMaterializationError:
+            raise
+        except Exception:
+            raise OperatorFollowUpMaterializationError(
+                "follow_up_materialization_backend_unavailable",
+                503,
+                failure_stage="pre_exchange_evaluation",
+                live_coinbase_read_ran=False,
+                live_coinbase_orders_ran=False,
+                live_exchange_submitted=False,
+            ) from None
+
     def _materialize_under_guard(
         self,
         *,
@@ -2114,7 +2158,7 @@ class OperatorFollowUpMaterializationService:
             source_id = _require_source_client_order_id(source_client_order_id)
             _require_context(
                 context,
-                expected_intent=AUTHORIZE_AND_MATERIALIZE_FOLLOW_UP_INTENT,
+                expected_intent=self.materialization_operator_intent,
                 permission=AdminApiPermission.ORDER_CREATE,
             )
             _require_materialization_authorization(request)
@@ -2612,7 +2656,7 @@ class OperatorFollowUpMaterializationService:
             source_id = _require_source_client_order_id(source_client_order_id)
             _require_context(
                 context,
-                expected_intent=SAFE_CLOSEOUT_MATERIALIZED_FOLLOW_UP_INTENT,
+                expected_intent=self.safe_closeout_operator_intent,
                 permission=AdminApiPermission.ORDER_CANCEL,
             )
             _require_closeout_authorization(request)

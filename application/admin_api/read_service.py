@@ -13103,6 +13103,146 @@ class AdminApiReadService:
             mutation_taxonomy_from_surface(
                 surface=(
                     "POST /api/v1/orders/{source_client_order_id}/"
+                    "follow-up-intent/fill-triggered-activation"
+                ),
+                mutation_id="spot.fill_triggered_follow_up_activation_control",
+                mutation_family=AdminApiMutationFamilyType.SPOT_FOLLOW_UP_INTENT,
+                workflow_id="spot.order_command_drafts",
+                related_workflow_ids=["spot.read_models"],
+                module="Spot Operations",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                    if follow_up_intent_enabled
+                    else AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED
+                ),
+                support_status=(
+                    AdminApiModuleSupportStatus.PLATFORM_READY
+                    if follow_up_intent_enabled
+                    else AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
+                ),
+                summary=(
+                    "The backend stores one revision-bound enable, disable, pause, "
+                    "or drain command. ENABLE explicitly delegates at most one "
+                    "future canonical full-fill Create under current policy/caps."
+                ),
+                identity_keys=[
+                    "source_client_order_id",
+                    "follow_up_intent_id",
+                ],
+                owning_backend_service=(
+                    "application/admin_api/"
+                    "operator_fill_triggered_follow_up_activation.py"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/orders.py::control_fill_triggered_follow_up_activation",
+                    (
+                        "application/admin_api/"
+                        "operator_fill_triggered_follow_up_activation.py::"
+                        "OperatorFillTriggeredFollowUpActivationService"
+                    ),
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    (
+                        "src/features/operator-read-models/orders/"
+                        "FillTriggeredFollowUpActivationPanel.tsx"
+                    ),
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_FILL_TRIGGERED_FOLLOW_UP_ACTIVATION_V1.md",
+                ],
+                blockers=(
+                    []
+                    if follow_up_intent_enabled
+                    else ["operator_follow_up_intent_disabled"]
+                ),
+                live_adapter_required=False,
+                frontend_boundary=(
+                    "The browser forwards a control action, expected revision, and "
+                    "explicit fixed acknowledgements; it supplies no child terms."
+                ),
+                route_local_boundary=(
+                    "The command itself is call-free. ENABLE durably binds the "
+                    "operator's one-use future Create delegation before any fill."
+                ),
+                spot_rule_boundary=(
+                    "The activation is restricted to one attached approved-Test-"
+                    "portfolio Spot intent and grants no partial-fill, Futures, "
+                    "fan-out, scheduler, or generic exchange authority."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
+                surface=(
+                    "POST /api/v1/orders/{source_client_order_id}/"
+                    "follow-up-intent/fill-triggered-activation/safe-closeout"
+                ),
+                mutation_id="spot.fill_triggered_follow_up_safe_closeout",
+                mutation_family=AdminApiMutationFamilyType.SPOT_FOLLOW_UP_INTENT,
+                workflow_id="spot.order_command_drafts",
+                related_workflow_ids=["spot.read_models"],
+                module="Spot Operations",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                    if follow_up_intent_enabled
+                    else AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED
+                ),
+                support_status=(
+                    AdminApiModuleSupportStatus.PLATFORM_READY
+                    if follow_up_intent_enabled
+                    else AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
+                ),
+                summary=(
+                    "The backend may reconcile and cancel only the exact child "
+                    "already bound to the Goal 8 claim under a separate allowance."
+                ),
+                identity_keys=[
+                    "source_client_order_id",
+                    "child_client_order_id",
+                ],
+                owning_backend_service=(
+                    "application/admin_api/"
+                    "operator_follow_up_materialization_runtime.py"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/orders.py::safe_closeout_fill_triggered_follow_up",
+                    (
+                        "application/admin_api/"
+                        "operator_follow_up_materialization_runtime.py::"
+                        "OperatorFollowUpMaterializationFacade.safe_closeout"
+                    ),
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    (
+                        "src/features/operator-read-models/orders/"
+                        "FillTriggeredFollowUpActivationPanel.tsx"
+                    ),
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_FILL_TRIGGERED_FOLLOW_UP_ACTIVATION_V1.md",
+                ],
+                blockers=(
+                    []
+                    if follow_up_intent_enabled
+                    else ["operator_follow_up_intent_disabled"]
+                ),
+                live_adapter_required=True,
+                frontend_boundary=(
+                    "The browser forwards only fixed exact-child Cancel "
+                    "acknowledgements after rendering backend authority."
+                ),
+                route_local_boundary=(
+                    "Backend reconciliation, a distinct durable claim, and the "
+                    "canonical exact-ID Cancel adapter own safe closeout."
+                ),
+                spot_rule_boundary=(
+                    "Only the one Goal 8 child may be cancelled; no alternate "
+                    "identity, second Cancel, other order, or Futures action exists."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
+                surface=(
+                    "POST /api/v1/orders/{source_client_order_id}/"
                     "follow-up-intent/materialization"
                 ),
                 mutation_id="spot.follow_up_intent_materialization",

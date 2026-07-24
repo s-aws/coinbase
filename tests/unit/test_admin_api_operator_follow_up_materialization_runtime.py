@@ -3280,6 +3280,33 @@ def test_child_read_fails_closed_when_authoritative_payload_identity_conflicts()
     assert cache == {}
 
 
+def test_native_repository_adapter_binds_invocation_guard_to_configured_goal() -> None:
+    calls: list[dict[str, str]] = []
+
+    class _GoalBoundNative:
+        @contextmanager
+        def follow_up_live_proof_invocation_guard(self, **kwargs):
+            calls.append(dict(kwargs))
+            yield
+
+    adapter = NativeFollowUpMaterializationRepositoryAdapter(
+        _GoalBoundNative(),
+        live_proof_goal_id="operator_fill_triggered_follow_up_activation_v1",
+    )
+
+    with adapter.live_proof_invocation_guard(
+        source_client_order_id=SOURCE_ID
+    ):
+        pass
+
+    assert calls == [
+        {
+            "goal_id": "operator_fill_triggered_follow_up_activation_v1",
+            "source_client_order_id": SOURCE_ID,
+        }
+    ]
+
+
 class _KernelService:
     def __init__(self, result: MaterializationOperationResult | None = None) -> None:
         self.result = result

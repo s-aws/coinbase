@@ -99,6 +99,60 @@ def test_operator_slot_blocks_automatic_terminal_follow_up_before_local_claim(tr
     assert engine.orderbook.states == {}
 
 
+def test_full_fill_dispatches_attached_intent_before_legacy_automatic_claim() -> None:
+    class _FillTriggeredDb(_DurableDb):
+        def __init__(self) -> None:
+            super().__init__(claim_result=None)
+            self.dispatch_calls: list[dict[str, str]] = []
+
+        def dispatch_operator_fill_triggered_follow_up(self, **kwargs):
+            self.dispatch_calls.append(dict(kwargs))
+            return {
+                "managed": True,
+                "control_state": "ENABLED",
+                "trigger_state": "COMPLETED",
+                "diagnostic_code": "follow_up_materialization_create_accepted",
+            }
+
+    db = _FillTriggeredDb()
+    engine = _engine(db)
+
+    engine.handle_filled_order(
+        {
+            "client_order_id": "source-001",
+            "product_id": "BTC-USDC",
+            "status": "FILLED",
+            "size": "0.00001",
+            "filled_size": "0.00001",
+        }
+    )
+
+    assert len(db.dispatch_calls) == 1
+    assert db.dispatch_calls[0]["source_client_order_id"] == "source-001"
+    assert len(db.dispatch_calls[0]["trigger_evidence_sha256"]) == 64
+    assert db.claim_calls == []
+    assert engine.orderbook.states == {}
+
+
+def test_missing_fill_trigger_dispatcher_fails_closed_for_durable_slot() -> None:
+    db = _DurableDb(claim_result=None)
+    db.FOLLOW_UP_INTENT_DURABLE_SLOT_APPLIES = lambda _source_id: True
+    engine = _engine(db)
+
+    managed = engine._dispatch_fill_triggered_operator_follow_up(
+        {
+            "client_order_id": "source-001",
+            "product_id": "BTC-USDC",
+            "status": "FILLED",
+            "size": "0.00001",
+            "filled_size": "0.00001",
+        }
+    )
+
+    assert managed is True
+    assert db.claim_calls == []
+
+
 @pytest.mark.parametrize("value", [None, "", "0", "true", "TRUE", "yes", "2"])
 def test_operator_follow_up_intent_gate_requires_exact_one(monkeypatch, value):
     if value is None:

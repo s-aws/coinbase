@@ -76,6 +76,11 @@ from application.admin_api.operator_follow_up_materialization import (
     OperatorFollowUpMaterializationService,
     PersistedInvocationResult,
 )
+from application.admin_api.operator_fill_triggered_follow_up_activation import (
+    FILL_TRIGGERED_FOLLOW_UP_GOAL_ID,
+    MATERIALIZE_ENABLED_FILL_TRIGGERED_FOLLOW_UP,
+    SAFE_CLOSEOUT_FILL_TRIGGERED_FOLLOW_UP,
+)
 from core.enums import (
     AdminApiCommandStatus,
     FollowUpAccountingEvidenceOrigin,
@@ -445,12 +450,19 @@ class NativeFollowUpMaterializationRepositoryAdapter:
         self,
         native_repository: Any,
         *,
+        live_proof_goal_id: str = OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
         pending_raw_exchange_evidence: (
             dict[tuple[str, str, str, str], _PendingRawExchangeEvidence] | None
         ) = None,
         local_order_reader: Callable[[str], Any] | None = None,
     ) -> None:
+        if live_proof_goal_id not in {
+            OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            FILL_TRIGGERED_FOLLOW_UP_GOAL_ID,
+        }:
+            raise ValueError("follow_up_live_proof_goal_id_invalid")
         self.native_repository = native_repository
+        self.live_proof_goal_id = live_proof_goal_id
         self.pending_raw_exchange_evidence = (
             pending_raw_exchange_evidence
             if pending_raw_exchange_evidence is not None
@@ -496,7 +508,14 @@ class NativeFollowUpMaterializationRepositoryAdapter:
         )
 
     def _read_native(self, source_client_order_id: str) -> Any:
-        return self.native_repository.read_materialization(source_client_order_id)
+        if self.live_proof_goal_id == OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID:
+            return self.native_repository.read_materialization(
+                source_client_order_id
+            )
+        return self.native_repository.read_materialization(
+            source_client_order_id,
+            live_proof_goal_id=self.live_proof_goal_id,
+        )
 
     def live_proof_invocation_guard(
         self,
@@ -504,7 +523,7 @@ class NativeFollowUpMaterializationRepositoryAdapter:
         source_client_order_id: str,
     ) -> AbstractContextManager[None]:
         return self.native_repository.follow_up_live_proof_invocation_guard(
-            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            goal_id=self.live_proof_goal_id,
             source_client_order_id=source_client_order_id,
         )
 
@@ -518,7 +537,7 @@ class NativeFollowUpMaterializationRepositoryAdapter:
         operation_idempotency_key_sha256: str,
     ) -> LiveProofOperationClaim:
         native = self.native_repository.claim_follow_up_live_proof_operation(
-            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            goal_id=self.live_proof_goal_id,
             operation_kind=operation_kind.value,
             source_client_order_id=source_client_order_id,
             correlation_id=correlation_id,
@@ -582,7 +601,7 @@ class NativeFollowUpMaterializationRepositoryAdapter:
             FollowUpLiveProofOperationKind.CANCEL: "cancel",
         }[operation_kind]
         terminal = self.native_repository.record_follow_up_live_proof_terminal(
-            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            goal_id=self.live_proof_goal_id,
             operation_kind=operation_kind.value,
             source_client_order_id=source_client_order_id,
             outcome=outcome.value,
@@ -620,7 +639,7 @@ class NativeFollowUpMaterializationRepositoryAdapter:
         source_client_order_id: str,
     ) -> LiveProofTerminalEvidence | None:
         native = self.native_repository.read_follow_up_live_proof_terminal(
-            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            goal_id=self.live_proof_goal_id,
             operation_kind=operation_kind.value,
             source_client_order_id=source_client_order_id,
         )
@@ -687,7 +706,7 @@ class NativeFollowUpMaterializationRepositoryAdapter:
         source_client_order_id: str,
     ) -> LiveProofOperationClaim | None:
         native = self.native_repository.read_follow_up_live_proof_claim(
-            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            goal_id=self.live_proof_goal_id,
             operation_kind=operation_kind.value,
             source_client_order_id=source_client_order_id,
         )
@@ -901,7 +920,7 @@ class NativeFollowUpMaterializationRepositoryAdapter:
     ) -> InvocationBoundaryClaim:
         native = self.native_repository.claim_create_invocation_started_atomically(
             materialization_id=materialization_id,
-            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            goal_id=self.live_proof_goal_id,
             source_client_order_id=source_client_order_id,
             correlation_id=correlation_id,
             audit_id=audit_id,
@@ -1027,7 +1046,7 @@ class NativeFollowUpMaterializationRepositoryAdapter:
             )
         native = self.native_repository.finalize_create_invocation_atomically(
             materialization_id=materialization_id,
-            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            goal_id=self.live_proof_goal_id,
             source_client_order_id=source_client_order_id,
             outcome=outcome,
             diagnostic_code=result.diagnostic_code,
@@ -1109,7 +1128,7 @@ class NativeFollowUpMaterializationRepositoryAdapter:
     ) -> InvocationBoundaryClaim:
         native = self.native_repository.claim_cancel_invocation_started_atomically(
             materialization_id=materialization_id,
-            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            goal_id=self.live_proof_goal_id,
             source_client_order_id=source_client_order_id,
             operation_idempotency_key=idempotency_key,
             actor_id=actor_id,
@@ -1243,7 +1262,7 @@ class NativeFollowUpMaterializationRepositoryAdapter:
             raise RuntimeError("follow_up_materialization_atomic_evidence_mismatch")
         native = self.native_repository.finalize_cancel_invocation_atomically(
             materialization_id=materialization_id,
-            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            goal_id=self.live_proof_goal_id,
             source_client_order_id=source_client_order_id,
             outcome=outcome,
             diagnostic_code=result.diagnostic_code,
@@ -1383,7 +1402,7 @@ class NativeFollowUpMaterializationRepositoryAdapter:
             )
         native = self.native_repository.finalize_reconciliation_projection_atomically(
             materialization_id=record.materialization_id,
-            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            goal_id=self.live_proof_goal_id,
             source_client_order_id=source_client_order_id,
             transition_kind=(
                 FollowUpMaterializedChildTransitionKind.RECONCILED_ACTIVE.value
@@ -1468,7 +1487,7 @@ class NativeFollowUpMaterializationRepositoryAdapter:
             )
         native = self.native_repository.finalize_terminal_without_cancel_atomically(
             materialization_id=record.materialization_id,
-            goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            goal_id=self.live_proof_goal_id,
             source_client_order_id=source_client_order_id,
             diagnostic_code=result.diagnostic_code,
             authoritative_order_status=status,
@@ -1683,6 +1702,7 @@ class ProductionFollowUpMaterializationRuntime:
         self,
         *,
         native_repository: Any,
+        live_proof_goal_id: str = OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
         rest_client: Any | None,
         configured_portfolio_id: str,
         environment: str = "local",
@@ -1704,7 +1724,13 @@ class ProductionFollowUpMaterializationRuntime:
             dict[tuple[str, str, str, str], _PendingRawExchangeEvidence] | None
         ) = None,
     ) -> None:
+        if live_proof_goal_id not in {
+            OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            FILL_TRIGGERED_FOLLOW_UP_GOAL_ID,
+        }:
+            raise ValueError("follow_up_live_proof_goal_id_invalid")
         self.native_repository = native_repository
+        self.live_proof_goal_id = live_proof_goal_id
         self.rest_client = rest_client
         self.configured_portfolio_id = _text(configured_portfolio_id)
         self.environment = _text(environment) or "local"
@@ -1772,7 +1798,15 @@ class ProductionFollowUpMaterializationRuntime:
             )
 
         try:
-            local_readback = self.native_repository.read_materialization(source_id)
+            local_readback = (
+                self.native_repository.read_materialization(source_id)
+                if self.live_proof_goal_id
+                == OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID
+                else self.native_repository.read_materialization(
+                    source_id,
+                    live_proof_goal_id=self.live_proof_goal_id,
+                )
+            )
             readiness = local_readback.readiness
             attempt = getattr(local_readback, "attempt", None)
             blockers = tuple(getattr(readiness, "blockers", ()) or ())
@@ -3465,6 +3499,7 @@ def _zero_current_request_activity() -> AdminOrderFollowUpCurrentRequestActivity
 def _public_durable_operation_activity(
     native: Any,
     *,
+    expected_goal_id: str,
     expected_kind: FollowUpLiveProofOperationKind,
     readiness: Any,
     attempt: Any | None,
@@ -3513,7 +3548,7 @@ def _public_durable_operation_activity(
     if (
         operation_kind is not expected_kind
         or _text(getattr(native, "goal_id", ""))
-        != OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID
+        != expected_goal_id
         or _text(getattr(native, "source_client_order_id", "")) != source_id
         or _text(getattr(native, "root_client_order_id", "")) != root_id
         or _text(getattr(native, "follow_up_intent_id", "")) != intent_id
@@ -3574,6 +3609,7 @@ def _public_durable_operation_activity(
 def _public_durable_live_proof_activity(
     native_set: Any,
     *,
+    expected_goal_id: str,
     readiness: Any,
     attempt: Any | None,
 ) -> AdminOrderFollowUpDurableLiveProofActivity:
@@ -3591,6 +3627,7 @@ def _public_durable_live_proof_activity(
         mapped[slot] = (
             _public_durable_operation_activity(
                 native,
+                expected_goal_id=expected_goal_id,
                 expected_kind=expected_kind,
                 readiness=readiness,
                 attempt=attempt,
@@ -3891,9 +3928,24 @@ class OperatorFollowUpMaterializationFacade:
         service: Any,
         native_repository: Any,
         environment: str | None = None,
+        live_proof_goal_id: str = OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+        materialization_operator_intent: str = (
+            AUTHORIZE_AND_MATERIALIZE_FOLLOW_UP_INTENT
+        ),
+        safe_closeout_operator_intent: str = (
+            SAFE_CLOSEOUT_MATERIALIZED_FOLLOW_UP_INTENT
+        ),
     ) -> None:
+        if live_proof_goal_id not in {
+            OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+            FILL_TRIGGERED_FOLLOW_UP_GOAL_ID,
+        }:
+            raise ValueError("follow_up_live_proof_goal_id_invalid")
         self.service = service
         self.native_repository = native_repository
+        self.live_proof_goal_id = live_proof_goal_id
+        self.materialization_operator_intent = materialization_operator_intent
+        self.safe_closeout_operator_intent = safe_closeout_operator_intent
         self.environment = _text(environment) or _text(
             os.environ.get("COINBASE_ADMIN_API_ENVIRONMENT")
         ) or "local"
@@ -3907,8 +3959,13 @@ class OperatorFollowUpMaterializationFacade:
 
     def _native_read(self, source_client_order_id: str) -> Any:
         try:
+            if self.live_proof_goal_id == OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID:
+                return self.native_repository.read_materialization(
+                    source_client_order_id
+                )
             return self.native_repository.read_materialization(
-                source_client_order_id
+                source_client_order_id,
+                live_proof_goal_id=self.live_proof_goal_id,
             )
         except Exception:
             raise OperatorFollowUpMaterializationError(
@@ -3918,7 +3975,7 @@ class OperatorFollowUpMaterializationFacade:
     def _native_activity_set(self, source_client_order_id: str) -> Any:
         try:
             return self.native_repository.read_follow_up_live_proof_operation_set(
-                goal_id=OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+                goal_id=self.live_proof_goal_id,
                 source_client_order_id=source_client_order_id,
             )
         except Exception:
@@ -3977,6 +4034,7 @@ class OperatorFollowUpMaterializationFacade:
         native_activity_set = self._native_activity_set(source_client_order_id)
         durable_activity = _public_durable_live_proof_activity(
             native_activity_set,
+            expected_goal_id=self.live_proof_goal_id,
             readiness=readiness,
             attempt=attempt,
         )
@@ -3993,6 +4051,12 @@ class OperatorFollowUpMaterializationFacade:
                 _text(readiness.follow_up_intent_id) or None
             ),
             environment=self._environment(attempt),
+            required_materialization_operator_intent=(
+                self.materialization_operator_intent
+            ),
+            required_safe_closeout_operator_intent=(
+                self.safe_closeout_operator_intent
+            ),
             eligibility=eligibility,
             authorization_request_forwardability=(
                 _authorization_request_forwardability(eligibility)
@@ -4043,6 +4107,7 @@ class OperatorFollowUpMaterializationFacade:
         native_activity_set = self._native_activity_set(source_client_order_id)
         durable_activity = _public_durable_live_proof_activity(
             native_activity_set,
+            expected_goal_id=self.live_proof_goal_id,
             readiness=readback.readiness,
             attempt=attempt,
         )
@@ -4062,7 +4127,7 @@ class OperatorFollowUpMaterializationFacade:
             root_client_order_id=_text(attempt.root_client_order_id),
             child_client_order_id=_text(attempt.child_client_order_id),
             environment=self._environment(attempt),
-            operator_intent=AUTHORIZE_AND_MATERIALIZE_FOLLOW_UP_INTENT,
+            operator_intent=self.materialization_operator_intent,
             correlation_id=_text(
                 getattr(attempt, "current_operation_correlation_id", "")
             )
@@ -4123,6 +4188,7 @@ class OperatorFollowUpMaterializationFacade:
         native_activity_set = self._native_activity_set(source_client_order_id)
         durable_activity = _public_durable_live_proof_activity(
             native_activity_set,
+            expected_goal_id=self.live_proof_goal_id,
             readiness=readback.readiness,
             attempt=attempt,
         )
@@ -4147,7 +4213,7 @@ class OperatorFollowUpMaterializationFacade:
             root_client_order_id=_text(attempt.root_client_order_id),
             child_client_order_id=_text(attempt.child_client_order_id),
             environment=self._environment(attempt),
-            operator_intent=SAFE_CLOSEOUT_MATERIALIZED_FOLLOW_UP_INTENT,
+            operator_intent=self.safe_closeout_operator_intent,
             correlation_id=_text(
                 getattr(attempt, "current_operation_correlation_id", "")
             )
@@ -4211,6 +4277,14 @@ def _default_action_guard_evaluator(**kwargs: Any) -> bool:
 
 
 def build_default_operator_follow_up_materialization_service(
+    *,
+    live_proof_goal_id: str = OPERATOR_FOLLOW_UP_LIVE_PROOF_GOAL_ID,
+    materialization_operator_intent: str = (
+        AUTHORIZE_AND_MATERIALIZE_FOLLOW_UP_INTENT
+    ),
+    safe_closeout_operator_intent: str = (
+        SAFE_CLOSEOUT_MATERIALIZED_FOLLOW_UP_INTENT
+    ),
 ) -> OperatorFollowUpMaterializationFacade:
     """Compose production adapters without making a Coinbase API call."""
 
@@ -4227,6 +4301,8 @@ def build_default_operator_follow_up_materialization_service(
         operator_mvp_live_service_state_allows_route_admission,
     )
     from application.admin_api.operator_mvp_policy import (
+        OPERATOR_MVP_FILL_TRIGGERED_FOLLOW_UP_MATERIALIZATION_ROUTE,
+        OPERATOR_MVP_FILL_TRIGGERED_FOLLOW_UP_SAFE_CLOSEOUT_ROUTE,
         OPERATOR_MVP_FOLLOW_UP_MATERIALIZATION_ROUTE,
         OPERATOR_MVP_FOLLOW_UP_SAFE_CLOSEOUT_ROUTE,
     )
@@ -4255,6 +4331,16 @@ def build_default_operator_follow_up_materialization_service(
     portfolio_label = (
         _text(os.environ.get(SPOT_PORTFOLIO_LABEL_ENV))
         or DEFAULT_SPOT_PORTFOLIO_LABEL
+    )
+    create_admission_route = (
+        OPERATOR_MVP_FILL_TRIGGERED_FOLLOW_UP_MATERIALIZATION_ROUTE
+        if live_proof_goal_id == FILL_TRIGGERED_FOLLOW_UP_GOAL_ID
+        else OPERATOR_MVP_FOLLOW_UP_MATERIALIZATION_ROUTE
+    )
+    cancel_admission_route = (
+        OPERATOR_MVP_FILL_TRIGGERED_FOLLOW_UP_SAFE_CLOSEOUT_ROUTE
+        if live_proof_goal_id == FILL_TRIGGERED_FOLLOW_UP_GOAL_ID
+        else OPERATOR_MVP_FOLLOW_UP_SAFE_CLOSEOUT_ROUTE
     )
 
     def current_route_admission(route: str) -> bool:
@@ -4306,11 +4392,12 @@ def build_default_operator_follow_up_materialization_service(
     ] = {}
     runtime = ProductionFollowUpMaterializationRuntime(
         native_repository=native_repository,
+        live_proof_goal_id=live_proof_goal_id,
         rest_client=rest_client,
         configured_portfolio_id=portfolio_id,
         environment=_configured_admin_environment(),
         runtime_authority_check=lambda: current_route_admission(
-            OPERATOR_MVP_FOLLOW_UP_MATERIALIZATION_ROUTE
+            create_admission_route
         ),
         local_order_reader=order_db.get_parent_order,
         template_resolver=_default_template_resolver,
@@ -4333,10 +4420,10 @@ def build_default_operator_follow_up_materialization_service(
         rest_client=rest_client,
         runtime_authority_check=admin_api_live_runtime_enabled,
         create_route_admission_check=lambda: current_route_admission(
-            OPERATOR_MVP_FOLLOW_UP_MATERIALIZATION_ROUTE
+            create_admission_route
         ),
         cancel_route_admission_check=lambda: current_route_admission(
-            OPERATOR_MVP_FOLLOW_UP_SAFE_CLOSEOUT_ROUTE
+            cancel_admission_route
         ),
         final_execution_authority_check=require_final_execution_authority,
         local_order_reader=order_db.get_parent_order,
@@ -4350,6 +4437,7 @@ def build_default_operator_follow_up_materialization_service(
     )
     kernel_repository = NativeFollowUpMaterializationRepositoryAdapter(
         native_repository,
+        live_proof_goal_id=live_proof_goal_id,
         pending_raw_exchange_evidence=pending_raw_exchange_evidence,
         local_order_reader=order_db.get_parent_order,
     )
@@ -4357,9 +4445,14 @@ def build_default_operator_follow_up_materialization_service(
         repository=kernel_repository,
         runtime=runtime,
         exchange=exchange,
+        materialization_operator_intent=materialization_operator_intent,
+        safe_closeout_operator_intent=safe_closeout_operator_intent,
     )
     return OperatorFollowUpMaterializationFacade(
         service=service,
         native_repository=native_repository,
         environment=_configured_admin_environment(),
+        live_proof_goal_id=live_proof_goal_id,
+        materialization_operator_intent=materialization_operator_intent,
+        safe_closeout_operator_intent=safe_closeout_operator_intent,
     )
