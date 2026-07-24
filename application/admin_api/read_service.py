@@ -7807,7 +7807,10 @@ class AdminApiReadService:
                 summary=summary,
                 command_surfaces=[route_row.surface],
                 action_classes=[route_row.action_class],
-                required_permissions=[route_row.permission],
+                required_permissions=(
+                    route_row.required_permissions
+                    or [route_row.permission]
+                ),
                 identity_keys=identity_keys,
                 idempotency_contract=route_row.idempotency,
                 approval_contract=route_row.approval,
@@ -8249,29 +8252,29 @@ class AdminApiReadService:
                 module_id="movement_repricing",
                 module="Order Movement / Repricing",
                 primary_owner="stealth_lifecycle",
-                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
                 unsupported_actions=[
-                    "frontend live repricing",
+                    "legacy generic frontend live repricing",
                     "cooldown clearing from command draft",
-                    "revealed placement mutation without exchange handling",
+                    "partial-fill movement",
                 ],
                 command_gaps=[
                     command_gap(
-                        action="frontend live repricing",
+                        action="legacy generic frontend live repricing",
                         status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
                         reason=(
-                            "Movement reprice is currently a live-disabled Admin API "
-                            "draft keyed by stealth_order_id; approved live repricing "
-                            "would be cancel/replace-shaped."
+                            "The generic movement reprice route remains a live-disabled "
+                            "Admin API draft. Goal 7 instead provides one exact "
+                            "plan-bound zero-fill Cancel/Create workflow."
                         ),
                         required_backend_contract=(
-                            "Backend live reprice contract with cancel/replace exchange "
-                            "handling, mutation claims, cooldown policy, approval, cap, "
-                            "audit, and reconciliation evidence."
+                            "Any broader generic live-reprice contract would require "
+                            "separate policy, identity, claim, exchange, audit, and "
+                            "reconciliation authority."
                         ),
                         frontend_boundary=(
-                            "Keep reprice in dry-submit review and do not call the legacy "
-                            "dashboard repricer from the enterprise frontend."
+                            "Keep the legacy reprice route in dry-submit review; use only "
+                            "the backend-authorized exact Goal 7 movement workflow."
                         ),
                     ),
                     command_gap(
@@ -8288,26 +8291,28 @@ class AdminApiReadService:
                         ),
                     ),
                     command_gap(
-                        action="revealed placement mutation without exchange handling",
-                        status=AdminApiModuleSupportStatus.NOT_MODELED,
+                        action="partial-fill movement",
+                        status=AdminApiModuleSupportStatus.UNSUPPORTED,
                         reason=(
-                            "Revealed placements require existing exchange cancel/move/"
-                            "reconcile handling before local state can change."
+                            "Goal 7 is fail-closed to a canonical REVEALED placement with "
+                            "zero authoritative fill and its exact remaining size."
                         ),
                         required_backend_contract=(
-                            "Backend exchange-reality path that claims, cancels or replaces, "
-                            "audits, and reconciles active placements."
+                            "Partial-fill movement would require separately authorized "
+                            "inventory, residual-size, race, cap, and reconciliation "
+                            "policy."
                         ),
                         frontend_boundary=(
-                            "Do not mutate revealed placement state or anchor state from "
-                            "browser code."
+                            "Do not offer movement when backend readback does not expose "
+                            "the exact zero-fill action."
                         ),
                     ),
                 ],
                 identity_keys=["stealth_order_id", "client_order_id"],
                 constraints=[
                     "Move/reprice claim locks remain backend-owned.",
-                    "Reprice command is cancel/replace-shaped and live-disabled.",
+                    "Goal 7 permits one immutable zero-fill plan and one exact Cancel/Create sequence.",
+                    "The legacy generic reprice command remains live-disabled.",
                 ],
                 verification=[
                     "movement/repricing regression",
@@ -8318,14 +8323,20 @@ class AdminApiReadService:
                     "core/stealth_order_manager.py",
                     "business/move_manager.py",
                     "api/v1/routes/movement_repricing.py",
+                    "api/v1/routes/operator_revealed_order_movement.py",
+                    "application/admin_api/operator_revealed_order_movement_service.py",
+                    "application/admin_api/operator_revealed_order_movement_runtime.py",
+                    "database/operator_revealed_order_movement.py",
                 ],
                 frontend_contract_refs=[
                     "src/shared/api/contracts/backendApiClient.ts::listMovementRepricingEvidence",
                     "src/shared/api/contracts/backendApiClient.ts::repriceStealthOrderByStealthOrderId",
-                    "src/features/admin-shell/AdminShell.tsx",
+                    "src/features/movement-repricing/OperatorRevealedMoveWorkspace.tsx",
+                    "src/features/movement-repricing/operatorRevealedMoveRuntime.ts",
                 ],
                 documentation_refs=[
                     "README.movement-repricing.md",
+                    "docs/OPERATOR_REVEALED_ORDER_MOVEMENT_AND_REPRICING_V1.md",
                     "docs/ADMIN_MODULE_CAPABILITY_MATRIX.md",
                     "docs/examples/admin-api.md",
                 ],
@@ -9928,6 +9939,85 @@ class AdminApiReadService:
                 spot_rule_boundary=(
                     "Spot replacement deltas are backend guard evidence only, not "
                     "browser authority."
+                ),
+            ),
+            functionality_item(
+                workflow_id="operator_revealed_order_movement_and_repricing_v1",
+                module_id="movement_repricing",
+                module="Order Movement / Repricing",
+                workflow_type=AdminApiFunctionalityWorkflowType.LIVE_EXECUTION,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "An authenticated operator can prepare one immutable plan for an "
+                    "exact zero-fill REVEALED placement and explicitly authorize one "
+                    "Cancel followed, only after exact CANCELLED readback, by one "
+                    "post-only replacement Create."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=True,
+                command_capable=True,
+                live_designated=True,
+                live_enabled=True,
+                read_routes=[
+                    (
+                        "GET /api/v1/movement-repricing/stealth/"
+                        "{stealth_order_id}/move-execution"
+                    ),
+                ],
+                command_routes=[
+                    (
+                        "POST /api/v1/movement-repricing/stealth/"
+                        "{stealth_order_id}/move-plans"
+                    ),
+                    (
+                        "POST /api/v1/movement-repricing/stealth/"
+                        "{stealth_order_id}/execute-move"
+                    ),
+                ],
+                identity_keys=[
+                    "stealth_order_id",
+                    "client_order_id",
+                    "plan_sha256",
+                    "idempotency_key",
+                    "correlation_id",
+                ],
+                backend_contract_refs=[
+                    "application/admin_api/operator_revealed_order_movement_service.py",
+                    "application/admin_api/operator_revealed_order_movement_runtime.py",
+                    "database/operator_revealed_order_movement.py",
+                    "api/v1/routes/operator_revealed_order_movement.py",
+                    "core/stealth_order_manager.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/movement-repricing/OperatorRevealedMoveWorkspace.tsx",
+                    "src/features/movement-repricing/operatorRevealedMoveRuntime.ts",
+                    "src/shared/api/contracts/backendApiClient.ts",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_REVEALED_ORDER_MOVEMENT_AND_REPRICING_V1.md",
+                    "docs/ADMIN_MODULE_CAPABILITY_MATRIX.md",
+                ],
+                required_next_contract=(
+                    "Each exact execution still requires current Controlled-live "
+                    "authority, matching immutable plan evidence, backend eligibility, "
+                    "single-use claims, and operator confirmation."
+                ),
+                blockers=[
+                    "partial-fill movement",
+                    "automatic repricing",
+                    "current live runtime readback required",
+                ],
+                frontend_boundary=(
+                    "Render backend plan, eligibility, claim, call, and terminal "
+                    "evidence and forward explicit operator intent only; never derive "
+                    "replacement terms or infer exchange authority in the browser."
+                ),
+                spot_rule_boundary=(
+                    "The exact Spot wallet, product, profitability, and notional rules "
+                    "are enforced by the backend Goal 7 service and must not be copied "
+                    "into generic movement or non-Spot workflows."
                 ),
             ),
             functionality_item(
@@ -15301,6 +15391,127 @@ class AdminApiReadService:
                     "Spot wallet and inventory rules remain backend guard "
                     "evidence; stealth post-write verification is not sell "
                     "authority or exchange truth."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
+                surface=(
+                    "POST /api/v1/movement-repricing/stealth/"
+                    "{stealth_order_id}/move-plans"
+                ),
+                mutation_id="movement.operator_revealed_move_plan",
+                mutation_family=AdminApiMutationFamilyType.MOVEMENT_REPRICE,
+                workflow_id="operator_revealed_order_movement_and_repricing_v1",
+                module="Order Movement / Repricing",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Prepare one immutable, backend-validated replacement plan for an "
+                    "exact zero-fill REVEALED placement without an exchange call."
+                ),
+                identity_keys=[
+                    "stealth_order_id",
+                    "client_order_id",
+                    "plan_sha256",
+                    "idempotency_key",
+                    "correlation_id",
+                ],
+                owning_backend_service=(
+                    "application/admin_api/"
+                    "operator_revealed_order_movement_service.py"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/operator_revealed_order_movement.py",
+                    "application/admin_api/operator_revealed_order_movement_service.py",
+                    "database/operator_revealed_order_movement.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/movement-repricing/OperatorRevealedMoveWorkspace.tsx",
+                    "src/shared/api/contracts/backendApiClient.ts",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_REVEALED_ORDER_MOVEMENT_AND_REPRICING_V1.md",
+                ],
+                required_next_contract=(
+                    "Execution remains a distinct explicit command bound to this "
+                    "immutable plan and current backend authority."
+                ),
+                blockers=["partial-fill movement", "automatic repricing"],
+                frontend_boundary=(
+                    "The browser may submit explicit reviewed intent and display the "
+                    "returned immutable plan; it must not derive price, size, caps, or "
+                    "eligibility."
+                ),
+                route_local_boundary=(
+                    "The route binds authenticated identity, permission, idempotency, "
+                    "and correlation evidence and delegates all planning to the Goal 7 "
+                    "service."
+                ),
+                spot_rule_boundary=(
+                    "Goal 7 Spot policy remains backend-owned and cannot authorize "
+                    "generic movement or non-Spot workflows."
+                ),
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_from_surface(
+                surface=(
+                    "POST /api/v1/movement-repricing/stealth/"
+                    "{stealth_order_id}/execute-move"
+                ),
+                mutation_id="movement.operator_revealed_move_execute",
+                mutation_family=AdminApiMutationFamilyType.MOVEMENT_REPRICE,
+                workflow_id="operator_revealed_order_movement_and_repricing_v1",
+                module="Order Movement / Repricing",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Execute one plan-bound Cancel and, only after exact authoritative "
+                    "CANCELLED readback, one identical post-only replacement Create."
+                ),
+                identity_keys=[
+                    "stealth_order_id",
+                    "client_order_id",
+                    "plan_sha256",
+                    "idempotency_key",
+                    "correlation_id",
+                ],
+                owning_backend_service=(
+                    "application/admin_api/"
+                    "operator_revealed_order_movement_service.py"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/operator_revealed_order_movement.py",
+                    "application/admin_api/operator_revealed_order_movement_service.py",
+                    "application/admin_api/operator_revealed_order_movement_runtime.py",
+                    "database/operator_revealed_order_movement.py",
+                    "core/stealth_order_manager.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/movement-repricing/OperatorRevealedMoveWorkspace.tsx",
+                    "src/features/movement-repricing/operatorRevealedMoveRuntime.ts",
+                    "src/shared/api/contracts/backendApiClient.ts",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_REVEALED_ORDER_MOVEMENT_AND_REPRICING_V1.md",
+                ],
+                required_next_contract=(
+                    "Current exact Controlled-live authority, plan equality, "
+                    "eligibility, claim, call-accounting, and operator confirmation "
+                    "must all pass at invocation."
+                ),
+                blockers=["partial-fill movement", "automatic repricing"],
+                frontend_boundary=(
+                    "The browser may forward the explicit exact-plan command and render "
+                    "durable backend evidence only; it must fail closed on unknown or "
+                    "unverifiable readback."
+                ),
+                route_local_boundary=(
+                    "The route binds authenticated identity, permission, idempotency, "
+                    "and correlation evidence and delegates all exchange sequencing to "
+                    "the Goal 7 service/runtime."
+                ),
+                spot_rule_boundary=(
+                    "Goal 7 Spot wallet, product, profitability, and cap checks apply "
+                    "only inside the exact backend movement workflow."
                 ),
             ),
             mutation_taxonomy_from_surface(

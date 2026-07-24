@@ -3235,6 +3235,7 @@ class StealthMutationKind(str, Enum):
     MOVE = "move"
     REPRICE = "reprice"
     RETREAT = "retreat"
+    FOLLOW_UP = "follow_up"
 
 
 class StealthMoveReason(str, Enum):

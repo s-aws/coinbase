@@ -1,6 +1,41 @@
 # Maintainer Handoff
 
-## Active independent Goal 6 — Stealth reveal and exact closeout
+## Active independent Goal 7 — Revealed-order movement and repricing
+
+Goal `operator_revealed_order_movement_and_repricing_v1` continues one exact
+Goal 6 revealed placement through backend-owned plan and execution routes.
+PostgreSQL binds the definition revision/hash, approved Test-portfolio hash,
+source/root/replacement `client_order_id` values, immutable quantized
+post-only terms, strict profitability and `3.10/1.00 USDC` caps, one
+single-use Cancel/conditional Create allowance, exact read accounting,
+command-cycle evidence, exact replay, fixed operator-intent payload binding,
+and restart recovery.
+
+The runtime delegates both exchange mutations to typed
+`StealthOrderManager` entry points. It requires exact authoritative source
+readback before and after Cancel, permits Create only after `CANCELLED`, and
+requires documented exact-zero-fill evidence on both reads. The manager binds
+the canonical `order_parent` target without fallback and durably persists a
+background-mutation fence before Cancel. Before Create it performs a
+non-configurable, durably claimed full-wallet read without cancelled-source
+credit, while PostgreSQL independently requires same-cycle returned evidence.
+It reconciles only after readback proves the exact frozen replacement terms and
+retains a placement-level block against legacy background
+repricing/cancel-reentry.
+The Order Engine `CANCELLED`, `FILLED`, and partial-fill paths check that same
+block before registration, carry claims, pending-move, or automatic follow-up
+handling, preventing a racing exchange event from creating an unauthorized
+child. The final follow-up creation boundary owns a typed `FOLLOW_UP` mutation
+claim mutually exclusive with Goal 7 `MOVE`, closing the check-then-act race.
+Required Stealth and reveal-history writes must each affect exactly one
+PostgreSQL row; fixed unknown evidence replaces raw persistence exception text.
+Raw exchange identities remain in-process only and are hash-withheld from
+PostgreSQL and operator readback.
+Historical comparison covered `origin/prod:dashboard_server.py` and
+`origin/prod:core/stealth_order_manager.py`. See
+[Operator Revealed Order Movement and Repricing V1](OPERATOR_REVEALED_ORDER_MOVEMENT_AND_REPRICING_V1.md).
+
+## Completed independent Goal 6 — Stealth reveal and exact closeout
 
 Goal `operator_stealth_reveal_and_exact_closeout_v1` is the sixth goal in the
 authorized eleven-goal sequence. The routed `/stealth` workflow now has a

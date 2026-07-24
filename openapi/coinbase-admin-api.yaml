@@ -16937,6 +16937,321 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/movement-repricing/stealth/{stealth_order_id}/move-execution:
+    get:
+      tags:
+      - operator-revealed-order-movement
+      summary: Review one exact revealed-order movement
+      operationId: get_operator_revealed_order_movement_api_v1_movement_repricing_stealth__stealth_order_id__move_execution_get
+      parameters:
+      - name: stealth_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Stealth Order Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorRevealedOrderMovementResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/movement-repricing/stealth/{stealth_order_id}/move-plans:
+    post:
+      tags:
+      - operator-revealed-order-movement
+      summary: Prepare one immutable revealed-order movement plan
+      operationId: prepare_operator_revealed_order_movement_api_v1_movement_repricing_stealth__stealth_order_id__move_plans_post
+      parameters:
+      - name: stealth_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Stealth Order Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: prepare_revealed_order_move
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorRevealedOrderMovePlanRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorRevealedOrderMovementResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/movement-repricing/stealth/{stealth_order_id}/execute-move:
+    post:
+      tags:
+      - operator-revealed-order-movement
+      summary: Execute one exact Cancel then replacement Create
+      operationId: execute_operator_revealed_order_movement_api_v1_movement_repricing_stealth__stealth_order_id__execute_move_post
+      parameters:
+      - name: stealth_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Stealth Order Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: execute_revealed_order_cancel_then_replace
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorRevealedOrderMoveExecuteRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorRevealedOrderMovementResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/spot/readiness:
     get:
       tags:
@@ -158077,6 +158392,383 @@ components:
       - expected_revision
       title: OperatorFillInventoryRepairRefreshRequest
       description: Explicit consent for one no-retry logical fill-catalog read.
+    OperatorRevealedOrderMoveExecuteRequest:
+      properties:
+        expected_plan_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Expected Plan Sha256
+        operator_reason:
+          type: string
+          maxLength: 240
+          minLength: 10
+          title: Operator Reason
+        confirm_operator_cancel_then_replace:
+          type: boolean
+          const: true
+          title: Confirm Operator Cancel Then Replace
+      additionalProperties: false
+      type: object
+      required:
+      - expected_plan_sha256
+      - operator_reason
+      - confirm_operator_cancel_then_replace
+      title: OperatorRevealedOrderMoveExecuteRequest
+    OperatorRevealedOrderMovePlan:
+      properties:
+        stealth_order_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Stealth Order Id
+        definition_revision:
+          type: integer
+          minimum: 1.0
+          title: Definition Revision
+        definition_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Definition Sha256
+        portfolio_scope_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Portfolio Scope Sha256
+        source_client_order_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Source Client Order Id
+        source_exchange_order_id_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Source Exchange Order Id Sha256
+        replacement_client_order_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Replacement Client Order Id
+        root_client_order_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Root Client Order Id
+        product_id:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Product Id
+        side:
+          type: string
+          enum:
+          - BUY
+          - SELL
+          title: Side
+        base_size:
+          type: string
+          title: Base Size
+        old_limit_price:
+          type: string
+          title: Old Limit Price
+        requested_limit_price:
+          type: string
+          title: Requested Limit Price
+        replacement_limit_price:
+          type: string
+          title: Replacement Limit Price
+        price_increment:
+          type: string
+          title: Price Increment
+        target_movement:
+          type: string
+          title: Target Movement
+        target_movement_type:
+          type: string
+          enum:
+          - P
+          - A
+          title: Target Movement Type
+        post_only:
+          type: boolean
+          const: true
+          title: Post Only
+        submitted_notional_usdc:
+          type: string
+          title: Submitted Notional Usdc
+        possible_execution_notional_usdc:
+          type: string
+          title: Possible Execution Notional Usdc
+        profitability_validated:
+          type: boolean
+          const: true
+          title: Profitability Validated
+        zero_fill_validated:
+          type: boolean
+          const: true
+          title: Zero Fill Validated
+        plan_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Plan Sha256
+      additionalProperties: false
+      type: object
+      required:
+      - stealth_order_id
+      - definition_revision
+      - definition_sha256
+      - portfolio_scope_sha256
+      - source_client_order_id
+      - source_exchange_order_id_sha256
+      - replacement_client_order_id
+      - root_client_order_id
+      - product_id
+      - side
+      - base_size
+      - old_limit_price
+      - requested_limit_price
+      - replacement_limit_price
+      - price_increment
+      - target_movement
+      - target_movement_type
+      - post_only
+      - submitted_notional_usdc
+      - possible_execution_notional_usdc
+      - profitability_validated
+      - zero_fill_validated
+      - plan_sha256
+      title: OperatorRevealedOrderMovePlan
+    OperatorRevealedOrderMovePlanRequest:
+      properties:
+        expected_definition_revision:
+          type: integer
+          minimum: 1.0
+          title: Expected Definition Revision
+        expected_definition_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Expected Definition Sha256
+        requested_limit_price:
+          type: string
+          pattern: ^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,18})?$
+          title: Requested Limit Price
+        operator_reason:
+          type: string
+          maxLength: 240
+          minLength: 10
+          title: Operator Reason
+        confirm_operator_move_plan:
+          type: boolean
+          const: true
+          title: Confirm Operator Move Plan
+      additionalProperties: false
+      type: object
+      required:
+      - expected_definition_revision
+      - expected_definition_sha256
+      - requested_limit_price
+      - operator_reason
+      - confirm_operator_move_plan
+      title: OperatorRevealedOrderMovePlanRequest
+    OperatorRevealedOrderMovementResponse:
+      properties:
+        goal_id:
+          type: string
+          const: operator_revealed_order_movement_and_repricing_v1
+          title: Goal Id
+          default: operator_revealed_order_movement_and_repricing_v1
+        state:
+          type: string
+          enum:
+          - UNCONSUMED
+          - PLANNED
+          - CANCEL_CLAIMED
+          - SOURCE_CANCELLED
+          - SOURCE_FILLED
+          - CANCEL_REJECTED
+          - CANCEL_UNKNOWN
+          - CREATE_CLAIMED
+          - REPLACED
+          - CREATE_REJECTED
+          - CREATE_UNKNOWN
+          title: State
+        stealth_order_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Stealth Order Id
+        plan:
+          anyOf:
+          - $ref: '#/components/schemas/OperatorRevealedOrderMovePlan'
+          - type: 'null'
+        plan_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Plan Sha256
+        source_client_order_id:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          - type: 'null'
+          title: Source Client Order Id
+        replacement_client_order_id:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          - type: 'null'
+          title: Replacement Client Order Id
+        source_exchange_order_id_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Source Exchange Order Id Sha256
+        replacement_exchange_order_id_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Replacement Exchange Order Id Sha256
+        exchange_order_ids_withheld:
+          type: boolean
+          const: true
+          title: Exchange Order Ids Withheld
+          default: true
+        max_submitted_notional_usdc:
+          type: string
+          const: '3.10'
+          title: Max Submitted Notional Usdc
+          default: '3.10'
+        max_possible_execution_notional_usdc:
+          type: string
+          const: '1.00'
+          title: Max Possible Execution Notional Usdc
+          default: '1.00'
+        cancel_allowance_consumed:
+          type: boolean
+          title: Cancel Allowance Consumed
+        create_allowance_consumed:
+          type: boolean
+          title: Create Allowance Consumed
+        cancel_call_count:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Cancel Call Count
+        create_call_count:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Create Call Count
+        read_call_count:
+          type: integer
+          maximum: 30.0
+          minimum: 0.0
+          title: Read Call Count
+        diagnostic_code:
+          type: string
+          pattern: ^[a-z][a-z0-9_]{0,95}$
+          title: Diagnostic Code
+        operator_intent:
+          type: string
+          enum:
+          - prepare_revealed_order_move
+          - execute_revealed_order_cancel_then_replace
+          title: Operator Intent
+        correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+        plan_idempotency_key_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Plan Idempotency Key Sha256
+        execute_idempotency_key_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Execute Idempotency Key Sha256
+        command_cycle_status:
+          anyOf:
+          - type: string
+            enum:
+            - IN_FLIGHT
+            - COMPLETED
+          - type: 'null'
+          title: Command Cycle Status
+        command_cycle_phase:
+          anyOf:
+          - type: string
+            enum:
+            - PLAN
+            - EXECUTE
+          - type: 'null'
+          title: Command Cycle Phase
+        command_cycle_number:
+          anyOf:
+          - type: integer
+            maximum: 10.0
+            minimum: 1.0
+          - type: 'null'
+          title: Command Cycle Number
+        command_cycle_correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Command Cycle Correlation Id
+        command_cycle_evidence_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Command Cycle Evidence Sha256
+        command_replayed:
+          type: boolean
+          title: Command Replayed
+          default: false
+        execution_authority_enabled:
+          type: boolean
+          title: Execution Authority Enabled
+        allowed_actions:
+          items:
+            type: string
+            enum:
+            - PREPARE_PLAN
+            - EXECUTE_MOVE
+          type: array
+          title: Allowed Actions
+        browser_authority:
+          type: string
+          const: display_and_forward_only
+          title: Browser Authority
+          default: display_and_forward_only
+        raw_response_persisted:
+          type: boolean
+          const: false
+          title: Raw Response Persisted
+          default: false
+        raw_exception_persisted:
+          type: boolean
+          const: false
+          title: Raw Exception Persisted
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - state
+      - stealth_order_id
+      - plan
+      - cancel_allowance_consumed
+      - create_allowance_consumed
+      - cancel_call_count
+      - create_call_count
+      - read_call_count
+      - diagnostic_code
+      - operator_intent
+      - command_cycle_status
+      - command_cycle_phase
+      - execution_authority_enabled
+      - allowed_actions
+      title: OperatorRevealedOrderMovementResponse
     OperatorSpotRecoveryCaseCreateRequest:
       properties:
         client_order_id:
@@ -188171,6 +188863,7 @@ components:
       - move
       - reprice
       - retreat
+      - follow_up
       title: StealthMutationKind
       description: 'Kind of in-flight mutation against a single stealth order.
 

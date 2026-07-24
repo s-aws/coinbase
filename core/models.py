@@ -103,6 +103,9 @@ class RepricingState(TypedDict, total=False):
     active_placement_client_order_id: Optional[str]
     active_exchange_order_id: Optional[str]
     active_exchange_price: Optional[float]
+    operator_move_cancel_returned: bool
+    operator_move_plan_sha256: Optional[str]
+    operator_move_replacement_client_order_id: Optional[str]
     current_logical_limit_price: Optional[float]
     last_reprice_at: str
     next_reprice_at: str

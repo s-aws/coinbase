@@ -276,6 +276,30 @@ class OperatorStealthRevealAuthority:
     authority_id: str
 
 
+@dataclass(frozen=True)
+class OperatorStealthMoveAuthority:
+    """Frozen exact terms for one operator-owned Cancel/Create movement."""
+
+    stealth_order_id: str
+    definition_revision: int
+    definition_sha256: str
+    portfolio_id: str
+    plan_sha256: str
+    source_client_order_id: str
+    source_exchange_order_id: str
+    source_exchange_order_id_sha256: str
+    replacement_client_order_id: str
+    root_client_order_id: str
+    product_id: str
+    side: str
+    base_size: str
+    old_limit_price: str
+    replacement_limit_price: str
+    target_movement: str
+    target_movement_type: str
+    post_only: bool
+
+
 _OPERATOR_STEALTH_PLAN_FIELDS = frozenset(
     {
         "product_id",
@@ -1597,6 +1621,101 @@ class StealthOrderManager:
             market_ask=safe_float(market_data.get("ask"), default=None),
         )
 
+    def build_operator_stealth_move_plan(
+        self,
+        stealth_order_id: str,
+        new_limit_price: float,
+        *,
+        notes: Optional[str] = None,
+    ) -> "StealthMovePlan":
+        """Build Goal 7 terms without wallet, market, logging, or I/O."""
+        from core.enums import (
+            RevealPriceSource,
+            RevealPricingPolicy,
+            StealthMoveReason,
+            StealthOrderStatus,
+        )
+        from core.exceptions import StealthMoveError
+        from core.models import RevealExecutionPlan, StealthMovePlan
+
+        order = self._get_stealth_order(stealth_order_id)
+        if not isinstance(order, dict):
+            raise StealthMoveError(
+                "operator_move_source_not_found",
+                stealth_order_id=stealth_order_id,
+                stage="validate",
+            )
+        capability = evaluate_product_capability(
+            product_id=str(order.get("product_id") or ""),
+            capability=ProductCapability.MOVE_REVEALED,
+        )
+        state = self._normalize_anchor_repricing_state(
+            order.get("anchor_repricing_state_json")
+        )
+        source_exchange_order_id = str(
+            state.get("active_exchange_order_id") or ""
+        )
+        executed_size = safe_float(
+            order.get("executed_size"),
+            default=0.0,
+        )
+        price = safe_float(new_limit_price, default=0.0)
+        if (
+            not capability.allowed
+            or str(order.get("status") or "")
+            != StealthOrderStatus.REVEALED.value
+            or executed_size != 0
+            or price <= 0
+            or not source_exchange_order_id
+            or not state.get("active_placement_client_order_id")
+        ):
+            raise StealthMoveError(
+                "operator_move_source_not_eligible",
+                stealth_order_id=stealth_order_id,
+                stage="validate",
+            )
+        old_price = safe_float(
+            state.get("active_exchange_price"),
+            default=safe_float(order.get("limit_price"), default=0.0),
+        )
+        target, target_type, target_source = (
+            self._resolve_operator_stealth_move_target_binding(
+                stealth_order_id
+            )
+        )
+        reveal_plan = RevealExecutionPlan(
+            configured_limit_price=price,
+            submitted_limit_price=price,
+            reveal_pricing_policy=RevealPricingPolicy.CONFIGURED_LIMIT.value,
+            reveal_price_source=RevealPriceSource.CONFIGURED_LIMIT.value,
+            fallback_used=False,
+            market_source=None,
+            market_bid=None,
+            market_ask=None,
+            target_movement=target,
+            target_movement_type=target_type,
+            target_movement_source=target_source,
+            post_only=True,
+        )
+        try:
+            root = resolve_stealth_chain_root(order)
+        except Exception:
+            root = order.get("parent_order_id") or stealth_order_id
+        return StealthMovePlan(
+            stealth_order_id=stealth_order_id,
+            root_parent_client_order_id=root,
+            old_exchange_order_id=source_exchange_order_id,
+            old_submitted_price=old_price,
+            new_configured_limit_price=price,
+            reveal_plan=reveal_plan,
+            reason=StealthMoveReason.MANUAL_USER_MOVE,
+            reset_repricing_state=True,
+            reset_reveal_counters=True,
+            notes=notes,
+            market_bid=None,
+            market_ask=None,
+        )
+
     def execute_stealth_move(self, plan: "StealthMovePlan") -> "StealthMoveResult":
         """Execute a previously-built :class:`StealthMovePlan`.
 
@@ -1964,6 +2083,593 @@ class StealthOrderManager:
             # Mutations are repeatable: always release, never complete.
             self.release_mutation(StealthMutationKind.MOVE, sid)
 
+    def validate_operator_stealth_move_profitability(
+        self,
+        *,
+        stealth_order_id: str,
+        replacement_limit_price: float,
+        post_only: bool,
+    ) -> bool:
+        """Strict profitability proof for the operator movement path."""
+
+        order = self._get_stealth_order(stealth_order_id)
+        validator = getattr(self, "profit_validator", None)
+        if not isinstance(order, dict) or validator is None:
+            return False
+        derive = getattr(
+            validator,
+            "derive_follow_up_price_from_target",
+            None,
+        )
+        validate = getattr(validator, "validate_order_profitability", None)
+        if not callable(derive) or not callable(validate):
+            return False
+        try:
+            size = safe_float(order.get("remaining_size"), default=0.0)
+            target = safe_float(order.get("target_movement"), default=0.0)
+            price = safe_float(replacement_limit_price, default=0.0)
+            side = str(order.get("side") or "").upper()
+            if (
+                size is None
+                or size <= 0
+                or target is None
+                or target <= 0
+                or price is None
+                or price <= 0
+                or side not in {"BUY", "SELL"}
+                or post_only is not True
+            ):
+                return False
+            follow_up_price = derive(
+                parent_filled_price=price,
+                parent_side=side,
+                target_movement=target,
+                target_movement_type=str(
+                    order.get("target_movement_type") or "P"
+                ),
+            )
+            if not follow_up_price or float(follow_up_price) <= 0:
+                return False
+            result = validate(
+                parent_filled_price=price,
+                parent_side=side,
+                follow_up_price=follow_up_price,
+                order_size=size,
+                min_margin_pct=0.0,
+                product_id=str(order.get("product_id") or ""),
+                post_only=True,
+            )
+            return bool(
+                isinstance(result, dict)
+                and result.get("is_profitable") is True
+            )
+        except Exception:
+            return False
+
+    def _validate_operator_stealth_move_authority(
+        self,
+        authority: OperatorStealthMoveAuthority,
+        *,
+        require_cancel_fence: bool,
+    ) -> Dict[str, Any]:
+        if not isinstance(authority, OperatorStealthMoveAuthority):
+            raise ValueError("operator_move_authority_type_invalid")
+        order = self._get_stealth_order(authority.stealth_order_id)
+        if not isinstance(order, dict):
+            raise ValueError("operator_move_order_unavailable")
+        state = self._normalize_anchor_repricing_state(
+            order.get("anchor_repricing_state_json")
+        )
+        expected_portfolio = str(
+            getattr(self, "expected_retail_portfolio_id", "") or ""
+        )
+        try:
+            size = Decimal(authority.base_size)
+            old_price = Decimal(authority.old_limit_price)
+            new_price = Decimal(authority.replacement_limit_price)
+            executed = Decimal(str(order.get("executed_size") or "0"))
+            remaining = Decimal(str(order.get("remaining_size") or "0"))
+            source_hash = hashlib.sha256(
+                authority.source_exchange_order_id.encode()
+            ).hexdigest()
+            authority_target = Decimal(authority.target_movement)
+            canonical_target, canonical_target_type, _ = (
+                self._resolve_operator_stealth_move_target_binding(
+                    authority.stealth_order_id
+                )
+            )
+            canonical_target_decimal = Decimal(str(canonical_target))
+            uuid.UUID(authority.replacement_client_order_id)
+        except (InvalidOperation, TypeError, ValueError):
+            raise ValueError("operator_move_authority_binding_invalid") from None
+        try:
+            root_client_order_id = resolve_stealth_chain_root(order)
+        except Exception:
+            root_client_order_id = (
+                order.get("parent_order_id") or authority.stealth_order_id
+            )
+        exact = bool(
+            expected_portfolio
+            and authority.portfolio_id == expected_portfolio
+            and str(order.get("stealth_order_id") or "")
+            == authority.stealth_order_id
+            and str(order.get("status") or "").upper()
+            == StealthOrderStatus.REVEALED.value
+            and str(order.get("product_id") or "") == authority.product_id
+            and str(order.get("side") or "").upper() == authority.side
+            and order.get("allow_partial_fills") is False
+            and executed == 0
+            and remaining == size
+            and size.is_finite()
+            and size > 0
+            and old_price.is_finite()
+            and old_price > 0
+            and new_price.is_finite()
+            and new_price > 0
+            and authority_target.is_finite()
+            and authority_target > 0
+            and authority_target == canonical_target_decimal
+            and str(canonical_target_type).upper()
+            == authority.target_movement_type
+            and str(root_client_order_id) == authority.root_client_order_id
+            and size * new_price <= Decimal("3.10")
+            and size * new_price <= Decimal("1.00")
+            and authority.post_only is True
+            and str(state.get("active_placement_client_order_id") or "")
+            == authority.source_client_order_id
+            and str(state.get("active_exchange_order_id") or "")
+            == authority.source_exchange_order_id
+            and source_hash == authority.source_exchange_order_id_sha256
+        )
+        if require_cancel_fence:
+            exact = bool(
+                exact
+                and state.get("operator_move_cancel_returned") is True
+                and str(state.get("operator_move_plan_sha256") or "")
+                == authority.plan_sha256
+                and str(
+                    state.get(
+                        "operator_move_replacement_client_order_id"
+                    )
+                    or ""
+                )
+                == authority.replacement_client_order_id
+            )
+        if not exact:
+            raise ValueError("operator_move_authority_binding_invalid")
+        return order
+
+    def cancel_operator_stealth_move(
+        self,
+        *,
+        authority: OperatorStealthMoveAuthority,
+        before_cancel_call: Callable[[], None],
+    ) -> bool:
+        """Invoke the canonical exact stealth Cancel and fence repricing."""
+
+        from core.enums import StealthMutationKind
+
+        order = self._validate_operator_stealth_move_authority(
+            authority,
+            require_cancel_fence=False,
+        )
+        if not self.try_claim_mutation(
+            StealthMutationKind.MOVE,
+            authority.stealth_order_id,
+        ):
+            raise ValueError("operator_move_mutation_claim_unavailable")
+        try:
+            state = self._normalize_anchor_repricing_state(
+                order.get("anchor_repricing_state_json")
+            )
+            state["operator_move_cancel_pending"] = True
+            state["operator_move_automatic_mutations_blocked"] = True
+            state["operator_move_plan_sha256"] = authority.plan_sha256
+            state["operator_move_replacement_client_order_id"] = (
+                authority.replacement_client_order_id
+            )
+            order["anchor_repricing_state_json"] = state
+            order["updated_at"] = datetime.utcnow()
+            if self._update_stealth_order(order) is not True:
+                raise ValueError("operator_move_fence_persistence_failed")
+
+            call_started = False
+
+            def claim_cancel_call() -> None:
+                nonlocal call_started
+                before_cancel_call()
+                call_started = True
+
+            cancelled = self.cancel_stealth_order(
+                authority.stealth_order_id,
+                reason="operator_goal7_exact_move",
+                cancel_exchange=True,
+                defer_local_terminal=True,
+                value_blind_diagnostics=True,
+                verified_exchange_order_id=(
+                    authority.source_exchange_order_id
+                ),
+                verified_placement_client_order_id=(
+                    authority.source_client_order_id
+                ),
+                before_cancel_call=claim_cancel_call,
+            )
+            if not cancelled:
+                if call_started:
+                    raise RuntimeError("operator_move_cancel_unknown")
+                return False
+            state = self._normalize_anchor_repricing_state(
+                order.get("anchor_repricing_state_json")
+            )
+            state.pop("operator_move_cancel_pending", None)
+            state["operator_move_cancel_returned"] = True
+            state["operator_move_automatic_mutations_blocked"] = True
+            state["operator_move_plan_sha256"] = authority.plan_sha256
+            state["operator_move_replacement_client_order_id"] = (
+                authority.replacement_client_order_id
+            )
+            order["anchor_repricing_state_json"] = state
+            order["updated_at"] = datetime.utcnow()
+            if self._update_stealth_order(order) is not True:
+                raise RuntimeError("operator_move_fence_persistence_failed")
+            self.log_callback(
+                "info",
+                {
+                    "event": "operator_stealth_move_cancel_returned",
+                    "stealth_order_id": authority.stealth_order_id,
+                    "exchange_order_id_withheld": True,
+                    "plan_sha256": authority.plan_sha256,
+                },
+            )
+            return True
+        finally:
+            self.release_mutation(
+                StealthMutationKind.MOVE,
+                authority.stealth_order_id,
+            )
+
+    def place_operator_stealth_move_replacement(
+        self,
+        *,
+        authority: OperatorStealthMoveAuthority,
+        before_create_call: Callable[[], None],
+        before_wallet_read: Callable[[], None],
+        after_wallet_read: Callable[[str], None],
+    ) -> Dict[str, Any]:
+        """Place one frozen replacement after the exact Cancel returned."""
+
+        from configuration import REST_CLIENT
+        from core.enums import StealthMutationKind
+
+        order = self._validate_operator_stealth_move_authority(
+            authority,
+            require_cancel_fence=True,
+        )
+        if not self.try_claim_mutation(
+            StealthMutationKind.MOVE,
+            authority.stealth_order_id,
+        ):
+            raise ValueError("operator_move_mutation_claim_unavailable")
+        pre_inserted = False
+        try:
+            new_price = float(Decimal(authority.replacement_limit_price))
+            size = float(Decimal(authority.base_size))
+            state = self._normalize_anchor_repricing_state(
+                order.get("anchor_repricing_state_json")
+            )
+            wallet_snapshot: Dict[str, Any] = {}
+            wallet_result = "NOT_CALLED"
+
+            def wallet_fetcher() -> Dict[str, Any]:
+                nonlocal wallet_snapshot, wallet_result
+                before_wallet_read()
+                try:
+                    wallets = self._get_account_wallets_for_action_guard()
+                except Exception:
+                    wallet_result = "UNKNOWN"
+                    after_wallet_read("UNKNOWN")
+                    raise
+                if not isinstance(wallets, dict):
+                    wallet_result = "UNKNOWN"
+                    after_wallet_read("UNKNOWN")
+                    raise ValueError("operator_move_wallet_shape_invalid")
+                wallet_snapshot = wallets
+                wallet_result = "RETURNED"
+                after_wallet_read("RETURNED")
+                return wallets
+
+            strict_wallet_ok, _wallet_failure = ActionConditionGuard(
+                policy={
+                    "wallet_available": {
+                        "enabled": True,
+                        "phases": [ActionGuardPhase.REVEAL.value],
+                        "block_without_credentials": True,
+                        "fail_open_on_fetch_error": False,
+                        "fail_open_on_planned_budget_error": False,
+                        "epsilon": 0.0,
+                    }
+                },
+                credentials_configured=self._rest_credentials_configured,
+                wallet_fetcher=wallet_fetcher,
+                planned_budget_fetcher=(
+                    lambda: self._get_spot_planned_budget_commitments(
+                        exclude_stealth_order_id=(
+                            authority.stealth_order_id
+                        ),
+                    )
+                ),
+            ).evaluate(
+                phase=ActionGuardPhase.REVEAL,
+                product_id=authority.product_id,
+                side=authority.side,
+                size=size,
+                limit_price=new_price,
+                stealth_order_id=authority.stealth_order_id,
+                parent_order_id=order.get("parent_order_id"),
+            )
+            if not strict_wallet_ok or wallet_result != "RETURNED":
+                return {
+                    "outcome": (
+                        "WALLET_UNKNOWN"
+                        if wallet_result != "RETURNED"
+                        else "WALLET_REJECTED"
+                    ),
+                    "exchange_order_id": None,
+                }
+
+            guard_ok, _guard_failure = (
+                self._evaluate_action_condition_guard(
+                    phase=ActionGuardPhase.REVEAL,
+                    product_id=authority.product_id,
+                    side=authority.side,
+                    size=size,
+                    limit_price=new_price,
+                    stealth_order_id=authority.stealth_order_id,
+                    parent_order_id=order.get("parent_order_id"),
+                    wallet_fetcher=lambda: wallet_snapshot,
+                )
+            )
+            if not guard_ok or not (
+                self.validate_operator_stealth_move_profitability(
+                    stealth_order_id=authority.stealth_order_id,
+                    replacement_limit_price=new_price,
+                    post_only=True,
+                )
+            ):
+                return {"outcome": "REJECTED", "exchange_order_id": None}
+            try:
+                insert_order_parent(
+                    client_order_id=authority.replacement_client_order_id,
+                    product_id=authority.product_id,
+                    side=authority.side,
+                    size=size,
+                    price=new_price,
+                    target_movement=float(
+                        Decimal(authority.target_movement)
+                    ),
+                    target_movement_type=authority.target_movement_type,
+                    max_order_replacement=int(
+                        order.get("max_order_replacements") or 0
+                    ),
+                    current_order_replacement=0,
+                    status=OrderStatus.PENDING.value,
+                    parent_order_id=authority.root_client_order_id,
+                    allow_partial_fills=bool(
+                        order.get("allow_partial_fills", False)
+                    ),
+                )
+                pre_inserted = True
+            except Exception:
+                return {"outcome": "REJECTED", "exchange_order_id": None}
+            try:
+                with get_runtime_controller().track_inflight(
+                    INFLIGHT_REST_PLACE
+                ):
+                    raw_result = REST_CLIENT.create_order(
+                        product_id=authority.product_id,
+                        side=authority.side,
+                        client_order_id=(
+                            authority.replacement_client_order_id
+                        ),
+                        order_configuration={
+                            "limit_limit_gtc": {
+                                "base_size": authority.base_size,
+                                "limit_price": (
+                                    authority.replacement_limit_price
+                                ),
+                                "post_only": True,
+                            }
+                        },
+                        before_sdk_call=before_create_call,
+                    )
+            except Exception:
+                self.log_callback(
+                    "error",
+                    {
+                        "event": "operator_stealth_move_create_unknown",
+                        "stealth_order_id": authority.stealth_order_id,
+                        "exception_withheld": True,
+                    },
+                )
+                return {"outcome": "UNKNOWN", "exchange_order_id": None}
+            if isinstance(raw_result, dict):
+                success_marker = raw_result.get("success")
+                success_response = raw_result.get("success_response")
+                top_level_order_id = raw_result.get("order_id")
+            else:
+                success_marker = getattr(raw_result, "success", None)
+                success_response = getattr(
+                    raw_result,
+                    "success_response",
+                    None,
+                )
+                top_level_order_id = getattr(
+                    raw_result,
+                    "order_id",
+                    None,
+                )
+            if isinstance(success_response, dict):
+                nested_order_id = success_response.get("order_id")
+            else:
+                nested_order_id = getattr(
+                    success_response,
+                    "order_id",
+                    None,
+                )
+            exchange_order_id = str(
+                nested_order_id or top_level_order_id or ""
+            )
+            if success_marker is not True:
+                outcome = (
+                    "REJECTED"
+                    if success_marker is False
+                    else "UNKNOWN"
+                )
+                if outcome == "UNKNOWN":
+                    return {
+                        "outcome": "UNKNOWN",
+                        "exchange_order_id": None,
+                    }
+                if pre_inserted:
+                    try:
+                        update_order_parent_status(
+                            authority.replacement_client_order_id,
+                            OrderStatus.FAILED.value,
+                        )
+                    except Exception:
+                        pass
+                return {"outcome": "REJECTED", "exchange_order_id": None}
+            if not exchange_order_id:
+                return {"outcome": "UNKNOWN", "exchange_order_id": None}
+            now = datetime.utcnow()
+            fresh_state = self._normalize_anchor_repricing_state(None)
+            fresh_state["active_placement_client_order_id"] = (
+                authority.replacement_client_order_id
+            )
+            fresh_state["active_exchange_order_id"] = exchange_order_id
+            fresh_state["active_exchange_price"] = new_price
+            fresh_state["current_logical_limit_price"] = new_price
+            fresh_state["last_reprice_at"] = now.isoformat()
+            fresh_state["reprice_reason"] = "operator_move"
+            fresh_state["operator_move_reconciliation_pending"] = True
+            fresh_state["operator_move_automatic_mutations_blocked"] = True
+            fresh_state["operator_move_plan_sha256"] = (
+                authority.plan_sha256
+            )
+            fresh_state["operator_move_replacement_client_order_id"] = (
+                authority.replacement_client_order_id
+            )
+            order["anchor_repricing_state_json"] = fresh_state
+            order["limit_price"] = new_price
+            order["updated_at"] = now
+            event = {
+                "reveal_number": 1,
+                "revealed_size": size,
+                "placement_price": new_price,
+                "placed_order_id": authority.replacement_client_order_id,
+                "placement_client_order_id": (
+                    authority.replacement_client_order_id
+                ),
+                "exchange_order_id": None,
+                "exchange_order_id_withheld": True,
+                "placement_success": True,
+                "placement_status": "moved",
+                "placement_error": None,
+                "cancelled_for_reprice": False,
+                "reveal_time": now,
+                "move_reason": "manual_user_move",
+                "previous_exchange_order_id": None,
+                "previous_exchange_order_id_withheld": True,
+                "previous_submitted_price": float(
+                    Decimal(authority.old_limit_price)
+                ),
+            }
+            order["revealed_orders"] = [event]
+            self._placed_order_index[
+                authority.replacement_client_order_id
+            ] = order
+            try:
+                if self._update_stealth_order(order) is not True:
+                    return {
+                        "outcome": "UNKNOWN",
+                        "exchange_order_id": None,
+                    }
+                self._record_reveal_event(
+                    order,
+                    event,
+                    raise_on_error=True,
+                )
+            except Exception:
+                return {"outcome": "UNKNOWN", "exchange_order_id": None}
+            self.log_callback(
+                "info",
+                {
+                    "event": "operator_stealth_move_create_accepted",
+                    "stealth_order_id": authority.stealth_order_id,
+                    "replacement_client_order_id": (
+                        authority.replacement_client_order_id
+                    ),
+                    "exchange_order_id_withheld": True,
+                    "plan_sha256": authority.plan_sha256,
+                },
+            )
+            return {
+                "outcome": "ACCEPTED",
+                "exchange_order_id": exchange_order_id,
+            }
+        finally:
+            self.release_mutation(
+                StealthMutationKind.MOVE,
+                authority.stealth_order_id,
+            )
+
+    def complete_operator_stealth_move_reconciliation(
+        self,
+        *,
+        authority: OperatorStealthMoveAuthority,
+        replacement_exchange_order_id: str,
+    ) -> None:
+        """Clear the automation fence after exact replacement readback."""
+        from core.enums import StealthMutationKind
+
+        order = self._get_stealth_order(authority.stealth_order_id)
+        state = self._normalize_anchor_repricing_state(
+            (order or {}).get("anchor_repricing_state_json")
+        )
+        if not (
+            isinstance(order, dict)
+            and state.get("operator_move_reconciliation_pending") is True
+            and str(state.get("operator_move_plan_sha256") or "")
+            == authority.plan_sha256
+            and str(
+                state.get("operator_move_replacement_client_order_id") or ""
+            )
+            == authority.replacement_client_order_id
+            and str(state.get("active_placement_client_order_id") or "")
+            == authority.replacement_client_order_id
+            and str(state.get("active_exchange_order_id") or "")
+            == replacement_exchange_order_id
+        ):
+            raise ValueError("operator_move_reconciliation_binding_invalid")
+        if not self.try_claim_mutation(
+            StealthMutationKind.MOVE,
+            authority.stealth_order_id,
+        ):
+            raise ValueError("operator_move_mutation_claim_unavailable")
+        try:
+            state.pop("operator_move_reconciliation_pending", None)
+            state.pop("operator_move_plan_sha256", None)
+            state.pop("operator_move_replacement_client_order_id", None)
+            order["anchor_repricing_state_json"] = state
+            order["updated_at"] = datetime.utcnow()
+            if self._update_stealth_order(order) is not True:
+                raise ValueError("operator_move_fence_persistence_failed")
+        finally:
+            self.release_mutation(
+                StealthMutationKind.MOVE,
+                authority.stealth_order_id,
+            )
+
     def process_anchor_repricing_for_product(self, product_id: str) -> int:
         """Apply ticker-anchored repricing for eligible stealth orders on one product."""
         from core.enums import StealthMutationKind
@@ -1989,6 +2695,21 @@ class StealthOrderManager:
                 return processed
             order = self.in_memory_orders.get(stealth_order_id)
             if not order or order.get("product_id") != product_id:
+                continue
+            move_state = self._normalize_anchor_repricing_state(
+                order.get("anchor_repricing_state_json")
+            )
+            if (
+                move_state.get("operator_move_cancel_returned") is True
+                or move_state.get(
+                    "operator_move_reconciliation_pending"
+                )
+                is True
+                or move_state.get(
+                    "operator_move_automatic_mutations_blocked"
+                )
+                is True
+            ):
                 continue
 
             cancel_reentry_state = (
@@ -2241,6 +2962,21 @@ class StealthOrderManager:
             order = self.in_memory_orders.get(stealth_order_id)
             if not order or order.get("product_id") != product_id:
                 continue
+            move_state = self._normalize_anchor_repricing_state(
+                order.get("anchor_repricing_state_json")
+            )
+            if (
+                move_state.get("operator_move_cancel_returned") is True
+                or move_state.get(
+                    "operator_move_reconciliation_pending"
+                )
+                is True
+                or move_state.get(
+                    "operator_move_automatic_mutations_blocked"
+                )
+                is True
+            ):
+                continue
 
             try:
                 policy = CancelReentryPolicy.from_cancel_reentry_policy_dict(
@@ -2286,6 +3022,20 @@ class StealthOrderManager:
         return (
             bool(placement_client_order_id)
             and state.cancelled_placement_client_order_id == placement_client_order_id
+        )
+
+    def is_operator_move_automatic_mutation_blocked(
+        self,
+        order: Dict[str, Any],
+    ) -> bool:
+        """Return the durable Goal 7 block for every placement in the chain."""
+
+        state = self._normalize_anchor_repricing_state(
+            order.get("anchor_repricing_state_json")
+        )
+        return bool(
+            state.get("operator_move_cancel_pending") is True
+            or state.get("operator_move_automatic_mutations_blocked") is True
         )
 
     def _apply_cancel_reentry_cancel(
@@ -2630,6 +3380,30 @@ class StealthOrderManager:
             return tm, str(tm_type), "stealth_order"
 
         return None, None, "unavailable"
+
+    def _resolve_operator_stealth_move_target_binding(
+        self,
+        stealth_order_id: str,
+    ) -> Tuple[float, str, str]:
+        """Return Goal 7's canonical parent target or fail closed."""
+        try:
+            parent_row = get_parent_order(stealth_order_id)
+        except Exception:
+            raise ValueError(
+                "operator_move_parent_target_unavailable"
+            ) from None
+        if not isinstance(parent_row, dict):
+            raise ValueError("operator_move_parent_target_unavailable")
+        target = safe_float(
+            parent_row.get("target_movement"),
+            default=0.0,
+        )
+        target_type = str(
+            parent_row.get("target_movement_type") or ""
+        ).upper()
+        if target is None or target <= 0 or target_type not in {"P", "A"}:
+            raise ValueError("operator_move_parent_target_unavailable")
+        return target, target_type, "order_parent"
 
     # ------------------------------------------------------------------
     # Action-condition guard (planning + reveal)
@@ -6351,6 +7125,7 @@ class StealthOrderManager:
         defer_local_terminal: bool = False,
         value_blind_diagnostics: bool = False,
         verified_exchange_order_id: Optional[str] = None,
+        verified_placement_client_order_id: Optional[str] = None,
         before_cancel_call: Optional[Callable[[], None]] = None,
     ) -> bool:
         """
@@ -6390,6 +7165,9 @@ class StealthOrderManager:
                 clear_active_placement=not defer_local_terminal,
                 value_blind_diagnostics=value_blind_diagnostics,
                 verified_exchange_order_id=verified_exchange_order_id,
+                verified_placement_client_order_id=(
+                    verified_placement_client_order_id
+                ),
                 before_cancel_call=before_cancel_call,
             )
         ):
@@ -6412,6 +7190,7 @@ class StealthOrderManager:
         clear_active_placement: bool = True,
         value_blind_diagnostics: bool = False,
         verified_exchange_order_id: Optional[str] = None,
+        verified_placement_client_order_id: Optional[str] = None,
         before_cancel_call: Optional[Callable[[], None]] = None,
     ) -> bool:
         """Cancel the live exchange order tracked by anchor repricing state.
@@ -6436,10 +7215,15 @@ class StealthOrderManager:
                 },
             )
             return False
+        expected_placement_client_order_id = (
+            str(verified_placement_client_order_id)
+            if verified_placement_client_order_id is not None
+            else str(order.get("stealth_order_id") or "")
+        )
         if verified_exchange_order_id is not None and (
             str(verified_exchange_order_id) != str(exchange_order_id)
             or str(placement_client_order_id or "")
-            != str(order.get("stealth_order_id") or "")
+            != expected_placement_client_order_id
             or not callable(before_cancel_call)
         ):
             self.log_callback(
@@ -7029,6 +7813,71 @@ class StealthOrderManager:
         follow_up_trigger: Optional[str] = None,
         source_client_order_id: Optional[str] = None,
     ) -> Optional[str]:
+        """Create one follow-up under cross-kind mutation exclusion."""
+
+        from core.enums import StealthMutationKind
+
+        if not self.try_claim_mutation(
+            StealthMutationKind.FOLLOW_UP,
+            original_stealth_order_id,
+        ):
+            return None
+        try:
+            original_order = self._get_stealth_order(
+                original_stealth_order_id
+            )
+            if not isinstance(original_order, dict):
+                return None
+            if self.is_operator_move_automatic_mutation_blocked(
+                original_order
+            ):
+                self.log_callback(
+                    "warning",
+                    {
+                        "event": "operator_move_follow_up_creation_blocked",
+                        "stealth_order_id": original_stealth_order_id,
+                    },
+                )
+                return None
+            return self._create_follow_up_stealth_order_claimed(
+                original_stealth_order_id=original_stealth_order_id,
+                side=side,
+                total_size=total_size,
+                limit_price=limit_price,
+                reveal_condition=reveal_condition,
+                follow_up_reveal_direction=follow_up_reveal_direction,
+                reveal_pricing_policy=reveal_pricing_policy,
+                notes=notes,
+                target_movement=target_movement,
+                target_movement_type=target_movement_type,
+                cancel_reentry_policy=cancel_reentry_policy,
+                post_fill_retreat_policy=post_fill_retreat_policy,
+                follow_up_trigger=follow_up_trigger,
+                source_client_order_id=source_client_order_id,
+            )
+        finally:
+            self.release_mutation(
+                StealthMutationKind.FOLLOW_UP,
+                original_stealth_order_id,
+            )
+
+    def _create_follow_up_stealth_order_claimed(
+        self,
+        original_stealth_order_id: str,
+        side: str,
+        total_size: float,
+        limit_price: float,
+        reveal_condition: Optional[Dict[str, Any]] = None,
+        follow_up_reveal_direction: Optional[str] = None,
+        reveal_pricing_policy: Optional[str] = None,
+        notes: str = "",
+        target_movement: Optional[float] = None,
+        target_movement_type: str = "P",
+        cancel_reentry_policy: Optional[Dict[str, Any]] = None,
+        post_fill_retreat_policy: Optional[Dict[str, Any]] = None,
+        follow_up_trigger: Optional[str] = None,
+        source_client_order_id: Optional[str] = None,
+    ) -> Optional[str]:
         """Create a follow-up stealth order with same conditions as original.
         
         Used when a revealed stealth order fills and needs to be replaced on opposite side.
@@ -7409,10 +8258,10 @@ class StealthOrderManager:
                 ) from e
             return False
     
-    def _update_stealth_order(self, order: Dict[str, Any]):
+    def _update_stealth_order(self, order: Dict[str, Any]) -> bool:
         """Update stealth order in database."""
         if not self.db_client:
-            return
+            return False
         
         try:
             # Convert datetime to string for database storage
@@ -7454,7 +8303,7 @@ class StealthOrderManager:
             condition_first_met_at = _iso_or_none(order.get('condition_first_met_at'))
             condition_confirmed_at = _iso_or_none(order.get('condition_confirmed_at'))
             
-            self.db_client.execute_update(
+            rows_affected = self.db_client.execute_update(
                 """UPDATE stealth_orders 
                    SET status = %s, revealed_size = %s, remaining_size = %s, 
                        executed_size = %s, revealed_orders = %s, last_placement_at = %s,
@@ -7485,8 +8334,27 @@ class StealthOrderManager:
                   order.get('failure_reason'),
                   order['stealth_order_id'])
             )
-        except Exception as e:
-            self.log_callback("error", {"event": "stealth_order_update_failed", "stealth_order_id": order['stealth_order_id'], "error": str(e)})
+            if rows_affected != 1:
+                self.log_callback(
+                    "error",
+                    {
+                        "event": "stealth_order_update_row_count_invalid",
+                        "stealth_order_id": order["stealth_order_id"],
+                        "exception_withheld": True,
+                    },
+                )
+                return False
+            return True
+        except Exception:
+            self.log_callback(
+                "error",
+                {
+                    "event": "stealth_order_update_failed",
+                    "stealth_order_id": order["stealth_order_id"],
+                    "exception_withheld": True,
+                },
+            )
+            return False
     
     @staticmethod
     def _parse_stealth_order_json_field(value: Any, default: Any) -> Any:
@@ -7721,7 +8589,13 @@ class StealthOrderManager:
             return f"Condition met: {cond_type}"
         return "Reveal condition met"
 
-    def _record_reveal_event(self, order: Dict[str, Any], reveal_event: Dict[str, Any]):
+    def _record_reveal_event(
+        self,
+        order: Dict[str, Any],
+        reveal_event: Dict[str, Any],
+        *,
+        raise_on_error: bool = False,
+    ) -> bool:
         """Record reveal event to stealth_order_reveal_history table.
         
         Uses UPSERT (INSERT ... ON CONFLICT) to handle idempotent recording.
@@ -7729,13 +8603,17 @@ class StealthOrderManager:
         with the latest data instead of failing. This handles race conditions or retries.
         """
         if not self.db_client:
-            return
+            if raise_on_error:
+                raise ValueError("stealth_reveal_event_recording_failed")
+            return False
         
         try:
             # Get stealth_order_id from order dict (not reveal_event)
             stealth_order_id = order.get('stealth_order_id')
             if not stealth_order_id:
-                return
+                if raise_on_error:
+                    raise ValueError("stealth_reveal_event_recording_failed")
+                return False
             
             reveal_number = reveal_event.get('reveal_number', 1)
             revealed_size = reveal_event.get('revealed_size', 0)
@@ -7781,7 +8659,7 @@ class StealthOrderManager:
             })
 
             # Use UPSERT to handle duplicate reveals (idempotent recording)
-            self.db_client.execute_update(
+            rows_affected = self.db_client.execute_update(
                 """INSERT INTO stealth_order_reveal_history
                    (stealth_order_id, reveal_number, revealed_size, placement_price, placed_order_id,
                     exchange_order_id, market_price, market_bid, market_ask, market_spread, market_volume_1m,
@@ -7827,5 +8705,24 @@ class StealthOrderManager:
                  reference_price_source, reference_price, reference_bid, reference_ask,
                  market_source)
             )
-        except Exception as e:
-            self.log_callback("error", {"event": "stealth_reveal_event_recording_failed", "error": str(e)})
+            if rows_affected != 1:
+                if raise_on_error:
+                    raise ValueError(
+                        "stealth_reveal_event_recording_failed"
+                    )
+                return False
+            return True
+        except Exception:
+            self.log_callback(
+                "error",
+                {
+                    "event": "stealth_reveal_event_recording_failed",
+                    "stealth_order_id": order.get("stealth_order_id"),
+                    "exception_withheld": True,
+                },
+            )
+            if raise_on_error:
+                raise ValueError(
+                    "stealth_reveal_event_recording_failed"
+                ) from None
+            return False

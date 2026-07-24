@@ -1,6 +1,13 @@
 # Documentation Index
 
-Active independent Goal 6:
+Active independent Goal 7:
+[Operator Revealed Order Movement and Repricing V1](OPERATOR_REVEALED_ORDER_MOVEMENT_AND_REPRICING_V1.md).
+Goal `operator_revealed_order_movement_and_repricing_v1` provides one explicit
+operator-reviewed zero-fill movement, immutable quantized post-only plan, one
+Cancel, conditional one replacement Create, exact linkage/reconciliation,
+restart recovery, single-use claims, and sanitized PostgreSQL readback.
+
+Completed independent Goal 6:
 [Operator Stealth Reveal and Exact Closeout V1](OPERATOR_STEALTH_REVEAL_AND_EXACT_CLOSEOUT_V1.md).
 Goal `operator_stealth_reveal_and_exact_closeout_v1` provides one explicit
 operator-controlled materialization, condition check, Preview-gated identical

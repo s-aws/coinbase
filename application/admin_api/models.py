@@ -41234,6 +41234,7 @@ class AdminApiRouteInventoryItem(BaseModel):
     surface: str
     action_class: AdminApiActionClass
     permission: AdminApiPermission | str
+    required_permissions: list[AdminApiPermission | str] | None = None
     idempotency: str
     approval: str
     caps: str

@@ -9,6 +9,9 @@
       "path": "/api/v1/orders",
       "action_class": "live_exchange_place",
       "permission": "order:create",
+      "required_permissions": [
+        "order:create"
+      ],
       "idempotency": "required",
       "approval": "required",
       "caps": "required",
@@ -25,6 +28,9 @@
       "path": "/api/v1/orders",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -41,6 +47,9 @@
       "path": "/api/v1/orders/{client_order_id}",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -57,6 +66,9 @@
       "path": "/api/v1/follow-up-operations",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not applicable; local review navigation only",
       "caps": "not applicable; reports durable call accounting only",
@@ -73,6 +85,9 @@
       "path": "/api/v1/orders/{source_client_order_id}/follow-up-intent",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not applicable; authoritative local readback only",
       "caps": "backend-owned one-slot and zero-attachment-notional evidence",
@@ -89,6 +104,9 @@
       "path": "/api/v1/orders/{source_client_order_id}/follow-up-intent",
       "action_class": "local_state_mutation",
       "permission": "order:create",
+      "required_permissions": [
+        "order:create"
+      ],
       "idempotency": "required; same key and payload replay, changed payload conflicts",
       "approval": "not a live approval; exact operator acknowledgement is required and later materialization requires fresh authorization",
       "caps": "exactly one durable source slot and zero attachment/submitted notional; later materialization caps are evaluated separately",
@@ -105,6 +123,9 @@
       "path": "/api/v1/orders/{source_client_order_id}/follow-up-intent/materialization",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not applicable; authoritative local readback only",
       "caps": "reports the fixed 3.10 submitted and 1.00 executed ceilings",
@@ -121,6 +142,9 @@
       "path": "/api/v1/orders/{source_client_order_id}/follow-up-intent/materialization",
       "action_class": "live_exchange_place",
       "permission": "order:create",
+      "required_permissions": [
+        "order:create"
+      ],
       "idempotency": "required durable one-use claim; exact key replays and changed key or payload conflicts",
       "approval": "required fresh explicit materialization header and acknowledgements; the attachment acknowledgement is never live authority",
       "caps": "required backend fixed max submitted 3.10 USDC and max executed/effective 1.00 USDC, plus wallet and standing-price policy",
@@ -137,6 +161,9 @@
       "path": "/api/v1/orders/{source_client_order_id}/follow-up-intent/materialization/safe-closeout",
       "action_class": "live_exchange_cancel",
       "permission": "order:cancel",
+      "required_permissions": [
+        "order:cancel"
+      ],
       "idempotency": "required separate durable Cancel key; exact replay only and no second boundary",
       "approval": "required fresh exact-child safe-closeout header and acknowledgements",
       "caps": "required one exact materialized child and at most one Cancel call",
@@ -153,6 +180,9 @@
       "path": "/api/v1/orders/{client_order_id}/reconciliation",
       "action_class": "local_state_mutation",
       "permission": "order:cancel",
+      "required_permissions": [
+        "order:cancel"
+      ],
       "idempotency": "required",
       "approval": "not applicable; exact backend execution authority required",
       "caps": "not applicable; Coinbase read and local status synchronization only",
@@ -169,6 +199,9 @@
       "path": "/api/v1/orders/{client_order_id}/fill-follow-up/replay",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -185,6 +218,9 @@
       "path": "/api/v1/orders/{client_order_id}/fill-follow-up/live-readiness",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -201,6 +237,9 @@
       "path": "/api/v1/orders/{client_order_id}/fill-follow-up/chain",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -217,6 +256,9 @@
       "path": "/api/v1/orders/{root_client_order_id}/fill-follow-up/child-cancel/readiness",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "historical local V15 plan/marker/handoff evidence only",
       "caps": "historical local root/child/aggregate plan evidence only",
@@ -233,6 +275,9 @@
       "path": "/api/v1/orders/{root_client_order_id}/fill-follow-up/child-cancel",
       "action_class": "live_exchange_cancel",
       "permission": "order:cancel",
+      "required_permissions": [
+        "order:cancel"
+      ],
       "idempotency": "not_applicable_source_disabled",
       "approval": "not_applicable_source_disabled",
       "caps": "not_applicable_source_disabled",
@@ -249,6 +294,9 @@
       "path": "/api/v1/orders/{client_order_id}/fill-follow-up/trigger-preview",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not applicable",
       "caps": "not applicable",
@@ -265,6 +313,9 @@
       "path": "/api/v1/orders/{client_order_id}/fill-follow-up/trigger",
       "action_class": "local_state_mutation",
       "permission": "order:create",
+      "required_permissions": [
+        "order:create"
+      ],
       "idempotency": "required",
       "approval": "required before accepted no-live trigger execution",
       "caps": "required before accepted no-live trigger execution",
@@ -281,6 +332,9 @@
       "path": "/api/v1/stealth/definitions",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required; PostgreSQL definition readback only",
       "caps": "backend pagination up to 100 local definitions",
@@ -297,6 +351,9 @@
       "path": "/api/v1/stealth/definitions/{definition_id}",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required; exact local definition readback only",
       "caps": "one exact definition and paginated fixed audit events",
@@ -313,6 +370,9 @@
       "path": "/api/v1/stealth/definitions/{definition_id}/execution",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required; PostgreSQL goal-ledger readback only",
       "caps": "one exact Goal 6 definition and client_order_id",
@@ -329,6 +389,9 @@
       "path": "/api/v1/stealth/definitions/{definition_id}/reveal",
       "action_class": "live_exchange_place",
       "permission": "order:create",
+      "required_permissions": [
+        "order:create"
+      ],
       "idempotency": "required; exact revision/hash payload replay only",
       "approval": "required explicit exact-definition operator acknowledgement",
       "caps": "required one durable Preview claim and, only after accepted Preview, one identical Create",
@@ -345,6 +408,9 @@
       "path": "/api/v1/stealth/definitions/{definition_id}/resume-accepted-create",
       "action_class": "live_exchange_place",
       "permission": "order:create",
+      "required_permissions": [
+        "order:create"
+      ],
       "idempotency": "required; each interrupted pre-Create resume receives one bounded command cycle while Create remains unclaimed",
       "approval": "required explicit Preview-accepted Create resume acknowledgement",
       "caps": "required existing accepted Preview and still-unconsumed sole identical Create allowance",
@@ -361,6 +427,9 @@
       "path": "/api/v1/stealth/definitions/{definition_id}/closeout",
       "action_class": "live_exchange_cancel",
       "permission": "order:cancel",
+      "required_permissions": [
+        "order:cancel"
+      ],
       "idempotency": "required; exact plan/client_order_id replay only",
       "approval": "required explicit exact-placement closeout acknowledgement",
       "caps": "required at most one Cancel after authoritative exact nonterminal readback",
@@ -377,6 +446,9 @@
       "path": "/api/v1/stealth/definition-import-previews/{preview_id}",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required; durable sanitized preview readback only",
       "caps": "one import preview of at most 100 definitions",
@@ -393,6 +465,9 @@
       "path": "/api/v1/stealth/definitions",
       "action_class": "local_state_mutation",
       "permission": "config:update",
+      "required_permissions": [
+        "config:update"
+      ],
       "idempotency": "required; exact payload replay only",
       "approval": "explicit local-definition create acknowledgement",
       "caps": "one DRAFT definition for one enabled Spot product",
@@ -409,6 +484,9 @@
       "path": "/api/v1/stealth/definitions/{definition_id}/edit",
       "action_class": "local_state_mutation",
       "permission": "config:update",
+      "required_permissions": [
+        "config:update"
+      ],
       "idempotency": "required; exact payload replay only",
       "approval": "explicit exact-revision edit acknowledgement",
       "caps": "one DRAFT definition with immutable product and side",
@@ -425,6 +503,9 @@
       "path": "/api/v1/stealth/definitions/{definition_id}/cancel",
       "action_class": "local_state_mutation",
       "permission": "config:update",
+      "required_permissions": [
+        "config:update"
+      ],
       "idempotency": "required; exact payload replay only",
       "approval": "explicit exact-revision local cancellation acknowledgement",
       "caps": "one DRAFT, unmaterialized definition",
@@ -441,6 +522,9 @@
       "path": "/api/v1/stealth/definitions/clear",
       "action_class": "local_state_mutation",
       "permission": "config:update",
+      "required_permissions": [
+        "config:update"
+      ],
       "idempotency": "required; exact payload replay only",
       "approval": "explicit exact-set clear acknowledgement",
       "caps": "atomic exact set of one to 100 DRAFT definitions",
@@ -457,6 +541,9 @@
       "path": "/api/v1/stealth/definition-exports",
       "action_class": "local_state_mutation",
       "permission": "config:update",
+      "required_permissions": [
+        "config:update"
+      ],
       "idempotency": "required; exact payload replay only",
       "approval": "explicit exact-set export acknowledgement",
       "caps": "one to 100 DRAFT unmaterialized definitions",
@@ -473,6 +560,9 @@
       "path": "/api/v1/stealth/definition-import-previews",
       "action_class": "local_state_mutation",
       "permission": "config:update",
+      "required_permissions": [
+        "config:update"
+      ],
       "idempotency": "required; exact payload replay only",
       "approval": "explicit schema-validation preview acknowledgement",
       "caps": "one manifest with one to 100 definitions",
@@ -489,6 +579,9 @@
       "path": "/api/v1/stealth/definition-import-previews/{preview_id}/apply",
       "action_class": "local_state_mutation",
       "permission": "config:update",
+      "required_permissions": [
+        "config:update"
+      ],
       "idempotency": "required; exact payload replay only",
       "approval": "explicit exact-manifest apply acknowledgement",
       "caps": "atomic apply of one valid preview with at most 100 definitions",
@@ -505,6 +598,9 @@
       "path": "/api/v1/stealth/orders",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -521,6 +617,9 @@
       "path": "/api/v1/stealth/orders",
       "action_class": "local_state_mutation",
       "permission": "order:create",
+      "required_permissions": [
+        "order:create"
+      ],
       "idempotency": "required",
       "approval": "required by current HTTP live-disabled gate",
       "caps": "required for planning guards before lifecycle writes",
@@ -537,6 +636,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -553,6 +655,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -569,6 +674,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/lifecycle-write-guard-proof",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -585,6 +693,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/mutation-claim-proof",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -601,6 +712,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/recovery-proof",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -617,6 +731,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/reveal-trigger-proof",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -633,6 +750,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/manager-invocation-policy",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -649,6 +769,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/coinbase-exchange-submission-policy",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -665,6 +788,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/state-mutation-policy",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -681,6 +807,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/reconciliation-proof",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -697,6 +826,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proof",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -713,6 +845,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proof",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -729,6 +864,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-execution-policy",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -745,6 +883,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -761,6 +902,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-verifications",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -777,6 +921,9 @@
       "path": "/api/v1/stealth/command-suite",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "read-only stealth command-suite evidence",
@@ -793,6 +940,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/reveal",
       "action_class": "live_exchange_place",
       "permission": "order:create",
+      "required_permissions": [
+        "order:create"
+      ],
       "idempotency": "required",
       "approval": "required by current HTTP live-disabled gate",
       "caps": "required for trigger, placement, guard, and reconciliation evidence",
@@ -809,6 +959,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals",
       "action_class": "local_state_mutation",
       "permission": "reconciliation:record",
+      "required_permissions": [
+        "reconciliation:record"
+      ],
       "idempotency": "required",
       "approval": "required by current HTTP live-disabled gate",
       "caps": "required for accepted execution-journal evidence",
@@ -825,6 +978,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-verifications",
       "action_class": "local_state_mutation",
       "permission": "reconciliation:record",
+      "required_permissions": [
+        "reconciliation:record"
+      ],
       "idempotency": "required",
       "approval": "required by current HTTP live-disabled gate",
       "caps": "required for verified post-write reconciliation evidence",
@@ -841,6 +997,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/move",
       "action_class": "live_exchange_cancel",
       "permission": "order:cancel",
+      "required_permissions": [
+        "order:cancel"
+      ],
       "idempotency": "required",
       "approval": "required by current HTTP live-disabled gate",
       "caps": "required for mutation claims, cancel/replace, guard, and reconciliation evidence",
@@ -857,6 +1016,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/cancel",
       "action_class": "live_exchange_cancel",
       "permission": "order:cancel",
+      "required_permissions": [
+        "order:cancel"
+      ],
       "idempotency": "required",
       "approval": "required by current HTTP live-disabled gate",
       "caps": "required for rate/session controls and exchange-reality reconciliation",
@@ -873,6 +1035,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/recovery",
       "action_class": "local_state_mutation",
       "permission": "stealth_recovery:execute",
+      "required_permissions": [
+        "stealth_recovery:execute"
+      ],
       "idempotency": "required",
       "approval": "required by current HTTP live-disabled gate",
       "caps": "required for active-placement, repair, rollback, and reconciliation evidence",
@@ -889,6 +1054,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/reconciliation",
       "action_class": "local_state_mutation",
       "permission": "stealth_reconciliation:execute",
+      "required_permissions": [
+        "stealth_reconciliation:execute"
+      ],
       "idempotency": "required",
       "approval": "required by current HTTP live-disabled gate",
       "caps": "required for reconciliation plan/proof and active-placement exchange-truth evidence",
@@ -905,6 +1073,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-snapshots",
       "action_class": "local_state_mutation",
       "permission": "stealth_exchange_truth:record",
+      "required_permissions": [
+        "stealth_exchange_truth:record"
+      ],
       "idempotency": "required",
       "approval": "required by current HTTP live-disabled gate",
       "caps": "required for active-placement evidence record admission",
@@ -921,6 +1092,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proofs",
       "action_class": "local_state_mutation",
       "permission": "stealth_exchange_truth:record",
+      "required_permissions": [
+        "stealth_exchange_truth:record"
+      ],
       "idempotency": "required",
       "approval": "required by current HTTP live-disabled gate",
       "caps": "required for active-placement proof record admission",
@@ -937,6 +1111,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/lifecycle-write-guard-proofs",
       "action_class": "local_state_mutation",
       "permission": "stealth_lifecycle_write:record",
+      "required_permissions": [
+        "stealth_lifecycle_write:record"
+      ],
       "idempotency": "required",
       "approval": "required by current HTTP live-disabled gate",
       "caps": "required for lifecycle-write guard proof admission",
@@ -953,6 +1130,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/mutation-claim-proofs",
       "action_class": "local_state_mutation",
       "permission": "stealth_mutation_claim:record",
+      "required_permissions": [
+        "stealth_mutation_claim:record"
+      ],
       "idempotency": "required",
       "approval": "required by current HTTP live-disabled gate",
       "caps": "required for mutation-claim snapshot proof admission",
@@ -969,6 +1149,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/recovery-proofs",
       "action_class": "local_state_mutation",
       "permission": "stealth_recovery:record",
+      "required_permissions": [
+        "stealth_recovery:record"
+      ],
       "idempotency": "required",
       "approval": "required by current HTTP live-disabled gate",
       "caps": "required for recovery proof admission",
@@ -985,6 +1168,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/reveal-trigger-proofs",
       "action_class": "local_state_mutation",
       "permission": "stealth_reveal_trigger:record",
+      "required_permissions": [
+        "stealth_reveal_trigger:record"
+      ],
       "idempotency": "required",
       "approval": "required by current HTTP live-disabled gate",
       "caps": "required for reveal-trigger proof admission",
@@ -1001,6 +1187,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/manager-invocation-policy-proofs",
       "action_class": "local_state_mutation",
       "permission": "stealth_manager_policy:record",
+      "required_permissions": [
+        "stealth_manager_policy:record"
+      ],
       "idempotency": "required",
       "approval": "required by current HTTP live-disabled gate",
       "caps": "required for manager-invocation policy proof admission",
@@ -1017,6 +1206,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/coinbase-exchange-submission-policy-proofs",
       "action_class": "local_state_mutation",
       "permission": "stealth_coinbase_exchange_policy:record",
+      "required_permissions": [
+        "stealth_coinbase_exchange_policy:record"
+      ],
       "idempotency": "required",
       "approval": "required by current HTTP live-disabled gate",
       "caps": "required for Coinbase exchange policy proof admission",
@@ -1033,6 +1225,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/state-mutation-policy-proofs",
       "action_class": "local_state_mutation",
       "permission": "stealth_state_mutation_policy:record",
+      "required_permissions": [
+        "stealth_state_mutation_policy:record"
+      ],
       "idempotency": "required",
       "approval": "required by current HTTP live-disabled gate",
       "caps": "required for state-mutation policy proof admission",
@@ -1049,6 +1244,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/reconciliation-proofs",
       "action_class": "local_state_mutation",
       "permission": "stealth_reconciliation:record",
+      "required_permissions": [
+        "stealth_reconciliation:record"
+      ],
       "idempotency": "required",
       "approval": "required by current HTTP live-disabled gate",
       "caps": "required for reconciliation proof admission",
@@ -1065,6 +1263,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proofs",
       "action_class": "local_state_mutation",
       "permission": "stealth_cancel_replace:record",
+      "required_permissions": [
+        "stealth_cancel_replace:record"
+      ],
       "idempotency": "required",
       "approval": "required by current HTTP live-disabled gate",
       "caps": "required for cancel/replace proof admission",
@@ -1081,6 +1282,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proofs",
       "action_class": "local_state_mutation",
       "permission": "reconciliation:record",
+      "required_permissions": [
+        "reconciliation:record"
+      ],
       "idempotency": "required",
       "approval": "required by current HTTP live-disabled gate",
       "caps": "required for post-write reconciliation proof admission",
@@ -1097,6 +1301,9 @@
       "path": "/api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-execution-policy-proofs",
       "action_class": "local_state_mutation",
       "permission": "stealth_post_write_reconciliation_policy:record",
+      "required_permissions": [
+        "stealth_post_write_reconciliation_policy:record"
+      ],
       "idempotency": "required",
       "approval": "required by current HTTP live-disabled gate",
       "caps": "required for post-write reconciliation policy proof admission",
@@ -1113,6 +1320,9 @@
       "path": "/api/v1/movement-repricing/evidence",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -1129,6 +1339,9 @@
       "path": "/api/v1/movement-repricing/orders/{client_order_id}",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -1145,6 +1358,9 @@
       "path": "/api/v1/movement-repricing/stealth/{stealth_order_id}",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -1156,11 +1372,73 @@
     },
     {
       "module_id": "movement_repricing",
+      "surface": "GET /api/v1/movement-repricing/stealth/{stealth_order_id}/move-execution",
+      "method": "GET",
+      "path": "/api/v1/movement-repricing/stealth/{stealth_order_id}/move-execution",
+      "action_class": "read_only",
+      "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
+      "idempotency": "not required",
+      "approval": "not required; PostgreSQL Goal 7 ledger readback only",
+      "caps": "one exact zero-fill movement and fixed 3.10/1.00 USDC caps",
+      "audit": "fixed hash-only plan, allowance, call, and terminal evidence",
+      "shared_method": "get_operator_revealed_order_movement",
+      "parity_test": "call-free exact movement readback; raw exchange identities, responses, and exception text remain withheld",
+      "compatibility_mode": null,
+      "command_contract": false
+    },
+    {
+      "module_id": "movement_repricing",
+      "surface": "POST /api/v1/movement-repricing/stealth/{stealth_order_id}/move-plans",
+      "method": "POST",
+      "path": "/api/v1/movement-repricing/stealth/{stealth_order_id}/move-plans",
+      "action_class": "local_state_mutation",
+      "permission": "order:cancel",
+      "required_permissions": [
+        "order:cancel",
+        "order:create"
+      ],
+      "idempotency": "required; exact reviewed payload replay only",
+      "approval": "explicit operator plan acknowledgement; no live call",
+      "caps": "required direct submitted and possible-execution cap proof",
+      "audit": "required; durable immutable plan, actor hash, and correlation evidence",
+      "shared_method": "prepare_operator_revealed_order_movement",
+      "parity_test": "manager-owned call-free zero-fill, product, increment, target, and profitability validation; zero Coinbase calls",
+      "compatibility_mode": null,
+      "command_contract": true
+    },
+    {
+      "module_id": "movement_repricing",
+      "surface": "POST /api/v1/movement-repricing/stealth/{stealth_order_id}/execute-move",
+      "method": "POST",
+      "path": "/api/v1/movement-repricing/stealth/{stealth_order_id}/execute-move",
+      "action_class": "live_exchange_cancel",
+      "permission": "order:cancel",
+      "required_permissions": [
+        "order:cancel",
+        "order:create"
+      ],
+      "idempotency": "required; one exact plan-bound command cycle",
+      "approval": "required explicit exact Cancel/Create acknowledgement",
+      "caps": "required; one Cancel and, only after exact CANCELLED readback, one post-only replacement Create; zero retries",
+      "audit": "required; PostgreSQL claims, exact read accounting, fixed diagnostics, hash-only exchange identity, and restart recovery",
+      "shared_method": "execute_operator_revealed_order_movement",
+      "parity_test": "canonical StealthOrderManager movement phases and flat linkage; unknown or unsuccessful Cancel prohibits Create",
+      "compatibility_mode": null,
+      "command_contract": true
+    },
+    {
+      "module_id": "movement_repricing",
       "surface": "POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
       "method": "POST",
       "path": "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
       "action_class": "live_exchange_cancel",
       "permission": "order:cancel",
+      "required_permissions": [
+        "order:cancel"
+      ],
       "idempotency": "required",
       "approval": "required by current HTTP live-disabled gate",
       "caps": "required for rate/session controls, mutation claims, and exchange-reality reconciliation",
@@ -1177,6 +1455,9 @@
       "path": "/api/v1/futures/command-suite",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -1193,6 +1474,9 @@
       "path": "/api/v1/futures/orders",
       "action_class": "live_exchange_place",
       "permission": "order:create",
+      "required_permissions": [
+        "order:create"
+      ],
       "idempotency": "not_applicable_source_disabled",
       "approval": "not_applicable_source_disabled",
       "caps": "not_applicable_source_disabled",
@@ -1209,6 +1493,9 @@
       "path": "/api/v1/futures/positions/{position_key}/close-reduce",
       "action_class": "live_exchange_cancel",
       "permission": "order:cancel",
+      "required_permissions": [
+        "order:cancel"
+      ],
       "idempotency": "not_applicable_source_disabled",
       "approval": "not_applicable_source_disabled",
       "caps": "not_applicable_source_disabled",
@@ -1225,6 +1512,9 @@
       "path": "/api/v1/futures/orders/{client_order_id}/cancel",
       "action_class": "live_exchange_cancel",
       "permission": "order:cancel",
+      "required_permissions": [
+        "order:cancel"
+      ],
       "idempotency": "not_applicable_source_disabled",
       "approval": "not_applicable_source_disabled",
       "caps": "not_applicable_source_disabled",
@@ -1241,6 +1531,9 @@
       "path": "/api/v1/futures/positions/{position_key}/reconciliation",
       "action_class": "local_state_mutation",
       "permission": "reconciliation:record",
+      "required_permissions": [
+        "reconciliation:record"
+      ],
       "idempotency": "not_applicable_source_disabled",
       "approval": "not_applicable_source_disabled",
       "caps": "not_applicable_source_disabled",
@@ -1257,6 +1550,9 @@
       "path": "/api/v1/futures/order-preview",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required for immutable artifact readback",
       "approval": "producer requires separate backend operator authority",
       "caps": "fixed slice-local 100 opening / 150 exposure / 300 turnover",
@@ -1273,6 +1569,9 @@
       "path": "/api/v1/futures/account",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -1289,6 +1588,9 @@
       "path": "/api/v1/futures/positions",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -1305,6 +1607,9 @@
       "path": "/api/v1/futures/positions/{position_key}",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -1321,6 +1626,9 @@
       "path": "/api/v1/futures/risk-proofs",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -1337,6 +1645,9 @@
       "path": "/api/v1/futures/risk-proofs/{futures_risk_proof_id}",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -1353,6 +1664,9 @@
       "path": "/api/v1/futures/risk-proofs",
       "action_class": "local_state_mutation",
       "permission": "futures_risk_proof:record",
+      "required_permissions": [
+        "futures_risk_proof:record"
+      ],
       "idempotency": "required",
       "approval": "required by current HTTP live-disabled gate",
       "caps": "required for futures risk proof record admission",
@@ -1369,6 +1683,9 @@
       "path": "/api/v1/admin/guard-risk-policy",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "read-only evidence only",
@@ -1385,6 +1702,9 @@
       "path": "/api/v1/admin/audit-workbench",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -1401,6 +1721,9 @@
       "path": null,
       "action_class": "live_exchange_place",
       "permission": "compatibility policy",
+      "required_permissions": [
+        "compatibility policy"
+      ],
       "idempotency": "enterprise-gated or compatibility-only",
       "approval": "enterprise-gated or compatibility-only",
       "caps": "required",
@@ -1417,6 +1740,9 @@
       "path": null,
       "action_class": "live_exchange_place",
       "permission": "compatibility policy",
+      "required_permissions": [
+        "compatibility policy"
+      ],
       "idempotency": "enterprise-gated or compatibility-only",
       "approval": "enterprise-gated or compatibility-only",
       "caps": "required",
@@ -1433,6 +1759,9 @@
       "path": "/api/v1/orders/{client_order_id}/cancel",
       "action_class": "live_exchange_cancel",
       "permission": "order:cancel",
+      "required_permissions": [
+        "order:cancel"
+      ],
       "idempotency": "required",
       "approval": "required by controlled-live request admission",
       "caps": "required for rate/session controls",
@@ -1449,6 +1778,9 @@
       "path": "/api/v1/spot/campaign/executions",
       "action_class": "live_exchange_place",
       "permission": "campaign:execute",
+      "required_permissions": [
+        "campaign:execute"
+      ],
       "idempotency": "required",
       "approval": "required",
       "caps": "required",
@@ -1465,6 +1797,9 @@
       "path": "/api/v1/spot/sweep/automation-runs",
       "action_class": "live_exchange_place",
       "permission": "spot_sweep:execute",
+      "required_permissions": [
+        "spot_sweep:execute"
+      ],
       "idempotency": "required",
       "approval": "required",
       "caps": "required",
@@ -1481,6 +1816,9 @@
       "path": "/api/v1/automation/usdc-pair-snapshot-runs",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -1497,6 +1835,9 @@
       "path": "/api/v1/automation/usdc-pair-snapshot-runs",
       "action_class": "local_state_mutation",
       "permission": "campaign:execute",
+      "required_permissions": [
+        "campaign:execute"
+      ],
       "idempotency": "required",
       "approval": "not applicable for no-live dry-run evidence",
       "caps": "records requested per-product cap only; no order planning or wallet allocation",
@@ -1513,6 +1854,9 @@
       "path": "/api/v1/automation/usdc-pair-snapshot-order-plans",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -1529,6 +1873,9 @@
       "path": "/api/v1/automation/usdc-pair-snapshot-order-plan-live-readiness",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -1545,6 +1892,9 @@
       "path": "/api/v1/automation/usdc-pair-snapshot-order-plan-allowlist-readiness",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -1561,6 +1911,9 @@
       "path": "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -1577,6 +1930,9 @@
       "path": "/api/v1/automation/usdc-pair-snapshot-order-plan-live-submissions",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -1593,6 +1949,9 @@
       "path": "/api/v1/automation/usdc-pair-snapshot-runs/{run_id}/order-plans",
       "action_class": "local_state_mutation",
       "permission": "campaign:execute",
+      "required_permissions": [
+        "campaign:execute"
+      ],
       "idempotency": "required",
       "approval": "not applicable for no-live dry-run evidence",
       "caps": "derives backend-owned limit-order plan evidence with per-product and run-level notional caps; no wallet allocation",
@@ -1609,6 +1968,9 @@
       "path": "/api/v1/automation/usdc-pair-snapshot-order-plans/{plan_id}/allowlist-readiness",
       "action_class": "local_state_mutation",
       "permission": "campaign:execute",
+      "required_permissions": [
+        "campaign:execute"
+      ],
       "idempotency": "required",
       "approval": "records no-live product allowlist readiness from existing backend-owned order-plan evidence; does not grant Coinbase submission",
       "caps": "summarizes explicit allowlist product count, run cap exhaustion, missing order-plan rows, and product evidence blockers; no wallet allocation",
@@ -1625,6 +1987,9 @@
       "path": "/api/v1/automation/usdc-pair-snapshot-order-plan-allowlist-readiness/{readiness_id}/run-state",
       "action_class": "local_state_mutation",
       "permission": "campaign:execute",
+      "required_permissions": [
+        "campaign:execute"
+      ],
       "idempotency": "required",
       "approval": "records no-live allowlist run-state rehearsal from existing backend-owned readiness evidence; does not grant Coinbase submission",
       "caps": "required no-live fan-out testing cap evidence with maximum fan-out notional <= 100 USDC; no wallet allocation",
@@ -1641,6 +2006,9 @@
       "path": "/api/v1/automation/usdc-pair-snapshot-order-plans/{plan_id}/live-readiness",
       "action_class": "local_state_mutation",
       "permission": "campaign:execute",
+      "required_permissions": [
+        "campaign:execute"
+      ],
       "idempotency": "required",
       "approval": "offline proof-chain evidence only; source parking cannot grant Coinbase submission",
       "caps": "required validation for one selected order-plan row, preferred spot live-test notional cap, exchange minimum size, far-from-bid/non-fill price distance, and cancel-before-additional-orders plan",
@@ -1657,6 +2025,9 @@
       "path": "/api/v1/automation/usdc-pair-snapshot-order-plans/{plan_id}/live-submit",
       "action_class": "live_exchange_place",
       "permission": "campaign:execute",
+      "required_permissions": [
+        "campaign:execute"
+      ],
       "idempotency": "not_applicable_source_disabled",
       "approval": "not_applicable_source_disabled",
       "caps": "not_applicable_source_disabled",
@@ -1673,6 +2044,9 @@
       "path": "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/{run_state_id}/live-submit",
       "action_class": "live_exchange_place",
       "permission": "campaign:execute",
+      "required_permissions": [
+        "campaign:execute"
+      ],
       "idempotency": "not_applicable_source_disabled",
       "approval": "not_applicable_source_disabled",
       "caps": "not_applicable_source_disabled",
@@ -1689,6 +2063,9 @@
       "path": "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/{run_state_id}/live-fanout-submit",
       "action_class": "live_exchange_place",
       "permission": "campaign:execute",
+      "required_permissions": [
+        "campaign:execute"
+      ],
       "idempotency": "not_applicable_source_disabled",
       "approval": "not_applicable_source_disabled",
       "caps": "not_applicable_source_disabled",
@@ -1705,6 +2082,9 @@
       "path": "/api/v1/automation/usdc-pair-snapshot-order-plans/{plan_id}/proof-chain-refresh",
       "action_class": "local_state_mutation",
       "permission": "campaign:execute",
+      "required_permissions": [
+        "campaign:execute"
+      ],
       "idempotency": "required",
       "approval": "resolves exact approval snapshot evidence from backend lifecycle storage; does not grant live execution",
       "caps": "does not alter order sizing or allocate wallet balance; reads admission audit, cap/guard, reconciliation plan, and disabled live-service decision evidence",
@@ -1721,6 +2101,9 @@
       "path": "/api/v1/spot/recovery/cases",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required; PostgreSQL case readback only",
       "caps": "reports per-case ten-cycle and one-Cancel accounting",
@@ -1737,6 +2120,9 @@
       "path": "/api/v1/spot/recovery/cases/{case_id}",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required; exact case readback only",
       "caps": "reports per-case ten-cycle and one-Cancel accounting",
@@ -1753,6 +2139,9 @@
       "path": "/api/v1/spot/recovery/cases",
       "action_class": "local_state_mutation",
       "permission": "spot_recovery:record",
+      "required_permissions": [
+        "spot_recovery:record"
+      ],
       "idempotency": "required; exact payload replay only",
       "approval": "explicit operator intent; no live authority",
       "caps": "one exact system-owned client_order_id per case",
@@ -1769,6 +2158,9 @@
       "path": "/api/v1/spot/recovery/cases/{case_id}/refresh",
       "action_class": "local_state_mutation",
       "permission": "spot_recovery:execute",
+      "required_permissions": [
+        "spot_recovery:execute"
+      ],
       "idempotency": "required; exact payload replay only",
       "approval": "explicit manual live-read acknowledgement required",
       "caps": "maximum ten cycles; one logical exact-order read and one logical fill-catalog read per claimed cycle, with no page retry",
@@ -1785,6 +2177,9 @@
       "path": "/api/v1/spot/recovery/cases/{case_id}/apply",
       "action_class": "local_state_mutation",
       "permission": "spot_recovery:execute",
+      "required_permissions": [
+        "spot_recovery:execute"
+      ],
       "idempotency": "required; exact payload replay only",
       "approval": "explicit reviewed-plan acknowledgement required",
       "caps": "one exact local status transition from immutable plan",
@@ -1801,6 +2196,9 @@
       "path": "/api/v1/spot/recovery/cases/{case_id}/rollback",
       "action_class": "local_state_mutation",
       "permission": "spot_recovery:execute",
+      "required_permissions": [
+        "spot_recovery:execute"
+      ],
       "idempotency": "required; exact payload replay only",
       "approval": "explicit safe-rollback acknowledgement required",
       "caps": "one exact terminal-to-terminal local rollback only",
@@ -1817,6 +2215,9 @@
       "path": "/api/v1/product-catalog",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required; PostgreSQL revision readback only",
       "caps": "backend pagination up to 100 immutable revisions",
@@ -1833,6 +2234,9 @@
       "path": "/api/v1/product-catalog/revisions/{revision_id}",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required; exact immutable revision readback only",
       "caps": "one exact revision, allowlisted metadata diff, and audit events",
@@ -1849,6 +2253,9 @@
       "path": "/api/v1/product-catalog/refresh",
       "action_class": "local_state_mutation",
       "permission": "config:update",
+      "required_permissions": [
+        "config:update"
+      ],
       "idempotency": "required; exact payload replay only",
       "approval": "explicit one-no-retry-read acknowledgement required",
       "caps": "maximum ten goal-global logical catalog reads; required cursor pages once each with no retry",
@@ -1865,6 +2272,9 @@
       "path": "/api/v1/product-catalog/revisions/{revision_id}/approve",
       "action_class": "local_state_mutation",
       "permission": "config:update",
+      "required_permissions": [
+        "config:update"
+      ],
       "idempotency": "required; exact payload replay only",
       "approval": "explicit exact revision and snapshot acknowledgement",
       "caps": "one proposed revision activation",
@@ -1881,6 +2291,9 @@
       "path": "/api/v1/product-catalog/products/{product_id}/enable",
       "action_class": "local_state_mutation",
       "permission": "config:update",
+      "required_permissions": [
+        "config:update"
+      ],
       "idempotency": "required; exact payload replay only",
       "approval": "explicit exact active-revision acknowledgement",
       "caps": "one exact administrative product lifecycle transition",
@@ -1897,6 +2310,9 @@
       "path": "/api/v1/product-catalog/products/{product_id}/disable",
       "action_class": "local_state_mutation",
       "permission": "config:update",
+      "required_permissions": [
+        "config:update"
+      ],
       "idempotency": "required; exact payload replay only",
       "approval": "explicit exact active-revision acknowledgement",
       "caps": "one exact administrative product lifecycle transition",
@@ -1913,6 +2329,9 @@
       "path": "/api/v1/product-catalog/products/{product_id}/retire",
       "action_class": "local_state_mutation",
       "permission": "config:update",
+      "required_permissions": [
+        "config:update"
+      ],
       "idempotency": "required; exact payload replay only",
       "approval": "explicit exact active-revision acknowledgement",
       "caps": "one exact administrative product lifecycle transition",
@@ -1929,6 +2348,9 @@
       "path": "/api/v1/product-catalog/revisions/{target_revision_id}/rollback",
       "action_class": "local_state_mutation",
       "permission": "config:update",
+      "required_permissions": [
+        "config:update"
+      ],
       "idempotency": "required; exact payload replay only",
       "approval": "explicit active and target snapshot acknowledgement",
       "caps": "one exact prior administrative snapshot restored as a new revision",
@@ -1945,6 +2367,9 @@
       "path": "/api/v1/parent-strategies",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required; PostgreSQL definition readback only",
       "caps": "backend pagination up to 100 local parent strategies",
@@ -1961,6 +2386,9 @@
       "path": "/api/v1/parent-strategies/{strategy_id}",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required; exact local definition readback only",
       "caps": "one exact strategy and paginated fixed audit events",
@@ -1977,6 +2405,9 @@
       "path": "/api/v1/parent-strategies",
       "action_class": "local_state_mutation",
       "permission": "config:update",
+      "required_permissions": [
+        "config:update"
+      ],
       "idempotency": "required; exact payload replay only",
       "approval": "explicit parent-strategy creation acknowledgement",
       "caps": "one active definition for one enabled Spot product and hashed approved portfolio scope",
@@ -1993,6 +2424,9 @@
       "path": "/api/v1/parent-strategies/{strategy_id}/edit",
       "action_class": "local_state_mutation",
       "permission": "config:update",
+      "required_permissions": [
+        "config:update"
+      ],
       "idempotency": "required; exact payload replay only",
       "approval": "explicit exact-revision edit acknowledgement",
       "caps": "allowlisted target movement, replacement, partial-fill, and fixed limit-child policy only",
@@ -2009,6 +2443,9 @@
       "path": "/api/v1/parent-strategies/{strategy_id}/deactivate",
       "action_class": "local_state_mutation",
       "permission": "config:update",
+      "required_permissions": [
+        "config:update"
+      ],
       "idempotency": "required; exact payload replay only",
       "approval": "explicit exact-revision deactivation acknowledgement",
       "caps": "one-way ACTIVE to DEACTIVATED local transition",
@@ -2025,6 +2462,9 @@
       "path": "/api/v1/parent-strategies/{strategy_id}/delete",
       "action_class": "local_state_mutation",
       "permission": "config:update",
+      "required_permissions": [
+        "config:update"
+      ],
       "idempotency": "required; exact payload replay only",
       "approval": "explicit exact-revision deletion acknowledgement",
       "caps": "deactivated unused or terminal parent with zero active placement, child, unresolved claim, or reconciliation requirement",
@@ -2041,6 +2481,9 @@
       "path": "/api/v1/spot/fill-inventory-repair/cases",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required; PostgreSQL case readback only",
       "caps": "reports the independent goal-global ten-cycle fill-read budget",
@@ -2057,6 +2500,9 @@
       "path": "/api/v1/spot/fill-inventory-repair/cases/{case_id}",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required; exact case readback only",
       "caps": "one exact durable repair case",
@@ -2073,6 +2519,9 @@
       "path": "/api/v1/spot/fill-inventory-repair/cases",
       "action_class": "local_state_mutation",
       "permission": "spot_fill_inventory_repair:record",
+      "required_permissions": [
+        "spot_fill_inventory_repair:record"
+      ],
       "idempotency": "required; exact payload replay only",
       "approval": "explicit operator selector and reason required",
       "caps": "one exact system-owned order, approved BTC-USDC product, or bounded 24-hour BTC-USDC window",
@@ -2089,6 +2538,9 @@
       "path": "/api/v1/spot/fill-inventory-repair/cases/{case_id}/refresh",
       "action_class": "local_state_mutation",
       "permission": "spot_fill_inventory_repair:execute",
+      "required_permissions": [
+        "spot_fill_inventory_repair:execute"
+      ],
       "idempotency": "required; exact payload replay only",
       "approval": "explicit manual live-read acknowledgement required",
       "caps": "maximum ten goal-global cycles across all repair cases; one logical fill-catalog read per claimed cycle, required cursor pages, and no page retry",
@@ -2105,6 +2557,9 @@
       "path": "/api/v1/spot/fill-inventory-repair/cases/{case_id}/apply",
       "action_class": "local_state_mutation",
       "permission": "spot_fill_inventory_repair:execute",
+      "required_permissions": [
+        "spot_fill_inventory_repair:execute"
+      ],
       "idempotency": "required; exact payload replay only",
       "approval": "explicit immutable-plan acknowledgement required",
       "caps": "one exact missing-fill import batch and one BTC-USDC projection",
@@ -2121,6 +2576,9 @@
       "path": "/api/v1/spot/fill-inventory-repair/cases/{case_id}/rollback",
       "action_class": "local_state_mutation",
       "permission": "spot_fill_inventory_repair:execute",
+      "required_permissions": [
+        "spot_fill_inventory_repair:execute"
+      ],
       "idempotency": "required; exact payload replay only",
       "approval": "explicit exact-batch rollback acknowledgement and applied-plan hash required",
       "caps": "deletes only rows linked to the selected import batch",
@@ -2137,6 +2595,9 @@
       "path": "/api/v1/spot/recovery/apply-executions",
       "action_class": "local_state_mutation",
       "permission": "spot_recovery:execute",
+      "required_permissions": [
+        "spot_recovery:execute"
+      ],
       "idempotency": "required",
       "approval": "required",
       "caps": "required",
@@ -2153,6 +2614,9 @@
       "path": "/api/v1/spot/recovery/rollback-executions",
       "action_class": "local_state_mutation",
       "permission": "spot_recovery:execute",
+      "required_permissions": [
+        "spot_recovery:execute"
+      ],
       "idempotency": "required",
       "approval": "required",
       "caps": "required",
@@ -2169,6 +2633,9 @@
       "path": "/api/v1/spot/recovery/exchange-state-proofs",
       "action_class": "local_state_mutation",
       "permission": "spot_recovery:record",
+      "required_permissions": [
+        "spot_recovery:record"
+      ],
       "idempotency": "required",
       "approval": "required",
       "caps": "required",
@@ -2185,6 +2652,9 @@
       "path": "/api/v1/spot/recovery/exchange-state-snapshots",
       "action_class": "local_state_mutation",
       "permission": "spot_recovery:record",
+      "required_permissions": [
+        "spot_recovery:record"
+      ],
       "idempotency": "required",
       "approval": "required",
       "caps": "required",
@@ -2201,6 +2671,9 @@
       "path": "/api/v1/spot/recovery/reconciliation-executions",
       "action_class": "local_state_mutation",
       "permission": "spot_recovery:execute",
+      "required_permissions": [
+        "spot_recovery:execute"
+      ],
       "idempotency": "required",
       "approval": "required",
       "caps": "required",
@@ -2217,6 +2690,9 @@
       "path": "/api/v1/spot/recovery/reconciliation-proofs",
       "action_class": "local_state_mutation",
       "permission": "spot_recovery:record",
+      "required_permissions": [
+        "spot_recovery:record"
+      ],
       "idempotency": "required",
       "approval": "required",
       "caps": "required",
@@ -2233,6 +2709,9 @@
       "path": "/api/v1/spot/pnl/checkpoints",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -2249,6 +2728,9 @@
       "path": "/api/v1/spot/pnl/checkpoints/{checkpoint_id}",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -2265,6 +2747,9 @@
       "path": "/api/v1/spot/pnl/checkpoints",
       "action_class": "local_state_mutation",
       "permission": "spot_pnl:record",
+      "required_permissions": [
+        "spot_pnl:record"
+      ],
       "idempotency": "required",
       "approval": "not required for local P/L review evidence",
       "caps": "not applicable",
@@ -2281,6 +2766,9 @@
       "path": null,
       "action_class": "live_exchange_cancel",
       "permission": "compatibility policy",
+      "required_permissions": [
+        "compatibility policy"
+      ],
       "idempotency": "enterprise-gated or compatibility-only",
       "approval": "not required unless policy adds approval",
       "caps": "required for rate/session controls",
@@ -2297,6 +2785,9 @@
       "path": "/api/v1/admin/bootstrap",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -2313,6 +2804,9 @@
       "path": "/api/v1/admin/approvals",
       "action_class": "read_only",
       "permission": "approval:read",
+      "required_permissions": [
+        "approval:read"
+      ],
       "idempotency": "not required",
       "approval": "not applicable",
       "caps": "not applicable",
@@ -2329,6 +2823,9 @@
       "path": "/api/v1/admin/approvals/requests/{approval_request_id}",
       "action_class": "read_only",
       "permission": "approval:read",
+      "required_permissions": [
+        "approval:read"
+      ],
       "idempotency": "not required",
       "approval": "not applicable",
       "caps": "not applicable",
@@ -2345,6 +2842,9 @@
       "path": "/api/v1/admin/approvals/requests",
       "action_class": "local_state_mutation",
       "permission": "approval:request",
+      "required_permissions": [
+        "approval:request"
+      ],
       "idempotency": "required",
       "approval": "creates request only; not sufficient for live execution",
       "caps": "not applicable",
@@ -2361,6 +2861,9 @@
       "path": "/api/v1/admin/approvals/requests/{approval_request_id}/decisions",
       "action_class": "local_state_mutation",
       "permission": "approval:manage",
+      "required_permissions": [
+        "approval:manage"
+      ],
       "idempotency": "required",
       "approval": "records backend decision; browser approval remains insufficient",
       "caps": "not applicable",
@@ -2377,6 +2880,9 @@
       "path": "/api/v1/admin/approvals/{approval_id}/revoke",
       "action_class": "local_state_mutation",
       "permission": "approval:manage",
+      "required_permissions": [
+        "approval:manage"
+      ],
       "idempotency": "required",
       "approval": "revokes backend approval snapshot",
       "caps": "not applicable",
@@ -2393,6 +2899,9 @@
       "path": "/api/v1/admin/admission-audits",
       "action_class": "read_only",
       "permission": "admission_audit:read",
+      "required_permissions": [
+        "admission_audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not applicable",
       "caps": "not applicable",
@@ -2409,6 +2918,9 @@
       "path": "/api/v1/admin/admission-audits/{admission_audit_id}",
       "action_class": "read_only",
       "permission": "admission_audit:read",
+      "required_permissions": [
+        "admission_audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not applicable",
       "caps": "not applicable",
@@ -2425,6 +2937,9 @@
       "path": "/api/v1/admin/admission-audits",
       "action_class": "local_state_mutation",
       "permission": "admission_audit:record",
+      "required_permissions": [
+        "admission_audit:record"
+      ],
       "idempotency": "required",
       "approval": "required backend approval snapshot id link",
       "caps": "links expected cap/guard decision ref without evaluating guards",
@@ -2441,6 +2956,9 @@
       "path": "/api/v1/admin/cap-guard/decisions",
       "action_class": "read_only",
       "permission": "cap_guard:read",
+      "required_permissions": [
+        "cap_guard:read"
+      ],
       "idempotency": "not required",
       "approval": "not applicable",
       "caps": "read-only cap/guard decision evidence",
@@ -2457,6 +2975,9 @@
       "path": "/api/v1/admin/cap-guard/decisions/{decision_id}",
       "action_class": "read_only",
       "permission": "cap_guard:read",
+      "required_permissions": [
+        "cap_guard:read"
+      ],
       "idempotency": "not required",
       "approval": "not applicable",
       "caps": "read-only cap/guard decision evidence",
@@ -2473,6 +2994,9 @@
       "path": "/api/v1/admin/cap-guard/decisions",
       "action_class": "local_state_mutation",
       "permission": "cap_guard:record",
+      "required_permissions": [
+        "cap_guard:record"
+      ],
       "idempotency": "required",
       "approval": "required backend approval snapshot id link",
       "caps": "records passed or blocked backend cap/guard evidence",
@@ -2489,6 +3013,9 @@
       "path": "/api/v1/admin/reconciliation/plans",
       "action_class": "read_only",
       "permission": "reconciliation:read",
+      "required_permissions": [
+        "reconciliation:read"
+      ],
       "idempotency": "not required",
       "approval": "not applicable",
       "caps": "not applicable",
@@ -2505,6 +3032,9 @@
       "path": "/api/v1/admin/reconciliation/plans/{plan_id}",
       "action_class": "read_only",
       "permission": "reconciliation:read",
+      "required_permissions": [
+        "reconciliation:read"
+      ],
       "idempotency": "not required",
       "approval": "not applicable",
       "caps": "not applicable",
@@ -2521,6 +3051,9 @@
       "path": "/api/v1/admin/reconciliation/plans",
       "action_class": "local_state_mutation",
       "permission": "reconciliation:record",
+      "required_permissions": [
+        "reconciliation:record"
+      ],
       "idempotency": "required",
       "approval": "required backend approval snapshot id link",
       "caps": "requires cap/guard decision id link without evaluating guards",
@@ -2537,6 +3070,9 @@
       "path": "/api/v1/admin/live-execution/admission-preview",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not applicable",
       "caps": "not applicable",
@@ -2553,6 +3089,9 @@
       "path": "/api/v1/admin/live-execution/service-decisions",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not applicable",
       "caps": "not applicable",
@@ -2569,6 +3108,9 @@
       "path": "/api/v1/admin/live-execution/service-decisions/{decision_id}",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not applicable",
       "caps": "not applicable",
@@ -2585,6 +3127,9 @@
       "path": "/api/v1/admin/live-execution/service-decisions",
       "action_class": "local_state_mutation",
       "permission": "config:update",
+      "required_permissions": [
+        "config:update"
+      ],
       "idempotency": "required",
       "approval": "records backend live-service decision; runtime opt-in and route admission still required",
       "caps": "not applicable",
@@ -2601,6 +3146,9 @@
       "path": "/api/v1/admin/live-execution/adapter-decisions",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not applicable",
       "caps": "not applicable",
@@ -2617,6 +3165,9 @@
       "path": "/api/v1/admin/live-execution/adapter-decisions/{decision_id}",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not applicable",
       "caps": "not applicable",
@@ -2633,6 +3184,9 @@
       "path": "/api/v1/admin/live-execution/adapter-decisions",
       "action_class": "local_state_mutation",
       "permission": "config:update",
+      "required_permissions": [
+        "config:update"
+      ],
       "idempotency": "required",
       "approval": "records disabled backend adapter decision; not sufficient for live execution",
       "caps": "not applicable",
@@ -2649,6 +3203,9 @@
       "path": "/api/v1/admin/health",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -2665,6 +3222,9 @@
       "path": "/api/v1/admin/session",
       "action_class": "read_only",
       "permission": "authenticated actor",
+      "required_permissions": [
+        "authenticated actor"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -2681,6 +3241,9 @@
       "path": "/api/v1/admin/oidc-readiness",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -2697,6 +3260,9 @@
       "path": "/api/v1/admin/capabilities",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -2713,6 +3279,9 @@
       "path": "/api/v1/admin/csrf",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -2729,6 +3298,9 @@
       "path": "/api/v1/admin/live-enablement",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "read-only cap evidence only",
@@ -2745,6 +3317,9 @@
       "path": "/api/v1/admin/enterprise-readiness",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "read-only release evidence only",
@@ -2761,6 +3336,9 @@
       "path": "/api/v1/admin/release-gate",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -2777,6 +3355,9 @@
       "path": "/api/v1/admin/recovery-gate",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -2793,6 +3374,9 @@
       "path": "/api/v1/admin/fill-ledger-health",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -2809,6 +3393,9 @@
       "path": "/api/v1/admin/frontend-fixtures",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -2825,6 +3412,9 @@
       "path": "/api/v1/spot/readiness",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -2841,6 +3431,9 @@
       "path": "/api/v1/spot/command-suite",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "read-only spot command-suite evidence",
@@ -2857,6 +3450,9 @@
       "path": "/api/v1/spot/recovery/preview",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "read-only spot recovery preview evidence",
@@ -2873,6 +3469,9 @@
       "path": "/api/v1/spot/recovery/apply-review",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "read-only spot recovery apply-review evidence",
@@ -2889,6 +3488,9 @@
       "path": "/api/v1/spot/recovery/rollback-plan",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "read-only spot recovery rollback-plan evidence",
@@ -2905,6 +3507,9 @@
       "path": "/api/v1/spot/recovery/reconciliation-proof",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "read-only spot recovery reconciliation-proof evidence",
@@ -2921,6 +3526,9 @@
       "path": "/api/v1/spot/sweep/status",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -2937,6 +3545,9 @@
       "path": "/api/v1/spot/sweep/pnl",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -2953,6 +3564,9 @@
       "path": "/api/v1/spot/cost-basis/status",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -2969,6 +3583,9 @@
       "path": "/api/v1/spot/campaign/status",
       "action_class": "read_only",
       "permission": "campaign:read",
+      "required_permissions": [
+        "campaign:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -2985,6 +3602,9 @@
       "path": "/api/v1/spot/direct-orders/{client_order_id}/audit",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -3001,6 +3621,9 @@
       "path": "/api/v1/admin/runtime",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -3017,6 +3640,9 @@
       "path": "/api/v1/admin/runtime/pause",
       "action_class": "admin_runtime",
       "permission": "runtime:pause",
+      "required_permissions": [
+        "runtime:pause"
+      ],
       "idempotency": "required",
       "approval": "runtime permission required",
       "caps": "not applicable",
@@ -3033,6 +3659,9 @@
       "path": "/api/v1/admin/runtime/resume",
       "action_class": "admin_runtime",
       "permission": "runtime:resume",
+      "required_permissions": [
+        "runtime:resume"
+      ],
       "idempotency": "required",
       "approval": "runtime permission required",
       "caps": "not applicable",
@@ -3049,6 +3678,9 @@
       "path": "/api/v1/admin/runtime/drain",
       "action_class": "admin_runtime",
       "permission": "runtime:drain",
+      "required_permissions": [
+        "runtime:drain"
+      ],
       "idempotency": "required",
       "approval": "runtime permission required",
       "caps": "not applicable",
@@ -3065,6 +3697,9 @@
       "path": "/api/v1/admin/runtime/shutdown",
       "action_class": "admin_runtime",
       "permission": "runtime:shutdown",
+      "required_permissions": [
+        "runtime:shutdown"
+      ],
       "idempotency": "required",
       "approval": "runtime permission required",
       "caps": "not applicable",
@@ -3081,6 +3716,9 @@
       "path": "/api/v1/admin/account-management",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -3097,6 +3735,9 @@
       "path": "/api/v1/admin/wallet",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -3113,6 +3754,9 @@
       "path": "/api/v1/admin/fees",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -3129,6 +3773,9 @@
       "path": "/api/v1/admin/products",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -3145,6 +3792,9 @@
       "path": "/api/v1/admin/products/refresh",
       "action_class": "local_state_mutation",
       "permission": "config:update",
+      "required_permissions": [
+        "config:update"
+      ],
       "idempotency": "not consumed; source-disabled before local mutation",
       "approval": "not required",
       "caps": "not applicable",
@@ -3161,6 +3811,9 @@
       "path": "/api/v1/admin/account-reality/refresh",
       "action_class": "local_state_mutation",
       "permission": "account_reality:refresh",
+      "required_permissions": [
+        "account_reality:refresh"
+      ],
       "idempotency": "required",
       "approval": "not required; explicit authenticated operator intent required",
       "caps": "not applicable; read-only Coinbase categories",
@@ -3177,6 +3830,9 @@
       "path": "/api/v1/orders/{client_order_id}/fill-readback",
       "action_class": "read_only",
       "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -3193,6 +3849,9 @@
       "path": "/api/v1/futures/orders/{client_order_id}/fill-readback",
       "action_class": "read_only",
       "permission": "analytics:read",
+      "required_permissions": [
+        "analytics:read"
+      ],
       "idempotency": "not required",
       "approval": "not required",
       "caps": "not applicable",
@@ -3209,6 +3868,9 @@
       "path": "/api/v1/spot/manual-order/proof-chain",
       "action_class": "local_state_mutation",
       "permission": "spot_manual_order_proof:record",
+      "required_permissions": [
+        "spot_manual_order_proof:record"
+      ],
       "idempotency": "required",
       "approval": "required",
       "caps": "required",
@@ -3225,6 +3887,9 @@
       "path": "/api/v1/spot/cancel-order/proof-chain",
       "action_class": "local_state_mutation",
       "permission": "spot_order_cancel_proof:record",
+      "required_permissions": [
+        "spot_order_cancel_proof:record"
+      ],
       "idempotency": "required",
       "approval": "proof evidence only",
       "caps": "proof evidence only",
@@ -3241,6 +3906,9 @@
       "path": "/api/v1/automation/control-plane",
       "action_class": "read_only",
       "permission": "automation:read",
+      "required_permissions": [
+        "automation:read"
+      ],
       "idempotency": "not required",
       "approval": "not applicable; local authority readback only",
       "caps": "not applicable; no domain invocation",
@@ -3257,6 +3925,9 @@
       "path": "/api/v1/automation/control-plane/events",
       "action_class": "read_only",
       "permission": "automation:read",
+      "required_permissions": [
+        "automation:read"
+      ],
       "idempotency": "not required",
       "approval": "not applicable; local posture audit readback only",
       "caps": "not applicable; no domain invocation",
@@ -3273,6 +3944,9 @@
       "path": "/api/v1/automation/definitions",
       "action_class": "read_only",
       "permission": "automation:read",
+      "required_permissions": [
+        "automation:read"
+      ],
       "idempotency": "not required",
       "approval": "not applicable; local definition readback only",
       "caps": "not applicable; no domain invocation",
@@ -3289,6 +3963,9 @@
       "path": "/api/v1/automation/definitions",
       "action_class": "local_state_mutation",
       "permission": "automation:configure",
+      "required_permissions": [
+        "automation:configure"
+      ],
       "idempotency": "required; exact replay only",
       "approval": "explicit operator intent; never live authorization",
       "caps": "typed domain scope only; no domain invocation",
@@ -3305,6 +3982,9 @@
       "path": "/api/v1/automation/near-market-candidates",
       "action_class": "local_state_mutation",
       "permission": "account_reality:refresh",
+      "required_permissions": [
+        "account_reality:refresh"
+      ],
       "idempotency": "required durable goal-global preparation claim; exact replay is call-free and changed payload, actor, or intent conflicts",
       "approval": "required explicit backend-derived BTC-USDC/Test-scope and unknown-consumes-cycle acknowledgements; also requires automation configure, trigger, and resume",
       "caps": "required one sequential V4-V6 proposal, one no-retry six-category preparation read, 3.10 submitted and 1.00 possible-execution USDC ceilings",
@@ -3321,6 +4001,9 @@
       "path": "/api/v1/automation/minimum-size-candidates",
       "action_class": "local_state_mutation",
       "permission": "account_reality:refresh",
+      "required_permissions": [
+        "account_reality:refresh"
+      ],
       "idempotency": "required durable goal-global V7-V9 preparation claim; exact replay is call-free and changed payload, actor, or intent conflicts",
       "approval": "required explicit backend-derived BTC-USDC/Test scope, dynamic-cap-below-3.10, and unknown-consumes-cycle acknowledgements; also requires automation configure, trigger, and resume",
       "caps": "required one sequential V7-V9 proposal, one no-retry six-category preparation read, submitted notional strictly below 3.10 USDC, and the smallest backend-derived fee-reserved execution cap strictly below 3.10 USDC",
@@ -3337,6 +4020,9 @@
       "path": "/api/v1/automation/atomic-market-snapshot-candidates/authorize",
       "action_class": "live_exchange_place",
       "permission": "order:create",
+      "required_permissions": [
+        "order:create"
+      ],
       "idempotency": "required durable goal-global V13-V15 transport cycle and single-use Preview claim; terminal replay is call-free and changed request, actor, intent, or correlation identity conflicts",
       "approval": "required explicit atomic-snapshot, eight-category read, Preview, conditional identical Create, and unknown-consumption acknowledgements; also requires account reality refresh, automation configure, trigger, and resume",
       "caps": "required one sequential BTC-USDC V13-V15 candidate and one child; submitted and possible-execution notionals are each strictly below 3.10 USDC",
@@ -3353,6 +4039,9 @@
       "path": "/api/v1/automation/definitions/{definition_id}",
       "action_class": "read_only",
       "permission": "automation:read",
+      "required_permissions": [
+        "automation:read"
+      ],
       "idempotency": "not required",
       "approval": "not applicable; local definition readback only",
       "caps": "not applicable; no domain invocation",
@@ -3369,6 +4058,9 @@
       "path": "/api/v1/automation/definitions/{definition_id}/events",
       "action_class": "read_only",
       "permission": "automation:read",
+      "required_permissions": [
+        "automation:read"
+      ],
       "idempotency": "not required",
       "approval": "not applicable; local definition audit readback only",
       "caps": "not applicable; no domain invocation",
@@ -3385,6 +4077,9 @@
       "path": "/api/v1/automation/definitions/{definition_id}/enable",
       "action_class": "local_state_mutation",
       "permission": "automation:configure",
+      "required_permissions": [
+        "automation:configure"
+      ],
       "idempotency": "required; exact replay only",
       "approval": "explicit local lifecycle intent; never live authorization",
       "caps": "not applicable; enabling does not invoke a domain",
@@ -3401,6 +4096,9 @@
       "path": "/api/v1/automation/definitions/{definition_id}/disable",
       "action_class": "local_state_mutation",
       "permission": "automation:configure",
+      "required_permissions": [
+        "automation:configure"
+      ],
       "idempotency": "required; exact replay only",
       "approval": "explicit local lifecycle intent; never live authorization",
       "caps": "not applicable; disabling does not invoke a domain",
@@ -3417,6 +4115,9 @@
       "path": "/api/v1/automation/definitions/{definition_id}/pause",
       "action_class": "local_state_mutation",
       "permission": "automation:configure",
+      "required_permissions": [
+        "automation:configure"
+      ],
       "idempotency": "required; exact replay only",
       "approval": "explicit local lifecycle intent; never live authorization",
       "caps": "not applicable; pausing does not invoke a domain",
@@ -3433,6 +4134,9 @@
       "path": "/api/v1/automation/definitions/{definition_id}/resume",
       "action_class": "local_state_mutation",
       "permission": "automation:configure",
+      "required_permissions": [
+        "automation:configure"
+      ],
       "idempotency": "required; exact replay only",
       "approval": "explicit local lifecycle intent; never live authorization",
       "caps": "not applicable; resuming does not invoke a domain",
@@ -3449,6 +4153,9 @@
       "path": "/api/v1/automation/definitions/{definition_id}/drain",
       "action_class": "local_state_mutation",
       "permission": "automation:configure",
+      "required_permissions": [
+        "automation:configure"
+      ],
       "idempotency": "required; exact replay only",
       "approval": "explicit local lifecycle intent; never live authorization",
       "caps": "not applicable; draining does not invoke a domain",
@@ -3465,6 +4172,9 @@
       "path": "/api/v1/automation/definitions/{definition_id}/schedule",
       "action_class": "local_state_mutation",
       "permission": "automation:configure",
+      "required_permissions": [
+        "automation:configure"
+      ],
       "idempotency": "required; exact replay only",
       "approval": "explicit review-schedule intent; never live activation",
       "caps": "review timing only; no recurring live scheduler",
@@ -3481,6 +4191,9 @@
       "path": "/api/v1/automation/definitions/{definition_id}/schedule/clear",
       "action_class": "local_state_mutation",
       "permission": "automation:configure",
+      "required_permissions": [
+        "automation:configure"
+      ],
       "idempotency": "required; exact replay only",
       "approval": "explicit local schedule-clear intent",
       "caps": "manual-only review metadata; no domain invocation",
@@ -3497,6 +4210,9 @@
       "path": "/api/v1/automation/control-plane/pause",
       "action_class": "local_state_mutation",
       "permission": "automation:control",
+      "required_permissions": [
+        "automation:control"
+      ],
       "idempotency": "required; exact replay only",
       "approval": "explicit local control-plane intent",
       "caps": "not applicable; blocks admission only",
@@ -3513,6 +4229,9 @@
       "path": "/api/v1/automation/control-plane/resume",
       "action_class": "local_state_mutation",
       "permission": "automation:resume",
+      "required_permissions": [
+        "automation:resume"
+      ],
       "idempotency": "required; exact replay only",
       "approval": "explicit local control-plane intent; no live authority",
       "caps": "not applicable; restores local admission only",
@@ -3529,6 +4248,9 @@
       "path": "/api/v1/automation/control-plane/drain",
       "action_class": "local_state_mutation",
       "permission": "automation:control",
+      "required_permissions": [
+        "automation:control"
+      ],
       "idempotency": "required; exact replay only",
       "approval": "explicit local control-plane intent",
       "caps": "not applicable; blocks new local claims only",
@@ -3545,6 +4267,9 @@
       "path": "/api/v1/automation/control-plane/shutdown",
       "action_class": "local_state_mutation",
       "permission": "automation:control",
+      "required_permissions": [
+        "automation:control"
+      ],
       "idempotency": "required; exact replay only",
       "approval": "explicit local control-plane intent",
       "caps": "not applicable; blocks local claims only",
@@ -3561,6 +4286,9 @@
       "path": "/api/v1/automation/definitions/{definition_id}/runs",
       "action_class": "local_state_mutation",
       "permission": "automation:trigger",
+      "required_permissions": [
+        "automation:trigger"
+      ],
       "idempotency": "required one-shot claim; exact replay only",
       "approval": "explicit one-shot intent; never exchange authorization",
       "caps": "one definition, one run, and one immutable BTC-USDC child plan",
@@ -3577,6 +4305,9 @@
       "path": "/api/v1/automation/runs/{run_id}/eligibility-cycles",
       "action_class": "local_state_mutation",
       "permission": "account_reality:refresh",
+      "required_permissions": [
+        "account_reality:refresh"
+      ],
       "idempotency": "required exact-run cycle claim; exact replay is call-free and changed payload, actor, or intent conflicts",
       "approval": "required approved-read and active-order-catalog and unknown-consumes-cycle acknowledgements; also requires automation:trigger and automation:resume",
       "caps": "required one goal-global cycle, at most ten cycles, exactly eight approved BTC-USDC read categories including one logical account-wide active Spot-order catalog read, and zero exchange mutations",
@@ -3593,6 +4324,9 @@
       "path": "/api/v1/automation/runs/{run_id}/authorize-single-child",
       "action_class": "live_exchange_place",
       "permission": "order:create",
+      "required_permissions": [
+        "order:create"
+      ],
       "idempotency": "required exact-run command; no alternate identity or retry",
       "approval": "required Create-only, final-eligibility-refresh, active-order-catalog, and unknown-consumption acknowledgements; also requires automation:trigger, automation:resume, and account_reality:refresh",
       "caps": "required BTC-USDC-only one-Test-portfolio-child cap guard; 3.10 submitted and 1.00 possible-execution USDC ceilings",
@@ -3609,6 +4343,9 @@
       "path": "/api/v1/automation/runs/{run_id}/safe-closeout-child",
       "action_class": "live_exchange_cancel",
       "permission": "order:cancel",
+      "required_permissions": [
+        "order:cancel"
+      ],
       "idempotency": "required separate exact-run safe-closeout command; no alternate child, identity, or retry",
       "approval": "required exact-child safe-closeout and unknown-consumption acknowledgements; also requires automation:trigger",
       "caps": "required exact backend-linked BTC-USDC child and at most one Cancel solely for safe closeout; zero Create authority",
@@ -3625,6 +4362,9 @@
       "path": "/api/v1/automation/runs/{run_id}/authorize-preview-gated-single-child",
       "action_class": "live_exchange_place",
       "permission": "order:create",
+      "required_permissions": [
+        "order:create"
+      ],
       "idempotency": "required distinct exact-run Preview and conditional Create claims; zero retries or alternate identity",
       "approval": "required separate one-use Preview, conditional Create, final eligibility, active-order-catalog, and both unknown-consumption acknowledgements; also requires automation:trigger, automation:resume, and account_reality:refresh",
       "caps": "required BTC-USDC-only one-Test-portfolio-child cap guard; 3.10 submitted and 1.00 possible-execution USDC ceilings",
@@ -3641,6 +4381,9 @@
       "path": "/api/v1/automation/runs",
       "action_class": "read_only",
       "permission": "automation:read",
+      "required_permissions": [
+        "automation:read"
+      ],
       "idempotency": "not required",
       "approval": "not applicable; local run history only",
       "caps": "not applicable; reports fixed call accounting",
@@ -3657,6 +4400,9 @@
       "path": "/api/v1/automation/runs/{run_id}",
       "action_class": "read_only",
       "permission": "automation:read",
+      "required_permissions": [
+        "automation:read"
+      ],
       "idempotency": "not required",
       "approval": "not applicable; local run history only",
       "caps": "not applicable; reports fixed call accounting",
@@ -3673,6 +4419,9 @@
       "path": "/api/v1/automation/runs/{run_id}/events",
       "action_class": "read_only",
       "permission": "automation:read",
+      "required_permissions": [
+        "automation:read"
+      ],
       "idempotency": "not required",
       "approval": "not applicable; append-only local audit readback",
       "caps": "not applicable; reports fixed call accounting",

@@ -49,6 +49,13 @@ def build_admin_api_route_inventory_export() -> dict[str, Any]:
                 "path": path,
                 "action_class": action_class,
                 "permission": _value(item.permission),
+                "required_permissions": [
+                    _value(permission)
+                    for permission in (
+                        item.required_permissions
+                        or [item.permission]
+                    )
+                ],
                 "idempotency": item.idempotency,
                 "approval": item.approval,
                 "caps": item.caps,

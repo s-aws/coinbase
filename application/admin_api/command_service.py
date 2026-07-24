@@ -2564,14 +2564,14 @@ def _readback_matches_internal_spot_portfolio(
     )
 
 
-def _recovery_order_readback_proves_zero_fill(
+def coinbase_order_readback_zero_fill_classification(
     readback: Mapping[str, Any],
-) -> bool:
-    """Require at least one documented nonnegative fill indicator at zero."""
+) -> str:
+    """Classify allowlisted fill evidence without exposing any value."""
 
     matched_order = readback.get("matched_order")
     if not isinstance(matched_order, Mapping):
-        return False
+        return "UNKNOWN"
     observed = False
     for field in (
         "filled_size",
@@ -2586,10 +2586,23 @@ def _recovery_order_readback_proves_zero_fill(
         try:
             value = Decimal(str(raw))
         except (ArithmeticError, ValueError):
-            return False
-        if not value.is_finite() or value != Decimal("0"):
-            return False
-    return observed
+            return "UNKNOWN"
+        if not value.is_finite() or value < Decimal("0"):
+            return "UNKNOWN"
+        if value != Decimal("0"):
+            return "NONZERO"
+    return "ZERO" if observed else "UNKNOWN"
+
+
+def _recovery_order_readback_proves_zero_fill(
+    readback: Mapping[str, Any],
+) -> bool:
+    """Require at least one documented nonnegative fill indicator at zero."""
+
+    return (
+        coinbase_order_readback_zero_fill_classification(readback)
+        == "ZERO"
+    )
 
 
 def read_authoritative_coinbase_fills(

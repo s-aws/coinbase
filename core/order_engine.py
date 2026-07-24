@@ -1324,6 +1324,25 @@ class OrderEngine:
                     ),
                 )
                 return 0
+            if (
+                stealth_manager.is_operator_move_automatic_mutation_blocked(
+                    original_stealth_order
+                )
+                is True
+            ):
+                self.log_message(
+                    "order",
+                    {
+                        "event": (
+                            "operator_move_partial_fill_follow_up_blocked"
+                        ),
+                        "client_order_id": client_order_id,
+                        "stealth_order_id": original_stealth_order.get(
+                            "stealth_order_id"
+                        ),
+                    },
+                )
+                return 0
 
             # NOTE: partial-fill follow-ups intentionally bypass
             # ``max_order_replacement``. The cap exists to limit how many
@@ -4172,6 +4191,30 @@ class OrderEngine:
         # stealth chain's root (flat hierarchy â€” see agent.md). No-op when the
         # placement uuid equals stealth_order_id (same logical order).
         if original_stealth_order:
+            operator_move_blocked = (
+                self.stealth_order_bridge.stealth_manager
+                .is_operator_move_automatic_mutation_blocked(
+                    original_stealth_order
+                )
+            )
+            if operator_move_blocked is True:
+                self.log_message(
+                    "order",
+                    {
+                        "event": (
+                            "operator_move_cancel_follow_up_blocked"
+                        ),
+                        "client_order_id": client_order_id,
+                        "stealth_order_id": original_stealth_order.get(
+                            "stealth_order_id"
+                        ),
+                    },
+                )
+                self.complete_follow_up_processing(
+                    "cancelled",
+                    client_order_id,
+                )
+                return
             self._register_stealth_placement_under_root(client_order_id, original_stealth_order)
             policy_cancelled = self.stealth_order_bridge.stealth_manager.is_policy_cancelled_placement(
                 original_stealth_order,
@@ -4586,6 +4629,28 @@ class OrderEngine:
         # stealth chain's root (flat hierarchy â€” see agent.md). No-op when the
         # placement uuid equals stealth_order_id (same logical order).
         if original_stealth_order:
+            operator_move_blocked = (
+                self.stealth_order_bridge.stealth_manager
+                .is_operator_move_automatic_mutation_blocked(
+                    original_stealth_order
+                )
+            )
+            if operator_move_blocked is True:
+                self.log_message(
+                    "order",
+                    {
+                        "event": "operator_move_filled_follow_up_blocked",
+                        "client_order_id": client_order_id,
+                        "stealth_order_id": original_stealth_order.get(
+                            "stealth_order_id"
+                        ),
+                    },
+                )
+                self.complete_follow_up_processing(
+                    "filled",
+                    client_order_id,
+                )
+                return
             self._register_stealth_placement_under_root(client_order_id, original_stealth_order)
 
         # Check if this is an external order (not created by our engine)

@@ -1307,6 +1307,77 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="movement_repricing",
+        surface=(
+            "GET /api/v1/movement-repricing/stealth/{stealth_order_id}/"
+            "move-execution"
+        ),
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not required; PostgreSQL Goal 7 ledger readback only",
+        caps="one exact zero-fill movement and fixed 3.10/1.00 USDC caps",
+        audit="fixed hash-only plan, allowance, call, and terminal evidence",
+        shared_method="get_operator_revealed_order_movement",
+        parity_test=(
+            "call-free exact movement readback; raw exchange identities, "
+            "responses, and exception text remain withheld"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="movement_repricing",
+        surface=(
+            "POST /api/v1/movement-repricing/stealth/{stealth_order_id}/"
+            "move-plans"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.ORDER_CANCEL,
+        required_permissions=[
+            AdminApiPermission.ORDER_CANCEL,
+            AdminApiPermission.ORDER_CREATE,
+        ],
+        idempotency="required; exact reviewed payload replay only",
+        approval="explicit operator plan acknowledgement; no live call",
+        caps="required direct submitted and possible-execution cap proof",
+        audit=(
+            "required; durable immutable plan, actor hash, and correlation "
+            "evidence"
+        ),
+        shared_method="prepare_operator_revealed_order_movement",
+        parity_test=(
+            "manager-owned call-free zero-fill, product, increment, target, "
+            "and profitability validation; zero Coinbase calls"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="movement_repricing",
+        surface=(
+            "POST /api/v1/movement-repricing/stealth/{stealth_order_id}/"
+            "execute-move"
+        ),
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        permission=AdminApiPermission.ORDER_CANCEL,
+        required_permissions=[
+            AdminApiPermission.ORDER_CANCEL,
+            AdminApiPermission.ORDER_CREATE,
+        ],
+        idempotency="required; one exact plan-bound command cycle",
+        approval="required explicit exact Cancel/Create acknowledgement",
+        caps=(
+            "required; one Cancel and, only after exact CANCELLED readback, one "
+            "post-only replacement Create; zero retries"
+        ),
+        audit=(
+            "required; PostgreSQL claims, exact read accounting, fixed "
+            "diagnostics, hash-only exchange identity, and restart recovery"
+        ),
+        shared_method="execute_operator_revealed_order_movement",
+        parity_test=(
+            "canonical StealthOrderManager movement phases and flat linkage; "
+            "unknown or unsuccessful Cancel prohibits Create"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="movement_repricing",
         surface="POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
         permission=AdminApiPermission.ORDER_CANCEL,

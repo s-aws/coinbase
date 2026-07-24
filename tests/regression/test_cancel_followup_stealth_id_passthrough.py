@@ -211,6 +211,124 @@ def test_cancel_followup_passes_stealth_order_id_not_placement_uuid():
 
 
 @pytest.mark.regression
+def test_goal7_fence_blocks_all_cancel_follow_up_paths():
+    """A Goal 7 source Cancel must not trigger a pending move or auto child."""
+    engine = _build_engine_for_partial_fill_tests()
+    placement_uuid = "78f22189-eb33-4768-91c7-6da14cd3116b"
+    stealth_root_id = "a853db8e-b3bc-43c4-8901-d0a80e0f7179"
+    stealth_manager, _ = _wire_cancel_path(
+        engine,
+        placement_uuid=placement_uuid,
+        stealth_root_id=stealth_root_id,
+        parent_db_row={
+            "target_movement": 0.001,
+            "target_movement_type": "P",
+        },
+    )
+    stealth_manager.is_operator_move_automatic_mutation_blocked.return_value = (
+        True
+    )
+    engine.complete_follow_up_processing = Mock(
+        wraps=engine.complete_follow_up_processing
+    )
+
+    with patch("database.order.has_pending_move") as has_pending_move:
+        engine.handle_cancelled_order(
+            {
+                "client_order_id": placement_uuid,
+                "product_id": "BIP-20DEC30-CDE",
+                "side": "SELL",
+                "status": "CANCELLED",
+                "price": 80355.0,
+            }
+        )
+
+    has_pending_move.assert_not_called()
+    engine.compute_order_template.assert_not_called()
+    stealth_manager.create_follow_up_stealth_order.assert_not_called()
+    engine.register_child_order.assert_not_called()
+    engine.complete_follow_up_processing.assert_called_once_with(
+        "cancelled",
+        placement_uuid,
+    )
+
+
+@pytest.mark.regression
+def test_goal7_fence_blocks_partial_fill_follow_up_before_carry_claim():
+    engine = _build_engine_for_partial_fill_tests()
+    placement_uuid = "78f22189-eb33-4768-91c7-6da14cd3116b"
+    stealth_root_id = "a853db8e-b3bc-43c4-8901-d0a80e0f7179"
+    stealth_manager, _ = _wire_cancel_path(
+        engine,
+        placement_uuid=placement_uuid,
+        stealth_root_id=stealth_root_id,
+        parent_db_row={
+            "target_movement": 0.001,
+            "target_movement_type": "P",
+        },
+    )
+    stealth_manager.is_operator_move_automatic_mutation_blocked.return_value = (
+        True
+    )
+    engine.order_progress_tracker.claim_follow_up_units = Mock()
+    engine.compute_partial_fill_order_template = Mock()
+
+    created = engine._create_partial_fill_follow_up(
+        placement_uuid,
+        stealth_root_id,
+        min_order_size=0.01,
+        follow_ups_due=1,
+    )
+
+    assert created == 0
+    engine.order_progress_tracker.claim_follow_up_units.assert_not_called()
+    engine.compute_partial_fill_order_template.assert_not_called()
+    stealth_manager.create_follow_up_stealth_order.assert_not_called()
+    engine.register_child_order.assert_not_called()
+
+
+@pytest.mark.regression
+def test_goal7_fence_blocks_filled_follow_up_before_registration():
+    engine = _build_engine_for_partial_fill_tests()
+    placement_uuid = "78f22189-eb33-4768-91c7-6da14cd3116b"
+    stealth_root_id = "a853db8e-b3bc-43c4-8901-d0a80e0f7179"
+    stealth_manager, _ = _wire_cancel_path(
+        engine,
+        placement_uuid=placement_uuid,
+        stealth_root_id=stealth_root_id,
+        parent_db_row={
+            "target_movement": 0.001,
+            "target_movement_type": "P",
+        },
+    )
+    stealth_manager.is_operator_move_automatic_mutation_blocked.return_value = (
+        True
+    )
+    engine.complete_follow_up_processing = Mock(
+        wraps=engine.complete_follow_up_processing
+    )
+
+    engine.handle_filled_order(
+        {
+            "client_order_id": placement_uuid,
+            "product_id": "BIP-20DEC30-CDE",
+            "side": "SELL",
+            "status": "FILLED",
+            "price": 80355.0,
+            "filled_size": 1.0,
+        }
+    )
+
+    engine.compute_order_template.assert_not_called()
+    stealth_manager.create_follow_up_stealth_order.assert_not_called()
+    engine.register_child_order.assert_not_called()
+    engine.complete_follow_up_processing.assert_called_once_with(
+        "filled",
+        placement_uuid,
+    )
+
+
+@pytest.mark.regression
 def test_cancel_followup_none_return_does_not_register_phantom_child():
     """If ``create_follow_up_stealth_order`` returns ``None``, the
     cancel branch must NOT call ``register_child_order`` (which would

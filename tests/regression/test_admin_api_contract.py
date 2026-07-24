@@ -9972,6 +9972,7 @@ def test_admin_api_route_inventory_export_file_matches_generated_contract():
         "path": "/api/v1/orders",
         "action_class": AdminApiActionClass.LIVE_EXCHANGE_PLACE.value,
         "permission": AdminApiPermission.ORDER_CREATE.value,
+        "required_permissions": [AdminApiPermission.ORDER_CREATE.value],
         "idempotency": "required",
         "approval": "required",
         "caps": "required",
@@ -9994,6 +9995,7 @@ def test_admin_api_route_inventory_export_file_matches_generated_contract():
         "path": "/api/v1/stealth/orders",
         "action_class": AdminApiActionClass.LOCAL_STATE_MUTATION.value,
         "permission": AdminApiPermission.ORDER_CREATE.value,
+        "required_permissions": [AdminApiPermission.ORDER_CREATE.value],
         "idempotency": "required",
         "approval": "required by current HTTP live-disabled gate",
         "caps": "required for planning guards before lifecycle writes",
@@ -10015,6 +10017,7 @@ def test_admin_api_route_inventory_export_file_matches_generated_contract():
         "path": "/api/v1/stealth/orders/{stealth_order_id}/reveal",
         "action_class": AdminApiActionClass.LIVE_EXCHANGE_PLACE.value,
         "permission": AdminApiPermission.ORDER_CREATE.value,
+        "required_permissions": [AdminApiPermission.ORDER_CREATE.value],
         "idempotency": "required",
         "approval": "required by current HTTP live-disabled gate",
         "caps": (
@@ -74555,35 +74558,35 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     )
     assert live_payload["live_enabled_path_count"] == 0
     assert live_payload["live_eligible_path_count"] == 0
-    assert live_payload["preflight_check_count"] == 144
-    assert live_payload["blocking_preflight_check_count"] == 72
-    assert live_payload["passed_preflight_check_count"] == 72
-    assert live_payload["approval_snapshot_required_count"] == 18
+    assert live_payload["preflight_check_count"] == 152
+    assert live_payload["blocking_preflight_check_count"] == 76
+    assert live_payload["passed_preflight_check_count"] == 76
+    assert live_payload["approval_snapshot_required_count"] == 19
     assert live_payload["approval_snapshot_present_count"] == 0
-    assert live_payload["approval_snapshot_missing_count"] == 18
-    assert live_payload["approval_snapshot_required_field_count"] == 270
-    assert live_payload["approval_snapshot_missing_field_count"] == 270
-    assert live_payload["approval_store_required_count"] == 18
-    assert live_payload["approval_store_configured_count"] == 18
+    assert live_payload["approval_snapshot_missing_count"] == 19
+    assert live_payload["approval_snapshot_required_field_count"] == 285
+    assert live_payload["approval_snapshot_missing_field_count"] == 285
+    assert live_payload["approval_store_required_count"] == 19
+    assert live_payload["approval_store_configured_count"] == 19
     assert live_payload["approval_store_missing_count"] == 0
-    assert live_payload["approval_store_requirement_count"] == 216
+    assert live_payload["approval_store_requirement_count"] == 228
     assert live_payload["approval_store_missing_requirement_count"] == 0
-    assert live_payload["admission_audit_required_count"] == 18
+    assert live_payload["admission_audit_required_count"] == 19
     assert live_payload["admission_audit_configured_count"] == 0
-    assert live_payload["admission_audit_missing_count"] == 18
-    assert live_payload["admission_audit_fact_count"] == 180
-    assert live_payload["admission_audit_missing_fact_count"] == 162
-    assert live_payload["cap_guard_required_count"] == 18
+    assert live_payload["admission_audit_missing_count"] == 19
+    assert live_payload["admission_audit_fact_count"] == 190
+    assert live_payload["admission_audit_missing_fact_count"] == 171
+    assert live_payload["cap_guard_required_count"] == 19
     assert live_payload["cap_guard_configured_count"] == 0
-    assert live_payload["cap_guard_missing_count"] == 18
-    assert live_payload["cap_guard_requirement_count"] == 252
-    assert live_payload["cap_guard_missing_requirement_count"] == 252
-    assert live_payload["live_execution_adapter_required_count"] == 18
+    assert live_payload["cap_guard_missing_count"] == 19
+    assert live_payload["cap_guard_requirement_count"] == 266
+    assert live_payload["cap_guard_missing_requirement_count"] == 266
+    assert live_payload["live_execution_adapter_required_count"] == 19
     assert live_payload["live_execution_adapter_configured_count"] == 9
-    assert live_payload["live_execution_adapter_missing_count"] == 9
-    assert live_payload["readiness_precondition_count"] == 162
-    assert live_payload["blocking_readiness_precondition_count"] == 98
-    assert live_payload["passed_readiness_precondition_count"] == 64
+    assert live_payload["live_execution_adapter_missing_count"] == 10
+    assert live_payload["readiness_precondition_count"] == 171
+    assert live_payload["blocking_readiness_precondition_count"] == 104
+    assert live_payload["passed_readiness_precondition_count"] == 67
     assert live_payload["live_coinbase_orders_ran"] is False
     live_routes = {item["route"]: item for item in live_payload["paths"]}
     assert "/api/v1/orders" in live_routes
@@ -74615,6 +74618,10 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     )
     assert (
         "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
+        in live_routes
+    )
+    assert (
+        "/api/v1/movement-repricing/stealth/{stealth_order_id}/execute-move"
         in live_routes
     )
     assert "/api/v1/spot/campaign/executions" in live_routes
@@ -75625,6 +75632,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "stealth.move_command_draft",
         "stealth.cancel_command_draft",
         "movement.repricing_reads",
+        "operator_revealed_order_movement_and_repricing_v1",
         "movement.reprice_command_draft",
         "futures.read_models",
         "futures.command_drafts_live_disabled",
@@ -75633,6 +75641,45 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "audit.fill_ledger_repair_contract_required",
         "legacy.dashboard_compatibility",
     } <= set(inventory_by_id)
+    operator_move_inventory = inventory_by_id[
+        "operator_revealed_order_movement_and_repricing_v1"
+    ]
+    assert operator_move_inventory["workflow_type"] == (
+        AdminApiFunctionalityWorkflowType.LIVE_EXECUTION.value
+    )
+    assert operator_move_inventory["support_status"] == (
+        AdminApiModuleSupportStatus.PLATFORM_READY.value
+    )
+    assert operator_move_inventory["live_enabled"] is True
+    assert operator_move_inventory["command_routes"] == [
+        (
+            "POST /api/v1/movement-repricing/stealth/"
+            "{stealth_order_id}/move-plans"
+        ),
+        (
+            "POST /api/v1/movement-repricing/stealth/"
+            "{stealth_order_id}/execute-move"
+        ),
+    ]
+    assert "partial-fill movement" in operator_move_inventory["blockers"]
+    operator_move_plan_taxonomy = taxonomy_by_id[
+        "movement.operator_revealed_move_plan"
+    ]
+    operator_move_execute_taxonomy = taxonomy_by_id[
+        "movement.operator_revealed_move_execute"
+    ]
+    assert set(
+        operator_move_plan_taxonomy["required_permissions"]
+    ) == {
+        AdminApiPermission.ORDER_CANCEL.value,
+        AdminApiPermission.ORDER_CREATE.value,
+    }
+    assert set(
+        operator_move_execute_taxonomy["required_permissions"]
+    ) == {
+        AdminApiPermission.ORDER_CANCEL.value,
+        AdminApiPermission.ORDER_CREATE.value,
+    }
     automation_inventory = inventory_by_id["automation.operator_control_plane"]
     assert automation_inventory["live_designated"] is True
     assert automation_inventory["live_enabled"] is False
@@ -84703,9 +84750,15 @@ def test_admin_api_stealth_read_routes_use_read_service_without_commands(monkeyp
                         "runtime_observed": False,
                         "source": "runtime_stealth_manager_unavailable",
                     },
+                    {
+                        "kind": StealthMutationKind.FOLLOW_UP.value,
+                        "state": None,
+                        "runtime_observed": False,
+                        "source": "runtime_stealth_manager_unavailable",
+                    },
                 ],
                 "runtime_claims_observed": False,
-                "runtime_claim_count": 3,
+                "runtime_claim_count": 4,
                 "active_claim_count": 0,
                 "claim_reader_source": "runtime_stealth_manager_unavailable",
                 "claim_reader_ran": False,
@@ -84901,7 +84954,7 @@ def test_admin_api_stealth_read_routes_use_read_service_without_commands(monkeyp
     assert audit["required_contracts"] == audit["missing_contracts"]
     mutation_claim_audit = detail_response.json()["mutation_claim_audit"]
     assert mutation_claim_audit["runtime_claims_observed"] is False
-    assert mutation_claim_audit["runtime_claim_count"] == 3
+    assert mutation_claim_audit["runtime_claim_count"] == 4
     assert mutation_claim_audit["active_claim_count"] == 0
     assert mutation_claim_audit["claim_reader_source"] == (
         "runtime_stealth_manager_unavailable"
@@ -85117,7 +85170,7 @@ def test_admin_api_stealth_read_service_maps_placement_and_exchange_evidence(mon
     mutation_audit = detail_response.mutation_claim_audit
     assert mutation_audit.status == AdminApiGateStatus.BLOCKED
     assert mutation_audit.runtime_claims_observed is False
-    assert mutation_audit.runtime_claim_count == 3
+    assert mutation_audit.runtime_claim_count == 4
     assert mutation_audit.active_claim_count == 0
     assert mutation_audit.claim_reader_source == "runtime_stealth_manager_unavailable"
     assert mutation_audit.coinbase_read_ran is False
@@ -85365,7 +85418,7 @@ def test_admin_api_stealth_detail_mutation_claim_audit_uses_runtime_snapshot(mon
     assert detail_response.mutation_claim_audit is not None
     audit = detail_response.mutation_claim_audit
     assert audit.runtime_claims_observed is True
-    assert audit.runtime_claim_count == 3
+    assert audit.runtime_claim_count == 4
     assert audit.active_claim_count == 1
     assert audit.claim_reader_source == "stealth_manager.snapshot_mutation_claims"
     assert audit.claim_reader_ran is True
@@ -85386,6 +85439,7 @@ def test_admin_api_stealth_detail_mutation_claim_audit_uses_runtime_snapshot(mon
         (StealthMutationKind.MOVE, "stealth-claim-root"),
         (StealthMutationKind.REPRICE, "stealth-claim-root"),
         (StealthMutationKind.RETREAT, "stealth-claim-root"),
+        (StealthMutationKind.FOLLOW_UP, "stealth-claim-root"),
     ]
 
 

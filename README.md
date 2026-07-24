@@ -1,6 +1,23 @@
 # Coinbase Trading Backend
 
-## Active independent Goal 6 — Stealth reveal and exact closeout
+## Active independent Goal 7 — Revealed-order movement and repricing
+
+`operator_revealed_order_movement_and_repricing_v1` adds one authenticated
+operator-controlled movement for an exact zero-fill revealed placement.
+PostgreSQL owns the immutable quantized post-only plan, definition and approved
+Test-portfolio bindings, source/root/replacement `client_order_id` linkage,
+single-use Cancel and conditional Create claims, exact read accounting, restart
+recovery, exact replay, and fixed sanitized readback. The canonical manager
+durably persists a background-mutation fence before Cancel and may run one
+non-configurable, durably claimed full-wallet check and Create only after exact
+authoritative zero-fill `CANCELLED` evidence; it never credits the cancelled
+source hold. Replacement reconciliation also proves the frozen order terms.
+Rejected, unknown, or race-ambiguous cancellation prohibits replacement, and
+the Goal 7 placement stays excluded from background repricing and
+cancel/reentry. See
+[the Goal 7 design](docs/OPERATOR_REVEALED_ORDER_MOVEMENT_AND_REPRICING_V1.md).
+
+## Completed independent Goal 6 — Stealth reveal and exact closeout
 
 `operator_stealth_reveal_and_exact_closeout_v1` adds the authenticated
 operator-controlled runtime transition for one eligible Goal 5 definition.

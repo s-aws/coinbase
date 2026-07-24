@@ -169,13 +169,19 @@ class TestStealthMutationKindEnum:
         assert StealthMutationKind.MOVE.value == "move"
         assert StealthMutationKind.REPRICE.value == "reprice"
         assert StealthMutationKind.RETREAT.value == "retreat"
+        assert StealthMutationKind.FOLLOW_UP.value == "follow_up"
 
     def test_enum_is_used_at_boundary_not_magic_strings(self):
         """Builder/executor signatures must accept the enum, not bare strings."""
         from core.enums import StealthMutationKind
 
         # Sanity: members iterable; allows extension test below to enumerate.
-        assert {k.value for k in StealthMutationKind} == {"move", "reprice", "retreat"}
+        assert {k.value for k in StealthMutationKind} == {
+            "move",
+            "reprice",
+            "retreat",
+            "follow_up",
+        }
 
 
 class TestStealthMutationClaims:
