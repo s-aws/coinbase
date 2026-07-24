@@ -9,6 +9,7 @@ It manages the parent-child order relationship for the trading engine.
 
 import hashlib
 import json
+import re
 import secrets
 import uuid
 from datetime import datetime, timezone
@@ -1054,6 +1055,251 @@ def insert_order_parent(
                 message=f"Failed to insert parent order {client_order_id}: {str(e)}",
                 client_order_id=client_order_id,
             )
+
+
+def persist_operator_stealth_root_atomic(
+    *,
+    order: Dict[str, Any],
+    target_movement: float,
+    target_movement_type: str,
+    portfolio_id: str,
+    correlation_id: str,
+    audit_id: str,
+    definition_revision: int,
+    definition_sha256: str,
+) -> tuple[int, bool]:
+    """Atomically persist one claimed operator definition as a stealth root.
+
+    The operator reveal repository installs a trigger that permits the
+    reserved definition identity only while its exact revision/hash is in the
+    durable ``MATERIALIZING`` state.  This writer supplies the canonical
+    ``order_parent`` ownership row and ``stealth_orders`` row in one database
+    transaction; it performs no Coinbase call.
+    """
+
+    client_order_id = str(order.get("stealth_order_id") or "")
+    _require_uuid_text(
+        client_order_id,
+        "stealth_order_id",
+        client_order_id=client_order_id,
+    )
+    if order.get("parent_order_id") is not None:
+        raise OrderPersistenceError(
+            error_type="OperatorStealthRootNested",
+            message="Operator stealth materialization requires a root order",
+            client_order_id=client_order_id,
+        )
+    if (
+        not isinstance(definition_revision, int)
+        or isinstance(definition_revision, bool)
+        or definition_revision < 1
+        or not isinstance(definition_sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", definition_sha256) is None
+    ):
+        raise OrderPersistenceError(
+            error_type="OperatorStealthDefinitionBindingInvalid",
+            message="Operator stealth definition binding is invalid",
+            client_order_id=client_order_id,
+        )
+    _require_uuid_text(
+        portfolio_id,
+        "portfolio_id",
+        client_order_id=client_order_id,
+    )
+    if not str(correlation_id or "").strip() or not str(audit_id or "").strip():
+        raise OrderPersistenceError(
+            error_type="OperatorStealthAuditBindingInvalid",
+            message="Operator stealth audit binding is invalid",
+            client_order_id=client_order_id,
+        )
+
+    product_id = str(order.get("product_id") or "")
+    side = str(order.get("side") or "").upper()
+    total_size = order.get("total_size")
+    limit_price = order.get("limit_price")
+
+    def row_dict(cursor: Any, row: Any) -> Optional[Dict[str, Any]]:
+        if row is None:
+            return None
+        return dict(
+            zip(
+                [description[0] for description in cursor.description],
+                row,
+            )
+        )
+
+    def numeric_equal(left: Any, right: Any) -> bool:
+        try:
+            return Decimal(str(left)) == Decimal(str(right))
+        except (InvalidOperation, TypeError, ValueError):
+            return False
+
+    with DB_CLIENT.get_cursor() as cursor:
+        cursor.execute(
+            "SELECT pg_advisory_xact_lock(%s, hashtext(%s))",
+            (31873, client_order_id),
+        )
+        cursor.execute(
+            """SELECT id, product_id, side, size, price, parent_order_id,
+                      ownership_provenance, retail_portfolio_id,
+                      correlation_id, audit_id
+               FROM order_parent WHERE client_order_id = %s""",
+            (client_order_id,),
+        )
+        parent_row = row_dict(cursor, cursor.fetchone())
+        cursor.execute(
+            """SELECT product_id, side, total_size, limit_price,
+                      parent_order_id, reveal_condition_json
+               FROM stealth_orders WHERE stealth_order_id = %s""",
+            (client_order_id,),
+        )
+        stealth_row = row_dict(cursor, cursor.fetchone())
+
+        if parent_row and not all(
+            (
+                str(parent_row.get("product_id") or "") == product_id,
+                str(parent_row.get("side") or "").upper() == side,
+                numeric_equal(parent_row.get("size"), total_size),
+                numeric_equal(parent_row.get("price"), limit_price),
+                parent_row.get("parent_order_id") is None,
+                str(parent_row.get("ownership_provenance") or "")
+                == OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value,
+                str(parent_row.get("retail_portfolio_id") or "")
+                == portfolio_id,
+                str(parent_row.get("correlation_id") or "")
+                == correlation_id,
+                str(parent_row.get("audit_id") or "") == audit_id,
+            )
+        ):
+            raise OrderPersistenceError(
+                error_type="OperatorStealthParentIdentityConflict",
+                message="Existing operator stealth parent identity conflicts",
+                client_order_id=client_order_id,
+            )
+        if stealth_row and not all(
+            (
+                str(stealth_row.get("product_id") or "") == product_id,
+                str(stealth_row.get("side") or "").upper() == side,
+                numeric_equal(stealth_row.get("total_size"), total_size),
+                numeric_equal(stealth_row.get("limit_price"), limit_price),
+                stealth_row.get("parent_order_id") is None,
+                bool(
+                    (stealth_row.get("reveal_condition_json") or {}).get(
+                        "operator_manual_reveal_required"
+                    )
+                ),
+            )
+        ):
+            raise OrderPersistenceError(
+                error_type="OperatorStealthRuntimeIdentityConflict",
+                message="Existing operator stealth runtime identity conflicts",
+                client_order_id=client_order_id,
+            )
+
+        if parent_row:
+            parent_row_id = int(parent_row["id"])
+        else:
+            cursor.execute(
+                """INSERT INTO order_parent (
+                       client_order_id, product_id, side, size, price, status,
+                       target_movement, target_movement_type,
+                       max_order_replacement, current_order_replacement,
+                       parent_order_id, allow_partial_fills,
+                       enable_hotpoint_replication, auto_placed_by_hotpoint,
+                       ownership_provenance, retail_portfolio_id,
+                       correlation_id, audit_id
+                   ) VALUES (
+                       %s, %s, %s, %s, %s, %s, %s, %s,
+                       %s, 0, NULL, %s, FALSE, FALSE, %s, %s, %s, %s
+                   ) RETURNING id""",
+                (
+                    client_order_id,
+                    product_id,
+                    side,
+                    total_size,
+                    limit_price,
+                    OrderStatus.PENDING.value,
+                    target_movement,
+                    target_movement_type,
+                    int(order.get("max_order_replacements") or 0),
+                    bool(order.get("allow_partial_fills", False)),
+                    OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value,
+                    portfolio_id,
+                    correlation_id,
+                    audit_id,
+                ),
+            )
+            inserted_parent = cursor.fetchone()
+            if not inserted_parent:
+                raise OrderPersistenceError(
+                    error_type="OperatorStealthParentInsertMissing",
+                    message="Operator stealth parent insert returned no id",
+                    client_order_id=client_order_id,
+                )
+            parent_row_id = int(inserted_parent[0])
+
+        stealth_row_created = stealth_row is None
+        if stealth_row_created:
+            cursor.execute(
+                """INSERT INTO stealth_orders (
+                       stealth_order_id, product_id, side, total_size,
+                       remaining_size, limit_price, status,
+                       reveal_condition_type, reveal_condition_json,
+                       sizing_strategy_json, reason, notes, parent_order_id,
+                       anchor_repricing_policy_json,
+                       anchor_repricing_state_json,
+                       cancel_reentry_policy_json,
+                       cancel_reentry_state_json,
+                       post_fill_retreat_policy_json
+                   ) VALUES (
+                       %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                       %s, %s, %s, NULL, %s, %s, %s, %s, %s
+                   )""",
+                (
+                    client_order_id,
+                    product_id,
+                    side,
+                    total_size,
+                    order.get("remaining_size"),
+                    limit_price,
+                    order.get("status", StealthOrderStatus.HIDDEN.value),
+                    order.get("reveal_condition_type", "time_delay"),
+                    json.dumps(
+                        order.get("reveal_condition_json", {}),
+                        default=_json_default_for_db,
+                    ),
+                    json.dumps(
+                        order.get("sizing_strategy_json", {}),
+                        default=_json_default_for_db,
+                    ),
+                    order.get("reason", ""),
+                    order.get("notes", ""),
+                    json.dumps(
+                        order.get("anchor_repricing_policy_json", {}),
+                        default=_json_default_for_db,
+                    ),
+                    json.dumps(
+                        order.get("anchor_repricing_state_json", {}),
+                        default=_json_default_for_db,
+                    ),
+                    json.dumps(
+                        order.get("cancel_reentry_policy_json", {}),
+                        default=_json_default_for_db,
+                    ),
+                    json.dumps(
+                        order.get("cancel_reentry_state_json", {}),
+                        default=_json_default_for_db,
+                    ),
+                    json.dumps(
+                        order.get(
+                            "post_fill_retreat_policy_json",
+                            {"enabled": False},
+                        ),
+                        default=_json_default_for_db,
+                    ),
+                ),
+            )
+    return parent_row_id, stealth_row_created
 
 
 def persist_filled_follow_up_atomic(

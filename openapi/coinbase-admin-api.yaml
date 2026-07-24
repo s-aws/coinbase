@@ -16508,6 +16508,435 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/stealth/definitions/{definition_id}/execution:
+    get:
+      tags:
+      - operator-stealth-reveal
+      summary: Review one operator stealth reveal and exact-closeout state
+      operationId: get_operator_stealth_reveal_execution_api_v1_stealth_definitions__definition_id__execution_get
+      parameters:
+      - name: definition_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Definition Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorStealthRevealExecutionResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/stealth/definitions/{definition_id}/reveal:
+    post:
+      tags:
+      - operator-stealth-reveal
+      summary: Preview and reveal one exact operator stealth definition
+      operationId: reveal_operator_stealth_definition_api_v1_stealth_definitions__definition_id__reveal_post
+      parameters:
+      - name: definition_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Definition Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: reveal_operator_stealth_definition
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorStealthRevealRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorStealthRevealExecutionResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/stealth/definitions/{definition_id}/resume-accepted-create:
+    post:
+      tags:
+      - operator-stealth-reveal
+      summary: Resume one durable Preview-accepted stealth Create
+      operationId: resume_operator_stealth_accepted_create_api_v1_stealth_definitions__definition_id__resume_accepted_create_post
+      parameters:
+      - name: definition_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Definition Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: resume_operator_stealth_accepted_create
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorStealthResumeAcceptedCreateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorStealthRevealExecutionResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/stealth/definitions/{definition_id}/closeout:
+    post:
+      tags:
+      - operator-stealth-reveal
+      summary: Safely close out the exact operator stealth placement
+      operationId: closeout_operator_stealth_placement_api_v1_stealth_definitions__definition_id__closeout_post
+      parameters:
+      - name: definition_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Definition Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: closeout_operator_stealth_placement
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorStealthCloseoutRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorStealthRevealExecutionResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/spot/readiness:
     get:
       tags:
@@ -157967,6 +158396,487 @@ components:
       - expected_revision
       title: OperatorSpotRecoveryRefreshRequest
       description: Explicit request for one no-retry logical order/fill refresh cycle.
+    OperatorStealthCloseoutRequest:
+      properties:
+        expected_plan_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Expected Plan Sha256
+        operator_reason:
+          type: string
+          maxLength: 240
+          minLength: 10
+          title: Operator Reason
+        confirm_operator_stealth_closeout:
+          type: boolean
+          const: true
+          title: Confirm Operator Stealth Closeout
+      additionalProperties: false
+      type: object
+      required:
+      - expected_plan_sha256
+      - operator_reason
+      - confirm_operator_stealth_closeout
+      title: OperatorStealthCloseoutRequest
+    OperatorStealthResumeAcceptedCreateRequest:
+      properties:
+        expected_plan_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Expected Plan Sha256
+        operator_reason:
+          type: string
+          maxLength: 240
+          minLength: 10
+          title: Operator Reason
+        confirm_operator_stealth_resume_create:
+          type: boolean
+          const: true
+          title: Confirm Operator Stealth Resume Create
+      additionalProperties: false
+      type: object
+      required:
+      - expected_plan_sha256
+      - operator_reason
+      - confirm_operator_stealth_resume_create
+      title: OperatorStealthResumeAcceptedCreateRequest
+    OperatorStealthRevealExecutionResponse:
+      properties:
+        goal_id:
+          type: string
+          const: operator_stealth_reveal_and_exact_closeout_v1
+          title: Goal Id
+        state:
+          type: string
+          enum:
+          - UNCONSUMED
+          - MATERIALIZING
+          - MATERIALIZED
+          - PREVIEW_CLAIMED
+          - PREVIEW_ACCEPTED
+          - PREVIEW_REJECTED
+          - PREVIEW_UNKNOWN
+          - CREATE_CLAIMED
+          - REVEALED
+          - CREATE_REJECTED
+          - CREATE_UNKNOWN
+          - CANCEL_CLAIMED
+          - CANCELLED
+          - FILLED
+          - CANCEL_UNKNOWN
+          title: State
+        definition_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Definition Id
+        definition_revision:
+          type: integer
+          minimum: 1.0
+          title: Definition Revision
+        definition_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Definition Sha256
+        portfolio_scope_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Portfolio Scope Sha256
+        client_order_id:
+          type: string
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+          title: Client Order Id
+        product_id:
+          type: string
+          title: Product Id
+        side:
+          type: string
+          enum:
+          - BUY
+          - SELL
+          title: Side
+        plan:
+          anyOf:
+          - $ref: '#/components/schemas/OperatorStealthRevealPlanEvidence'
+          - type: 'null'
+        plan_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Plan Sha256
+        prepreview_admission_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Prepreview Admission Sha256
+        submitted_notional_usdc:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Submitted Notional Usdc
+        max_submitted_notional_usdc:
+          type: string
+          const: '3.10'
+          title: Max Submitted Notional Usdc
+          default: '3.10'
+        max_possible_execution_notional_usdc:
+          type: string
+          const: '1.00'
+          title: Max Possible Execution Notional Usdc
+          default: '1.00'
+        preview_allowance_consumed:
+          type: boolean
+          title: Preview Allowance Consumed
+        create_allowance_consumed:
+          type: boolean
+          title: Create Allowance Consumed
+        cancel_allowance_consumed:
+          type: boolean
+          title: Cancel Allowance Consumed
+        preview_call_count:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Preview Call Count
+        create_call_count:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Create Call Count
+        cancel_call_count:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Cancel Call Count
+        read_call_count:
+          type: integer
+          maximum: 31.0
+          minimum: 0.0
+          title: Read Call Count
+        preview_outcome:
+          anyOf:
+          - type: string
+            enum:
+            - ACCEPTED
+            - REJECTED
+            - UNKNOWN
+          - type: 'null'
+          title: Preview Outcome
+        create_outcome:
+          anyOf:
+          - type: string
+            enum:
+            - ACCEPTED
+            - REJECTED
+            - UNKNOWN
+          - type: 'null'
+          title: Create Outcome
+        cancel_outcome:
+          anyOf:
+          - type: string
+            enum:
+            - CANCELLED
+            - FILLED
+            - UNKNOWN
+          - type: 'null'
+          title: Cancel Outcome
+        exchange_order_id_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Exchange Order Id Sha256
+        exchange_order_id_withheld:
+          type: boolean
+          const: true
+          title: Exchange Order Id Withheld
+          default: true
+        diagnostic_code:
+          type: string
+          pattern: ^[a-z][a-z0-9_]{0,95}$
+          title: Diagnostic Code
+        correlation_id:
+          anyOf:
+          - type: string
+            pattern: ^[A-Za-z0-9._:-]{1,255}$
+          - type: 'null'
+          title: Correlation Id
+        command_idempotency_key_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Command Idempotency Key Sha256
+        command_identity_bound:
+          type: boolean
+          title: Command Identity Bound
+        command_cycle_status:
+          anyOf:
+          - type: string
+            enum:
+            - IN_FLIGHT
+            - COMPLETED
+          - type: 'null'
+          title: Command Cycle Status
+        command_cycle_phase:
+          anyOf:
+          - type: string
+            enum:
+            - REVEAL
+            - RESUME_CREATE
+            - CLOSEOUT
+          - type: 'null'
+          title: Command Cycle Phase
+        command_cycle_number:
+          anyOf:
+          - type: integer
+            maximum: 10.0
+            minimum: 1.0
+          - type: 'null'
+          title: Command Cycle Number
+        command_cycle_correlation_id:
+          anyOf:
+          - type: string
+            pattern: ^[A-Za-z0-9._:-]{1,255}$
+          - type: 'null'
+          title: Command Cycle Correlation Id
+        command_cycle_idempotency_key_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Command Cycle Idempotency Key Sha256
+        command_cycle_payload_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Command Cycle Payload Sha256
+        command_cycle_terminal_goal_state:
+          anyOf:
+          - type: string
+            enum:
+            - UNCONSUMED
+            - MATERIALIZING
+            - MATERIALIZED
+            - PREVIEW_CLAIMED
+            - PREVIEW_ACCEPTED
+            - PREVIEW_REJECTED
+            - PREVIEW_UNKNOWN
+            - CREATE_CLAIMED
+            - REVEALED
+            - CREATE_REJECTED
+            - CREATE_UNKNOWN
+            - CANCEL_CLAIMED
+            - CANCELLED
+            - FILLED
+            - CANCEL_UNKNOWN
+          - type: 'null'
+          title: Command Cycle Terminal Goal State
+        command_cycle_terminal_diagnostic_code:
+          anyOf:
+          - type: string
+            pattern: ^[a-z][a-z0-9_]{0,95}$
+          - type: 'null'
+          title: Command Cycle Terminal Diagnostic Code
+        command_cycle_preview_call_count:
+          anyOf:
+          - type: integer
+            maximum: 1.0
+            minimum: 0.0
+          - type: 'null'
+          title: Command Cycle Preview Call Count
+        command_cycle_create_call_count:
+          anyOf:
+          - type: integer
+            maximum: 1.0
+            minimum: 0.0
+          - type: 'null'
+          title: Command Cycle Create Call Count
+        command_cycle_cancel_call_count:
+          anyOf:
+          - type: integer
+            maximum: 1.0
+            minimum: 0.0
+          - type: 'null'
+          title: Command Cycle Cancel Call Count
+        command_cycle_read_call_count:
+          anyOf:
+          - type: integer
+            maximum: 31.0
+            minimum: 0.0
+          - type: 'null'
+          title: Command Cycle Read Call Count
+        command_cycle_evidence_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Command Cycle Evidence Sha256
+        execution_authority_enabled:
+          type: boolean
+          title: Execution Authority Enabled
+        allowed_actions:
+          items:
+            type: string
+            enum:
+            - REVEAL
+            - RESUME_ACCEPTED_CREATE
+            - CLOSEOUT
+          type: array
+          title: Allowed Actions
+        browser_authority:
+          type: string
+          const: display_and_forward_only
+          title: Browser Authority
+          default: display_and_forward_only
+        raw_response_persisted:
+          type: boolean
+          const: false
+          title: Raw Response Persisted
+          default: false
+        raw_exception_persisted:
+          type: boolean
+          const: false
+          title: Raw Exception Persisted
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - goal_id
+      - state
+      - definition_id
+      - definition_revision
+      - definition_sha256
+      - portfolio_scope_sha256
+      - client_order_id
+      - product_id
+      - side
+      - plan
+      - preview_allowance_consumed
+      - create_allowance_consumed
+      - cancel_allowance_consumed
+      - preview_call_count
+      - create_call_count
+      - cancel_call_count
+      - read_call_count
+      - preview_outcome
+      - create_outcome
+      - cancel_outcome
+      - diagnostic_code
+      - command_identity_bound
+      - execution_authority_enabled
+      - allowed_actions
+      title: OperatorStealthRevealExecutionResponse
+    OperatorStealthRevealPlanEvidence:
+      properties:
+        product_id:
+          type: string
+          title: Product Id
+        side:
+          type: string
+          enum:
+          - BUY
+          - SELL
+          title: Side
+        base_size:
+          type: string
+          title: Base Size
+        limit_price:
+          type: string
+          title: Limit Price
+        configured_limit_price:
+          type: string
+          title: Configured Limit Price
+        submitted_limit_price:
+          type: string
+          title: Submitted Limit Price
+        reveal_pricing_policy:
+          type: string
+          title: Reveal Pricing Policy
+        reveal_price_source:
+          type: string
+          title: Reveal Price Source
+        fallback_used:
+          type: boolean
+          const: false
+          title: Fallback Used
+        market_source:
+          type: string
+          title: Market Source
+        market_bid:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Market Bid
+        market_ask:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Market Ask
+        target_movement:
+          type: string
+          title: Target Movement
+        target_movement_type:
+          type: string
+          enum:
+          - P
+          - A
+          title: Target Movement Type
+        target_movement_source:
+          type: string
+          title: Target Movement Source
+        post_only:
+          type: boolean
+          title: Post Only
+      additionalProperties: false
+      type: object
+      required:
+      - product_id
+      - side
+      - base_size
+      - limit_price
+      - configured_limit_price
+      - submitted_limit_price
+      - reveal_pricing_policy
+      - reveal_price_source
+      - fallback_used
+      - market_source
+      - market_bid
+      - market_ask
+      - target_movement
+      - target_movement_type
+      - target_movement_source
+      - post_only
+      title: OperatorStealthRevealPlanEvidence
+    OperatorStealthRevealRequest:
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 1.0
+          title: Expected Revision
+        expected_definition_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Expected Definition Sha256
+        operator_reason:
+          type: string
+          maxLength: 240
+          minLength: 10
+          title: Operator Reason
+        confirm_operator_stealth_reveal:
+          type: boolean
+          const: true
+          title: Confirm Operator Stealth Reveal
+      additionalProperties: false
+      type: object
+      required:
+      - expected_revision
+      - expected_definition_sha256
+      - operator_reason
+      - confirm_operator_stealth_reveal
+      title: OperatorStealthRevealRequest
     OrderOwnershipProvenance:
       type: string
       enum:

@@ -1,5 +1,14 @@
 # Admin Module Capability Matrix
 
+Active independent sequential goal
+`operator_stealth_reveal_and_exact_closeout_v1` adds one explicit
+operator-controlled runtime transition for an eligible Goal 5 definition.
+PostgreSQL owns exact definition/runtime/portfolio/plan identity, ten combined
+command cycles, no-retry read claims, one-use Preview/Create/Cancel
+allowances, and restart recovery. The canonical manager suppresses automatic
+reveal, rejects post-Preview reads, retries, repricing, and payload drift, and
+defers local closeout until authoritative exact-order terminal evidence.
+
 Completed independent goal `operator_stealth_definition_lifecycle_v1` adds
 PostgreSQL-backed Stealth definition list/detail/create/edit/cancel, exact-set
 clear/export, durable preview/apply import, runtime-state interlocks, and fixed

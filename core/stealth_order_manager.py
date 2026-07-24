@@ -61,6 +61,7 @@ Example: evaluate and reveal from scheduler loop
 
 
 import copy
+import hashlib
 import uuid
 import json
 import time
@@ -250,6 +251,72 @@ class ControlledAdminChildRevealAuthority:
     batch_id: str
     batch_slot: int
     controlled_plan_sha256: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class OperatorStealthRevealAuthority:
+    """One-use in-process authority for one Preview-accepted operator reveal."""
+
+    stealth_order_id: str
+    definition_revision: int
+    definition_sha256: str
+    portfolio_id: str
+    preview_claim_id: str
+    plan_sha256: str
+    prepreview_admission_sha256: str
+    client_order_id: str
+    product_id: str
+    side: str
+    base_size: str
+    limit_price: str
+    post_only: bool
+    plan: Any
+    reveal_plan: Any
+    reveal_plan_sha256: str
+    authority_id: str
+
+
+_OPERATOR_STEALTH_PLAN_FIELDS = frozenset(
+    {
+        "product_id",
+        "side",
+        "base_size",
+        "limit_price",
+        "configured_limit_price",
+        "submitted_limit_price",
+        "reveal_pricing_policy",
+        "reveal_price_source",
+        "fallback_used",
+        "market_source",
+        "market_bid",
+        "market_ask",
+        "target_movement",
+        "target_movement_type",
+        "target_movement_source",
+        "post_only",
+    }
+)
+
+
+def _operator_stealth_decimal_text(value: Any) -> str:
+    number = Decimal(str(value))
+    if not number.is_finite():
+        raise ValueError("operator_stealth_decimal_invalid")
+    text = format(number, "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text
+
+
+@dataclass(frozen=True)
+class OperatorStealthMaterializationContext:
+    """Exact backend audit binding for one definition-to-runtime transition."""
+
+    definition_revision: int
+    definition_sha256: str
+    portfolio_id: str
+    correlation_id: str
+    audit_id: str
 
 
 class StealthOrderManager:
@@ -2624,13 +2691,17 @@ class StealthOrderManager:
         limit_price: float,
         stealth_order_id: Optional[str] = None,
         parent_order_id: Optional[str] = None,
+        wallet_fetcher: Optional[Callable[[], Dict[str, Any]]] = None,
     ) -> Tuple[bool, Optional[Dict[str, Any]]]:
         """Evaluate account/action conditions for a planned or revealed action."""
         policy = self._get_action_condition_guard_policy()
         return ActionConditionGuard(
             policy=policy,
             credentials_configured=self._rest_credentials_configured,
-            wallet_fetcher=self._get_account_wallets_for_action_guard,
+            wallet_fetcher=(
+                wallet_fetcher
+                or self._get_account_wallets_for_action_guard
+            ),
             planned_budget_fetcher=(
                 lambda: self._get_spot_planned_budget_commitments(
                     exclude_stealth_order_id=stealth_order_id,
@@ -3134,7 +3205,18 @@ class StealthOrderManager:
             from integration.stealth_lifecycle_hooks import (
                 get_global_stealth_lifecycle_hook_registry,
             )
-            market_data = self._get_current_market_data(order_data.get("product_id", ""))
+            operator_manual_reveal = bool(
+                (order_data.get("reveal_condition_json") or {}).get(
+                    "operator_manual_reveal_required"
+                )
+            )
+            market_data = (
+                {}
+                if operator_manual_reveal
+                else self._get_current_market_data(
+                    order_data.get("product_id", "")
+                )
+            )
             market_bid = market_data.get("bid")
             market_ask = market_data.get("ask")
             market_spread = market_data.get("market_spread")
@@ -3214,6 +3296,9 @@ class StealthOrderManager:
         cancel_reentry_policy: Optional[Dict[str, Any]] = None,
         post_fill_retreat_policy: Optional[Dict[str, Any]] = None,
         require_persistence: bool = False,
+        operator_materialization_context: Optional[
+            OperatorStealthMaterializationContext
+        ] = None,
     ) -> str:
         """
         Create an order with automated reveal condition.
@@ -3302,6 +3387,35 @@ class StealthOrderManager:
         if not stealth_order_id:
             stealth_order_id = str(uuid.uuid4())
 
+        if operator_materialization_context is not None:
+            expected_portfolio_id = str(
+                getattr(self, "expected_retail_portfolio_id", None) or ""
+            ).strip()
+            if (
+                not isinstance(
+                    operator_materialization_context,
+                    OperatorStealthMaterializationContext,
+                )
+                or parent_order_id is not None
+                or not require_persistence
+                or reason != "operator_stealth_definition"
+                or not bool(
+                    (reveal_condition or {}).get(
+                        "operator_manual_reveal_required"
+                    )
+                )
+                or not expected_portfolio_id
+                or operator_materialization_context.portfolio_id
+                != expected_portfolio_id
+                or int(max_order_replacements or 0) != 0
+                or bool(allow_partial_fills)
+                or bool(enable_hotpoint_replication)
+                or bool(cancel_reentry_policy)
+            ):
+                raise ValueError(
+                    "operator_stealth_materialization_context_invalid"
+                )
+
         # Boundary validation: snap size to base_increment AND verify
         # base_min_size / quote_min_size before any DB write or in-memory
         # registration. Mirrors the price-quantize pattern used at reveal
@@ -3360,15 +3474,20 @@ class StealthOrderManager:
                     capability=capability.to_dict(),
                 )
 
-        action_guard_ok, action_guard_failure = self._evaluate_action_condition_guard(
-            phase=ActionGuardPhase.PLANNING,
-            product_id=product_id,
-            side=side,
-            size=float(total_size),
-            limit_price=float(limit_price),
-            stealth_order_id=stealth_order_id,
-            parent_order_id=parent_order_id,
-        )
+        if operator_materialization_context is not None:
+            action_guard_ok, action_guard_failure = True, None
+        else:
+            action_guard_ok, action_guard_failure = (
+                self._evaluate_action_condition_guard(
+                    phase=ActionGuardPhase.PLANNING,
+                    product_id=product_id,
+                    side=side,
+                    size=float(total_size),
+                    limit_price=float(limit_price),
+                    stealth_order_id=stealth_order_id,
+                    parent_order_id=parent_order_id,
+                )
+            )
         if not action_guard_ok:
             self.log_callback("warning", {
                 "event": "stealth_order_planning_blocked_by_action_guard",
@@ -3436,6 +3555,11 @@ class StealthOrderManager:
             "cancel_reentry_policy_json": normalized_cancel_reentry_policy,
             "cancel_reentry_state_json": self._normalize_cancel_reentry_state(None),
             "post_fill_retreat_policy_json": normalized_post_fill_retreat_policy,
+            "max_order_replacements": (
+                max_order_replacements
+                if max_order_replacements is not None
+                else DEFAULT_MAX_ORDER_REPLACEMENT
+            ),
         }
         
         def insert_tracking_row() -> Optional[int]:
@@ -3475,7 +3599,24 @@ class StealthOrderManager:
                 enable_hotpoint_replication=enable_hotpoint_replication,
             )
 
-        if require_persistence:
+        if operator_materialization_context is not None:
+            from database.order import persist_operator_stealth_root_atomic
+
+            context = operator_materialization_context
+            self._persist_new_stealth_order_strict(
+                order_data,
+                persist_rows=lambda: persist_operator_stealth_root_atomic(
+                    order=order_data,
+                    target_movement=target_movement,
+                    target_movement_type=target_movement_type,
+                    portfolio_id=context.portfolio_id,
+                    correlation_id=context.correlation_id,
+                    audit_id=context.audit_id,
+                    definition_revision=context.definition_revision,
+                    definition_sha256=context.definition_sha256,
+                ),
+            )
+        elif require_persistence:
             self._persist_new_stealth_order_strict(
                 order_data,
                 persist_rows=lambda: persist_filled_follow_up_atomic(
@@ -3594,6 +3735,13 @@ class StealthOrderManager:
         
         if not order:
             return False, "Order not found"
+
+        if bool(
+            (order.get("reveal_condition_json") or {}).get(
+                "operator_manual_reveal_required"
+            )
+        ):
+            return False, "Operator confirmation is required"
         
         if order["status"] in [StealthOrderStatus.EXECUTED.value, StealthOrderStatus.CANCELLED.value]:
             return False, f"Order already {order['status']}"
@@ -3828,6 +3976,513 @@ class StealthOrderManager:
             self._controlled_admin_child_reveal_authorities = issued
         issued[authority_id] = authority
         return authority
+
+    @staticmethod
+    def operator_prepreview_admission_sha256(
+        *,
+        stealth_order_id: str,
+        definition_revision: int,
+        definition_sha256: str,
+        portfolio_id: str,
+        plan_sha256: str,
+        product_id: str,
+        side: str,
+        base_size: str,
+        limit_price: str,
+        post_only: bool,
+    ) -> str:
+        payload = {
+            "admission": "operator_stealth_reveal_guard_passed",
+            "stealth_order_id": str(stealth_order_id),
+            "client_order_id": str(stealth_order_id),
+            "definition_revision": int(definition_revision),
+            "definition_sha256": str(definition_sha256),
+            "portfolio_id": str(portfolio_id),
+            "plan_sha256": str(plan_sha256),
+            "product_id": str(product_id),
+            "side": str(side).upper(),
+            "base_size": str(base_size),
+            "limit_price": str(limit_price),
+            "post_only": bool(post_only),
+        }
+        canonical = json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return hashlib.sha256(canonical.encode()).hexdigest()
+
+    def prepare_operator_stealth_reveal(
+        self,
+        *,
+        stealth_order_id: str,
+        definition_revision: int,
+        definition_sha256: str,
+        portfolio_id: str,
+        preview_claim_id: str,
+        plan_sha256: str,
+        prepreview_admission_sha256: str,
+        plan: Dict[str, Any],
+        reveal_plan: Any,
+    ) -> OperatorStealthRevealAuthority:
+        """Issue one frozen-plan capability for an explicit operator reveal."""
+
+        order_id = str(stealth_order_id or "").strip()
+        expected_portfolio_id = str(
+            getattr(self, "expected_retail_portfolio_id", None) or ""
+        ).strip()
+        order = self._get_stealth_order(order_id)
+        if (
+            not isinstance(order, dict)
+            or str(order.get("stealth_order_id") or "") != order_id
+            or str(order.get("status") or "").upper()
+            not in {
+                StealthOrderStatus.HIDDEN.value,
+                StealthOrderStatus.PENDING.value,
+                StealthOrderStatus.TRIGGERED.value,
+            }
+            or not bool(
+                (order.get("reveal_condition_json") or {}).get(
+                    "operator_manual_reveal_required"
+                )
+            )
+            or list(order.get("revealed_orders") or [])
+            or (safe_float(order.get("revealed_size"), default=0.0) or 0.0)
+            != 0.0
+            or (safe_float(order.get("executed_size"), default=0.0) or 0.0)
+            != 0.0
+        ):
+            raise ValueError("operator_stealth_order_not_revealable")
+        if (
+            not expected_portfolio_id
+            or str(portfolio_id or "").strip() != expected_portfolio_id
+        ):
+            raise ValueError("operator_stealth_portfolio_mismatch")
+        if (
+            not isinstance(definition_revision, int)
+            or isinstance(definition_revision, bool)
+            or definition_revision < 1
+        ):
+            raise ValueError("operator_stealth_definition_revision_invalid")
+        for value, code in (
+            (definition_sha256, "operator_stealth_definition_hash_invalid"),
+            (plan_sha256, "operator_stealth_plan_hash_invalid"),
+            (
+                prepreview_admission_sha256,
+                "operator_stealth_prepreview_admission_hash_invalid",
+            ),
+        ):
+            if (
+                not isinstance(value, str)
+                or len(value) != 64
+                or any(
+                    character not in "0123456789abcdef"
+                    for character in value
+                )
+            ):
+                raise ValueError(code)
+        if not str(preview_claim_id or "").strip():
+            raise ValueError("operator_stealth_preview_claim_invalid")
+        if (
+            not isinstance(plan, dict)
+            or set(plan) != _OPERATOR_STEALTH_PLAN_FIELDS
+            or str(plan.get("product_id") or "")
+            != str(order.get("product_id") or "")
+            or str(plan.get("side") or "").upper()
+            != str(order.get("side") or "").upper()
+            or str(stealth_order_id) != order_id
+            or plan.get("post_only") is not True
+        ):
+            raise ValueError("operator_stealth_plan_binding_invalid")
+        try:
+            plan_size = Decimal(str(plan["base_size"]))
+            plan_price = Decimal(str(plan["limit_price"]))
+            order_size = Decimal(str(order["total_size"]))
+            canonical_plan_sha256 = hashlib.sha256(
+                json.dumps(
+                    plan,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode()
+            ).hexdigest()
+        except (InvalidOperation, KeyError, TypeError, ValueError):
+            raise ValueError("operator_stealth_plan_binding_invalid") from None
+        if (
+            not plan_size.is_finite()
+            or plan_size <= 0
+            or plan_size != order_size
+            or not plan_price.is_finite()
+            or plan_price <= 0
+            or canonical_plan_sha256 != plan_sha256
+        ):
+            raise ValueError("operator_stealth_plan_binding_invalid")
+        expected_admission_sha256 = (
+            self.operator_prepreview_admission_sha256(
+                stealth_order_id=order_id,
+                definition_revision=definition_revision,
+                definition_sha256=definition_sha256,
+                portfolio_id=expected_portfolio_id,
+                plan_sha256=plan_sha256,
+                product_id=str(plan["product_id"]),
+                side=str(plan["side"]),
+                base_size=str(plan["base_size"]),
+                limit_price=str(plan["limit_price"]),
+                post_only=bool(plan["post_only"]),
+            )
+        )
+        if prepreview_admission_sha256 != expected_admission_sha256:
+            raise ValueError(
+                "operator_stealth_prepreview_admission_mismatch"
+            )
+        required_plan_fields = (
+            "configured_limit_price",
+            "submitted_limit_price",
+            "reveal_pricing_policy",
+            "reveal_price_source",
+            "fallback_used",
+            "market_source",
+            "market_bid",
+            "market_ask",
+            "target_movement",
+            "target_movement_type",
+            "target_movement_source",
+            "post_only",
+        )
+        if any(
+            not hasattr(reveal_plan, field)
+            for field in required_plan_fields
+        ):
+            raise ValueError("operator_stealth_reveal_plan_invalid")
+        try:
+            reveal_plan_payload = {
+                "configured_limit_price": str(
+                    _operator_stealth_decimal_text(
+                        reveal_plan.configured_limit_price
+                    )
+                ),
+                "submitted_limit_price": str(
+                    _operator_stealth_decimal_text(
+                        reveal_plan.submitted_limit_price
+                    )
+                ),
+                "reveal_pricing_policy": str(
+                    reveal_plan.reveal_pricing_policy
+                ).lower(),
+                "reveal_price_source": str(
+                    reveal_plan.reveal_price_source
+                ),
+                "fallback_used": bool(reveal_plan.fallback_used),
+                "market_source": str(reveal_plan.market_source or ""),
+                "market_bid": (
+                    None
+                    if reveal_plan.market_bid is None
+                    else _operator_stealth_decimal_text(
+                        reveal_plan.market_bid
+                    )
+                ),
+                "market_ask": (
+                    None
+                    if reveal_plan.market_ask is None
+                    else _operator_stealth_decimal_text(
+                        reveal_plan.market_ask
+                    )
+                ),
+                "target_movement": (
+                    None
+                    if reveal_plan.target_movement is None
+                    else _operator_stealth_decimal_text(
+                        reveal_plan.target_movement
+                    )
+                ),
+                "target_movement_type": (
+                    None
+                    if reveal_plan.target_movement_type is None
+                    else str(reveal_plan.target_movement_type).upper()
+                ),
+                "target_movement_source": (
+                    None
+                    if reveal_plan.target_movement_source is None
+                    else str(reveal_plan.target_movement_source)
+                ),
+                "post_only": bool(reveal_plan.post_only),
+            }
+            configured_price = Decimal(
+                reveal_plan_payload["configured_limit_price"]
+            )
+            submitted_price = Decimal(
+                reveal_plan_payload["submitted_limit_price"]
+            )
+            plan_price = Decimal(str(plan["limit_price"]))
+            order_price = Decimal(str(order["limit_price"]))
+            plan_target = Decimal(str(plan["target_movement"]))
+            order_target = Decimal(str(order["target_movement"]))
+        except (AttributeError, InvalidOperation, KeyError, TypeError, ValueError):
+            raise ValueError(
+                "operator_stealth_reveal_plan_mismatch"
+            ) from None
+        if (
+            not configured_price.is_finite()
+            or configured_price != order_price
+            or not submitted_price.is_finite()
+            or submitted_price != plan_price
+            or reveal_plan_payload["configured_limit_price"]
+            != str(plan["configured_limit_price"])
+            or reveal_plan_payload["submitted_limit_price"]
+            != str(plan["submitted_limit_price"])
+            or reveal_plan_payload["reveal_pricing_policy"]
+            != str(plan["reveal_pricing_policy"])
+            or reveal_plan_payload["reveal_price_source"]
+            != str(plan["reveal_price_source"])
+            or reveal_plan_payload["fallback_used"]
+            is not plan["fallback_used"]
+            or reveal_plan_payload["market_source"]
+            != str(plan["market_source"])
+            or reveal_plan_payload["market_bid"] != plan["market_bid"]
+            or reveal_plan_payload["market_ask"] != plan["market_ask"]
+            or reveal_plan_payload["target_movement"]
+            != str(plan["target_movement"])
+            or reveal_plan_payload["target_movement_type"]
+            != str(plan["target_movement_type"]).upper()
+            or reveal_plan_payload["target_movement_source"]
+            != str(plan["target_movement_source"])
+            or reveal_plan_payload["post_only"] is not bool(
+                plan["post_only"]
+            )
+            or reveal_plan_payload["reveal_pricing_policy"]
+            != str(order.get("reveal_pricing_policy") or "").lower()
+            or reveal_plan_payload["reveal_price_source"]
+            not in {"best_bid", "operator_preview_bound"}
+            or reveal_plan_payload["fallback_used"] is not False
+            or not plan_target.is_finite()
+            or plan_target <= 0
+            or plan_target != order_target
+            or str(plan["target_movement_type"]).upper()
+            != str(order.get("target_movement_type") or "").upper()
+            or not str(plan["target_movement_source"] or "").strip()
+        ):
+            raise ValueError("operator_stealth_reveal_plan_mismatch")
+        reveal_plan_sha256 = hashlib.sha256(
+            json.dumps(
+                reveal_plan_payload,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest()
+        frozen_reveal_plan = copy.deepcopy(reveal_plan)
+
+        authority_id = str(uuid.uuid4())
+        authority = OperatorStealthRevealAuthority(
+            stealth_order_id=order_id,
+            definition_revision=definition_revision,
+            definition_sha256=definition_sha256,
+            portfolio_id=expected_portfolio_id,
+            preview_claim_id=str(preview_claim_id),
+            plan_sha256=plan_sha256,
+            prepreview_admission_sha256=(
+                prepreview_admission_sha256
+            ),
+            client_order_id=order_id,
+            product_id=str(plan["product_id"]),
+            side=str(plan["side"]).upper(),
+            base_size=str(plan["base_size"]),
+            limit_price=str(plan["limit_price"]),
+            post_only=bool(plan["post_only"]),
+            plan=copy.deepcopy(plan),
+            reveal_plan=frozen_reveal_plan,
+            reveal_plan_sha256=reveal_plan_sha256,
+            authority_id=authority_id,
+        )
+        issued = getattr(self, "_operator_stealth_reveal_authorities", None)
+        if not isinstance(issued, dict):
+            issued = {}
+            self._operator_stealth_reveal_authorities = issued
+        issued[authority_id] = authority
+        return authority
+
+    def _consume_operator_stealth_reveal_authority(
+        self,
+        *,
+        stealth_order_id: str,
+        order: Dict[str, Any],
+        authority: Optional[OperatorStealthRevealAuthority],
+    ) -> Tuple[bool, Optional[Any], Optional[str]]:
+        """Consume one exact manager-issued operator reveal capability."""
+
+        if authority is None:
+            return False, None, "operator_stealth_authority_required"
+        if not isinstance(authority, OperatorStealthRevealAuthority):
+            return False, None, "operator_stealth_authority_type_mismatch"
+        issued = getattr(self, "_operator_stealth_reveal_authorities", None)
+        issued = issued if isinstance(issued, dict) else {}
+        registered = issued.pop(authority.authority_id, None)
+        if registered is not authority:
+            return False, None, "operator_stealth_authority_not_issued"
+        if (
+            authority.stealth_order_id != stealth_order_id
+            or authority.client_order_id != stealth_order_id
+            or str(order.get("stealth_order_id") or "") != stealth_order_id
+            or str(order.get("product_id") or "") != authority.product_id
+            or str(order.get("side") or "").upper() != authority.side
+            or str(order.get("status") or "").upper()
+            not in {
+                StealthOrderStatus.HIDDEN.value,
+                StealthOrderStatus.PENDING.value,
+                StealthOrderStatus.TRIGGERED.value,
+            }
+            or not bool(
+                (order.get("reveal_condition_json") or {}).get(
+                    "operator_manual_reveal_required"
+                )
+            )
+            or list(order.get("revealed_orders") or [])
+            or str(authority.portfolio_id)
+            != str(getattr(self, "expected_retail_portfolio_id", None) or "")
+        ):
+            return False, None, "operator_stealth_authority_order_mismatch"
+        try:
+            order_size = Decimal(str(order.get("total_size")))
+            authority_size = Decimal(authority.base_size)
+            authority_price = Decimal(authority.limit_price)
+            reveal_plan_payload = {
+                "configured_limit_price": str(
+                    _operator_stealth_decimal_text(
+                        authority.reveal_plan.configured_limit_price
+                    )
+                ),
+                "submitted_limit_price": str(
+                    _operator_stealth_decimal_text(
+                        authority.reveal_plan.submitted_limit_price
+                    )
+                ),
+                "reveal_pricing_policy": str(
+                    authority.reveal_plan.reveal_pricing_policy
+                ).lower(),
+                "reveal_price_source": str(
+                    authority.reveal_plan.reveal_price_source
+                ),
+                "fallback_used": bool(
+                    authority.reveal_plan.fallback_used
+                ),
+                "market_source": str(
+                    authority.reveal_plan.market_source or ""
+                ),
+                "market_bid": (
+                    None
+                    if authority.reveal_plan.market_bid is None
+                    else str(
+                        _operator_stealth_decimal_text(
+                            authority.reveal_plan.market_bid
+                        )
+                    )
+                ),
+                "market_ask": (
+                    None
+                    if authority.reveal_plan.market_ask is None
+                    else str(
+                        _operator_stealth_decimal_text(
+                            authority.reveal_plan.market_ask
+                        )
+                    )
+                ),
+                "target_movement": (
+                    None
+                    if authority.reveal_plan.target_movement is None
+                    else _operator_stealth_decimal_text(
+                        authority.reveal_plan.target_movement
+                    )
+                ),
+                "target_movement_type": (
+                    None
+                    if authority.reveal_plan.target_movement_type is None
+                    else str(
+                        authority.reveal_plan.target_movement_type
+                    ).upper()
+                ),
+                "target_movement_source": (
+                    None
+                    if authority.reveal_plan.target_movement_source is None
+                    else str(
+                        authority.reveal_plan.target_movement_source
+                    )
+                ),
+                "post_only": bool(authority.reveal_plan.post_only),
+            }
+            authority_plan = dict(authority.plan)
+            authority_plan_sha256 = hashlib.sha256(
+                json.dumps(
+                    authority_plan,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode()
+            ).hexdigest()
+            reveal_plan_sha256 = hashlib.sha256(
+                json.dumps(
+                    reveal_plan_payload,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode()
+            ).hexdigest()
+        except (
+            AttributeError,
+            InvalidOperation,
+            KeyError,
+            TypeError,
+            ValueError,
+        ):
+            return False, None, "operator_stealth_authority_order_mismatch"
+        if (
+            order_size != authority_size
+            or not authority_size.is_finite()
+            or authority_size <= 0
+            or not authority_price.is_finite()
+            or authority_price <= 0
+            or authority.post_only is not True
+            or Decimal(
+                reveal_plan_payload["submitted_limit_price"]
+            )
+            != authority_price
+            or reveal_plan_payload["post_only"] is not authority.post_only
+            or reveal_plan_sha256 != authority.reveal_plan_sha256
+            or authority_plan_sha256 != authority.plan_sha256
+            or set(authority_plan) != _OPERATOR_STEALTH_PLAN_FIELDS
+            or reveal_plan_payload["configured_limit_price"]
+            != authority_plan["configured_limit_price"]
+            or reveal_plan_payload["submitted_limit_price"]
+            != authority_plan["submitted_limit_price"]
+            or reveal_plan_payload["reveal_pricing_policy"]
+            != authority_plan["reveal_pricing_policy"]
+            or reveal_plan_payload["reveal_price_source"]
+            != authority_plan["reveal_price_source"]
+            or reveal_plan_payload["fallback_used"]
+            is not authority_plan["fallback_used"]
+            or reveal_plan_payload["market_source"]
+            != authority_plan["market_source"]
+            or reveal_plan_payload["market_bid"]
+            != authority_plan["market_bid"]
+            or reveal_plan_payload["market_ask"]
+            != authority_plan["market_ask"]
+            or reveal_plan_payload["target_movement"]
+            != authority_plan["target_movement"]
+            or reveal_plan_payload["target_movement_type"]
+            != authority_plan["target_movement_type"]
+            or reveal_plan_payload["target_movement_source"]
+            != authority_plan["target_movement_source"]
+            or authority.prepreview_admission_sha256
+            != self.operator_prepreview_admission_sha256(
+                stealth_order_id=stealth_order_id,
+                definition_revision=authority.definition_revision,
+                definition_sha256=authority.definition_sha256,
+                portfolio_id=authority.portfolio_id,
+                plan_sha256=authority.plan_sha256,
+                product_id=authority.product_id,
+                side=authority.side,
+                base_size=authority.base_size,
+                limit_price=authority.limit_price,
+                post_only=authority.post_only,
+            )
+        ):
+            return False, None, "operator_stealth_authority_plan_mismatch"
+        return True, authority.reveal_plan, None
 
     def _consume_controlled_admin_child_reveal_authority(
         self,
@@ -4207,6 +4862,10 @@ class StealthOrderManager:
         controlled_admin_authority: Optional[
             ControlledAdminChildRevealAuthority
         ] = None,
+        operator_stealth_authority: Optional[
+            OperatorStealthRevealAuthority
+        ] = None,
+        before_create_call: Optional[Callable[[], None]] = None,
     ) -> Optional[str]:
         """Reveal next slice of hidden order based on adaptive sizing.
         
@@ -4232,6 +4891,31 @@ class StealthOrderManager:
                 raise RevealOrderSliceError(
                     f"Stealth order not found: {stealth_order_id}"
                 )
+            operator_manual_reveal_required = bool(
+                (order.get("reveal_condition_json") or {}).get(
+                    "operator_manual_reveal_required"
+                )
+            )
+            if (
+                operator_manual_reveal_required
+                and (
+                    operator_stealth_authority is None
+                    or before_create_call is None
+                )
+            ):
+                self.log_callback(
+                    "warning",
+                    {
+                        "event": "operator_stealth_reveal_blocked",
+                        "stealth_order_id": stealth_order_id,
+                        "block_category": (
+                            "operator_stealth_call_claim_required"
+                            if operator_stealth_authority is not None
+                            else "operator_stealth_authority_required"
+                        ),
+                    },
+                )
+                return None
 
             controlled_preparation = (
                 (order.get("anchor_repricing_state_json") or {}).get(
@@ -4240,6 +4924,31 @@ class StealthOrderManager:
                 or None
             )
             controlled_capability_bypass = False
+            operator_explicit_reveal = False
+            frozen_operator_reveal_plan = None
+            if operator_stealth_authority is not None:
+                (
+                    operator_explicit_reveal,
+                    frozen_operator_reveal_plan,
+                    operator_authority_blocker,
+                ) = self._consume_operator_stealth_reveal_authority(
+                    stealth_order_id=stealth_order_id,
+                    order=order,
+                    authority=operator_stealth_authority,
+                )
+                if not operator_explicit_reveal:
+                    self.log_callback(
+                        "warning",
+                        {
+                            "event": "operator_stealth_reveal_blocked",
+                            "stealth_order_id": stealth_order_id,
+                            "block_category": (
+                                operator_authority_blocker
+                                or "operator_stealth_authority_rejected"
+                            ),
+                        },
+                    )
+                    return None
             if (
                 controlled_preparation is not None
                 or controlled_admin_authority is not None
@@ -4276,7 +4985,12 @@ class StealthOrderManager:
             
             # Calculate slice size (delegates to RevealStrategy in
             # business/stealth_reveal_strategy.py).
-            slice_size = self._calculate_reveal_size(order)
+            slice_size = (
+                float(Decimal(operator_stealth_authority.base_size))
+                if operator_explicit_reveal
+                and operator_stealth_authority is not None
+                else self._calculate_reveal_size(order)
+            )
 
             if slice_size <= 0:
                 # Throttled diagnostic so a tranche-iceberg lock or a
@@ -4289,7 +5003,11 @@ class StealthOrderManager:
             
             # === PHASE 1: Build reveal execution plan ===
             # Determines what price to use for reveal based on policy and market conditions
-            reveal_plan = self.build_reveal_execution_plan(stealth_order_id)
+            reveal_plan = (
+                frozen_operator_reveal_plan
+                if operator_explicit_reveal
+                else self.build_reveal_execution_plan(stealth_order_id)
+            )
             if not reveal_plan:
                 raise RevealOrderSliceError(
                     "Failed to build reveal execution plan",
@@ -4328,7 +5046,11 @@ class StealthOrderManager:
                     self.log_callback("warning", {
                         "event": "stealth_order_profitability_validation_failed",
                         "stealth_order_id": stealth_order_id,
-                        "reason": str(e),
+                        "reason": (
+                            "operator_stealth_profitability_unavailable"
+                            if operator_explicit_reveal
+                            else str(e)
+                        ),
                         "fallback_used": e.fallback_used,
                         "suppressed_repeats": suppressed_repeats,
                         "reveal_pricing_policy": getattr(
@@ -4347,7 +5069,11 @@ class StealthOrderManager:
                         event=StealthLifecycleEvent.PLACEMENT_BLOCKED,
                         order_data=order,
                         extra={
-                            "failure_reason": str(e),
+                            "failure_reason": (
+                                "operator_stealth_profitability_unavailable"
+                                if operator_explicit_reveal
+                                else str(e)
+                            ),
                             "block_category": "unprofitable_at_reveal",
                             "fallback_used": e.fallback_used,
                             "suppressed_repeats": suppressed_repeats,
@@ -4361,6 +5087,7 @@ class StealthOrderManager:
             if (
                 blocked_until > time.monotonic()
                 and not controlled_capability_bypass
+                and not operator_explicit_reveal
             ):
                 return None
 
@@ -4433,15 +5160,22 @@ class StealthOrderManager:
                 )
                 return None
 
-            action_guard_ok, action_guard_failure = self._evaluate_action_condition_guard(
-                phase=ActionGuardPhase.REVEAL,
-                product_id=order["product_id"],
-                side=order["side"],
-                size=float(slice_size),
-                limit_price=float(reveal_plan.submitted_limit_price),
-                stealth_order_id=stealth_order_id,
-                parent_order_id=order.get("parent_order_id"),
-            )
+            if operator_explicit_reveal:
+                action_guard_ok, action_guard_failure = True, None
+            else:
+                action_guard_ok, action_guard_failure = (
+                    self._evaluate_action_condition_guard(
+                        phase=ActionGuardPhase.REVEAL,
+                        product_id=order["product_id"],
+                        side=order["side"],
+                        size=float(slice_size),
+                        limit_price=float(
+                            reveal_plan.submitted_limit_price
+                        ),
+                        stealth_order_id=stealth_order_id,
+                        parent_order_id=order.get("parent_order_id"),
+                    )
+                )
             if not action_guard_ok:
                 self._set_action_guard_blocked_until(stealth_order_id)
                 self.log_callback("warning", {
@@ -4465,7 +5199,11 @@ class StealthOrderManager:
             self.log_callback("error", {
                 "event": "stealth_order_slice_error",
                 "stealth_order_id": stealth_order_id,
-                "error": str(e),
+                "error": (
+                    "operator_stealth_reveal_slice_failed"
+                    if operator_explicit_reveal
+                    else str(e)
+                ),
             })
             raise
         except RevealPricingError as e:
@@ -4473,7 +5211,11 @@ class StealthOrderManager:
             self.log_callback("error", {
                 "event": "stealth_order_reveal_pricing_error",
                 "stealth_order_id": stealth_order_id,
-                "error": str(e),
+                "error": (
+                    "operator_stealth_reveal_pricing_failed"
+                    if operator_explicit_reveal
+                    else str(e)
+                ),
                 "fallback_used": e.fallback_used,
             })
             raise
@@ -4487,8 +5229,14 @@ class StealthOrderManager:
         client_order_id = None
         exchange_placement_succeeded = False
         
-        # Get full market data (includes price, volume, source) - separate from plan's pricing decision
-        market_data = self._get_current_market_data(order["product_id"]) or {}
+        # An operator Preview freezes the complete pricing decision.  Do not
+        # perform a later market read at the Create boundary; it would be both
+        # unaccounted and incapable of changing the accepted payload.
+        market_data = (
+            {}
+            if operator_explicit_reveal
+            else self._get_current_market_data(order["product_id"]) or {}
+        )
         market_bid = reveal_plan.market_bid or market_data.get("bid")
         market_ask = reveal_plan.market_ask or market_data.get("ask")
         market_spread = None
@@ -4501,7 +5249,12 @@ class StealthOrderManager:
         try:
             from configuration import REST_CLIENT
             
-            client_order_id = self._placement_client_order_id_for_order(order)
+            client_order_id = (
+                operator_stealth_authority.client_order_id
+                if operator_explicit_reveal
+                and operator_stealth_authority is not None
+                else self._placement_client_order_id_for_order(order)
+            )
             
             order_for_submission = self._build_reveal_order_submission_payload(
                 order=order,
@@ -4510,6 +5263,30 @@ class StealthOrderManager:
                 slice_size=slice_size,
                 client_order_id=client_order_id,
             )
+            if (
+                operator_explicit_reveal
+                and operator_stealth_authority is not None
+            ):
+                order_for_submission.update(
+                    {
+                        "product_id": (
+                            operator_stealth_authority.product_id
+                        ),
+                        "side": operator_stealth_authority.side,
+                        "base_size": (
+                            operator_stealth_authority.base_size
+                        ),
+                        "limit_price": (
+                            operator_stealth_authority.limit_price
+                        ),
+                        "client_order_id": (
+                            operator_stealth_authority.client_order_id
+                        ),
+                        "post_only": (
+                            operator_stealth_authority.post_only
+                        ),
+                    }
+                )
             # Capture the durable direct-child policy before extension hooks.
             # The hook payload intentionally contains the reveal-condition
             # mapping for enrichment, so reading the policy from ``order``
@@ -4548,7 +5325,11 @@ class StealthOrderManager:
             except Exception as hook_error:
                 # Hook validation failed - don't submit order
                 placed_order_id = str(uuid.uuid4())  # Fallback for tracking
-                placement_error = f"Pre-submission hook blocked: {str(hook_error)}"
+                placement_error = (
+                    "operator_stealth_pre_submission_blocked"
+                    if operator_explicit_reveal
+                    else f"Pre-submission hook blocked: {str(hook_error)}"
+                )
                 placement_success = False
                 
                 self.log_callback("warning", {
@@ -4594,7 +5375,10 @@ class StealthOrderManager:
                 self._record_reveal_event(order, reveal_event)
                 return None
 
-            if admin_child_authority.get("required"):
+            if (
+                admin_child_authority.get("required")
+                or operator_explicit_reveal
+            ):
                 observed_submission_fields = {
                     "product_id": str(
                         order_for_submission.get("product_id") or ""
@@ -4624,7 +5408,85 @@ class StealthOrderManager:
                     for field, expected_value in immutable_submission_fields.items()
                     if observed_submission_fields.get(field) != expected_value
                 )
+                if (
+                    operator_explicit_reveal
+                    and operator_stealth_authority is not None
+                ):
+                    exact_operator_terms = {
+                        "product_id": (
+                            operator_stealth_authority.product_id
+                        ),
+                        "side": operator_stealth_authority.side,
+                        "base_size": (
+                            operator_stealth_authority.base_size
+                        ),
+                        "limit_price": (
+                            operator_stealth_authority.limit_price
+                        ),
+                        "client_order_id": (
+                            operator_stealth_authority.client_order_id
+                        ),
+                        "post_only": (
+                            operator_stealth_authority.post_only
+                        ),
+                    }
+                    exact_observed_terms = {
+                        "product_id": str(
+                            order_for_submission.get("product_id") or ""
+                        ),
+                        "side": str(
+                            order_for_submission.get("side") or ""
+                        ).upper(),
+                        "base_size": str(
+                            order_for_submission.get("base_size") or ""
+                        ),
+                        "limit_price": str(
+                            order_for_submission.get("limit_price") or ""
+                        ),
+                        "client_order_id": str(
+                            order_for_submission.get("client_order_id") or ""
+                        ),
+                        "post_only": bool(
+                            order_for_submission.get("post_only")
+                        ),
+                    }
+                    drifted_fields = sorted(
+                        set(drifted_fields)
+                        | {
+                            field
+                            for field, expected_value
+                            in exact_operator_terms.items()
+                            if exact_observed_terms.get(field)
+                            != expected_value
+                        }
+                    )
                 if drifted_fields:
+                    if operator_explicit_reveal:
+                        self.log_callback(
+                            "warning",
+                            {
+                                "event": (
+                                    "operator_stealth_preview_payload_drift"
+                                ),
+                                "stealth_order_id": stealth_order_id,
+                                "drifted_fields": drifted_fields,
+                            },
+                        )
+                        self._dispatch_lifecycle_event(
+                            stealth_order_id=stealth_order_id,
+                            event=StealthLifecycleEvent.PLACEMENT_BLOCKED,
+                            order_data=order,
+                            extra={
+                                "failure_reason": (
+                                    "operator_stealth_preview_payload_drift"
+                                ),
+                                "block_category": (
+                                    "operator_stealth_preview_payload_drift"
+                                ),
+                                "drifted_fields": drifted_fields,
+                            },
+                        )
+                        return None
                     drift_evidence = {
                         **admin_child_authority,
                         "drifted_fields": drifted_fields,
@@ -4643,7 +5505,7 @@ class StealthOrderManager:
                         evidence=drift_evidence,
                     )
                     return None
-                if (
+                if admin_child_authority.get("required") and (
                     standing_price_policy
                     != StandingPriceLimitPolicy.ADMIN_TEST_PROFILE.value
                     or str(order_for_submission.get("reveal_pricing_policy") or "")
@@ -4790,7 +5652,13 @@ class StealthOrderManager:
             # When post_only=False (CONFIGURED_LIMIT) we make exactly
             # one attempt and the existing error handling applies.
             retry_post_only = bool(order_for_submission.get("post_only"))
-            max_attempts = self.POST_ONLY_MAX_ATTEMPTS if retry_post_only else 1
+            max_attempts = (
+                1
+                if operator_explicit_reveal
+                else self.POST_ONLY_MAX_ATTEMPTS
+                if retry_post_only
+                else 1
+            )
             attempt_price = float(order_for_submission["limit_price"])
             attempt_coid = order_for_submission["client_order_id"]
             price_increment = self._get_price_increment(order_for_submission["product_id"])
@@ -4896,14 +5764,50 @@ class StealthOrderManager:
                     # the REST call so the WS handler can resolve the parent.
                     if _pre_insert_placement_row(attempt_coid, attempt_price):
                         placement_pre_inserted = True
-                    order_result = REST_CLIENT.place_limit_order(
-                        product_id=order_for_submission["product_id"],
-                        side=order_for_submission["side"],
-                        limit_price=str(attempt_price),
-                        base_size=str(order_for_submission["base_size"]),
-                        client_order_id=attempt_coid,
-                        post_only=retry_post_only,
-                    )
+                    if (
+                        operator_explicit_reveal
+                        and operator_stealth_authority is not None
+                    ):
+                        from external.coinbase_client import (
+                            coinbase_sdk_response_to_dict,
+                        )
+
+                        order_result = coinbase_sdk_response_to_dict(
+                            REST_CLIENT.create_order(
+                                product_id=(
+                                    operator_stealth_authority.product_id
+                                ),
+                                side=operator_stealth_authority.side,
+                                client_order_id=(
+                                    operator_stealth_authority.client_order_id
+                                ),
+                                order_configuration={
+                                    "limit_limit_gtc": {
+                                        "base_size": (
+                                            operator_stealth_authority.base_size
+                                        ),
+                                        "limit_price": (
+                                            operator_stealth_authority.limit_price
+                                        ),
+                                        "post_only": (
+                                            operator_stealth_authority.post_only
+                                        ),
+                                    }
+                                },
+                                before_sdk_call=before_create_call,
+                            )
+                        )
+                    else:
+                        order_result = REST_CLIENT.place_limit_order(
+                            product_id=order_for_submission["product_id"],
+                            side=order_for_submission["side"],
+                            limit_price=str(attempt_price),
+                            base_size=str(
+                                order_for_submission["base_size"]
+                            ),
+                            client_order_id=attempt_coid,
+                            post_only=retry_post_only,
+                        )
 
                 order_result_succeeded = (
                     not isinstance(order_result, dict)
@@ -4929,9 +5833,13 @@ class StealthOrderManager:
 
                 # POST_ONLY rejection: record + reprice for next attempt
                 rejected_failure_reason = (
-                    order_result.get("failure_reason")
-                    or (order_result.get("error_response") or {}).get("error")
-                    or "POST_ONLY"
+                    "operator_stealth_post_only_rejected"
+                    if operator_explicit_reveal
+                    else (
+                        order_result.get("failure_reason")
+                        or (order_result.get("error_response") or {}).get("error")
+                        or "POST_ONLY"
+                    )
                 )
                 post_only_attempts.append({
                     "attempt": attempt_num,
@@ -5023,9 +5931,13 @@ class StealthOrderManager:
                 and len(post_only_attempts) >= max_attempts
             ):
                 final_failure_reason = (
-                    order_result.get("failure_reason")
-                    or (order_result.get("error_response") or {}).get("error")
-                    or "POST_ONLY"
+                    "operator_stealth_post_only_rejected"
+                    if operator_explicit_reveal
+                    else (
+                        order_result.get("failure_reason")
+                        or (order_result.get("error_response") or {}).get("error")
+                        or "POST_ONLY"
+                    )
                 )
                 self.log_callback("warning", {
                     "event": "stealth_order_post_only_retries_exhausted",
@@ -5065,10 +5977,14 @@ class StealthOrderManager:
                 and not (order_result.get("success") or order_result.get("success_response"))
             ):
                 failure_reason = (
-                    order_result.get("failure_reason")
-                    or (order_result.get("error_response") or {}).get("error")
-                    or (order_result.get("error_response") or {}).get("message")
-                    or "exchange rejected placement"
+                    "operator_stealth_create_rejected"
+                    if operator_explicit_reveal
+                    else (
+                        order_result.get("failure_reason")
+                        or (order_result.get("error_response") or {}).get("error")
+                        or (order_result.get("error_response") or {}).get("message")
+                        or "exchange rejected placement"
+                    )
                 )
                 raise RuntimeError(f"Exchange rejected placement: {failure_reason}")
 
@@ -5094,13 +6010,21 @@ class StealthOrderManager:
             # 🪝 POST-SUBMISSION HOOKS: Log/track submission after REST call succeeds
             # Exceptions here are logged but don't affect placement
             try:
-                self.order_placement_hooks.call_post_submission_hooks(order_for_submission, order_result)
+                if not operator_explicit_reveal:
+                    self.order_placement_hooks.call_post_submission_hooks(
+                        order_for_submission,
+                        order_result,
+                    )
             except Exception as hook_error:
                 # Post-hook error - log but don't fail (order is already placed)
                 self.log_callback("warning", {
                     "event": "post_submission_hook_exception",
                     "stealth_order_id": stealth_order_id,
-                    "error": str(hook_error),
+                    "error": (
+                        f"exception_type:{type(hook_error).__name__}"
+                        if operator_explicit_reveal
+                        else str(hook_error)
+                    ),
                     "note": "Order was placed successfully, but post-submission hook failed"
                 })
             
@@ -5110,13 +6034,29 @@ class StealthOrderManager:
             # exchange actually saw.
             actual_submitted_price = float(order_for_submission["limit_price"])
             post_only_retried = bool(post_only_attempts)
-            self.log_callback("info", f"[LOT-TRACK] Stealth order revealed & placed: {stealth_order_id} ({order['side']} {slice_size} {order['product_id']} @ {actual_submitted_price}, reveal_policy={reveal_plan.reveal_pricing_policy}, exchange_order_id={exchange_order_id})")
+            self.log_callback(
+                "info",
+                (
+                    "[LOT-TRACK] Operator stealth order revealed & placed "
+                    "with exchange identity withheld"
+                    if operator_explicit_reveal
+                    else (
+                        "[LOT-TRACK] Stealth order revealed & placed: "
+                        f"{stealth_order_id} ({order['side']} {slice_size} "
+                        f"{order['product_id']} @ {actual_submitted_price}, "
+                        f"reveal_policy={reveal_plan.reveal_pricing_policy}, "
+                        f"exchange_order_id={exchange_order_id})"
+                    )
+                ),
+            )
 
             self.log_callback("info", {
                 "event": "stealth_order_slice_placed_successfully",
                 "stealth_order_id": order['stealth_order_id'],
                 "client_order_id": placed_order_id,
-                "exchange_order_id": exchange_order_id,
+                "exchange_order_id": (
+                    None if operator_explicit_reveal else exchange_order_id
+                ),
                 "size": slice_size,
                 "product_id": order["product_id"],
                 "configured_limit_price": reveal_plan.configured_limit_price,
@@ -5138,10 +6078,18 @@ class StealthOrderManager:
             self._dispatch_lifecycle_event(
                 stealth_order_id=stealth_order_id,
                 event=StealthLifecycleEvent.REVEAL_SUCCEEDED,
-                order_data=order,
+                order_data=(
+                    self._operator_value_blind_order_snapshot(order)
+                    if operator_explicit_reveal
+                    else order
+                ),
                 extra={
                     "placed_order_id": placed_order_id,
-                    "exchange_order_id": exchange_order_id,
+                    "exchange_order_id": (
+                        None
+                        if operator_explicit_reveal
+                        else exchange_order_id
+                    ),
                     "size": slice_size,
                 },
             )
@@ -5157,7 +6105,14 @@ class StealthOrderManager:
             # placed" caused the 2026-04-29 incident where the exchange filled
             # the order and we never created the follow-up.
             placed_order_id = client_order_id or str(uuid.uuid4())
-            placement_error = str(e)
+            placement_error = (
+                "operator_stealth_create_post_boundary_unknown"
+                if operator_explicit_reveal
+                and exchange_placement_succeeded
+                else "operator_stealth_create_failed"
+                if operator_explicit_reveal
+                else str(e)
+            )
             placement_success = exchange_placement_succeeded
 
             if exchange_placement_succeeded:
@@ -5165,10 +6120,18 @@ class StealthOrderManager:
                     "event": "stealth_order_slice_post_placement_exception",
                     "stealth_order_id": order['stealth_order_id'],
                     "client_order_id": placed_order_id,
-                    "exchange_order_id": exchange_order_id,
+                    "exchange_order_id": (
+                        None
+                        if operator_explicit_reveal
+                        else exchange_order_id
+                    ),
                     "size": slice_size,
                     "product_id": order["product_id"],
-                    "exception": str(e),
+                    "exception": (
+                        f"exception_type:{type(e).__name__}"
+                        if operator_explicit_reveal
+                        else str(e)
+                    ),
                     "note": (
                         "REST place_limit_order SUCCEEDED but post-placement "
                         "bookkeeping raised. Order IS LIVE on the exchange; "
@@ -5181,7 +6144,11 @@ class StealthOrderManager:
                     "stealth_order_id": order['stealth_order_id'],
                     "size": slice_size,
                     "product_id": order["product_id"],
-                    "exception": str(e),
+                    "exception": (
+                        f"exception_type:{type(e).__name__}"
+                        if operator_explicit_reveal
+                        else str(e)
+                    ),
                     "note": "REST place_limit_order raised. Order was NOT placed on the exchange.",
                 })
 
@@ -5198,7 +6165,11 @@ class StealthOrderManager:
                                 "event": "reveal_placement_order_parent_failed_status_update_failed",
                                 "stealth_order_id": stealth_order_id,
                                 "placement_client_order_id": client_order_id,
-                                "error": str(status_err),
+                                "error": (
+                                    f"exception_type:{type(status_err).__name__}"
+                                    if operator_explicit_reveal
+                                    else str(status_err)
+                                ),
                             },
                         )
             
@@ -5206,7 +6177,11 @@ class StealthOrderManager:
             self._dispatch_lifecycle_event(
                 stealth_order_id=stealth_order_id,
                 event=StealthLifecycleEvent.REVEAL_FAILED,
-                order_data=order,
+                order_data=(
+                    self._operator_value_blind_order_snapshot(order)
+                    if operator_explicit_reveal
+                    else order
+                ),
                 extra={"failure_reason": placement_error, "size": slice_size},
             )
         
@@ -5217,7 +6192,9 @@ class StealthOrderManager:
             "placement_price": reveal_plan.submitted_limit_price,
             "placed_order_id": placed_order_id,
             "placement_client_order_id": placed_order_id,
-            "exchange_order_id": exchange_order_id,
+            "exchange_order_id": (
+                None if operator_explicit_reveal else exchange_order_id
+            ),
             "placement_success": placement_success,  # ✓ Track if actually placed on exchange
             "placement_status": "placed" if placement_success else "failed",
             "placement_error": placement_error,      # Error message if failed
@@ -5262,12 +6239,34 @@ class StealthOrderManager:
         
         # Persist updates
         self._update_stealth_order(order)
-        self._record_reveal_event(order, reveal_event)
+        self._record_reveal_event(
+            (
+                self._operator_value_blind_order_snapshot(order)
+                if operator_explicit_reveal
+                else order
+            ),
+            reveal_event,
+        )
         
         # Index the placed order for O(1) lookup in find_stealth_order_by_placed_order_id()
         self._placed_order_index[placed_order_id] = order
         
         return placed_order_id
+
+    @staticmethod
+    def _operator_value_blind_order_snapshot(
+        order: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Copy an operator row without its protected raw exchange anchor."""
+
+        snapshot = copy.deepcopy(order)
+        anchor = snapshot.get("anchor_repricing_state_json")
+        if isinstance(anchor, dict):
+            anchor.pop("active_exchange_order_id", None)
+        for event in snapshot.get("revealed_orders") or []:
+            if isinstance(event, dict):
+                event["exchange_order_id"] = None
+        return snapshot
     
     def update_execution(self, stealth_order_id: str, executed_size: float, order_status: str = StealthOrderStatus.EXECUTED.value):
         """
@@ -5349,6 +6348,10 @@ class StealthOrderManager:
         stealth_order_id: str,
         reason: str = "User cancelled",
         cancel_exchange: bool = True,
+        defer_local_terminal: bool = False,
+        value_blind_diagnostics: bool = False,
+        verified_exchange_order_id: Optional[str] = None,
+        before_cancel_call: Optional[Callable[[], None]] = None,
     ) -> bool:
         """
         Cancel a stealth order.
@@ -5381,9 +6384,18 @@ class StealthOrderManager:
         if (
             cancel_exchange
             and order.get("status") == StealthOrderStatus.REVEALED.value
-            and not self._cancel_active_exchange_order_for_manual_cancel(order, reason)
+            and not self._cancel_active_exchange_order_for_manual_cancel(
+                order,
+                reason,
+                clear_active_placement=not defer_local_terminal,
+                value_blind_diagnostics=value_blind_diagnostics,
+                verified_exchange_order_id=verified_exchange_order_id,
+                before_cancel_call=before_cancel_call,
+            )
         ):
             return False
+        if defer_local_terminal:
+            return True
 
         order["status"] = StealthOrderStatus.CANCELLED.value
         order["updated_at"] = datetime.utcnow()
@@ -5393,7 +6405,14 @@ class StealthOrderManager:
         return True
 
     def _cancel_active_exchange_order_for_manual_cancel(
-        self, order: Dict[str, Any], reason: str
+        self,
+        order: Dict[str, Any],
+        reason: str,
+        *,
+        clear_active_placement: bool = True,
+        value_blind_diagnostics: bool = False,
+        verified_exchange_order_id: Optional[str] = None,
+        before_cancel_call: Optional[Callable[[], None]] = None,
     ) -> bool:
         """Cancel the live exchange order tracked by anchor repricing state.
 
@@ -5417,18 +6436,49 @@ class StealthOrderManager:
                 },
             )
             return False
+        if verified_exchange_order_id is not None and (
+            str(verified_exchange_order_id) != str(exchange_order_id)
+            or str(placement_client_order_id or "")
+            != str(order.get("stealth_order_id") or "")
+            or not callable(before_cancel_call)
+        ):
+            self.log_callback(
+                "warning",
+                {
+                    "event": "stealth_cancel_exchange_identity_mismatch",
+                    "stealth_order_id": order.get("stealth_order_id"),
+                    "exchange_order_id_withheld": True,
+                    "reason": reason,
+                },
+            )
+            return False
 
         from configuration import REST_CLIENT
 
         try:
             with get_runtime_controller().track_inflight(INFLIGHT_REST_CANCEL):
-                REST_CLIENT.cancel_orders(order_ids=[exchange_order_id])
+                if verified_exchange_order_id is not None:
+                    REST_CLIENT.cancel_orders(
+                        order_ids=[exchange_order_id],
+                        before_sdk_call=before_cancel_call,
+                    )
+                else:
+                    REST_CLIENT.cancel_orders(
+                        order_ids=[exchange_order_id]
+                    )
             self.log_callback(
                 "info",
                 {
                     "event": "stealth_cancel_exchange_ok",
                     "stealth_order_id": order.get("stealth_order_id"),
-                    "exchange_order_id": exchange_order_id,
+                    "exchange_order_id": (
+                        None
+                        if value_blind_diagnostics
+                        else exchange_order_id
+                    ),
+                    "exchange_order_id_withheld": (
+                        True if value_blind_diagnostics else None
+                    ),
                     "reason": reason,
                 },
             )
@@ -5438,16 +6488,28 @@ class StealthOrderManager:
                 {
                     "event": "stealth_cancel_exchange_failed",
                     "stealth_order_id": order.get("stealth_order_id"),
-                    "exchange_order_id": exchange_order_id,
+                    "exchange_order_id": (
+                        None
+                        if value_blind_diagnostics
+                        else exchange_order_id
+                    ),
+                    "exchange_order_id_withheld": (
+                        True if value_blind_diagnostics else None
+                    ),
                     "reason": reason,
-                    "error": str(cancel_exc),
+                    "error": (
+                        f"exception_type:{type(cancel_exc).__name__}"
+                        if value_blind_diagnostics
+                        else str(cancel_exc)
+                    ),
                 },
             )
             return False
 
-        state["active_exchange_order_id"] = None
-        state["active_placement_client_order_id"] = None
-        order["anchor_repricing_state_json"] = state
+        if clear_active_placement:
+            state["active_exchange_order_id"] = None
+            state["active_placement_client_order_id"] = None
+            order["anchor_repricing_state_json"] = state
         return True
     
     # ===================== PRIVATE METHODS =====================
@@ -5682,6 +6744,35 @@ class StealthOrderManager:
         order = self.find_stealth_order_by_placed_order_id(placed_order_id)
         if not order:
             return False
+
+        operator_value_blind = bool(
+            (order.get("reveal_condition_json") or {}).get(
+                "operator_manual_reveal_required"
+            )
+        )
+        if operator_value_blind:
+            anchor_state = self._normalize_anchor_repricing_state(
+                order.get("anchor_repricing_state_json")
+            )
+            if (
+                anchor_state.get("active_placement_client_order_id")
+                != placed_order_id
+            ):
+                return False
+            existing = str(
+                anchor_state.get("active_exchange_order_id") or ""
+            )
+            if existing and existing != exchange_order_id:
+                return False
+            if not existing:
+                anchor_state["active_exchange_order_id"] = exchange_order_id
+                order["anchor_repricing_state_json"] = anchor_state
+                order["updated_at"] = datetime.utcnow()
+                self._update_stealth_order(order)
+            # Goal 6 retains the raw identity only in the protected exact-child
+            # anchor. Never copy it into reveal events, generic audit rows, or
+            # exception-bearing WebSocket logs.
+            return True
 
         updated = False
         revealed_orders = order.get("revealed_orders") or []

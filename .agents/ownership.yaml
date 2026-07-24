@@ -207,6 +207,7 @@ owners:
       - tests/regression/test_anchor_*.py
       - tests/regression/test_triggered_snapshot_commit.py
       - tests/unit/test_stealth_*.py
+      - tests/unit/test_operator_stealth_reveal_manager.py
       - tests/unit/test_controlled_admin_child_reveal.py
       - tests/unit/test_condition_evaluators.py
       - tests/integration/test_stealth_*.py
@@ -271,12 +272,16 @@ owners:
       - docs/FUTURES_SLICE_2R12_TERMINAL_DIAGNOSIS.md
       - docs/FUTURES_POST_R10_COMPATIBILITY_DIRECTION.md
       - docs/OPERATOR_AUTOMATION_CONTROL_PLANE.md
+      - docs/OPERATOR_STEALTH_REVEAL_AND_EXACT_CLOSEOUT_V1.md
       - docs/OPERATOR_SPOT_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_V10_V12.md
       - docs/OPERATOR_SPOT_AUTOMATION_SINGLE_CHILD_ADAPTER.md
       - openapi/**
       - tools/export_admin_api_route_inventory.py
       - tests/regression/test_admin_api_*.py
       - tests/unit/test_admin_api_*.py
+      - tests/regression/test_operator_stealth_reveal_routes.py
+      - tests/unit/test_operator_stealth_reveal_runtime.py
+      - tests/unit/test_operator_stealth_reveal_service.py
       - tests/unit/test_operator_spot_automation_preview.py
       - tests/unit/test_operator_follow_up_intent_audit.py
       - tests/regression/test_admin_mvp_account_reality_live_read_smoke.py
@@ -318,6 +323,9 @@ owners:
     test_owns:
       - tests/regression/test_admin_api_*.py
       - tests/unit/test_admin_api_*.py
+      - tests/regression/test_operator_stealth_reveal_routes.py
+      - tests/unit/test_operator_stealth_reveal_runtime.py
+      - tests/unit/test_operator_stealth_reveal_service.py
       - tests/unit/test_run_admin_api_futures_r8_slice3_end_to_end.py
       - tests/unit/test_run_admin_api_futures_r9_slice3_end_to_end.py
       - tests/unit/test_run_admin_api_futures_no_live_preview_r10.py
@@ -355,6 +363,7 @@ owners:
       - data/**
     test_owns:
       - tests/regression/test_operator_automation_repository.py
+      - tests/regression/test_operator_stealth_reveal_repository.py
       - tests/regression/test_db_*.py
       - tests/regression/test_operator_follow_up_materialization_repository.py
       - tests/regression/test_reconciler_schema.py

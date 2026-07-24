@@ -74,6 +74,7 @@ def test_process_user_order_syncs_exchange_order_id_before_fill_handling():
     stealth_manager = Mock()
     engine.stealth_order_bridge = Mock(stealth_manager=stealth_manager)
     engine.handle_filled_order = Mock()
+    engine._validate_user_order_portfolio_scope = Mock(return_value=True)
 
     order = {
         "client_order_id": "660e8400-e29b-41d4-a716-446655440000",
@@ -91,6 +92,49 @@ def test_process_user_order_syncs_exchange_order_id_before_fill_handling():
         order["order_id"],
     )
     engine.handle_filled_order.assert_called_once()
+
+
+def test_goal6_websocket_order_is_value_blind_outside_protected_anchor():
+    engine, orderbook = _build_engine()
+    goal6_order = {
+        "reveal_condition_json": {
+            "operator_manual_reveal_required": True,
+        }
+    }
+    stealth_manager = Mock()
+    stealth_manager.find_stealth_order_by_placed_order_id = Mock(
+        return_value=goal6_order
+    )
+    engine.stealth_order_bridge = Mock(stealth_manager=stealth_manager)
+    engine.handle_filled_order = Mock()
+    engine._validate_user_order_portfolio_scope = Mock(return_value=True)
+    engine.websocket_hooks.call_pre_order_status = Mock()
+    engine.websocket_hooks.call_post_order_status = Mock()
+    order = {
+        "client_order_id": "660e8400-e29b-41d4-a716-446655440001",
+        "order_id": "private-exchange-order-id",
+        "product_id": "BTC-USDC",
+        "side": "BUY",
+        "status": OrderStatus.FILLED.value,
+        "outstanding_hold_amount": "0",
+    }
+
+    engine.process_user_order(order)
+
+    stealth_manager.sync_exchange_order_id_for_placed_order.assert_called_once_with(
+        order["client_order_id"],
+        order["order_id"],
+    )
+    pre_order = engine.websocket_hooks.call_pre_order_status.call_args.args[1]
+    post_order = engine.websocket_hooks.call_post_order_status.call_args.args[1]
+    handled_order = engine.handle_filled_order.call_args.args[0]
+    assert "order_id" not in pre_order
+    assert "order_id" not in post_order
+    assert "order_id" not in handled_order
+    assert "order_id" not in orderbook.order.get(
+        order["client_order_id"],
+        {},
+    )
 
 
 def test_child_replacement_resolves_to_original_parent(monkeypatch):

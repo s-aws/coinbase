@@ -8084,30 +8084,27 @@ class AdminApiReadService:
                 primary_owner="admin_api_contract",
                 support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
                 unsupported_actions=[
-                    "definition materialization",
                     "automatic reveal or scheduling",
-                    "runtime or exchange cancellation",
+                    "second slice or alternate-order reveal",
+                    "unrelated runtime or exchange cancellation",
                 ],
                 command_gaps=[
                     command_gap(
-                        action="definition materialization",
+                        action="automatic reveal or scheduling",
                         status=(
-                            AdminApiModuleSupportStatus.NOT_MODELED
+                            AdminApiModuleSupportStatus.UNSUPPORTED
                         ),
                         reason=(
-                            "Goal 5 definitions are pre-runtime PostgreSQL "
-                            "configuration and grant no reveal or placement "
-                            "authority."
+                            "Goal 6 supports only an explicit operator reveal "
+                            "of one exact definition and exact-child closeout."
                         ),
                         required_backend_contract=(
-                            "A separate exact-definition materialization and "
-                            "reveal workflow with wallet, cap, claim, exchange "
-                            "truth, audit, and reconciliation authority."
+                            "No scheduler or automatic trigger is part of the "
+                            "bounded operator workflow."
                         ),
                         frontend_boundary=(
-                            "Render the backend runtime interlock and navigate "
-                            "to a later reveal/closeout workflow; never create "
-                            "or infer a runtime order in the browser."
+                            "Render backend actionability and forward explicit "
+                            "operator intent only; never infer a reveal trigger."
                         ),
                     ),
                 ],
@@ -8116,6 +8113,8 @@ class AdminApiReadService:
                     "revision",
                     "preview_id",
                     "manifest_sha256",
+                    "client_order_id",
+                    "plan_sha256",
                 ],
                 constraints=[
                     "Definitions are DRAFT, CANCELLED, or CLEARED local rows.",
@@ -8142,8 +8141,14 @@ class AdminApiReadService:
                         "application/admin_api/"
                         "operator_stealth_definition_service.py"
                     ),
+                    (
+                        "application/admin_api/"
+                        "operator_stealth_reveal_service.py"
+                    ),
                     "database/operator_stealth_definition.py",
+                    "database/operator_stealth_reveal.py",
                     "api/v1/routes/operator_stealth_definition.py",
+                    "api/v1/routes/operator_stealth_reveal.py",
                 ],
                 frontend_contract_refs=[
                     (
@@ -8154,12 +8159,13 @@ class AdminApiReadService:
                 ],
                 documentation_refs=[
                     "docs/OPERATOR_STEALTH_DEFINITION_LIFECYCLE_V1.md",
+                    "docs/OPERATOR_STEALTH_REVEAL_AND_EXACT_CLOSEOUT_V1.md",
                     "docs/ADMIN_MODULE_CAPABILITY_MATRIX.md",
                 ],
                 spot_rule_boundary=(
-                    "The v1 definition terms use the approved Test portfolio "
-                    "hash and active Spot Product Catalog only. They do not "
-                    "grant Spot wallet, cap, execution, reveal, movement, or "
+                    "Definition terms and Goal 6 reveal admission use the "
+                    "approved Test portfolio and backend Spot policy only. "
+                    "They grant no movement, scheduling, second-order, or "
                     "Futures authority."
                 ),
             ),
@@ -9440,6 +9446,101 @@ class AdminApiReadService:
                 spot_rule_boundary=(
                     "Sweep automation is spot-only and must keep USDC, inventory, "
                     "average-cost, and known-profitable sell authority inside backend gates."
+                ),
+            ),
+            functionality_item(
+                workflow_id="operator_stealth_reveal_and_exact_closeout_v1",
+                module_id="stealth_definitions",
+                module="Stealth Operations / Definitions",
+                workflow_type=(
+                    AdminApiFunctionalityWorkflowType.LIVE_EXECUTION
+                ),
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                ),
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "An authenticated operator can review one PostgreSQL "
+                    "definition, explicitly authorize one durable Preview and "
+                    "identical single-slice Create, and safely close out only "
+                    "that exact child when backend evidence proves it remains "
+                    "nonterminal."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=True,
+                command_capable=True,
+                live_designated=True,
+                live_enabled=False,
+                read_routes=[
+                    "GET /api/v1/stealth/definitions/{definition_id}",
+                    (
+                        "GET /api/v1/stealth/definitions/"
+                        "{definition_id}/execution"
+                    ),
+                ],
+                command_routes=[
+                    (
+                        "POST /api/v1/stealth/definitions/"
+                        "{definition_id}/reveal"
+                    ),
+                    (
+                        "POST /api/v1/stealth/definitions/"
+                        "{definition_id}/closeout"
+                    ),
+                ],
+                identity_keys=[
+                    "definition_id",
+                    "revision",
+                    "client_order_id",
+                    "plan_sha256",
+                    "idempotency_key",
+                    "correlation_id",
+                ],
+                backend_contract_refs=[
+                    (
+                        "application/admin_api/"
+                        "operator_stealth_reveal_service.py"
+                    ),
+                    (
+                        "application/admin_api/"
+                        "operator_stealth_reveal_runtime.py"
+                    ),
+                    "database/operator_stealth_reveal.py",
+                    "core/stealth_order_manager.py",
+                    "api/v1/routes/operator_stealth_reveal.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    (
+                        "src/features/stealth-orders/"
+                        "StealthDefinitionWorkspace.tsx"
+                    ),
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_STEALTH_REVEAL_AND_EXACT_CLOSEOUT_V1.md",
+                ],
+                required_next_contract=(
+                    "Each request must retain current execution lease, exact "
+                    "definition/revision/plan/portfolio binding, fresh backend "
+                    "condition evidence, one-use claims, explicit operator "
+                    "confirmation, and terminal exact-child reconciliation."
+                ),
+                blockers=[
+                    "current_execution_authority_required",
+                    "exact_request_admission_required",
+                    "fresh_condition_evidence_required",
+                ],
+                frontend_boundary=(
+                    "The frontend renders backend actionability and forwards "
+                    "one explicit reveal or exact closeout intent; it cannot "
+                    "derive terms, approve Preview, place, or cancel directly."
+                ),
+                spot_rule_boundary=(
+                    "The single-slice definition policy and approved Test "
+                    "portfolio are Spot-specific; this grants no automatic "
+                    "reveal, alternate child, movement, scheduler, or Futures "
+                    "authority."
                 ),
             ),
             functionality_item(
@@ -12036,6 +12137,241 @@ class AdminApiReadService:
                 cap_guard_required=False,
                 reconciliation_required=True,
                 live_adapter_required=False,
+            ),
+            mutation_taxonomy_from_surface(
+                surface=(
+                    "POST /api/v1/stealth/definitions/"
+                    "{definition_id}/reveal"
+                ),
+                mutation_id="stealth.operator_definition_reveal",
+                mutation_family=AdminApiMutationFamilyType.STEALTH_REVEAL,
+                workflow_id=(
+                    "operator_stealth_reveal_and_exact_closeout_v1"
+                ),
+                module="Stealth Operations / Definitions",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                ),
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Explicitly authorize one exact definition to consume one "
+                    "durable Preview claim and, only after an accepted "
+                    "error-free Preview, one identical single-slice Create."
+                ),
+                identity_keys=[
+                    "definition_id",
+                    "revision",
+                    "client_order_id",
+                    "plan_sha256",
+                    "idempotency_key",
+                ],
+                owning_backend_service=(
+                    "application/admin_api/"
+                    "operator_stealth_reveal_service.py"
+                ),
+                backend_contract_refs=[
+                    (
+                        "application/admin_api/"
+                        "operator_stealth_reveal_runtime.py"
+                    ),
+                    "database/operator_stealth_reveal.py",
+                    "core/stealth_order_manager.py",
+                    "api/v1/routes/operator_stealth_reveal.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    (
+                        "src/features/stealth-orders/"
+                        "StealthDefinitionWorkspace.tsx"
+                    ),
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_STEALTH_REVEAL_AND_EXACT_CLOSEOUT_V1.md",
+                ],
+                required_next_contract=(
+                    "Every request must prove the current execution lease, "
+                    "exact definition/revision/plan/portfolio binding, fresh "
+                    "backend condition evidence, and unconsumed call claims."
+                ),
+                blockers=[
+                    "current_execution_authority_required",
+                    "exact_request_admission_required",
+                ],
+                frontend_boundary=(
+                    "The frontend forwards explicit operator intent and "
+                    "renders backend evidence only; it cannot derive terms, "
+                    "approve Preview, or invoke Coinbase."
+                ),
+                bff_boundary=(
+                    "The BFF forwards this exact authenticated command once; "
+                    "it must not retry an unknown outcome or call Coinbase."
+                ),
+                route_local_boundary=(
+                    "The route enforces auth, RBAC, headers, and fixed "
+                    "diagnostics before delegating to the typed Goal 6 service."
+                ),
+                spot_rule_boundary=(
+                    "This is one approved Test-portfolio Spot slice only and "
+                    "grants no automatic reveal, alternate child, movement, "
+                    "scheduler, or Futures authority."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
+                surface=(
+                    "POST /api/v1/stealth/definitions/"
+                    "{definition_id}/resume-accepted-create"
+                ),
+                mutation_id=(
+                    "stealth.operator_definition_resume_accepted_create"
+                ),
+                mutation_family=AdminApiMutationFamilyType.STEALTH_REVEAL,
+                workflow_id=(
+                    "operator_stealth_reveal_and_exact_closeout_v1"
+                ),
+                module="Stealth Operations / Definitions",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                ),
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Explicitly resume the one exact Goal 6 Create whose "
+                    "durable Preview claim is already accepted after restart, "
+                    "without replaying Preview or changing candidate terms."
+                ),
+                identity_keys=[
+                    "definition_id",
+                    "revision",
+                    "client_order_id",
+                    "plan_sha256",
+                    "idempotency_key",
+                ],
+                owning_backend_service=(
+                    "application/admin_api/"
+                    "operator_stealth_reveal_service.py"
+                ),
+                backend_contract_refs=[
+                    (
+                        "application/admin_api/"
+                        "operator_stealth_reveal_runtime.py"
+                    ),
+                    "database/operator_stealth_reveal.py",
+                    "core/stealth_order_manager.py",
+                    "api/v1/routes/operator_stealth_reveal.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    (
+                        "src/features/stealth-orders/"
+                        "StealthDefinitionWorkspace.tsx"
+                    ),
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_STEALTH_REVEAL_AND_EXACT_CLOSEOUT_V1.md",
+                ],
+                required_next_contract=(
+                    "The backend must revalidate current execution authority, "
+                    "transport hardening, exact immutable plan binding, and "
+                    "the still-unconsumed Create claim before SDK invocation."
+                ),
+                blockers=[
+                    "current_execution_authority_required",
+                    "accepted_preview_and_unconsumed_create_required",
+                ],
+                frontend_boundary=(
+                    "The frontend forwards explicit resume intent and renders "
+                    "backend evidence only; it cannot replay Preview, alter "
+                    "terms, or invoke Coinbase."
+                ),
+                bff_boundary=(
+                    "The BFF forwards this exact authenticated command once; "
+                    "it must not retry an unknown outcome or call Coinbase."
+                ),
+                route_local_boundary=(
+                    "The route enforces auth, RBAC, headers, and fixed "
+                    "diagnostics before delegating to the typed Goal 6 service."
+                ),
+                spot_rule_boundary=(
+                    "This resumes only the accepted exact Goal 6 Spot "
+                    "candidate and grants no alternate child, movement, "
+                    "scheduler, or Futures authority."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
+                surface=(
+                    "POST /api/v1/stealth/definitions/"
+                    "{definition_id}/closeout"
+                ),
+                mutation_id="stealth.operator_definition_exact_closeout",
+                mutation_family=AdminApiMutationFamilyType.STEALTH_CANCEL,
+                workflow_id=(
+                    "operator_stealth_reveal_and_exact_closeout_v1"
+                ),
+                module="Stealth Operations / Definitions",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                ),
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Explicitly close out only the exact Goal 6 child after "
+                    "authoritative backend readback proves it is nonterminal, "
+                    "using at most one durable Cancel claim."
+                ),
+                identity_keys=[
+                    "definition_id",
+                    "client_order_id",
+                    "plan_sha256",
+                    "idempotency_key",
+                ],
+                owning_backend_service=(
+                    "application/admin_api/"
+                    "operator_stealth_reveal_service.py"
+                ),
+                backend_contract_refs=[
+                    (
+                        "application/admin_api/"
+                        "operator_stealth_reveal_runtime.py"
+                    ),
+                    "database/operator_stealth_reveal.py",
+                    "core/stealth_order_manager.py",
+                    "api/v1/routes/operator_stealth_reveal.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    (
+                        "src/features/stealth-orders/"
+                        "StealthDefinitionWorkspace.tsx"
+                    ),
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_STEALTH_REVEAL_AND_EXACT_CLOSEOUT_V1.md",
+                ],
+                required_next_contract=(
+                    "Every request must retain the exact child identity, "
+                    "current execution lease, unconsumed Cancel claim, and "
+                    "authoritative nonterminal reconciliation evidence."
+                ),
+                blockers=[
+                    "current_execution_authority_required",
+                    "exact_nonterminal_child_evidence_required",
+                ],
+                frontend_boundary=(
+                    "The frontend forwards explicit exact-closeout intent and "
+                    "renders backend evidence only; it cannot select another "
+                    "child or invoke Coinbase."
+                ),
+                bff_boundary=(
+                    "The BFF forwards this exact authenticated command once; "
+                    "it must not retry an unknown outcome or call Coinbase."
+                ),
+                route_local_boundary=(
+                    "The route enforces auth, RBAC, headers, and fixed "
+                    "diagnostics before delegating to the typed Goal 6 service."
+                ),
+                spot_rule_boundary=(
+                    "This may cancel only the exact approved Test-portfolio "
+                    "Spot child and grants no unrelated-order or Futures "
+                    "authority."
+                ),
             ),
             mutation_taxonomy_item(
                 mutation_id="admin.runtime_control",

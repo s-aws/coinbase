@@ -37,6 +37,9 @@ from .routes.operator_parent_strategy import (
 from .routes.operator_stealth_definition import (
     router as operator_stealth_definition_router,
 )
+from .routes.operator_stealth_reveal import (
+    router as operator_stealth_reveal_router,
+)
 from .routes.operator_spot_recovery import router as operator_spot_recovery_router
 from .routes.reconciliation import router as reconciliation_router
 from .routes.spot import router as spot_router
@@ -373,6 +376,11 @@ def create_app() -> FastAPI:
         operator_stealth_definition_router,
         prefix="/api/v1",
         tags=["operator-stealth-definition"],
+    )
+    app.include_router(
+        operator_stealth_reveal_router,
+        prefix="/api/v1",
+        tags=["operator-stealth-reveal"],
     )
     app.include_router(spot_router, prefix="/api/v1", tags=["spot"])
     app.include_router(stealth_router, prefix="/api/v1", tags=["stealth"])

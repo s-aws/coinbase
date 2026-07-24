@@ -25,13 +25,14 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 import logging
 import math
-from typing import Dict, List, Optional, Any
+from typing import Any, Callable, Dict, List, Optional
 from coinbase.rest import RESTClient
 from core.models import Product, Wallet, Position, Order
 from core.enums import OrderSide, TimeInForce
 from core.coinbase_execution_authority import (
     COINBASE_EXECUTION_SCOPE_SPOT_CANCEL,
     COINBASE_EXECUTION_SCOPE_SPOT_PLACE,
+    COINBASE_EXECUTION_SCOPE_SPOT_PREVIEW,
     require_coinbase_execution_authority,
 )
 
@@ -476,7 +477,11 @@ class CoinbaseRestClient:
         response = self._client.get_transaction_summary(product_type="SPOT")
         return coinbase_sdk_response_to_dict(response)
 
-    def get_api_key_permissions(self) -> Dict[str, Any]:
+    def get_api_key_permissions(
+        self,
+        *,
+        before_sdk_call: Optional[Callable[[], None]] = None,
+    ) -> Dict[str, Any]:
         """Return the current credential's authoritative portfolio scope.
 
         Coinbase CDP keys select their portfolio through key permissions; the
@@ -485,6 +490,9 @@ class CoinbaseRestClient:
         not create a second SDK client or infer scope from order payloads.
         """
 
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
+        if before_sdk_call is not None:
+            before_sdk_call()
         _harden_sdk_transport(self._client, require_bounded_timeout=True)
         response = self._client.get_api_key_permissions()
         data = coinbase_sdk_response_to_dict(response)
@@ -655,6 +663,8 @@ class CoinbaseRestClient:
         order_configuration: Dict[str, Any],
         leverage: Optional[str] = None,
         margin_type: Optional[str] = None,
+        before_sdk_call: Optional[Callable[[], None]] = None,
+        require_spot_preview_authority: bool = False,
     ) -> Any:
         """Call Coinbase Preview Order without creating an order.
 
@@ -678,6 +688,13 @@ class CoinbaseRestClient:
         # generations still normalize this return value themselves, so keeping
         # this one canonical method raw preserves their behavior while making
         # the ordering invariant enforceable for R11.
+        if before_sdk_call is not None:
+            before_sdk_call()
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
+        if require_spot_preview_authority:
+            require_coinbase_execution_authority(
+                expected_scope=COINBASE_EXECUTION_SCOPE_SPOT_PREVIEW
+            )
         return self._client.preview_order(**kwargs)
     
     # ========================================================================
@@ -1066,7 +1083,11 @@ class CoinbaseRestClient:
             response = self._client.get_portfolio(portfolio_id)
         return coinbase_sdk_response_to_dict(response)
     
-    def list_portfolios(self) -> List[Dict[str, Any]]:
+    def list_portfolios(
+        self,
+        *,
+        before_sdk_call: Optional[Callable[[], None]] = None,
+    ) -> List[Dict[str, Any]]:
         """List all portfolios.
         
         Returns:
@@ -1082,6 +1103,9 @@ class CoinbaseRestClient:
         """
         _harden_sdk_transport(self._client, require_bounded_timeout=True)
         lister = getattr(self._client, "get_portfolios", None)
+        if before_sdk_call is not None:
+            before_sdk_call()
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
         if callable(lister):
             response = lister()
         else:
@@ -1130,6 +1154,7 @@ class CoinbaseRestClient:
         *,
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
+        before_sdk_call: Optional[Callable[[], None]] = None,
     ) -> Dict[str, Any]:
         """Get raw accounts data from SDK.
 
@@ -1148,6 +1173,10 @@ class CoinbaseRestClient:
             kwargs["limit"] = limit
         if cursor is not None:
             kwargs["cursor"] = cursor
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
+        if before_sdk_call is not None:
+            before_sdk_call()
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
         response = self._client.get_accounts(**kwargs)
         return coinbase_sdk_response_to_dict(response)
     
@@ -1196,9 +1225,18 @@ class CoinbaseRestClient:
             retail_portfolio_id=retail_portfolio_id,
         )
 
-    def get_order(self, order_id: str) -> Dict[str, Any]:
+    def get_order(
+        self,
+        order_id: str,
+        *,
+        before_sdk_call: Optional[Callable[[], None]] = None,
+    ) -> Dict[str, Any]:
         """Get one order by its exchange-assigned order id."""
 
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
+        if before_sdk_call is not None:
+            before_sdk_call()
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
         response = self._client.get_order(order_id)
         data = coinbase_sdk_response_to_dict(response)
         return data if isinstance(data, dict) else {}
@@ -1360,7 +1398,12 @@ class CoinbaseRestClient:
         """
         return self._client.list_futures_positions()
     
-    def cancel_orders(self, order_ids: List[str]) -> List[Dict[str, Any]]:
+    def cancel_orders(
+        self,
+        order_ids: List[str],
+        *,
+        before_sdk_call: Optional[Callable[[], None]] = None,
+    ) -> List[Dict[str, Any]]:
         """Cancel multiple orders by order IDs.
         
         Args:
@@ -1372,6 +1415,10 @@ class CoinbaseRestClient:
         Raises:
             Exception: If API call fails
         """
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
+        if before_sdk_call is not None:
+            before_sdk_call()
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
         require_coinbase_execution_authority(
             expected_scope=COINBASE_EXECUTION_SCOPE_SPOT_CANCEL
         )
@@ -1473,6 +1520,7 @@ class CoinbaseRestClient:
         order_type: Optional[str] = None,
         client_order_id: Optional[str] = None,
         order_configuration: Optional[Dict[str, Any]] = None,
+        before_sdk_call: Optional[Callable[[], None]] = None,
         **kwargs
     ) -> Dict[str, Any]:
         """Create an order via SDK.
@@ -1508,6 +1556,10 @@ class CoinbaseRestClient:
         
         params.update(kwargs)
 
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
+        if before_sdk_call is not None:
+            before_sdk_call()
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
         require_coinbase_execution_authority(
             expected_scope=COINBASE_EXECUTION_SCOPE_SPOT_PLACE
         )

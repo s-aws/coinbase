@@ -389,6 +389,106 @@ def test_create_order_rechecks_authority_after_local_argument_preparation(
     assert sdk.calls == []
 
 
+@pytest.mark.parametrize(
+    ("scope", "invoke"),
+    [
+        (
+            "canonical_admin_api_spot_place",
+            lambda client, callback: client.create_order(
+                product_id="BTC-USDC",
+                side="BUY",
+                before_sdk_call=callback,
+            ),
+        ),
+        (
+            "canonical_admin_api_spot_cancel",
+            lambda client, callback: client.cancel_orders(
+                ["exchange-order-id"],
+                before_sdk_call=callback,
+            ),
+        ),
+    ],
+)
+def test_mutation_wrapper_rechecks_authority_after_durable_claim_callback(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    scope: str,
+    invoke,
+) -> None:
+    lease_path = tmp_path / "coinbase-execution.lease"
+    lease_path.write_text(f"{'f' * 64}\n", encoding="ascii")
+    os.chmod(lease_path, 0o600)
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
+    monkeypatch.setenv("COINBASE_EXECUTION_LEASE_PATH", str(lease_path))
+    monkeypatch.setenv("COINBASE_EXECUTION_LEASE_TOKEN", "f" * 64)
+    sdk = _MutationSdk()
+    claims: list[str] = []
+
+    def revoke_after_claim() -> None:
+        claims.append("claimed")
+        monkeypatch.delenv("COINBASE_EXECUTION_ENABLED", raising=False)
+
+    with canonical_coinbase_execution_scope(scope):
+        with pytest.raises(
+            CoinbaseExecutionAuthorityError,
+            match="^coinbase_execution_authority_missing$",
+        ):
+            invoke(CoinbaseRestClient(sdk), revoke_after_claim)
+
+    assert claims == ["claimed"]
+    assert sdk.calls == []
+
+
+@pytest.mark.parametrize(
+    ("scope", "invoke"),
+    [
+        (
+            "canonical_admin_api_spot_place",
+            lambda client, callback: client.create_order(
+                product_id="BTC-USDC",
+                side="BUY",
+                before_sdk_call=callback,
+            ),
+        ),
+        (
+            "canonical_admin_api_spot_cancel",
+            lambda client, callback: client.cancel_orders(
+                ["exchange-order-id"],
+                before_sdk_call=callback,
+            ),
+        ),
+    ],
+)
+def test_mutation_wrapper_revalidates_transport_after_claim_callback(
+    monkeypatch: pytest.MonkeyPatch,
+    scope: str,
+    invoke,
+) -> None:
+    import requests
+    from requests.adapters import HTTPAdapter
+
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
+    session = requests.Session()
+    sdk = _MutationSdk()
+    sdk.session = session
+    sdk.timeout = 10
+    sdk.base_url = "api.coinbase.com"
+    session.verify = True
+    client = CoinbaseRestClient(sdk)
+
+    def drift_transport_after_claim() -> None:
+        session.mount("https://", HTTPAdapter(max_retries=1))
+
+    with canonical_coinbase_execution_scope(scope):
+        with pytest.raises(
+            ValueError,
+            match="coinbase_sdk_transport_retry_forbidden",
+        ):
+            invoke(client, drift_transport_after_claim)
+
+    assert sdk.calls == []
+
+
 def test_every_raw_sdk_mutation_runner_is_source_disabled_before_client() -> None:
     repository = Path(__file__).resolve().parents[2]
     guarded_runners = {
@@ -483,7 +583,11 @@ def test_raw_sdk_mutation_sites_are_frozen_to_guarded_boundaries() -> None:
     ):
         lines = (repository / relative).read_text(encoding="utf-8").splitlines()
         for line_number, _method in call_lines[relative]:
-            final_boundary_window = lines[max(0, line_number - 5):line_number]
+            # A durable-call claim and transport validation may run before the
+            # final authority check immediately preceding the SDK invocation.
+            final_boundary_window = lines[
+                max(0, line_number - 4):line_number
+            ]
             assert any(
                 line.strip().startswith("require_coinbase_execution_authority(")
                 for line in final_boundary_window
@@ -599,6 +703,7 @@ def test_legacy_admin_mvp_runtime_cannot_enable_exchange_mutations(
         "api/v1/routes/orders.py",
         "application/admin_api/operator_automation.py",
         "application/admin_api/operator_follow_up_materialization_runtime.py",
+        "application/admin_api/operator_stealth_reveal_runtime.py",
         "core/coinbase_execution_authority.py",
     ]
     materialization_runtime = (

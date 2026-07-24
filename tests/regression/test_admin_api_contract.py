@@ -74555,35 +74555,35 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     )
     assert live_payload["live_enabled_path_count"] == 0
     assert live_payload["live_eligible_path_count"] == 0
-    assert live_payload["preflight_check_count"] == 120
-    assert live_payload["blocking_preflight_check_count"] == 60
-    assert live_payload["passed_preflight_check_count"] == 60
-    assert live_payload["approval_snapshot_required_count"] == 15
+    assert live_payload["preflight_check_count"] == 144
+    assert live_payload["blocking_preflight_check_count"] == 72
+    assert live_payload["passed_preflight_check_count"] == 72
+    assert live_payload["approval_snapshot_required_count"] == 18
     assert live_payload["approval_snapshot_present_count"] == 0
-    assert live_payload["approval_snapshot_missing_count"] == 15
-    assert live_payload["approval_snapshot_required_field_count"] == 225
-    assert live_payload["approval_snapshot_missing_field_count"] == 225
-    assert live_payload["approval_store_required_count"] == 15
-    assert live_payload["approval_store_configured_count"] == 15
+    assert live_payload["approval_snapshot_missing_count"] == 18
+    assert live_payload["approval_snapshot_required_field_count"] == 270
+    assert live_payload["approval_snapshot_missing_field_count"] == 270
+    assert live_payload["approval_store_required_count"] == 18
+    assert live_payload["approval_store_configured_count"] == 18
     assert live_payload["approval_store_missing_count"] == 0
-    assert live_payload["approval_store_requirement_count"] == 180
+    assert live_payload["approval_store_requirement_count"] == 216
     assert live_payload["approval_store_missing_requirement_count"] == 0
-    assert live_payload["admission_audit_required_count"] == 15
+    assert live_payload["admission_audit_required_count"] == 18
     assert live_payload["admission_audit_configured_count"] == 0
-    assert live_payload["admission_audit_missing_count"] == 15
-    assert live_payload["admission_audit_fact_count"] == 150
-    assert live_payload["admission_audit_missing_fact_count"] == 135
-    assert live_payload["cap_guard_required_count"] == 15
+    assert live_payload["admission_audit_missing_count"] == 18
+    assert live_payload["admission_audit_fact_count"] == 180
+    assert live_payload["admission_audit_missing_fact_count"] == 162
+    assert live_payload["cap_guard_required_count"] == 18
     assert live_payload["cap_guard_configured_count"] == 0
-    assert live_payload["cap_guard_missing_count"] == 15
-    assert live_payload["cap_guard_requirement_count"] == 210
-    assert live_payload["cap_guard_missing_requirement_count"] == 210
-    assert live_payload["live_execution_adapter_required_count"] == 15
+    assert live_payload["cap_guard_missing_count"] == 18
+    assert live_payload["cap_guard_requirement_count"] == 252
+    assert live_payload["cap_guard_missing_requirement_count"] == 252
+    assert live_payload["live_execution_adapter_required_count"] == 18
     assert live_payload["live_execution_adapter_configured_count"] == 9
-    assert live_payload["live_execution_adapter_missing_count"] == 6
-    assert live_payload["readiness_precondition_count"] == 135
-    assert live_payload["blocking_readiness_precondition_count"] == 80
-    assert live_payload["passed_readiness_precondition_count"] == 55
+    assert live_payload["live_execution_adapter_missing_count"] == 9
+    assert live_payload["readiness_precondition_count"] == 162
+    assert live_payload["blocking_readiness_precondition_count"] == 98
+    assert live_payload["passed_readiness_precondition_count"] == 64
     assert live_payload["live_coinbase_orders_ran"] is False
     live_routes = {item["route"]: item for item in live_payload["paths"]}
     assert "/api/v1/orders" in live_routes
@@ -74600,6 +74600,19 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "/api/v1/stealth/orders/{stealth_order_id}/reveal" in live_routes
     assert "/api/v1/stealth/orders/{stealth_order_id}/move" in live_routes
     assert "/api/v1/stealth/orders/{stealth_order_id}/cancel" in live_routes
+    assert (
+        "/api/v1/stealth/definitions/{definition_id}/reveal"
+        in live_routes
+    )
+    assert (
+        "/api/v1/stealth/definitions/"
+        "{definition_id}/resume-accepted-create"
+        in live_routes
+    )
+    assert (
+        "/api/v1/stealth/definitions/{definition_id}/closeout"
+        in live_routes
+    )
     assert (
         "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
         in live_routes
@@ -75358,6 +75371,8 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "automation.spot_single_child_execution",
         "stealth.create",
         "stealth.reveal",
+        "stealth.operator_definition_reveal",
+        "stealth.operator_definition_exact_closeout",
         "stealth.move",
         "stealth.cancel",
         "stealth.mutation_claim_snapshot_proof",
@@ -76536,24 +76551,43 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "revision",
         "preview_id",
         "manifest_sha256",
+        "client_order_id",
+        "plan_sha256",
     ]
     assert stealth_definition_module["read_routes"] == [
         "GET /api/v1/stealth/definitions",
         "GET /api/v1/stealth/definitions/{definition_id}",
         (
+            "GET /api/v1/stealth/definitions/"
+            "{definition_id}/execution"
+        ),
+        (
             "GET /api/v1/stealth/definition-import-previews/"
             "{preview_id}"
         ),
     ]
+    assert (
+        "POST /api/v1/stealth/definitions/{definition_id}/reveal"
+        in stealth_definition_module["command_routes"]
+    )
+    assert (
+        "POST /api/v1/stealth/definitions/"
+        "{definition_id}/resume-accepted-create"
+        in stealth_definition_module["command_routes"]
+    )
+    assert (
+        "POST /api/v1/stealth/definitions/{definition_id}/closeout"
+        in stealth_definition_module["command_routes"]
+    )
     assert stealth_definition_module["action_posture"][
         "read_route_count"
-    ] == 3
+    ] == 4
     assert stealth_definition_module["action_posture"][
         "command_route_count"
-    ] == 7
+    ] == 10
     assert stealth_definition_module["action_posture"][
         "live_route_count"
-    ] == 0
+    ] == 3
     assert stealth_definition_module["action_posture"][
         "command_gap_count"
     ] == 1

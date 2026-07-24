@@ -1,5 +1,38 @@
 # Maintainer Handoff
 
+## Active independent Goal 6 — Stealth reveal and exact closeout
+
+Goal `operator_stealth_reveal_and_exact_closeout_v1` is the sixth goal in the
+authorized eleven-goal sequence. The routed `/stealth` workflow now has a
+separate generated execution contract for one exact definition. PostgreSQL
+owns definition revision/hash, Test-portfolio hash, canonical root
+`client_order_id`, frozen plan, ten combined command cycles, no-retry read
+claims, one-use Preview/Create/Cancel allowances, and restart-unknown
+recovery.
+
+The final Goal 6 hardening directly enforces both installed notional ceilings
+before Preview and again before Create, binds the full reveal/profitability
+plan rather than a scalar subset, withholds the raw exchange identity from
+WebSocket hooks/events, and persists exact terminal command-cycle evidence.
+The UI clears a lost-response freeze only for a matching completed cycle and
+keeps `IN_FLIGHT` evidence fail-closed.
+
+The runtime uses the canonical manager but adds a one-use explicit operator
+capability. Background bridge evaluation cannot reveal an operator-
+materialized row. Accepted Preview terms receive no later market read,
+post-only retry, repricing, alternate identity, or hook mutation. Exact
+closeout performs portfolio and order readback before the single Cancel and
+does not mark local state terminal until authoritative post-Cancel evidence.
+GET readback is call-free and initializes neither SDK nor runtime.
+
+Historical comparison covered
+`origin/prod:core/stealth_order_manager.py`,
+`origin/prod:business/stealth_reveal_strategy.py`,
+`origin/prod:bridges/stealth_order_bridge.py`,
+`origin/prod:dashboard_server.py`, and
+`origin/prod:external/coinbase_client.py`. Backend design:
+[Operator Stealth Reveal and Exact Closeout V1](OPERATOR_STEALTH_REVEAL_AND_EXACT_CLOSEOUT_V1.md).
+
 ## Completed independent Goal 5 — Stealth definition lifecycle
 
 Goal `operator_stealth_definition_lifecycle_v1` translates the legacy stealth

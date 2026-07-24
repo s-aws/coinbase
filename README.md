@@ -1,5 +1,17 @@
 # Coinbase Trading Backend
 
+## Active independent Goal 6 — Stealth reveal and exact closeout
+
+`operator_stealth_reveal_and_exact_closeout_v1` adds the authenticated
+operator-controlled runtime transition for one eligible Goal 5 definition.
+PostgreSQL owns the exact definition/runtime identity, ten combined command
+cycles, no-retry read accounting, frozen Preview/Create plan, one-use
+Preview/Create/Cancel claims, restart recovery, and fixed sanitized readback.
+The canonical manager suppresses background reveal, accepts one explicit
+operator capability, performs no post-Preview market read or retry, rejects
+hook payload drift, and defers local closeout until exact terminal readback.
+See [the Goal 6 design](docs/OPERATOR_STEALTH_REVEAL_AND_EXACT_CLOSEOUT_V1.md).
+
 ## Completed independent Goal 5 — Stealth definition lifecycle
 
 `operator_stealth_definition_lifecycle_v1` adds the authenticated Stealth

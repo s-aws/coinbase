@@ -1,5 +1,13 @@
 # Documentation Index
 
+Active independent Goal 6:
+[Operator Stealth Reveal and Exact Closeout V1](OPERATOR_STEALTH_REVEAL_AND_EXACT_CLOSEOUT_V1.md).
+Goal `operator_stealth_reveal_and_exact_closeout_v1` provides one explicit
+operator-controlled materialization, condition check, Preview-gated identical
+Create, and exact-placement safe closeout. PostgreSQL owns the ten-cycle
+budget, no-retry read accounting, exact identities, one-use allowances,
+restart recovery, and sanitized operator readback.
+
 Completed independent Goal 5:
 [Operator Stealth Definition Lifecycle V1](OPERATOR_STEALTH_DEFINITION_LIFECYCLE_V1.md).
 Goal `operator_stealth_definition_lifecycle_v1` provides routed,

@@ -381,6 +381,102 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     AdminApiRouteInventoryItem(
         module_id="stealth_definitions",
         surface=(
+            "GET /api/v1/stealth/definitions/{definition_id}/execution"
+        ),
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not required; PostgreSQL goal-ledger readback only",
+        caps="one exact Goal 6 definition and client_order_id",
+        audit="fixed sanitized allowance, call-count, and terminal evidence",
+        shared_method="get_operator_stealth_reveal_execution",
+        parity_test=(
+            "call-free reveal/closeout readback; raw Preview response and "
+            "exchange order identity remain withheld"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_definitions",
+        surface=(
+            "POST /api/v1/stealth/definitions/{definition_id}/reveal"
+        ),
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        permission=AdminApiPermission.ORDER_CREATE,
+        idempotency="required; exact revision/hash payload replay only",
+        approval=(
+            "required explicit exact-definition operator acknowledgement"
+        ),
+        caps=(
+            "required one durable Preview claim and, only after accepted "
+            "Preview, one identical Create"
+        ),
+        audit=(
+            "required PostgreSQL definition/runtime/plan binding and fixed "
+            "sanitized Preview/Create terminal evidence"
+        ),
+        shared_method="reveal_operator_stealth_definition",
+        parity_test=(
+            "canonical build_reveal_execution_plan and reveal_order_slice; "
+            "one Create attempt, no retry, no automatic reveal"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_definitions",
+        surface=(
+            "POST /api/v1/stealth/definitions/{definition_id}/"
+            "resume-accepted-create"
+        ),
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        permission=AdminApiPermission.ORDER_CREATE,
+        idempotency=(
+            "required; each interrupted pre-Create resume receives one "
+            "bounded command cycle while Create remains unclaimed"
+        ),
+        approval=(
+            "required explicit Preview-accepted Create resume acknowledgement"
+        ),
+        caps=(
+            "required existing accepted Preview and still-unconsumed sole "
+            "identical Create allowance"
+        ),
+        audit=(
+            "required PostgreSQL resume correlation/idempotency binding, "
+            "frozen plan, and exact Create claim evidence"
+        ),
+        shared_method="resume_operator_stealth_accepted_create",
+        parity_test=(
+            "restart-safe canonical reveal_order_slice continuation; no new "
+            "Preview, alternate terms, retry, or second Create"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_definitions",
+        surface=(
+            "POST /api/v1/stealth/definitions/{definition_id}/closeout"
+        ),
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        permission=AdminApiPermission.ORDER_CANCEL,
+        idempotency="required; exact plan/client_order_id replay only",
+        approval=(
+            "required explicit exact-placement closeout acknowledgement"
+        ),
+        caps=(
+            "required at most one Cancel after authoritative exact "
+            "nonterminal readback"
+        ),
+        audit=(
+            "required fixed pre/post readback classification, one-use cancel "
+            "claim, and terminal manager reconciliation"
+        ),
+        shared_method="closeout_operator_stealth_placement",
+        parity_test=(
+            "canonical cancel_stealth_order exchange boundary with deferred "
+            "local terminal state until exact readback"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_definitions",
+        surface=(
             "GET /api/v1/stealth/definition-import-previews/{preview_id}"
         ),
         action_class=AdminApiActionClass.READ_ONLY,

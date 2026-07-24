@@ -3438,6 +3438,21 @@ class OrderEngine:
         if not self._validate_user_order_portfolio_scope(order):
             return
 
+        operator_value_blind = (
+            self._is_operator_value_blind_stealth_placement(
+                order.get("client_order_id")
+            )
+        )
+        if operator_value_blind:
+            # The raw exchange identity is needed only by the protected
+            # exact-child anchor. Synchronize it before stripping the generic
+            # WebSocket payload, then keep hooks, orderbook, logs, and
+            # downstream persistence value-blind.
+            self._sync_stealth_exchange_order_id(order)
+            order = deepcopy(order)
+            order.pop("order_id", None)
+            order.pop("exchange_order_id", None)
+
         client_order_id = order.get("client_order_id")
         status = order.get("status")
 
@@ -3638,6 +3653,16 @@ class OrderEngine:
                 exchange_order_id,
             )
         except Exception as exc:
+            if self._is_operator_value_blind_stealth_placement(
+                client_order_id
+            ):
+                self.log_message(
+                    "warning",
+                    self.build_event_log_payload(
+                        "operator_stealth_exchange_identity_sync_failed",
+                    ),
+                )
+                return
             self.log_message(
                 "warning",
                 self.build_event_log_payload(
@@ -3646,6 +3671,32 @@ class OrderEngine:
                     error=str(exc),
                 ),
             )
+
+    def _is_operator_value_blind_stealth_placement(
+        self,
+        client_order_id: object,
+    ) -> bool:
+        if not self.stealth_order_bridge or not client_order_id:
+            return False
+        manager = getattr(
+            self.stealth_order_bridge,
+            "stealth_manager",
+            None,
+        )
+        if manager is None:
+            return False
+        try:
+            order = manager.find_stealth_order_by_placed_order_id(
+                str(client_order_id)
+            )
+        except Exception:
+            return False
+        return bool(
+            isinstance(order, dict)
+            and (order.get("reveal_condition_json") or {}).get(
+                "operator_manual_reveal_required"
+            )
+        )
 
     def _seed_parent_order_cache_from_db(self, client_order_id: str) -> bool:
         """Hydrate in-memory parent metadata for stealth orders already persisted at creation."""
