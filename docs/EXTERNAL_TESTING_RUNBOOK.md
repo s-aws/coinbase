@@ -2,9 +2,10 @@
 
 > **Current operator boundary:** the raw live Spot smoke commands preserved in
 > this historical runbook are source-disabled and exit before SDK construction.
-> The four installed Controlled-live mutation routes are manual root
-> place/cancel and explicit attached-intent materialization/exact-child
-> safe-closeout. They remain authenticated, operator-driven, and backend-gated;
+> The six installed Controlled-live mutation routes are manual root
+> place/cancel, explicit attached-intent materialization/exact-child
+> safe-closeout, and operator Hotpoint run-once/exact-child safe-closeout. They
+> remain authenticated, operator-driven, and backend-gated;
 > intent attachment is local-only and supplies no live authority. External
 > REST/WebSocket tests below remain sandbox/read-only unless their own
 > documented read-only opt-in applies.

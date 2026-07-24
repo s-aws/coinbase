@@ -4451,6 +4451,102 @@
       "command_contract": true
     },
     {
+      "module_id": "hotpoint_operations",
+      "surface": "GET /api/v1/hotpoint",
+      "method": "GET",
+      "path": "/api/v1/hotpoint",
+      "action_class": "read_only",
+      "permission": "automation:read",
+      "required_permissions": [
+        "automation:read"
+      ],
+      "idempotency": "not required",
+      "approval": "not applicable; durable control readback only",
+      "caps": "reports fixed 3.10 submitted and 1.00 execution ceilings",
+      "audit": "returns durable revision, correlation, and call accounting",
+      "shared_method": "read",
+      "parity_test": "local PostgreSQL singleton read; zero Coinbase call",
+      "compatibility_mode": null,
+      "command_contract": false
+    },
+    {
+      "module_id": "hotpoint_operations",
+      "surface": "GET /api/v1/hotpoint/eligible-parents",
+      "method": "GET",
+      "path": "/api/v1/hotpoint/eligible-parents",
+      "action_class": "read_only",
+      "permission": "automation:read",
+      "required_permissions": [
+        "automation:read"
+      ],
+      "idempotency": "not required",
+      "approval": "not applicable; local candidate catalog only",
+      "caps": "BTC-USDC approved-Test-portfolio roots only",
+      "audit": "backend-owned filtering and pagination",
+      "shared_method": "list_eligible_parents",
+      "parity_test": "local PostgreSQL page; zero Coinbase call or mutation",
+      "compatibility_mode": null,
+      "command_contract": false
+    },
+    {
+      "module_id": "hotpoint_operations",
+      "surface": "POST /api/v1/hotpoint/control",
+      "method": "POST",
+      "path": "/api/v1/hotpoint/control",
+      "action_class": "local_state_mutation",
+      "permission": "automation:control",
+      "required_permissions": [
+        "automation:control"
+      ],
+      "idempotency": "required revision-bound exact replay",
+      "approval": "required explicit enable, disable, arm, or disarm intent",
+      "caps": "required one parent and one sixty-second trigger window",
+      "audit": "required durable command and singleton revision",
+      "shared_method": "control",
+      "parity_test": "local PostgreSQL control only; zero Coinbase call",
+      "compatibility_mode": null,
+      "command_contract": true
+    },
+    {
+      "module_id": "hotpoint_operations",
+      "surface": "POST /api/v1/hotpoint/run-once",
+      "method": "POST",
+      "path": "/api/v1/hotpoint/run-once",
+      "action_class": "live_exchange_place",
+      "permission": "order:create",
+      "required_permissions": [
+        "automation:trigger",
+        "order:create"
+      ],
+      "idempotency": "required durable single-use child claim",
+      "approval": "required explicit bounded trigger and unknown-consumption acknowledgement",
+      "caps": "required backend domain policy, one parent, one child, and fixed cap profile",
+      "audit": "required claim before boundary with exact or unknown Create accounting",
+      "shared_method": "run_once",
+      "parity_test": "local trigger evaluation; only exact same-bucket evidence can dispatch one canonical post-only child with zero retry",
+      "compatibility_mode": null,
+      "command_contract": true
+    },
+    {
+      "module_id": "hotpoint_operations",
+      "surface": "POST /api/v1/hotpoint/safe-closeout",
+      "method": "POST",
+      "path": "/api/v1/hotpoint/safe-closeout",
+      "action_class": "live_exchange_cancel",
+      "permission": "order:cancel",
+      "required_permissions": [
+        "order:cancel"
+      ],
+      "idempotency": "required separate durable exact-child cancel claim",
+      "approval": "required explicit exact-child and unknown-consumption acknowledgement",
+      "caps": "required at most one Cancel for the accepted exact child",
+      "audit": "required claim before boundary with exact or unknown Cancel accounting",
+      "shared_method": "safe_closeout",
+      "parity_test": "terminal child is call-free; only the exact linked nonterminal child can reach canonical Cancel with zero retry",
+      "compatibility_mode": null,
+      "command_contract": true
+    },
+    {
       "module_id": "automation_control_plane",
       "surface": "GET /api/v1/automation/runs",
       "method": "GET",

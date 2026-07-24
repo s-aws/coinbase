@@ -38,7 +38,7 @@ repo context alone."""
 PASS_CRITERIA = [
     "README.spot-trading.md and docs/README.md are entry points",
     "spot uses the existing order lifecycle, not a spot-only placement engine",
-    "four installed Controlled-live mutation routes: manual root place/cancel and explicit attached-intent materialization/exact-child safe-closeout",
+    "six installed Controlled-live mutation routes: manual root place/cancel and explicit attached-intent materialization/exact-child safe-closeout plus operator Hotpoint run-once/exact-child safe-closeout",
     "intent attachment is local-only and never supplies materialization authority; materialization and safe-closeout each require fresh separate explicit operator acknowledgement",
     "exact outer authority, manager lease, current service decision, RBAC, intent, idempotency, approval, caps, Test portfolio/wallet, audit, reconciliation, and final route scope are backend gates",
     "the browser forwards requests and readback without Coinbase credentials or execution authority",
@@ -49,7 +49,7 @@ PASS_CRITERIA = [
     "client_order_id is internal tracking id; order_id is exchange evidence only",
     "reconciliation/fill-backfill compares local state against Coinbase reality",
     "planned skips are audit rows, not failed Coinbase submissions",
-    "supported Admin API manual-root and attached-intent mutation routes have durable submission, linkage, audit, and terminal readback evidence",
+    "supported Admin API manual-root, attached-intent, and operator Hotpoint mutation routes have durable submission, linkage, audit, and terminal readback evidence",
     "direct-order audit separates read-only audit command fields from audited-order submission/fill evidence fields",
     "dashboard create_parent_order is local DB CRUD and does not submit Coinbase orders",
     "dashboard exchange mutation messages return fixed source-disabled responses before runtime lookup",

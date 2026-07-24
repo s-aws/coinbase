@@ -71,6 +71,11 @@ from .operator_mvp_policy import (
     OPERATOR_MVP_MAX_EXECUTED_NOTIONAL_USDC,
     OPERATOR_MVP_MAX_SUBMITTED_NOTIONAL_USDC,
 )
+from .operator_hotpoint_control import (
+    HOTPOINT_GOAL_ID,
+    HOTPOINT_MAX_POSSIBLE_EXECUTION_NOTIONAL_USDC,
+    HOTPOINT_MAX_SUBMITTED_NOTIONAL_USDC,
+)
 from .idempotency import hashed_interprocess_lock, resolve_idempotency_store_path
 from .reconciliation import FileAdminApiReconciliationStore
 from .models import (
@@ -6984,11 +6989,31 @@ class AdminApiCommandService:
     ) -> AdminApiCommandResponse:
         """Cancel one proven order through the canonical verified-ID wrapper."""
 
-        if automation_ownership is not None and recovery_ownership is not None:
+        hotpoint_bound = command.hotpoint_goal_id is not None
+        if sum(
+            (
+                automation_ownership is not None,
+                recovery_ownership is not None,
+                hotpoint_bound,
+            )
+        ) > 1:
             return self._cancel_rejected(
                 command=command,
                 message="Multiple typed cancellation ownership scopes are forbidden.",
                 failure_stage="order_ownership",
+            )
+        if hotpoint_bound and (
+            command.hotpoint_goal_id != HOTPOINT_GOAL_ID
+            or command.hotpoint_portfolio_id
+            != self.dependencies.spot_portfolio_id
+            or not command.hotpoint_parent_client_order_id
+            or not command.hotpoint_plan_sha256
+        ):
+            return self._cancel_rejected(
+                command=command,
+                message="Goal-bound Hotpoint cancellation binding is invalid.",
+                data={"blocker": "operator_hotpoint_cancel_binding_invalid"},
+                failure_stage="hotpoint_goal_binding",
             )
         execution_authority_missing = bool(
             command.allow_live_execution
@@ -7188,7 +7213,11 @@ class AdminApiCommandService:
             else (
                 OrderOwnershipProvenance.ADMIN_AUTOMATION_ROOT.value
                 if automation_ownership is not None
-                else OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+                else (
+                    OrderOwnershipProvenance.ADMIN_HOTPOINT_CHILD.value
+                    if hotpoint_bound
+                    else OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+                )
             )
         )
         local_order_is_admin_direct_root = bool(
@@ -7200,6 +7229,7 @@ class AdminApiCommandService:
             == expected_root_provenance
             and (
                 recovery_ownership is not None
+                or hotpoint_bound
                 or local_order.get("parent_order_id") is None
             )
             and (
@@ -7214,6 +7244,15 @@ class AdminApiCommandService:
                     == recovery_ownership.product_id
                     and str(local_order.get("status") or "").upper()
                     == recovery_ownership.expected_local_status
+                )
+            )
+            and (
+                not hotpoint_bound
+                or (
+                    str(local_order.get("parent_order_id") or "")
+                    == command.hotpoint_parent_client_order_id
+                    and str(local_order.get("product_id") or "")
+                    == "BTC-USDC"
                 )
             )
         )
@@ -7414,7 +7453,13 @@ class AdminApiCommandService:
                 == expected_root_provenance
                 and (
                     recovery_ownership is not None
+                    or hotpoint_bound
                     or claimed_local_order.get("parent_order_id") is None
+                )
+                and (
+                    not hotpoint_bound
+                    or str(claimed_local_order.get("parent_order_id") or "")
+                    == command.hotpoint_parent_client_order_id
                 )
                 and str(claimed_local_order.get("product_id") or "")
                 == product_id
@@ -14232,12 +14277,62 @@ class AdminApiCommandService:
             )
 
         deps = self.dependencies
-        client_order_id = deps.uuid_factory()
+        goal_bound = command.hotpoint_goal_id is not None
+        client_order_id = (
+            command.request.client_order_id
+            if goal_bound
+            else deps.uuid_factory()
+        )
         request = command.request
         product_id = request.product_id
         side = request.side.value if isinstance(request.side, OrderSide) else str(request.side)
         raw_price = safe_float(request.limit_price, default=0.0)
         raw_size = request.base_size
+
+        if goal_bound:
+            try:
+                goal_submitted_cap = Decimal(
+                    str(command.admin_max_submitted_notional_usdc)
+                )
+                goal_possible_cap = Decimal(
+                    str(command.admin_max_executed_notional_usdc)
+                )
+                goal_notional = Decimal(str(raw_size)) * Decimal(
+                    str(request.limit_price)
+                )
+            except Exception:
+                return self._place_rejected(
+                    command=command,
+                    client_order_id=str(client_order_id or ""),
+                    message="Goal-bound Hotpoint placement binding is invalid.",
+                    failure_stage="hotpoint_goal_binding",
+                    service_method="place_hotpoint_test_order",
+                )
+            if (
+                command.hotpoint_goal_id != HOTPOINT_GOAL_ID
+                or not client_order_id
+                or product_id != "BTC-USDC"
+                or request.order_type is not OrderType.LIMIT
+                or request.time_in_force is not TimeInForce.GOOD_UNTIL_CANCELLED
+                or request.post_only is not True
+                or request.manual_live_acknowledgement is not True
+                or command.hotpoint_portfolio_id != deps.spot_portfolio_id
+                or goal_submitted_cap
+                != HOTPOINT_MAX_SUBMITTED_NOTIONAL_USDC
+                or goal_possible_cap
+                != HOTPOINT_MAX_POSSIBLE_EXECUTION_NOTIONAL_USDC
+                or goal_notional <= 0
+                or goal_notional > goal_submitted_cap
+                or goal_notional > goal_possible_cap
+            ):
+                return self._place_rejected(
+                    command=command,
+                    client_order_id=str(client_order_id or ""),
+                    message="Goal-bound Hotpoint placement binding is invalid.",
+                    data={"blocker": "operator_hotpoint_goal_binding_invalid"},
+                    failure_stage="hotpoint_goal_binding",
+                    service_method="place_hotpoint_test_order",
+                )
 
         if not (product_id and side and raw_price and raw_price > 0 and raw_size is not None):
             return self._place_rejected(
@@ -14262,6 +14357,19 @@ class AdminApiCommandService:
             capability = evaluate_product_capability(
                 product_id=product_id,
                 capability=ProductCapability.HOTPOINT_AUTO_PLACEMENT,
+                policy=(
+                    {
+                        "product_id": {
+                            "BTC-USDC": {
+                                ProductCapability.HOTPOINT_AUTO_PLACEMENT.value: (
+                                    "enabled"
+                                )
+                            }
+                        }
+                    }
+                    if goal_bound
+                    else None
+                ),
             )
             if not capability.allowed:
                 message = (
@@ -14332,21 +14440,35 @@ class AdminApiCommandService:
                     service_method="place_hotpoint_test_order",
                 )
 
+            insert_kwargs = {
+                "client_order_id": client_order_id,
+                "product_id": product_id,
+                "side": side,
+                "size": approved_size,
+                "price": raw_price,
+                "target_movement": 0.0,
+                "target_movement_type": TargetMovementType.PERCENTAGE.value,
+                "max_order_replacement": 0,
+                "current_order_replacement": 0,
+                "status": OrderStatus.PENDING.value,
+                "parent_order_id": (
+                    command.hotpoint_parent_client_order_id
+                    if goal_bound
+                    else None
+                ),
+                "allow_partial_fills": False,
+                "enable_hotpoint_replication": not goal_bound,
+                "auto_placed_by_hotpoint": goal_bound,
+            }
+            if goal_bound:
+                insert_kwargs["ownership_provenance"] = (
+                    OrderOwnershipProvenance.ADMIN_HOTPOINT_CHILD.value
+                )
+                insert_kwargs["retail_portfolio_id"] = (
+                    command.hotpoint_portfolio_id
+                )
             parent_id = deps.insert_order_parent(
-                client_order_id=client_order_id,
-                product_id=product_id,
-                side=side,
-                size=approved_size,
-                price=raw_price,
-                target_movement=0.0,
-                target_movement_type=TargetMovementType.PERCENTAGE.value,
-                max_order_replacement=0,
-                current_order_replacement=0,
-                status=OrderStatus.PENDING.value,
-                parent_order_id=None,
-                allow_partial_fills=False,
-                enable_hotpoint_replication=True,
-                auto_placed_by_hotpoint=False,
+                **insert_kwargs,
             )
             if parent_id is None:
                 raise OrderCreationError(
@@ -14357,9 +14479,9 @@ class AdminApiCommandService:
 
             order_configuration = {
                 "limit_limit_gtc": {
-                    "base_size": str(approved_size),
-                    "limit_price": str(raw_price),
-                    "post_only": False,
+                        "base_size": str(approved_size),
+                        "limit_price": str(raw_price),
+                        "post_only": bool(request.post_only),
                 },
             }
             controller = deps.runtime_controller_factory()
@@ -14370,19 +14492,61 @@ class AdminApiCommandService:
                     base_size=str(approved_size),
                     limit_price=str(raw_price),
                     client_order_id=client_order_id,
-                    post_only=False,
+                    post_only=bool(request.post_only),
                 )
 
             result_dict = coinbase_order_response_to_dict(result)
             response_success = coinbase_order_response_success(result, result_dict)
-            if response_success is False:
-                error_msg = coinbase_order_response_error_message(result, result_dict)
-                raise CoinbaseAPIError(
-                    f"Hotpoint test order creation failed: {error_msg}",
-                    api_error_code="hotpoint_test_order_creation_failed",
+            if response_success is not True:
+                if parent_row_inserted:
+                    self._mark_hotpoint_parent_failed(deps, client_order_id)
+                return self._place_rejected(
+                    command=command,
+                    client_order_id=client_order_id,
+                    message=(
+                        "Hotpoint Create was explicitly rejected."
+                        if response_success is False
+                        else "Hotpoint Create outcome is unknown."
+                    ),
+                    data={
+                        "error": (
+                            "operator_hotpoint_create_rejected"
+                            if response_success is False
+                            else "operator_hotpoint_create_outcome_unknown"
+                        ),
+                        "response_classification": (
+                            "explicit_rejection"
+                            if response_success is False
+                            else "unknown"
+                        ),
+                    },
+                    failure_stage=(
+                        "coinbase_rejected"
+                        if response_success is False
+                        else "coinbase_response_unknown"
+                    ),
+                    service_method="place_hotpoint_test_order",
+                    live_exchange_submitted=True,
+                    live_coinbase_orders_ran=True,
                 )
 
             order_id = coinbase_order_response_order_id(result, result_dict)
+            if not order_id:
+                if parent_row_inserted:
+                    self._mark_hotpoint_parent_failed(deps, client_order_id)
+                return self._place_rejected(
+                    command=command,
+                    client_order_id=client_order_id,
+                    message="Hotpoint Create outcome is unknown.",
+                    data={
+                        "error": "operator_hotpoint_create_outcome_unknown",
+                        "response_classification": "accepted_identity_unknown",
+                    },
+                    failure_stage="coinbase_response_unknown",
+                    service_method="place_hotpoint_test_order",
+                    live_exchange_submitted=True,
+                    live_coinbase_orders_ran=True,
+                )
             submission_event_recorded = publish_direct_order_submission_event(
                 publisher_getter=deps.order_event_publisher_getter,
                 client_order_id=client_order_id,
@@ -14426,6 +14590,8 @@ class AdminApiCommandService:
                 data={"error": _value_blind_exception_detail(exc)},
                 failure_stage="coinbase_rest",
                 service_method="place_hotpoint_test_order",
+                live_exchange_submitted=True,
+                live_coinbase_orders_ran=True,
             )
         except Exception:
             if parent_row_inserted:

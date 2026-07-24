@@ -1,6 +1,13 @@
 # Documentation Index
 
-Active independent Goal 8:
+Active independent Goal 9:
+[Operator Hotpoint Control and Single Placement V1](OPERATOR_HOTPOINT_CONTROL_AND_SINGLE_PLACEMENT_V1.md).
+Goal `operator_hotpoint_control_and_single_placement_v1` provides separate
+Spot and Futures controls, one bounded parent window, one shared goal-global
+Create claim, rate-limit and recent-placement readback, and exact-child
+closeout authority.
+
+Completed independent Goal 8:
 [Operator Fill-Triggered Follow-Up Activation V1](OPERATOR_FILL_TRIGGERED_FOLLOW_UP_ACTIVATION_V1.md).
 Goal `operator_fill_triggered_follow_up_activation_v1` provides one
 revision-bound activation control, authoritative full-fill proof,

@@ -7,9 +7,10 @@ their presence here does not authorize or prioritize them.
 
 All mutation examples in this file are historical and source-disabled. The
 sweep CLI retains read-only reporting modes, but no longer submits orders.
-The four installed Controlled-live mutation routes are manual root place/cancel
-and explicit attached-intent materialization/exact-child safe-closeout under
-the manager lease and backend per-request gates. Intent attachment is
+The six installed Controlled-live mutation routes are manual root place/cancel,
+explicit attached-intent materialization/exact-child safe-closeout, and
+operator Hotpoint run-once/exact-child safe-closeout under the manager lease
+and backend per-request gates. Intent attachment is
 local-only, both successor actions require fresh separate acknowledgements,
 and none of these routes grants sweep, fan-out, cadence, or scheduler authority.
 

@@ -735,7 +735,7 @@ def test_core_workspaces_goal_is_discoverable_from_backend_entry_points():
         assert historical_goal in normalized
         assert "complete_zero_candidates" in normalized
 
-    assert "four installed Controlled-live mutation routes" in documents[
+    assert "six installed Controlled-live mutation routes" in documents[
         "contract_agent"
     ]
     assert "sole Controlled-live command surface" not in documents[

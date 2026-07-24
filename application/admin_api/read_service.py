@@ -7792,6 +7792,13 @@ class AdminApiReadService:
             blockers: list[str] | None = None,
             bff_boundary: str | None = None,
             route_local_boundary: str | None = None,
+            idempotency_required: bool = True,
+            operator_intent_required: bool = True,
+            rbac_required: bool = True,
+            approval_required: bool = True,
+            cap_guard_required: bool = True,
+            admission_audit_required: bool = True,
+            reconciliation_required: bool = True,
             live_adapter_required: bool = True,
         ) -> AdminEnterpriseMutationTaxonomyItem:
             route_row = route_inventory_item(surface)
@@ -7838,6 +7845,13 @@ class AdminApiReadService:
                     "they must not implement route-local trading behavior."
                 ),
                 spot_rule_boundary=spot_rule_boundary,
+                idempotency_required=idempotency_required,
+                operator_intent_required=operator_intent_required,
+                rbac_required=rbac_required,
+                approval_required=approval_required,
+                cap_guard_required=cap_guard_required,
+                admission_audit_required=admission_audit_required,
+                reconciliation_required=reconciliation_required,
                 live_adapter_required=live_adapter_required,
             )
 
@@ -8498,6 +8512,51 @@ class AdminApiReadService:
                 ),
             ),
             module_item(
+                module_id="hotpoint_operations",
+                module="Hotpoint Operations",
+                primary_owner="operator_hotpoint_control",
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                unsupported_actions=[
+                    "continuing background placement",
+                    "multi-parent fan-out",
+                    "cross-domain execution fallback",
+                ],
+                identity_keys=[
+                    "domain",
+                    "parent_client_order_id",
+                    "child_client_order_id",
+                    "window_id",
+                ],
+                constraints=[
+                    "One shared Goal 9 Create claim is non-transferable across Spot and Futures.",
+                    "Spot and Futures retain separate policies, evidence, controls, and adapters.",
+                ],
+                verification=[
+                    "PostgreSQL cross-domain allowance regression",
+                    "paired-domain Admin UI E2E",
+                    "contextless Spot/Futures boundary review",
+                ],
+                backend_contract_refs=[
+                    "api/v1/routes/operator_hotpoint.py",
+                    "application/admin_api/operator_hotpoint_control.py",
+                    "application/admin_api/operator_hotpoint_runtime.py",
+                    "database/operator_hotpoint_control.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/operator-read-models/hotpoint",
+                    "src/shared/api/contracts/backendApiClient.ts",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_HOTPOINT_CONTROL_AND_SINGLE_PLACEMENT_V1.md",
+                ],
+                spot_rule_boundary=(
+                    "The Test/BTC-USDC/3.10/1.00 Spot policy is isolated from "
+                    "the Default/AVP-20DEC30-CDE/one-contract strict Futures "
+                    "policy. Neither domain may reuse the other's evidence or "
+                    "execution adapter."
+                ),
+            ),
+            module_item(
                 module_id="legacy_dashboard_websocket",
                 module="Legacy Dashboard WebSocket",
                 primary_owner="dashboard_contract",
@@ -8570,6 +8629,19 @@ class AdminApiReadService:
                     "authority and must be reintroduced only through Admin API contracts."
                 ),
             ),
+        ]
+        operator_hotpoint_read_surfaces = [
+            "GET /api/v1/hotpoint",
+            "GET /api/v1/hotpoint/eligible-parents",
+        ]
+        operator_hotpoint_command_surfaces = [
+            "POST /api/v1/hotpoint/control",
+            "POST /api/v1/hotpoint/run-once",
+            "POST /api/v1/hotpoint/safe-closeout",
+        ]
+        operator_hotpoint_live_command_surfaces = [
+            "POST /api/v1/hotpoint/run-once",
+            "POST /api/v1/hotpoint/safe-closeout",
         ]
         operator_automation_read_surfaces = [
             "GET /api/v1/automation/control-plane",
@@ -8645,6 +8717,14 @@ class AdminApiReadService:
                 live_service_state=operator_automation_live_service_state,
             )
             for surface in operator_automation_live_command_surfaces
+        )
+        operator_hotpoint_controlled_live_enabled = all(
+            _controlled_live_mvp_route_enabled(
+                method=_surface_method_and_path(surface)[0],
+                path=_surface_method_and_path(surface)[1],
+                live_service_state=operator_automation_live_service_state,
+            )
+            for surface in operator_hotpoint_live_command_surfaces
         )
         functionality_inventory = [
             functionality_item(
@@ -9347,6 +9427,67 @@ class AdminApiReadService:
                     "Spot product, wallet, inventory, cap, and execution rules remain "
                     "inside the typed Spot adapter; they do not apply to Orders "
                     "follow-up classifications or any non-Spot adapter."
+                ),
+            ),
+            functionality_item(
+                workflow_id="automation.operator_hotpoint_single_placement",
+                module_id="hotpoint_operations",
+                module="Hotpoint Operations",
+                workflow_type=AdminApiFunctionalityWorkflowType.AUTOMATION,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Authenticated separate Spot and Futures Hotpoint controls "
+                    "with backend-owned eligible parents, one bounded trigger "
+                    "window, one shared durable Create claim, recent placement, "
+                    "and exact-child safe closeout."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=True,
+                command_capable=True,
+                live_designated=True,
+                live_enabled=operator_hotpoint_controlled_live_enabled,
+                read_routes=operator_hotpoint_read_surfaces,
+                command_routes=operator_hotpoint_command_surfaces,
+                automation_routes=operator_hotpoint_command_surfaces,
+                identity_keys=[
+                    "domain",
+                    "parent_client_order_id",
+                    "child_client_order_id",
+                    "window_id",
+                ],
+                backend_contract_refs=[
+                    "api/v1/routes/operator_hotpoint.py",
+                    "application/admin_api/operator_hotpoint_control.py",
+                    "application/admin_api/operator_hotpoint_runtime.py",
+                    "database/operator_hotpoint_control.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/operator-read-models/hotpoint",
+                    "src/shared/api/contracts/backendApiClient.ts",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_HOTPOINT_CONTROL_AND_SINGLE_PLACEMENT_V1.md",
+                ],
+                required_next_contract=(
+                    "Futures execution remains unavailable until the separate "
+                    "Goal 10 canonical Futures lifecycle is activated and proven."
+                ),
+                blockers=[
+                    "exact backend parent and trigger evidence required",
+                    "one goal-global Create claim total",
+                    "Futures placement and Cancel adapters unavailable in Goal 9",
+                ],
+                frontend_boundary=(
+                    "The browser displays generated backend authority and "
+                    "forwards explicit intent only; it derives no trigger, "
+                    "price, size, cap, portfolio, or child identity."
+                ),
+                spot_rule_boundary=(
+                    "Spot and Futures Hotpoint policies, metadata, evidence, "
+                    "claims, and adapters are separate; there is no fallback "
+                    "between domains."
                 ),
             ),
             functionality_item(
@@ -11285,6 +11426,163 @@ class AdminApiReadService:
                 cap_guard_required=True,
                 reconciliation_required=True,
                 live_adapter_required=True,
+            ),
+            mutation_taxonomy_from_surface(
+                surface="POST /api/v1/hotpoint/control",
+                mutation_id="automation.operator_hotpoint_control",
+                mutation_family=AdminApiMutationFamilyType.AUTOMATION_HOTPOINT,
+                workflow_id="automation.operator_hotpoint_single_placement",
+                module="Hotpoint Operations",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Enable, disable, arm, or disarm one backend-owned "
+                    "domain-specific Hotpoint window without invoking Coinbase."
+                ),
+                identity_keys=[
+                    "domain",
+                    "parent_client_order_id",
+                    "window_id",
+                    "revision",
+                ],
+                owning_backend_service=(
+                    "application/admin_api/operator_hotpoint_control.py::"
+                    "OperatorHotpointControlService"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/operator_hotpoint.py",
+                    "application/admin_api/operator_hotpoint_control.py",
+                    "database/operator_hotpoint_control.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/operator-read-models/hotpoint",
+                    "src/shared/api/contracts/mutationContracts.ts",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_HOTPOINT_CONTROL_AND_SINGLE_PLACEMENT_V1.md",
+                ],
+                blockers=[
+                    "exact revision and operator confirmation required",
+                    "consumed goal allowance forbids re-arming",
+                ],
+                frontend_boundary=(
+                    "The browser forwards only the selected backend action, "
+                    "revision, parent identity when arming, and explicit "
+                    "confirmation; it supplies no child terms."
+                ),
+                spot_rule_boundary=(
+                    "Spot and Futures controls persist separately and never "
+                    "transfer product, portfolio, cap, or adapter authority."
+                ),
+                approval_required=False,
+                cap_guard_required=False,
+                reconciliation_required=False,
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_from_surface(
+                surface="POST /api/v1/hotpoint/run-once",
+                mutation_id="automation.operator_hotpoint_run_once",
+                mutation_family=AdminApiMutationFamilyType.AUTOMATION_HOTPOINT,
+                workflow_id="automation.operator_hotpoint_single_placement",
+                module="Hotpoint Operations",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Evaluate one exact armed parent window and, only after a "
+                    "durable goal-global claim, dispatch at most one "
+                    "backend-derived same-domain child."
+                ),
+                identity_keys=[
+                    "domain",
+                    "parent_client_order_id",
+                    "window_id",
+                    "child_client_order_id",
+                    "placement_claim_id",
+                ],
+                owning_backend_service=(
+                    "application/admin_api/operator_hotpoint_control.py::"
+                    "OperatorHotpointControlService.run_once"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/operator_hotpoint.py",
+                    "application/admin_api/operator_hotpoint_runtime.py",
+                    "application/admin_api/command_service.py",
+                    "database/operator_hotpoint_control.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/operator-read-models/hotpoint",
+                    "src/shared/api/contracts/mutationContracts.ts",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_HOTPOINT_CONTROL_AND_SINGLE_PLACEMENT_V1.md",
+                ],
+                blockers=[
+                    "exact parent trigger evidence required",
+                    "one goal-global Create claim total",
+                    "Futures adapter unavailable until Goal 10",
+                ],
+                frontend_boundary=(
+                    "The browser may request one evaluation and display durable "
+                    "authority; it derives no trigger evidence or order terms."
+                ),
+                spot_rule_boundary=(
+                    "The Spot executor accepts only Test/BTC-USDC/3.10/1.00. "
+                    "The separate Futures policy is one Default-profile "
+                    "AVP-20DEC30-CDE contract under strict V3 caps and has no "
+                    "Goal 9 fallback executor."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
+                surface="POST /api/v1/hotpoint/safe-closeout",
+                mutation_id="automation.operator_hotpoint_safe_closeout",
+                mutation_family=AdminApiMutationFamilyType.AUTOMATION_HOTPOINT,
+                workflow_id="automation.operator_hotpoint_single_placement",
+                module="Hotpoint Operations",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Claim at most one Cancel solely for the exact accepted "
+                    "same-domain child when authoritative local state remains "
+                    "nonterminal."
+                ),
+                identity_keys=[
+                    "domain",
+                    "parent_client_order_id",
+                    "child_client_order_id",
+                    "placement_claim_id",
+                    "cancel_claim_id",
+                ],
+                owning_backend_service=(
+                    "application/admin_api/operator_hotpoint_control.py::"
+                    "OperatorHotpointControlService.safe_closeout"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/operator_hotpoint.py",
+                    "application/admin_api/operator_hotpoint_runtime.py",
+                    "application/admin_api/command_service.py",
+                    "database/operator_hotpoint_control.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/operator-read-models/hotpoint",
+                    "src/shared/api/contracts/mutationContracts.ts",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_HOTPOINT_CONTROL_AND_SINGLE_PLACEMENT_V1.md",
+                ],
+                blockers=[
+                    "exact accepted child and nonterminal state required",
+                    "one same-domain Cancel claim total",
+                    "Futures adapter unavailable until Goal 10",
+                ],
+                frontend_boundary=(
+                    "The browser forwards only explicit exact-child closeout "
+                    "intent; it cannot choose an exchange identity or alternate "
+                    "child."
+                ),
+                spot_rule_boundary=(
+                    "Closeout must use the same domain and portfolio binding as "
+                    "the consumed Create claim; no Spot/Futures fallback exists."
+                ),
             ),
             mutation_taxonomy_item(
                 mutation_id="admin.approval_lifecycle",

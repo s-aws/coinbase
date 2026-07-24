@@ -14,8 +14,9 @@ The product is the **operator review stack**. An unqualified installed startup
 uses **Controlled-live** for operator testing and fails closed unless its exact
 master opt-in, approved Test portfolio, and owner-only execution lease are
 present. **No-live** is an explicit alternate posture, not the default. The
-four installed Controlled-live mutation routes are manual root place/cancel
-and explicit attached-intent materialization/exact-child safe-closeout. Each is
+six installed Controlled-live mutation routes are manual root place/cancel,
+explicit attached-intent materialization/exact-child safe-closeout, and
+operator Hotpoint run-once/exact-child safe-closeout. Each is
 authenticated and backend-owned under its distinct acknowledgement, identity,
 idempotency, policy/cap/wallet, audit, reconciliation, and final route-scope
 gates. Intent attachment remains local-only and never supplies live authority.

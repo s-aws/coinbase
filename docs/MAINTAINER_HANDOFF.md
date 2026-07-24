@@ -1,6 +1,29 @@
 # Maintainer Handoff
 
-## Active independent Goal 8 — Fill-triggered follow-up activation
+## Active independent Goal 9 — Hotpoint control and single placement
+
+Goal `operator_hotpoint_control_and_single_placement_v1` adds routed,
+authenticated Hotpoint controls backed by separate Spot and Futures
+PostgreSQL control tables and one shared goal-global Create allowance. Spot is
+fixed to Test/BTC-USDC and `3.10/1.00 USDC`; Futures is fixed to
+Default/AVP-20DEC30-CDE, one contract, and strict V3 `<100/<150/<300 USDC`
+caps. Readback exposes the kill switch, bounded window, goal-global rate
+limit, recent placement, adapter availability, call accounting, and exact
+child without exposing private portfolio or exchange evidence.
+
+The implementation consulted `origin/prod` Hotpoint detector, rate limiter,
+placer, decay sweeper, and dashboard handlers. It does not restore the legacy
+WebSocket authority, background fan-out, in-memory-only rate state, raw
+exception text, or domain-generic exchange adapter. Futures remains
+call-free until its separate canonical lifecycle is activated.
+
+The installed Controlled-live runtime preserves operator visibility when the
+private Default-profile portfolio binding is not configured: Futures returns
+its fixed product/cap policy, zero eligible parents, no allowed actions, and a
+fixed not-configured diagnostic. This readback is call-free and cannot create
+a placeholder binding or actionable Futures database state.
+
+## Completed independent Goal 8 — Fill-triggered follow-up activation
 
 Goal `operator_fill_triggered_follow_up_activation_v1` connects one
 previously attached intent to the existing order-engine full-fill boundary.

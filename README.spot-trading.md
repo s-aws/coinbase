@@ -6,9 +6,10 @@ parked.
 
 Current execution boundary: the product is the operator review stack and its
 installed default is Controlled-live, which fails closed without exact backend
-authority. The four installed Controlled-live mutation routes are manual root
-place/cancel and explicit attached-intent materialization/exact-child
-safe-closeout. Follow-up intent attachment is completed but local-only and its
+authority. The six installed Controlled-live mutation routes are manual root
+place/cancel, explicit attached-intent materialization/exact-child
+safe-closeout, and operator Hotpoint run-once/exact-child safe-closeout.
+Follow-up intent attachment is completed but local-only and its
 acknowledgement never becomes materialization authority. Materialization and
 safe-closeout each require a fresh, separate explicit operator acknowledgement;
 the backend revalidates exact source/root/child identity, authoritative fill or
@@ -102,10 +103,11 @@ increments and quote-notional minimums from `products.json`.
 
 ## Supported Controlled-Live Surface
 
-Spot Coinbase mutation is limited to four installed Controlled-live mutation
-routes: manual root place/cancel and explicit attached-intent
-materialization/exact-child safe-closeout under the exact backend admission
-chain. Intent attachment itself is local-only. No other source may add or reuse
+Spot Coinbase mutation is limited to six installed Controlled-live mutation
+routes: manual root place/cancel, explicit attached-intent
+materialization/exact-child safe-closeout, and operator Hotpoint
+run-once/exact-child safe-closeout under the exact backend admission chain.
+Intent attachment itself is local-only. No other source may add or reuse
 a REST placement/cancel path, and no installed scheduler materializes intents.
 
 Scope note: offline dashboard/stealth compatibility fixtures use products

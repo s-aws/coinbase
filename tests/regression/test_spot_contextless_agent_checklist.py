@@ -28,9 +28,9 @@ def test_contextless_agent_checklist_is_read_only_and_prompt_complete():
     assert checklist["live_coinbase_orders_ran"] is False
     assert checklist["total_submitted_notional_usdc"] == "0"
     assert (
-        "four installed Controlled-live mutation routes: manual root "
+        "six installed Controlled-live mutation routes: manual root "
         "place/cancel and explicit attached-intent materialization/exact-child "
-        "safe-closeout"
+        "safe-closeout plus operator Hotpoint run-once/exact-child safe-closeout"
     ) in checklist["pass_criteria"]
 
 
@@ -54,16 +54,17 @@ def test_contextless_agent_checklist_cli_summary_runs(capsys):
         "docs/examples/spot-portfolio-sweep.md",
     ],
 )
-def test_current_operator_boundary_docs_name_all_four_controlled_live_routes(
+def test_current_operator_boundary_docs_name_all_six_controlled_live_routes(
     relative_path,
 ):
     text = (ROOT / relative_path).read_text(encoding="utf-8-sig")
     current_contract = " ".join(text.split()).lower()
 
-    assert "four installed controlled-live mutation routes" in current_contract
+    assert "six installed controlled-live mutation routes" in current_contract
     assert "manual root place/cancel" in current_contract
     assert "attached-intent materialization" in current_contract
     assert "exact-child safe-closeout" in current_contract
+    assert "operator hotpoint run-once" in current_contract
 
     current_intro = current_contract[:4000]
     assert "sole supported controlled-live operator surface" not in current_intro

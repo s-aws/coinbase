@@ -2,9 +2,10 @@
 
 > **Current operator boundary:** historical raw Spot smoke, portfolio-sweep,
 > campaign, legacy dashboard, and legacy engine mutation paths are
-> source-disabled. The four installed Controlled-live mutation routes are
-> manual root place/cancel and explicit attached-intent
-> materialization/exact-child safe-closeout under the manager lease and
+> source-disabled. The six installed Controlled-live mutation routes are
+> manual root place/cancel, explicit attached-intent
+> materialization/exact-child safe-closeout, and operator Hotpoint
+> run-once/exact-child safe-closeout under the manager lease and
 > per-request backend gates. Intent attachment is local-only, successor
 > acknowledgement is fresh and separate, and no automatic follow-up execution
 > is installed. Commands retained below are historical/read-only reference, not
@@ -2317,11 +2318,12 @@ Status:
 - Evidence expected from each surface.
 - No live Coinbase orders are approved for this phase.
 
-Current note: dashboard, hotpoint, sweep, campaign, and selected-chain
-compatibility mutations are source-disabled. The four installed Controlled-live
-mutation routes are manual root place/cancel and explicit attached-intent
-materialization/exact-child safe-closeout, each under its distinct backend
-authority and acknowledgement boundary.
+Current note: legacy dashboard Hotpoint, sweep, campaign, and selected-chain
+compatibility mutations are source-disabled. The six installed Controlled-live
+mutation routes are manual root place/cancel, explicit attached-intent
+materialization/exact-child safe-closeout, and operator Hotpoint
+run-once/exact-child safe-closeout, each under its distinct backend authority
+and acknowledgement boundary.
 
 Result:
 

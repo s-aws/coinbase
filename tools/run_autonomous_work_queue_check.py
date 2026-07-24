@@ -843,7 +843,7 @@ def _entry_point_alignment() -> QueueCheck:
             PROJECT_ROOT / "docs" / "agents" / "AGENT_ADMIN_API_CONTRACT.md",
             (
                 *current_goal_requirements,
-                "four installed Controlled-live mutation routes",
+                "six installed Controlled-live mutation routes",
                 "current post-lease service decision",
             ),
         ),

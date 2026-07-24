@@ -43,8 +43,9 @@ The response passes only if it identifies:
 - `README.spot-trading.md` and `docs/README.md` as appropriate entry points.
 - The invariant that spot uses the existing order lifecycle, not a spot-only
   placement engine.
-- The four installed Controlled-live mutation routes: manual root place/cancel
-  and explicit attached-intent materialization/exact-child safe-closeout.
+- The six installed Controlled-live mutation routes: manual root place/cancel,
+  explicit attached-intent materialization/exact-child safe-closeout, and
+  operator Hotpoint run-once/exact-child safe-closeout.
 - That intent attachment is local-only and never supplies materialization
   authority; materialization and safe-closeout each require a fresh, separate
   operator acknowledgement and remain backend-authorized.
@@ -69,8 +70,8 @@ The response passes only if it identifies:
   Coinbase reality.
 - Planned skips as audit rows, not failed Coinbase submissions.
 - Which submission/linkage/audit evidence path applies to the supported Admin
-  API manual-root and attached-intent routes, including authoritative terminal
-  readback and exact child identity.
+  API manual-root, attached-intent, and operator Hotpoint routes, including
+  authoritative terminal readback and exact child identity.
 - That direct-order audit output separates the read-only audit command fields
   from audited-order evidence fields such as
   `audited_order_live_submission_evidence`.

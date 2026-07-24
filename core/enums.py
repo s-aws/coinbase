@@ -62,6 +62,7 @@ class OrderOwnershipProvenance(str, Enum):
     ADMIN_MANUAL_ROOT = "ADMIN_MANUAL_ROOT"
     ADMIN_AUTOMATION_ROOT = "ADMIN_AUTOMATION_ROOT"
     ADMIN_FILL_FOLLOW_UP = "ADMIN_FILL_FOLLOW_UP"
+    ADMIN_HOTPOINT_CHILD = "ADMIN_HOTPOINT_CHILD"
     EXTERNAL_WS_OBSERVED = "EXTERNAL_WS_OBSERVED"
 
 
@@ -396,6 +397,7 @@ class AdminApiMutationFamilyType(str, Enum):
     ADMIN_ACCOUNT_REALITY_REFRESH = "admin_account_reality_refresh"
     ADMIN_RUNTIME_CONTROL = "admin_runtime_control"
     AUTOMATION_CONTROL_PLANE = "automation_control_plane"
+    AUTOMATION_HOTPOINT = "automation_hotpoint"
     SPOT_MANUAL_ORDER = "spot_manual_order"
     SPOT_ORDER_CANCEL = "spot_order_cancel"
     SPOT_FOLLOW_UP_INTENT = "spot_follow_up_intent"

@@ -272,6 +272,7 @@ owners:
       - docs/FUTURES_SLICE_2R12_TERMINAL_DIAGNOSIS.md
       - docs/FUTURES_POST_R10_COMPATIBILITY_DIRECTION.md
       - docs/OPERATOR_AUTOMATION_CONTROL_PLANE.md
+      - docs/OPERATOR_HOTPOINT_CONTROL_AND_SINGLE_PLACEMENT_V1.md
       - docs/OPERATOR_STEALTH_REVEAL_AND_EXACT_CLOSEOUT_V1.md
       - docs/OPERATOR_SPOT_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_V10_V12.md
       - docs/OPERATOR_SPOT_AUTOMATION_SINGLE_CHILD_ADAPTER.md
@@ -366,6 +367,7 @@ owners:
       - tests/regression/test_operator_stealth_reveal_repository.py
       - tests/regression/test_db_*.py
       - tests/regression/test_operator_follow_up_materialization_repository.py
+      - tests/regression/test_operator_hotpoint_control_repository.py
       - tests/regression/test_reconciler_schema.py
       - tests/unit/test_database.py
       - tests/unit/test_filled_follow_up_atomic_persistence.py

@@ -40,6 +40,8 @@ from .operator_mvp_policy import (
     OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_CREATE_ROUTE,
     OPERATOR_MVP_AUTOMATION_PREVIEW_GATED_SINGLE_CHILD_ROUTE,
     OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_SAFE_CLOSEOUT_ROUTE,
+    OPERATOR_MVP_HOTPOINT_SINGLE_CHILD_CREATE_ROUTE,
+    OPERATOR_MVP_HOTPOINT_SINGLE_CHILD_SAFE_CLOSEOUT_ROUTE,
     OPERATOR_MVP_MAX_EXECUTED_NOTIONAL_USDC,
     OPERATOR_MVP_MAX_SUBMITTED_NOTIONAL_USDC,
     OPERATOR_MVP_SUPPORTED_LIVE_ROUTES,
@@ -858,6 +860,30 @@ OPERATOR_AUTOMATION_SPOT_ADAPTER_SOURCE = (
     "canonical_operator_automation_spot_runtime"
 )
 OPERATOR_AUTOMATION_SPOT_ADAPTER_ROUTES = {
+    (
+        "POST",
+        OPERATOR_MVP_HOTPOINT_SINGLE_CHILD_CREATE_ROUTE,
+        "hotpoint_operations",
+        "run_once",
+    ): (
+        "place_hotpoint_test_order",
+        "OperatorHotpointControlService.run_once -> "
+        "OperatorHotpointControlRepository.claim_placement -> "
+        "AdminApiHotpointPlacementExecutor -> "
+        "AdminApiCommandService.place_hotpoint_test_order",
+    ),
+    (
+        "POST",
+        OPERATOR_MVP_HOTPOINT_SINGLE_CHILD_SAFE_CLOSEOUT_ROUTE,
+        "hotpoint_operations",
+        "safe_closeout",
+    ): (
+        "cancel_order_by_client_order_id",
+        "OperatorHotpointControlService.safe_closeout -> "
+        "OperatorHotpointControlRepository.claim_cancel -> "
+        "AdminApiHotpointCancelExecutor -> "
+        "AdminApiCommandService.cancel_order_by_client_order_id",
+    ),
     (
         "POST",
         OPERATOR_MVP_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_ROUTE,

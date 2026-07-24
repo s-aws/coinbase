@@ -3209,6 +3209,74 @@ def test_cancel_reads_exact_active_state_before_exchange_order_id_cancel() -> No
     assert proof["authoritative_status"] == "CANCELLED"
 
 
+def test_hotpoint_cancel_binding_allows_only_exact_linked_child() -> None:
+    child_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+    parent_id = "11111111-1111-4111-8111-111111111111"
+
+    class _CancelClient(_SpotRestClient):
+        def cancel_order(
+            self,
+            requested_client_order_id: str,
+            *,
+            verified_exchange_order_id: str | None = None,
+            return_evidence: bool = False,
+        ) -> Any:
+            assert requested_client_order_id == child_id
+            assert verified_exchange_order_id == "exchange-order-hotpoint"
+            self.history = [
+                {
+                    "client_order_id": child_id,
+                    "order_id": verified_exchange_order_id,
+                    "product_id": "BTC-USDC",
+                    "status": "CANCELLED",
+                }
+            ]
+            return {
+                "outcome": "succeeded",
+                "explicit_rejection": False,
+                "identity_rejection": False,
+                "identity_match": True,
+            }
+
+    rest_client = _CancelClient()
+    rest_client.history = [
+        {
+            "client_order_id": child_id,
+            "order_id": "exchange-order-hotpoint",
+            "product_id": "BTC-USDC",
+            "status": "OPEN",
+        }
+    ]
+    registrar = _RootRegistrar()
+    _registered_root(
+        registrar,
+        child_id,
+        provenance="ADMIN_HOTPOINT_CHILD",
+        parent_order_id=parent_id,
+    )
+    registrar.rows[child_id]["exchange_order_id"] = "exchange-order-hotpoint"
+    command = _cancel_command(child_id).model_copy(
+        update={
+            "hotpoint_goal_id": (
+                "operator_hotpoint_control_and_single_placement_v1"
+            ),
+            "hotpoint_parent_client_order_id": parent_id,
+            "hotpoint_plan_sha256": "a" * 64,
+            "hotpoint_portfolio_id": TEST_PORTFOLIO_ID,
+        }
+    )
+
+    response = _service(
+        rest_client,
+        registrar,
+    ).cancel_order_by_client_order_id(command)
+
+    assert response.status == AdminApiCommandStatus.ACCEPTED
+    assert response.client_order_id == child_id
+    assert response.live_exchange_submitted is True
+    assert registrar.rows[child_id]["status"] == "CANCELLED"
+
+
 def test_cancel_uses_authoritative_exchange_id_exactly_once_without_fallback() -> None:
     """The operator client ID selects the order; only its proven exchange ID mutates."""
 

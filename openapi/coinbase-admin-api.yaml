@@ -14317,6 +14317,506 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/hotpoint:
+    get:
+      tags:
+      - operator-hotpoint
+      summary: Read backend-owned Hotpoint controls and call accounting
+      operationId: get_operator_hotpoint_api_v1_hotpoint_get
+      parameters:
+      - name: domain
+        in: query
+        required: false
+        schema:
+          enum:
+          - SPOT
+          - FUTURES
+          type: string
+          default: SPOT
+          title: Domain
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorHotpointReadback'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unprocessable Content
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+  /api/v1/hotpoint/eligible-parents:
+    get:
+      tags:
+      - operator-hotpoint
+      summary: List exact system-owned parents eligible for one Hotpoint window
+      operationId: list_operator_hotpoint_parents_api_v1_hotpoint_eligible_parents_get
+      parameters:
+      - name: domain
+        in: query
+        required: false
+        schema:
+          enum:
+          - SPOT
+          - FUTURES
+          type: string
+          default: SPOT
+          title: Domain
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 25
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorHotpointParentListResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unprocessable Content
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+  /api/v1/hotpoint/control:
+    post:
+      tags:
+      - operator-hotpoint
+      summary: Enable, disable, arm, or disarm one bounded Hotpoint window
+      operationId: control_operator_hotpoint_api_v1_hotpoint_control_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: ^[\x21-\x7e]+$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: ^[\x21-\x7e]+$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: control_operator_hotpoint
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorHotpointControlRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorHotpointMutationResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unprocessable Content
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+  /api/v1/hotpoint/run-once:
+    post:
+      tags:
+      - operator-hotpoint
+      summary: Evaluate one armed window and dispatch at most one claimed child
+      operationId: run_operator_hotpoint_once_api_v1_hotpoint_run_once_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: ^[\x21-\x7e]+$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: ^[\x21-\x7e]+$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: run_operator_hotpoint_once
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorHotpointRunRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorHotpointMutationResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unprocessable Content
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+  /api/v1/hotpoint/safe-closeout:
+    post:
+      tags:
+      - operator-hotpoint
+      summary: Claim and safely cancel only the exact accepted Hotpoint child
+      operationId: safe_closeout_operator_hotpoint_api_v1_hotpoint_safe_closeout_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: ^[\x21-\x7e]+$
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: ^[\x21-\x7e]+$
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: safe_closeout_operator_hotpoint_child
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorHotpointSafeCloseoutRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorHotpointMutationResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Forbidden
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unprocessable Content
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
   /api/v1/product-catalog:
     get:
       tags:
@@ -24071,6 +24571,7 @@ components:
       - admin_account_reality_refresh
       - admin_runtime_control
       - automation_control_plane
+      - automation_hotpoint
       - spot_manual_order
       - spot_order_cancel
       - spot_follow_up_intent
@@ -158559,6 +159060,49 @@ components:
           title: Detail
       type: object
       title: HTTPValidationError
+    HotpointCancelState:
+      type: string
+      enum:
+      - NOT_CLAIMED
+      - CLAIMED
+      - NOT_REQUIRED
+      - ACCEPTED
+      - REJECTED
+      - UNKNOWN
+      title: HotpointCancelState
+    HotpointControlAction:
+      type: string
+      enum:
+      - ENABLE
+      - DISABLE
+      - ARM
+      - DISARM
+      title: HotpointControlAction
+    HotpointCreateState:
+      type: string
+      enum:
+      - NOT_CLAIMED
+      - CLAIMED
+      - ACCEPTED
+      - REJECTED
+      - UNKNOWN
+      title: HotpointCreateState
+    HotpointKillSwitchState:
+      type: string
+      enum:
+      - DISABLED
+      - ENABLED
+      title: HotpointKillSwitchState
+    HotpointWindowState:
+      type: string
+      enum:
+      - NONE
+      - ARMED
+      - CLAIMED
+      - TERMINAL
+      - DISARMED
+      - EXPIRED
+      title: HotpointWindowState
     ManualOrderRequest:
       properties:
         client_order_id:
@@ -159145,6 +159689,528 @@ components:
       - expected_revision
       title: OperatorFillInventoryRepairRefreshRequest
       description: Explicit consent for one no-retry logical fill-catalog read.
+    OperatorHotpointControlRequest:
+      properties:
+        domain:
+          type: string
+          enum:
+          - SPOT
+          - FUTURES
+          title: Domain
+        action:
+          $ref: '#/components/schemas/HotpointControlAction'
+        expected_revision:
+          type: integer
+          minimum: 0.0
+          title: Expected Revision
+        confirm_control_action:
+          type: boolean
+          title: Confirm Control Action
+        parent_client_order_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Parent Client Order Id
+        authorize_one_bounded_trigger_window:
+          type: boolean
+          title: Authorize One Bounded Trigger Window
+          default: false
+        acknowledge_unknown_outcome_consumes_create_allowance:
+          type: boolean
+          title: Acknowledge Unknown Outcome Consumes Create Allowance
+          default: false
+        acknowledge_backend_derives_child_terms:
+          type: boolean
+          title: Acknowledge Backend Derives Child Terms
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - domain
+      - action
+      - expected_revision
+      - confirm_control_action
+      title: OperatorHotpointControlRequest
+    OperatorHotpointMutationResponse:
+      properties:
+        type:
+          type: string
+          const: operator_hotpoint_mutation
+          title: Type
+          default: operator_hotpoint_mutation
+        status:
+          type: string
+          const: accepted
+          title: Status
+        service_method:
+          type: string
+          enum:
+          - control
+          - run_once
+          - safe_closeout
+          title: Service Method
+        operator_intent:
+          type: string
+          title: Operator Intent
+        control:
+          $ref: '#/components/schemas/OperatorHotpointReadback'
+        correlation_id:
+          type: string
+          title: Correlation Id
+        idempotency_key:
+          type: string
+          title: Idempotency Key
+        audit_id:
+          type: string
+          title: Audit Id
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - service_method
+      - operator_intent
+      - control
+      - correlation_id
+      - idempotency_key
+      - audit_id
+      - live_exchange_submitted
+      - live_coinbase_orders_ran
+      title: OperatorHotpointMutationResponse
+    OperatorHotpointParentItem:
+      properties:
+        domain:
+          type: string
+          enum:
+          - SPOT
+          - FUTURES
+          title: Domain
+        client_order_id:
+          type: string
+          title: Client Order Id
+        product_id:
+          type: string
+          enum:
+          - BTC-USDC
+          - AVP-20DEC30-CDE
+          title: Product Id
+        side:
+          type: string
+          enum:
+          - BUY
+          - SELL
+          title: Side
+        status:
+          type: string
+          const: OPEN
+          title: Status
+      additionalProperties: false
+      type: object
+      required:
+      - domain
+      - client_order_id
+      - product_id
+      - side
+      - status
+      title: OperatorHotpointParentItem
+    OperatorHotpointParentListResponse:
+      properties:
+        domain:
+          type: string
+          enum:
+          - SPOT
+          - FUTURES
+          title: Domain
+        type:
+          type: string
+          const: operator_hotpoint_eligible_parent_list
+          title: Type
+          default: operator_hotpoint_eligible_parent_list
+        items:
+          items:
+            $ref: '#/components/schemas/OperatorHotpointParentItem'
+          type: array
+          title: Items
+        returned_count:
+          type: integer
+          minimum: 0.0
+          title: Returned Count
+        total_count:
+          type: integer
+          minimum: 0.0
+          title: Total Count
+        limit:
+          type: integer
+          maximum: 100.0
+          minimum: 1.0
+          title: Limit
+        offset:
+          type: integer
+          minimum: 0.0
+          title: Offset
+        portfolio_profile_alias:
+          type: string
+          enum:
+          - Test
+          - Default
+          title: Portfolio Profile Alias
+        product_scope:
+          type: string
+          enum:
+          - BTC-USDC
+          - AVP-20DEC30-CDE
+          title: Product Scope
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - domain
+      - items
+      - returned_count
+      - total_count
+      - limit
+      - offset
+      - portfolio_profile_alias
+      - product_scope
+      title: OperatorHotpointParentListResponse
+    OperatorHotpointRateLimitReadback:
+      properties:
+        scope:
+          type: string
+          const: GOAL_GLOBAL
+          title: Scope
+          default: GOAL_GLOBAL
+        create_cap:
+          type: integer
+          const: 1
+          title: Create Cap
+          default: 1
+        create_claims_consumed:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Create Claims Consumed
+        create_claims_remaining:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Create Claims Remaining
+        consumed_by_domain:
+          anyOf:
+          - type: string
+            enum:
+            - SPOT
+            - FUTURES
+          - type: 'null'
+          title: Consumed By Domain
+        trigger_window_seconds:
+          type: integer
+          const: 60
+          title: Trigger Window Seconds
+          default: 60
+      additionalProperties: false
+      type: object
+      required:
+      - create_claims_consumed
+      - create_claims_remaining
+      - consumed_by_domain
+      title: OperatorHotpointRateLimitReadback
+    OperatorHotpointReadback:
+      properties:
+        domain:
+          type: string
+          enum:
+          - SPOT
+          - FUTURES
+          title: Domain
+        type:
+          type: string
+          const: operator_hotpoint_control
+          title: Type
+          default: operator_hotpoint_control
+        goal_id:
+          type: string
+          const: operator_hotpoint_control_and_single_placement_v1
+          title: Goal Id
+          default: operator_hotpoint_control_and_single_placement_v1
+        revision:
+          type: integer
+          minimum: 0.0
+          title: Revision
+        environment:
+          type: string
+          title: Environment
+        portfolio_profile_alias:
+          type: string
+          enum:
+          - Test
+          - Default
+          title: Portfolio Profile Alias
+        product_scope:
+          type: string
+          enum:
+          - BTC-USDC
+          - AVP-20DEC30-CDE
+          title: Product Scope
+        max_submitted_notional_usdc:
+          type: string
+          title: Max Submitted Notional Usdc
+        max_possible_execution_notional_usdc:
+          type: string
+          title: Max Possible Execution Notional Usdc
+        max_turnover_notional_usdc:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Max Turnover Notional Usdc
+        exact_size:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Exact Size
+        placement_execution_available:
+          type: boolean
+          title: Placement Execution Available
+        cancel_execution_available:
+          type: boolean
+          title: Cancel Execution Available
+        rate_limit:
+          $ref: '#/components/schemas/OperatorHotpointRateLimitReadback'
+        recent_placement:
+          anyOf:
+          - $ref: '#/components/schemas/OperatorHotpointRecentPlacementReadback'
+          - type: 'null'
+        kill_switch_state:
+          $ref: '#/components/schemas/HotpointKillSwitchState'
+        window_state:
+          $ref: '#/components/schemas/HotpointWindowState'
+        create_state:
+          $ref: '#/components/schemas/HotpointCreateState'
+        cancel_state:
+          $ref: '#/components/schemas/HotpointCancelState'
+        parent_client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Parent Client Order Id
+        child_client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Child Client Order Id
+        side:
+          anyOf:
+          - type: string
+            enum:
+            - BUY
+            - SELL
+          - type: 'null'
+          title: Side
+        window_started_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Window Started At
+        window_expires_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Window Expires At
+        diagnostic_code:
+          type: string
+          title: Diagnostic Code
+        allowed_actions:
+          items:
+            type: string
+            enum:
+            - ENABLE
+            - DISABLE
+            - ARM
+            - DISARM
+            - RUN_ONCE
+            - SAFE_CLOSEOUT
+          type: array
+          title: Allowed Actions
+        create_claim_consumed:
+          type: boolean
+          title: Create Claim Consumed
+        cancel_claim_consumed:
+          type: boolean
+          title: Cancel Claim Consumed
+        create_exchange_invoked:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Create Exchange Invoked
+        cancel_exchange_invoked:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Cancel Exchange Invoked
+        correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+        updated_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Updated At
+        browser_authority:
+          type: string
+          const: display_and_forward_only
+          title: Browser Authority
+          default: display_and_forward_only
+        backend_authoritative:
+          type: boolean
+          title: Backend Authoritative
+          default: true
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - domain
+      - revision
+      - environment
+      - portfolio_profile_alias
+      - product_scope
+      - max_submitted_notional_usdc
+      - max_possible_execution_notional_usdc
+      - max_turnover_notional_usdc
+      - exact_size
+      - placement_execution_available
+      - cancel_execution_available
+      - rate_limit
+      - recent_placement
+      - kill_switch_state
+      - window_state
+      - create_state
+      - cancel_state
+      - parent_client_order_id
+      - child_client_order_id
+      - side
+      - window_started_at
+      - window_expires_at
+      - diagnostic_code
+      - allowed_actions
+      - create_claim_consumed
+      - cancel_claim_consumed
+      - create_exchange_invoked
+      - cancel_exchange_invoked
+      - correlation_id
+      - audit_id
+      - updated_at
+      title: OperatorHotpointReadback
+    OperatorHotpointRecentPlacementReadback:
+      properties:
+        domain:
+          type: string
+          enum:
+          - SPOT
+          - FUTURES
+          title: Domain
+        parent_client_order_id:
+          type: string
+          title: Parent Client Order Id
+        child_client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Child Client Order Id
+        create_state:
+          type: string
+          enum:
+          - CLAIMED
+          - ACCEPTED
+          - REJECTED
+          - UNKNOWN
+          title: Create State
+        create_exchange_invoked:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Create Exchange Invoked
+        diagnostic_code:
+          type: string
+          title: Diagnostic Code
+        updated_at:
+          type: string
+          title: Updated At
+      additionalProperties: false
+      type: object
+      required:
+      - domain
+      - parent_client_order_id
+      - child_client_order_id
+      - create_state
+      - create_exchange_invoked
+      - diagnostic_code
+      - updated_at
+      title: OperatorHotpointRecentPlacementReadback
+    OperatorHotpointRunRequest:
+      properties:
+        domain:
+          type: string
+          enum:
+          - SPOT
+          - FUTURES
+          title: Domain
+        confirm_bounded_trigger_evaluation:
+          type: boolean
+          title: Confirm Bounded Trigger Evaluation
+        acknowledge_unknown_outcome_consumes_create_allowance:
+          type: boolean
+          title: Acknowledge Unknown Outcome Consumes Create Allowance
+      additionalProperties: false
+      type: object
+      required:
+      - domain
+      - confirm_bounded_trigger_evaluation
+      - acknowledge_unknown_outcome_consumes_create_allowance
+      title: OperatorHotpointRunRequest
+    OperatorHotpointSafeCloseoutRequest:
+      properties:
+        domain:
+          type: string
+          enum:
+          - SPOT
+          - FUTURES
+          title: Domain
+        confirm_exact_child_safe_closeout:
+          type: boolean
+          title: Confirm Exact Child Safe Closeout
+        acknowledge_unknown_outcome_consumes_cancel_allowance:
+          type: boolean
+          title: Acknowledge Unknown Outcome Consumes Cancel Allowance
+      additionalProperties: false
+      type: object
+      required:
+      - domain
+      - confirm_exact_child_safe_closeout
+      - acknowledge_unknown_outcome_consumes_cancel_allowance
+      title: OperatorHotpointSafeCloseoutRequest
     OperatorRevealedOrderMoveExecuteRequest:
       properties:
         expected_plan_sha256:
@@ -160328,6 +161394,7 @@ components:
       - ADMIN_MANUAL_ROOT
       - ADMIN_AUTOMATION_ROOT
       - ADMIN_FILL_FOLLOW_UP
+      - ADMIN_HOTPOINT_CHILD
       - EXTERNAL_WS_OBSERVED
       title: OrderOwnershipProvenance
       description: 'Durable authority provenance for an ``order_parent`` row.

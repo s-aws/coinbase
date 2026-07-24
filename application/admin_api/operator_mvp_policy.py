@@ -43,6 +43,12 @@ OPERATOR_MVP_AUTOMATION_ATOMIC_MARKET_SNAPSHOT_ROUTE = (
 OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_SAFE_CLOSEOUT_ROUTE = (
     "/api/v1/automation/runs/{run_id}/safe-closeout-child"
 )
+OPERATOR_MVP_HOTPOINT_SINGLE_CHILD_CREATE_ROUTE = (
+    "/api/v1/hotpoint/run-once"
+)
+OPERATOR_MVP_HOTPOINT_SINGLE_CHILD_SAFE_CLOSEOUT_ROUTE = (
+    "/api/v1/hotpoint/safe-closeout"
+)
 OPERATOR_MVP_SPOT_MODULE_ID = "spot_operations"
 OPERATOR_MVP_CANCEL_PRODUCT_SCOPE = "Test profile Spot root order"
 OPERATOR_MVP_SUPPORTED_LIVE_ROUTES = frozenset(
@@ -71,6 +77,11 @@ OPERATOR_MVP_SUPPORTED_LIVE_ROUTES = frozenset(
         (
             "POST",
             OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_SAFE_CLOSEOUT_ROUTE,
+        ),
+        ("POST", OPERATOR_MVP_HOTPOINT_SINGLE_CHILD_CREATE_ROUTE),
+        (
+            "POST",
+            OPERATOR_MVP_HOTPOINT_SINGLE_CHILD_SAFE_CLOSEOUT_ROUTE,
         ),
     }
 )

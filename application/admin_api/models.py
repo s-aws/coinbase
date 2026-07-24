@@ -1466,6 +1466,36 @@ class ManualOrderCommand(BaseModel):
     admin_max_executed_notional_usdc: DecimalString | None = None
     admission_audit_id: str | None = Field(default=None, min_length=1)
     allow_live_execution: bool = False
+    hotpoint_goal_id: str | None = Field(default=None, min_length=1)
+    hotpoint_parent_client_order_id: str | None = Field(
+        default=None,
+        min_length=1,
+    )
+    hotpoint_plan_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
+    hotpoint_portfolio_id: str | None = Field(
+        default=None,
+        pattern=(
+            r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-"
+            r"[0-9a-f]{4}-[0-9a-f]{12}$"
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _require_complete_hotpoint_binding(self) -> Self:
+        binding = (
+            self.hotpoint_goal_id,
+            self.hotpoint_parent_client_order_id,
+            self.hotpoint_plan_sha256,
+            self.hotpoint_portfolio_id,
+        )
+        if any(value is not None for value in binding) and not all(
+            value is not None for value in binding
+        ):
+            raise ValueError("hotpoint_goal_binding_incomplete")
+        return self
 
 
 class AdminOrderFillFollowUpTriggerRequest(BaseModel):
@@ -1527,6 +1557,36 @@ class CancelOrderCommand(BaseModel):
     client_order_id: str = Field(min_length=1)
     request: CancelOrderRequest
     allow_live_execution: bool = False
+    hotpoint_goal_id: str | None = Field(default=None, min_length=1)
+    hotpoint_parent_client_order_id: str | None = Field(
+        default=None,
+        min_length=1,
+    )
+    hotpoint_plan_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
+    hotpoint_portfolio_id: str | None = Field(
+        default=None,
+        pattern=(
+            r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-"
+            r"[0-9a-f]{4}-[0-9a-f]{12}$"
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _require_complete_hotpoint_binding(self) -> Self:
+        binding = (
+            self.hotpoint_goal_id,
+            self.hotpoint_parent_client_order_id,
+            self.hotpoint_plan_sha256,
+            self.hotpoint_portfolio_id,
+        )
+        if any(value is not None for value in binding) and not all(
+            value is not None for value in binding
+        ):
+            raise ValueError("hotpoint_goal_binding_incomplete")
+        return self
 
 
 class ReconcileOrderRequest(BaseModel):

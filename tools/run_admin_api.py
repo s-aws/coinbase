@@ -44,6 +44,9 @@ OPERATOR_PARENT_STRATEGIES_ENABLED_ENV = (
 OPERATOR_STEALTH_DEFINITIONS_ENABLED_ENV = (
     "COINBASE_ADMIN_API_OPERATOR_STEALTH_DEFINITIONS_ENABLED"
 )
+OPERATOR_HOTPOINT_ENABLED_ENV = (
+    "COINBASE_ADMIN_API_OPERATOR_HOTPOINT_ENABLED"
+)
 DISABLED_ENV_VALUES = {"0", "false", "no", "off", "disabled"}
 ENABLED_ENV_VALUES = {"1", "true", "yes", "on"}
 OIDC_REQUIRED_ENV_VARS = (
@@ -66,6 +69,9 @@ OPERATOR_PARENT_STRATEGY_SCHEMA_STARTUP_ERROR = (
 )
 OPERATOR_STEALTH_DEFINITION_SCHEMA_STARTUP_ERROR = (
     "Admin API operator stealth definition schema initialization failed."
+)
+OPERATOR_HOTPOINT_SCHEMA_STARTUP_ERROR = (
+    "Admin API operator Hotpoint schema initialization failed."
 )
 
 
@@ -337,6 +343,16 @@ def initialize_operator_automation_schema() -> None:
     initialize_schema()
 
 
+def initialize_operator_hotpoint_schema() -> None:
+    """Create and recover the bounded Hotpoint control schema."""
+
+    from database.operator_hotpoint_control import (
+        initialize_operator_hotpoint_control_schema,
+    )
+
+    initialize_operator_hotpoint_control_schema()
+
+
 def initialize_operator_product_catalog_schema() -> None:
     """Create and recover the Product Catalog schema before serving."""
 
@@ -396,6 +412,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             initialize_operator_automation_schema()
         except Exception:
             print(OPERATOR_AUTOMATION_SCHEMA_STARTUP_ERROR, file=sys.stderr)
+            return 2
+
+    if os.environ.get(OPERATOR_HOTPOINT_ENABLED_ENV) == "1":
+        try:
+            initialize_operator_hotpoint_schema()
+        except Exception:
+            print(OPERATOR_HOTPOINT_SCHEMA_STARTUP_ERROR, file=sys.stderr)
             return 2
 
     if os.environ.get(OPERATOR_PRODUCT_CATALOG_ENABLED_ENV) == "1":

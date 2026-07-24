@@ -28,6 +28,7 @@ from .routes.operator_automation import router as operator_automation_router
 from .routes.operator_fill_inventory_repair import (
     router as operator_fill_inventory_repair_router,
 )
+from .routes.operator_hotpoint import router as operator_hotpoint_router
 from .routes.operator_product_catalog import (
     router as operator_product_catalog_router,
 )
@@ -364,6 +365,11 @@ def create_app() -> FastAPI:
         operator_fill_inventory_repair_router,
         prefix="/api/v1",
         tags=["operator-fill-inventory-repair"],
+    )
+    app.include_router(
+        operator_hotpoint_router,
+        prefix="/api/v1",
+        tags=["operator-hotpoint"],
     )
     app.include_router(
         operator_product_catalog_router,

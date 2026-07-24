@@ -262,9 +262,10 @@ policy evidence only. It does not query or claim to verify the installed
 database seal; installed database verification requires separate deployment
 evidence.
 
-The four installed Controlled-live mutation routes are manual Spot LIMIT/GTC
-place/cancel and explicit attached-intent materialization/exact-child
-safe-closeout. Each requires the exact execution flag, manager-owned lease,
+The six installed Controlled-live mutation routes are manual Spot LIMIT/GTC
+place/cancel, explicit attached-intent materialization/exact-child
+safe-closeout, and operator Hotpoint run-once/exact-child safe-closeout. Each
+requires the exact execution flag, manager-owned lease,
 current post-lease service decision, route membership, RBAC, distinct operator
 intent and acknowledgement, idempotency, caps, exact Test portfolio/wallet
 evidence, audit, reconciliation, and a route-bound final exchange scope. Intent

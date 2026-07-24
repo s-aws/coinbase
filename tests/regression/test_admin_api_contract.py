@@ -62866,6 +62866,8 @@ def test_admin_api_decision_backed_live_execution_service_requires_runtime_opt_i
                 "/api/v1/automation/"
                 "atomic-market-snapshot-candidates/authorize",
             ),
+            ("POST", "/api/v1/hotpoint/run-once"),
+            ("POST", "/api/v1/hotpoint/safe-closeout"),
         }
     )
     unsupported = evaluate_command_live_admission(
@@ -74568,39 +74570,41 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     )
     assert live_payload["live_enabled_path_count"] == 0
     assert live_payload["live_eligible_path_count"] == 0
-    assert live_payload["preflight_check_count"] == 160
-    assert live_payload["blocking_preflight_check_count"] == 80
-    assert live_payload["passed_preflight_check_count"] == 80
-    assert live_payload["approval_snapshot_required_count"] == 20
+    assert live_payload["preflight_check_count"] == 176
+    assert live_payload["blocking_preflight_check_count"] == 88
+    assert live_payload["passed_preflight_check_count"] == 88
+    assert live_payload["approval_snapshot_required_count"] == 22
     assert live_payload["approval_snapshot_present_count"] == 0
-    assert live_payload["approval_snapshot_missing_count"] == 20
-    assert live_payload["approval_snapshot_required_field_count"] == 300
-    assert live_payload["approval_snapshot_missing_field_count"] == 300
-    assert live_payload["approval_store_required_count"] == 20
-    assert live_payload["approval_store_configured_count"] == 20
+    assert live_payload["approval_snapshot_missing_count"] == 22
+    assert live_payload["approval_snapshot_required_field_count"] == 330
+    assert live_payload["approval_snapshot_missing_field_count"] == 330
+    assert live_payload["approval_store_required_count"] == 22
+    assert live_payload["approval_store_configured_count"] == 22
     assert live_payload["approval_store_missing_count"] == 0
-    assert live_payload["approval_store_requirement_count"] == 240
+    assert live_payload["approval_store_requirement_count"] == 264
     assert live_payload["approval_store_missing_requirement_count"] == 0
-    assert live_payload["admission_audit_required_count"] == 20
+    assert live_payload["admission_audit_required_count"] == 22
     assert live_payload["admission_audit_configured_count"] == 0
-    assert live_payload["admission_audit_missing_count"] == 20
-    assert live_payload["admission_audit_fact_count"] == 200
-    assert live_payload["admission_audit_missing_fact_count"] == 180
-    assert live_payload["cap_guard_required_count"] == 20
+    assert live_payload["admission_audit_missing_count"] == 22
+    assert live_payload["admission_audit_fact_count"] == 220
+    assert live_payload["admission_audit_missing_fact_count"] == 198
+    assert live_payload["cap_guard_required_count"] == 22
     assert live_payload["cap_guard_configured_count"] == 0
-    assert live_payload["cap_guard_missing_count"] == 20
-    assert live_payload["cap_guard_requirement_count"] == 280
-    assert live_payload["cap_guard_missing_requirement_count"] == 280
-    assert live_payload["live_execution_adapter_required_count"] == 20
-    assert live_payload["live_execution_adapter_configured_count"] == 9
+    assert live_payload["cap_guard_missing_count"] == 22
+    assert live_payload["cap_guard_requirement_count"] == 308
+    assert live_payload["cap_guard_missing_requirement_count"] == 308
+    assert live_payload["live_execution_adapter_required_count"] == 22
+    assert live_payload["live_execution_adapter_configured_count"] == 11
     assert live_payload["live_execution_adapter_missing_count"] == 11
-    assert live_payload["readiness_precondition_count"] == 180
-    assert live_payload["blocking_readiness_precondition_count"] == 110
-    assert live_payload["passed_readiness_precondition_count"] == 70
+    assert live_payload["readiness_precondition_count"] == 198
+    assert live_payload["blocking_readiness_precondition_count"] == 120
+    assert live_payload["passed_readiness_precondition_count"] == 78
     assert live_payload["live_coinbase_orders_ran"] is False
     live_routes = {item["route"]: item for item in live_payload["paths"]}
     assert "/api/v1/orders" in live_routes
     assert "/api/v1/orders/{client_order_id}/cancel" in live_routes
+    assert "/api/v1/hotpoint/run-once" in live_routes
+    assert "/api/v1/hotpoint/safe-closeout" in live_routes
     assert (
         "/api/v1/orders/{source_client_order_id}/follow-up-intent/materialization"
         in live_routes
@@ -74709,6 +74713,8 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         ),
         "/api/v1/automation/runs/{run_id}/safe-closeout-child",
         "/api/v1/automation/atomic-market-snapshot-candidates/authorize",
+        "/api/v1/hotpoint/run-once",
+        "/api/v1/hotpoint/safe-closeout",
         "/api/v1/stealth/orders/{stealth_order_id}/reveal",
     }
     executable_adapter_routes = configured_adapter_routes - {
@@ -75386,6 +75392,9 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "automation.spot_atomic_market_snapshot_authorization",
         "automation.spot_eligibility_refresh",
         "automation.spot_single_child_execution",
+        "automation.operator_hotpoint_control",
+        "automation.operator_hotpoint_run_once",
+        "automation.operator_hotpoint_safe_closeout",
         "stealth.create",
         "stealth.reveal",
         "stealth.operator_definition_reveal",
@@ -75403,6 +75412,19 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "legacy.dashboard_hotpoint",
         "legacy.dashboard_cancel",
     } <= set(taxonomy_by_id)
+    assert (
+        inventory_by_id["automation.operator_hotpoint_single_placement"][
+            "module_id"
+        ]
+        == "hotpoint_operations"
+    )
+    assert inventory_by_id[
+        "automation.operator_hotpoint_single_placement"
+    ]["command_routes"] == [
+        "POST /api/v1/hotpoint/control",
+        "POST /api/v1/hotpoint/run-once",
+        "POST /api/v1/hotpoint/safe-closeout",
+    ]
     command_surfaces = [
         item.surface
         for item in ADMIN_API_ROUTE_INVENTORY
@@ -76435,6 +76457,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "stealth_definitions",
         "stealth_orders",
         "movement_repricing",
+        "hotpoint_operations",
         "guard_risk_policy",
         "audit_workbench",
         "legacy_dashboard_websocket",
@@ -76477,11 +76500,25 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert module_statuses["Stealth Operations / Definitions"] == (
         AdminApiModuleSupportStatus.PLATFORM_READY.value
     )
+    assert module_statuses["Hotpoint Operations"] == (
+        AdminApiModuleSupportStatus.PLATFORM_READY.value
+    )
     assert module_statuses["Legacy Dashboard WebSocket"] == (
         AdminApiModuleSupportStatus.UNSUPPORTED.value
     )
-    assert enterprise_payload["supported_module_count"] == 7
+    assert enterprise_payload["supported_module_count"] == 8
     assert enterprise_payload["unsupported_module_count"] == 2
+    hotpoint_module = registry_by_id["hotpoint_operations"]
+    assert hotpoint_module["read_routes"] == [
+        "GET /api/v1/hotpoint",
+        "GET /api/v1/hotpoint/eligible-parents",
+    ]
+    assert hotpoint_module["command_routes"] == [
+        "POST /api/v1/hotpoint/control",
+        "POST /api/v1/hotpoint/run-once",
+        "POST /api/v1/hotpoint/safe-closeout",
+    ]
+    assert "separate policies" in hotpoint_module["constraints"][1]
     spot_module = next(
         item
         for item in enterprise_payload["modules"]

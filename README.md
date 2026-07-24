@@ -1,6 +1,17 @@
 # Coinbase Trading Backend
 
-## Active independent Goal 8 — Fill-triggered follow-up activation
+## Active independent Goal 9 — Hotpoint control and single placement
+
+`operator_hotpoint_control_and_single_placement_v1` adds authenticated
+PostgreSQL-backed Hotpoint controls for separate Spot and Futures domains.
+Each domain owns its product/profile/cap policy and bounded parent window,
+while a shared durable goal allowance permits at most one Create claim total.
+Spot is Test/BTC-USDC under `3.10/1.00 USDC`; Futures is
+Default/AVP-20DEC30-CDE, exactly one contract, under strict V3
+`<100/<150/<300 USDC`. The Futures placement adapter remains unavailable
+until the separately authorized canonical Futures lifecycle is activated.
+
+## Completed independent Goal 8 — Fill-triggered follow-up activation
 
 `operator_fill_triggered_follow_up_activation_v1` adds PostgreSQL-backed
 enable, disable, pause, and drain controls for one previously attached
@@ -450,9 +461,10 @@ any Coinbase read or `products.json` write.
 The legacy dashboard WebSocket remains available for read/control compatibility
 and source material, but its exchange mutation messages are source-disabled.
 Legacy `main.py` Controlled-live startup and historical raw smoke/sweep/batch
-mutation modes are also source-disabled. The four installed Controlled-live
-mutation routes are manual root place/cancel and explicit attached-intent
-materialization/exact-child safe-closeout. Intent attachment is local-only and
+mutation modes are also source-disabled. The six installed Controlled-live
+mutation routes are manual root place/cancel, explicit attached-intent
+materialization/exact-child safe-closeout, and operator Hotpoint run-once/
+exact-child safe-closeout. Intent attachment is local-only and
 never supplies live authority; materialization and safe-closeout each require a
 fresh, separate explicit acknowledgement plus the backend's exact identity,
 fill/terminal-state, Test-portfolio, wallet/cap, RBAC, idempotency, audit,

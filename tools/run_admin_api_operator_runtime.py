@@ -32,11 +32,13 @@ from tools.coinbase_live_credentials import ensure_live_coinbase_credentials
 from tools.run_admin_api import (
     AdminApiRunConfig,
     OPERATOR_AUTOMATION_ENABLED_ENV,
+    OPERATOR_HOTPOINT_ENABLED_ENV,
     OPERATOR_PRODUCT_CATALOG_ENABLED_ENV,
     OPERATOR_PARENT_STRATEGIES_ENABLED_ENV,
     OPERATOR_STEALTH_DEFINITIONS_ENABLED_ENV,
     apply_local_environment,
     initialize_operator_automation_schema,
+    initialize_operator_hotpoint_schema,
     initialize_operator_product_catalog_schema,
     initialize_operator_parent_strategy_schema,
     initialize_operator_stealth_definition_schema,
@@ -219,6 +221,13 @@ def initialize_enabled_operator_schemas(
         except Exception:
             raise OperatorAdminRuntimeError(
                 "operator_automation_schema_init_failed"
+            ) from None
+    if target.get(OPERATOR_HOTPOINT_ENABLED_ENV) == "1":
+        try:
+            initialize_operator_hotpoint_schema()
+        except Exception:
+            raise OperatorAdminRuntimeError(
+                "operator_hotpoint_schema_init_failed"
             ) from None
     if target.get(OPERATOR_PRODUCT_CATALOG_ENABLED_ENV) == "1":
         try:

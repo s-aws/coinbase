@@ -2,9 +2,10 @@
 
 > **Current operator boundary:** raw smoke, sweep, campaign, legacy dashboard,
 > and legacy engine mutations are source-disabled. Release validation must use
-> synthetic/no-live checks. The four installed Controlled-live mutation routes
-> are manual root place/cancel and explicit attached-intent materialization/exact-child safe-closeout
-> under the manager-issued lease and
+> synthetic/no-live checks. The six installed Controlled-live mutation routes
+> are manual root place/cancel, explicit attached-intent materialization/
+> exact-child safe-closeout, and operator Hotpoint run-once/exact-child
+> safe-closeout under the manager-issued lease and
 > all backend per-request gates. Intent attachment is local-only; each successor
 > mutation requires fresh, separate operator acknowledgement and cannot run
 > automatically.
