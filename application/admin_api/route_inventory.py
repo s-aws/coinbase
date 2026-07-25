@@ -1521,6 +1521,34 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="futures_perpetuals",
+        surface=(
+            "POST /api/v1/futures/order-operations/"
+            "{client_order_id}/cancel"
+        ),
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        permission=AdminApiPermission.ORDER_CANCEL,
+        idempotency=(
+            "required revision-bound cycle plus independent durable single-use "
+            "exact Cancel claim"
+        ),
+        approval=(
+            "required explicit exact client_order_id, one no-retry read cycle, "
+            "and unknown-Cancel-consumption acknowledgement"
+        ),
+        caps="required one Default-profile Futures order and at most one Cancel",
+        audit=(
+            "required PostgreSQL category/page claims, ephemeral exchange-id "
+            "resolution, hashed identity, and exact Cancel call accounting"
+        ),
+        shared_method="cancel_operator_futures_order",
+        parity_test=(
+            "one Default-profile product_type=FUTURE catalog read with no page "
+            "retry, one exact client_order_id match, and at most one exchange-id "
+            "Cancel with zero retry or fallback"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
         surface="POST /api/v1/futures/orders/{client_order_id}/cancel",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
         permission=AdminApiPermission.ORDER_CANCEL,
@@ -1530,8 +1558,9 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         audit="not_implemented_no_mutation",
         shared_method="cancel_futures_order",
         parity_test=(
-            "client_order_id identity; source-disabled fixed NOT_IMPLEMENTED "
-            "response before replay, admission, audit, service, adapter, or Coinbase code"
+            "legacy client_order_id draft remains source-disabled with a fixed "
+            "NOT_IMPLEMENTED response before replay, admission, audit, service, "
+            "adapter, or Coinbase code"
         ),
     ),
     AdminApiRouteInventoryItem(
@@ -3900,6 +3929,122 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test=(
             "terminal child is call-free; only the exact linked nonterminal "
             "child can reach canonical Cancel with zero retry"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
+        surface="GET /api/v1/futures/order-operations",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not applicable; local PostgreSQL projection read only",
+        caps="reports Default-profile product_type=FUTURE orders only",
+        audit=(
+            "returns revision, cycle, hashed exchange identity, terminal state, "
+            "filters, and local pagination with zero page-load Coinbase calls"
+        ),
+        shared_method="list_operator_futures_orders",
+        parity_test=(
+            "normal operator inventory keyed by client_order_id; page loading "
+            "is call-free and exposes no raw exchange identifier"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
+        surface=(
+            "GET /api/v1/futures/order-operations/{client_order_id}"
+        ),
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not applicable; local PostgreSQL projection read only",
+        caps="reports one exact Default-profile Futures order",
+        audit=(
+            "returns exact client_order_id projection, hashed exchange identity, "
+            "status, timestamps, and current Goal 2 authority"
+        ),
+        shared_method="get_operator_futures_order",
+        parity_test=(
+            "exact detail is local and call-free; exchange order_id remains "
+            "withheld and represented only by SHA-256 evidence"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
+        surface=(
+            "GET /api/v1/futures/order-operations/"
+            "mutation-results/{request_correlation_id}"
+        ),
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval=(
+            "not applicable; actor-bound immutable PostgreSQL cycle-result "
+            "read only"
+        ),
+        caps=(
+            "reports at most one exact request correlation owned by the "
+            "authenticated actor"
+        ),
+        audit=(
+            "returns terminal/pending presence, exact request correlation, "
+            "sanitized result snapshot, and zero Coinbase calls"
+        ),
+        shared_method="get_operator_futures_order_mutation_result",
+        parity_test=(
+            "frozen operator controls resolve only from the original immutable "
+            "request result even after later singleton revisions"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
+        surface="POST /api/v1/futures/order-operations/refresh",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.ORDER_CREATE,
+        idempotency="required revision-bound no-retry catalog cycle",
+        approval=(
+            "required explicit one-cycle, goal-global ten-cycle, no-retry, "
+            "and fail-closed acknowledgements"
+        ),
+        caps=(
+            "required cap of at most ten goal-global cycles; each uses one permissions read, "
+            "one portfolio read, and one logical paginated Futures order read"
+        ),
+        audit=(
+            "required PostgreSQL category and per-page claims, fixed diagnostics, "
+            "actor, correlation, and sanitized evidence SHA-256"
+        ),
+        shared_method="refresh_operator_futures_orders",
+        parity_test=(
+            "Default-profile binding precedes product_type=FUTURE pagination; "
+            "no page retry and zero exchange mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
+        surface=(
+            "POST /api/v1/futures/order-operations/"
+            "{client_order_id}/reconciliation"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.ORDER_CREATE,
+        idempotency="required revision-bound exact-order read cycle",
+        approval=(
+            "required explicit exact client_order_id, one no-retry cycle, and "
+            "unknown-read fail-closed acknowledgement"
+        ),
+        caps=(
+            "required cap of one target identity and one of ten goal-global "
+            "cycles; no exchange mutation"
+        ),
+        audit=(
+            "required exact client_order_id match, fresh projection, page claims, "
+            "hash-only exchange evidence, actor, and correlation"
+        ),
+        shared_method="reconcile_operator_futures_order",
+        parity_test=(
+            "one scoped logical catalog read resolves the exact durable "
+            "client_order_id with no fallback or direct raw-id input"
         ),
     ),
     AdminApiRouteInventoryItem(

@@ -5667,6 +5667,494 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/futures/order-operations:
+    get:
+      tags:
+      - futures
+      summary: List durable Default-profile Futures order projections
+      description: Read PostgreSQL projections without invoking Coinbase.
+      operationId: list_operator_futures_orders_api_v1_futures_order_operations_get
+      parameters:
+      - name: product_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Id
+      - name: order_status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Order Status
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 25
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFuturesOrderListResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unprocessable Content
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+  /api/v1/futures/order-operations/mutation-results/{request_correlation_id}:
+    get:
+      tags:
+      - futures
+      summary: Resolve one immutable Futures order mutation result
+      description: Read one actor-bound cycle result without invoking Coinbase.
+      operationId: get_operator_futures_order_mutation_result_api_v1_futures_order_operations_mutation_results__request_correlation_id__get
+      parameters:
+      - name: request_correlation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: Request Correlation Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFuturesOrderMutationResolutionResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unprocessable Content
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+  /api/v1/futures/order-operations/{client_order_id}:
+    get:
+      tags:
+      - futures
+      summary: Read one durable Default-profile Futures order
+      description: Read exact detail by operator-facing client_order_id.
+      operationId: get_operator_futures_order_api_v1_futures_order_operations__client_order_id__get
+      parameters:
+      - name: client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+          title: Client Order Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFuturesOrderDetailResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unprocessable Content
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+  /api/v1/futures/order-operations/refresh:
+    post:
+      tags:
+      - futures
+      summary: Run one no-retry Default-profile Futures order catalog cycle
+      operationId: refresh_operator_futures_orders_api_v1_futures_order_operations_refresh_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: refresh_futures_order_catalog
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorFuturesOrderRefreshRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFuturesOrderMutationResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unprocessable Content
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+  /api/v1/futures/order-operations/{client_order_id}/reconciliation:
+    post:
+      tags:
+      - futures
+      summary: Reconcile one Futures order by client_order_id
+      operationId: reconcile_operator_futures_order_api_v1_futures_order_operations__client_order_id__reconciliation_post
+      parameters:
+      - name: client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+          title: Client Order Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: reconcile_exact_futures_order
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorFuturesOrderRefreshRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFuturesOrderMutationResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unprocessable Content
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
   /api/v1/futures/manual-lifecycle:
     get:
       tags:
@@ -6423,12 +6911,124 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/futures/order-operations/{client_order_id}/cancel:
+    post:
+      tags:
+      - futures
+      summary: Cancel one freshly reconciled Default-profile Futures order
+      description: Reconcile once, then consume the independent exact Cancel allowance.
+      operationId: cancel_operator_futures_order_api_v1_futures_order_operations__client_order_id__cancel_post
+      parameters:
+      - name: client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+          title: Client Order Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: cancel_exact_futures_order
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorFuturesOrderCancelRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFuturesOrderMutationResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unprocessable Content
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
   /api/v1/futures/orders/{client_order_id}/cancel:
     post:
       tags:
       - futures
-      summary: Return fixed source-disabled Futures cancel evidence
-      description: Reject Futures cancel at the installed source-disabled boundary.
+      summary: Return fixed source-disabled legacy Futures cancel evidence
+      description: Reject the legacy generic Futures cancel draft.
       operationId: cancel_futures_order_api_v1_futures_orders__client_order_id__cancel_post
       parameters:
       - name: client_order_id
@@ -25182,6 +25782,7 @@ components:
       - movement_reprice
       - futures_manual_lifecycle
       - futures_position_lifecycle
+      - futures_order_operations
       - futures_contract_required
       - futures_risk_proof
       - fill_ledger_repair_contract_required
@@ -160675,6 +161276,566 @@ components:
       - acknowledge_cycle_is_goal_global_and_limited_to_ten
       - acknowledge_unsuccessful_or_unknown_cycle_fails_closed
       title: OperatorFuturesManualRefreshRequest
+    OperatorFuturesOrderCancelRequest:
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 0.0
+          title: Expected Revision
+        authorize_one_no_retry_cycle:
+          type: boolean
+          const: true
+          title: Authorize One No Retry Cycle
+        acknowledge_cycle_is_goal_global_and_limited_to_ten:
+          type: boolean
+          const: true
+          title: Acknowledge Cycle Is Goal Global And Limited To Ten
+        acknowledge_unknown_read_fails_closed:
+          type: boolean
+          const: true
+          title: Acknowledge Unknown Read Fails Closed
+        acknowledge_unknown_cancel_consumes_allowance:
+          type: boolean
+          const: true
+          title: Acknowledge Unknown Cancel Consumes Allowance
+      additionalProperties: false
+      type: object
+      required:
+      - expected_revision
+      - authorize_one_no_retry_cycle
+      - acknowledge_cycle_is_goal_global_and_limited_to_ten
+      - acknowledge_unknown_read_fails_closed
+      - acknowledge_unknown_cancel_consumes_allowance
+      title: OperatorFuturesOrderCancelRequest
+    OperatorFuturesOrderDetailResponse:
+      properties:
+        type:
+          type: string
+          const: operator_futures_order_detail
+          title: Type
+          default: operator_futures_order_detail
+        authority:
+          $ref: '#/components/schemas/OperatorFuturesOrderOperationsReadback'
+        client_order_id:
+          type: string
+          title: Client Order Id
+        found:
+          type: boolean
+          title: Found
+        order:
+          anyOf:
+          - $ref: '#/components/schemas/OperatorFuturesOrderItem'
+          - type: 'null'
+        readback_source:
+          type: string
+          const: postgresql_projection
+          title: Readback Source
+          default: postgresql_projection
+        page_load_coinbase_calls:
+          type: integer
+          const: 0
+          title: Page Load Coinbase Calls
+          default: 0
+        raw_responses_included:
+          type: boolean
+          const: false
+          title: Raw Responses Included
+          default: false
+        private_identifiers_included:
+          type: boolean
+          const: false
+          title: Private Identifiers Included
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - authority
+      - client_order_id
+      - found
+      - order
+      title: OperatorFuturesOrderDetailResponse
+    OperatorFuturesOrderFilters:
+      properties:
+        product_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Id
+        order_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Order Status
+      additionalProperties: false
+      type: object
+      required:
+      - product_id
+      - order_status
+      title: OperatorFuturesOrderFilters
+    OperatorFuturesOrderItem:
+      properties:
+        client_order_id:
+          type: string
+          title: Client Order Id
+        product_id:
+          type: string
+          title: Product Id
+        side:
+          type: string
+          enum:
+          - BUY
+          - SELL
+          title: Side
+        status:
+          type: string
+          title: Status
+        order_type:
+          type: string
+          title: Order Type
+        time_in_force:
+          type: string
+          title: Time In Force
+        size:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Size
+        limit_price:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Limit Price
+        filled_size:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Filled Size
+        created_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Created At
+        updated_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Updated At
+        observed_at:
+          type: string
+          title: Observed At
+        exchange_order_id_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Exchange Order Id Sha256
+        authoritatively_nonterminal:
+          type: boolean
+          title: Authoritatively Nonterminal
+        cancel_eligible:
+          type: boolean
+          title: Cancel Eligible
+      additionalProperties: false
+      type: object
+      required:
+      - client_order_id
+      - product_id
+      - side
+      - status
+      - order_type
+      - time_in_force
+      - size
+      - limit_price
+      - filled_size
+      - created_at
+      - updated_at
+      - observed_at
+      - exchange_order_id_sha256
+      - authoritatively_nonterminal
+      - cancel_eligible
+      title: OperatorFuturesOrderItem
+    OperatorFuturesOrderListResponse:
+      properties:
+        type:
+          type: string
+          const: operator_futures_order_list
+          title: Type
+          default: operator_futures_order_list
+        authority:
+          $ref: '#/components/schemas/OperatorFuturesOrderOperationsReadback'
+        filters:
+          $ref: '#/components/schemas/OperatorFuturesOrderFilters'
+        pagination:
+          $ref: '#/components/schemas/OperatorFuturesOrderPagination'
+        items:
+          items:
+            $ref: '#/components/schemas/OperatorFuturesOrderItem'
+          type: array
+          title: Items
+        readback_source:
+          type: string
+          const: postgresql_projection
+          title: Readback Source
+          default: postgresql_projection
+        page_load_coinbase_calls:
+          type: integer
+          const: 0
+          title: Page Load Coinbase Calls
+          default: 0
+        raw_responses_included:
+          type: boolean
+          const: false
+          title: Raw Responses Included
+          default: false
+        private_identifiers_included:
+          type: boolean
+          const: false
+          title: Private Identifiers Included
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - authority
+      - filters
+      - pagination
+      - items
+      title: OperatorFuturesOrderListResponse
+    OperatorFuturesOrderMutationResolutionResponse:
+      properties:
+        type:
+          type: string
+          const: operator_futures_order_mutation_resolution
+          title: Type
+          default: operator_futures_order_mutation_resolution
+        request_correlation_id:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Request Correlation Id
+        found:
+          type: boolean
+          title: Found
+        terminal:
+          type: boolean
+          title: Terminal
+        result:
+          anyOf:
+          - $ref: '#/components/schemas/OperatorFuturesOrderOperationsReadback'
+          - type: 'null'
+        readback_source:
+          type: string
+          const: postgresql_cycle_result
+          title: Readback Source
+          default: postgresql_cycle_result
+        page_load_coinbase_calls:
+          type: integer
+          const: 0
+          title: Page Load Coinbase Calls
+          default: 0
+        raw_responses_included:
+          type: boolean
+          const: false
+          title: Raw Responses Included
+          default: false
+        private_identifiers_included:
+          type: boolean
+          const: false
+          title: Private Identifiers Included
+          default: false
+        exception_text_included:
+          type: boolean
+          const: false
+          title: Exception Text Included
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - request_correlation_id
+      - found
+      - terminal
+      - result
+      title: OperatorFuturesOrderMutationResolutionResponse
+    OperatorFuturesOrderMutationResponse:
+      properties:
+        type:
+          type: string
+          const: operator_futures_order_mutation
+          title: Type
+          default: operator_futures_order_mutation
+        action:
+          type: string
+          enum:
+          - REFRESH_CATALOG
+          - RECONCILE_EXACT
+          - CANCEL_EXACT
+          title: Action
+        result:
+          $ref: '#/components/schemas/OperatorFuturesOrderOperationsReadback'
+      additionalProperties: false
+      type: object
+      required:
+      - action
+      - result
+      title: OperatorFuturesOrderMutationResponse
+    OperatorFuturesOrderOperationsReadback:
+      properties:
+        type:
+          type: string
+          const: operator_futures_order_operations
+          title: Type
+          default: operator_futures_order_operations
+        goal_id:
+          type: string
+          const: operator_futures_order_inventory_detail_cancel_reconcile_v1
+          title: Goal Id
+        revision:
+          type: integer
+          minimum: 0.0
+          title: Revision
+        environment:
+          type: string
+          title: Environment
+        portfolio_profile_alias:
+          type: string
+          const: Default
+          title: Portfolio Profile Alias
+          default: Default
+        product_type:
+          type: string
+          const: FUTURE
+          title: Product Type
+          default: FUTURE
+        cycles_used:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: Cycles Used
+        cycles_remaining:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: Cycles Remaining
+        active_cycle_number:
+          anyOf:
+          - type: integer
+            maximum: 10.0
+            minimum: 1.0
+          - type: 'null'
+          title: Active Cycle Number
+        last_action:
+          anyOf:
+          - type: string
+            enum:
+            - REFRESH_CATALOG
+            - RECONCILE_EXACT
+            - CANCEL_EXACT
+          - type: 'null'
+          title: Last Action
+        last_target_client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last Target Client Order Id
+        last_outcome:
+          type: string
+          enum:
+          - NOT_RUN
+          - CLAIMED
+          - SUCCEEDED
+          - INELIGIBLE
+          - UNKNOWN
+          title: Last Outcome
+        diagnostic_code:
+          type: string
+          title: Diagnostic Code
+        category_attempts:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Category Attempts
+        page_count:
+          type: integer
+          maximum: 100.0
+          minimum: 0.0
+          title: Page Count
+        order_count:
+          type: integer
+          minimum: 0.0
+          title: Order Count
+        portfolio_id_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Portfolio Id Sha256
+        evidence_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Evidence Sha256
+        cancel_outcome:
+          type: string
+          enum:
+          - NOT_RUN
+          - CLAIMED
+          - ACCEPTED
+          - REJECTED
+          - UNKNOWN
+          title: Cancel Outcome
+        cancel_exchange_invoked:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Cancel Exchange Invoked
+        cancel_target_client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cancel Target Client Order Id
+        cancel_exchange_order_id_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Cancel Exchange Order Id Sha256
+        execution_posture_ready:
+          type: boolean
+          title: Execution Posture Ready
+        execution_posture_diagnostic_code:
+          type: string
+          title: Execution Posture Diagnostic Code
+        allowed_actions:
+          items:
+            type: string
+            enum:
+            - REFRESH_CATALOG
+            - RECONCILE_EXACT
+            - CANCEL_EXACT
+          type: array
+          title: Allowed Actions
+        raw_responses_included:
+          type: boolean
+          const: false
+          title: Raw Responses Included
+          default: false
+        private_identifiers_included:
+          type: boolean
+          const: false
+          title: Private Identifiers Included
+          default: false
+        exception_text_included:
+          type: boolean
+          const: false
+          title: Exception Text Included
+          default: false
+        correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+        refreshed_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Refreshed At
+        updated_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Updated At
+      additionalProperties: false
+      type: object
+      required:
+      - goal_id
+      - revision
+      - environment
+      - cycles_used
+      - cycles_remaining
+      - last_action
+      - last_target_client_order_id
+      - last_outcome
+      - diagnostic_code
+      - category_attempts
+      - page_count
+      - order_count
+      - cancel_outcome
+      - cancel_exchange_invoked
+      - cancel_target_client_order_id
+      - execution_posture_ready
+      - execution_posture_diagnostic_code
+      - allowed_actions
+      - correlation_id
+      - audit_id
+      - refreshed_at
+      - updated_at
+      title: OperatorFuturesOrderOperationsReadback
+    OperatorFuturesOrderPagination:
+      properties:
+        limit:
+          type: integer
+          maximum: 100.0
+          minimum: 1.0
+          title: Limit
+        offset:
+          type: integer
+          minimum: 0.0
+          title: Offset
+        returned_count:
+          type: integer
+          minimum: 0.0
+          title: Returned Count
+        total_matching_count:
+          type: integer
+          minimum: 0.0
+          title: Total Matching Count
+        next_offset:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Next Offset
+        has_more:
+          type: boolean
+          title: Has More
+      additionalProperties: false
+      type: object
+      required:
+      - limit
+      - offset
+      - returned_count
+      - total_matching_count
+      - has_more
+      title: OperatorFuturesOrderPagination
+    OperatorFuturesOrderRefreshRequest:
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 0.0
+          title: Expected Revision
+        authorize_one_no_retry_cycle:
+          type: boolean
+          const: true
+          title: Authorize One No Retry Cycle
+        acknowledge_cycle_is_goal_global_and_limited_to_ten:
+          type: boolean
+          const: true
+          title: Acknowledge Cycle Is Goal Global And Limited To Ten
+        acknowledge_unknown_read_fails_closed:
+          type: boolean
+          const: true
+          title: Acknowledge Unknown Read Fails Closed
+      additionalProperties: false
+      type: object
+      required:
+      - expected_revision
+      - authorize_one_no_retry_cycle
+      - acknowledge_cycle_is_goal_global_and_limited_to_ten
+      - acknowledge_unknown_read_fails_closed
+      title: OperatorFuturesOrderRefreshRequest
     OperatorFuturesPositionCallReadback:
       properties:
         outcome:

@@ -1,5 +1,11 @@
 # Documentation Index
 
+Active independent Goal 2 of the operator UI sequence:
+[Operator Futures Order Operations V1](OPERATOR_FUTURES_ORDER_OPERATIONS_V1.md).
+Goal `operator_futures_order_inventory_detail_cancel_reconcile_v1` provides a
+Default-profile Futures order inventory, exact detail/reconciliation by
+`client_order_id`, and one independent backend-authorized exact Cancel.
+
 Current credential-routing recovery:
 [Operator Coinbase Domain Credential Routing V1](OPERATOR_COINBASE_DOMAIN_CREDENTIAL_ROUTING_V1.md).
 The installed operator runtime keeps Spot on `coinbase/Test`, routes Futures

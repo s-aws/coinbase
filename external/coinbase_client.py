@@ -1307,6 +1307,7 @@ class CoinbaseRestClient:
         cursor: Optional[str] = None,
         product_type: Optional[str] = None,
         retail_portfolio_id: Optional[str] = None,
+        before_sdk_call: Optional[Callable[[], None]] = None,
     ) -> Dict[str, Any]:
         """List orders with exact identity, scope, and pagination filters.
         
@@ -1320,6 +1321,7 @@ class CoinbaseRestClient:
             cursor: Optional Coinbase pagination cursor.
             product_type: Optional Coinbase product-type scope.
             retail_portfolio_id: Optional exact Coinbase profile scope.
+            before_sdk_call: Optional durable call-boundary claim callback.
         
         Returns:
             Raw SDK response object (call .to_dict() to get dict)
@@ -1327,6 +1329,9 @@ class CoinbaseRestClient:
         Raises:
             Exception: If API call fails
         """
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
+        if before_sdk_call is not None:
+            before_sdk_call()
         _harden_sdk_transport(self._client, require_bounded_timeout=True)
         return self._client.list_orders(
             order_status=order_status,

@@ -1,0 +1,150 @@
+# Operator Futures Order Operations V1
+
+Goal ID:
+`operator_futures_order_inventory_detail_cancel_reconcile_v1`.
+
+## Operator outcome
+
+An authenticated operator can use the routed Admin UI to:
+
+- list and filter durable Default-profile Futures orders;
+- open one detail page by `client_order_id`;
+- explicitly refresh the order catalog;
+- explicitly reconcile one exact order; and
+- invoke at most one exact Cancel after a fresh `OPEN` observation.
+
+Ordinary page load reads PostgreSQL and makes zero Coinbase calls.
+
+## Official contract
+
+Coinbase Advanced Trade
+[List Orders](https://docs.cdp.coinbase.com/api-reference/advanced-trade-api/rest-api/orders/list-orders)
+documents `product_type=FUTURE`, order status/type/time-in-force fields,
+`client_order_id`, `order_id`, `has_next`, and cursor pagination. For CDP keys,
+`retail_portfolio_id` is deprecated and the key's permissioned portfolio is
+used. The implementation proves the credential-bound portfolio is exactly the
+Default profile before listing orders.
+
+[Cancel Orders](https://docs.cdp.coinbase.com/api-reference/advanced-trade-api/rest-api/orders/cancel-order)
+accepts exchange `order_ids` and returns one result with `success`,
+`failure_reason`, and `order_id`. The UI therefore never supplies a Coinbase
+order ID. The backend resolves one raw ID from the same fresh catalog,
+compares its SHA-256 binding, uses it only for the immediate call, and discards
+it afterward.
+
+The pinned SDK remains `coinbase-advanced-py==1.8.4`. The canonical wrapper
+uses `list_orders` and `cancel_orders` with bounded transport and no retry.
+
+## Backend routes
+
+- `GET /api/v1/futures/order-operations`
+- `GET /api/v1/futures/order-operations/{client_order_id}`
+- `GET /api/v1/futures/order-operations/mutation-results/{request_correlation_id}`
+- `POST /api/v1/futures/order-operations/refresh`
+- `POST /api/v1/futures/order-operations/{client_order_id}/reconciliation`
+- `POST /api/v1/futures/order-operations/{client_order_id}/cancel`
+
+The historical generic
+`POST /api/v1/futures/orders/{client_order_id}/cancel` remains a fixed
+source-disabled `501` compatibility route. It is not reused or broadened.
+
+## Durable authority
+
+PostgreSQL stores:
+
+- one goal singleton with revision and ten-cycle budget;
+- one row per claimed cycle;
+- one claim per approved category;
+- one claim and boundary state per cursor page;
+- sanitized order projections keyed by `client_order_id`;
+- one independent single-use Cancel claim; and
+- fixed audit events.
+
+The three approved read categories are:
+
+1. API-key permissions;
+2. Default-profile portfolio catalog; and
+3. one logical `product_type=FUTURE` order catalog.
+
+Each category is claimed at most once per cycle. Each cursor page is claimed,
+marked immediately before its SDK boundary, and returned once. No individual
+or page retry exists. A restart with an active read boundary records
+`UNKNOWN`. A Cancel restart after the SDK boundary records `UNKNOWN` and
+consumes the allowance. A Cancel blocked before that boundary is durably
+released with `operator_futures_order_cancel_pre_call_blocked`. The successful
+read cycle and its Cancel claim are one fenced transition: no later cycle may
+start while the Cancel is claimed, its originating cycle number remains fixed,
+and its idempotency result is written once only after a terminal Cancel or
+proven no-call result. Restart before claim records
+`operator_futures_order_cancel_interrupted_before_claim`.
+
+Cycle idempotency binds actor, normalized roles, correlation, action, exact
+target, expected revision, intent, and every acknowledgement. Each completed
+cycle stores its own sanitized result snapshot, so replay returns the original
+result rather than mutable singleton state. A pending replay or a changed
+actor, role set, target, or payload fails closed.
+
+Request correlations are unique within the Goal 2 ledger. The authenticated
+mutation-result GET resolves only the exact correlation owned by the current
+actor and returns pending, absent, or the immutable terminal cycle snapshot
+with zero Coinbase calls. This remains queryable after later operators advance
+the mutable singleton. Historical terminal snapshots are explicitly
+non-actionable: their execution posture is false and their allowed-action list
+is empty, so they cannot advertise authority from either their old revision or
+the current singleton. A successful Cancel read awaiting its one-use claim is
+projected as an active transition with no allowed actions, matching the
+database fence. Fixed same-request pre-cycle conflicts remain distinct from
+unknown or in-flight results.
+
+Read-only Default credentials may still build an inventory, but every
+projection is non-cancelable and the service refuses to claim Cancel unless
+the same fresh binding proves `can_trade=true`. Repeated catalog rows are
+accepted only when every normalized field and the process-local raw identity
+are identical; conflicting status or other duplicate evidence fails closed.
+
+## Sanitized projection
+
+The projection retains only:
+
+- `client_order_id`;
+- product, side, status, order type, and time in force;
+- sanitized decimal size/price/fill fields;
+- exchange timestamps and local observation time;
+- SHA-256 of the exchange order ID;
+- nonterminal classification; and
+- exact `OPEN` Cancel eligibility.
+
+Raw responses, cursors, raw exchange IDs, portfolio UUIDs, secrets, exception
+messages, and withheld text are neither persisted nor returned.
+
+## Historical translation
+
+`origin/prod:dashboard_server.py` used `client_order_id` as the operator
+tracking identity and exposed order cancellation through a dashboard
+WebSocket. It also passed that client ID directly in an `order_ids` request.
+`origin/prod:external/coinbase_client.py` exposed list/cancel helpers without
+the current durable claims. The MVP preserves only the useful tracking,
+inventory, and exact-operation concepts. It does not restore WebSocket
+authority, direct browser commands, client-ID-as-exchange-ID behavior,
+background cancellation, retry, fallback, or raw exception logging.
+
+## Validation
+
+Focused validation includes:
+
+- reader schema, pagination, duplicate identity, and private-data tests;
+- canonical Cancel adapter and call-boundary tests;
+- PostgreSQL projection, schema-upgrade, replay, restart, and single-use claim
+  tests;
+- authenticated route, RBAC, legacy-route, OpenAPI, and route-inventory tests;
+- generated frontend contract/runtime/workspace/BFF tests; and
+- an isolated PostgreSQL no-network E2E covering catalog refresh, exact
+  Cancel, and terminal reconciliation.
+
+Synthetic proof is not a live Coinbase proof and consumes no live allowance.
+Before dispatch, the frontend writes a session-persistent mutation freeze
+shared by the Futures order pages. The freeze includes the exact UUID used for
+both idempotency and correlation headers. The UI permits only call-free durable
+readback while frozen and clears the freeze only when exact action, target,
+revision, request correlation, and terminal backend evidence resolve it.
+Intermediate `CLAIMED` or eager `NOT_RUN` readback cannot clear the freeze.

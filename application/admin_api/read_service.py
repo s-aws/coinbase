@@ -1066,6 +1066,10 @@ CONTROLLED_LIVE_MVP_ROUTES = {
     ),
     ("POST", "/api/v1/futures/manual-lifecycle/execute"),
     ("POST", "/api/v1/futures/position-lifecycle/execute"),
+    (
+        "POST",
+        "/api/v1/futures/order-operations/{client_order_id}/cancel",
+    ),
 }
 
 M58_SOURCE_PARKED_EXCHANGE_ROUTES = {
@@ -2241,6 +2245,12 @@ def _enterprise_module_identity_key(module_id: str, route: str) -> str:
         if route == "/api/v1/futures/orders":
             return "product_id"
         if route == "/api/v1/futures/orders/{client_order_id}/cancel":
+            return "client_order_id"
+        if (
+            route
+            == "/api/v1/futures/order-operations/"
+            "{client_order_id}/cancel"
+        ):
             return "client_order_id"
         return "position_key"
     if "spot/sweep/automation-runs" in route:
@@ -8036,19 +8046,24 @@ class AdminApiReadService:
                         action="futures live cancel close reduce execution",
                         status=AdminApiModuleSupportStatus.UNSUPPORTED,
                         reason=(
-                            "The generic close/reduce, cancel, and reconciliation "
-                            "routes remain source-disabled. Goal 11 is the separate "
-                            "exact selected-position lifecycle and cannot be reached "
-                            "through those generic routes."
+                            "The legacy generic close/reduce, cancel, and "
+                            "reconciliation routes remain source-disabled. "
+                            "Goal 11 is the separate exact selected-position "
+                            "lifecycle, while Goal 2 owns a separately bounded "
+                            "exact-order Cancel; neither can be reached through "
+                            "those generic routes."
                         ),
                         required_backend_contract=(
                             "Any broader position action requires a separate exact "
-                            "backend workflow and explicit authority beyond Goal 11."
+                            "backend workflow and explicit authority beyond Goal 11 "
+                            "and the Goal 2 single exact-order Cancel."
                         ),
                         frontend_boundary=(
                             "The browser and BFF must not forward generic commands. "
-                            "Use only the generated Goal 11 lifecycle contract and "
-                            "backend-granted action."
+                            "Use the generated Goal 11 selected-position lifecycle "
+                            "contract for Close/Reduce or the generated Goal 2 "
+                            "exact-order operations contract for Cancel, and only "
+                            "when each backend grants the exact action."
                         ),
                     ),
                     command_gap(
@@ -8069,7 +8084,11 @@ class AdminApiReadService:
                         ),
                     ),
                 ],
-                identity_keys=["position_key"],
+                identity_keys=[
+                    "position_key",
+                    "client_order_id",
+                    "correlation_id",
+                ],
                 constraints=[
                     "Position side and close/reduce semantics are backend-derived.",
                     "Funding remains not modeled until a backend contract is added.",
@@ -8084,6 +8103,9 @@ class AdminApiReadService:
                     "application/admin_api/read_service.py::build_futures_positions",
                     "application/admin_api/operator_futures_manual_lifecycle.py",
                     "application/admin_api/operator_futures_position_lifecycle.py",
+                    "application/admin_api/"
+                    "operator_futures_order_operations_service.py",
+                    "database/operator_futures_order_operations.py",
                     "api/v1/routes/futures.py",
                 ],
                 frontend_contract_refs=[
@@ -8092,10 +8114,13 @@ class AdminApiReadService:
                     "src/shared/api/contracts/backendApiClient.ts::getOperatorFuturesPositionLifecycle",
                     "src/shared/api/contracts/backendRuntime.ts::loadFuturesPerpetualsReadSnapshot",
                     "src/features/operator-read-models/futures/FuturesOperationsWorkspace.tsx",
+                    "src/features/operator-read-models/futures/"
+                    "FuturesOrdersWorkspace.tsx",
                 ],
                 documentation_refs=[
                     "README.futures-perpetuals.md",
                     "docs/ADMIN_MODULE_CAPABILITY_MATRIX.md",
+                    "docs/OPERATOR_FUTURES_ORDER_OPERATIONS_V1.md",
                     "docs/examples/admin-api.md",
                 ],
                 spot_rule_boundary=(
@@ -16208,6 +16233,184 @@ class AdminApiReadService:
                     "Spot wallet, caps, client-side side derivation, and generic "
                     "execution adapters cannot authorize this exact Futures "
                     "position workflow."
+                ),
+            ),
+            mutation_taxonomy_item(
+                mutation_id="futures.order_operations_read_cycle",
+                mutation_family=(
+                    AdminApiMutationFamilyType.FUTURES_ORDER_OPERATIONS
+                ),
+                workflow_id=(
+                    "operator_futures_order_inventory_detail_cancel_"
+                    "reconcile_v1"
+                ),
+                module_id="futures_perpetuals",
+                module="Futures / Perpetuals",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                ),
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "An authenticated operator may claim one of ten bounded "
+                    "Default-profile order-catalog cycles to refresh the "
+                    "inventory or reconcile one exact client_order_id. Each "
+                    "approved category and cursor page is invoked at most once."
+                ),
+                command_surfaces=[
+                    "POST /api/v1/futures/order-operations/refresh",
+                    "POST /api/v1/futures/order-operations/"
+                    "{client_order_id}/reconciliation",
+                ],
+                action_classes=[
+                    AdminApiActionClass.LOCAL_STATE_MUTATION,
+                    AdminApiActionClass.LOCAL_STATE_MUTATION,
+                ],
+                required_permissions=[
+                    AdminApiPermission.ORDER_CREATE,
+                    AdminApiPermission.ORDER_CREATE,
+                ],
+                identity_keys=[
+                    "goal_id",
+                    "revision",
+                    "client_order_id",
+                    "correlation_id",
+                ],
+                idempotency_contract=(
+                    "required actor-, role-, correlation-, action-, target-, "
+                    "revision-, intent-, and acknowledgement-bound cycle claim"
+                ),
+                approval_contract=(
+                    "no live approval snapshot; explicit no-retry, goal-global "
+                    "cycle, and unknown-read fail-closed acknowledgements apply"
+                ),
+                cap_guard_contract=(
+                    "one target and at most ten goal-global read cycles; each "
+                    "category and cursor page is single-use with no retry"
+                ),
+                admission_audit_contract=(
+                    "PostgreSQL category/page claims and fixed sanitized "
+                    "terminal cycle evidence are required"
+                ),
+                reconciliation_contract=(
+                    "refresh persists the current sanitized catalog projection; "
+                    "exact reconciliation must bind one client_order_id"
+                ),
+                owning_backend_service=(
+                    "application/admin_api/"
+                    "operator_futures_order_operations_service.py"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/futures.py::"
+                    "refresh_operator_futures_orders",
+                    "api/v1/routes/futures.py::"
+                    "reconcile_operator_futures_order",
+                    "database/operator_futures_order_operations.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/operator-read-models/futures/"
+                    "FuturesOrdersWorkspace.tsx",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_FUTURES_ORDER_OPERATIONS_V1.md",
+                ],
+                frontend_boundary=(
+                    "Render current backend authority and forward only explicit "
+                    "bounded refresh or exact reconciliation intent."
+                ),
+                spot_rule_boundary=(
+                    "Spot Test-profile, wallet, product, and notional rules are "
+                    "not Default-profile Futures order authority."
+                ),
+                approval_required=False,
+                cap_guard_required=False,
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_item(
+                mutation_id="futures.order_operations_cancel",
+                mutation_family=(
+                    AdminApiMutationFamilyType.FUTURES_ORDER_OPERATIONS
+                ),
+                workflow_id=(
+                    "operator_futures_order_inventory_detail_cancel_"
+                    "reconcile_v1"
+                ),
+                module_id="futures_perpetuals",
+                module="Futures / Perpetuals",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                ),
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "After one fresh Default-profile order-catalog cycle, an "
+                    "authenticated operator may claim at most one Cancel for "
+                    "the exact selected nonterminal client_order_id."
+                ),
+                command_surfaces=[
+                    "POST /api/v1/futures/order-operations/"
+                    "{client_order_id}/cancel",
+                ],
+                action_classes=[
+                    AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                ],
+                required_permissions=[
+                    AdminApiPermission.ORDER_CANCEL,
+                ],
+                identity_keys=[
+                    "goal_id",
+                    "revision",
+                    "client_order_id",
+                    "correlation_id",
+                    "exchange_order_id_sha256",
+                ],
+                idempotency_contract=(
+                    "required actor-, role-, correlation-, target-, revision-, "
+                    "intent-, and acknowledgement-bound cycle plus independent "
+                    "single-use Cancel claim"
+                ),
+                approval_contract=(
+                    "explicit exact-order, one-cycle, no-retry, and "
+                    "unknown-Cancel-consumption acknowledgements are required"
+                ),
+                cap_guard_contract=(
+                    "one Default-profile Futures order and at most one exact "
+                    "Cancel; no alternate identity, retry, or fallback"
+                ),
+                admission_audit_contract=(
+                    "durable call accounting, ephemeral raw exchange identity, "
+                    "hash-only persistence, and fixed terminal evidence required"
+                ),
+                reconciliation_contract=(
+                    "the same fresh order catalog must prove the target "
+                    "authoritatively nonterminal before the one-use Cancel claim"
+                ),
+                owning_backend_service=(
+                    "application/admin_api/"
+                    "operator_futures_order_operations_service.py"
+                ),
+                shared_command_service_method=(
+                    "cancel_operator_futures_order"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/futures.py::"
+                    "cancel_operator_futures_order",
+                    "application/admin_api/"
+                    "operator_futures_order_operations_runtime.py",
+                    "database/operator_futures_order_operations.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/operator-read-models/futures/"
+                    "FuturesOrdersWorkspace.tsx",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_FUTURES_ORDER_OPERATIONS_V1.md",
+                ],
+                frontend_boundary=(
+                    "Render backend Cancel authority and forward only the exact "
+                    "selected client_order_id with explicit confirmations."
+                ),
+                spot_rule_boundary=(
+                    "Spot cancellation, Test-profile evidence, and spot caps "
+                    "cannot authorize this Default-profile Futures Cancel."
                 ),
             ),
             mutation_taxonomy_item(

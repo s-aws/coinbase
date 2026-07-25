@@ -83,6 +83,42 @@ def test_list_orders_forwards_exact_retail_portfolio_scope():
 
 
 @pytest.mark.regression
+def test_list_orders_claims_the_read_boundary_before_sdk_invocation():
+    """Durable callers must be able to account for an unknown list outcome."""
+
+    from external.coinbase_client import CoinbaseRestClient
+
+    client = CoinbaseRestClient.__new__(CoinbaseRestClient)
+    client._client = MagicMock()
+    client._client.session = None
+    client._client.list_orders.return_value = {
+        "orders": [],
+        "has_next": False,
+        "cursor": "",
+    }
+    events: list[str] = []
+
+    client.list_orders(
+        product_type="FUTURE",
+        limit=100,
+        before_sdk_call=lambda: events.append("claimed"),
+    )
+
+    assert events == ["claimed"]
+    client._client.list_orders.assert_called_once_with(
+        order_status=None,
+        order_ids=None,
+        product_ids=None,
+        limit=100,
+        start_date=None,
+        end_date=None,
+        cursor=None,
+        product_type="FUTURE",
+        retail_portfolio_id=None,
+    )
+
+
+@pytest.mark.regression
 def test_cancel_order_accepts_explicit_success_true_payload():
     from external.coinbase_client import CoinbaseRestClient
 

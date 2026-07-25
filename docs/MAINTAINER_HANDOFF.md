@@ -1,5 +1,30 @@
 # Maintainer Handoff
 
+## Active operator Futures order operations
+
+Goal `operator_futures_order_inventory_detail_cancel_reconcile_v1` adds the
+canonical `/api/v1/futures/order-operations` route family. PostgreSQL owns ten
+no-retry Default-profile catalog cycles, cursor-page claims, sanitized order
+projections, the independent one-use Cancel claim, restart recovery, and fixed
+audit evidence. UI navigation is call-free. Explicit refresh/reconciliation
+uses permissions, Default portfolio catalog, and one logical
+`product_type=FUTURE` order read. Cancel resolves one exact raw exchange ID
+ephemerally from the fresh catalog and persists only its SHA-256 binding.
+Each request correlation is unique and has an authenticated, actor-bound,
+call-free mutation-result GET backed by the write-once cycle row. A pending
+successful Cancel read is projected as an active transition, so public
+`allowed_actions` agrees with the database fence. Immutable historical
+mutation results are always projected with execution posture false and no
+allowed actions; current authority comes only from the current list/detail
+projection.
+
+Historical comparison used `origin/prod:dashboard_server.py` and
+`origin/prod:external/coinbase_client.py`. Their WebSocket authority and unsafe
+client-ID-as-exchange-ID cancellation were not copied. Official Advanced Trade
+List Orders and Cancel Orders contracts and the pinned
+`coinbase-advanced-py==1.8.4` wrapper are authoritative. See
+[Operator Futures Order Operations V1](OPERATOR_FUTURES_ORDER_OPERATIONS_V1.md).
+
 ## Current operator credential routing
 
 The prior CFM HTTP-forbidden result is localized to installed credential

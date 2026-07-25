@@ -95,6 +95,25 @@ from application.admin_api.operator_futures_manual_service_runtime import (
     get_default_operator_futures_manual_lifecycle_service,
     get_operator_futures_manual_execution_posture,
 )
+from application.admin_api.operator_futures_order_operations_models import (
+    OperatorFuturesOrderCancelRequest,
+    OperatorFuturesOrderDetailResponse,
+    OperatorFuturesOrderListResponse,
+    OperatorFuturesOrderMutationResolutionResponse,
+    OperatorFuturesOrderMutationResponse,
+    OperatorFuturesOrderOperationsReadback,
+    OperatorFuturesOrderRefreshRequest,
+)
+from application.admin_api.operator_futures_order_operations_service import (
+    FuturesOrderOperationsGoalRecord,
+    FuturesOrderOperationsRequestContext,
+    OperatorFuturesOrderOperationsService,
+)
+from application.admin_api.operator_futures_order_operations_service_runtime import (
+    OPERATOR_FUTURES_ORDER_OPERATIONS_ENABLED_ENV,
+    get_default_operator_futures_order_operations_service,
+    get_operator_futures_order_operations_execution_posture,
+)
 from application.admin_api.operator_futures_position_lifecycle import (
     FuturesPositionGoalRecord,
     FuturesPositionLifecycleError,
@@ -210,6 +229,19 @@ def require_operator_futures_position_enabled() -> None:
         )
 
 
+def require_operator_futures_order_operations_enabled() -> None:
+    if (
+        os.environ.get(
+            OPERATOR_FUTURES_ORDER_OPERATIONS_ENABLED_ENV
+        )
+        != "1"
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="operator_futures_order_operations_disabled",
+        )
+
+
 def get_operator_futures_position_lifecycle_service(
 ) -> OperatorFuturesPositionLifecycleService:
     try:
@@ -229,6 +261,17 @@ def get_operator_futures_manual_lifecycle_service(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="operator_futures_manual_backend_unavailable",
+        ) from None
+
+
+def get_operator_futures_order_operations_service(
+) -> OperatorFuturesOrderOperationsService:
+    try:
+        return get_default_operator_futures_order_operations_service()
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="operator_futures_order_operations_backend_unavailable",
         ) from None
 
 
@@ -613,6 +656,154 @@ def _require_futures_position_live_runtime() -> None:
         )
 
 
+def _futures_order_operations_readback(
+    record: FuturesOrderOperationsGoalRecord,
+    *,
+    actor: AdminApiActor,
+) -> OperatorFuturesOrderOperationsReadback:
+    posture = (
+        get_operator_futures_order_operations_execution_posture()
+    )
+    can_refresh = actor_has_permission(
+        actor, AdminApiPermission.ORDER_CREATE
+    )
+    can_cancel = actor_has_permission(
+        actor, AdminApiPermission.ORDER_CANCEL
+    )
+    allowed_actions: list[
+        Literal["REFRESH_CATALOG", "RECONCILE_EXACT", "CANCEL_EXACT"]
+    ] = []
+    if (
+        record.active_cycle_number is None
+        and record.cycles_used < 10
+        and record.cancel_outcome != "CLAIMED"
+    ):
+        if can_refresh:
+            allowed_actions.extend(
+                ["REFRESH_CATALOG", "RECONCILE_EXACT"]
+            )
+        if (
+            can_cancel
+            and posture.ready
+            and record.cancel_outcome == "NOT_RUN"
+        ):
+            allowed_actions.append("CANCEL_EXACT")
+    return OperatorFuturesOrderOperationsReadback(
+        goal_id=record.goal_id,
+        revision=record.revision,
+        environment=os.environ.get(
+            "COINBASE_ADMIN_API_ENVIRONMENT", "local"
+        ),
+        cycles_used=record.cycles_used,
+        cycles_remaining=max(0, 10 - record.cycles_used),
+        active_cycle_number=record.active_cycle_number,
+        last_action=record.last_action,
+        last_target_client_order_id=(
+            record.last_target_client_order_id
+        ),
+        last_outcome=record.last_outcome,
+        diagnostic_code=record.diagnostic_code,
+        category_attempts=record.category_attempts,
+        page_count=record.page_count,
+        order_count=record.order_count,
+        portfolio_id_sha256=record.portfolio_id_sha256,
+        evidence_sha256=record.evidence_sha256,
+        cancel_outcome=record.cancel_outcome,
+        cancel_exchange_invoked=record.cancel_exchange_invoked,
+        cancel_target_client_order_id=(
+            record.cancel_target_client_order_id
+        ),
+        cancel_exchange_order_id_sha256=(
+            record.cancel_exchange_order_id_sha256
+        ),
+        execution_posture_ready=posture.ready,
+        execution_posture_diagnostic_code=posture.diagnostic_code,
+        allowed_actions=allowed_actions,
+        correlation_id=record.correlation_id,
+        audit_id=record.audit_id,
+        refreshed_at=record.refreshed_at,
+        updated_at=record.updated_at,
+    )
+
+
+def _futures_order_operations_historical_result(
+    record: FuturesOrderOperationsGoalRecord,
+    *,
+    actor: AdminApiActor,
+) -> OperatorFuturesOrderOperationsReadback:
+    """Project immutable cycle evidence without current action authority."""
+
+    return _futures_order_operations_readback(
+        record,
+        actor=actor,
+    ).model_copy(
+        update={
+            "execution_posture_ready": False,
+            "execution_posture_diagnostic_code": (
+                "operator_futures_orders_historical_result_non_actionable"
+            ),
+            "allowed_actions": [],
+        }
+    )
+
+
+def _futures_order_operations_context(
+    *,
+    actor: AdminApiActor,
+    body: (
+        OperatorFuturesOrderRefreshRequest
+        | OperatorFuturesOrderCancelRequest
+    ),
+    idempotency_key: str,
+    correlation_id: str,
+    operator_intent: str,
+) -> FuturesOrderOperationsRequestContext:
+    return FuturesOrderOperationsRequestContext(
+        actor_id=actor.actor_id,
+        roles=tuple(role.value for role in actor.roles),
+        expected_revision=body.expected_revision,
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        audit_id=str(uuid4()),
+        operator_intent=operator_intent,
+        authorize_one_no_retry_cycle=(
+            body.authorize_one_no_retry_cycle
+        ),
+        acknowledge_cycle_is_goal_global_and_limited_to_ten=(
+            body.acknowledge_cycle_is_goal_global_and_limited_to_ten
+        ),
+        acknowledge_unknown_read_fails_closed=(
+            body.acknowledge_unknown_read_fails_closed
+        ),
+        acknowledge_unknown_cancel_consumes_allowance=(
+            isinstance(body, OperatorFuturesOrderCancelRequest)
+            and body.acknowledge_unknown_cancel_consumes_allowance
+        ),
+    )
+
+
+def _raise_futures_order_operations(exc: ValueError) -> None:
+    code = (
+        str(exc.args[0])
+        if len(exc.args) == 1
+        and isinstance(exc.args[0], str)
+        and exc.args[0].startswith("operator_futures_")
+        else "operator_futures_order_operations_failed"
+    )
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail=code,
+    ) from None
+
+
+def _require_futures_order_operations_cancel_runtime() -> None:
+    if not get_operator_futures_order_operations_execution_posture().ready:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="operator_futures_order_operations_live_runtime_unavailable",
+        )
+
+
 def get_futures_risk_proof_store() -> FileFuturesRiskProofStore:
     """Return the append-only futures risk proof store."""
 
@@ -846,6 +1037,214 @@ def get_futures_order_fill_readback(
         content=jsonable_encoder(result.body),
         headers=result.headers,
     )
+
+
+@router.get(
+    "/futures/order-operations",
+    response_model=OperatorFuturesOrderListResponse,
+    responses=FUTURES_MANUAL_ROUTE_RESPONSES,
+    summary="List durable Default-profile Futures order projections",
+)
+def list_operator_futures_orders(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[
+        OperatorFuturesOrderOperationsService,
+        Depends(get_operator_futures_order_operations_service),
+    ],
+    product_id: str | None = None,
+    order_status: str | None = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 25,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> JSONResponse:
+    """Read PostgreSQL projections without invoking Coinbase."""
+
+    require_operator_futures_order_operations_enabled()
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    payload = service.list_orders(
+        product_id=product_id,
+        order_status=order_status,
+        limit=limit,
+        offset=offset,
+    )
+    response = OperatorFuturesOrderListResponse(
+        authority=_futures_order_operations_readback(
+            service.read_goal(), actor=actor
+        ),
+        filters=payload["filters"],
+        pagination=payload["pagination"],
+        items=payload["items"],
+    )
+    return JSONResponse(content=jsonable_encoder(response))
+
+
+@router.get(
+    "/futures/order-operations/mutation-results/{request_correlation_id}",
+    response_model=OperatorFuturesOrderMutationResolutionResponse,
+    responses=FUTURES_MANUAL_ROUTE_RESPONSES,
+    summary="Resolve one immutable Futures order mutation result",
+)
+def get_operator_futures_order_mutation_result(
+    request_correlation_id: Annotated[
+        str,
+        Path(min_length=1, max_length=255),
+    ],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[
+        OperatorFuturesOrderOperationsService,
+        Depends(get_operator_futures_order_operations_service),
+    ],
+) -> JSONResponse:
+    """Read one actor-bound cycle result without invoking Coinbase."""
+
+    require_operator_futures_order_operations_enabled()
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    try:
+        found, terminal, record = service.read_cycle_result(
+            correlation_id=request_correlation_id,
+            actor_id=actor.actor_id,
+        )
+    except ValueError as exc:
+        _raise_futures_order_operations(exc)
+    response = OperatorFuturesOrderMutationResolutionResponse(
+        request_correlation_id=request_correlation_id,
+        found=found,
+        terminal=terminal,
+        result=(
+            _futures_order_operations_historical_result(
+                record,
+                actor=actor,
+            )
+            if record is not None
+            else None
+        ),
+    )
+    return JSONResponse(content=jsonable_encoder(response))
+
+
+@router.get(
+    "/futures/order-operations/{client_order_id}",
+    response_model=OperatorFuturesOrderDetailResponse,
+    responses=FUTURES_MANUAL_ROUTE_RESPONSES,
+    summary="Read one durable Default-profile Futures order",
+)
+def get_operator_futures_order(
+    client_order_id: Annotated[str, Path(min_length=1, max_length=128)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[
+        OperatorFuturesOrderOperationsService,
+        Depends(get_operator_futures_order_operations_service),
+    ],
+) -> JSONResponse:
+    """Read exact detail by operator-facing client_order_id."""
+
+    require_operator_futures_order_operations_enabled()
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    item = service.get_order(client_order_id)
+    response = OperatorFuturesOrderDetailResponse(
+        authority=_futures_order_operations_readback(
+            service.read_goal(), actor=actor
+        ),
+        client_order_id=client_order_id,
+        found=item is not None,
+        order=item,
+    )
+    return JSONResponse(content=jsonable_encoder(response))
+
+
+@router.post(
+    "/futures/order-operations/refresh",
+    response_model=OperatorFuturesOrderMutationResponse,
+    responses=FUTURES_MANUAL_ROUTE_RESPONSES,
+    summary="Run one no-retry Default-profile Futures order catalog cycle",
+)
+def refresh_operator_futures_orders(
+    body: OperatorFuturesOrderRefreshRequest,
+    idempotency_key: Annotated[
+        str,
+        Header(alias="Idempotency-Key", min_length=1, max_length=255),
+    ],
+    correlation_id: Annotated[
+        str,
+        Header(alias="X-Correlation-Id", min_length=1, max_length=255),
+    ],
+    operator_intent: Annotated[
+        Literal["refresh_futures_order_catalog"],
+        Header(alias="X-Operator-Intent"),
+    ],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[
+        OperatorFuturesOrderOperationsService,
+        Depends(get_operator_futures_order_operations_service),
+    ],
+) -> JSONResponse:
+    require_operator_futures_order_operations_enabled()
+    require_permission(actor, AdminApiPermission.ORDER_CREATE)
+    try:
+        record = service.refresh_catalog(
+            context=_futures_order_operations_context(
+                actor=actor,
+                body=body,
+                idempotency_key=idempotency_key,
+                correlation_id=correlation_id,
+                operator_intent=operator_intent,
+            )
+        )
+    except ValueError as exc:
+        _raise_futures_order_operations(exc)
+    response = OperatorFuturesOrderMutationResponse(
+        action="REFRESH_CATALOG",
+        result=_futures_order_operations_readback(record, actor=actor),
+    )
+    return JSONResponse(content=jsonable_encoder(response))
+
+
+@router.post(
+    "/futures/order-operations/{client_order_id}/reconciliation",
+    response_model=OperatorFuturesOrderMutationResponse,
+    responses=FUTURES_MANUAL_ROUTE_RESPONSES,
+    summary="Reconcile one Futures order by client_order_id",
+)
+def reconcile_operator_futures_order(
+    body: OperatorFuturesOrderRefreshRequest,
+    client_order_id: Annotated[str, Path(min_length=1, max_length=128)],
+    idempotency_key: Annotated[
+        str,
+        Header(alias="Idempotency-Key", min_length=1, max_length=255),
+    ],
+    correlation_id: Annotated[
+        str,
+        Header(alias="X-Correlation-Id", min_length=1, max_length=255),
+    ],
+    operator_intent: Annotated[
+        Literal["reconcile_exact_futures_order"],
+        Header(alias="X-Operator-Intent"),
+    ],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[
+        OperatorFuturesOrderOperationsService,
+        Depends(get_operator_futures_order_operations_service),
+    ],
+) -> JSONResponse:
+    require_operator_futures_order_operations_enabled()
+    require_permission(actor, AdminApiPermission.ORDER_CREATE)
+    try:
+        record = service.reconcile_exact(
+            context=_futures_order_operations_context(
+                actor=actor,
+                body=body,
+                idempotency_key=idempotency_key,
+                correlation_id=correlation_id,
+                operator_intent=operator_intent,
+            ),
+            client_order_id=client_order_id,
+        )
+    except ValueError as exc:
+        _raise_futures_order_operations(exc)
+    response = OperatorFuturesOrderMutationResponse(
+        action="RECONCILE_EXACT",
+        result=_futures_order_operations_readback(record, actor=actor),
+    )
+    return JSONResponse(content=jsonable_encoder(response))
 
 
 def _source_disabled_futures_command_response(
@@ -1212,21 +1611,81 @@ def close_or_reduce_futures_position(
 
 
 @router.post(
+    "/futures/order-operations/{client_order_id}/cancel",
+    response_model=OperatorFuturesOrderMutationResponse,
+    responses=FUTURES_MANUAL_ROUTE_RESPONSES,
+    summary="Cancel one freshly reconciled Default-profile Futures order",
+)
+def cancel_operator_futures_order(
+    body: OperatorFuturesOrderCancelRequest,
+    client_order_id: Annotated[
+        str, Path(min_length=1, max_length=128)
+    ],
+    idempotency_key: Annotated[
+        str,
+        Header(alias="Idempotency-Key", min_length=1, max_length=255),
+    ],
+    correlation_id: Annotated[
+        str,
+        Header(alias="X-Correlation-Id", min_length=1, max_length=255),
+    ],
+    operator_intent: Annotated[
+        Literal["cancel_exact_futures_order"],
+        Header(alias="X-Operator-Intent"),
+    ],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[
+        OperatorFuturesOrderOperationsService,
+        Depends(get_operator_futures_order_operations_service),
+    ],
+) -> JSONResponse:
+    """Reconcile once, then consume the independent exact Cancel allowance."""
+
+    require_operator_futures_order_operations_enabled()
+    require_permission(actor, AdminApiPermission.ORDER_CANCEL)
+    _require_futures_order_operations_cancel_runtime()
+    try:
+        record = service.cancel_exact(
+            context=_futures_order_operations_context(
+                actor=actor,
+                body=body,
+                idempotency_key=idempotency_key,
+                correlation_id=correlation_id,
+                operator_intent=operator_intent,
+            ),
+            client_order_id=client_order_id,
+        )
+    except ValueError as exc:
+        _raise_futures_order_operations(exc)
+    response = OperatorFuturesOrderMutationResponse(
+        action="CANCEL_EXACT",
+        result=_futures_order_operations_readback(record, actor=actor),
+    )
+    return JSONResponse(content=jsonable_encoder(response))
+
+
+@router.post(
     "/futures/orders/{client_order_id}/cancel",
     response_model=AdminApiCommandResponse,
     status_code=status.HTTP_501_NOT_IMPLEMENTED,
     responses=SOURCE_DISABLED_COMMAND_ROUTE_RESPONSES,
-    summary="Return fixed source-disabled Futures cancel evidence",
+    summary="Return fixed source-disabled legacy Futures cancel evidence",
 )
 def cancel_futures_order(
     body: FuturesCancelOrderRequest,
     client_order_id: Annotated[str, Path(min_length=1)],
-    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
-    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
-    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    idempotency_key: Annotated[
+        str, Header(alias="Idempotency-Key", min_length=1)
+    ],
+    correlation_id: Annotated[
+        str, Header(alias="X-Correlation-Id", min_length=1)
+    ],
+    operator_intent: Annotated[
+        str, Header(alias="X-Operator-Intent", min_length=1)
+    ],
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
 ) -> JSONResponse:
-    """Reject Futures cancel at the installed source-disabled boundary."""
+    """Reject the legacy generic Futures cancel draft."""
 
     return _source_disabled_futures_command_response(
         actor=actor,

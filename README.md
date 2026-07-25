@@ -1,5 +1,18 @@
 # Coinbase Trading Backend
 
+## Futures order inventory and exact operations
+
+`operator_futures_order_inventory_detail_cancel_reconcile_v1` adds a
+PostgreSQL-backed Default-profile Futures order inventory and exact
+`client_order_id` detail workflow. Explicit refresh/reconciliation uses at
+most ten no-retry logical catalogs. One freshly observed `OPEN` order may
+consume the independent single-use canonical Cancel allowance. Raw exchange
+identity is process-local and only its SHA-256 binding persists. See
+[the Goal 2 design](docs/OPERATOR_FUTURES_ORDER_OPERATIONS_V1.md).
+Actor-bound immutable request-result readback remains call-free and lets a
+frozen operator session resolve its exact terminal cycle after a later
+operator advances the mutable singleton.
+
 ## Completed independent Goal 11 — Futures position Close/Reduce
 
 Status: `complete_operator_workflow_cfm_access_blocked_allowances_unconsumed`.
