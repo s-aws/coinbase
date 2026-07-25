@@ -219,6 +219,46 @@ def test_catalog_projection_is_durable_filterable_and_private_id_free(repository
     assert detail["authoritatively_nonterminal"] is True
 
 
+def test_successful_refresh_revokes_authority_from_absent_durable_projection(
+    repository,
+):
+    catalog = _result()
+    second_client_order_id = "operator-futures-order-002"
+    second_observation = replace(
+        catalog.orders[0],
+        client_order_id=second_client_order_id,
+        exchange_order_id_sha256=hashlib.sha256(
+            b"private-exchange-order-002"
+        ).hexdigest(),
+    )
+    first_catalog = replace(
+        catalog,
+        orders=(catalog.orders[0], second_observation),
+        private_exchange_order_ids={
+            **catalog.private_exchange_order_ids,
+            second_client_order_id: "private-exchange-order-002",
+        },
+    )
+    _complete_cycle(repository, key="REFRESH_CATALOG-1", result=first_catalog)
+
+    stale_before = repository.get_order(second_client_order_id)
+    assert stale_before is not None
+    assert stale_before["authoritatively_nonterminal"] is True
+    assert stale_before["cancel_eligible"] is True
+
+    _complete_cycle(repository, key="REFRESH_CATALOG-2", result=catalog)
+
+    current = repository.get_order(CLIENT_ORDER_ID)
+    stale = repository.get_order(second_client_order_id)
+    assert current is not None
+    assert current["authoritatively_nonterminal"] is True
+    assert current["cancel_eligible"] is True
+    assert stale is not None
+    assert stale["status"] == "OPEN"
+    assert stale["authoritatively_nonterminal"] is False
+    assert stale["cancel_eligible"] is False
+
+
 def test_unknown_order_status_is_durable_and_cancel_fails_unknown(repository):
     catalog = _result()
     unknown_observation = replace(

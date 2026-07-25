@@ -143,29 +143,12 @@ def test_catalog_reader_binds_default_profile_and_paginates_without_raw_ids():
     ]
     assert [call["limit"] for call in rest.list_calls] == [100, 100]
     assert [call["order_status"] for call in rest.list_calls] == [
-        [
-            "PENDING",
-            "OPEN",
-            "UNKNOWN_ORDER_STATUS",
-            "QUEUED",
-            "CANCEL_QUEUED",
-            "EDIT_QUEUED",
-        ],
-        [
-            "PENDING",
-            "OPEN",
-            "UNKNOWN_ORDER_STATUS",
-            "QUEUED",
-            "CANCEL_QUEUED",
-            "EDIT_QUEUED",
-        ],
+        ["OPEN"],
+        ["OPEN"],
     ]
     assert [call["product_ids"] for call in rest.list_calls] == [None, None]
     assert [call["start_date"] for call in rest.list_calls] == [None, None]
-    assert [call["end_date"] for call in rest.list_calls] == [
-        "2026-07-25T08:01:00+00:00",
-        "2026-07-25T08:01:00+00:00",
-    ]
+    assert [call["end_date"] for call in rest.list_calls] == [None, None]
     assert [call["retail_portfolio_id"] for call in rest.list_calls] == [
         None,
         None,
@@ -197,10 +180,7 @@ def test_catalog_reader_scopes_exact_reconciliation_to_durable_order_window():
         "2026-07-25T08:00:00Z",
         "2026-07-25T08:00:00Z",
     ]
-    assert [call["end_date"] for call in rest.list_calls] == [
-        "2026-07-25T09:00:00+00:00",
-        "2026-07-25T09:00:00+00:00",
-    ]
+    assert [call["end_date"] for call in rest.list_calls] == [None, None]
 
 
 def test_catalog_reader_blocks_incomplete_exact_scope_before_coinbase_reads():

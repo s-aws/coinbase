@@ -1117,6 +1117,22 @@ class OperatorFuturesOrderOperationsRepository:
                             cycle_number,
                         ),
                     )
+                if action == "REFRESH_CATALOG":
+                    cursor.execute(
+                        f"""
+                        UPDATE
+                            {self._table('operator_futures_order_projection')}
+                        SET authoritatively_nonterminal = FALSE,
+                            cancel_eligible = FALSE,
+                            updated_at = NOW()
+                        WHERE observed_cycle_number <> %s
+                          AND (
+                              authoritatively_nonterminal = TRUE
+                              OR cancel_eligible = TRUE
+                          )
+                        """,
+                        (cycle_number,),
+                    )
             cursor.execute(
                 f"""
                 SELECT COUNT(*) AS count

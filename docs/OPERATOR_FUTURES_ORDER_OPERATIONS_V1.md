@@ -25,12 +25,11 @@ documents `product_type=FUTURE`, order status/type/time-in-force fields,
 used. The implementation proves the credential-bound portfolio is exactly the
 Default profile before listing orders.
 
-Refresh uses only the documented `PENDING`, `OPEN`,
-`UNKNOWN_ORDER_STATUS`, `QUEUED`, `CANCEL_QUEUED`, and `EDIT_QUEUED` status
-filters, plus an `end_date` fixed before the first page. It inventories the
-active and indeterminate operations surface instead of walking an unbounded
-terminal-order history. Exact reconciliation and Cancel remain terminal-aware:
-the backend reads the selected durable projection first, then scopes the same
+Refresh uses only the documented `OPEN` status filter. It inventories current
+cancellation candidates instead of walking an unbounded terminal-order
+history. Pending, queued, unknown, and terminal transitions are not inferred
+from this refresh; exact reconciliation and Cancel remain status-complete. The
+backend reads the selected durable projection first, then scopes the same
 single logical List Orders category to that backend-owned product and inclusive
 creation timestamp without an order-status filter. The UI cannot supply or
 override these filters. If either durable product or normalized creation time
@@ -38,14 +37,29 @@ is absent, the exact cycle ends locally as
 `operator_futures_orders_exact_catalog_scope_incomplete` before any Coinbase
 read.
 
+After a successful refresh, any prior durable projection absent from the
+returned `OPEN` catalog has `authoritatively_nonterminal` and
+`cancel_eligible` revoked. The row is retained as last-observed history rather
+than deleted or assigned an inferred terminal status, and its `observed_at`
+continues to identify when Coinbase last reported that status. The operator
+inventory displays this timestamp. Only an exact Reconcile or Cancel action
+may acquire newer terminal or indeterminate truth for that routed
+`client_order_id`.
+
 The 100-page fail-closed ceiling remains unchanged. Cycle 4 reached that
 ceiling while reading the unfiltered historical Futures catalog, returned only
 `operator_futures_orders_futures_order_catalog_page_limit_exceeded`, and left
 Cancel `NOT_RUN`. Current official documentation still describes
 `product_type`, `order_status`, `product_ids`, inclusive `start_date`,
-exclusive `end_date`, `has_next`, and `cursor`; no maintenance-specific
-contract change was documented. The scoped correction follows those fields
-without raising the page or call ceilings.
+`has_next`, and `cursor`; no maintenance-specific contract change was
+documented. Cycle 5 then tested the documented multi-status plus `end_date`
+profile exactly once and received only the fixed
+`operator_futures_orders_futures_order_catalog_http_client_error`
+classification. It made no retry and left Cancel `NOT_RUN`. Because the
+withheld response cannot safely attribute the 4xx to one parameter, the
+successor uses the minimal documented and legacy-proven `OPEN` refresh and
+omits the optional `end_date`. Exact actions retain product and inclusive
+creation-time scope. The correction does not raise page or call ceilings.
 
 The documented
 `UNKNOWN_ORDER_STATUS` value remains visible in inventory but is neither

@@ -49,14 +49,7 @@ FUTURES_ORDER_TERMINAL_STATUSES = frozenset(
 FUTURES_ORDER_NONTERMINAL_STATUSES = frozenset(
     {"PENDING", "OPEN", "QUEUED", "CANCEL_QUEUED", "EDIT_QUEUED"}
 )
-FUTURES_ORDER_ACTIVE_CATALOG_STATUSES = (
-    "PENDING",
-    "OPEN",
-    "UNKNOWN_ORDER_STATUS",
-    "QUEUED",
-    "CANCEL_QUEUED",
-    "EDIT_QUEUED",
-)
+FUTURES_ORDER_REFRESH_STATUSES = ("OPEN",)
 FUTURES_ORDER_STATUSES = (
     FUTURES_ORDER_TERMINAL_STATUSES
     | FUTURES_ORDER_NONTERMINAL_STATUSES
@@ -448,12 +441,11 @@ class FuturesOrderCatalogReader:
         catalog_order_status = (
             None
             if exact_product_id
-            else list(FUTURES_ORDER_ACTIVE_CATALOG_STATUSES)
+            else list(FUTURES_ORDER_REFRESH_STATUSES)
         )
         catalog_product_ids = (
             [exact_product_id] if exact_product_id else None
         )
-        catalog_end_date = observed_at.astimezone(timezone.utc).isoformat()
         try:
             binding = evaluate_futures_default_portfolio_binding(
                 permissions=permissions,
@@ -500,7 +492,7 @@ class FuturesOrderCatalogReader:
                     product_type="FUTURE",
                     limit=FUTURES_ORDER_OPERATIONS_PAGE_LIMIT,
                     start_date=exact_start_date,
-                    end_date=catalog_end_date,
+                    end_date=None,
                     cursor=cursor,
                     retail_portfolio_id=None,
                     before_sdk_call=lambda ordinal=page_count, hashed=cursor_hash: (
@@ -617,11 +609,11 @@ class FuturesOrderCatalogReader:
 
 
 __all__ = [
-    "FUTURES_ORDER_ACTIVE_CATALOG_STATUSES",
     "FUTURES_ORDER_NONTERMINAL_STATUSES",
     "FUTURES_ORDER_OPERATIONS_CATEGORIES",
     "FUTURES_ORDER_OPERATIONS_GOAL_ID",
     "FUTURES_ORDER_OPERATIONS_MAX_CYCLES",
+    "FUTURES_ORDER_REFRESH_STATUSES",
     "FUTURES_ORDER_TERMINAL_STATUSES",
     "FuturesOrderCatalogReader",
     "FuturesOrderCatalogResult",
