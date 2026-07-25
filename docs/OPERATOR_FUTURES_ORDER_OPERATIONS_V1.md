@@ -32,6 +32,13 @@ attempt against that projection terminates locally as
 `operator_futures_order_exact_order_status_unknown`; it is not mislabeled as
 a terminal exchange order and never claims the Cancel allowance.
 
+Catalog schema failures use fixed, value-blind boundary diagnostics for the
+response envelope, order collection/mapping, required identities, documented
+enum fields, and pagination state. No rejected value is interpolated or
+retained. This lets a later bounded cycle distinguish a documented
+compatibility change from a malformed response without inspecting, persisting,
+or reconstructing raw Coinbase evidence.
+
 [Cancel Orders](https://docs.cdp.coinbase.com/api-reference/advanced-trade-api/rest-api/orders/cancel-order)
 accepts exchange `order_ids` and returns one result with `success`,
 `failure_reason`, and `order_id`. The UI therefore never supplies a Coinbase

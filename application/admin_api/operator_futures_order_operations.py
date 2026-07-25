@@ -211,6 +211,12 @@ class _CatalogReadError(RuntimeError):
         super().__init__(diagnostic_code)
 
 
+def _catalog_schema_error(boundary: str) -> _CatalogReadError:
+    return _CatalogReadError(
+        "operator_futures_orders_futures_order_catalog_" + boundary
+    )
+
+
 def _read_diagnostic(category: str, exc: Exception) -> str:
     prefix = f"operator_futures_orders_{category}"
     if isinstance(exc, HTTPError):
@@ -286,7 +292,7 @@ def _blocked_result(
 def _normalize_order(value: Any) -> tuple[FuturesOrderObservation, str]:
     order = _sdk_mapping(value)
     if order is None:
-        raise ValueError("order_schema_invalid")
+        raise _catalog_schema_error("order_mapping_invalid")
     exchange_order_id = _text(order.get("order_id"))
     client_order_id = _text(order.get("client_order_id"))
     product_id = _text(order.get("product_id"))
@@ -296,18 +302,24 @@ def _normalize_order(value: Any) -> tuple[FuturesOrderObservation, str]:
     time_in_force = (
         _text(order.get("time_in_force")).upper() or "UNKNOWN_TIME_IN_FORCE"
     )
-    if (
-        not exchange_order_id
-        or not client_order_id
-        or len(client_order_id) > 128
-        or not product_id
-        or len(product_id) > 128
-        or side not in {"BUY", "SELL"}
-        or status not in FUTURES_ORDER_STATUSES
-        or order_type not in FUTURES_ORDER_TYPES
-        or time_in_force not in FUTURES_TIME_IN_FORCES
-    ):
-        raise ValueError("order_schema_invalid")
+    if not exchange_order_id:
+        raise _catalog_schema_error("exchange_identity_missing")
+    if not client_order_id:
+        raise _catalog_schema_error("client_identity_missing")
+    if len(client_order_id) > 128:
+        raise _catalog_schema_error("client_identity_too_long")
+    if not product_id:
+        raise _catalog_schema_error("product_identity_missing")
+    if len(product_id) > 128:
+        raise _catalog_schema_error("product_identity_too_long")
+    if side not in {"BUY", "SELL"}:
+        raise _catalog_schema_error("side_invalid")
+    if status not in FUTURES_ORDER_STATUSES:
+        raise _catalog_schema_error("status_invalid")
+    if order_type not in FUTURES_ORDER_TYPES:
+        raise _catalog_schema_error("order_type_invalid")
+    if time_in_force not in FUTURES_TIME_IN_FORCES:
+        raise _catalog_schema_error("time_in_force_invalid")
     size, limit_price = _order_configuration_values(order)
     size = size or _decimal_text(order.get("base_size") or order.get("size"))
     limit_price = limit_price or _decimal_text(
@@ -430,11 +442,11 @@ class FuturesOrderCatalogReader:
             private_ids: dict[str, str] = {}
             while True:
                 if page_count >= FUTURES_ORDER_OPERATIONS_MAX_PAGES_PER_CYCLE:
-                    raise ValueError("page_limit_exceeded")
+                    raise _catalog_schema_error("page_limit_exceeded")
                 page_count += 1
                 cursor_hash = _sha256_text(cursor) if cursor else None
                 if cursor_hash and cursor_hash in seen_cursor_hashes:
-                    raise ValueError("cursor_loop")
+                    raise _catalog_schema_error("pagination_cursor_loop")
                 if cursor_hash:
                     seen_cursor_hashes.add(cursor_hash)
                 response = self.rest_client.list_orders(
@@ -450,12 +462,12 @@ class FuturesOrderCatalogReader:
                     after_page(page_count)
                 page = _sdk_mapping(response)
                 if page is None:
-                    raise ValueError("response_schema_invalid")
+                    raise _catalog_schema_error("response_envelope_invalid")
                 raw_orders = page.get("orders")
                 if not isinstance(raw_orders, Sequence) or isinstance(
                     raw_orders, (str, bytes, bytearray)
                 ):
-                    raise ValueError("orders_schema_invalid")
+                    raise _catalog_schema_error("orders_collection_invalid")
                 for raw_order in raw_orders:
                     observation, exchange_order_id = _normalize_order(raw_order)
                     if binding.can_trade is not True:
@@ -481,10 +493,14 @@ class FuturesOrderCatalogReader:
                 if has_next is False:
                     break
                 if has_next is not True:
-                    raise ValueError("pagination_schema_invalid")
+                    raise _catalog_schema_error(
+                        "pagination_has_next_invalid"
+                    )
                 next_cursor = _text(page.get("cursor"))
                 if not next_cursor:
-                    raise ValueError("pagination_cursor_missing")
+                    raise _catalog_schema_error(
+                        "pagination_cursor_missing"
+                    )
                 cursor = next_cursor
         except _CatalogReadError as exc:
             return _blocked_result(

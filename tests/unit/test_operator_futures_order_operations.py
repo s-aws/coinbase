@@ -277,9 +277,41 @@ def test_catalog_reader_fails_closed_on_unpersistable_identity_length():
     assert result.outcome == "UNKNOWN"
     assert (
         result.diagnostic_code
-        == "operator_futures_orders_futures_order_catalog_schema_invalid"
+        == "operator_futures_orders_futures_order_catalog_client_identity_too_long"
     )
     assert result.orders == ()
+
+
+def test_catalog_reader_reports_fixed_status_boundary_without_raw_value():
+    rest = _RestClient()
+    private_status = "PRIVATE_UNDOCUMENTED_STATUS"
+    rest.pages[None]["orders"][0]["status"] = private_status
+
+    result = FuturesOrderCatalogReader(rest_client=rest).run(
+        before_category=lambda _category: None,
+        before_page=lambda _ordinal, _cursor_hash: None,
+    )
+
+    assert result.outcome == "UNKNOWN"
+    assert result.diagnostic_code == (
+        "operator_futures_orders_futures_order_catalog_status_invalid"
+    )
+    assert private_status not in repr(result)
+
+
+def test_catalog_reader_reports_fixed_pagination_cursor_boundary():
+    rest = _RestClient()
+    rest.pages[None]["cursor"] = ""
+
+    result = FuturesOrderCatalogReader(rest_client=rest).run(
+        before_category=lambda _category: None,
+        before_page=lambda _ordinal, _cursor_hash: None,
+    )
+
+    assert result.outcome == "UNKNOWN"
+    assert result.diagnostic_code == (
+        "operator_futures_orders_futures_order_catalog_pagination_cursor_missing"
+    )
 
 
 def test_cancel_executor_uses_ephemeral_exchange_identity_once(monkeypatch):
