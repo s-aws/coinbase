@@ -13,6 +13,7 @@ from psycopg2 import sql
 import pytest
 
 from application.admin_api.operator_futures_manual_lifecycle import (
+    FUTURES_MANUAL_ACTIVE_GOAL_ID,
     FUTURES_MANUAL_ELIGIBILITY_CATEGORIES,
     FuturesManualEligibilityResult,
     FuturesManualRequestContext,
@@ -463,6 +464,65 @@ def test_terminal_positions_forbidden_durably_closes_refresh_authority(
             )
     finally:
         restarted.db.disconnect()
+
+
+def test_active_successor_starts_unconsumed_without_changing_terminal_predecessor(
+    repository,
+):
+    initial = repository.read()
+    _, cycle = repository.begin_eligibility_cycle(
+        context=_context(
+            revision=initial.revision,
+            key="terminal-predecessor",
+        )
+    )
+    assert cycle == 1
+    attempts = {
+        category: int(category != "futures_margin_collateral")
+        for category in FUTURES_MANUAL_ELIGIBILITY_CATEGORIES
+    }
+    for category, count in attempts.items():
+        if count:
+            repository.claim_eligibility_category(
+                cycle_number=cycle,
+                category=category,
+            )
+    predecessor = repository.finish_eligibility_cycle(
+        cycle_number=cycle,
+        result=_unknown_result(
+            attempts,
+            diagnostic=(
+                "operator_futures_manual_futures_positions_http_forbidden"
+            ),
+        ),
+        context=_context(
+            revision=initial.revision,
+            key="terminal-predecessor",
+        ),
+    )
+
+    successor = OperatorFuturesManualLifecycleRepository(
+        _database(),
+        schema=repository.schema,
+        configured_portfolio_id=None,
+        clock=lambda: TEST_NOW,
+        goal_id=FUTURES_MANUAL_ACTIVE_GOAL_ID,
+    )
+    successor.ensure_schema()
+    try:
+        successor_record = successor.read()
+        assert successor_record.goal_id == FUTURES_MANUAL_ACTIVE_GOAL_ID
+        assert successor_record.revision == 0
+        assert successor_record.cycles_used == 0
+        assert successor_record.preview_outcome is (
+            AdminFuturesManualCallOutcome.NOT_RUN
+        )
+        assert successor_record.create_outcome is (
+            AdminFuturesManualCallOutcome.NOT_RUN
+        )
+        assert repository.read() == predecessor
+    finally:
+        successor.db.disconnect()
 
 
 def test_preview_create_reconcile_and_exact_cancel_are_single_use(repository):

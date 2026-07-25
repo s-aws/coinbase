@@ -10,6 +10,10 @@ from core.coinbase_execution_authority import (
     coinbase_execution_authority_enabled,
 )
 
+from .futures_default_rest_client import (
+    futures_default_rest_client_configured,
+    get_futures_default_rest_client,
+)
 from .live_execution import (
     LIVE_EXECUTION_RUNTIME_ENABLED_ENV,
     AdminApiLiveExecutionServiceState,
@@ -17,6 +21,7 @@ from .live_execution import (
     operator_futures_manual_live_service_state_allows_route_admission,
 )
 from .operator_futures_manual_lifecycle import (
+    FUTURES_MANUAL_ACTIVE_GOAL_ID,
     FuturesManualEligibilityReader,
     OperatorFuturesManualLifecycleService,
 )
@@ -85,14 +90,13 @@ def get_operator_futures_manual_execution_posture(
 ) -> FuturesManualExecutionPosture:
     """Resolve Coinbase-call-free installed readiness for Goal 10."""
 
-    credentials_configured = False
+    credentials_configured = futures_default_rest_client_configured()
     rest_client_available = False
     try:
-        from configuration import API_KEY, API_SECRET, get_rest_client
-
-        credentials_configured = bool(API_KEY and API_SECRET)
         if credentials_configured:
-            rest_client_available = get_rest_client() is not None
+            rest_client_available = (
+                get_futures_default_rest_client() is not None
+            )
     except Exception:
         rest_client_available = False
     try:
@@ -132,21 +136,22 @@ def get_default_operator_futures_manual_lifecycle_service(
     if _DEFAULT_SERVICE is None:
         with _DEFAULT_SERVICE_LOCK:
             if _DEFAULT_SERVICE is None:
-                from configuration import REST_CLIENT
                 from database.operator_futures_manual_lifecycle import (
                     get_default_operator_futures_manual_lifecycle_repository,
                 )
 
+                rest_client = get_futures_default_rest_client()
                 _DEFAULT_SERVICE = OperatorFuturesManualLifecycleService(
                     repository=(
                         get_default_operator_futures_manual_lifecycle_repository()
                     ),
                     eligibility_reader=FuturesManualEligibilityReader(
-                        rest_client=REST_CLIENT
+                        rest_client=rest_client,
+                        goal_id=FUTURES_MANUAL_ACTIVE_GOAL_ID,
                     ),
                     exchange_executor=(
                         AdminApiFuturesManualExchangeExecutor(
-                            rest_client=REST_CLIENT
+                            rest_client=rest_client
                         )
                     ),
                 )

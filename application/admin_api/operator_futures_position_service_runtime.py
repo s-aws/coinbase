@@ -10,6 +10,10 @@ from core.coinbase_execution_authority import (
     coinbase_execution_authority_enabled,
 )
 
+from .futures_default_rest_client import (
+    futures_default_rest_client_configured,
+    get_futures_default_rest_client,
+)
 from .live_execution import (
     LIVE_EXECUTION_RUNTIME_ENABLED_ENV,
     AdminApiLiveExecutionServiceState,
@@ -79,14 +83,13 @@ def evaluate_operator_futures_position_execution_posture(
 
 def get_operator_futures_position_execution_posture(
 ) -> FuturesPositionExecutionPosture:
-    credentials_configured = False
+    credentials_configured = futures_default_rest_client_configured()
     rest_client_available = False
     try:
-        from configuration import API_KEY, API_SECRET, get_rest_client
-
-        credentials_configured = bool(API_KEY and API_SECRET)
         if credentials_configured:
-            rest_client_available = get_rest_client() is not None
+            rest_client_available = (
+                get_futures_default_rest_client() is not None
+            )
     except Exception:
         rest_client_available = False
     try:
@@ -120,24 +123,24 @@ def get_default_operator_futures_position_lifecycle_service(
     if _DEFAULT_SERVICE is None:
         with _DEFAULT_SERVICE_LOCK:
             if _DEFAULT_SERVICE is None:
-                from configuration import REST_CLIENT
                 from database.operator_futures_position_lifecycle import (
                     get_default_operator_futures_position_lifecycle_repository,
                 )
 
+                rest_client = get_futures_default_rest_client()
                 _DEFAULT_SERVICE = OperatorFuturesPositionLifecycleService(
                     repository=(
                         get_default_operator_futures_position_lifecycle_repository()
                     ),
                     eligibility_reader_factory=lambda position_key: (
                         FuturesPositionEligibilityReader(
-                            rest_client=REST_CLIENT,
+                            rest_client=rest_client,
                             position_key=position_key,
                         )
                     ),
                     exchange_executor=(
                         AdminApiFuturesPositionExchangeExecutor(
-                            rest_client=REST_CLIENT
+                            rest_client=rest_client
                         )
                     ),
                 )

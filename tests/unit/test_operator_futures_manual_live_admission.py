@@ -99,19 +99,20 @@ def test_futures_execution_posture_has_no_spot_runtime_dependency() -> None:
 def test_installed_true_runtime_literal_admits_futures_posture(
     monkeypatch,
 ) -> None:
-    import configuration
-
     monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
     monkeypatch.setattr(
         futures_manual_service_runtime,
         "coinbase_execution_authority_enabled",
         lambda: True,
     )
-    monkeypatch.setattr(configuration, "API_KEY", "configured-key")
-    monkeypatch.setattr(configuration, "API_SECRET", "configured-secret")
     monkeypatch.setattr(
-        configuration,
-        "get_rest_client",
+        futures_manual_service_runtime,
+        "futures_default_rest_client_configured",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        futures_manual_service_runtime,
+        "get_futures_default_rest_client",
         lambda: object(),
     )
     monkeypatch.setattr(

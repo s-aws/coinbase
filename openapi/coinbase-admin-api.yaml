@@ -160440,7 +160440,9 @@ components:
           default: operator_futures_manual_lifecycle
         goal_id:
           type: string
-          const: operator_futures_manual_order_lifecycle_v1
+          enum:
+          - operator_futures_manual_order_lifecycle_v1
+          - operator_futures_manual_order_lifecycle_default_profile_v2
           title: Goal Id
         revision:
           type: integer

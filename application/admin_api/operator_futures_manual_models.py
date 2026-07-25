@@ -44,7 +44,10 @@ class OperatorFuturesManualReadback(BaseModel):
     type: Literal["operator_futures_manual_lifecycle"] = (
         "operator_futures_manual_lifecycle"
     )
-    goal_id: Literal["operator_futures_manual_order_lifecycle_v1"]
+    goal_id: Literal[
+        "operator_futures_manual_order_lifecycle_v1",
+        "operator_futures_manual_order_lifecycle_default_profile_v2",
+    ]
     revision: int = Field(ge=0)
     environment: str
     portfolio_profile_alias: Literal["Default"] = "Default"

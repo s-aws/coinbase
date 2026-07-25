@@ -44,6 +44,9 @@ from .futures_portfolio_binding import (
 
 
 FUTURES_MANUAL_GOAL_ID = "operator_futures_manual_order_lifecycle_v1"
+FUTURES_MANUAL_ACTIVE_GOAL_ID = (
+    "operator_futures_manual_order_lifecycle_default_profile_v2"
+)
 FUTURES_MANUAL_MAX_CANDIDATE_AGE_SECONDS = 30
 FUTURES_MANUAL_ELIGIBILITY_CATEGORIES = (
     "api_key_permissions",
@@ -581,12 +584,13 @@ def _eligibility_read_diagnostic(
 
 def _blocked_result(
     *,
+    goal_id: str,
     outcome: AdminFuturesManualEligibilityOutcome,
     diagnostic_code: str,
     attempts: Mapping[str, int],
 ) -> FuturesManualEligibilityResult:
     public = {
-        "goal_id": FUTURES_MANUAL_GOAL_ID,
+        "goal_id": goal_id,
         "profile_alias": "Default",
         "product_id": FUTURES_PREVIEW_PRODUCT_ID,
         "contract_count": "1",
@@ -645,9 +649,11 @@ class FuturesManualEligibilityReader:
         *,
         rest_client: Any,
         now: Callable[[], datetime] | None = None,
+        goal_id: str = FUTURES_MANUAL_GOAL_ID,
     ) -> None:
         self.rest_client = rest_client
         self.now = now or (lambda: datetime.now(timezone.utc))
+        self.goal_id = str(goal_id)
 
     def run(
         self,
@@ -707,6 +713,7 @@ class FuturesManualEligibilityReader:
             )
         except _FuturesManualEligibilityReadError as exc:
             return _blocked_result(
+                goal_id=self.goal_id,
                 outcome=AdminFuturesManualEligibilityOutcome.UNKNOWN,
                 diagnostic_code=exc.diagnostic_code,
                 attempts=attempts,
@@ -731,6 +738,7 @@ class FuturesManualEligibilityReader:
                 )
         except Exception:
             return _blocked_result(
+                goal_id=self.goal_id,
                 outcome=AdminFuturesManualEligibilityOutcome.INELIGIBLE,
                 diagnostic_code=(
                     "operator_futures_manual_portfolio_ineligible"
@@ -742,6 +750,7 @@ class FuturesManualEligibilityReader:
             validate_r12_margin_collateral_evidence(margin)
         except Exception:
             return _blocked_result(
+                goal_id=self.goal_id,
                 outcome=AdminFuturesManualEligibilityOutcome.INELIGIBLE,
                 diagnostic_code=(
                     "operator_futures_manual_margin_collateral_ineligible"
@@ -758,6 +767,7 @@ class FuturesManualEligibilityReader:
             )
         except Exception as exc:
             return _blocked_result(
+                goal_id=self.goal_id,
                 outcome=AdminFuturesManualEligibilityOutcome.INELIGIBLE,
                 diagnostic_code=_candidate_diagnostic(exc),
                 attempts=attempts,
@@ -765,7 +775,7 @@ class FuturesManualEligibilityReader:
 
         portfolio_hash = _sha256_text(binding.observed_portfolio_id)
         public = {
-            "goal_id": FUTURES_MANUAL_GOAL_ID,
+            "goal_id": self.goal_id,
             "profile_alias": "Default",
             "portfolio_type": "DEFAULT",
             "portfolio_id_sha256": portfolio_hash,
@@ -804,6 +814,7 @@ class FuturesManualEligibilityReader:
 
 __all__ = [
     "FUTURES_MANUAL_ELIGIBILITY_CATEGORIES",
+    "FUTURES_MANUAL_ACTIVE_GOAL_ID",
     "FUTURES_MANUAL_GOAL_ID",
     "FUTURES_MANUAL_MAX_CANDIDATE_AGE_SECONDS",
     "FuturesManualExecutionPlan",

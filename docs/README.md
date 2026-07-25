@@ -1,5 +1,11 @@
 # Documentation Index
 
+Current credential-routing recovery:
+[Operator Coinbase Domain Credential Routing V1](OPERATOR_COINBASE_DOMAIN_CREDENTIAL_ROUTING_V1.md).
+The installed operator runtime keeps Spot on `coinbase/Test`, routes Futures
+through an independent `coinbase` Default-profile client, preserves the
+terminal Goal 10 predecessor, and exposes a zero-use successor lifecycle.
+
 Completed independent Goal 11:
 [Operator Futures Position Close/Reduce V1](OPERATOR_FUTURES_POSITION_CLOSE_REDUCE_V1.md).
 Goal `operator_futures_position_close_reduce_and_reconciliation_v1` provides

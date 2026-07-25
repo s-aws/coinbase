@@ -13,6 +13,7 @@ import uuid
 
 from application.admin_api.operator_futures_manual_lifecycle import (
     FUTURES_MANUAL_ELIGIBILITY_CATEGORIES,
+    FUTURES_MANUAL_ACTIVE_GOAL_ID,
     FUTURES_MANUAL_GOAL_ID,
     FuturesManualEligibilityResult,
     FuturesManualExecutionPlan,
@@ -114,11 +115,18 @@ class OperatorFuturesManualLifecycleRepository:
         configured_portfolio_id: str | None = None,
         schema: str = "public",
         clock: Callable[[], datetime] | None = None,
+        goal_id: str = FUTURES_MANUAL_GOAL_ID,
     ) -> None:
         if not _SCHEMA_RE.fullmatch(str(schema)):
             raise ValueError("operator_futures_manual_schema_invalid")
         self.db = db
         self.schema = str(schema)
+        if goal_id not in {
+            FUTURES_MANUAL_GOAL_ID,
+            FUTURES_MANUAL_ACTIVE_GOAL_ID,
+        }:
+            raise ValueError("operator_futures_manual_goal_id_invalid")
+        self.goal_id = goal_id
         self.configured_portfolio_id_sha256 = (
             _sha256_text(str(uuid.UUID(str(configured_portfolio_id))))
             if configured_portfolio_id
@@ -351,7 +359,7 @@ class OperatorFuturesManualLifecycleRepository:
                     ON CONFLICT (goal_id) DO NOTHING
                     """,
                     (
-                        FUTURES_MANUAL_GOAL_ID,
+                        self.goal_id,
                         "operator_futures_manual_not_refreshed",
                         "operator_futures_manual_not_refreshed",
                         _EMPTY_CATEGORY_ATTEMPTS_JSON,
@@ -374,7 +382,7 @@ class OperatorFuturesManualLifecycleRepository:
                     """,
                     (
                         _EMPTY_CATEGORY_ATTEMPTS_JSON,
-                        FUTURES_MANUAL_GOAL_ID,
+                        self.goal_id,
                     ),
                 )
                 if self.configured_portfolio_id_sha256 is not None:
@@ -388,7 +396,7 @@ class OperatorFuturesManualLifecycleRepository:
                         """,
                         (
                             self.configured_portfolio_id_sha256,
-                            FUTURES_MANUAL_GOAL_ID,
+                            self.goal_id,
                         ),
                     )
                     bound = _row(cursor)
@@ -410,7 +418,7 @@ class OperatorFuturesManualLifecycleRepository:
             WHERE goal_id = %s
             FOR UPDATE
             """,
-            (FUTURES_MANUAL_GOAL_ID,),
+            (self.goal_id,),
         )
         row = _row(cursor)
         if row is None:
@@ -447,7 +455,7 @@ class OperatorFuturesManualLifecycleRepository:
                 "updated_at = CURRENT_TIMESTAMP",
             ]
         )
-        params.extend([diagnostic, FUTURES_MANUAL_GOAL_ID])
+        params.extend([diagnostic, self.goal_id])
         cursor.execute(
             f"""
             UPDATE {self._table('operator_futures_manual_goal')}
@@ -572,7 +580,7 @@ class OperatorFuturesManualLifecycleRepository:
             WHERE goal_id = %s
             {"FOR UPDATE" if for_update else ""}
             """,
-            (FUTURES_MANUAL_GOAL_ID,),
+            (self.goal_id,),
         )
         value = _row(cursor)
         if value is None:
@@ -660,7 +668,7 @@ class OperatorFuturesManualLifecycleRepository:
             """,
             (
                 str(uuid.uuid4()),
-                FUTURES_MANUAL_GOAL_ID,
+                self.goal_id,
                 action,
                 context.expected_revision,
                 result_revision,
@@ -773,7 +781,7 @@ class OperatorFuturesManualLifecycleRepository:
                     json.dumps(list(context.roles)),
                     context.correlation_id,
                     context.audit_id,
-                    FUTURES_MANUAL_GOAL_ID,
+                    self.goal_id,
                 ),
             )
             self._insert_command(
@@ -817,7 +825,7 @@ class OperatorFuturesManualLifecycleRepository:
                     goal_id, cycle_number, category
                 ) VALUES (%s, %s, %s)
                 """,
-                (FUTURES_MANUAL_GOAL_ID, cycle_number, category),
+                (self.goal_id, cycle_number, category),
             )
             cursor.execute(
                 f"""
@@ -828,7 +836,7 @@ class OperatorFuturesManualLifecycleRepository:
                 """,
                 (
                     json.dumps(attempts, sort_keys=True),
-                    FUTURES_MANUAL_GOAL_ID,
+                    self.goal_id,
                 ),
             )
 
@@ -907,7 +915,7 @@ class OperatorFuturesManualLifecycleRepository:
                         != expected_portfolio_hash
                     )
                     or result.public_evidence.get("goal_id")
-                    != FUTURES_MANUAL_GOAL_ID
+                    != self.goal_id
                     or result.public_evidence.get("profile_alias")
                     != "Default"
                     or result.public_evidence.get("portfolio_type")
@@ -981,7 +989,7 @@ class OperatorFuturesManualLifecycleRepository:
                     result.diagnostic_code,
                     context.correlation_id,
                     context.audit_id,
-                    FUTURES_MANUAL_GOAL_ID,
+                    self.goal_id,
                 ),
             )
             return self._record(
@@ -1063,7 +1071,7 @@ class OperatorFuturesManualLifecycleRepository:
                     json.dumps(list(context.roles)),
                     context.correlation_id,
                     context.audit_id,
-                    FUTURES_MANUAL_GOAL_ID,
+                    self.goal_id,
                 ),
             )
             self._insert_command(
@@ -1120,7 +1128,7 @@ class OperatorFuturesManualLifecycleRepository:
                 """,
                 (
                     f"operator_futures_manual_{step}_claimed",
-                    FUTURES_MANUAL_GOAL_ID,
+                    self.goal_id,
                 ),
             )
             return self._record(
@@ -1177,7 +1185,7 @@ class OperatorFuturesManualLifecycleRepository:
                     updated_at = CURRENT_TIMESTAMP
                 WHERE goal_id = %s
                 """,
-                (FUTURES_MANUAL_GOAL_ID,),
+                (self.goal_id,),
             )
 
     def mark_preview_exchange_invoked(self, *, claim_id: str) -> None:
@@ -1245,7 +1253,7 @@ class OperatorFuturesManualLifecycleRepository:
             for column, value in extra.items():
                 assignments.append(f"{column} = %s")
                 params.append(value)
-            params.append(FUTURES_MANUAL_GOAL_ID)
+            params.append(self.goal_id)
             cursor.execute(
                 f"""
                 UPDATE {self._table('operator_futures_manual_goal')}
@@ -1363,7 +1371,7 @@ class OperatorFuturesManualLifecycleRepository:
                 (
                     exchange_hash,
                     "operator_futures_manual_reconciliation_claimed",
-                    FUTURES_MANUAL_GOAL_ID,
+                    self.goal_id,
                 ),
             )
             return self._record(
@@ -1444,7 +1452,7 @@ class OperatorFuturesManualLifecycleRepository:
                 (
                     order_status,
                     "operator_futures_manual_cancel_claimed",
-                    FUTURES_MANUAL_GOAL_ID,
+                    self.goal_id,
                 ),
             )
             return self._record(
@@ -1491,6 +1499,7 @@ def get_default_operator_futures_manual_lifecycle_repository(
                     OperatorFuturesManualLifecycleRepository(
                         order_db.DB_CLIENT,
                         configured_portfolio_id=(portfolio_id or None),
+                        goal_id=FUTURES_MANUAL_ACTIVE_GOAL_ID,
                     )
                 )
                 _DEFAULT_REPOSITORY.ensure_schema()

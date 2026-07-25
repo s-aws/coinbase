@@ -165,6 +165,24 @@ now durably suppresses `REFRESH_ELIGIBILITY`, and PostgreSQL rejects every new
 cycle key after restart while preserving idempotent replay of a previously
 recorded command.
 
+## Default-profile credential-routing successor
+
+The bounded read-only follow-up proved that permissions, portfolio catalog,
+CFM balance summary, and CFM positions all return under the canonical Default
+secret. The predecessor 403 was local credential routing: the installed
+single-client process had hydrated the Spot/Test key before constructing the
+Futures service.
+
+That predecessor row and all call accounting remain unchanged. The installed
+route now selects
+`operator_futures_manual_order_lifecycle_default_profile_v2`, a distinct
+zero-use PostgreSQL row using the same policy, product, one-contract scope,
+strict caps, no-retry categories, and single-use exchange boundaries. Spot
+continues through `coinbase/Test`; Futures eligibility, Preview/Create,
+reconciliation, Cancel, Close, and Reduce use an independently constructed
+`coinbase` Default-profile client. See
+[Operator Coinbase Domain Credential Routing V1](OPERATOR_COINBASE_DOMAIN_CREDENTIAL_ROUTING_V1.md).
+
 Terminal closeout passed the 41-test classifier/route/repository focus, both
 fresh independent audits, the frontend canonical release gate with 1,707
 tests and isolated operator/viewer Futures E2Es, and the full backend

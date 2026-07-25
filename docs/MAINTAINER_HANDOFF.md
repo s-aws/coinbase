@@ -1,5 +1,23 @@
 # Maintainer Handoff
 
+## Current operator credential routing
+
+The prior CFM HTTP-forbidden result is localized to installed credential
+routing. One authorized Default-profile read of each of API-key permissions,
+portfolio catalog, CFM balance summary, and CFM positions returned. The
+Controlled-live runtime now removes direct Coinbase credentials, resolves Spot
+from `coinbase/Test`, and builds an independent Futures client from the
+`coinbase` Default binding. Missing or conflated bindings fail startup.
+
+The terminal `operator_futures_manual_order_lifecycle_v1` row is preserved.
+The routed manual lifecycle now uses the distinct unconsumed
+`operator_futures_manual_order_lifecycle_default_profile_v2` row with the same
+V3 product, one-contract scope, caps, no-retry categories, and single-use call
+boundaries. Goal 11's selected-position coordinator uses the same independent
+Default-profile client. Startup and ordinary readback remain Coinbase-call
+free. See
+[Operator Coinbase Domain Credential Routing V1](OPERATOR_COINBASE_DOMAIN_CREDENTIAL_ROUTING_V1.md).
+
 ## Completed independent Goal 11 — Futures position Close/Reduce
 
 Status: `complete_operator_workflow_cfm_access_blocked_allowances_unconsumed`.
@@ -35,12 +53,12 @@ SHA-256-bound; any conflicting returned private identity fails closed. Close
 acceptance uses only the documented success flag and nonblank order ID, then
 exact-order reconciliation proves client identity, product, side, and status.
 
-The current installed credential/account fails the documented CFM positions
-category with
-`operator_futures_manual_futures_positions_http_forbidden`. Goal 11 therefore
-has no live-selected position and all Close/Reduce/reconciliation/Cancel
-allowances remain unconsumed. This external access blocker does not require
-additional Futures authorization.
+The historical installed process failed the documented CFM positions category
+with `operator_futures_manual_futures_positions_http_forbidden`; all Goal 11
+allowances therefore remain unconsumed. The follow-up diagnosis proved
+Default-profile CFM access and corrected the local credential route. A fresh
+operator-triggered eligibility cycle, not the historical 403, now determines
+whether an authoritative position is actionable.
 
 Closeout passed the canonical backend regression (`1,282 passed, 6 skipped`
 parallel-safe; `852 passed, 150 skipped` serial), the canonical frontend

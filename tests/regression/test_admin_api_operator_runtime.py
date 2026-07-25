@@ -26,6 +26,12 @@ def _authorized_environment(tmp_path: Path) -> dict[str, str]:
         ),
         "COINBASE_ADMIN_API_BEARER_TOKEN": "operator-review-token",
         "COINBASE_ADMIN_API_OS_TRUSTSTORE": "disabled",
+        "COINBASE_SECRETS_MANAGER_SECRET_ID": "coinbase/Test",
+        "COINBASE_SECRETS_MANAGER_REGION": "us-east-1",
+        "COINBASE_SPOT_SECRETS_MANAGER_SECRET_ID": "coinbase/Test",
+        "COINBASE_SPOT_SECRETS_MANAGER_REGION": "us-east-1",
+        "COINBASE_FUTURES_SECRETS_MANAGER_SECRET_ID": "coinbase",
+        "COINBASE_FUTURES_SECRETS_MANAGER_REGION": "us-east-1",
     }
 
 
@@ -70,6 +76,65 @@ def test_operator_runtime_prepares_route_scoped_server_after_backend_hydration(
     assert hydration_calls
     assert environment["COINBASE_ADMIN_API_CORS_ORIGINS"] == "http://127.0.0.1:3000"
     assert "COINBASE_ADMIN_API_EMBEDDED_ENABLED" not in environment
+
+
+def test_operator_runtime_prepares_domain_separated_futures_client_when_enabled(
+    tmp_path: Path,
+) -> None:
+    environment = _authorized_environment(tmp_path)
+    environment["COINBASE_ADMIN_API_OPERATOR_FUTURES_MANUAL_ENABLED"] = "1"
+    futures_preparations: list[dict[str, str]] = []
+
+    prepared = operator_runtime.prepare_operator_runtime(
+        [],
+        environ=environment,
+        credential_hydrator=lambda target: target.update(
+            {
+                "COINBASE_API_KEY": "spot-key",
+                "COINBASE_API_SECRET": "spot-secret",
+            }
+        )
+        or SimpleNamespace(source="secrets_manager"),
+        futures_client_preparer=lambda target: futures_preparations.append(
+            dict(target)
+        )
+        or SimpleNamespace(),
+    )
+
+    assert prepared.credential_source == "secrets_manager"
+    assert len(futures_preparations) == 1
+    assert futures_preparations[0]["COINBASE_API_KEY"] == "spot-key"
+    assert (
+        futures_preparations[0][
+            "COINBASE_FUTURES_SECRETS_MANAGER_SECRET_ID"
+        ]
+        == "coinbase"
+    )
+
+
+def test_operator_runtime_fails_closed_when_futures_and_spot_bindings_conflate(
+    tmp_path: Path,
+) -> None:
+    environment = _authorized_environment(tmp_path)
+    environment["COINBASE_ADMIN_API_OPERATOR_FUTURES_MANUAL_ENABLED"] = "1"
+    environment["COINBASE_FUTURES_SECRETS_MANAGER_SECRET_ID"] = (
+        "coinbase/Test"
+    )
+
+    with pytest.raises(
+        operator_runtime.OperatorAdminRuntimeError,
+        match="operator_coinbase_domain_credential_bindings_conflated",
+    ):
+        operator_runtime.prepare_operator_runtime(
+            [],
+            environ=environment,
+            credential_hydrator=lambda _target: SimpleNamespace(
+                source="unexpected"
+            ),
+            futures_client_preparer=lambda _target: pytest.fail(
+                "conflated bindings must fail before client construction"
+            ),
+        )
 
 
 def test_operator_runtime_requires_approved_spot_portfolio_scope(tmp_path: Path) -> None:

@@ -22,6 +22,11 @@ from application.admin_api.spot_portfolio_binding import (
     SPOT_PORTFOLIO_ID_ENV,
     SPOT_PORTFOLIO_LABEL_ENV,
 )
+from application.admin_api.futures_default_rest_client import (
+    FuturesDefaultRestClientError,
+    configure_futures_default_rest_client,
+    validate_coinbase_domain_credential_bindings,
+)
 from core.coinbase_execution_authority import (
     COINBASE_EXECUTION_LEASE_PATH_ENV,
     COINBASE_EXECUTION_LEASE_TOKEN_ENV,
@@ -68,6 +73,9 @@ def prepare_operator_runtime(
     credential_hydrator: Callable[[MutableMapping[str, str]], Any] = (
         ensure_live_coinbase_credentials
     ),
+    futures_client_preparer: Callable[
+        [MutableMapping[str, str]], Any
+    ] = configure_futures_default_rest_client,
 ) -> PreparedOperatorRuntime:
     """Validate and prepare one canonical embedded operator runtime."""
 
@@ -99,12 +107,31 @@ def prepare_operator_runtime(
     if auth_error:
         raise OperatorAdminRuntimeError("operator_admin_auth_missing")
 
+    futures_enabled = (
+        target.get("COINBASE_ADMIN_API_OPERATOR_FUTURES_MANUAL_ENABLED")
+        == "1"
+        or target.get(
+            "COINBASE_ADMIN_API_OPERATOR_FUTURES_POSITION_ENABLED"
+        )
+        == "1"
+    )
+    if futures_enabled:
+        try:
+            validate_coinbase_domain_credential_bindings(target)
+        except FuturesDefaultRestClientError as exc:
+            raise OperatorAdminRuntimeError(str(exc)) from None
+
     credential_source = prepare_live_coinbase_credentials(
         environ=target,
         credential_hydrator=credential_hydrator,
     )
     if credential_source == "disabled":
         raise OperatorAdminRuntimeError("operator_live_runtime_disabled")
+    if futures_enabled:
+        try:
+            futures_client_preparer(target)
+        except FuturesDefaultRestClientError as exc:
+            raise OperatorAdminRuntimeError(str(exc)) from None
 
     return PreparedOperatorRuntime(
         host=config.host,
