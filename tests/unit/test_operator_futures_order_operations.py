@@ -190,6 +190,27 @@ def test_catalog_reader_fails_closed_on_conflicting_duplicate_observation():
     assert result.orders == ()
 
 
+def test_catalog_reader_keeps_documented_unknown_status_non_actionable():
+    rest = _RestClient()
+    rest.pages[None]["orders"][0]["status"] = "UNKNOWN_ORDER_STATUS"
+    reader = FuturesOrderCatalogReader(rest_client=rest)
+
+    result = reader.run(
+        before_category=lambda _category: None,
+        before_page=lambda _ordinal, _cursor_hash: None,
+    )
+
+    assert result.outcome == "SUCCEEDED"
+    unknown = next(
+        order
+        for order in result.orders
+        if order.client_order_id == CLIENT_ORDER_ID
+    )
+    assert unknown.status == "UNKNOWN_ORDER_STATUS"
+    assert unknown.authoritatively_nonterminal is False
+    assert unknown.cancel_eligible is False
+
+
 def test_read_only_credential_can_inventory_but_cannot_mark_cancel_eligible():
     rest = _RestClient()
     rest.can_trade = False

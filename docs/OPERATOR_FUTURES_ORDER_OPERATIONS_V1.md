@@ -23,7 +23,14 @@ documents `product_type=FUTURE`, order status/type/time-in-force fields,
 `client_order_id`, `order_id`, `has_next`, and cursor pagination. For CDP keys,
 `retail_portfolio_id` is deprecated and the key's permissioned portfolio is
 used. The implementation proves the credential-bound portfolio is exactly the
-Default profile before listing orders.
+Default profile before listing orders. The documented
+`UNKNOWN_ORDER_STATUS` value remains visible in inventory but is neither
+authoritatively nonterminal nor Cancel-eligible. This preserves truthful
+readback during an indeterminate or maintenance-adjacent exchange state
+without converting uncertainty into mutation authority. An exact Cancel
+attempt against that projection terminates locally as
+`operator_futures_order_exact_order_status_unknown`; it is not mislabeled as
+a terminal exchange order and never claims the Cancel allowance.
 
 [Cancel Orders](https://docs.cdp.coinbase.com/api-reference/advanced-trade-api/rest-api/orders/cancel-order)
 accepts exchange `order_ids` and returns one result with `success`,

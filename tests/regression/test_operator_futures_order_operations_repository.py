@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timezone
 import hashlib
 import os
@@ -154,6 +155,7 @@ def _complete_cycle(
     action: str = "REFRESH_CATALOG",
     key: str | None = None,
     correlation_id: str | None = None,
+    result: FuturesOrderCatalogResult | None = None,
 ):
     initial = repository.read_goal()
     context = _context(
@@ -185,7 +187,7 @@ def _complete_cycle(
     repository.finish_page(cycle_number=cycle, page_ordinal=1)
     return repository.finish_cycle(
         cycle_number=cycle,
-        result=_result(),
+        result=result or _result(),
         context=context,
         action=action,
         target_client_order_id=(
@@ -215,6 +217,35 @@ def test_catalog_projection_is_durable_filterable_and_private_id_free(repository
     detail = repository.get_order(CLIENT_ORDER_ID)
     assert detail is not None
     assert detail["authoritatively_nonterminal"] is True
+
+
+def test_unknown_order_status_is_durable_and_cancel_fails_unknown(repository):
+    catalog = _result()
+    unknown_observation = replace(
+        catalog.orders[0],
+        status="UNKNOWN_ORDER_STATUS",
+        authoritatively_nonterminal=False,
+        cancel_eligible=False,
+    )
+
+    completed = _complete_cycle(
+        repository,
+        action="CANCEL_EXACT",
+        result=replace(catalog, orders=(unknown_observation,)),
+    )
+
+    assert completed.last_outcome == "UNKNOWN"
+    assert completed.diagnostic_code == (
+        "operator_futures_order_exact_order_status_unknown"
+    )
+    assert completed.cancel_outcome == "NOT_RUN"
+    assert completed.cancel_exchange_invoked is None
+    detail = repository.get_order(CLIENT_ORDER_ID)
+    assert detail is not None
+    assert detail["client_order_id"] == CLIENT_ORDER_ID
+    assert detail["status"] == "UNKNOWN_ORDER_STATUS"
+    assert detail["authoritatively_nonterminal"] is False
+    assert detail["cancel_eligible"] is False
 
 
 def test_schema_upgrade_adds_cancel_eligibility_to_existing_projection(repository):
