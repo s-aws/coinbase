@@ -1,10 +1,13 @@
 # Documentation Index
 
-Active independent Goal 2 of the operator UI sequence:
+Completed independent Goal 2 of the operator UI sequence:
 [Operator Futures Order Operations V1](OPERATOR_FUTURES_ORDER_OPERATIONS_V1.md).
 Goal `operator_futures_order_inventory_detail_cancel_reconcile_v1` provides a
 Default-profile Futures order inventory, exact detail/reconciliation by
 `client_order_id`, and one independent backend-authorized exact Cancel.
+Its terminal cycle 6 refresh succeeded in one page with exactly three approved
+reads. Four cycles and the Cancel allowance remain unused. The next authorized
+goal is `operator_futures_product_policy_and_ticket_expansion_v1`.
 
 Current credential-routing recovery:
 [Operator Coinbase Domain Credential Routing V1](OPERATOR_COINBASE_DOMAIN_CREDENTIAL_ROUTING_V1.md).

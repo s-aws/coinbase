@@ -1,6 +1,6 @@
 # Coinbase Trading Backend
 
-## Futures order inventory and exact operations
+## Completed Futures order inventory and exact operations
 
 `operator_futures_order_inventory_detail_cancel_reconcile_v1` adds a
 PostgreSQL-backed Default-profile Futures order inventory and exact
@@ -12,6 +12,11 @@ identity is process-local and only its SHA-256 binding persists. See
 Actor-bound immutable request-result readback remains call-free and lets a
 frozen operator session resolve its exact terminal cycle after a later
 operator advances the mutable singleton.
+
+The terminal Default-profile proof succeeded on cycle 6 with one page and
+exactly three approved reads. Four cycles and the independent Cancel allowance
+remain unused; no exchange mutation ran. The next authorized independent goal
+is `operator_futures_product_policy_and_ticket_expansion_v1`.
 
 ## Completed independent Goal 11 — Futures position Close/Reduce
 

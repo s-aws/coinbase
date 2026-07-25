@@ -95,6 +95,25 @@ it afterward.
 The pinned SDK remains `coinbase-advanced-py==1.8.4`. The canonical wrapper
 uses `list_orders` and `cancel_orders` with bounded transport and no retry.
 
+## Terminal operator proof
+
+Goal 2 is complete. After maintenance ended, cycle 6 invoked the three
+approved read categories exactly once and returned
+`operator_futures_orders_catalog_refreshed` in one page. The durable catalog
+contains 14 last-observed history rows. Four read cycles remain unused.
+
+The browser issued exactly one local Refresh POST and no direct Coinbase
+request. The backend returned `raw_responses_included=false`,
+`private_identifiers_included=false`, and `exception_text_included=false`.
+No exact Cancel authority was available, so the independent Cancel allowance
+remains `NOT_RUN` and `cancel_exchange_invoked` remains null. No retry,
+fallback, alternate identity, or exchange mutation ran.
+
+Current official List Orders and derivatives changelog documentation contains
+no maintenance-specific breaking contract change. The successful cycle
+validates the minimal documented `OPEN` refresh shape against the current
+service without reinterpreting prior terminal results.
+
 ## Backend routes
 
 - `GET /api/v1/futures/order-operations`
