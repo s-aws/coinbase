@@ -24,6 +24,15 @@ COINBASE_EXECUTION_LEASE_TOKEN_ENV = "COINBASE_EXECUTION_LEASE_TOKEN"
 COINBASE_EXECUTION_SCOPE_SPOT_PLACE = "canonical_admin_api_spot_place"
 COINBASE_EXECUTION_SCOPE_SPOT_CANCEL = "canonical_admin_api_spot_cancel"
 COINBASE_EXECUTION_SCOPE_SPOT_PREVIEW = "canonical_admin_api_spot_preview"
+COINBASE_EXECUTION_SCOPE_FUTURES_PLACE = (
+    "canonical_admin_api_futures_place"
+)
+COINBASE_EXECUTION_SCOPE_FUTURES_CANCEL = (
+    "canonical_admin_api_futures_cancel"
+)
+COINBASE_EXECUTION_SCOPE_FUTURES_PREVIEW = (
+    "canonical_admin_api_futures_preview"
+)
 SOURCE_DISABLED_COINBASE_EXECUTION_ERROR = (
     "coinbase_execution_surface_source_disabled_use_authenticated_admin_api"
 )
@@ -33,6 +42,9 @@ _CANONICAL_EXECUTION_SCOPES = frozenset(
         COINBASE_EXECUTION_SCOPE_SPOT_PLACE,
         COINBASE_EXECUTION_SCOPE_SPOT_CANCEL,
         COINBASE_EXECUTION_SCOPE_SPOT_PREVIEW,
+        COINBASE_EXECUTION_SCOPE_FUTURES_PLACE,
+        COINBASE_EXECUTION_SCOPE_FUTURES_CANCEL,
+        COINBASE_EXECUTION_SCOPE_FUTURES_PREVIEW,
     }
 )
 _ACTIVE_EXECUTION_SCOPE: ContextVar[str | None] = ContextVar(

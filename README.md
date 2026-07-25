@@ -1,6 +1,21 @@
 # Coinbase Trading Backend
 
-## Active independent Goal 9 — Hotpoint control and single placement
+## Active independent Goal 10 — Futures manual order lifecycle
+
+`operator_futures_manual_order_lifecycle_v1` adds an authenticated,
+PostgreSQL-backed Futures workspace for the exact credential-bound Default
+profile, `AVP-20DEC30-CDE`, one post-only BUY contract, and strict V3
+`<100/<150/<300 USDC` caps. Operators can run one of ten no-retry six-category
+eligibility cycles and explicitly authorize one Preview-gated lifecycle.
+Accepted Preview may lead to one identical Create, one exact reconciliation,
+and at most one exact nonterminal Cancel. Candidate freshness, single-use call
+claims, atomic Create-to-reconciliation and reconciliation-to-Cancel handoff,
+restart recovery, dedicated Futures execution posture, fixed diagnostics,
+conservative call-boundary accounting, and hash-only private identity readback
+are backend owned. Close/Reduce remain Goal 11 work. See
+[the Goal 10 design](docs/OPERATOR_FUTURES_MANUAL_ORDER_LIFECYCLE_V1.md).
+
+## Completed independent Goal 9 — Hotpoint control and single placement
 
 `operator_hotpoint_control_and_single_placement_v1` adds authenticated
 PostgreSQL-backed Hotpoint controls for separate Spot and Futures domains.

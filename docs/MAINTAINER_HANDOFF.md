@@ -1,6 +1,57 @@
 # Maintainer Handoff
 
-## Active independent Goal 9 — Hotpoint control and single placement
+## Active independent Goal 10 — Futures manual order lifecycle
+
+Goal `operator_futures_manual_order_lifecycle_v1` is the canonical Futures
+order workflow surfaced in the routed `/futures` workspace. PostgreSQL owns
+the ten-cycle eligibility ledger, exact Default-profile hash binding,
+immutable V3 candidate, 30-second execution freshness, revision/idempotency,
+one-use Preview/Create/reconciliation/conditional-Cancel calls, restart
+recovery, fixed diagnostics, and audit readback. The backend alone fixes
+`AVP-20DEC30-CDE`, BUY, one contract, post-only LIMIT/GTC, and strict
+`<100/<150/<300 USDC` caps.
+
+The first eligible permission/catalog observation binds the exact
+credential-bound Default portfolio by SHA-256; no raw UUID is persisted or
+returned. The generated operator contract exposes candidate terms and
+freshness, dedicated Futures execution posture, fixed call outcomes,
+conservative call-boundary entry, hashed Preview/exchange evidence,
+`client_order_id`, and audit correlation. Allowed actions are recomputed from
+backend RBAC and current posture. Accepted Create atomically claims exact
+reconciliation; accepted nonterminal reconciliation atomically claims
+conditional Cancel, closing both restart gaps without retry authority. Close
+and Reduce remain visibly unavailable for Goal 11.
+
+Historical comparison used `origin/prod:dashboard_server.py` and
+`origin/prod:external/coinbase_client.py` as behavior references only. The
+current path does not restore legacy WebSocket authority, generic placement,
+retry/fallback, background execution, or raw response handling. See
+[Operator Futures Manual Order Lifecycle V1](OPERATOR_FUTURES_MANUAL_ORDER_LIFECYCLE_V1.md).
+
+Installed proof closeout used two of ten no-retry eligibility cycles. Cycle 1
+ended with the pre-remediation generic read-unknown diagnostic. After an
+offline TDD-only fixed category/status classifier was installed, cycle 2
+localized the same boundary to
+`operator_futures_manual_futures_positions_http_forbidden`: the first five
+category claims were used and margin/collateral remained unattempted. Official
+Coinbase documentation requires view access for the CFM positions endpoint,
+so no code correction, alternate endpoint, retry, fallback, credential change,
+or remaining cycle was justified. Eight cycles, Preview, Create, exact
+reconciliation, conditional Cancel, and all notional allowances remain
+unconsumed. A later live Futures proof requires compatible CFM credential and
+account access; it does not require a broader trading policy. The persisted
+403 diagnostic durably removes refresh authority and rejects every new cycle
+key after restart, while prior idempotent command replays remain readable.
+Dedicated Goal 10 product and margin readers propagate typed/numeric-status
+failures without using legacy exception-message classification.
+
+Terminal closeout passed both fresh independent audits, the 41-test focused
+safety suite, the canonical frontend release gate (1,707 tests and isolated
+operator/viewer Futures E2Es), and the full backend regression (1,282 parallel
+plus 841 serial passes). Every validation gate reported zero live Coinbase
+execution and zero notional.
+
+## Completed independent Goal 9 — Hotpoint control and single placement
 
 Goal `operator_hotpoint_control_and_single_placement_v1` adds routed,
 authenticated Hotpoint controls backed by separate Spot and Futures

@@ -15996,6 +15996,101 @@ class AdminApiReadService:
                     "evidence; they cannot approve movement/repricing generically."
                 ),
             ),
+            mutation_taxonomy_from_surface(
+                surface="POST /api/v1/futures/manual-lifecycle/eligibility",
+                mutation_id="futures.manual_lifecycle_eligibility",
+                mutation_family=AdminApiMutationFamilyType.FUTURES_MANUAL_LIFECYCLE,
+                workflow_id="operator_futures_manual_order_lifecycle_v1",
+                module="Futures / Perpetuals",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "An authenticated operator may claim one of ten bounded Goal 10 "
+                    "eligibility cycles. The backend performs each approved Futures "
+                    "read category at most once without retry and persists only "
+                    "sanitized, revision-bound evidence."
+                ),
+                identity_keys=[
+                    "goal_id",
+                    "eligibility_cycle",
+                    "portfolio_hash",
+                    "product_id",
+                ],
+                owning_backend_service=(
+                    "application/admin_api/operator_futures_manual_lifecycle.py::"
+                    "refresh_eligibility"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/futures.py::refresh_operator_futures_manual_eligibility",
+                    "application/admin_api/operator_futures_manual_lifecycle.py",
+                    "database/operator_futures_manual_lifecycle.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/operator-read-models/futures/"
+                    "FuturesOperationsWorkspace.tsx",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_FUTURES_MANUAL_ORDER_LIFECYCLE_V1.md",
+                ],
+                frontend_boundary=(
+                    "Render backend eligibility and forward only the operator's "
+                    "explicit bounded refresh acknowledgements."
+                ),
+                spot_rule_boundary=(
+                    "Spot wallet, notional, and product rules are not Futures "
+                    "authority; the exact V3 Futures profile and caps apply."
+                ),
+                reconciliation_required=False,
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_from_surface(
+                surface="POST /api/v1/futures/manual-lifecycle/execute",
+                mutation_id="futures.manual_lifecycle_execution",
+                mutation_family=AdminApiMutationFamilyType.FUTURES_MANUAL_LIFECYCLE,
+                workflow_id="operator_futures_manual_order_lifecycle_v1",
+                module="Futures / Perpetuals",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "After fresh exact eligibility, an authenticated operator may "
+                    "claim one Preview, then one identical Create only after an "
+                    "accepted error-free Preview, one exact reconciliation, and at "
+                    "most one exact nonterminal Cancel."
+                ),
+                identity_keys=[
+                    "goal_id",
+                    "candidate_id",
+                    "client_order_id",
+                    "portfolio_hash",
+                    "product_id",
+                ],
+                owning_backend_service=(
+                    "application/admin_api/operator_futures_manual_lifecycle.py::"
+                    "execute"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/futures.py::execute_operator_futures_manual_lifecycle",
+                    "application/admin_api/operator_futures_manual_lifecycle.py",
+                    "application/admin_api/operator_futures_manual_service_runtime.py",
+                    "database/operator_futures_manual_lifecycle.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/operator-read-models/futures/"
+                    "FuturesOperationsWorkspace.tsx",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_FUTURES_MANUAL_ORDER_LIFECYCLE_V1.md",
+                ],
+                frontend_boundary=(
+                    "Render backend authority and outcomes; never derive Futures "
+                    "terms, eligibility, caps, or exchange-call decisions."
+                ),
+                spot_rule_boundary=(
+                    "Spot caps and service admission cannot approve this Futures "
+                    "workflow; its exact V3 profile, product, contract, and strict "
+                    "Futures caps remain backend-owned."
+                ),
+            ),
             mutation_taxonomy_item(
                 mutation_id="futures.commands_contract_required",
                 mutation_family=AdminApiMutationFamilyType.FUTURES_CONTRACT_REQUIRED,

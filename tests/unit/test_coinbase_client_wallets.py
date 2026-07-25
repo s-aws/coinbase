@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
+from requests.exceptions import HTTPError
 
 
 pytestmark = pytest.mark.usefixtures("coinbase_execution_lease")
@@ -251,6 +254,26 @@ def test_preview_eligibility_portfolios_uses_only_pinned_sdk_method():
     assert client.get_futures_preview_eligibility_portfolios() == portfolios
 
 
+def test_futures_manual_product_reader_propagates_typed_http_error_without_message_classification():
+    error = HTTPError(
+        "misleading 404 not found withheld response text",
+        response=SimpleNamespace(status_code=403),
+    )
+
+    class FailingProductSdk(FakeSdkClient):
+        def get_product(self, _product_id: str):
+            raise error
+
+    client = CoinbaseRestClient(FailingProductSdk([]))
+
+    with pytest.raises(HTTPError) as captured:
+        client.get_futures_manual_eligibility_product(
+            "AVP-20DEC30-CDE"
+        )
+
+    assert captured.value is error
+
+
 def test_get_futures_margin_collateral_snapshot_uses_us_cfm_readers():
     sdk = FakeFuturesSdkClient()
     client = CoinbaseRestClient(sdk)
@@ -302,6 +325,21 @@ def test_get_futures_preview_eligibility_margin_snapshot_excludes_sweeps():
         "MARGIN_PROFILE_TYPE_RETAIL_INTRADAY_MARGIN_1",
     ]
     assert sdk.futures_sweeps_calls == 0
+
+
+def test_futures_manual_margin_reader_propagates_typed_error_without_message_labels():
+    error = HTTPError(
+        "misleading 404 not found withheld response text",
+        response=SimpleNamespace(status_code=403),
+    )
+    sdk = FakeFuturesSdkClient(balance_error=error)
+    client = CoinbaseRestClient(sdk)
+
+    with pytest.raises(HTTPError) as captured:
+        client.get_futures_manual_eligibility_margin_collateral_snapshot()
+
+    assert captured.value is error
+    assert sdk.margin_window_profiles == []
 
 
 @pytest.mark.parametrize("sweeps_payload", [{}, {"sweeps": {}}])

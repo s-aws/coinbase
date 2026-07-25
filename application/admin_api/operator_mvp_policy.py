@@ -49,6 +49,9 @@ OPERATOR_MVP_HOTPOINT_SINGLE_CHILD_CREATE_ROUTE = (
 OPERATOR_MVP_HOTPOINT_SINGLE_CHILD_SAFE_CLOSEOUT_ROUTE = (
     "/api/v1/hotpoint/safe-closeout"
 )
+OPERATOR_MVP_FUTURES_MANUAL_LIFECYCLE_EXECUTE_ROUTE = (
+    "/api/v1/futures/manual-lifecycle/execute"
+)
 OPERATOR_MVP_SPOT_MODULE_ID = "spot_operations"
 OPERATOR_MVP_CANCEL_PRODUCT_SCOPE = "Test profile Spot root order"
 OPERATOR_MVP_SUPPORTED_LIVE_ROUTES = frozenset(
@@ -82,6 +85,10 @@ OPERATOR_MVP_SUPPORTED_LIVE_ROUTES = frozenset(
         (
             "POST",
             OPERATOR_MVP_HOTPOINT_SINGLE_CHILD_SAFE_CLOSEOUT_ROUTE,
+        ),
+        (
+            "POST",
+            OPERATOR_MVP_FUTURES_MANUAL_LIFECYCLE_EXECUTE_ROUTE,
         ),
     }
 )

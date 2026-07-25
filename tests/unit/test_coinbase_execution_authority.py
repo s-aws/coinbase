@@ -12,6 +12,9 @@ from types import SimpleNamespace
 import pytest
 
 from core.coinbase_execution_authority import (
+    COINBASE_EXECUTION_SCOPE_FUTURES_CANCEL,
+    COINBASE_EXECUTION_SCOPE_FUTURES_PLACE,
+    COINBASE_EXECUTION_SCOPE_FUTURES_PREVIEW,
     COINBASE_EXECUTION_SCOPE_SPOT_PLACE,
     CoinbaseExecutionAuthorityError,
     canonical_coinbase_execution_scope,
@@ -49,6 +52,10 @@ class _MutationSdk:
     def create_order(self, **kwargs):
         self.calls.append(("create_order", dict(kwargs)))
         return {"success": True}
+
+    def preview_order(self, **kwargs):
+        self.calls.append(("preview_order", dict(kwargs)))
+        return {"errs": [], "warning": [], "preview_id": "private-preview-id"}
 
 
 def test_canonical_wrapper_hardens_sdk_to_zero_retry_no_redirect_transport(
@@ -332,6 +339,144 @@ def test_configured_runtime_lease_is_required_at_final_mutation_boundary(
     assert [name for name, _payload in sdk.calls] == ["create_order"]
 
 
+@pytest.mark.parametrize(
+    ("scope", "invoke", "expected_method"),
+    [
+        (
+            COINBASE_EXECUTION_SCOPE_FUTURES_PREVIEW,
+            lambda client: client.preview_futures_order(
+                product_id="AVP-20DEC30-CDE",
+                side="BUY",
+                order_configuration={
+                    "limit_limit_gtc": {
+                        "base_size": "1",
+                        "limit_price": "6.90",
+                        "post_only": True,
+                    }
+                },
+            ),
+            "preview_order",
+        ),
+        (
+            COINBASE_EXECUTION_SCOPE_FUTURES_PLACE,
+            lambda client: client.create_futures_order(
+                client_order_id="futures-goal-10-child",
+                product_id="AVP-20DEC30-CDE",
+                side="BUY",
+                order_configuration={
+                    "limit_limit_gtc": {
+                        "base_size": "1",
+                        "limit_price": "6.90",
+                        "post_only": True,
+                    }
+                },
+                preview_id="private-preview-id",
+            ),
+            "create_order",
+        ),
+        (
+            COINBASE_EXECUTION_SCOPE_FUTURES_CANCEL,
+            lambda client: client.cancel_futures_order(
+                exchange_order_id="private-exchange-order-id",
+            ),
+            "cancel_orders",
+        ),
+    ],
+)
+def test_futures_execution_boundaries_require_distinct_canonical_scopes(
+    coinbase_execution_lease,
+    monkeypatch: pytest.MonkeyPatch,
+    scope: str,
+    invoke,
+    expected_method: str,
+) -> None:
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
+    sdk = _MutationSdk()
+    client = CoinbaseRestClient(sdk)
+
+    with canonical_coinbase_execution_scope(COINBASE_EXECUTION_SCOPE_SPOT_PLACE):
+        with pytest.raises(
+            CoinbaseExecutionAuthorityError,
+            match="^coinbase_execution_authority_missing$",
+        ):
+            invoke(client)
+    assert sdk.calls == []
+
+    with canonical_coinbase_execution_scope(scope):
+        invoke(client)
+    assert [name for name, _payload in sdk.calls] == [expected_method]
+
+
+@pytest.mark.parametrize(
+    ("scope", "invoke"),
+    [
+        (
+            COINBASE_EXECUTION_SCOPE_FUTURES_PREVIEW,
+            lambda client, callback: client.preview_futures_order(
+                product_id="AVP-20DEC30-CDE",
+                side="BUY",
+                order_configuration={
+                    "limit_limit_gtc": {
+                        "base_size": "1",
+                        "limit_price": "6.90",
+                        "post_only": True,
+                    }
+                },
+                before_sdk_call=callback,
+            ),
+        ),
+        (
+            COINBASE_EXECUTION_SCOPE_FUTURES_PLACE,
+            lambda client, callback: client.create_futures_order(
+                client_order_id="futures-goal-10-child",
+                product_id="AVP-20DEC30-CDE",
+                side="BUY",
+                order_configuration={
+                    "limit_limit_gtc": {
+                        "base_size": "1",
+                        "limit_price": "6.90",
+                        "post_only": True,
+                    }
+                },
+                preview_id="private-preview-id",
+                before_sdk_call=callback,
+            ),
+        ),
+        (
+            COINBASE_EXECUTION_SCOPE_FUTURES_CANCEL,
+            lambda client, callback: client.cancel_futures_order(
+                exchange_order_id="private-exchange-order-id",
+                before_sdk_call=callback,
+            ),
+        ),
+    ],
+)
+def test_futures_execution_boundaries_recheck_authority_after_claim(
+    coinbase_execution_lease,
+    monkeypatch: pytest.MonkeyPatch,
+    scope: str,
+    invoke,
+) -> None:
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
+    sdk = _MutationSdk()
+    client = CoinbaseRestClient(sdk)
+    claim_callbacks: list[str] = []
+
+    def revoke_after_claim() -> None:
+        claim_callbacks.append("claimed")
+        monkeypatch.delenv("COINBASE_EXECUTION_ENABLED", raising=False)
+
+    with canonical_coinbase_execution_scope(scope):
+        with pytest.raises(
+            CoinbaseExecutionAuthorityError,
+            match="^coinbase_execution_authority_missing$",
+        ):
+            invoke(client, revoke_after_claim)
+
+    assert claim_callbacks == ["claimed"]
+    assert sdk.calls == []
+
+
 @pytest.mark.parametrize("unsafe_shape", ["symlink", "hardlink", "crlf"])
 def test_runtime_lease_rejects_aliases_and_noncanonical_bytes(
     tmp_path,
@@ -563,9 +708,9 @@ def test_raw_sdk_mutation_sites_are_frozen_to_guarded_boundaries() -> None:
     assert discovered == {
         "business/spot_portfolio_sweep.py": Counter({"create_order": 1}),
         "external/coinbase_client.py": Counter({
-            "cancel_orders": 3,
+            "cancel_orders": 4,
             "close_position": 1,
-            "create_order": 1,
+            "create_order": 2,
             "limit_order_gtc": 1,
         }),
         "tools/run_live_spot_usdc_smoke.py": Counter({
@@ -703,6 +848,9 @@ def test_legacy_admin_mvp_runtime_cannot_enable_exchange_mutations(
         "api/v1/routes/orders.py",
         "application/admin_api/operator_automation.py",
         "application/admin_api/operator_follow_up_materialization_runtime.py",
+        "application/admin_api/operator_futures_manual_runtime.py",
+        "application/admin_api/operator_hotpoint_runtime.py",
+        "application/admin_api/operator_revealed_order_movement_runtime.py",
         "application/admin_api/operator_stealth_reveal_runtime.py",
         "core/coinbase_execution_authority.py",
     ]

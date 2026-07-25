@@ -62868,6 +62868,7 @@ def test_admin_api_decision_backed_live_execution_service_requires_runtime_opt_i
             ),
             ("POST", "/api/v1/hotpoint/run-once"),
             ("POST", "/api/v1/hotpoint/safe-closeout"),
+            ("POST", "/api/v1/futures/manual-lifecycle/execute"),
         }
     )
     unsupported = evaluate_command_live_admission(
@@ -74570,35 +74571,35 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     )
     assert live_payload["live_enabled_path_count"] == 0
     assert live_payload["live_eligible_path_count"] == 0
-    assert live_payload["preflight_check_count"] == 176
-    assert live_payload["blocking_preflight_check_count"] == 88
-    assert live_payload["passed_preflight_check_count"] == 88
-    assert live_payload["approval_snapshot_required_count"] == 22
+    assert live_payload["preflight_check_count"] == 184
+    assert live_payload["blocking_preflight_check_count"] == 92
+    assert live_payload["passed_preflight_check_count"] == 92
+    assert live_payload["approval_snapshot_required_count"] == 23
     assert live_payload["approval_snapshot_present_count"] == 0
-    assert live_payload["approval_snapshot_missing_count"] == 22
-    assert live_payload["approval_snapshot_required_field_count"] == 330
-    assert live_payload["approval_snapshot_missing_field_count"] == 330
-    assert live_payload["approval_store_required_count"] == 22
-    assert live_payload["approval_store_configured_count"] == 22
+    assert live_payload["approval_snapshot_missing_count"] == 23
+    assert live_payload["approval_snapshot_required_field_count"] == 345
+    assert live_payload["approval_snapshot_missing_field_count"] == 345
+    assert live_payload["approval_store_required_count"] == 23
+    assert live_payload["approval_store_configured_count"] == 23
     assert live_payload["approval_store_missing_count"] == 0
-    assert live_payload["approval_store_requirement_count"] == 264
+    assert live_payload["approval_store_requirement_count"] == 276
     assert live_payload["approval_store_missing_requirement_count"] == 0
-    assert live_payload["admission_audit_required_count"] == 22
+    assert live_payload["admission_audit_required_count"] == 23
     assert live_payload["admission_audit_configured_count"] == 0
-    assert live_payload["admission_audit_missing_count"] == 22
-    assert live_payload["admission_audit_fact_count"] == 220
-    assert live_payload["admission_audit_missing_fact_count"] == 198
-    assert live_payload["cap_guard_required_count"] == 22
+    assert live_payload["admission_audit_missing_count"] == 23
+    assert live_payload["admission_audit_fact_count"] == 230
+    assert live_payload["admission_audit_missing_fact_count"] == 207
+    assert live_payload["cap_guard_required_count"] == 23
     assert live_payload["cap_guard_configured_count"] == 0
-    assert live_payload["cap_guard_missing_count"] == 22
-    assert live_payload["cap_guard_requirement_count"] == 308
-    assert live_payload["cap_guard_missing_requirement_count"] == 308
-    assert live_payload["live_execution_adapter_required_count"] == 22
+    assert live_payload["cap_guard_missing_count"] == 23
+    assert live_payload["cap_guard_requirement_count"] == 322
+    assert live_payload["cap_guard_missing_requirement_count"] == 322
+    assert live_payload["live_execution_adapter_required_count"] == 23
     assert live_payload["live_execution_adapter_configured_count"] == 11
-    assert live_payload["live_execution_adapter_missing_count"] == 11
-    assert live_payload["readiness_precondition_count"] == 198
-    assert live_payload["blocking_readiness_precondition_count"] == 120
-    assert live_payload["passed_readiness_precondition_count"] == 78
+    assert live_payload["live_execution_adapter_missing_count"] == 12
+    assert live_payload["readiness_precondition_count"] == 207
+    assert live_payload["blocking_readiness_precondition_count"] == 126
+    assert live_payload["passed_readiness_precondition_count"] == 81
     assert live_payload["live_coinbase_orders_ran"] is False
     live_routes = {item["route"]: item for item in live_payload["paths"]}
     assert "/api/v1/orders" in live_routes
@@ -75406,6 +75407,8 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "stealth.coinbase_exchange_submission_policy_proof",
         "stealth.post_write_reconciliation_execution_policy_proof",
         "movement.reprice",
+        "futures.manual_lifecycle_eligibility",
+        "futures.manual_lifecycle_execution",
         "futures.commands_contract_required",
         "audit.fill_ledger_repair_contract_required",
         "legacy.dashboard_place",
@@ -76404,6 +76407,31 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "fixed typed 501" in futures_taxonomy["route_local_boundary"]
     assert "must not forward" in futures_taxonomy["bff_boundary"]
     assert "Spot rules are forbidden" in futures_taxonomy["spot_rule_boundary"]
+    futures_manual_eligibility_taxonomy = taxonomy_by_id[
+        "futures.manual_lifecycle_eligibility"
+    ]
+    assert futures_manual_eligibility_taxonomy["command_surfaces"] == [
+        "POST /api/v1/futures/manual-lifecycle/eligibility"
+    ]
+    assert futures_manual_eligibility_taxonomy["action_classes"] == [
+        AdminApiActionClass.LOCAL_STATE_MUTATION.value
+    ]
+    assert futures_manual_eligibility_taxonomy["reconciliation_required"] is False
+    assert futures_manual_eligibility_taxonomy["live_adapter_required"] is False
+    futures_manual_execution_taxonomy = taxonomy_by_id[
+        "futures.manual_lifecycle_execution"
+    ]
+    assert futures_manual_execution_taxonomy["command_surfaces"] == [
+        "POST /api/v1/futures/manual-lifecycle/execute"
+    ]
+    assert futures_manual_execution_taxonomy["action_classes"] == [
+        AdminApiActionClass.LIVE_EXCHANGE_PLACE.value
+    ]
+    assert futures_manual_execution_taxonomy["required_permissions"] == [
+        AdminApiPermission.ORDER_CREATE.value,
+        AdminApiPermission.ORDER_CANCEL.value,
+    ]
+    assert futures_manual_execution_taxonomy["live_adapter_required"] is True
     futures_risk_proof_taxonomy = taxonomy_by_id["futures.risk_proof_recording"]
     assert futures_risk_proof_taxonomy["command_surfaces"] == [
         "POST /api/v1/futures/risk-proofs"
@@ -76740,6 +76768,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "GET /api/v1/futures/command-suite" in futures_module["read_routes"]
     assert "GET /api/v1/futures/risk-proofs" in futures_module["read_routes"]
     assert "GET /api/v1/futures/order-preview" in futures_module["read_routes"]
+    assert "GET /api/v1/futures/manual-lifecycle" in futures_module["read_routes"]
     assert "POST /api/v1/futures/orders" in futures_module["command_routes"]
     assert (
         "POST /api/v1/futures/positions/{position_key}/close-reduce"
@@ -76754,9 +76783,17 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         in futures_module["command_routes"]
     )
     assert "POST /api/v1/futures/risk-proofs" in futures_module["command_routes"]
-    assert futures_module["action_posture"]["read_route_count"] == 8
-    assert futures_module["action_posture"]["command_route_count"] == 5
-    assert futures_module["action_posture"]["live_route_count"] == 3
+    assert (
+        "POST /api/v1/futures/manual-lifecycle/eligibility"
+        in futures_module["command_routes"]
+    )
+    assert (
+        "POST /api/v1/futures/manual-lifecycle/execute"
+        in futures_module["command_routes"]
+    )
+    assert futures_module["action_posture"]["read_route_count"] == 9
+    assert futures_module["action_posture"]["command_route_count"] == 7
+    assert futures_module["action_posture"]["live_route_count"] == 4
     assert futures_module["action_posture"]["command_gap_count"] == 3
     futures_gaps = {
         item["action"]: item for item in futures_module["command_gaps"]

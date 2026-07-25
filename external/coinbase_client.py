@@ -30,6 +30,9 @@ from coinbase.rest import RESTClient
 from core.models import Product, Wallet, Position, Order
 from core.enums import OrderSide, TimeInForce
 from core.coinbase_execution_authority import (
+    COINBASE_EXECUTION_SCOPE_FUTURES_CANCEL,
+    COINBASE_EXECUTION_SCOPE_FUTURES_PLACE,
+    COINBASE_EXECUTION_SCOPE_FUTURES_PREVIEW,
     COINBASE_EXECUTION_SCOPE_SPOT_CANCEL,
     COINBASE_EXECUTION_SCOPE_SPOT_PLACE,
     COINBASE_EXECUTION_SCOPE_SPOT_PREVIEW,
@@ -696,6 +699,36 @@ class CoinbaseRestClient:
                 expected_scope=COINBASE_EXECUTION_SCOPE_SPOT_PREVIEW
             )
         return self._client.preview_order(**kwargs)
+
+    def preview_futures_order(
+        self,
+        *,
+        product_id: str,
+        side: str,
+        order_configuration: Dict[str, Any],
+        leverage: Optional[str] = None,
+        margin_type: Optional[str] = None,
+        before_sdk_call: Optional[Callable[[], None]] = None,
+    ) -> Any:
+        """Invoke one guarded Futures Preview and return its shallow SDK envelope."""
+
+        kwargs: Dict[str, Any] = {
+            "product_id": product_id,
+            "side": side,
+            "order_configuration": order_configuration,
+        }
+        if leverage is not None:
+            kwargs["leverage"] = leverage
+        if margin_type is not None:
+            kwargs["margin_type"] = margin_type
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
+        if before_sdk_call is not None:
+            before_sdk_call()
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
+        require_coinbase_execution_authority(
+            expected_scope=COINBASE_EXECUTION_SCOPE_FUTURES_PREVIEW
+        )
+        return self._client.preview_order(**kwargs)
     
     # ========================================================================
     # Order Methods
@@ -950,6 +983,64 @@ class CoinbaseRestClient:
             include_futures_sweeps=False,
         )
 
+    def get_futures_manual_eligibility_margin_collateral_snapshot(
+        self,
+    ) -> Dict[str, Any]:
+        """Read Goal 10 CFM evidence without catching or labeling exceptions."""
+
+        balance_response = coinbase_sdk_response_to_dict(
+            self._client.get_futures_balance_summary()
+        )
+        normalized_balance = _object_to_dict(
+            balance_response.get("balance_summary")
+        )
+        if not normalized_balance and balance_response:
+            normalized_balance = dict(balance_response)
+        if not normalized_balance:
+            raise ValueError("futures manual balance summary invalid")
+
+        intraday_margin_setting = coinbase_sdk_response_to_dict(
+            self._client.get_intraday_margin_setting()
+        )
+        if not intraday_margin_setting:
+            raise ValueError(
+                "futures manual intraday margin setting invalid"
+            )
+
+        current_margin_windows = []
+        for profile in (
+            "MARGIN_PROFILE_TYPE_RETAIL_REGULAR",
+            "MARGIN_PROFILE_TYPE_RETAIL_INTRADAY_MARGIN_1",
+        ):
+            margin_window = coinbase_sdk_response_to_dict(
+                self._client.get_current_margin_window(profile)
+            )
+            if not margin_window:
+                raise ValueError("futures manual margin window invalid")
+            current_margin_windows.append(
+                {
+                    "profile": profile,
+                    "status": "ready",
+                    **margin_window,
+                }
+            )
+
+        return {
+            "status": "ready",
+            "account_family": "coinbase_futures_us_cfm",
+            "source": "backend_rest_client",
+            "source_read_attempts": {
+                "get_futures_balance_summary": 1,
+                "get_intraday_margin_setting": 1,
+                "get_current_margin_window": 2,
+            },
+            "balance_summary": normalized_balance,
+            "intraday_margin_setting": intraday_margin_setting,
+            "current_margin_windows": current_margin_windows,
+            "intx_applicability": "not_applicable_us_account",
+            "errors": [],
+        }
+
     def _get_futures_margin_collateral_snapshot(
         self,
         *,
@@ -1149,6 +1240,19 @@ class CoinbaseRestClient:
             if "404" in str(e) or "not found" in str(e).lower():
                 return None
             raise
+
+    def get_futures_manual_eligibility_product(
+        self,
+        product_id: str,
+    ) -> Dict[str, Any]:
+        """Read one Goal 10 product without inspecting exception text."""
+
+        product = coinbase_sdk_response_to_dict(
+            self._client.get_product(product_id)
+        )
+        if not product:
+            raise ValueError("futures manual product evidence invalid")
+        return product
     def get_accounts(
         self,
         *,
@@ -1456,6 +1560,26 @@ class CoinbaseRestClient:
             expected_scope="source_disabled_futures_close"
         )
         return self._client.close_position(**params)
+
+    def cancel_futures_order(
+        self,
+        *,
+        exchange_order_id: str,
+        before_sdk_call: Optional[Callable[[], None]] = None,
+    ) -> Any:
+        """Cancel one verified Futures exchange order without identity fallback."""
+
+        submitted_order_id = str(exchange_order_id or "").strip()
+        if not submitted_order_id:
+            raise ValueError("futures_exchange_order_id_invalid")
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
+        if before_sdk_call is not None:
+            before_sdk_call()
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
+        require_coinbase_execution_authority(
+            expected_scope=COINBASE_EXECUTION_SCOPE_FUTURES_CANCEL
+        )
+        return self._client.cancel_orders([submitted_order_id])
     
     def limit_order_gtc(
         self,
@@ -1562,6 +1686,43 @@ class CoinbaseRestClient:
         _harden_sdk_transport(self._client, require_bounded_timeout=True)
         require_coinbase_execution_authority(
             expected_scope=COINBASE_EXECUTION_SCOPE_SPOT_PLACE
+        )
+        return self._client.create_order(**params)
+
+    def create_futures_order(
+        self,
+        *,
+        client_order_id: str,
+        product_id: str,
+        side: str,
+        order_configuration: Dict[str, Any],
+        preview_id: str,
+        leverage: Optional[str] = None,
+        margin_type: Optional[str] = None,
+        before_sdk_call: Optional[Callable[[], None]] = None,
+    ) -> Any:
+        """Create one Preview-bound Futures order through its own authority scope."""
+
+        private_preview_id = str(preview_id or "").strip()
+        if not private_preview_id:
+            raise ValueError("futures_preview_id_invalid")
+        params: Dict[str, Any] = {
+            "client_order_id": client_order_id,
+            "product_id": product_id,
+            "side": side,
+            "order_configuration": order_configuration,
+            "preview_id": private_preview_id,
+        }
+        if leverage is not None:
+            params["leverage"] = leverage
+        if margin_type is not None:
+            params["margin_type"] = margin_type
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
+        if before_sdk_call is not None:
+            before_sdk_call()
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
+        require_coinbase_execution_authority(
+            expected_scope=COINBASE_EXECUTION_SCOPE_FUTURES_PLACE
         )
         return self._client.create_order(**params)
     

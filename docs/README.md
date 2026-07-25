@@ -1,6 +1,13 @@
 # Documentation Index
 
-Active independent Goal 9:
+Active independent Goal 10:
+[Operator Futures Manual Order Lifecycle V1](OPERATOR_FUTURES_MANUAL_ORDER_LIFECYCLE_V1.md).
+Goal `operator_futures_manual_order_lifecycle_v1` provides one exact
+Default-profile `AVP-20DEC30-CDE` one-contract eligibility, Preview, identical
+Create, reconciliation, and conditional exact-child Cancel workflow with
+strict V3 caps and durable single-use call accounting.
+
+Completed independent Goal 9:
 [Operator Hotpoint Control and Single Placement V1](OPERATOR_HOTPOINT_CONTROL_AND_SINGLE_PLACEMENT_V1.md).
 Goal `operator_hotpoint_control_and_single_placement_v1` provides separate
 Spot and Futures controls, one bounded parent window, one shared goal-global

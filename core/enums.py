@@ -461,6 +461,7 @@ class AdminApiMutationFamilyType(str, Enum):
         "stealth_post_write_reconciliation_verification"
     )
     MOVEMENT_REPRICE = "movement_reprice"
+    FUTURES_MANUAL_LIFECYCLE = "futures_manual_lifecycle"
     FUTURES_CONTRACT_REQUIRED = "futures_contract_required"
     FUTURES_RISK_PROOF = "futures_risk_proof"
     FILL_LEDGER_REPAIR_CONTRACT_REQUIRED = "fill_ledger_repair_contract_required"
@@ -1216,6 +1217,24 @@ class AdminFuturesCommandAction(str, Enum):
     CLOSE_REDUCE = "futures_close_reduce"
     CANCEL = "futures_cancel"
     RECONCILE = "futures_reconcile"
+
+
+class AdminFuturesManualCallOutcome(str, Enum):
+    """Durable terminal classification for one Goal 10 call allowance."""
+
+    NOT_RUN = "NOT_RUN"
+    CLAIMED = "CLAIMED"
+    ACCEPTED = "ACCEPTED"
+    REJECTED = "REJECTED"
+    UNKNOWN = "UNKNOWN"
+
+
+class AdminFuturesManualEligibilityOutcome(str, Enum):
+    """Result of one bounded six-category Goal 10 state-refresh cycle."""
+
+    ELIGIBLE = "ELIGIBLE"
+    INELIGIBLE = "INELIGIBLE"
+    UNKNOWN = "UNKNOWN"
 
 
 class AdminFuturesCommandPrerequisite(str, Enum):

@@ -2117,6 +2117,38 @@ def operator_mvp_live_service_state_allows_route_admission(
     )
 
 
+def operator_futures_manual_live_service_state_allows_route_admission(
+    state: AdminApiLiveExecutionServiceState,
+    *,
+    method: str,
+    route: str,
+) -> bool:
+    """Require the installed posture and exact route for Goal 10 Futures.
+
+    The global service decision exposes legacy Spot notional fields. Those
+    fields are not Futures authority: the dedicated Goal 10 candidate,
+    repository, and executor enforce the exact V3 contract and strict
+    <100/<150/<300 USDC caps. This check therefore admits only the installed
+    backend posture and exact registered route without reinterpreting Spot
+    caps as Futures caps.
+    """
+
+    return bool(
+        state.required
+        and state.present
+        and state.status
+        in {
+            AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
+            AdminApiLiveExecutionStatus.RECONCILIATION_REQUIRED,
+            AdminApiLiveExecutionStatus.COMPLETED,
+        }
+        and state.source == CONFIGURED_LIVE_EXECUTION_SERVICE_SOURCE
+        and state.missing_reason is None
+        and state.supported_routes is not None
+        and (method.upper(), route) in state.supported_routes
+    )
+
+
 def live_service_decision_allows_backend_admission(
     decision: LiveServiceDecisionRecord | None,
 ) -> bool:

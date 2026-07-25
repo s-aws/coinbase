@@ -3903,6 +3903,80 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         ),
     ),
     AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
+        surface="GET /api/v1/futures/manual-lifecycle",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not applicable; durable Goal 10 authority readback only",
+        caps="reports exact V3 strict <100, <150, and <300 USDC ceilings",
+        audit=(
+            "returns PostgreSQL revision, cycle, fixed call outcomes, hashed "
+            "identifiers, correlation, and audit evidence"
+        ),
+        shared_method="read",
+        parity_test=(
+            "local PostgreSQL singleton read only; zero Coinbase call and no "
+            "raw response or private identifier"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
+        surface="POST /api/v1/futures/manual-lifecycle/eligibility",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.ORDER_CREATE,
+        idempotency="required revision-bound exact cycle replay",
+        approval=(
+            "required explicit one-cycle, goal-global, no-retry, and "
+            "fail-closed acknowledgements"
+        ),
+        caps=(
+            "required fixed Default-profile AVP-20DEC30-CDE one-contract V3 policy "
+            "with strict <100, <150, and <300 USDC ceilings"
+        ),
+        audit=(
+            "required PostgreSQL cycle and six category claims with fixed "
+            "diagnostics, SHA-256 evidence, actor, and correlation"
+        ),
+        shared_method="refresh_futures_manual_eligibility",
+        parity_test=(
+            "each of the six approved Futures categories is read at most once "
+            "with zero Preview, Create, Cancel, Close, Reduce, retry, or fallback"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
+        surface="POST /api/v1/futures/manual-lifecycle/execute",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        permission=AdminApiPermission.ORDER_CREATE,
+        required_permissions=[
+            AdminApiPermission.ORDER_CREATE,
+            AdminApiPermission.ORDER_CANCEL,
+        ],
+        idempotency=(
+            "required durable single-use Goal 10 claim binding candidate, "
+            "client_order_id, Preview, Create, reconciliation, and conditional Cancel"
+        ),
+        approval=(
+            "required explicit exact Preview/Create/safe-closeout and "
+            "unknown-consumption acknowledgements"
+        ),
+        caps=(
+            "required one AVP-20DEC30-CDE BUY contract under strict <100 opening, "
+            "<150 exposure, and <300 turnover USDC ceilings"
+        ),
+        audit=(
+            "required each call claimed before invocation with fixed outcomes, hashed "
+            "identifiers, restart recovery, and zero persisted raw response"
+        ),
+        shared_method="execute_futures_manual_lifecycle",
+        parity_test=(
+            "one Preview, one identical Create only after accepted Preview, "
+            "one exact reconciliation, and at most one exact nonterminal "
+            "Cancel with zero retry or fallback"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
         module_id="automation_control_plane",
         surface="GET /api/v1/automation/runs",
         action_class=AdminApiActionClass.READ_ONLY,

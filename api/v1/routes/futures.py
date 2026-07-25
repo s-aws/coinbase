@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any, TypeVar
+from datetime import datetime, timezone
+import os
+from typing import Annotated, Any, Literal, TypeVar
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ValidationError
 
-from application.admin_api.auth import get_authenticated_actor, require_permission
+from application.admin_api.auth import (
+    actor_has_permission,
+    get_authenticated_actor,
+    require_permission,
+)
 from application.admin_api.approval import FileAdminApiApprovalStore
 from application.admin_api.audit import FileAdminApiAuditStore
 from application.admin_api.cap_guard import FileAdminApiCapGuardStore
@@ -68,6 +75,26 @@ from application.admin_api.mvp_service import (
     AdminMvpService,
     get_admin_mvp_service,
 )
+from application.admin_api.operator_futures_manual_lifecycle import (
+    FuturesManualGoalRecord,
+    FuturesManualLifecycleError,
+    FuturesManualRequestContext,
+    OperatorFuturesManualLifecycleService,
+    classify_futures_manual_candidate_freshness,
+    is_futures_manual_goal_terminal,
+)
+from application.admin_api.operator_futures_manual_models import (
+    OperatorFuturesManualCallReadback,
+    OperatorFuturesManualCandidateReadback,
+    OperatorFuturesManualExecuteRequest,
+    OperatorFuturesManualMutationResponse,
+    OperatorFuturesManualReadback,
+    OperatorFuturesManualRefreshRequest,
+)
+from application.admin_api.operator_futures_manual_service_runtime import (
+    get_default_operator_futures_manual_lifecycle_service,
+    get_operator_futures_manual_execution_posture,
+)
 from application.admin_api.read_service import (
     AdminApiReadService,
     futures_command_suite_api_payload,
@@ -98,6 +125,10 @@ from .orders import (
 
 
 router = APIRouter()
+
+OPERATOR_FUTURES_MANUAL_ENABLED_ENV = (
+    "COINBASE_ADMIN_API_OPERATOR_FUTURES_MANUAL_ENABLED"
+)
 
 futures_place_route_contract = FUTURES_PLACE_ROUTE_CONTRACT
 futures_close_reduce_route_contract = FUTURES_CLOSE_REDUCE_ROUTE_CONTRACT
@@ -132,6 +163,226 @@ SOURCE_DISABLED_COMMAND_ROUTE_RESPONSES = {
         ),
     },
 }
+
+FUTURES_MANUAL_ROUTE_RESPONSES = {
+    **READ_ONLY_ROUTE_RESPONSES,
+    409: {"model": AdminApiErrorResponse},
+    422: {"model": AdminApiErrorResponse},
+    503: {"model": AdminApiErrorResponse},
+}
+
+
+def require_operator_futures_manual_enabled() -> None:
+    if os.environ.get(OPERATOR_FUTURES_MANUAL_ENABLED_ENV) != "1":
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="operator_futures_manual_disabled",
+        )
+
+
+def get_operator_futures_manual_lifecycle_service(
+) -> OperatorFuturesManualLifecycleService:
+    try:
+        return get_default_operator_futures_manual_lifecycle_service()
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="operator_futures_manual_backend_unavailable",
+        ) from None
+
+
+def _futures_manual_readback(
+    record: FuturesManualGoalRecord,
+    *,
+    actor: AdminApiActor,
+) -> OperatorFuturesManualReadback:
+    execution_posture = (
+        get_operator_futures_manual_execution_posture()
+    )
+    actor_can_refresh = actor_has_permission(
+        actor,
+        AdminApiPermission.ORDER_CREATE,
+    )
+    actor_can_execute = (
+        actor_can_refresh
+        and actor_has_permission(
+            actor,
+            AdminApiPermission.ORDER_CANCEL,
+        )
+    )
+    candidate_freshness = classify_futures_manual_candidate_freshness(
+        record.candidate,
+        now=datetime.now(timezone.utc),
+    )
+    candidate_fresh = (
+        candidate_freshness
+        == "operator_futures_manual_candidate_fresh"
+    )
+    allowed_actions: list[
+        Literal["REFRESH_ELIGIBILITY", "EXECUTE_PREVIEW_GATED_PROOF"]
+    ] = []
+    if (
+        record.active_cycle_number is None
+        and record.preview_outcome.value == "NOT_RUN"
+        and not is_futures_manual_goal_terminal(
+            record.eligibility_diagnostic_code
+        )
+    ):
+        if record.cycles_used < 10 and actor_can_refresh:
+            allowed_actions.append("REFRESH_ELIGIBILITY")
+        if (
+            record.eligibility_outcome is not None
+            and record.eligibility_outcome.value == "ELIGIBLE"
+            and candidate_fresh
+            and execution_posture.ready
+            and actor_can_execute
+        ):
+            allowed_actions.append("EXECUTE_PREVIEW_GATED_PROOF")
+    candidate = (
+        OperatorFuturesManualCandidateReadback.model_validate(
+            {
+                field_name: record.candidate[field_name]
+                for field_name in (
+                    OperatorFuturesManualCandidateReadback.model_fields
+                )
+            }
+        )
+        if record.candidate is not None
+        else None
+    )
+    return OperatorFuturesManualReadback(
+        goal_id=record.goal_id,
+        revision=record.revision,
+        environment=os.environ.get(
+            "COINBASE_ADMIN_API_ENVIRONMENT",
+            "local",
+        ),
+        cycles_used=record.cycles_used,
+        cycles_remaining=max(0, 10 - record.cycles_used),
+        active_cycle_number=record.active_cycle_number,
+        eligibility_outcome=record.eligibility_outcome,
+        eligibility_diagnostic_code=(
+            record.eligibility_diagnostic_code
+        ),
+        category_attempts=record.category_attempts,
+        candidate=candidate,
+        candidate_fresh_for_execution=candidate_fresh,
+        candidate_freshness_diagnostic_code=candidate_freshness,
+        candidate_sha256=record.candidate_sha256,
+        portfolio_id_sha256=record.portfolio_id_sha256,
+        eligibility_evidence_sha256=(
+            record.eligibility_evidence_sha256
+        ),
+        execution_posture_ready=execution_posture.ready,
+        execution_posture_diagnostic_code=(
+            execution_posture.diagnostic_code
+        ),
+        client_order_id=record.client_order_id,
+        preview=OperatorFuturesManualCallReadback(
+            outcome=record.preview_outcome,
+            call_boundary_entered=record.preview_exchange_invoked,
+        ),
+        preview_id_sha256=record.preview_id_sha256,
+        create=OperatorFuturesManualCallReadback(
+            outcome=record.create_outcome,
+            call_boundary_entered=record.create_exchange_invoked,
+        ),
+        exchange_order_id_sha256=record.exchange_order_id_sha256,
+        reconciliation=OperatorFuturesManualCallReadback(
+            outcome=record.reconciliation_outcome,
+            call_boundary_entered=(
+                record.reconciliation_exchange_invoked
+            ),
+        ),
+        order_status=record.order_status,
+        authoritatively_nonterminal=(
+            record.authoritatively_nonterminal
+        ),
+        cancel=OperatorFuturesManualCallReadback(
+            outcome=record.cancel_outcome,
+            call_boundary_entered=record.cancel_exchange_invoked,
+        ),
+        diagnostic_code=record.diagnostic_code,
+        allowed_actions=allowed_actions,
+        correlation_id=record.correlation_id,
+        audit_id=record.audit_id,
+        updated_at=record.updated_at,
+    )
+
+
+def _futures_manual_context(
+    *,
+    actor: AdminApiActor,
+    body: (
+        OperatorFuturesManualRefreshRequest
+        | OperatorFuturesManualExecuteRequest
+    ),
+    idempotency_key: str,
+    correlation_id: str,
+    operator_intent: str,
+) -> FuturesManualRequestContext:
+    refresh = (
+        body
+        if isinstance(body, OperatorFuturesManualRefreshRequest)
+        else None
+    )
+    execute = (
+        body
+        if isinstance(body, OperatorFuturesManualExecuteRequest)
+        else None
+    )
+    return FuturesManualRequestContext(
+        actor_id=actor.actor_id,
+        roles=tuple(role.value for role in actor.roles),
+        expected_revision=body.expected_revision,
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        audit_id=str(uuid4()),
+        operator_intent=operator_intent,
+        authorize_one_no_retry_six_category_cycle=(
+            refresh is not None
+            and refresh.authorize_one_no_retry_six_category_cycle
+        ),
+        acknowledge_cycle_is_goal_global_and_limited_to_ten=(
+            refresh is not None
+            and refresh.acknowledge_cycle_is_goal_global_and_limited_to_ten
+        ),
+        acknowledge_unsuccessful_or_unknown_cycle_fails_closed=(
+            refresh is not None
+            and refresh.acknowledge_unsuccessful_or_unknown_cycle_fails_closed
+        ),
+        authorize_preview_create_and_safe_closeout=(
+            execute is not None
+            and execute.authorize_preview_create_and_safe_closeout
+        ),
+        acknowledge_unknown_outcome_consumes_allowance=(
+            execute is not None
+            and execute.acknowledge_unknown_outcome_consumes_allowance
+        ),
+        acknowledge_create_requires_accepted_identical_preview=(
+            execute is not None
+            and execute.acknowledge_create_requires_accepted_identical_preview
+        ),
+        acknowledge_cancel_is_only_for_exact_nonterminal_child=(
+            execute is not None
+            and execute.acknowledge_cancel_is_only_for_exact_nonterminal_child
+        ),
+    )
+
+
+def _raise_futures_manual(exc: FuturesManualLifecycleError) -> None:
+    raise HTTPException(
+        status_code=exc.http_status_code,
+        detail=exc.code,
+    ) from None
+
+
+def _require_futures_manual_live_runtime() -> None:
+    if not get_operator_futures_manual_execution_posture().ready:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="operator_futures_manual_live_runtime_unavailable",
+        )
 
 
 def get_futures_risk_proof_store() -> FileFuturesRiskProofStore:
@@ -419,6 +670,130 @@ def _source_disabled_futures_command_response(
         failure_stage=FUTURES_COMMAND_SERVICE_SOURCE_DISABLED,
     )
     return _command_response(response)
+
+
+@router.get(
+    "/futures/manual-lifecycle",
+    response_model=OperatorFuturesManualReadback,
+    responses=FUTURES_MANUAL_ROUTE_RESPONSES,
+    summary="Read the durable manual Futures lifecycle",
+)
+def get_operator_futures_manual_lifecycle(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[
+        OperatorFuturesManualLifecycleService,
+        Depends(get_operator_futures_manual_lifecycle_service),
+    ],
+) -> JSONResponse:
+    """Read backend-owned V3 eligibility and single-use call accounting."""
+
+    require_operator_futures_manual_enabled()
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    return JSONResponse(
+        content=jsonable_encoder(
+            _futures_manual_readback(service.read(), actor=actor)
+        )
+    )
+
+
+@router.post(
+    "/futures/manual-lifecycle/eligibility",
+    response_model=OperatorFuturesManualMutationResponse,
+    responses=FUTURES_MANUAL_ROUTE_RESPONSES,
+    summary="Run one no-retry six-category Futures eligibility cycle",
+)
+def refresh_operator_futures_manual_eligibility(
+    body: OperatorFuturesManualRefreshRequest,
+    idempotency_key: Annotated[
+        str,
+        Header(alias="Idempotency-Key", min_length=1, max_length=255),
+    ],
+    correlation_id: Annotated[
+        str,
+        Header(alias="X-Correlation-Id", min_length=1, max_length=255),
+    ],
+    operator_intent: Annotated[
+        Literal["refresh_one_futures_manual_eligibility_cycle"],
+        Header(alias="X-Operator-Intent"),
+    ],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[
+        OperatorFuturesManualLifecycleService,
+        Depends(get_operator_futures_manual_lifecycle_service),
+    ],
+) -> JSONResponse:
+    """Run only the approved six read-only Coinbase categories once."""
+
+    require_operator_futures_manual_enabled()
+    require_permission(actor, AdminApiPermission.ORDER_CREATE)
+    try:
+        record = service.refresh(
+            context=_futures_manual_context(
+                actor=actor,
+                body=body,
+                idempotency_key=idempotency_key,
+                correlation_id=correlation_id,
+                operator_intent=operator_intent,
+            )
+        )
+    except FuturesManualLifecycleError as exc:
+        _raise_futures_manual(exc)
+    response = OperatorFuturesManualMutationResponse(
+        action="REFRESH_ELIGIBILITY",
+        result=_futures_manual_readback(record, actor=actor),
+    )
+    return JSONResponse(content=jsonable_encoder(response))
+
+
+@router.post(
+    "/futures/manual-lifecycle/execute",
+    response_model=OperatorFuturesManualMutationResponse,
+    responses=FUTURES_MANUAL_ROUTE_RESPONSES,
+    summary="Execute one preview-gated Futures proof and safe closeout",
+)
+def execute_operator_futures_manual_lifecycle(
+    body: OperatorFuturesManualExecuteRequest,
+    idempotency_key: Annotated[
+        str,
+        Header(alias="Idempotency-Key", min_length=1, max_length=255),
+    ],
+    correlation_id: Annotated[
+        str,
+        Header(alias="X-Correlation-Id", min_length=1, max_length=255),
+    ],
+    operator_intent: Annotated[
+        Literal["preview_submit_and_safe_closeout_one_futures_order"],
+        Header(alias="X-Operator-Intent"),
+    ],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[
+        OperatorFuturesManualLifecycleService,
+        Depends(get_operator_futures_manual_lifecycle_service),
+    ],
+) -> JSONResponse:
+    """Preview, identically Create, reconcile once, and conditionally Cancel."""
+
+    require_operator_futures_manual_enabled()
+    require_permission(actor, AdminApiPermission.ORDER_CREATE)
+    require_permission(actor, AdminApiPermission.ORDER_CANCEL)
+    _require_futures_manual_live_runtime()
+    try:
+        record = service.execute(
+            context=_futures_manual_context(
+                actor=actor,
+                body=body,
+                idempotency_key=idempotency_key,
+                correlation_id=correlation_id,
+                operator_intent=operator_intent,
+            )
+        )
+    except FuturesManualLifecycleError as exc:
+        _raise_futures_manual(exc)
+    response = OperatorFuturesManualMutationResponse(
+        action="EXECUTE_PREVIEW_GATED_PROOF",
+        result=_futures_manual_readback(record, actor=actor),
+    )
+    return JSONResponse(content=jsonable_encoder(response))
 
 
 @router.post(
