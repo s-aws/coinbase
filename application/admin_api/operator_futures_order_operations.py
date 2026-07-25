@@ -49,6 +49,14 @@ FUTURES_ORDER_TERMINAL_STATUSES = frozenset(
 FUTURES_ORDER_NONTERMINAL_STATUSES = frozenset(
     {"PENDING", "OPEN", "QUEUED", "CANCEL_QUEUED", "EDIT_QUEUED"}
 )
+FUTURES_ORDER_ACTIVE_CATALOG_STATUSES = (
+    "PENDING",
+    "OPEN",
+    "UNKNOWN_ORDER_STATUS",
+    "QUEUED",
+    "CANCEL_QUEUED",
+    "EDIT_QUEUED",
+)
 FUTURES_ORDER_STATUSES = (
     FUTURES_ORDER_TERMINAL_STATUSES
     | FUTURES_ORDER_NONTERMINAL_STATUSES
@@ -379,11 +387,31 @@ class FuturesOrderCatalogReader:
         before_category: Callable[[str], None],
         before_page: Callable[[int, str | None], None],
         after_page: Callable[[int], None] | None = None,
+        exact_scope_required: bool = False,
+        target_product_id: str | None = None,
+        target_created_at: str | None = None,
     ) -> FuturesOrderCatalogResult:
         attempts = {
             category: 0 for category in FUTURES_ORDER_OPERATIONS_CATEGORIES
         }
         page_count = 0
+        exact_product_id = _text(target_product_id)
+        exact_start_date = (
+            _iso_timestamp(target_created_at)
+            if exact_product_id and target_created_at
+            else None
+        )
+        if exact_scope_required and (
+            not exact_product_id or not exact_start_date
+        ):
+            return _blocked_result(
+                outcome="INELIGIBLE",
+                diagnostic_code=(
+                    "operator_futures_orders_exact_catalog_scope_incomplete"
+                ),
+                attempts=attempts,
+                page_count=page_count,
+            )
 
         def read(category: str, call: Callable[[], Any]) -> Any:
             if attempts[category] != 0:
@@ -417,6 +445,15 @@ class FuturesOrderCatalogReader:
             )
 
         observed_at = self.now()
+        catalog_order_status = (
+            None
+            if exact_product_id
+            else list(FUTURES_ORDER_ACTIVE_CATALOG_STATUSES)
+        )
+        catalog_product_ids = (
+            [exact_product_id] if exact_product_id else None
+        )
+        catalog_end_date = observed_at.astimezone(timezone.utc).isoformat()
         try:
             binding = evaluate_futures_default_portfolio_binding(
                 permissions=permissions,
@@ -458,8 +495,12 @@ class FuturesOrderCatalogReader:
                 if cursor_hash:
                     seen_cursor_hashes.add(cursor_hash)
                 response = self.rest_client.list_orders(
+                    order_status=catalog_order_status,
+                    product_ids=catalog_product_ids,
                     product_type="FUTURE",
                     limit=FUTURES_ORDER_OPERATIONS_PAGE_LIMIT,
+                    start_date=exact_start_date,
+                    end_date=catalog_end_date,
                     cursor=cursor,
                     retail_portfolio_id=None,
                     before_sdk_call=lambda ordinal=page_count, hashed=cursor_hash: (
@@ -576,6 +617,7 @@ class FuturesOrderCatalogReader:
 
 
 __all__ = [
+    "FUTURES_ORDER_ACTIVE_CATALOG_STATUSES",
     "FUTURES_ORDER_NONTERMINAL_STATUSES",
     "FUTURES_ORDER_OPERATIONS_CATEGORIES",
     "FUTURES_ORDER_OPERATIONS_GOAL_ID",

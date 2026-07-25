@@ -23,7 +23,31 @@ documents `product_type=FUTURE`, order status/type/time-in-force fields,
 `client_order_id`, `order_id`, `has_next`, and cursor pagination. For CDP keys,
 `retail_portfolio_id` is deprecated and the key's permissioned portfolio is
 used. The implementation proves the credential-bound portfolio is exactly the
-Default profile before listing orders. The documented
+Default profile before listing orders.
+
+Refresh uses only the documented `PENDING`, `OPEN`,
+`UNKNOWN_ORDER_STATUS`, `QUEUED`, `CANCEL_QUEUED`, and `EDIT_QUEUED` status
+filters, plus an `end_date` fixed before the first page. It inventories the
+active and indeterminate operations surface instead of walking an unbounded
+terminal-order history. Exact reconciliation and Cancel remain terminal-aware:
+the backend reads the selected durable projection first, then scopes the same
+single logical List Orders category to that backend-owned product and inclusive
+creation timestamp without an order-status filter. The UI cannot supply or
+override these filters. If either durable product or normalized creation time
+is absent, the exact cycle ends locally as
+`operator_futures_orders_exact_catalog_scope_incomplete` before any Coinbase
+read.
+
+The 100-page fail-closed ceiling remains unchanged. Cycle 4 reached that
+ceiling while reading the unfiltered historical Futures catalog, returned only
+`operator_futures_orders_futures_order_catalog_page_limit_exceeded`, and left
+Cancel `NOT_RUN`. Current official documentation still describes
+`product_type`, `order_status`, `product_ids`, inclusive `start_date`,
+exclusive `end_date`, `has_next`, and `cursor`; no maintenance-specific
+contract change was documented. The scoped correction follows those fields
+without raising the page or call ceilings.
+
+The documented
 `UNKNOWN_ORDER_STATUS` value remains visible in inventory but is neither
 authoritatively nonterminal nor Cancel-eligible. This preserves truthful
 readback during an indeterminate or maintenance-adjacent exchange state
@@ -145,7 +169,9 @@ messages, and withheld text are neither persisted nor returned.
 tracking identity and exposed order cancellation through a dashboard
 WebSocket. It also passed that client ID directly in an `order_ids` request.
 `origin/prod:external/coinbase_client.py` exposed list/cancel helpers without
-the current durable claims. The MVP preserves only the useful tracking,
+the current durable claims. `origin/prod:configuration.py` and
+`origin/prod:core/startup_reconciler.py` used an `OPEN` status filter for
+operational order reads. The MVP preserves only the useful tracking,
 inventory, and exact-operation concepts. It does not restore WebSocket
 authority, direct browser commands, client-ID-as-exchange-ID behavior,
 background cancellation, retry, fallback, or raw exception logging.

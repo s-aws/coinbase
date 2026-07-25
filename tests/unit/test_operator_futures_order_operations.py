@@ -142,10 +142,141 @@ def test_catalog_reader_binds_default_profile_and_paginates_without_raw_ids():
         "FUTURE",
     ]
     assert [call["limit"] for call in rest.list_calls] == [100, 100]
+    assert [call["order_status"] for call in rest.list_calls] == [
+        [
+            "PENDING",
+            "OPEN",
+            "UNKNOWN_ORDER_STATUS",
+            "QUEUED",
+            "CANCEL_QUEUED",
+            "EDIT_QUEUED",
+        ],
+        [
+            "PENDING",
+            "OPEN",
+            "UNKNOWN_ORDER_STATUS",
+            "QUEUED",
+            "CANCEL_QUEUED",
+            "EDIT_QUEUED",
+        ],
+    ]
+    assert [call["product_ids"] for call in rest.list_calls] == [None, None]
+    assert [call["start_date"] for call in rest.list_calls] == [None, None]
+    assert [call["end_date"] for call in rest.list_calls] == [
+        "2026-07-25T08:01:00+00:00",
+        "2026-07-25T08:01:00+00:00",
+    ]
     assert [call["retail_portfolio_id"] for call in rest.list_calls] == [
         None,
         None,
     ]
+
+
+def test_catalog_reader_scopes_exact_reconciliation_to_durable_order_window():
+    rest = _RestClient()
+    reader = FuturesOrderCatalogReader(
+        rest_client=rest,
+        now=lambda: datetime(2026, 7, 25, 9, 0, tzinfo=timezone.utc),
+    )
+
+    result = reader.run(
+        before_category=lambda _category: None,
+        before_page=lambda _ordinal, _cursor_hash: None,
+        exact_scope_required=True,
+        target_product_id="AVP-20DEC30-CDE",
+        target_created_at="2026-07-25T08:00:00Z",
+    )
+
+    assert result.outcome == "SUCCEEDED"
+    assert [call["order_status"] for call in rest.list_calls] == [None, None]
+    assert [call["product_ids"] for call in rest.list_calls] == [
+        ["AVP-20DEC30-CDE"],
+        ["AVP-20DEC30-CDE"],
+    ]
+    assert [call["start_date"] for call in rest.list_calls] == [
+        "2026-07-25T08:00:00Z",
+        "2026-07-25T08:00:00Z",
+    ]
+    assert [call["end_date"] for call in rest.list_calls] == [
+        "2026-07-25T09:00:00+00:00",
+        "2026-07-25T09:00:00+00:00",
+    ]
+
+
+def test_catalog_reader_blocks_incomplete_exact_scope_before_coinbase_reads():
+    rest = _RestClient()
+
+    result = FuturesOrderCatalogReader(rest_client=rest).run(
+        before_category=lambda _category: None,
+        before_page=lambda _ordinal, _cursor_hash: None,
+        exact_scope_required=True,
+        target_product_id="AVP-20DEC30-CDE",
+        target_created_at=None,
+    )
+
+    assert result.outcome == "INELIGIBLE"
+    assert result.diagnostic_code == (
+        "operator_futures_orders_exact_catalog_scope_incomplete"
+    )
+    assert result.category_attempts == {
+        "api_key_permissions": 0,
+        "portfolio_catalog": 0,
+        "futures_order_catalog": 0,
+    }
+    assert result.page_count == 0
+    assert rest.list_calls == []
+
+
+def test_reconcile_uses_backend_owned_durable_scope_for_one_catalog():
+    record = SimpleNamespace(last_outcome="SUCCEEDED")
+    repository = SimpleNamespace(
+        get_order=Mock(
+            return_value={
+                "client_order_id": CLIENT_ORDER_ID,
+                "product_id": "AVP-20DEC30-CDE",
+                "created_at": "2026-07-25T08:00:00Z",
+            }
+        ),
+        begin_cycle=Mock(return_value=(record, 1, False)),
+        claim_category=Mock(),
+        claim_page=Mock(),
+        mark_page_invoked=Mock(),
+        finish_page=Mock(),
+        finish_cycle=Mock(return_value=record),
+    )
+    catalog_result = SimpleNamespace()
+    catalog_reader = SimpleNamespace(run=Mock(return_value=catalog_result))
+    service = OperatorFuturesOrderOperationsService(
+        repository=repository,
+        catalog_reader=catalog_reader,
+        exchange_executor=SimpleNamespace(),
+    )
+
+    returned = service.reconcile_exact(
+        context=FuturesOrderOperationsRequestContext(
+            actor_id="operator-1",
+            roles=("admin", "trader"),
+            expected_revision=0,
+            idempotency_key="reconcile-scoped",
+            correlation_id="corr-reconcile-scoped",
+            audit_id="audit-reconcile-scoped",
+            operator_intent="reconcile_exact_futures_order",
+            authorize_one_no_retry_cycle=True,
+            acknowledge_cycle_is_goal_global_and_limited_to_ten=True,
+            acknowledge_unknown_read_fails_closed=True,
+            acknowledge_unknown_cancel_consumes_allowance=False,
+        ),
+        client_order_id=CLIENT_ORDER_ID,
+    )
+
+    assert returned is record
+    assert catalog_reader.run.call_args.kwargs["exact_scope_required"] is True
+    assert catalog_reader.run.call_args.kwargs["target_product_id"] == (
+        "AVP-20DEC30-CDE"
+    )
+    assert catalog_reader.run.call_args.kwargs["target_created_at"] == (
+        "2026-07-25T08:00:00Z"
+    )
 
 
 def test_catalog_reader_fails_closed_on_duplicate_client_identity():

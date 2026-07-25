@@ -307,6 +307,21 @@ class OperatorFuturesOrderOperationsService:
         )
         if replayed or cycle_number is None:
             return current, None
+        target_projection = (
+            self.repository.get_order(target_client_order_id)
+            if target_client_order_id
+            else None
+        )
+        target_product_id = (
+            str(target_projection.get("product_id") or "").strip() or None
+            if target_projection is not None
+            else None
+        )
+        target_created_at = (
+            str(target_projection.get("created_at") or "").strip() or None
+            if target_projection is not None
+            else None
+        )
         result = self.catalog_reader.run(
             before_category=lambda category: (
                 self.repository.claim_category(
@@ -325,6 +340,9 @@ class OperatorFuturesOrderOperationsService:
                 cycle_number=cycle_number,
                 page_ordinal=ordinal,
             ),
+            exact_scope_required=(target_client_order_id is not None),
+            target_product_id=target_product_id,
+            target_created_at=target_created_at,
         )
         record = self.repository.finish_cycle(
             cycle_number=cycle_number,
