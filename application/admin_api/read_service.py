@@ -1064,6 +1064,8 @@ CONTROLLED_LIVE_MVP_ROUTES = {
         "POST",
         "/api/v1/automation/runs/{run_id}/safe-closeout-child",
     ),
+    ("POST", "/api/v1/futures/manual-lifecycle/execute"),
+    ("POST", "/api/v1/futures/position-lifecycle/execute"),
 }
 
 M58_SOURCE_PARKED_EXCHANGE_ROUTES = {
@@ -8002,9 +8004,9 @@ class AdminApiReadService:
                 module_id="futures_perpetuals",
                 module="Futures / Perpetuals",
                 primary_owner="admin_api_contract",
-                support_status=AdminApiModuleSupportStatus.UNSUPPORTED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
                 unsupported_actions=[
-                    "source-disabled futures command forwarding or execution",
+                    "generic source-disabled futures command forwarding or execution",
                     "frontend futures state mutation",
                     "spot inventory rules in futures workflows",
                 ],
@@ -8013,36 +8015,40 @@ class AdminApiReadService:
                         action="futures live placement execution",
                         status=AdminApiModuleSupportStatus.UNSUPPORTED,
                         reason=(
-                            "Futures/perpetual placement is source-disabled and "
-                            "returns fixed status=not_implemented evidence; no "
-                            "approval, cap, audit, adapter, or reconciliation "
-                            "record can enable it."
+                            "The generic Futures/perpetual placement route is "
+                            "source-disabled and returns fixed not_implemented "
+                            "evidence. Goal 10 is the separate exact bounded "
+                            "Preview/Create lifecycle and is not enabled through "
+                            "this generic route."
                         ),
                         required_backend_contract=(
-                            "A separate source restoration and authorization are "
-                            "required before any new Futures placement implementation."
+                            "Any additional Futures placement workflow requires its "
+                            "own backend-owned policy, claim, reconciliation, operator "
+                            "contract, and explicit authority."
                         ),
                         frontend_boundary=(
-                            "Display historical/source-disabled contract evidence "
-                            "only; the browser and BFF must not forward the command."
+                            "The browser and BFF must not forward the generic command. "
+                            "Use only the generated Goal 10 lifecycle contract when "
+                            "backend authority allows."
                         ),
                     ),
                     command_gap(
                         action="futures live cancel close reduce execution",
                         status=AdminApiModuleSupportStatus.UNSUPPORTED,
                         reason=(
-                            "Futures close/reduce, cancel, and reconciliation are "
-                            "source-disabled and return fixed status=not_implemented "
-                            "evidence; runtime gate records cannot enable them."
+                            "The generic close/reduce, cancel, and reconciliation "
+                            "routes remain source-disabled. Goal 11 is the separate "
+                            "exact selected-position lifecycle and cannot be reached "
+                            "through those generic routes."
                         ),
                         required_backend_contract=(
-                            "A separate source restoration and authorization are "
-                            "required before any cancel, close/reduce, or reconciliation "
-                            "implementation."
+                            "Any broader position action requires a separate exact "
+                            "backend workflow and explicit authority beyond Goal 11."
                         ),
                         frontend_boundary=(
-                            "Display historical/source-disabled evidence only; the "
-                            "browser and BFF must not forward these commands."
+                            "The browser and BFF must not forward generic commands. "
+                            "Use only the generated Goal 11 lifecycle contract and "
+                            "backend-granted action."
                         ),
                     ),
                     command_gap(
@@ -8076,12 +8082,16 @@ class AdminApiReadService:
                 backend_contract_refs=[
                     "application/admin_api/read_service.py::build_futures_account",
                     "application/admin_api/read_service.py::build_futures_positions",
+                    "application/admin_api/operator_futures_manual_lifecycle.py",
+                    "application/admin_api/operator_futures_position_lifecycle.py",
                     "api/v1/routes/futures.py",
                 ],
                 frontend_contract_refs=[
                     "src/shared/api/contracts/backendApiClient.ts::getFuturesAccount",
+                    "src/shared/api/contracts/backendApiClient.ts::getOperatorFuturesManualLifecycle",
+                    "src/shared/api/contracts/backendApiClient.ts::getOperatorFuturesPositionLifecycle",
                     "src/shared/api/contracts/backendRuntime.ts::loadFuturesPerpetualsReadSnapshot",
-                    "src/features/admin-shell/AdminShell.tsx",
+                    "src/features/operator-read-models/futures/FuturesOperationsWorkspace.tsx",
                 ],
                 documentation_refs=[
                     "README.futures-perpetuals.md",
@@ -16089,6 +16099,115 @@ class AdminApiReadService:
                     "Spot caps and service admission cannot approve this Futures "
                     "workflow; its exact V3 profile, product, contract, and strict "
                     "Futures caps remain backend-owned."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
+                surface="POST /api/v1/futures/position-lifecycle/eligibility",
+                mutation_id="futures.position_lifecycle_eligibility",
+                mutation_family=(
+                    AdminApiMutationFamilyType.FUTURES_POSITION_LIFECYCLE
+                ),
+                workflow_id=(
+                    "operator_futures_position_close_reduce_and_reconciliation_v1"
+                ),
+                module="Futures / Perpetuals",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                ),
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "An authenticated operator may bind one opaque selected "
+                    "position and claim one of ten no-retry Goal 11 eligibility "
+                    "cycles. The backend owns every Futures read and persists "
+                    "only fixed sanitized authority evidence."
+                ),
+                identity_keys=[
+                    "goal_id",
+                    "eligibility_cycle",
+                    "position_key",
+                    "portfolio_hash",
+                ],
+                owning_backend_service=(
+                    "application/admin_api/operator_futures_position_lifecycle.py::"
+                    "refresh_eligibility"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/futures.py::refresh_operator_futures_position_eligibility",
+                    "application/admin_api/operator_futures_position_lifecycle.py",
+                    "application/admin_api/operator_futures_position_runtime.py",
+                    "database/operator_futures_position_lifecycle.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/operator-read-models/futures/"
+                    "FuturesOperationsWorkspace.tsx",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_FUTURES_POSITION_CLOSE_REDUCE_V1.md",
+                ],
+                frontend_boundary=(
+                    "Render backend eligibility and forward only the opaque "
+                    "position key and explicit bounded refresh acknowledgements."
+                ),
+                spot_rule_boundary=(
+                    "Spot wallet, Test-profile, notional, and product rules are "
+                    "not Futures authority; Default-profile CFM position and "
+                    "margin evidence remain backend-owned."
+                ),
+                reconciliation_required=False,
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_from_surface(
+                surface="POST /api/v1/futures/position-lifecycle/execute",
+                mutation_id="futures.position_lifecycle_execution",
+                mutation_family=(
+                    AdminApiMutationFamilyType.FUTURES_POSITION_LIFECYCLE
+                ),
+                workflow_id=(
+                    "operator_futures_position_close_reduce_and_reconciliation_v1"
+                ),
+                module="Futures / Perpetuals",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                ),
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "After fresh exact eligibility, an authenticated operator "
+                    "may claim one mutually exclusive full Close or one-contract "
+                    "Reduce, followed by exact order and position reconciliation "
+                    "and at most one exact nonterminal Cancel."
+                ),
+                identity_keys=[
+                    "goal_id",
+                    "position_key",
+                    "execution_claim_id",
+                    "client_order_id",
+                    "portfolio_hash",
+                ],
+                owning_backend_service=(
+                    "application/admin_api/operator_futures_position_lifecycle.py::"
+                    "execute"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/futures.py::execute_operator_futures_position_lifecycle",
+                    "application/admin_api/operator_futures_position_lifecycle.py",
+                    "application/admin_api/operator_futures_position_service_runtime.py",
+                    "database/operator_futures_position_lifecycle.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/operator-read-models/futures/"
+                    "FuturesOperationsWorkspace.tsx",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_FUTURES_POSITION_CLOSE_REDUCE_V1.md",
+                ],
+                frontend_boundary=(
+                    "Render backend authority and outcomes and forward only the "
+                    "backend-granted action mode and explicit confirmations."
+                ),
+                spot_rule_boundary=(
+                    "Spot wallet, caps, client-side side derivation, and generic "
+                    "execution adapters cannot authorize this exact Futures "
+                    "position workflow."
                 ),
             ),
             mutation_taxonomy_item(

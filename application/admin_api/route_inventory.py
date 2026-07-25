@@ -3977,6 +3977,79 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         ),
     ),
     AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
+        surface="GET /api/v1/futures/position-lifecycle",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not applicable; durable Goal 11 authority readback only",
+        caps="reports one selected authoritative Futures position and one action",
+        audit=(
+            "returns PostgreSQL revision, eligibility, exact action/call outcomes, "
+            "hashed identifiers, correlation, and audit evidence"
+        ),
+        shared_method="read_operator_futures_position_lifecycle",
+        parity_test=(
+            "local PostgreSQL singleton read only; zero Coinbase call and no "
+            "raw response or private identifier"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
+        surface="POST /api/v1/futures/position-lifecycle/eligibility",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.ORDER_CREATE,
+        idempotency="required revision-bound exact cycle replay",
+        approval=(
+            "required explicit selected-position, one-cycle, no-retry, and "
+            "fail-closed acknowledgements"
+        ),
+        caps=(
+            "required one selected position with either full Close or bounded "
+            "one-contract Reduce review"
+        ),
+        audit=(
+            "required PostgreSQL cycle and six category claims with fixed "
+            "diagnostics, actor, correlation, and selected public position key"
+        ),
+        shared_method="refresh_futures_position_eligibility",
+        parity_test=(
+            "each approved Futures category is read at most once with zero "
+            "Close, Reduce, Cancel, retry, or fallback"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
+        surface="POST /api/v1/futures/position-lifecycle/execute",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        permission=AdminApiPermission.ORDER_CREATE,
+        required_permissions=[
+            AdminApiPermission.ORDER_CREATE,
+            AdminApiPermission.ORDER_CANCEL,
+        ],
+        idempotency=(
+            "required durable mutually-exclusive Goal 11 action claim binding "
+            "position, mode, client_order_id, reconciliation, and conditional Cancel"
+        ),
+        approval=(
+            "required explicit exact Close-or-Reduce and unknown-consumption "
+            "acknowledgements"
+        ),
+        caps=(
+            "required exactly one selected position and either omitted-size full "
+            "Close or exact one-contract Reduce"
+        ),
+        audit=(
+            "required each call claimed before invocation with fixed outcomes, "
+            "hashed identifiers, restart recovery, and zero persisted raw response"
+        ),
+        shared_method="execute_futures_position_lifecycle",
+        parity_test=(
+            "one mutually exclusive Close or Reduce, exact order and position "
+            "reconciliation, and at most one exact nonterminal Cancel with zero retry"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
         module_id="automation_control_plane",
         surface="GET /api/v1/automation/runs",
         action_class=AdminApiActionClass.READ_ONLY,

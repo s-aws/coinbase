@@ -1,6 +1,15 @@
 # Documentation Index
 
-Active independent Goal 10:
+Completed independent Goal 11:
+[Operator Futures Position Close/Reduce V1](OPERATOR_FUTURES_POSITION_CLOSE_REDUCE_V1.md).
+Goal `operator_futures_position_close_reduce_and_reconciliation_v1` provides
+one selected Default-profile position, one mutually exclusive full Close or
+bounded Reduce, exact order and position reconciliation, and conditional
+exact-order Cancel with PostgreSQL call accounting.
+Status: `complete_operator_workflow_cfm_access_blocked_allowances_unconsumed`.
+Default action: `await_operator_direction_for_next_mvp`.
+
+Completed independent Goal 10:
 [Operator Futures Manual Order Lifecycle V1](OPERATOR_FUTURES_MANUAL_ORDER_LIFECYCLE_V1.md).
 Goal `operator_futures_manual_order_lifecycle_v1` provides one exact
 Default-profile `AVP-20DEC30-CDE` one-contract eligibility, Preview, identical

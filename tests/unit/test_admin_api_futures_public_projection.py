@@ -21,13 +21,47 @@ from application.admin_api.mvp_service import (
     AdminMvpService,
     _source_disabled_futures_account_snapshot,
 )
-from application.admin_api.read_service import _futures_position_item_from_raw
+from application.admin_api.futures_public_projection import (
+    opaque_futures_position_key,
+)
+from application.admin_api.read_service import (
+    _futures_position_item_from_raw,
+)
 from core.enums import AdminFuturesEvidenceSource
 
 
 PRIVATE_PORTFOLIO_UUID = "11111111-2222-4333-8444-555555555555"
 WITHHELD_EXCEPTION_TEXT = "withheld-futures-reader-exception-text"
 POSITION_KEY_PATTERN = re.compile(r"^fpos_[0-9a-f]{64}$")
+
+
+def test_futures_position_key_uses_stable_runtime_scope_when_sdk_omits_portfolio(
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv(
+        "COINBASE_ADMIN_API_FUTURES_PORTFOLIO_ID",
+        raising=False,
+    )
+
+    item = _futures_position_item_from_raw(
+        product_id="AVP-20DEC30-CDE",
+        position={
+            "product_id": "AVP-20DEC30-CDE",
+            "number_of_contracts": "3",
+            "side": "LONG",
+        },
+        product_metadata={
+            "product_id": "AVP-20DEC30-CDE",
+            "product_type": "FUTURE",
+        },
+        mandatory_fee_per_contract=None,
+        source=AdminFuturesEvidenceSource.RUNTIME_POSITIONS,
+    )
+
+    assert item.position_key == opaque_futures_position_key(
+        product_id="AVP-20DEC30-CDE",
+        portfolio_identity="local-runtime-single-profile",
+    )
 
 
 def _context() -> AdminMvpRequestContext:

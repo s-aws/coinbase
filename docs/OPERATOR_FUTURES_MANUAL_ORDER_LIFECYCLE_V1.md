@@ -12,8 +12,10 @@ read the durable terminal result. The fixed scope is the credential-bound
 `LIMIT_GTC`, post-only, and strict `<100` opening, `<150` exposure, and `<300`
 turnover USDC caps.
 
-Close and Reduce remain unavailable. They belong to the independent Goal 11
-position-lifecycle workflow.
+This Goal 10 opening-order proof grants no Close or Reduce authority. Those
+actions exist only in the independent Goal 11 selected-position lifecycle and
+its separate eligibility, claim, reconciliation, and operator-confirmation
+boundaries.
 
 ## Backend authority
 

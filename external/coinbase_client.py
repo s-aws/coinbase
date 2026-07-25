@@ -134,6 +134,17 @@ def coinbase_sdk_response_to_dict(response: Any) -> Any:
     return response
 
 
+def _coinbase_sdk_shallow_envelope(response: Any) -> Dict[str, Any]:
+    """Validate only the returned SDK envelope without recursive conversion."""
+
+    if isinstance(response, Mapping):
+        return dict(response)
+    attributes = getattr(response, "__dict__", None)
+    if isinstance(attributes, Mapping):
+        return dict(attributes)
+    raise ValueError("coinbase_sdk_shallow_envelope_invalid")
+
+
 def coinbase_cancel_response_evidence(
     response: Any,
     *,
@@ -1560,6 +1571,82 @@ class CoinbaseRestClient:
             expected_scope="source_disabled_futures_close"
         )
         return self._client.close_position(**params)
+
+    def close_operator_futures_position(
+        self,
+        *,
+        client_order_id: str,
+        product_id: str,
+        size: Optional[str],
+        before_sdk_call: Optional[Callable[[], None]] = None,
+    ) -> Dict[str, Any]:
+        """Close or reduce one Goal 11 position after its durable claim."""
+
+        from core.coinbase_execution_authority import (
+            COINBASE_EXECUTION_SCOPE_FUTURES_CLOSE_POSITION,
+        )
+
+        exact_client_order_id = str(client_order_id or "").strip()
+        exact_product_id = str(product_id or "").strip()
+        if not exact_client_order_id or not exact_product_id:
+            raise ValueError("operator_futures_position_identity_invalid")
+        exact_size = None if size is None else str(size).strip()
+        if exact_size == "":
+            raise ValueError("operator_futures_position_size_invalid")
+        params: Dict[str, Any] = {
+            "client_order_id": exact_client_order_id,
+            "product_id": exact_product_id,
+        }
+        if exact_size is not None:
+            params["size"] = exact_size
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
+        if before_sdk_call is not None:
+            before_sdk_call()
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
+        require_coinbase_execution_authority(
+            expected_scope=COINBASE_EXECUTION_SCOPE_FUTURES_CLOSE_POSITION
+        )
+        response = self._client.close_position(**params)
+        return _coinbase_sdk_shallow_envelope(response)
+
+    def get_operator_futures_position(
+        self,
+        *,
+        product_id: str,
+        before_sdk_call: Optional[Callable[[], None]] = None,
+    ) -> Dict[str, Any]:
+        """Read the exact Goal 11 position once for post-action evidence."""
+
+        exact_product_id = str(product_id or "").strip()
+        if not exact_product_id:
+            raise ValueError("operator_futures_position_product_invalid")
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
+        if before_sdk_call is not None:
+            before_sdk_call()
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
+        response = self._client.get_futures_position(exact_product_id)
+        return _coinbase_sdk_shallow_envelope(response)
+
+    def cancel_operator_futures_position_order(
+        self,
+        *,
+        exchange_order_id: str,
+        before_sdk_call: Optional[Callable[[], None]] = None,
+    ) -> Dict[str, Any]:
+        """Cancel only the exact Goal 11 close/reduce exchange order."""
+
+        submitted_order_id = str(exchange_order_id or "").strip()
+        if not submitted_order_id:
+            raise ValueError("futures_exchange_order_id_invalid")
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
+        if before_sdk_call is not None:
+            before_sdk_call()
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
+        require_coinbase_execution_authority(
+            expected_scope=COINBASE_EXECUTION_SCOPE_FUTURES_CANCEL
+        )
+        response = self._client.cancel_orders([submitted_order_id])
+        return _coinbase_sdk_shallow_envelope(response)
 
     def cancel_futures_order(
         self,

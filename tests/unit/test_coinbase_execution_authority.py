@@ -13,6 +13,7 @@ import pytest
 
 from core.coinbase_execution_authority import (
     COINBASE_EXECUTION_SCOPE_FUTURES_CANCEL,
+    COINBASE_EXECUTION_SCOPE_FUTURES_CLOSE_POSITION,
     COINBASE_EXECUTION_SCOPE_FUTURES_PLACE,
     COINBASE_EXECUTION_SCOPE_FUTURES_PREVIEW,
     COINBASE_EXECUTION_SCOPE_SPOT_PLACE,
@@ -43,7 +44,12 @@ class _MutationSdk:
 
     def close_position(self, **kwargs):
         self.calls.append(("close_position", dict(kwargs)))
-        return {"success": True}
+        return SimpleNamespace(
+            success=True,
+            success_response={
+                "order_id": "exchange-close-1",
+            },
+        )
 
     def limit_order_gtc(self, **kwargs):
         self.calls.append(("limit_order_gtc", dict(kwargs)))
@@ -477,6 +483,60 @@ def test_futures_execution_boundaries_recheck_authority_after_claim(
     assert sdk.calls == []
 
 
+def test_goal11_close_and_cancel_wrappers_require_distinct_scopes_and_claim_first(
+    coinbase_execution_lease,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("COINBASE_EXECUTION_ENABLED", "1")
+    sdk = _MutationSdk()
+    client = CoinbaseRestClient(sdk)
+    claims: list[str] = []
+
+    with canonical_coinbase_execution_scope(
+        COINBASE_EXECUTION_SCOPE_FUTURES_CLOSE_POSITION
+    ):
+        result = client.close_operator_futures_position(
+            client_order_id="goal11-close-1",
+            product_id="AVP-20DEC30-CDE",
+            size=None,
+            before_sdk_call=lambda: claims.append("close"),
+        )
+    with canonical_coinbase_execution_scope(
+        COINBASE_EXECUTION_SCOPE_FUTURES_CANCEL
+    ):
+        client.cancel_operator_futures_position_order(
+            exchange_order_id="exchange-close-1",
+            before_sdk_call=lambda: claims.append("cancel"),
+        )
+
+    assert claims == ["close", "cancel"]
+    assert sdk.calls == [
+        (
+            "close_position",
+            {
+                "client_order_id": "goal11-close-1",
+                "product_id": "AVP-20DEC30-CDE",
+            },
+        ),
+        ("cancel_orders", ["exchange-close-1"]),
+    ]
+    assert result["success"] is True
+
+    with canonical_coinbase_execution_scope(
+        COINBASE_EXECUTION_SCOPE_FUTURES_PLACE
+    ):
+        with pytest.raises(
+            CoinbaseExecutionAuthorityError,
+            match="^coinbase_execution_authority_missing$",
+        ):
+            client.close_operator_futures_position(
+                client_order_id="wrong-scope",
+                product_id="AVP-20DEC30-CDE",
+                size="1",
+                before_sdk_call=lambda: None,
+            )
+
+
 @pytest.mark.parametrize("unsafe_shape", ["symlink", "hardlink", "crlf"])
 def test_runtime_lease_rejects_aliases_and_noncanonical_bytes(
     tmp_path,
@@ -708,8 +768,8 @@ def test_raw_sdk_mutation_sites_are_frozen_to_guarded_boundaries() -> None:
     assert discovered == {
         "business/spot_portfolio_sweep.py": Counter({"create_order": 1}),
         "external/coinbase_client.py": Counter({
-            "cancel_orders": 4,
-            "close_position": 1,
+            "cancel_orders": 5,
+            "close_position": 2,
             "create_order": 2,
             "limit_order_gtc": 1,
         }),
@@ -849,6 +909,7 @@ def test_legacy_admin_mvp_runtime_cannot_enable_exchange_mutations(
         "application/admin_api/operator_automation.py",
         "application/admin_api/operator_follow_up_materialization_runtime.py",
         "application/admin_api/operator_futures_manual_runtime.py",
+        "application/admin_api/operator_futures_position_runtime.py",
         "application/admin_api/operator_hotpoint_runtime.py",
         "application/admin_api/operator_revealed_order_movement_runtime.py",
         "application/admin_api/operator_stealth_reveal_runtime.py",

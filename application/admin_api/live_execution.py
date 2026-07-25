@@ -2149,6 +2149,21 @@ def operator_futures_manual_live_service_state_allows_route_admission(
     )
 
 
+def operator_futures_position_live_service_state_allows_route_admission(
+    state: AdminApiLiveExecutionServiceState,
+    *,
+    method: str,
+    route: str,
+) -> bool:
+    """Require the installed posture and exact Goal 11 action route."""
+
+    return operator_futures_manual_live_service_state_allows_route_admission(
+        state,
+        method=method,
+        route=route,
+    )
+
+
 def live_service_decision_allows_backend_admission(
     decision: LiveServiceDecisionRecord | None,
 ) -> bool:

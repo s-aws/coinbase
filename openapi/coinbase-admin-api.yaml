@@ -5951,6 +5951,289 @@ paths:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
           description: Service Unavailable
+  /api/v1/futures/position-lifecycle:
+    get:
+      tags:
+      - futures
+      summary: Read the durable selected-position lifecycle
+      description: Read Goal 11 eligibility and single-use action accounting.
+      operationId: get_operator_futures_position_lifecycle_api_v1_futures_position_lifecycle_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFuturesPositionLifecycleReadback'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unprocessable Content
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+  /api/v1/futures/position-lifecycle/eligibility:
+    post:
+      tags:
+      - futures
+      summary: Refresh one selected Futures position without retry
+      description: Bind six no-retry reads to one backend opaque position key.
+      operationId: refresh_operator_futures_position_eligibility_api_v1_futures_position_lifecycle_eligibility_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: refresh_one_futures_position_eligibility_cycle
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorFuturesPositionRefreshRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFuturesPositionMutationResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unprocessable Content
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+  /api/v1/futures/position-lifecycle/execute:
+    post:
+      tags:
+      - futures
+      summary: Close or reduce one selected Futures position
+      description: Submit one mode, reconcile order/position, and conditionally Cancel.
+      operationId: execute_operator_futures_position_lifecycle_api_v1_futures_position_lifecycle_execute_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: authorize_one_futures_position_close_or_reduce
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorFuturesPositionExecuteRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFuturesPositionMutationResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unprocessable Content
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
   /api/v1/futures/orders:
     post:
       tags:
@@ -24898,6 +25181,7 @@ components:
       - stealth_post_write_reconciliation_verification
       - movement_reprice
       - futures_manual_lifecycle
+      - futures_position_lifecycle
       - futures_contract_required
       - futures_risk_proof
       - fill_ledger_repair_contract_required
@@ -111890,6 +112174,16 @@ components:
       - freshness_status
       title: AdminFuturesPortfolioScopeEvidence
       description: Value-blind exact Default-profile scope for public Futures reads.
+    AdminFuturesPositionCallOutcome:
+      type: string
+      enum:
+      - NOT_RUN
+      - CLAIMED
+      - ACCEPTED
+      - REJECTED
+      - UNKNOWN
+      title: AdminFuturesPositionCallOutcome
+      description: Durable terminal classification for one Goal 11 call allowance.
     AdminFuturesPositionDetailResponse:
       properties:
         type:
@@ -111985,6 +112279,14 @@ components:
       - portfolio_binding
       title: AdminFuturesPositionDetailResponse
       description: Read-only futures/perpetual position detail response.
+    AdminFuturesPositionEligibilityOutcome:
+      type: string
+      enum:
+      - ELIGIBLE
+      - INELIGIBLE
+      - UNKNOWN
+      title: AdminFuturesPositionEligibilityOutcome
+      description: Result of one bounded Goal 11 position-eligibility cycle.
     AdminFuturesPositionListResponse:
       properties:
         type:
@@ -160371,6 +160673,362 @@ components:
       - acknowledge_cycle_is_goal_global_and_limited_to_ten
       - acknowledge_unsuccessful_or_unknown_cycle_fails_closed
       title: OperatorFuturesManualRefreshRequest
+    OperatorFuturesPositionCallReadback:
+      properties:
+        outcome:
+          $ref: '#/components/schemas/AdminFuturesPositionCallOutcome'
+        call_boundary_entered:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Call Boundary Entered
+      additionalProperties: false
+      type: object
+      required:
+      - outcome
+      - call_boundary_entered
+      title: OperatorFuturesPositionCallReadback
+    OperatorFuturesPositionExecuteRequest:
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 0.0
+          title: Expected Revision
+        mode:
+          type: string
+          enum:
+          - CLOSE_FULL
+          - REDUCE_ONE_CONTRACT
+          title: Mode
+        authorize_exact_selected_position_action:
+          type: boolean
+          const: true
+          title: Authorize Exact Selected Position Action
+        acknowledge_action_is_mutually_exclusive_and_single_use:
+          type: boolean
+          const: true
+          title: Acknowledge Action Is Mutually Exclusive And Single Use
+        acknowledge_unknown_outcome_consumes_allowance:
+          type: boolean
+          const: true
+          title: Acknowledge Unknown Outcome Consumes Allowance
+        acknowledge_exact_order_cancel_only:
+          type: boolean
+          const: true
+          title: Acknowledge Exact Order Cancel Only
+      additionalProperties: false
+      type: object
+      required:
+      - expected_revision
+      - mode
+      - authorize_exact_selected_position_action
+      - acknowledge_action_is_mutually_exclusive_and_single_use
+      - acknowledge_unknown_outcome_consumes_allowance
+      - acknowledge_exact_order_cancel_only
+      title: OperatorFuturesPositionExecuteRequest
+    OperatorFuturesPositionLifecycleReadback:
+      properties:
+        type:
+          type: string
+          const: operator_futures_position_lifecycle
+          title: Type
+          default: operator_futures_position_lifecycle
+        goal_id:
+          type: string
+          const: operator_futures_position_close_reduce_and_reconciliation_v1
+          title: Goal Id
+        revision:
+          type: integer
+          minimum: 0.0
+          title: Revision
+        environment:
+          type: string
+          title: Environment
+        portfolio_profile_alias:
+          type: string
+          const: Default
+          title: Portfolio Profile Alias
+          default: Default
+        cycles_used:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: Cycles Used
+        cycles_remaining:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: Cycles Remaining
+        active_cycle_number:
+          anyOf:
+          - type: integer
+            maximum: 10.0
+            minimum: 1.0
+          - type: 'null'
+          title: Active Cycle Number
+        eligibility_outcome:
+          anyOf:
+          - $ref: '#/components/schemas/AdminFuturesPositionEligibilityOutcome'
+          - type: 'null'
+        eligibility_diagnostic_code:
+          type: string
+          title: Eligibility Diagnostic Code
+        category_attempts:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Category Attempts
+        selection:
+          anyOf:
+          - $ref: '#/components/schemas/OperatorFuturesPositionSelectionReadback'
+          - type: 'null'
+        selection_fresh_for_execution:
+          type: boolean
+          title: Selection Fresh For Execution
+        selection_freshness_diagnostic_code:
+          type: string
+          title: Selection Freshness Diagnostic Code
+        selection_sha256:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Selection Sha256
+        portfolio_id_sha256:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Portfolio Id Sha256
+        eligibility_evidence_sha256:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Eligibility Evidence Sha256
+        execution_posture_ready:
+          type: boolean
+          title: Execution Posture Ready
+        execution_posture_diagnostic_code:
+          type: string
+          title: Execution Posture Diagnostic Code
+        selected_mode:
+          anyOf:
+          - type: string
+            enum:
+            - CLOSE_FULL
+            - REDUCE_ONE_CONTRACT
+          - type: 'null'
+          title: Selected Mode
+        client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Client Order Id
+        action_call:
+          $ref: '#/components/schemas/OperatorFuturesPositionCallReadback'
+        exchange_order_id_sha256:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Exchange Order Id Sha256
+        order_reconciliation:
+          $ref: '#/components/schemas/OperatorFuturesPositionCallReadback'
+        order_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Order Status
+        authoritatively_nonterminal:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Authoritatively Nonterminal
+        position_reconciliation:
+          $ref: '#/components/schemas/OperatorFuturesPositionCallReadback'
+        remaining_contracts:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Remaining Contracts
+        cancel:
+          $ref: '#/components/schemas/OperatorFuturesPositionCallReadback'
+        diagnostic_code:
+          type: string
+          title: Diagnostic Code
+        allowed_actions:
+          items:
+            type: string
+            enum:
+            - REFRESH_SELECTED_POSITION
+            - CLOSE_FULL
+            - REDUCE_ONE_CONTRACT
+          type: array
+          title: Allowed Actions
+        raw_responses_included:
+          type: boolean
+          const: false
+          title: Raw Responses Included
+          default: false
+        private_identifiers_included:
+          type: boolean
+          const: false
+          title: Private Identifiers Included
+          default: false
+        exception_text_included:
+          type: boolean
+          const: false
+          title: Exception Text Included
+          default: false
+        correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+        updated_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Updated At
+      additionalProperties: false
+      type: object
+      required:
+      - goal_id
+      - revision
+      - environment
+      - cycles_used
+      - cycles_remaining
+      - eligibility_outcome
+      - eligibility_diagnostic_code
+      - category_attempts
+      - selection
+      - selection_fresh_for_execution
+      - selection_freshness_diagnostic_code
+      - selection_sha256
+      - portfolio_id_sha256
+      - eligibility_evidence_sha256
+      - execution_posture_ready
+      - execution_posture_diagnostic_code
+      - selected_mode
+      - client_order_id
+      - action_call
+      - exchange_order_id_sha256
+      - order_reconciliation
+      - order_status
+      - authoritatively_nonterminal
+      - position_reconciliation
+      - remaining_contracts
+      - cancel
+      - diagnostic_code
+      - allowed_actions
+      - correlation_id
+      - audit_id
+      - updated_at
+      title: OperatorFuturesPositionLifecycleReadback
+    OperatorFuturesPositionMutationResponse:
+      properties:
+        type:
+          type: string
+          const: operator_futures_position_mutation
+          title: Type
+          default: operator_futures_position_mutation
+        action:
+          type: string
+          enum:
+          - REFRESH_SELECTED_POSITION
+          - CLOSE_FULL
+          - REDUCE_ONE_CONTRACT
+          title: Action
+        result:
+          $ref: '#/components/schemas/OperatorFuturesPositionLifecycleReadback'
+      additionalProperties: false
+      type: object
+      required:
+      - action
+      - result
+      title: OperatorFuturesPositionMutationResponse
+    OperatorFuturesPositionRefreshRequest:
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 0.0
+          title: Expected Revision
+        position_key:
+          type: string
+          pattern: ^fpos_[0-9a-f]{64}$
+          title: Position Key
+        authorize_one_no_retry_six_category_cycle:
+          type: boolean
+          const: true
+          title: Authorize One No Retry Six Category Cycle
+        acknowledge_cycle_is_goal_global_and_limited_to_ten:
+          type: boolean
+          const: true
+          title: Acknowledge Cycle Is Goal Global And Limited To Ten
+        acknowledge_unsuccessful_or_unknown_cycle_fails_closed:
+          type: boolean
+          const: true
+          title: Acknowledge Unsuccessful Or Unknown Cycle Fails Closed
+      additionalProperties: false
+      type: object
+      required:
+      - expected_revision
+      - position_key
+      - authorize_one_no_retry_six_category_cycle
+      - acknowledge_cycle_is_goal_global_and_limited_to_ten
+      - acknowledge_unsuccessful_or_unknown_cycle_fails_closed
+      title: OperatorFuturesPositionRefreshRequest
+    OperatorFuturesPositionSelectionReadback:
+      properties:
+        position_key:
+          type: string
+          pattern: ^fpos_[0-9a-f]{64}$
+          title: Position Key
+        product_id:
+          type: string
+          title: Product Id
+        position_side:
+          type: string
+          enum:
+          - LONG
+          - SHORT
+          title: Position Side
+        close_side:
+          type: string
+          enum:
+          - BUY
+          - SELL
+          title: Close Side
+        current_contracts:
+          type: string
+          title: Current Contracts
+        full_close_size:
+          type: string
+          title: Full Close Size
+        bounded_reduce_size:
+          type: string
+          title: Bounded Reduce Size
+        best_bid:
+          type: string
+          title: Best Bid
+        best_ask:
+          type: string
+          title: Best Ask
+      additionalProperties: false
+      type: object
+      required:
+      - position_key
+      - product_id
+      - position_side
+      - close_side
+      - current_contracts
+      - full_close_size
+      - bounded_reduce_size
+      - best_bid
+      - best_ask
+      title: OperatorFuturesPositionSelectionReadback
     OperatorHotpointControlRequest:
       properties:
         domain:

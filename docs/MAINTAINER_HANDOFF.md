@@ -1,6 +1,62 @@
 # Maintainer Handoff
 
-## Active independent Goal 10 — Futures manual order lifecycle
+## Completed independent Goal 11 — Futures position Close/Reduce
+
+Status: `complete_operator_workflow_cfm_access_blocked_allowances_unconsumed`.
+Current action:
+`complete_goal11_position_lifecycle_cfm_access_blocked_allowances_unconsumed`.
+Default action: `await_operator_direction_for_next_mvp`.
+
+Goal `operator_futures_position_close_reduce_and_reconciliation_v1` is the
+canonical selected-position workflow in `/futures`. PostgreSQL owns the
+goal-global ten-cycle eligibility ledger, exact opaque position binding,
+revision/idempotency, one mutually exclusive Close-or-Reduce claim, exact
+order and position reconciliation, conditional exact-order Cancel, restart
+recovery, fixed diagnostics, and audit readback.
+
+Command idempotency is payload-bound to selected position, expected revision,
+action mode, actor/roles, intent, and confirmations; conflicting reuse fails
+closed.
+
+The eligibility reader invokes only API-key permissions, Default portfolio
+catalog, Futures positions, product, best bid/ask, and the established
+margin/collateral snapshot once each. The backend derives LONG/SHORT close
+side and action size. Full Close calls the documented Close Position endpoint
+with size omitted; bounded Reduce supplies exact size `1` only when more than
+one contract exists. Coinbase's direct and nested position response shapes
+are accepted only after exact product/contract validation. Raw responses,
+private portfolio identity, raw exchange identifiers, and exception text are
+never persisted or exposed.
+
+Production CFM position rows can omit portfolio UUID. Their public
+`position_key` therefore uses the credential-scoped Default-profile namespace,
+while the configured Default portfolio UUID is separately verified and
+SHA-256-bound; any conflicting returned private identity fails closed. Close
+acceptance uses only the documented success flag and nonblank order ID, then
+exact-order reconciliation proves client identity, product, side, and status.
+
+The current installed credential/account fails the documented CFM positions
+category with
+`operator_futures_manual_futures_positions_http_forbidden`. Goal 11 therefore
+has no live-selected position and all Close/Reduce/reconciliation/Cancel
+allowances remain unconsumed. This external access blocker does not require
+additional Futures authorization.
+
+Closeout passed the canonical backend regression (`1,282 passed, 6 skipped`
+parallel-safe; `852 passed, 150 skipped` serial), the canonical frontend
+release gate (`1,712` unit tests plus the complete installed/browser suite),
+focused PostgreSQL and contract validation, independent safety audit, and blind
+contextless audit. No Coinbase call or exchange mutation ran.
+
+Historical comparison used `origin/prod:dashboard_server.py` and
+`origin/prod:external/coinbase_client.py` for refresh and close-side context.
+The current documented Close Position, Get Futures Position, and Cancel
+Orders endpoints and `coinbase-advanced-py==1.8.4` are the execution contract.
+Legacy WebSocket authority, generic commands, background execution, retry,
+fallback, and browser-side trading were not restored. See
+[Operator Futures Position Close/Reduce V1](OPERATOR_FUTURES_POSITION_CLOSE_REDUCE_V1.md).
+
+## Completed independent Goal 10 — Futures manual order lifecycle
 
 Goal `operator_futures_manual_order_lifecycle_v1` is the canonical Futures
 order workflow surfaced in the routed `/futures` workspace. PostgreSQL owns
@@ -19,8 +75,7 @@ conservative call-boundary entry, hashed Preview/exchange evidence,
 `client_order_id`, and audit correlation. Allowed actions are recomputed from
 backend RBAC and current posture. Accepted Create atomically claims exact
 reconciliation; accepted nonterminal reconciliation atomically claims
-conditional Cancel, closing both restart gaps without retry authority. Close
-and Reduce remain visibly unavailable for Goal 11.
+conditional Cancel, closing both restart gaps without retry authority.
 
 Historical comparison used `origin/prod:dashboard_server.py` and
 `origin/prod:external/coinbase_client.py` as behavior references only. The

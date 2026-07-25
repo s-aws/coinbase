@@ -1,6 +1,24 @@
 # Coinbase Trading Backend
 
-## Active independent Goal 10 — Futures manual order lifecycle
+## Completed independent Goal 11 — Futures position Close/Reduce
+
+Status: `complete_operator_workflow_cfm_access_blocked_allowances_unconsumed`.
+Current action:
+`complete_goal11_position_lifecycle_cfm_access_blocked_allowances_unconsumed`.
+Default action: `await_operator_direction_for_next_mvp`.
+
+`operator_futures_position_close_reduce_and_reconciliation_v1` adds an
+authenticated PostgreSQL-backed lifecycle for one selected Default-profile
+Futures position. The backend binds one opaque `position_key`, claims each of
+six approved eligibility categories at most once per cycle, derives the
+closing side and either omitted-size full Close or exact one-contract Reduce,
+and grants one mutually exclusive action claim. Exact order and position
+reconciliation and at most one exact nonterminal Cancel are part of the same
+durable coordinator. Restart recovery, call accounting, fixed diagnostics,
+hash-only exchange evidence, and audit readback are backend owned. See
+[the Goal 11 design](docs/OPERATOR_FUTURES_POSITION_CLOSE_REDUCE_V1.md).
+
+## Completed independent Goal 10 — Futures manual order lifecycle
 
 `operator_futures_manual_order_lifecycle_v1` adds an authenticated,
 PostgreSQL-backed Futures workspace for the exact credential-bound Default
@@ -12,7 +30,7 @@ and at most one exact nonterminal Cancel. Candidate freshness, single-use call
 claims, atomic Create-to-reconciliation and reconciliation-to-Cancel handoff,
 restart recovery, dedicated Futures execution posture, fixed diagnostics,
 conservative call-boundary accounting, and hash-only private identity readback
-are backend owned. Close/Reduce remain Goal 11 work. See
+are backend owned. See
 [the Goal 10 design](docs/OPERATOR_FUTURES_MANUAL_ORDER_LIFECYCLE_V1.md).
 
 ## Completed independent Goal 9 — Hotpoint control and single placement
