@@ -1046,6 +1046,17 @@ class OperatorFuturesOrderOperationsRepository:
                 result.outcome == "SUCCEEDED"
                 and action == "CANCEL_EXACT"
                 and matching is not None
+                and matching.order_type == "UNKNOWN_ORDER_TYPE"
+                and not matching.cancel_eligible
+            ):
+                outcome = "INELIGIBLE"
+                diagnostic = (
+                    "operator_futures_order_exact_order_type_unknown"
+                )
+            elif (
+                result.outcome == "SUCCEEDED"
+                and action == "CANCEL_EXACT"
+                and matching is not None
                 and not matching.cancel_eligible
             ):
                 outcome = "INELIGIBLE"

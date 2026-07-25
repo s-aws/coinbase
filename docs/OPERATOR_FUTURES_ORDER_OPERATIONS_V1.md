@@ -39,6 +39,14 @@ retained. This lets a later bounded cycle distinguish a documented
 compatibility change from a malformed response without inspecting, persisting,
 or reconstructing raw Coinbase evidence.
 
+If Coinbase returns a nonempty order type outside the currently documented
+enum, the backend stores only the documented `UNKNOWN_ORDER_TYPE` fallback and
+marks that exact projection non-cancelable. The undocumented value is neither
+persisted nor displayed. A Cancel cycle that encounters this degraded
+projection terminates locally as
+`operator_futures_order_exact_order_type_unknown` with the Cancel allowance
+unclaimed.
+
 [Cancel Orders](https://docs.cdp.coinbase.com/api-reference/advanced-trade-api/rest-api/orders/cancel-order)
 accepts exchange `order_ids` and returns one result with `success`,
 `failure_reason`, and `order_id`. The UI therefore never supplies a Coinbase

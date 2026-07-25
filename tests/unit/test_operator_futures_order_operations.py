@@ -299,6 +299,28 @@ def test_catalog_reader_reports_fixed_status_boundary_without_raw_value():
     assert private_status not in repr(result)
 
 
+def test_catalog_reader_degrades_undocumented_order_type_non_actionable():
+    rest = _RestClient()
+    private_order_type = "PRIVATE_UNDOCUMENTED_ORDER_TYPE"
+    rest.pages[None]["orders"][0]["order_type"] = private_order_type
+
+    result = FuturesOrderCatalogReader(rest_client=rest).run(
+        before_category=lambda _category: None,
+        before_page=lambda _ordinal, _cursor_hash: None,
+    )
+
+    assert result.outcome == "SUCCEEDED"
+    degraded = next(
+        order
+        for order in result.orders
+        if order.client_order_id == CLIENT_ORDER_ID
+    )
+    assert degraded.order_type == "UNKNOWN_ORDER_TYPE"
+    assert degraded.authoritatively_nonterminal is True
+    assert degraded.cancel_eligible is False
+    assert private_order_type not in repr(result)
+
+
 def test_catalog_reader_reports_fixed_pagination_cursor_boundary():
     rest = _RestClient()
     rest.pages[None]["cursor"] = ""

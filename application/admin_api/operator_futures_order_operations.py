@@ -298,7 +298,15 @@ def _normalize_order(value: Any) -> tuple[FuturesOrderObservation, str]:
     product_id = _text(order.get("product_id"))
     side = _text(order.get("side")).upper()
     status = _text(order.get("status")).upper()
-    order_type = _text(order.get("order_type")).upper() or "UNKNOWN_ORDER_TYPE"
+    raw_order_type = _text(order.get("order_type")).upper()
+    undocumented_order_type = bool(
+        raw_order_type and raw_order_type not in FUTURES_ORDER_TYPES
+    )
+    order_type = (
+        "UNKNOWN_ORDER_TYPE"
+        if undocumented_order_type
+        else raw_order_type or "UNKNOWN_ORDER_TYPE"
+    )
     time_in_force = (
         _text(order.get("time_in_force")).upper() or "UNKNOWN_TIME_IN_FORCE"
     )
@@ -316,8 +324,6 @@ def _normalize_order(value: Any) -> tuple[FuturesOrderObservation, str]:
         raise _catalog_schema_error("side_invalid")
     if status not in FUTURES_ORDER_STATUSES:
         raise _catalog_schema_error("status_invalid")
-    if order_type not in FUTURES_ORDER_TYPES:
-        raise _catalog_schema_error("order_type_invalid")
     if time_in_force not in FUTURES_TIME_IN_FORCES:
         raise _catalog_schema_error("time_in_force_invalid")
     size, limit_price = _order_configuration_values(order)
@@ -347,7 +353,9 @@ def _normalize_order(value: Any) -> tuple[FuturesOrderObservation, str]:
             authoritatively_nonterminal=(
                 status in FUTURES_ORDER_NONTERMINAL_STATUSES
             ),
-            cancel_eligible=(status == "OPEN"),
+            cancel_eligible=(
+                status == "OPEN" and not undocumented_order_type
+            ),
         ),
         exchange_order_id,
     )

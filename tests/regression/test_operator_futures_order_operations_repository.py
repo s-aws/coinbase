@@ -248,6 +248,33 @@ def test_unknown_order_status_is_durable_and_cancel_fails_unknown(repository):
     assert detail["cancel_eligible"] is False
 
 
+def test_unknown_order_type_is_durable_and_cancel_stays_unclaimed(repository):
+    catalog = _result()
+    degraded_observation = replace(
+        catalog.orders[0],
+        order_type="UNKNOWN_ORDER_TYPE",
+        cancel_eligible=False,
+    )
+
+    completed = _complete_cycle(
+        repository,
+        action="CANCEL_EXACT",
+        result=replace(catalog, orders=(degraded_observation,)),
+    )
+
+    assert completed.last_outcome == "INELIGIBLE"
+    assert completed.diagnostic_code == (
+        "operator_futures_order_exact_order_type_unknown"
+    )
+    assert completed.cancel_outcome == "NOT_RUN"
+    assert completed.cancel_exchange_invoked is None
+    detail = repository.get_order(CLIENT_ORDER_ID)
+    assert detail is not None
+    assert detail["status"] == "OPEN"
+    assert detail["order_type"] == "UNKNOWN_ORDER_TYPE"
+    assert detail["cancel_eligible"] is False
+
+
 def test_schema_upgrade_adds_cancel_eligibility_to_existing_projection(repository):
     with repository._cursor() as cursor:
         cursor.execute(
