@@ -52,6 +52,9 @@ OPERATOR_MVP_HOTPOINT_SINGLE_CHILD_SAFE_CLOSEOUT_ROUTE = (
 OPERATOR_MVP_FUTURES_MANUAL_LIFECYCLE_EXECUTE_ROUTE = (
     "/api/v1/futures/manual-lifecycle/execute"
 )
+OPERATOR_MVP_FUTURES_PRODUCT_TICKET_EXECUTE_ROUTE = (
+    "/api/v1/futures/product-ticket/execute"
+)
 OPERATOR_MVP_FUTURES_POSITION_LIFECYCLE_EXECUTE_ROUTE = (
     "/api/v1/futures/position-lifecycle/execute"
 )
@@ -95,6 +98,10 @@ OPERATOR_MVP_SUPPORTED_LIVE_ROUTES = frozenset(
         (
             "POST",
             OPERATOR_MVP_FUTURES_MANUAL_LIFECYCLE_EXECUTE_ROUTE,
+        ),
+        (
+            "POST",
+            OPERATOR_MVP_FUTURES_PRODUCT_TICKET_EXECUTE_ROUTE,
         ),
         (
             "POST",

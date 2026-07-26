@@ -23,6 +23,9 @@ from application.admin_api.operator_futures_manual_lifecycle import (
     classify_futures_manual_candidate_freshness,
     is_futures_manual_goal_terminal,
 )
+from application.admin_api.operator_futures_product_ticket import (
+    FUTURES_PRODUCT_TICKET_GOAL_ID,
+)
 from core.enums import (
     AdminFuturesManualCallOutcome,
     AdminFuturesManualEligibilityOutcome,
@@ -67,6 +70,34 @@ def _canonical_sha256(value: Mapping[str, Any]) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def _command_confirmations(
+    context: FuturesManualRequestContext,
+) -> dict[str, bool]:
+    return {
+        "authorize_one_no_retry_six_category_cycle": (
+            context.authorize_one_no_retry_six_category_cycle
+        ),
+        "acknowledge_cycle_is_goal_global_and_limited_to_ten": (
+            context.acknowledge_cycle_is_goal_global_and_limited_to_ten
+        ),
+        "acknowledge_unsuccessful_or_unknown_cycle_fails_closed": (
+            context.acknowledge_unsuccessful_or_unknown_cycle_fails_closed
+        ),
+        "authorize_preview_create_and_safe_closeout": (
+            context.authorize_preview_create_and_safe_closeout
+        ),
+        "acknowledge_unknown_outcome_consumes_allowance": (
+            context.acknowledge_unknown_outcome_consumes_allowance
+        ),
+        "acknowledge_create_requires_accepted_identical_preview": (
+            context.acknowledge_create_requires_accepted_identical_preview
+        ),
+        "acknowledge_cancel_is_only_for_exact_nonterminal_child": (
+            context.acknowledge_cancel_is_only_for_exact_nonterminal_child
+        ),
+    }
+
+
 def _row(cursor: Any) -> dict[str, Any] | None:
     value = cursor.fetchone()
     if value is None:
@@ -98,6 +129,14 @@ def _iso(value: Any) -> str | None:
     return normalized or None
 
 
+def _json_result_default(value: Any) -> str:
+    if isinstance(value, datetime):
+        normalized = _iso(value)
+        if normalized is not None:
+            return normalized
+    return str(value)
+
+
 def _exact_sha256(value: Any, *, code: str) -> str:
     normalized = str(value or "").strip().lower()
     if not _SHA256_RE.fullmatch(normalized):
@@ -116,6 +155,13 @@ class OperatorFuturesManualLifecycleRepository:
         schema: str = "public",
         clock: Callable[[], datetime] | None = None,
         goal_id: str = FUTURES_MANUAL_GOAL_ID,
+        eligibility_evidence_validator: (
+            Callable[[FuturesManualEligibilityResult], None] | None
+        ) = None,
+        claim_validator: (
+            Callable[..., None] | None
+        ) = None,
+        client_order_id_prefix: str = "operator-futures-manual-",
     ) -> None:
         if not _SCHEMA_RE.fullmatch(str(schema)):
             raise ValueError("operator_futures_manual_schema_invalid")
@@ -124,9 +170,28 @@ class OperatorFuturesManualLifecycleRepository:
         if goal_id not in {
             FUTURES_MANUAL_GOAL_ID,
             FUTURES_MANUAL_ACTIVE_GOAL_ID,
+            FUTURES_PRODUCT_TICKET_GOAL_ID,
         }:
             raise ValueError("operator_futures_manual_goal_id_invalid")
+        if (
+            not isinstance(client_order_id_prefix, str)
+            or not client_order_id_prefix.endswith("-")
+            or not 1 <= len(client_order_id_prefix) <= 80
+            or re.fullmatch(
+                r"[a-z0-9-]+",
+                client_order_id_prefix,
+            )
+            is None
+        ):
+            raise ValueError(
+                "operator_futures_manual_client_order_prefix_invalid"
+            )
         self.goal_id = goal_id
+        self.eligibility_evidence_validator = (
+            eligibility_evidence_validator
+        )
+        self.claim_validator = claim_validator
+        self.client_order_id_prefix = client_order_id_prefix
         self.configured_portfolio_id_sha256 = (
             _sha256_text(str(uuid.UUID(str(configured_portfolio_id))))
             if configured_portfolio_id
@@ -310,6 +375,38 @@ class OperatorFuturesManualLifecycleRepository:
                 )
                 cursor.execute(
                     f"""
+                    ALTER TABLE
+                        {self._table('operator_futures_manual_command')}
+                    ADD COLUMN IF NOT EXISTS request_sha256 CHAR(64)
+                    """
+                )
+                cursor.execute(
+                    f"""
+                    CREATE TABLE IF NOT EXISTS
+                        {self._table(
+                            'operator_futures_manual_command_result'
+                        )} (
+                        command_id UUID PRIMARY KEY,
+                        goal_id VARCHAR(128) NOT NULL,
+                        action VARCHAR(16) NOT NULL
+                            CHECK (action IN ('REFRESH', 'EXECUTE')),
+                        result_revision INTEGER NOT NULL,
+                        result_json JSONB NOT NULL,
+                        recorded_at TIMESTAMPTZ NOT NULL
+                            DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (command_id) REFERENCES
+                            {self._table(
+                                'operator_futures_manual_command'
+                            )}(command_id),
+                        FOREIGN KEY (goal_id) REFERENCES
+                            {self._table(
+                                'operator_futures_manual_goal'
+                            )}(goal_id)
+                    )
+                    """
+                )
+                cursor.execute(
+                    f"""
                     CREATE OR REPLACE FUNCTION
                         {self._table('guard_operator_futures_manual_append_only')}()
                     RETURNS trigger
@@ -332,6 +429,10 @@ class OperatorFuturesManualLifecycleRepository:
                     (
                         "operator_futures_manual_command",
                         "operator_futures_manual_command_append_only",
+                    ),
+                    (
+                        "operator_futures_manual_command_result",
+                        "operator_futures_manual_command_result_append_only",
                     ),
                 ):
                     cursor.execute(
@@ -618,26 +719,148 @@ class OperatorFuturesManualLifecycleRepository:
         *,
         action: str,
         context: FuturesManualRequestContext,
-    ) -> bool:
+        current_row: Mapping[str, Any],
+    ) -> dict[str, Any] | None:
         key_hash = _sha256_text(
+            f"{self.goal_id}:{context.idempotency_key}"
+        )
+        legacy_key_hash = _sha256_text(
+            f"{action}:{context.idempotency_key}"
+        )
+        request_hash = self._request_sha256(
+            action=action,
+            context=context,
+        )
+        cursor.execute(
+            f"""
+            SELECT command_id, action, request_sha256 FROM
+                {self._table('operator_futures_manual_command')}
+            WHERE goal_id = %s
+              AND idempotency_key_sha256 IN (%s, %s)
+            ORDER BY
+                CASE WHEN idempotency_key_sha256 = %s THEN 0 ELSE 1 END
+            LIMIT 1
+            """,
+            (
+                self.goal_id,
+                key_hash,
+                legacy_key_hash,
+                key_hash,
+            ),
+        )
+        existing = _row(cursor)
+        if existing is None:
+            return None
+        if (
+            existing.get("action") != action
+            or existing.get("request_sha256") != request_hash
+        ):
+            raise FuturesManualLifecycleError(
+                "operator_futures_manual_idempotency_conflict"
+            )
+        cursor.execute(
+            f"""
+            SELECT result_json
+            FROM {self._table(
+                'operator_futures_manual_command_result'
+            )}
+            WHERE command_id = %s
+            """,
+            (existing["command_id"],),
+        )
+        completed = _row(cursor)
+        if completed is not None:
+            return _json_object(completed["result_json"])
+        return dict(current_row)
+
+    def _request_sha256(
+        self,
+        *,
+        action: str,
+        context: FuturesManualRequestContext,
+    ) -> str:
+        return _canonical_sha256(
+            {
+                "goal_id": self.goal_id,
+                "action": action,
+                "actor_id": context.actor_id,
+                "roles": sorted(context.roles),
+                "expected_revision": context.expected_revision,
+                "operator_intent": context.operator_intent,
+                "confirmations": _command_confirmations(context),
+                "correlation_id": context.correlation_id,
+            }
+        )
+
+    def _insert_command_result(
+        self,
+        cursor: Any,
+        *,
+        action: str,
+        context: FuturesManualRequestContext,
+        result_row: Mapping[str, Any],
+    ) -> None:
+        key_hash = _sha256_text(
+            f"{self.goal_id}:{context.idempotency_key}"
+        )
+        legacy_key_hash = _sha256_text(
             f"{action}:{context.idempotency_key}"
         )
         cursor.execute(
             f"""
-            SELECT action FROM
-                {self._table('operator_futures_manual_command')}
-            WHERE idempotency_key_sha256 = %s
+            SELECT command_id, request_sha256
+            FROM {self._table('operator_futures_manual_command')}
+            WHERE goal_id = %s
+              AND action = %s
+              AND idempotency_key_sha256 IN (%s, %s)
+            ORDER BY
+                CASE WHEN idempotency_key_sha256 = %s THEN 0 ELSE 1 END
+            LIMIT 1
             """,
-            (key_hash,),
+            (
+                self.goal_id,
+                action,
+                key_hash,
+                legacy_key_hash,
+                key_hash,
+            ),
         )
-        existing = _row(cursor)
-        if existing is None:
-            return False
-        if existing.get("action") != action:
+        command = _row(cursor)
+        if (
+            command is None
+            or command.get("request_sha256")
+            != self._request_sha256(action=action, context=context)
+        ):
             raise FuturesManualLifecycleError(
                 "operator_futures_manual_idempotency_conflict"
             )
-        return True
+        cursor.execute(
+            f"""
+            INSERT INTO
+                {self._table(
+                    'operator_futures_manual_command_result'
+                )} (
+                    command_id,
+                    goal_id,
+                    action,
+                    result_revision,
+                    result_json
+                )
+            VALUES (%s, %s, %s, %s, %s::jsonb)
+            ON CONFLICT (command_id) DO NOTHING
+            """,
+            (
+                command["command_id"],
+                self.goal_id,
+                action,
+                int(result_row["revision"]),
+                json.dumps(
+                    dict(result_row),
+                    sort_keys=True,
+                    default=_json_result_default,
+                ),
+            ),
+        )
 
     def _insert_command(
         self,
@@ -659,11 +882,12 @@ class OperatorFuturesManualLifecycleRepository:
                 actor_id,
                 roles_json,
                 confirmations_json,
+                request_sha256,
                 correlation_id,
                 audit_id
             ) VALUES (
                 %s, %s, %s, %s, %s, %s, %s, %s::jsonb,
-                %s::jsonb, %s, %s
+                %s::jsonb, %s, %s, %s
             )
             """,
             (
@@ -672,41 +896,18 @@ class OperatorFuturesManualLifecycleRepository:
                 action,
                 context.expected_revision,
                 result_revision,
-                _sha256_text(f"{action}:{context.idempotency_key}"),
+                _sha256_text(
+                    f"{self.goal_id}:{context.idempotency_key}"
+                ),
                 context.actor_id,
                 json.dumps(list(context.roles)),
                 json.dumps(
-                    {
-                        "authorize_one_no_retry_six_category_cycle": (
-                            context
-                            .authorize_one_no_retry_six_category_cycle
-                        ),
-                        "acknowledge_cycle_is_goal_global_and_limited_to_ten": (
-                            context
-                            .acknowledge_cycle_is_goal_global_and_limited_to_ten
-                        ),
-                        "acknowledge_unsuccessful_or_unknown_cycle_fails_closed": (
-                            context
-                            .acknowledge_unsuccessful_or_unknown_cycle_fails_closed
-                        ),
-                        "authorize_preview_create_and_safe_closeout": (
-                            context
-                            .authorize_preview_create_and_safe_closeout
-                        ),
-                        "acknowledge_unknown_outcome_consumes_allowance": (
-                            context
-                            .acknowledge_unknown_outcome_consumes_allowance
-                        ),
-                        "acknowledge_create_requires_accepted_identical_preview": (
-                            context
-                            .acknowledge_create_requires_accepted_identical_preview
-                        ),
-                        "acknowledge_cancel_is_only_for_exact_nonterminal_child": (
-                            context
-                            .acknowledge_cancel_is_only_for_exact_nonterminal_child
-                        ),
-                    },
+                    _command_confirmations(context),
                     sort_keys=True,
+                ),
+                self._request_sha256(
+                    action=action,
+                    context=context,
                 ),
                 context.correlation_id,
                 context.audit_id,
@@ -723,8 +924,14 @@ class OperatorFuturesManualLifecycleRepository:
         with self._cursor() as cursor:
             self._lock(cursor)
             row = self._select(cursor, for_update=True)
-            if self._replayed(cursor, action="REFRESH", context=context):
-                return self._record(row), None
+            replay = self._replayed(
+                cursor,
+                action="REFRESH",
+                context=context,
+                current_row=row,
+            )
+            if replay is not None:
+                return self._record(replay), None
             if int(row["revision"]) != context.expected_revision:
                 raise FuturesManualLifecycleError(
                     "operator_futures_manual_revision_conflict"
@@ -893,8 +1100,6 @@ class OperatorFuturesManualLifecycleRepository:
                 result.outcome
                 is AdminFuturesManualEligibilityOutcome.ELIGIBLE
             ):
-                public_caps = result.public_evidence.get("caps")
-                public_candidate = result.public_evidence.get("candidate")
                 stored_bound_hash = (
                     str(row["bound_portfolio_id_sha256"])
                     if row.get("bound_portfolio_id_sha256")
@@ -926,27 +1131,51 @@ class OperatorFuturesManualLifecycleRepository:
                     is not True
                     or result.public_evidence.get("credential_can_trade")
                     is not True
-                    or result.public_evidence.get("selection_authority")
-                    != "cdp_api_key_permissioned_portfolio"
-                    or result.public_evidence.get("product_id")
-                    != "AVP-20DEC30-CDE"
-                    or result.public_evidence.get("contract_count") != "1"
-                    or public_caps
-                    != {
-                        "opening_usdc": "100",
-                        "exposure_usdc": "150",
-                        "turnover_usdc": "300",
-                        "comparison": "strictly_less_than",
-                    }
-                    or result.public_evidence.get("exact_v3_eligible")
-                    is not True
-                    or result.public_evidence.get("diagnostic_code")
-                    != "operator_futures_manual_exact_v3_eligible"
-                    or public_candidate != result.candidate
                 ):
                     raise FuturesManualLifecycleError(
                         "operator_futures_manual_eligible_evidence_invalid"
                     )
+                if self.eligibility_evidence_validator is None:
+                    public_caps = result.public_evidence.get("caps")
+                    public_candidate = result.public_evidence.get(
+                        "candidate"
+                    )
+                    if (
+                        result.public_evidence.get(
+                            "selection_authority"
+                        )
+                        != "cdp_api_key_permissioned_portfolio"
+                        or result.public_evidence.get("product_id")
+                        != "AVP-20DEC30-CDE"
+                        or result.public_evidence.get("contract_count")
+                        != "1"
+                        or public_caps
+                        != {
+                            "opening_usdc": "100",
+                            "exposure_usdc": "150",
+                            "turnover_usdc": "300",
+                            "comparison": "strictly_less_than",
+                        }
+                        or result.public_evidence.get(
+                            "exact_v3_eligible"
+                        )
+                        is not True
+                        or result.public_evidence.get(
+                            "diagnostic_code"
+                        )
+                        != "operator_futures_manual_exact_v3_eligible"
+                        or public_candidate != result.candidate
+                    ):
+                        raise FuturesManualLifecycleError(
+                            "operator_futures_manual_eligible_evidence_invalid"
+                        )
+                else:
+                    try:
+                        self.eligibility_evidence_validator(result)
+                    except Exception:
+                        raise FuturesManualLifecycleError(
+                            "operator_futures_manual_eligible_evidence_invalid"
+                        ) from None
                 candidate_json = {
                     str(key): str(item)
                     for key, item in result.candidate.items()
@@ -992,9 +1221,14 @@ class OperatorFuturesManualLifecycleRepository:
                     self.goal_id,
                 ),
             )
-            return self._record(
-                self._select(cursor, for_update=False)
+            completed = self._select(cursor, for_update=False)
+            self._insert_command_result(
+                cursor,
+                action="REFRESH",
+                context=context,
+                result_row=completed,
             )
+            return self._record(completed)
 
     def claim_preview(
         self,
@@ -1006,8 +1240,14 @@ class OperatorFuturesManualLifecycleRepository:
         with self._cursor() as cursor:
             self._lock(cursor)
             row = self._select(cursor, for_update=True)
-            if self._replayed(cursor, action="EXECUTE", context=context):
-                return self._record(row), None
+            replay = self._replayed(
+                cursor,
+                action="EXECUTE",
+                context=context,
+                current_row=row,
+            )
+            if replay is not None:
+                return self._record(replay), None
             if int(row["revision"]) != context.expected_revision:
                 raise FuturesManualLifecycleError(
                     "operator_futures_manual_revision_conflict"
@@ -1040,10 +1280,20 @@ class OperatorFuturesManualLifecycleRepository:
                 raise FuturesManualLifecycleError(
                     "operator_futures_manual_candidate_binding_invalid"
                 )
+            if self.claim_validator is not None:
+                try:
+                    self.claim_validator(
+                        cursor=cursor,
+                        candidate=candidate,
+                    )
+                except Exception:
+                    raise FuturesManualLifecycleError(
+                        "operator_futures_manual_candidate_binding_invalid"
+                    ) from None
             self._require_fresh_candidate(candidate)
             claim_id = str(uuid.uuid4())
             client_order_id = (
-                "operator-futures-manual-" + str(uuid.uuid4())
+                self.client_order_id_prefix + str(uuid.uuid4())
             )
             revision = int(row["revision"]) + 1
             cursor.execute(

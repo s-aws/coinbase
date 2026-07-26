@@ -1,5 +1,33 @@
 # Coinbase Trading Backend
 
+## Operator Futures product policy and selected ticket
+
+Goal `operator_futures_product_policy_and_ticket_expansion_v1` adds an
+independent Default-profile CFM workflow for configured
+`AVP-20DEC30-CDE` and `BIP-20DEC30-CDE` products. PostgreSQL owns immutable
+approve/enable/disable/retire/select policy revisions and atomically
+invalidates an unconsumed candidate whenever policy changes.
+
+The backend derives exact product increments, contract size, one-contract
+terms, current documented margin rates, required margin, and strict
+`<100 / <150 / <300 USDC` evidence from one no-retry six-category cycle.
+Only a fresh policy-bound candidate may enter the single-use
+Preview/identical-Create/reconciliation/conditional-exact-Cancel sequence.
+The browser supplies no portfolio, price, size, margin, cap, or exchange
+identity.
+
+Current official Coinbase product, Preview, and Futures margin schemas were
+checked after the July 2026 maintenance window; post-maintenance
+Default-profile reads showed no established breaking change. The validator
+continues to fail closed on any documented-field or response-shape drift.
+See [the Goal 3 design](docs/OPERATOR_FUTURES_PRODUCT_POLICY_AND_TICKET_V1.md).
+
+The installed proof stopped after four no-retry cycles with the fixed
+`margin_window_documented_but_v3_ineligible` classification. The returned
+margin-window shape and state were documented, but the exact operator-defined
+V3 profile/state pair was not present. Six cycles and all
+Preview/Create/reconciliation/Cancel allowances remain unused.
+
 ## Completed Futures order inventory and exact operations
 
 `operator_futures_order_inventory_detail_cancel_reconcile_v1` adds a

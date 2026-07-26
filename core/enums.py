@@ -462,6 +462,7 @@ class AdminApiMutationFamilyType(str, Enum):
     )
     MOVEMENT_REPRICE = "movement_reprice"
     FUTURES_MANUAL_LIFECYCLE = "futures_manual_lifecycle"
+    FUTURES_PRODUCT_TICKET = "futures_product_ticket"
     FUTURES_POSITION_LIFECYCLE = "futures_position_lifecycle"
     FUTURES_ORDER_OPERATIONS = "futures_order_operations"
     FUTURES_CONTRACT_REQUIRED = "futures_contract_required"

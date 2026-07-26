@@ -95,6 +95,31 @@ from application.admin_api.operator_futures_manual_service_runtime import (
     get_default_operator_futures_manual_lifecycle_service,
     get_operator_futures_manual_execution_posture,
 )
+from application.admin_api.operator_futures_product_policy import (
+    OperatorFuturesProductPolicyError,
+)
+from application.admin_api.operator_futures_product_ticket import (
+    FUTURES_PRODUCT_TICKET_CONFIGURED_PRODUCTS,
+    FUTURES_PRODUCT_TICKET_ELIGIBILITY_CATEGORIES,
+)
+from application.admin_api.operator_futures_product_ticket_models import (
+    OperatorFuturesProductPolicyItemReadback,
+    OperatorFuturesProductPolicyRequest,
+    OperatorFuturesProductTicketCandidateReadback,
+    OperatorFuturesProductTicketExecuteRequest,
+    OperatorFuturesProductTicketMutationResponse,
+    OperatorFuturesProductTicketReadback,
+    OperatorFuturesProductTicketRefreshRequest,
+)
+from application.admin_api.operator_futures_product_ticket_service import (
+    FuturesProductTicketState,
+    OperatorFuturesProductTicketService,
+)
+from application.admin_api.operator_futures_product_ticket_service_runtime import (
+    OPERATOR_FUTURES_PRODUCT_TICKET_ENABLED_ENV,
+    get_default_operator_futures_product_ticket_service,
+    get_operator_futures_product_ticket_execution_posture,
+)
 from application.admin_api.operator_futures_order_operations_models import (
     OperatorFuturesOrderCancelRequest,
     OperatorFuturesOrderDetailResponse,
@@ -213,6 +238,19 @@ FUTURES_MANUAL_ROUTE_RESPONSES = {
 }
 
 
+def require_operator_futures_product_ticket_enabled() -> None:
+    if (
+        os.environ.get(
+            OPERATOR_FUTURES_PRODUCT_TICKET_ENABLED_ENV
+        )
+        != "1"
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="operator_futures_product_ticket_disabled",
+        )
+
+
 def require_operator_futures_manual_enabled() -> None:
     if os.environ.get(OPERATOR_FUTURES_MANUAL_ENABLED_ENV) != "1":
         raise HTTPException(
@@ -261,6 +299,17 @@ def get_operator_futures_manual_lifecycle_service(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="operator_futures_manual_backend_unavailable",
+        ) from None
+
+
+def get_operator_futures_product_ticket_service(
+) -> OperatorFuturesProductTicketService:
+    try:
+        return get_default_operator_futures_product_ticket_service()
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="operator_futures_product_ticket_backend_unavailable",
         ) from None
 
 
@@ -466,6 +515,283 @@ def _require_futures_manual_live_runtime() -> None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="operator_futures_manual_live_runtime_unavailable",
+        )
+
+
+_PRODUCT_POLICY_ACTION_READBACK = {
+    "APPROVE": "APPROVE_PRODUCT",
+    "ENABLE": "ENABLE_PRODUCT",
+    "DISABLE": "DISABLE_PRODUCT",
+    "RETIRE": "RETIRE_PRODUCT",
+    "SELECT": "SELECT_PRODUCT",
+}
+
+
+def _futures_product_ticket_readback(
+    state: FuturesProductTicketState,
+    *,
+    actor: AdminApiActor,
+) -> OperatorFuturesProductTicketReadback:
+    policy = state.policy
+    record = state.lifecycle
+    posture = get_operator_futures_product_ticket_execution_posture()
+    can_configure = actor_has_permission(
+        actor,
+        AdminApiPermission.CONFIG_UPDATE,
+    )
+    can_refresh = actor_has_permission(
+        actor,
+        AdminApiPermission.ORDER_CREATE,
+    )
+    can_execute = (
+        can_refresh
+        and actor_has_permission(actor, AdminApiPermission.ORDER_CANCEL)
+    )
+    policy_goal_terminal = record.preview_outcome.value != "NOT_RUN"
+    freshness = classify_futures_manual_candidate_freshness(
+        record.candidate,
+        now=datetime.now(timezone.utc),
+    )
+    candidate_fresh = (
+        freshness == "operator_futures_manual_candidate_fresh"
+    )
+    allowed_actions: list[
+        Literal[
+            "APPROVE_PRODUCT",
+            "ENABLE_PRODUCT",
+            "DISABLE_PRODUCT",
+            "RETIRE_PRODUCT",
+            "SELECT_PRODUCT",
+            "REFRESH_ELIGIBILITY",
+            "EXECUTE_PREVIEW_GATED_PROOF",
+        ]
+    ] = []
+    policy_actions_available: set[str] = set()
+    products = []
+    for item in policy.products:
+        item_actions = (
+            list(item.allowed_actions)
+            if can_configure and not policy_goal_terminal
+            else []
+        )
+        products.append(
+            OperatorFuturesProductPolicyItemReadback(
+                product_id=item.product_id,
+                lifecycle=item.lifecycle,
+                selected=(
+                    item.product_id == policy.selected_product_id
+                ),
+                allowed_actions=item_actions,
+            )
+        )
+        if can_configure:
+            for action in item_actions:
+                policy_actions_available.add(
+                    _PRODUCT_POLICY_ACTION_READBACK[action]
+                )
+    for policy_action in (
+        "APPROVE_PRODUCT",
+        "ENABLE_PRODUCT",
+        "DISABLE_PRODUCT",
+        "RETIRE_PRODUCT",
+        "SELECT_PRODUCT",
+    ):
+        if policy_action in policy_actions_available:
+            allowed_actions.append(policy_action)
+    if (
+        record.active_cycle_number is None
+        and record.preview_outcome.value == "NOT_RUN"
+    ):
+        if (
+            record.cycles_used < 10
+            and can_refresh
+            and policy.selection is not None
+        ):
+            allowed_actions.append("REFRESH_ELIGIBILITY")
+        if (
+            record.eligibility_outcome is not None
+            and record.eligibility_outcome.value == "ELIGIBLE"
+            and candidate_fresh
+            and posture.ready
+            and can_execute
+        ):
+            allowed_actions.append("EXECUTE_PREVIEW_GATED_PROOF")
+    candidate = (
+        OperatorFuturesProductTicketCandidateReadback.model_validate(
+            {
+                field_name: record.candidate[field_name]
+                for field_name in (
+                    OperatorFuturesProductTicketCandidateReadback.model_fields
+                )
+            }
+        )
+        if record.candidate is not None
+        else None
+    )
+    return OperatorFuturesProductTicketReadback(
+        goal_id=record.goal_id,
+        environment=os.environ.get(
+            "COINBASE_ADMIN_API_ENVIRONMENT",
+            "local",
+        ),
+        configured_product_scope=list(
+            FUTURES_PRODUCT_TICKET_CONFIGURED_PRODUCTS
+        ),
+        policy_revision=policy.revision,
+        policy_snapshot_sha256=policy.snapshot_sha256,
+        products=products,
+        selected_product_id=policy.selected_product_id,
+        selected_policy_revision=(
+            policy.selection.policy_revision
+            if policy.selection is not None
+            else None
+        ),
+        selected_policy_sha256=(
+            policy.selection.policy_sha256
+            if policy.selection is not None
+            else None
+        ),
+        ticket_revision=record.revision,
+        cycles_used=record.cycles_used,
+        cycles_remaining=max(0, 10 - record.cycles_used),
+        active_cycle_number=record.active_cycle_number,
+        eligibility_outcome=record.eligibility_outcome,
+        eligibility_diagnostic_code=(
+            record.eligibility_diagnostic_code.replace(
+                "operator_futures_manual",
+                "operator_futures_product_ticket",
+            )
+        ),
+        category_attempts={
+            category: int(record.category_attempts.get(category, 0))
+            for category in FUTURES_PRODUCT_TICKET_ELIGIBILITY_CATEGORIES
+        },
+        candidate=candidate,
+        candidate_fresh_for_execution=candidate_fresh,
+        candidate_freshness_diagnostic_code=(
+            freshness.replace(
+                "operator_futures_manual",
+                "operator_futures_product_ticket",
+            )
+        ),
+        candidate_sha256=record.candidate_sha256,
+        portfolio_id_sha256=record.portfolio_id_sha256,
+        eligibility_evidence_sha256=(
+            record.eligibility_evidence_sha256
+        ),
+        execution_posture_ready=posture.ready,
+        execution_posture_diagnostic_code=posture.diagnostic_code,
+        client_order_id=record.client_order_id,
+        preview=OperatorFuturesManualCallReadback(
+            outcome=record.preview_outcome,
+            call_boundary_entered=record.preview_exchange_invoked,
+        ),
+        preview_id_sha256=record.preview_id_sha256,
+        create=OperatorFuturesManualCallReadback(
+            outcome=record.create_outcome,
+            call_boundary_entered=record.create_exchange_invoked,
+        ),
+        exchange_order_id_sha256=record.exchange_order_id_sha256,
+        reconciliation=OperatorFuturesManualCallReadback(
+            outcome=record.reconciliation_outcome,
+            call_boundary_entered=(
+                record.reconciliation_exchange_invoked
+            ),
+        ),
+        order_status=record.order_status,
+        authoritatively_nonterminal=record.authoritatively_nonterminal,
+        cancel=OperatorFuturesManualCallReadback(
+            outcome=record.cancel_outcome,
+            call_boundary_entered=record.cancel_exchange_invoked,
+        ),
+        diagnostic_code=record.diagnostic_code.replace(
+            "operator_futures_manual",
+            "operator_futures_product_ticket",
+        ),
+        allowed_actions=allowed_actions,
+        correlation_id=record.correlation_id,
+        audit_id=record.audit_id,
+        updated_at=record.updated_at or policy.updated_at,
+    )
+
+
+def _futures_product_ticket_context(
+    *,
+    actor: AdminApiActor,
+    body: (
+        OperatorFuturesProductTicketRefreshRequest
+        | OperatorFuturesProductTicketExecuteRequest
+    ),
+    idempotency_key: str,
+    correlation_id: str,
+    operator_intent: str,
+) -> FuturesManualRequestContext:
+    refresh = (
+        body
+        if isinstance(body, OperatorFuturesProductTicketRefreshRequest)
+        else None
+    )
+    execute = (
+        body
+        if isinstance(body, OperatorFuturesProductTicketExecuteRequest)
+        else None
+    )
+    return FuturesManualRequestContext(
+        actor_id=actor.actor_id,
+        roles=tuple(role.value for role in actor.roles),
+        expected_revision=body.expected_ticket_revision,
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        audit_id=str(uuid4()),
+        operator_intent=operator_intent,
+        authorize_one_no_retry_six_category_cycle=(
+            refresh is not None
+            and refresh.authorize_one_no_retry_six_category_cycle
+        ),
+        acknowledge_cycle_is_goal_global_and_limited_to_ten=(
+            refresh is not None
+            and refresh.acknowledge_cycle_is_goal_global_and_limited_to_ten
+        ),
+        acknowledge_unsuccessful_or_unknown_cycle_fails_closed=(
+            refresh is not None
+            and refresh.acknowledge_unsuccessful_or_unknown_cycle_fails_closed
+        ),
+        authorize_preview_create_and_safe_closeout=(
+            execute is not None
+            and execute.authorize_preview_create_and_safe_closeout
+        ),
+        acknowledge_unknown_outcome_consumes_allowance=(
+            execute is not None
+            and execute.acknowledge_unknown_outcome_consumes_allowance
+        ),
+        acknowledge_create_requires_accepted_identical_preview=(
+            execute is not None
+            and execute.acknowledge_create_requires_accepted_identical_preview
+        ),
+        acknowledge_cancel_is_only_for_exact_nonterminal_child=(
+            execute is not None
+            and execute.acknowledge_cancel_is_only_for_exact_nonterminal_child
+        ),
+    )
+
+
+def _raise_futures_product_ticket(
+    exc: FuturesManualLifecycleError | OperatorFuturesProductPolicyError,
+) -> None:
+    raise HTTPException(
+        status_code=exc.http_status_code,
+        detail=exc.code,
+    ) from None
+
+
+def _require_futures_product_ticket_live_runtime() -> None:
+    if not get_operator_futures_product_ticket_execution_posture().ready:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "operator_futures_product_ticket_"
+                "live_runtime_unavailable"
+            ),
         )
 
 
@@ -1297,6 +1623,388 @@ def _source_disabled_futures_command_response(
         failure_stage=FUTURES_COMMAND_SERVICE_SOURCE_DISABLED,
     )
     return _command_response(response)
+
+
+@router.get(
+    "/futures/product-ticket",
+    response_model=OperatorFuturesProductTicketReadback,
+    responses=FUTURES_MANUAL_ROUTE_RESPONSES,
+    summary="Read the durable Futures product policy and selected ticket",
+)
+def get_operator_futures_product_ticket(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[
+        OperatorFuturesProductTicketService,
+        Depends(get_operator_futures_product_ticket_service),
+    ],
+) -> OperatorFuturesProductTicketReadback:
+    """Read PostgreSQL authority without invoking Coinbase."""
+
+    require_operator_futures_product_ticket_enabled()
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    return _futures_product_ticket_readback(
+        service.read(),
+        actor=actor,
+    )
+
+
+def _apply_futures_product_policy(
+    *,
+    action: Literal["APPROVE", "ENABLE", "DISABLE", "RETIRE", "SELECT"],
+    response_action: Literal[
+        "APPROVE_PRODUCT",
+        "ENABLE_PRODUCT",
+        "DISABLE_PRODUCT",
+        "RETIRE_PRODUCT",
+        "SELECT_PRODUCT",
+    ],
+    product_id: str,
+    body: OperatorFuturesProductPolicyRequest,
+    actor: AdminApiActor,
+    service: OperatorFuturesProductTicketService,
+    idempotency_key: str,
+    correlation_id: str,
+    operator_intent: str,
+) -> JSONResponse:
+    require_operator_futures_product_ticket_enabled()
+    require_permission(actor, AdminApiPermission.CONFIG_UPDATE)
+    try:
+        state = service.apply_policy(
+            action=action,
+            product_id=product_id,
+            expected_revision=body.expected_policy_revision,
+            actor_id=actor.actor_id,
+            roles=tuple(role.value for role in actor.roles),
+            operator_reason=body.operator_reason,
+            operator_intent=operator_intent,
+            confirm_exact_product_policy_action=(
+                body.confirm_exact_product_policy_action
+            ),
+            correlation_id=correlation_id,
+            idempotency_key=idempotency_key,
+        )
+    except OperatorFuturesProductPolicyError as exc:
+        _raise_futures_product_ticket(exc)
+    response = OperatorFuturesProductTicketMutationResponse(
+        action=response_action,
+        result=_futures_product_ticket_readback(state, actor=actor),
+    )
+    return JSONResponse(content=jsonable_encoder(response))
+
+
+@router.post(
+    "/futures/product-ticket/products/{product_id}/approve",
+    response_model=OperatorFuturesProductTicketMutationResponse,
+    responses=FUTURES_MANUAL_ROUTE_RESPONSES,
+    summary="Approve one exact configured Futures product",
+)
+def approve_operator_futures_product(
+    product_id: Annotated[
+        Literal["AVP-20DEC30-CDE", "BIP-20DEC30-CDE"],
+        Path(),
+    ],
+    body: OperatorFuturesProductPolicyRequest,
+    idempotency_key: Annotated[
+        str,
+        Header(alias="Idempotency-Key", min_length=1, max_length=255),
+    ],
+    correlation_id: Annotated[
+        str,
+        Header(alias="X-Correlation-Id", min_length=1, max_length=255),
+    ],
+    operator_intent: Annotated[
+        Literal["approve_exact_futures_product_for_operator_ticket"],
+        Header(alias="X-Operator-Intent"),
+    ],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[
+        OperatorFuturesProductTicketService,
+        Depends(get_operator_futures_product_ticket_service),
+    ],
+) -> JSONResponse:
+    return _apply_futures_product_policy(
+        action="APPROVE",
+        response_action="APPROVE_PRODUCT",
+        product_id=product_id,
+        body=body,
+        actor=actor,
+        service=service,
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+    )
+
+
+@router.post(
+    "/futures/product-ticket/products/{product_id}/enable",
+    response_model=OperatorFuturesProductTicketMutationResponse,
+    responses=FUTURES_MANUAL_ROUTE_RESPONSES,
+    summary="Enable one approved Futures product",
+)
+def enable_operator_futures_product(
+    product_id: Annotated[
+        Literal["AVP-20DEC30-CDE", "BIP-20DEC30-CDE"],
+        Path(),
+    ],
+    body: OperatorFuturesProductPolicyRequest,
+    idempotency_key: Annotated[
+        str,
+        Header(alias="Idempotency-Key", min_length=1, max_length=255),
+    ],
+    correlation_id: Annotated[
+        str,
+        Header(alias="X-Correlation-Id", min_length=1, max_length=255),
+    ],
+    operator_intent: Annotated[
+        Literal["enable_exact_futures_product_for_operator_ticket"],
+        Header(alias="X-Operator-Intent"),
+    ],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[
+        OperatorFuturesProductTicketService,
+        Depends(get_operator_futures_product_ticket_service),
+    ],
+) -> JSONResponse:
+    return _apply_futures_product_policy(
+        action="ENABLE",
+        response_action="ENABLE_PRODUCT",
+        product_id=product_id,
+        body=body,
+        actor=actor,
+        service=service,
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+    )
+
+
+@router.post(
+    "/futures/product-ticket/products/{product_id}/disable",
+    response_model=OperatorFuturesProductTicketMutationResponse,
+    responses=FUTURES_MANUAL_ROUTE_RESPONSES,
+    summary="Disable one configured Futures product",
+)
+def disable_operator_futures_product(
+    product_id: Annotated[
+        Literal["AVP-20DEC30-CDE", "BIP-20DEC30-CDE"],
+        Path(),
+    ],
+    body: OperatorFuturesProductPolicyRequest,
+    idempotency_key: Annotated[
+        str,
+        Header(alias="Idempotency-Key", min_length=1, max_length=255),
+    ],
+    correlation_id: Annotated[
+        str,
+        Header(alias="X-Correlation-Id", min_length=1, max_length=255),
+    ],
+    operator_intent: Annotated[
+        Literal["disable_exact_futures_product_for_operator_ticket"],
+        Header(alias="X-Operator-Intent"),
+    ],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[
+        OperatorFuturesProductTicketService,
+        Depends(get_operator_futures_product_ticket_service),
+    ],
+) -> JSONResponse:
+    return _apply_futures_product_policy(
+        action="DISABLE",
+        response_action="DISABLE_PRODUCT",
+        product_id=product_id,
+        body=body,
+        actor=actor,
+        service=service,
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+    )
+
+
+@router.post(
+    "/futures/product-ticket/products/{product_id}/retire",
+    response_model=OperatorFuturesProductTicketMutationResponse,
+    responses=FUTURES_MANUAL_ROUTE_RESPONSES,
+    summary="Retire one configured Futures product",
+)
+def retire_operator_futures_product(
+    product_id: Annotated[
+        Literal["AVP-20DEC30-CDE", "BIP-20DEC30-CDE"],
+        Path(),
+    ],
+    body: OperatorFuturesProductPolicyRequest,
+    idempotency_key: Annotated[
+        str,
+        Header(alias="Idempotency-Key", min_length=1, max_length=255),
+    ],
+    correlation_id: Annotated[
+        str,
+        Header(alias="X-Correlation-Id", min_length=1, max_length=255),
+    ],
+    operator_intent: Annotated[
+        Literal["retire_exact_futures_product_for_operator_ticket"],
+        Header(alias="X-Operator-Intent"),
+    ],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[
+        OperatorFuturesProductTicketService,
+        Depends(get_operator_futures_product_ticket_service),
+    ],
+) -> JSONResponse:
+    return _apply_futures_product_policy(
+        action="RETIRE",
+        response_action="RETIRE_PRODUCT",
+        product_id=product_id,
+        body=body,
+        actor=actor,
+        service=service,
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+    )
+
+
+@router.post(
+    "/futures/product-ticket/products/{product_id}/select",
+    response_model=OperatorFuturesProductTicketMutationResponse,
+    responses=FUTURES_MANUAL_ROUTE_RESPONSES,
+    summary="Select one enabled Futures product for the operator ticket",
+)
+def select_operator_futures_product(
+    product_id: Annotated[
+        Literal["AVP-20DEC30-CDE", "BIP-20DEC30-CDE"],
+        Path(),
+    ],
+    body: OperatorFuturesProductPolicyRequest,
+    idempotency_key: Annotated[
+        str,
+        Header(alias="Idempotency-Key", min_length=1, max_length=255),
+    ],
+    correlation_id: Annotated[
+        str,
+        Header(alias="X-Correlation-Id", min_length=1, max_length=255),
+    ],
+    operator_intent: Annotated[
+        Literal["select_exact_futures_product_for_operator_ticket"],
+        Header(alias="X-Operator-Intent"),
+    ],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[
+        OperatorFuturesProductTicketService,
+        Depends(get_operator_futures_product_ticket_service),
+    ],
+) -> JSONResponse:
+    return _apply_futures_product_policy(
+        action="SELECT",
+        response_action="SELECT_PRODUCT",
+        product_id=product_id,
+        body=body,
+        actor=actor,
+        service=service,
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+    )
+
+
+@router.post(
+    "/futures/product-ticket/eligibility",
+    response_model=OperatorFuturesProductTicketMutationResponse,
+    responses=FUTURES_MANUAL_ROUTE_RESPONSES,
+    summary="Refresh exact selected-product Futures eligibility",
+)
+def refresh_operator_futures_product_ticket_eligibility(
+    body: OperatorFuturesProductTicketRefreshRequest,
+    idempotency_key: Annotated[
+        str,
+        Header(alias="Idempotency-Key", min_length=1, max_length=255),
+    ],
+    correlation_id: Annotated[
+        str,
+        Header(alias="X-Correlation-Id", min_length=1, max_length=255),
+    ],
+    operator_intent: Annotated[
+        Literal[
+            "refresh_one_futures_product_ticket_eligibility_cycle"
+        ],
+        Header(alias="X-Operator-Intent"),
+    ],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[
+        OperatorFuturesProductTicketService,
+        Depends(get_operator_futures_product_ticket_service),
+    ],
+) -> JSONResponse:
+    require_operator_futures_product_ticket_enabled()
+    require_permission(actor, AdminApiPermission.ORDER_CREATE)
+    try:
+        state = service.refresh(
+            context=_futures_product_ticket_context(
+                actor=actor,
+                body=body,
+                idempotency_key=idempotency_key,
+                correlation_id=correlation_id,
+                operator_intent=operator_intent,
+            )
+        )
+    except FuturesManualLifecycleError as exc:
+        _raise_futures_product_ticket(exc)
+    response = OperatorFuturesProductTicketMutationResponse(
+        action="REFRESH_ELIGIBILITY",
+        result=_futures_product_ticket_readback(state, actor=actor),
+    )
+    return JSONResponse(content=jsonable_encoder(response))
+
+
+@router.post(
+    "/futures/product-ticket/execute",
+    response_model=OperatorFuturesProductTicketMutationResponse,
+    responses=FUTURES_MANUAL_ROUTE_RESPONSES,
+    summary="Execute one selected-product Preview-gated Futures proof",
+)
+def execute_operator_futures_product_ticket(
+    body: OperatorFuturesProductTicketExecuteRequest,
+    idempotency_key: Annotated[
+        str,
+        Header(alias="Idempotency-Key", min_length=1, max_length=255),
+    ],
+    correlation_id: Annotated[
+        str,
+        Header(alias="X-Correlation-Id", min_length=1, max_length=255),
+    ],
+    operator_intent: Annotated[
+        Literal[
+            "preview_submit_and_safe_closeout_one_futures_product_ticket"
+        ],
+        Header(alias="X-Operator-Intent"),
+    ],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[
+        OperatorFuturesProductTicketService,
+        Depends(get_operator_futures_product_ticket_service),
+    ],
+) -> JSONResponse:
+    require_operator_futures_product_ticket_enabled()
+    require_permission(actor, AdminApiPermission.ORDER_CREATE)
+    require_permission(actor, AdminApiPermission.ORDER_CANCEL)
+    _require_futures_product_ticket_live_runtime()
+    try:
+        state = service.execute(
+            context=_futures_product_ticket_context(
+                actor=actor,
+                body=body,
+                idempotency_key=idempotency_key,
+                correlation_id=correlation_id,
+                operator_intent=operator_intent,
+            )
+        )
+    except FuturesManualLifecycleError as exc:
+        _raise_futures_product_ticket(exc)
+    response = OperatorFuturesProductTicketMutationResponse(
+        action="EXECUTE_PREVIEW_GATED_PROOF",
+        result=_futures_product_ticket_readback(state, actor=actor),
+    )
+    return JSONResponse(content=jsonable_encoder(response))
 
 
 @router.get(

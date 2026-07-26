@@ -6155,6 +6155,847 @@ paths:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
           description: Service Unavailable
+  /api/v1/futures/product-ticket:
+    get:
+      tags:
+      - futures
+      summary: Read the durable Futures product policy and selected ticket
+      description: Read PostgreSQL authority without invoking Coinbase.
+      operationId: get_operator_futures_product_ticket_api_v1_futures_product_ticket_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFuturesProductTicketReadback'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unprocessable Content
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+  /api/v1/futures/product-ticket/products/{product_id}/approve:
+    post:
+      tags:
+      - futures
+      summary: Approve one exact configured Futures product
+      operationId: approve_operator_futures_product_api_v1_futures_product_ticket_products__product_id__approve_post
+      parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema:
+          enum:
+          - AVP-20DEC30-CDE
+          - BIP-20DEC30-CDE
+          type: string
+          title: Product Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: approve_exact_futures_product_for_operator_ticket
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorFuturesProductPolicyRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFuturesProductTicketMutationResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unprocessable Content
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+  /api/v1/futures/product-ticket/products/{product_id}/enable:
+    post:
+      tags:
+      - futures
+      summary: Enable one approved Futures product
+      operationId: enable_operator_futures_product_api_v1_futures_product_ticket_products__product_id__enable_post
+      parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema:
+          enum:
+          - AVP-20DEC30-CDE
+          - BIP-20DEC30-CDE
+          type: string
+          title: Product Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: enable_exact_futures_product_for_operator_ticket
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorFuturesProductPolicyRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFuturesProductTicketMutationResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unprocessable Content
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+  /api/v1/futures/product-ticket/products/{product_id}/disable:
+    post:
+      tags:
+      - futures
+      summary: Disable one configured Futures product
+      operationId: disable_operator_futures_product_api_v1_futures_product_ticket_products__product_id__disable_post
+      parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema:
+          enum:
+          - AVP-20DEC30-CDE
+          - BIP-20DEC30-CDE
+          type: string
+          title: Product Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: disable_exact_futures_product_for_operator_ticket
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorFuturesProductPolicyRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFuturesProductTicketMutationResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unprocessable Content
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+  /api/v1/futures/product-ticket/products/{product_id}/retire:
+    post:
+      tags:
+      - futures
+      summary: Retire one configured Futures product
+      operationId: retire_operator_futures_product_api_v1_futures_product_ticket_products__product_id__retire_post
+      parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema:
+          enum:
+          - AVP-20DEC30-CDE
+          - BIP-20DEC30-CDE
+          type: string
+          title: Product Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: retire_exact_futures_product_for_operator_ticket
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorFuturesProductPolicyRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFuturesProductTicketMutationResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unprocessable Content
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+  /api/v1/futures/product-ticket/products/{product_id}/select:
+    post:
+      tags:
+      - futures
+      summary: Select one enabled Futures product for the operator ticket
+      operationId: select_operator_futures_product_api_v1_futures_product_ticket_products__product_id__select_post
+      parameters:
+      - name: product_id
+        in: path
+        required: true
+        schema:
+          enum:
+          - AVP-20DEC30-CDE
+          - BIP-20DEC30-CDE
+          type: string
+          title: Product Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: select_exact_futures_product_for_operator_ticket
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorFuturesProductPolicyRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFuturesProductTicketMutationResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unprocessable Content
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+  /api/v1/futures/product-ticket/eligibility:
+    post:
+      tags:
+      - futures
+      summary: Refresh exact selected-product Futures eligibility
+      operationId: refresh_operator_futures_product_ticket_eligibility_api_v1_futures_product_ticket_eligibility_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: refresh_one_futures_product_ticket_eligibility_cycle
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorFuturesProductTicketRefreshRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFuturesProductTicketMutationResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unprocessable Content
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+  /api/v1/futures/product-ticket/execute:
+    post:
+      tags:
+      - futures
+      summary: Execute one selected-product Preview-gated Futures proof
+      operationId: execute_operator_futures_product_ticket_api_v1_futures_product_ticket_execute_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: preview_submit_and_safe_closeout_one_futures_product_ticket
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorFuturesProductTicketExecuteRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFuturesProductTicketMutationResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unprocessable Content
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
   /api/v1/futures/manual-lifecycle:
     get:
       tags:
@@ -25781,6 +26622,7 @@ components:
       - stealth_post_write_reconciliation_verification
       - movement_reprice
       - futures_manual_lifecycle
+      - futures_product_ticket
       - futures_position_lifecycle
       - futures_order_operations
       - futures_contract_required
@@ -162192,6 +163034,556 @@ components:
       - best_bid
       - best_ask
       title: OperatorFuturesPositionSelectionReadback
+    OperatorFuturesProductPolicyItemReadback:
+      properties:
+        product_id:
+          type: string
+          enum:
+          - AVP-20DEC30-CDE
+          - BIP-20DEC30-CDE
+          title: Product Id
+        lifecycle:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - ENABLED
+          - DISABLED
+          - RETIRED
+          title: Lifecycle
+        selected:
+          type: boolean
+          title: Selected
+        allowed_actions:
+          items:
+            type: string
+            enum:
+            - APPROVE
+            - ENABLE
+            - DISABLE
+            - RETIRE
+            - SELECT
+          type: array
+          title: Allowed Actions
+      additionalProperties: false
+      type: object
+      required:
+      - product_id
+      - lifecycle
+      - selected
+      - allowed_actions
+      title: OperatorFuturesProductPolicyItemReadback
+    OperatorFuturesProductPolicyRequest:
+      properties:
+        expected_policy_revision:
+          type: integer
+          minimum: 1.0
+          title: Expected Policy Revision
+        operator_reason:
+          type: string
+          maxLength: 240
+          minLength: 1
+          title: Operator Reason
+        confirm_exact_product_policy_action:
+          type: boolean
+          const: true
+          title: Confirm Exact Product Policy Action
+      additionalProperties: false
+      type: object
+      required:
+      - expected_policy_revision
+      - operator_reason
+      - confirm_exact_product_policy_action
+      title: OperatorFuturesProductPolicyRequest
+    OperatorFuturesProductTicketCandidateReadback:
+      properties:
+        product_id:
+          type: string
+          enum:
+          - AVP-20DEC30-CDE
+          - BIP-20DEC30-CDE
+          title: Product Id
+        side:
+          type: string
+          const: BUY
+          title: Side
+        order_type:
+          type: string
+          const: LIMIT_GTC
+          title: Order Type
+        post_only:
+          type: string
+          const: 'true'
+          title: Post Only
+        contract_count:
+          type: string
+          const: '1'
+          title: Contract Count
+        contract_code:
+          type: string
+          title: Contract Code
+        contract_size:
+          type: string
+          title: Contract Size
+        contract_expiry:
+          type: string
+          title: Contract Expiry
+        contract_expiry_type:
+          type: string
+          enum:
+          - EXPIRING
+          - PERPETUAL
+          title: Contract Expiry Type
+        venue:
+          type: string
+          const: cde
+          title: Venue
+        risk_managed_by:
+          type: string
+          const: MANAGED_BY_FCM
+          title: Risk Managed By
+        product_price:
+          type: string
+          title: Product Price
+        reference_price:
+          type: string
+          title: Reference Price
+        reference_price_source:
+          type: string
+          const: max_product_price_and_fresh_best_ask
+          title: Reference Price Source
+        price_increment:
+          type: string
+          title: Price Increment
+        base_increment:
+          type: string
+          title: Base Increment
+        base_min_size:
+          type: string
+          title: Base Min Size
+        best_bid:
+          type: string
+          title: Best Bid
+        best_ask:
+          type: string
+          title: Best Ask
+        limit_price:
+          type: string
+          title: Limit Price
+        intraday_margin_rate:
+          type: string
+          title: Intraday Margin Rate
+        overnight_margin_rate:
+          type: string
+          title: Overnight Margin Rate
+        worst_case_margin_rate:
+          type: string
+          title: Worst Case Margin Rate
+        required_margin_reference_usdc:
+          type: string
+          title: Required Margin Reference Usdc
+        opening_reference_notional_usdc:
+          type: string
+          title: Opening Reference Notional Usdc
+        maximum_exposure_reference_notional_usdc:
+          type: string
+          title: Maximum Exposure Reference Notional Usdc
+        buffered_close_reference_notional_usdc:
+          type: string
+          title: Buffered Close Reference Notional Usdc
+        branch_turnover_reference_notional_usdc:
+          type: string
+          title: Branch Turnover Reference Notional Usdc
+        opening_cap_usdc:
+          type: string
+          const: '100'
+          title: Opening Cap Usdc
+        exposure_cap_usdc:
+          type: string
+          const: '150'
+          title: Exposure Cap Usdc
+        turnover_cap_usdc:
+          type: string
+          const: '300'
+          title: Turnover Cap Usdc
+        close_buffer_multiplier:
+          type: string
+          const: '1.20'
+          title: Close Buffer Multiplier
+        product_policy_revision:
+          type: string
+          title: Product Policy Revision
+        product_policy_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Product Policy Sha256
+        observed_at:
+          type: string
+          title: Observed At
+      additionalProperties: false
+      type: object
+      required:
+      - product_id
+      - side
+      - order_type
+      - post_only
+      - contract_count
+      - contract_code
+      - contract_size
+      - contract_expiry
+      - contract_expiry_type
+      - venue
+      - risk_managed_by
+      - product_price
+      - reference_price
+      - reference_price_source
+      - price_increment
+      - base_increment
+      - base_min_size
+      - best_bid
+      - best_ask
+      - limit_price
+      - intraday_margin_rate
+      - overnight_margin_rate
+      - worst_case_margin_rate
+      - required_margin_reference_usdc
+      - opening_reference_notional_usdc
+      - maximum_exposure_reference_notional_usdc
+      - buffered_close_reference_notional_usdc
+      - branch_turnover_reference_notional_usdc
+      - opening_cap_usdc
+      - exposure_cap_usdc
+      - turnover_cap_usdc
+      - close_buffer_multiplier
+      - product_policy_revision
+      - product_policy_sha256
+      - observed_at
+      title: OperatorFuturesProductTicketCandidateReadback
+    OperatorFuturesProductTicketExecuteRequest:
+      properties:
+        expected_ticket_revision:
+          type: integer
+          minimum: 0.0
+          title: Expected Ticket Revision
+        authorize_preview_create_and_safe_closeout:
+          type: boolean
+          const: true
+          title: Authorize Preview Create And Safe Closeout
+        acknowledge_unknown_outcome_consumes_allowance:
+          type: boolean
+          const: true
+          title: Acknowledge Unknown Outcome Consumes Allowance
+        acknowledge_create_requires_accepted_identical_preview:
+          type: boolean
+          const: true
+          title: Acknowledge Create Requires Accepted Identical Preview
+        acknowledge_cancel_is_only_for_exact_nonterminal_child:
+          type: boolean
+          const: true
+          title: Acknowledge Cancel Is Only For Exact Nonterminal Child
+      additionalProperties: false
+      type: object
+      required:
+      - expected_ticket_revision
+      - authorize_preview_create_and_safe_closeout
+      - acknowledge_unknown_outcome_consumes_allowance
+      - acknowledge_create_requires_accepted_identical_preview
+      - acknowledge_cancel_is_only_for_exact_nonterminal_child
+      title: OperatorFuturesProductTicketExecuteRequest
+    OperatorFuturesProductTicketMutationResponse:
+      properties:
+        type:
+          type: string
+          const: operator_futures_product_ticket_mutation
+          title: Type
+          default: operator_futures_product_ticket_mutation
+        action:
+          type: string
+          enum:
+          - APPROVE_PRODUCT
+          - ENABLE_PRODUCT
+          - DISABLE_PRODUCT
+          - RETIRE_PRODUCT
+          - SELECT_PRODUCT
+          - REFRESH_ELIGIBILITY
+          - EXECUTE_PREVIEW_GATED_PROOF
+          title: Action
+        result:
+          $ref: '#/components/schemas/OperatorFuturesProductTicketReadback'
+      additionalProperties: false
+      type: object
+      required:
+      - action
+      - result
+      title: OperatorFuturesProductTicketMutationResponse
+    OperatorFuturesProductTicketReadback:
+      properties:
+        type:
+          type: string
+          const: operator_futures_product_ticket
+          title: Type
+          default: operator_futures_product_ticket
+        goal_id:
+          type: string
+          const: operator_futures_product_policy_and_ticket_expansion_v1
+          title: Goal Id
+        environment:
+          type: string
+          title: Environment
+        portfolio_profile_alias:
+          type: string
+          const: Default
+          title: Portfolio Profile Alias
+          default: Default
+        configured_product_scope:
+          items:
+            type: string
+            enum:
+            - AVP-20DEC30-CDE
+            - BIP-20DEC30-CDE
+          type: array
+          title: Configured Product Scope
+        policy_revision:
+          type: integer
+          minimum: 1.0
+          title: Policy Revision
+        policy_snapshot_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Policy Snapshot Sha256
+        products:
+          items:
+            $ref: '#/components/schemas/OperatorFuturesProductPolicyItemReadback'
+          type: array
+          title: Products
+        selected_product_id:
+          anyOf:
+          - type: string
+            enum:
+            - AVP-20DEC30-CDE
+            - BIP-20DEC30-CDE
+          - type: 'null'
+          title: Selected Product Id
+        selected_policy_revision:
+          anyOf:
+          - type: integer
+            minimum: 1.0
+          - type: 'null'
+          title: Selected Policy Revision
+        selected_policy_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Selected Policy Sha256
+        ticket_revision:
+          type: integer
+          minimum: 0.0
+          title: Ticket Revision
+        cycles_used:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: Cycles Used
+        cycles_remaining:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: Cycles Remaining
+        active_cycle_number:
+          anyOf:
+          - type: integer
+            maximum: 10.0
+            minimum: 1.0
+          - type: 'null'
+          title: Active Cycle Number
+        eligibility_outcome:
+          anyOf:
+          - $ref: '#/components/schemas/AdminFuturesManualEligibilityOutcome'
+          - type: 'null'
+        eligibility_diagnostic_code:
+          type: string
+          title: Eligibility Diagnostic Code
+        category_attempts:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Category Attempts
+        candidate:
+          anyOf:
+          - $ref: '#/components/schemas/OperatorFuturesProductTicketCandidateReadback'
+          - type: 'null'
+        candidate_fresh_for_execution:
+          type: boolean
+          title: Candidate Fresh For Execution
+        candidate_freshness_diagnostic_code:
+          type: string
+          title: Candidate Freshness Diagnostic Code
+        candidate_sha256:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Candidate Sha256
+        portfolio_id_sha256:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Portfolio Id Sha256
+        eligibility_evidence_sha256:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Eligibility Evidence Sha256
+        execution_posture_ready:
+          type: boolean
+          title: Execution Posture Ready
+        execution_posture_diagnostic_code:
+          type: string
+          title: Execution Posture Diagnostic Code
+        client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Client Order Id
+        preview:
+          $ref: '#/components/schemas/OperatorFuturesManualCallReadback'
+        preview_id_sha256:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Preview Id Sha256
+        create:
+          $ref: '#/components/schemas/OperatorFuturesManualCallReadback'
+        exchange_order_id_sha256:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Exchange Order Id Sha256
+        reconciliation:
+          $ref: '#/components/schemas/OperatorFuturesManualCallReadback'
+        order_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Order Status
+        authoritatively_nonterminal:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Authoritatively Nonterminal
+        cancel:
+          $ref: '#/components/schemas/OperatorFuturesManualCallReadback'
+        diagnostic_code:
+          type: string
+          title: Diagnostic Code
+        allowed_actions:
+          items:
+            type: string
+            enum:
+            - APPROVE_PRODUCT
+            - ENABLE_PRODUCT
+            - DISABLE_PRODUCT
+            - RETIRE_PRODUCT
+            - SELECT_PRODUCT
+            - REFRESH_ELIGIBILITY
+            - EXECUTE_PREVIEW_GATED_PROOF
+          type: array
+          title: Allowed Actions
+        raw_responses_included:
+          type: boolean
+          const: false
+          title: Raw Responses Included
+          default: false
+        private_identifiers_included:
+          type: boolean
+          const: false
+          title: Private Identifiers Included
+          default: false
+        exception_text_included:
+          type: boolean
+          const: false
+          title: Exception Text Included
+          default: false
+        correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+        updated_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Updated At
+      additionalProperties: false
+      type: object
+      required:
+      - goal_id
+      - environment
+      - configured_product_scope
+      - policy_revision
+      - policy_snapshot_sha256
+      - products
+      - selected_product_id
+      - ticket_revision
+      - cycles_used
+      - cycles_remaining
+      - eligibility_outcome
+      - eligibility_diagnostic_code
+      - category_attempts
+      - candidate
+      - candidate_fresh_for_execution
+      - candidate_freshness_diagnostic_code
+      - candidate_sha256
+      - portfolio_id_sha256
+      - eligibility_evidence_sha256
+      - execution_posture_ready
+      - execution_posture_diagnostic_code
+      - client_order_id
+      - preview
+      - preview_id_sha256
+      - create
+      - exchange_order_id_sha256
+      - reconciliation
+      - order_status
+      - authoritatively_nonterminal
+      - cancel
+      - diagnostic_code
+      - allowed_actions
+      - correlation_id
+      - audit_id
+      - updated_at
+      title: OperatorFuturesProductTicketReadback
+    OperatorFuturesProductTicketRefreshRequest:
+      properties:
+        expected_ticket_revision:
+          type: integer
+          minimum: 0.0
+          title: Expected Ticket Revision
+        authorize_one_no_retry_six_category_cycle:
+          type: boolean
+          const: true
+          title: Authorize One No Retry Six Category Cycle
+        acknowledge_cycle_is_goal_global_and_limited_to_ten:
+          type: boolean
+          const: true
+          title: Acknowledge Cycle Is Goal Global And Limited To Ten
+        acknowledge_unsuccessful_or_unknown_cycle_fails_closed:
+          type: boolean
+          const: true
+          title: Acknowledge Unsuccessful Or Unknown Cycle Fails Closed
+      additionalProperties: false
+      type: object
+      required:
+      - expected_ticket_revision
+      - authorize_one_no_retry_six_category_cycle
+      - acknowledge_cycle_is_goal_global_and_limited_to_ten
+      - acknowledge_unsuccessful_or_unknown_cycle_fails_closed
+      title: OperatorFuturesProductTicketRefreshRequest
     OperatorHotpointControlRequest:
       properties:
         domain:

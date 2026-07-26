@@ -1,5 +1,27 @@
 # Maintainer Handoff
 
+## Operator Futures product policy and selected ticket
+
+Goal `operator_futures_product_policy_and_ticket_expansion_v1` adds immutable
+PostgreSQL approve/enable/disable/retire/select policy for configured
+`AVP-20DEC30-CDE` and `BIP-20DEC30-CDE`, then binds one enabled selection to
+fresh Default-profile product, market, position, and margin evidence.
+
+The backend derives one contract, increments, price, documented margin rates,
+required margin, and strict `<100 / <150 / <300 USDC` evidence. Policy change
+atomically invalidates an unconsumed candidate. Execution revalidates the
+current policy under the same advisory lock before claiming one Preview, an
+accepted-identical Create, exact reconciliation, and conditional exact-child
+Cancel. The UI supplies no trading term or exchange identifier.
+
+The installed operator proof is terminal and fail-closed. Four no-retry
+six-category cycles were used. The final sanitized classification is
+`operator_futures_product_ticket_margin_window_documented_but_v3_ineligible`:
+the official response shape remains documented, but the observed current
+window did not satisfy the exact operator V3 profile/state pair. Six cycles
+remain unused. No candidate was created and Preview, Create, reconciliation,
+and Cancel remain `NOT_RUN`.
+
 ## Completed operator Futures order operations
 
 Goal `operator_futures_order_inventory_detail_cancel_reconcile_v1` adds the

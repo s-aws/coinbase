@@ -1065,6 +1065,7 @@ CONTROLLED_LIVE_MVP_ROUTES = {
         "/api/v1/automation/runs/{run_id}/safe-closeout-child",
     ),
     ("POST", "/api/v1/futures/manual-lifecycle/execute"),
+    ("POST", "/api/v1/futures/product-ticket/execute"),
     ("POST", "/api/v1/futures/position-lifecycle/execute"),
     (
         "POST",
@@ -16029,6 +16030,237 @@ class AdminApiReadService:
                 spot_rule_boundary=(
                     "Spot replacement-budget checks may apply only as backend guard "
                     "evidence; they cannot approve movement/repricing generically."
+                ),
+            ),
+            mutation_taxonomy_item(
+                mutation_id="futures.product_ticket_policy",
+                mutation_family=(
+                    AdminApiMutationFamilyType.FUTURES_PRODUCT_TICKET
+                ),
+                workflow_id=(
+                    "operator_futures_product_policy_and_ticket_expansion_v1"
+                ),
+                module_id="futures_perpetuals",
+                module="Futures / Perpetuals",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                ),
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "An administrator may approve, enable, disable, retire, "
+                    "or select one configured Default-profile CFM product. "
+                    "The immutable PostgreSQL policy is local authority only."
+                ),
+                command_surfaces=[
+                    "POST /api/v1/futures/product-ticket/products/"
+                    "{product_id}/approve",
+                    "POST /api/v1/futures/product-ticket/products/"
+                    "{product_id}/enable",
+                    "POST /api/v1/futures/product-ticket/products/"
+                    "{product_id}/disable",
+                    "POST /api/v1/futures/product-ticket/products/"
+                    "{product_id}/retire",
+                    "POST /api/v1/futures/product-ticket/products/"
+                    "{product_id}/select",
+                ],
+                action_classes=[
+                    AdminApiActionClass.LOCAL_STATE_MUTATION,
+                ],
+                required_permissions=[
+                    AdminApiPermission.CONFIG_UPDATE,
+                ],
+                identity_keys=[
+                    "goal_id",
+                    "policy_revision",
+                    "product_id",
+                    "policy_snapshot_sha256",
+                ],
+                idempotency_contract=(
+                    "required exact policy-revision and command replay"
+                ),
+                approval_contract=(
+                    "explicit authenticated administrator confirmation; "
+                    "product enablement is not exchange approval"
+                ),
+                cap_guard_contract=(
+                    "configured product scope is fixed; no order terms or "
+                    "notional are accepted by policy commands"
+                ),
+                admission_audit_contract=(
+                    "immutable policy revision records actor, correlation, "
+                    "action, product, and reason SHA-256"
+                ),
+                reconciliation_contract=(
+                    "policy changes atomically invalidate any unconsumed "
+                    "ticket candidate"
+                ),
+                owning_backend_service=(
+                    "database/operator_futures_product_policy.py"
+                ),
+                route_inventory_refs=[
+                    "POST /api/v1/futures/product-ticket/products/"
+                    "{product_id}/approve",
+                    "POST /api/v1/futures/product-ticket/products/"
+                    "{product_id}/enable",
+                    "POST /api/v1/futures/product-ticket/products/"
+                    "{product_id}/disable",
+                    "POST /api/v1/futures/product-ticket/products/"
+                    "{product_id}/retire",
+                    "POST /api/v1/futures/product-ticket/products/"
+                    "{product_id}/select",
+                ],
+                backend_contract_refs=[
+                    "api/v1/routes/futures.py",
+                    "application/admin_api/operator_futures_product_policy.py",
+                    "database/operator_futures_product_policy.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/operator-read-models/futures/"
+                    "FuturesProductTicketControl.tsx",
+                    "src/features/operator-read-models/futures/"
+                    "futuresProductTicketRuntime.ts",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_FUTURES_PRODUCT_POLICY_AND_TICKET_V1.md",
+                ],
+                blockers=[],
+                frontend_boundary=(
+                    "The browser forwards one exact configured product, "
+                    "backend revision, action, reason, and confirmation only."
+                ),
+                route_local_boundary=(
+                    "Routes enforce configuration RBAC and delegate every "
+                    "transition to the PostgreSQL policy repository."
+                ),
+                spot_rule_boundary=(
+                    "This is Default-profile CFM policy. Spot products, Test "
+                    "portfolio evidence, wallet rules, and caps are forbidden."
+                ),
+                approval_required=False,
+                cap_guard_required=False,
+                reconciliation_required=False,
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_from_surface(
+                surface="POST /api/v1/futures/product-ticket/eligibility",
+                mutation_id="futures.product_ticket_eligibility",
+                mutation_family=(
+                    AdminApiMutationFamilyType.FUTURES_PRODUCT_TICKET
+                ),
+                workflow_id=(
+                    "operator_futures_product_policy_and_ticket_expansion_v1"
+                ),
+                module="Futures / Perpetuals",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                ),
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "One of ten no-retry cycles binds the enabled selected "
+                    "product to exact Default-profile product, market, "
+                    "position, and margin evidence."
+                ),
+                identity_keys=[
+                    "goal_id",
+                    "eligibility_cycle",
+                    "policy_revision",
+                    "policy_snapshot_sha256",
+                    "portfolio_hash",
+                    "product_id",
+                ],
+                owning_backend_service=(
+                    "application/admin_api/"
+                    "operator_futures_product_ticket_service.py::refresh"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/futures.py::"
+                    "refresh_operator_futures_product_ticket_eligibility",
+                    "application/admin_api/operator_futures_product_ticket.py",
+                    "database/operator_futures_manual_lifecycle.py",
+                    "database/operator_futures_product_policy.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/operator-read-models/futures/"
+                    "FuturesProductTicketControl.tsx",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_FUTURES_PRODUCT_POLICY_AND_TICKET_V1.md",
+                ],
+                blockers=[],
+                frontend_boundary=(
+                    "The browser forwards bounded refresh acknowledgements; "
+                    "it supplies no product, price, size, margin, or call term."
+                ),
+                route_local_boundary=(
+                    "The backend resolves the current enabled selection and "
+                    "claims each of six read categories once without retry."
+                ),
+                spot_rule_boundary=(
+                    "Spot wallet, Test-profile, and notional rules cannot "
+                    "establish Default-profile CFM eligibility."
+                ),
+                reconciliation_required=False,
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_from_surface(
+                surface="POST /api/v1/futures/product-ticket/execute",
+                mutation_id="futures.product_ticket_execution",
+                mutation_family=(
+                    AdminApiMutationFamilyType.FUTURES_PRODUCT_TICKET
+                ),
+                workflow_id=(
+                    "operator_futures_product_policy_and_ticket_expansion_v1"
+                ),
+                module="Futures / Perpetuals",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                ),
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Fresh selected-product eligibility permits one Preview, "
+                    "one identical Create after acceptance, one reconciliation, "
+                    "and at most one exact nonterminal Cancel."
+                ),
+                identity_keys=[
+                    "goal_id",
+                    "candidate_sha256",
+                    "client_order_id",
+                    "policy_revision",
+                    "policy_snapshot_sha256",
+                    "portfolio_hash",
+                    "product_id",
+                ],
+                owning_backend_service=(
+                    "application/admin_api/"
+                    "operator_futures_product_ticket_service.py::execute"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/futures.py::"
+                    "execute_operator_futures_product_ticket",
+                    "application/admin_api/"
+                    "operator_futures_product_ticket_runtime.py",
+                    "database/operator_futures_manual_lifecycle.py",
+                    "database/operator_futures_product_policy.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/operator-read-models/futures/"
+                    "FuturesProductTicketControl.tsx",
+                ],
+                documentation_refs=[
+                    "docs/OPERATOR_FUTURES_PRODUCT_POLICY_AND_TICKET_V1.md",
+                ],
+                blockers=[],
+                frontend_boundary=(
+                    "The browser forwards only the current ticket revision "
+                    "and explicit single-use confirmations."
+                ),
+                route_local_boundary=(
+                    "The backend atomically revalidates the current policy "
+                    "binding before claiming any exchange allowance."
+                ),
+                spot_rule_boundary=(
+                    "Spot adapters and caps cannot authorize this Futures "
+                    "Preview/Create/Cancel sequence."
                 ),
             ),
             mutation_taxonomy_from_surface(

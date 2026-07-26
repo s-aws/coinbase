@@ -42,6 +42,7 @@ from .operator_mvp_policy import (
     OPERATOR_MVP_AUTOMATION_SINGLE_CHILD_SAFE_CLOSEOUT_ROUTE,
     OPERATOR_MVP_HOTPOINT_SINGLE_CHILD_CREATE_ROUTE,
     OPERATOR_MVP_HOTPOINT_SINGLE_CHILD_SAFE_CLOSEOUT_ROUTE,
+    OPERATOR_MVP_FUTURES_PRODUCT_TICKET_EXECUTE_ROUTE,
     OPERATOR_MVP_MAX_EXECUTED_NOTIONAL_USDC,
     OPERATOR_MVP_MAX_SUBMITTED_NOTIONAL_USDC,
     OPERATOR_MVP_SUPPORTED_LIVE_ROUTES,
@@ -951,6 +952,15 @@ FOLLOW_UP_MATERIALIZATION_ADAPTER_ROUTES = {
         "safe_closeout",
     ),
 }
+OPERATOR_FUTURES_PRODUCT_TICKET_ADAPTER_SOURCE = (
+    "canonical_operator_futures_product_ticket_runtime"
+)
+OPERATOR_FUTURES_PRODUCT_TICKET_ADAPTER_ROUTE = (
+    "POST",
+    OPERATOR_MVP_FUTURES_PRODUCT_TICKET_EXECUTE_ROUTE,
+    "futures_perpetuals",
+    "execute_operator_futures_product_ticket",
+)
 CONTROLLED_LIVE_MVP_ADAPTER_SOURCE = "canonical_admin_operator_runtime"
 CONTROLLED_LIVE_MVP_ADAPTER_MISSING_REASON = (
     "per_request_admission_required"
@@ -17073,6 +17083,92 @@ def build_follow_up_materialization_execution_adapter_contract(
     return contract
 
 
+def build_operator_futures_product_ticket_execution_adapter_contract(
+    *,
+    method: str,
+    route: str,
+    module_id: str,
+    service_method: str,
+    action_class: AdminApiActionClass,
+    live_adapter_decision_store: FileAdminApiLiveAdapterDecisionStore | None = None,
+    include_construction_contract: bool = True,
+) -> dict[str, Any]:
+    """Describe the installed one-use Default-profile Futures ticket adapter."""
+
+    contract = build_controlled_live_mvp_execution_adapter_contract(
+        method=method,
+        route=route,
+        module_id=module_id,
+        service_method=service_method,
+        action_class=action_class,
+        live_adapter_decision_store=live_adapter_decision_store,
+        include_construction_contract=include_construction_contract,
+    )
+    adapter_reference = "OperatorFuturesProductTicketService.execute"
+    contract.update(
+        {
+            "source": OPERATOR_FUTURES_PRODUCT_TICKET_ADAPTER_SOURCE,
+            "adapter_reference": adapter_reference,
+            "construction_precondition_authority": (
+                "installed_operator_futures_product_ticket_runtime"
+            ),
+            "construction_contract_ref": (
+                "application/admin_api/"
+                "operator_futures_product_ticket_service_runtime.py"
+            ),
+            "construction_satisfaction_authority": (
+                "installed_operator_futures_product_ticket_runtime"
+            ),
+            "construction_contract_refs": [
+                (
+                    "application/admin_api/"
+                    "operator_futures_product_ticket_service.py::"
+                    "OperatorFuturesProductTicketService.execute"
+                ),
+                (
+                    "application/admin_api/"
+                    "operator_futures_product_ticket_service_runtime.py"
+                ),
+                (
+                    "application/admin_api/"
+                    "operator_futures_product_ticket_runtime.py"
+                ),
+                "database/operator_futures_manual_lifecycle.py",
+                "database/operator_futures_product_policy.py",
+                "application/admin_api/route_inventory.py",
+            ],
+            "evidence": [
+                (
+                    "The installed route delegates only to the typed Default-profile "
+                    "Futures product-ticket service and its one-use runtime."
+                ),
+                (
+                    "The service binds the selected durable product-policy revision, "
+                    "fresh eligibility, candidate, Preview, identical Create, "
+                    "reconciliation, and conditional exact-child Cancel claims."
+                ),
+                (
+                    "No browser, BFF, Spot adapter, retry, fallback, redirect, "
+                    "alternate product, or parallel exchange path is introduced."
+                ),
+                (
+                    "Current execution lease, route service decision, feature gate, "
+                    "RBAC, operator confirmation, caps, and every request-bound "
+                    "one-use admission gate remain mandatory."
+                ),
+            ],
+            "detail": (
+                f"{method} {route} is the installed specialized backend adapter "
+                f"for {adapter_reference}. This capability is not request "
+                "authority and cannot bypass the current policy revision, fresh "
+                "Default-profile eligibility, strict Futures caps, durable "
+                "single-use call claims, audit, or reconciliation gates."
+            ),
+        }
+    )
+    return contract
+
+
 def build_m55_stealth_reveal_live_execution_adapter_contract(
     *,
     method: str,
@@ -17223,6 +17319,21 @@ def build_live_execution_adapter_contract(
             module_id=module_id,
             service_method=service_method,
             adapter_method=materialization_route,
+            action_class=action_class,
+            live_adapter_decision_store=live_adapter_decision_store,
+            include_construction_contract=include_construction_contract,
+        )
+    if (
+        method,
+        route,
+        module_id,
+        service_method,
+    ) == OPERATOR_FUTURES_PRODUCT_TICKET_ADAPTER_ROUTE:
+        return build_operator_futures_product_ticket_execution_adapter_contract(
+            method=method,
+            route=route,
+            module_id=module_id,
+            service_method=service_method,
             action_class=action_class,
             live_adapter_decision_store=live_adapter_decision_store,
             include_construction_contract=include_construction_contract,

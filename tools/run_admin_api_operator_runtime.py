@@ -114,6 +114,10 @@ def prepare_operator_runtime(
             "COINBASE_ADMIN_API_OPERATOR_FUTURES_POSITION_ENABLED"
         )
         == "1"
+        or target.get(
+            "COINBASE_ADMIN_API_OPERATOR_FUTURES_PRODUCT_TICKET_ENABLED"
+        )
+        == "1"
     )
     if futures_enabled:
         try:

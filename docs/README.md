@@ -1,5 +1,13 @@
 # Documentation Index
 
+Current independent Goal 3:
+[Operator Futures Product Policy And Ticket V1](OPERATOR_FUTURES_PRODUCT_POLICY_AND_TICKET_V1.md).
+Goal `operator_futures_product_policy_and_ticket_expansion_v1` provides
+immutable configured-product lifecycle, exact Default-profile selection, one
+backend-derived one-contract ticket, ten no-retry eligibility cycles, and one
+Preview-gated execution/safe-closeout allowance under strict
+`<100 / <150 / <300 USDC` caps.
+
 Completed independent Goal 2 of the operator UI sequence:
 [Operator Futures Order Operations V1](OPERATOR_FUTURES_ORDER_OPERATIONS_V1.md).
 Goal `operator_futures_order_inventory_detail_cancel_reconcile_v1` provides a

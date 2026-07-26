@@ -112,6 +112,34 @@ def test_operator_runtime_prepares_domain_separated_futures_client_when_enabled(
     )
 
 
+def test_operator_runtime_prepares_default_client_for_product_ticket_alone(
+    tmp_path: Path,
+) -> None:
+    environment = _authorized_environment(tmp_path)
+    environment[
+        "COINBASE_ADMIN_API_OPERATOR_FUTURES_PRODUCT_TICKET_ENABLED"
+    ] = "1"
+    futures_preparations: list[dict[str, str]] = []
+
+    operator_runtime.prepare_operator_runtime(
+        [],
+        environ=environment,
+        credential_hydrator=lambda target: target.update(
+            {
+                "COINBASE_API_KEY": "spot-key",
+                "COINBASE_API_SECRET": "spot-secret",
+            }
+        )
+        or SimpleNamespace(source="secrets_manager"),
+        futures_client_preparer=lambda target: futures_preparations.append(
+            dict(target)
+        )
+        or SimpleNamespace(),
+    )
+
+    assert len(futures_preparations) == 1
+
+
 def test_operator_runtime_fails_closed_when_futures_and_spot_bindings_conflate(
     tmp_path: Path,
 ) -> None:
