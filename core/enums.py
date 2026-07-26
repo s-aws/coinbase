@@ -400,6 +400,7 @@ class AdminApiMutationFamilyType(str, Enum):
     AUTOMATION_HOTPOINT = "automation_hotpoint"
     SPOT_MANUAL_ORDER = "spot_manual_order"
     SPOT_ORDER_CANCEL = "spot_order_cancel"
+    SPOT_ORDER_TRUTH = "spot_order_truth"
     SPOT_FOLLOW_UP_INTENT = "spot_follow_up_intent"
     SPOT_PARENT_STRATEGY = "spot_parent_strategy"
     STEALTH_DEFINITION_LIFECYCLE = "stealth_definition_lifecycle"

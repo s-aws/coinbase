@@ -603,6 +603,20 @@ class ManualOrderRequest(BaseModel):
     manual_live_acknowledgement: bool = False
 
 
+class Goal12SpotOrderTruthCancelBinding(BaseModel):
+    """Strict binding to the one-use Goal 12 durable Cancel allowance."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    goal_id: Literal[
+        "operator_spot_order_truth_and_exact_cancel_reconcile_v1"
+    ]
+    expected_revision: int = Field(ge=0)
+    expected_evidence_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    expected_portfolio_id_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    acknowledge_unknown_cancel_consumes_allowance: Literal[True]
+
+
 class CancelOrderRequest(BaseModel):
     """Cancel request body keyed by path ``client_order_id``."""
 
@@ -622,6 +636,7 @@ class CancelOrderRequest(BaseModel):
         default=None,
         pattern=r"^[0-9a-f]{64}$",
     )
+    goal12_spot_order_truth: Goal12SpotOrderTruthCancelBinding | None = None
 
     @model_validator(mode="after")
     def _require_complete_recovery_binding(self) -> Self:
@@ -634,6 +649,11 @@ class CancelOrderRequest(BaseModel):
             value is not None for value in recovery_values
         ):
             raise ValueError("recovery_cancel_binding_incomplete")
+        if (
+            self.goal12_spot_order_truth is not None
+            and any(value is not None for value in recovery_values)
+        ):
+            raise ValueError("goal12_recovery_cancel_binding_conflict")
         return self
 
 

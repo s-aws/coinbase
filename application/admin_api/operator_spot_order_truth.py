@@ -1,0 +1,730 @@
+"""approved-Test Spot order catalog and exact-order policy primitives.
+
+The catalog reader performs only explicitly claimed, no-retry Coinbase reads.
+It returns sanitized projections keyed by ``client_order_id``. No raw response,
+cursor, or exchange identifier belongs in process-local, durable, or public
+evidence.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, replace
+from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
+import hashlib
+import json
+import re
+from typing import Any, Literal
+
+from requests.exceptions import (
+    ConnectTimeout,
+    ConnectionError as RequestsConnectionError,
+    HTTPError,
+    ProxyError,
+    ReadTimeout,
+    SSLError,
+    Timeout,
+)
+from .spot_portfolio_binding import (
+    evaluate_spot_test_portfolio_binding_observations,
+)
+
+SPOT_ORDER_TRUTH_GOAL_ID = (
+    "operator_spot_order_truth_and_exact_cancel_reconcile_v1"
+)
+SPOT_ORDER_TRUTH_MAX_CYCLES = 1
+SPOT_ORDER_TRUTH_PAGE_LIMIT = 100
+SPOT_ORDER_TRUTH_MAX_PAGES_PER_CYCLE = 100
+SPOT_ORDER_TRUTH_CATEGORIES = (
+    "api_key_permissions",
+    "portfolio_catalog",
+    "spot_order_catalog",
+)
+SPOT_ORDER_TERMINAL_STATUSES = frozenset(
+    {"FILLED", "CANCELLED", "EXPIRED", "FAILED"}
+)
+SPOT_ORDER_NONTERMINAL_STATUSES = frozenset(
+    {"PENDING", "OPEN", "QUEUED", "CANCEL_QUEUED", "EDIT_QUEUED"}
+)
+SPOT_ORDER_REFRESH_STATUSES = ("OPEN",)
+SPOT_ORDER_STATUSES = (
+    SPOT_ORDER_TERMINAL_STATUSES
+    | SPOT_ORDER_NONTERMINAL_STATUSES
+    | {"UNKNOWN_ORDER_STATUS"}
+)
+SPOT_ORDER_TYPES = frozenset(
+    {
+        "MARKET",
+        "LIMIT",
+        "STOP",
+        "STOP_LIMIT",
+        "BRACKET",
+        "TWAP",
+        "UNKNOWN_ORDER_TYPE",
+    }
+)
+_CANONICAL_CLIENT_ORDER_ID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-"
+    r"[0-9a-f]{4}-[0-9a-f]{12}$"
+)
+SPOT_TIME_IN_FORCES = frozenset(
+    {
+        "GOOD_UNTIL_DATE_TIME",
+        "GOOD_UNTIL_CANCELLED",
+        "IMMEDIATE_OR_CANCEL",
+        "FILL_OR_KILL",
+        "UNKNOWN_TIME_IN_FORCE",
+    }
+)
+
+
+def _sha256_text(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _canonical_sha256(value: Mapping[str, Any]) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            dict(value),
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def _sdk_mapping(value: Any) -> dict[str, Any] | None:
+    if isinstance(value, Mapping):
+        return dict(value)
+    converter = getattr(value, "to_dict", None)
+    if callable(converter):
+        try:
+            converted = converter()
+        except Exception:
+            return None
+        return dict(converted) if isinstance(converted, Mapping) else None
+    attributes = getattr(value, "__dict__", None)
+    return dict(attributes) if isinstance(attributes, Mapping) else None
+
+
+def _text(value: Any) -> str:
+    return str(value or "").strip()
+
+
+def _iso_timestamp(value: Any) -> str | None:
+    text = _text(value)
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
+    return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _decimal_text(value: Any) -> str | None:
+    text = _text(value)
+    if not text:
+        return None
+    try:
+        number = Decimal(text)
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+    if not number.is_finite() or number < 0:
+        return None
+    return format(number, "f")
+
+
+def _order_configuration_values(order: Mapping[str, Any]) -> tuple[str | None, str | None]:
+    configuration = order.get("order_configuration")
+    if not isinstance(configuration, Mapping) or len(configuration) != 1:
+        return None, None
+    body = next(iter(configuration.values()))
+    if not isinstance(body, Mapping):
+        return None, None
+    size = _decimal_text(body.get("base_size") or body.get("quote_size"))
+    price = _decimal_text(body.get("limit_price"))
+    return size, price
+
+
+@dataclass(frozen=True, slots=True)
+class SpotOrderObservation:
+    client_order_id: str
+    product_id: str
+    side: Literal["BUY", "SELL"]
+    status: str
+    order_type: str
+    time_in_force: str
+    size: str | None
+    limit_price: str | None
+    filled_size: str | None
+    created_at: str | None
+    updated_at: str | None
+    ownership_provenance: Literal["ADMIN_MANUAL_ROOT"] | None
+    exchange_order_id_sha256: str
+    authoritatively_nonterminal: bool
+    cancel_eligible: bool
+
+    def to_public_dict(self) -> dict[str, Any]:
+        if self.ownership_provenance != "ADMIN_MANUAL_ROOT":
+            raise ValueError(
+                "operator_spot_order_truth_local_ownership_unproven"
+            )
+        return {
+            "client_order_id": self.client_order_id,
+            "product_id": self.product_id,
+            "side": self.side,
+            "status": self.status,
+            "order_type": self.order_type,
+            "time_in_force": self.time_in_force,
+            "size": self.size,
+            "limit_price": self.limit_price,
+            "filled_size": self.filled_size,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+            "ownership_provenance": self.ownership_provenance,
+            "exchange_order_id_sha256": self.exchange_order_id_sha256,
+            "authoritatively_nonterminal": self.authoritatively_nonterminal,
+            "cancel_eligible": self.cancel_eligible,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class SpotOrderCatalogResult:
+    outcome: Literal["SUCCEEDED", "INELIGIBLE", "UNKNOWN"]
+    diagnostic_code: str
+    category_attempts: dict[str, int]
+    page_count: int
+    orders: tuple[SpotOrderObservation, ...]
+    credential_can_trade: bool
+    portfolio_id_sha256: str | None
+    evidence_sha256: str
+    public_evidence: dict[str, Any]
+
+
+class _CatalogReadError(RuntimeError):
+    def __init__(self, diagnostic_code: str) -> None:
+        self.diagnostic_code = diagnostic_code
+        super().__init__(diagnostic_code)
+
+
+def _catalog_schema_error(boundary: str) -> _CatalogReadError:
+    return _CatalogReadError(
+        "operator_spot_order_truth_spot_order_catalog_" + boundary
+    )
+
+
+def _read_diagnostic(category: str, exc: Exception) -> str:
+    prefix = f"operator_spot_order_truth_{category}"
+    if isinstance(exc, HTTPError):
+        status_code = getattr(getattr(exc, "response", None), "status_code", None)
+        if status_code == 401:
+            suffix = "http_unauthorized"
+        elif status_code == 403:
+            suffix = "http_forbidden"
+        elif status_code == 404:
+            suffix = "http_not_found"
+        elif status_code == 429:
+            suffix = "http_rate_limited"
+        elif isinstance(status_code, int) and 400 <= status_code < 500:
+            suffix = "http_client_error"
+        elif isinstance(status_code, int) and 500 <= status_code < 600:
+            suffix = "http_server_error"
+        else:
+            suffix = "http_unclassified"
+    elif isinstance(exc, ConnectTimeout):
+        suffix = "connect_timeout"
+    elif isinstance(exc, ReadTimeout):
+        suffix = "read_timeout"
+    elif isinstance(exc, SSLError):
+        suffix = "tls_failure"
+    elif isinstance(exc, ProxyError):
+        suffix = "proxy_failure"
+    elif isinstance(exc, RequestsConnectionError):
+        suffix = "connection_failure"
+    elif isinstance(exc, Timeout):
+        suffix = "timeout"
+    elif isinstance(exc, (KeyError, TypeError, ValueError)):
+        suffix = "schema_invalid"
+    else:
+        suffix = "read_unknown"
+    return f"{prefix}_{suffix}"
+
+
+def _blocked_result(
+    *,
+    outcome: Literal["INELIGIBLE", "UNKNOWN"],
+    diagnostic_code: str,
+    attempts: Mapping[str, int],
+    page_count: int,
+) -> SpotOrderCatalogResult:
+    public = {
+        "goal_id": SPOT_ORDER_TRUTH_GOAL_ID,
+        "profile_alias": "Test",
+        "portfolio_type": "CONSUMER",
+        "product_type": "SPOT",
+        "outcome": outcome,
+        "diagnostic_code": diagnostic_code,
+        "category_attempts": dict(attempts),
+        "page_count": page_count,
+        "order_count": 0,
+        "orders": [],
+        "raw_responses_included": False,
+        "private_identifiers_included": False,
+        "exception_text_included": False,
+    }
+    return SpotOrderCatalogResult(
+        outcome=outcome,
+        diagnostic_code=diagnostic_code,
+        category_attempts=dict(attempts),
+        page_count=page_count,
+        orders=(),
+        credential_can_trade=False,
+        portfolio_id_sha256=None,
+        evidence_sha256=_canonical_sha256(public),
+        public_evidence=public,
+    )
+
+
+def _normalize_order(value: Any) -> SpotOrderObservation:
+    order = _sdk_mapping(value)
+    if order is None:
+        raise _catalog_schema_error("order_mapping_invalid")
+    exchange_order_id = _text(order.get("order_id"))
+    client_order_id = _text(order.get("client_order_id"))
+    product_id = _text(order.get("product_id"))
+    side = _text(order.get("side")).upper()
+    status = _text(order.get("status")).upper()
+    raw_order_type = _text(order.get("order_type")).upper()
+    known_concrete_order_type = (
+        raw_order_type in SPOT_ORDER_TYPES
+        and raw_order_type != "UNKNOWN_ORDER_TYPE"
+    )
+    undocumented_order_type = bool(
+        raw_order_type and raw_order_type not in SPOT_ORDER_TYPES
+    )
+    order_type = (
+        "UNKNOWN_ORDER_TYPE"
+        if undocumented_order_type
+        else raw_order_type or "UNKNOWN_ORDER_TYPE"
+    )
+    time_in_force = (
+        _text(order.get("time_in_force")).upper() or "UNKNOWN_TIME_IN_FORCE"
+    )
+    if not exchange_order_id:
+        raise _catalog_schema_error("exchange_identity_missing")
+    if not client_order_id:
+        raise _catalog_schema_error("client_identity_missing")
+    if _CANONICAL_CLIENT_ORDER_ID_RE.fullmatch(client_order_id) is None:
+        raise _catalog_schema_error("client_identity_invalid")
+    if not product_id:
+        raise _catalog_schema_error("product_identity_missing")
+    if len(product_id) > 128:
+        raise _catalog_schema_error("product_identity_too_long")
+    if side not in {"BUY", "SELL"}:
+        raise _catalog_schema_error("side_invalid")
+    if status not in SPOT_ORDER_STATUSES:
+        raise _catalog_schema_error("status_invalid")
+    if time_in_force not in SPOT_TIME_IN_FORCES:
+        raise _catalog_schema_error("time_in_force_invalid")
+    size, limit_price = _order_configuration_values(order)
+    size = size or _decimal_text(order.get("base_size") or order.get("size"))
+    limit_price = limit_price or _decimal_text(
+        order.get("limit_price") or order.get("price")
+    )
+    created_at = _iso_timestamp(order.get("created_time") or order.get("created_at"))
+    updated_at = _iso_timestamp(
+        order.get("last_update_time") or order.get("updated_at")
+    )
+    exchange_hash = _sha256_text(exchange_order_id)
+    return SpotOrderObservation(
+        client_order_id=client_order_id,
+        product_id=product_id,
+        side=side,  # type: ignore[arg-type]
+        status=status,
+        order_type=order_type,
+        time_in_force=time_in_force,
+        size=size,
+        limit_price=limit_price,
+        filled_size=_decimal_text(order.get("filled_size")),
+        created_at=created_at,
+        updated_at=updated_at,
+        ownership_provenance=None,
+        exchange_order_id_sha256=exchange_hash,
+        authoritatively_nonterminal=(
+            status in SPOT_ORDER_NONTERMINAL_STATUSES
+        ),
+        cancel_eligible=(
+            status == "OPEN" and known_concrete_order_type
+        ),
+    )
+
+
+class SpotOrderCatalogReader:
+    """Run one claimed approved-Test logical Spot order catalog read."""
+
+    def __init__(
+        self,
+        *,
+        rest_client: Any,
+        expected_portfolio_id: str,
+        local_order_loader: Callable[[str], Mapping[str, Any] | None],
+        now: Callable[[], datetime] | None = None,
+    ) -> None:
+        self.rest_client = rest_client
+        self.expected_portfolio_id = str(expected_portfolio_id or "").strip()
+        self.local_order_loader = local_order_loader
+        self.now = now or (lambda: datetime.now(timezone.utc))
+
+    def run(
+        self,
+        *,
+        before_category: Callable[[str], None],
+        on_category_call_boundary: Callable[[str], None],
+        before_page: Callable[[int, str | None], None],
+        on_page_call_boundary: Callable[[int], None],
+        after_category: Callable[[str, str], None] | None = None,
+        after_page: Callable[[int], None] | None = None,
+        page_failed: Callable[[int], None] | None = None,
+        exact_scope_required: bool = False,
+        target_client_order_id: str | None = None,
+        target_product_id: str | None = None,
+        target_created_at: str | None = None,
+    ) -> SpotOrderCatalogResult:
+        attempts = {
+            category: 0 for category in SPOT_ORDER_TRUTH_CATEGORIES
+        }
+        page_count = 0
+        exact_client_order_id = _text(target_client_order_id)
+        exact_product_id = _text(target_product_id)
+        exact_start_date = (
+            _iso_timestamp(target_created_at)
+            if exact_product_id and target_created_at
+            else None
+        )
+        if exact_scope_required and (
+            not exact_client_order_id
+            or not exact_product_id
+            or not exact_start_date
+        ):
+            return _blocked_result(
+                outcome="INELIGIBLE",
+                diagnostic_code=(
+                    "operator_spot_order_truth_exact_catalog_scope_incomplete"
+                ),
+                attempts=attempts,
+                page_count=page_count,
+            )
+
+        def read(
+            category: str,
+            call: Callable[[Callable[[], None]], Any],
+        ) -> Any:
+            if attempts[category] != 0:
+                raise _CatalogReadError(
+                    "operator_spot_order_truth_duplicate_category_read"
+                )
+            boundary_entered = False
+            category_finished = False
+
+            def mark_boundary() -> None:
+                nonlocal boundary_entered
+                on_category_call_boundary(category)
+                boundary_entered = True
+                attempts[category] = 1
+
+            try:
+                before_category(category)
+                value = call(mark_boundary)
+                if not boundary_entered:
+                    raise _CatalogReadError(
+                        _read_diagnostic(
+                            category,
+                            ValueError("sdk_boundary_not_entered"),
+                        )
+                    )
+                if after_category is not None:
+                    category_finished = True
+                    after_category(category, "RETURNED")
+                return value
+            except Exception as exc:
+                if (
+                    boundary_entered
+                    and not category_finished
+                    and after_category is not None
+                ):
+                    after_category(category, "UNKNOWN")
+                raise _CatalogReadError(
+                    _read_diagnostic(category, exc)
+                ) from None
+
+        try:
+            permissions = read(
+                "api_key_permissions",
+                lambda mark_boundary: (
+                    self.rest_client.get_api_key_permissions(
+                        before_sdk_call=mark_boundary
+                    )
+                ),
+            )
+            portfolios = read(
+                "portfolio_catalog",
+                lambda mark_boundary: self.rest_client.list_portfolios(
+                    before_sdk_call=mark_boundary
+                ),
+            )
+        except _CatalogReadError as exc:
+            return _blocked_result(
+                outcome="UNKNOWN",
+                diagnostic_code=exc.diagnostic_code,
+                attempts=attempts,
+                page_count=page_count,
+            )
+
+        observed_at = self.now()
+        catalog_order_status = (
+            None
+            if exact_product_id
+            else list(SPOT_ORDER_REFRESH_STATUSES)
+        )
+        catalog_product_ids = (
+            [exact_product_id] if exact_product_id else None
+        )
+        try:
+            binding = evaluate_spot_test_portfolio_binding_observations(
+                permissions=permissions,
+                portfolios=portfolios,
+                expected_portfolio_id=self.expected_portfolio_id,
+                expected_portfolio_label="Test",
+            )
+            if (
+                not binding.ready
+                or binding.can_view is not True
+                or not binding.observed_portfolio_id
+            ):
+                raise ValueError("test_profile_ineligible")
+        except Exception:
+            return _blocked_result(
+                outcome="INELIGIBLE",
+                diagnostic_code=(
+                    "operator_spot_order_truth_test_profile_ineligible"
+                ),
+                attempts=attempts,
+                page_count=page_count,
+            )
+
+        category_boundary_entered = False
+        category_finished = False
+        try:
+            before_category("spot_order_catalog")
+            cursor: str | None = None
+            seen_cursor_hashes: set[str] = set()
+            seen_orders: dict[str, SpotOrderObservation] = {}
+            while True:
+                if page_count >= SPOT_ORDER_TRUTH_MAX_PAGES_PER_CYCLE:
+                    raise _catalog_schema_error("page_limit_exceeded")
+                page_ordinal = page_count + 1
+                cursor_hash = _sha256_text(cursor) if cursor else None
+                if cursor_hash and cursor_hash in seen_cursor_hashes:
+                    raise _catalog_schema_error("pagination_cursor_loop")
+                if cursor_hash:
+                    seen_cursor_hashes.add(cursor_hash)
+                before_page(page_ordinal, cursor_hash)
+                page_boundary_entered = False
+
+                def mark_page_boundary(
+                    ordinal: int = page_ordinal,
+                ) -> None:
+                    nonlocal category_boundary_entered
+                    nonlocal page_boundary_entered
+                    nonlocal page_count
+                    on_page_call_boundary(ordinal)
+                    category_boundary_entered = True
+                    page_boundary_entered = True
+                    attempts["spot_order_catalog"] = 1
+                    page_count = ordinal
+
+                try:
+                    response = self.rest_client.list_orders(
+                        order_status=catalog_order_status,
+                        product_ids=catalog_product_ids,
+                        product_type="SPOT",
+                        limit=SPOT_ORDER_TRUTH_PAGE_LIMIT,
+                        start_date=exact_start_date,
+                        end_date=None,
+                        cursor=cursor,
+                        retail_portfolio_id=None,
+                        before_sdk_call=mark_page_boundary,
+                    )
+                except Exception:
+                    if page_boundary_entered and page_failed is not None:
+                        page_failed(page_ordinal)
+                    raise
+                if not page_boundary_entered:
+                    raise _catalog_schema_error(
+                        "sdk_boundary_not_entered"
+                    )
+                if after_page is not None:
+                    after_page(page_ordinal)
+                page = _sdk_mapping(response)
+                if page is None:
+                    raise _catalog_schema_error("response_envelope_invalid")
+                raw_orders = page.get("orders")
+                if not isinstance(raw_orders, Sequence) or isinstance(
+                    raw_orders, (str, bytes, bytearray)
+                ):
+                    raise _catalog_schema_error("orders_collection_invalid")
+                for raw_order in raw_orders:
+                    observation = _normalize_order(raw_order)
+                    if (
+                        exact_client_order_id
+                        and observation.client_order_id
+                        != exact_client_order_id
+                    ):
+                        continue
+                    local = self.local_order_loader(
+                        observation.client_order_id
+                    )
+                    local_matches = bool(
+                        isinstance(local, Mapping)
+                        and _text(local.get("client_order_id"))
+                        == observation.client_order_id
+                        and _text(local.get("product_id"))
+                        == observation.product_id
+                        and _text(local.get("retail_portfolio_id"))
+                        == self.expected_portfolio_id
+                        and _text(local.get("ownership_provenance"))
+                        == "ADMIN_MANUAL_ROOT"
+                        and local.get("parent_order_id") is None
+                        and bool(_text(local.get("exchange_order_id")))
+                        and _sha256_text(
+                            _text(local.get("exchange_order_id"))
+                        )
+                        == observation.exchange_order_id_sha256
+                    )
+                    if not local_matches:
+                        continue
+                    observation = replace(
+                        observation,
+                        ownership_provenance="ADMIN_MANUAL_ROOT",
+                    )
+                    if binding.can_trade is not True:
+                        observation = replace(
+                            observation,
+                            cancel_eligible=False,
+                        )
+                    previous = seen_orders.get(observation.client_order_id)
+                    if (
+                        previous is not None
+                        and previous != observation
+                    ):
+                        raise _CatalogReadError(
+                            "operator_spot_order_truth_catalog_identity_ambiguous"
+                        )
+                    seen_orders[observation.client_order_id] = observation
+                has_next = page.get("has_next")
+                if has_next is False:
+                    break
+                if has_next is not True:
+                    raise _catalog_schema_error(
+                        "pagination_has_next_invalid"
+                    )
+                next_cursor = _text(page.get("cursor"))
+                if not next_cursor:
+                    raise _catalog_schema_error(
+                        "pagination_cursor_missing"
+                    )
+                cursor = next_cursor
+            if after_category is not None:
+                category_finished = True
+                after_category("spot_order_catalog", "RETURNED")
+        except _CatalogReadError as exc:
+            if (
+                category_boundary_entered
+                and not category_finished
+                and after_category is not None
+            ):
+                after_category("spot_order_catalog", "UNKNOWN")
+            return _blocked_result(
+                outcome="UNKNOWN",
+                diagnostic_code=exc.diagnostic_code,
+                attempts=attempts,
+                page_count=page_count,
+            )
+        except Exception as exc:
+            if (
+                category_boundary_entered
+                and not category_finished
+                and after_category is not None
+            ):
+                after_category("spot_order_catalog", "UNKNOWN")
+            return _blocked_result(
+                outcome="UNKNOWN",
+                diagnostic_code=_read_diagnostic(
+                    "spot_order_catalog", exc
+                ),
+                attempts=attempts,
+                page_count=page_count,
+            )
+
+        ordered = tuple(
+            sorted(
+                seen_orders.values(),
+                key=lambda item: (
+                    item.updated_at or "",
+                    item.created_at or "",
+                    item.client_order_id,
+                ),
+                reverse=True,
+            )
+        )
+        portfolio_hash = _sha256_text(binding.observed_portfolio_id)
+        public = {
+            "goal_id": SPOT_ORDER_TRUTH_GOAL_ID,
+            "profile_alias": "Test",
+            "portfolio_type": "CONSUMER",
+            "portfolio_id_sha256": portfolio_hash,
+            "credential_can_view": True,
+            "credential_can_trade": binding.can_trade is True,
+            "selection_authority": "cdp_api_key_permissioned_portfolio",
+            "product_type": "SPOT",
+            "outcome": "SUCCEEDED",
+            "diagnostic_code": "operator_spot_order_truth_catalog_refreshed",
+            "category_attempts": dict(attempts),
+            "page_count": page_count,
+            "order_count": len(ordered),
+            "orders": [order.to_public_dict() for order in ordered],
+            "observed_at": observed_at.astimezone(timezone.utc)
+            .isoformat()
+            .replace("+00:00", "Z"),
+            "raw_responses_included": False,
+            "private_identifiers_included": False,
+            "exception_text_included": False,
+        }
+        return SpotOrderCatalogResult(
+            outcome="SUCCEEDED",
+            diagnostic_code="operator_spot_order_truth_catalog_refreshed",
+            category_attempts=dict(attempts),
+            page_count=page_count,
+            orders=ordered,
+            credential_can_trade=(binding.can_trade is True),
+            portfolio_id_sha256=portfolio_hash,
+            evidence_sha256=_canonical_sha256(public),
+            public_evidence=public,
+        )
+
+
+__all__ = [
+    "SPOT_ORDER_NONTERMINAL_STATUSES",
+    "SPOT_ORDER_TRUTH_CATEGORIES",
+    "SPOT_ORDER_TRUTH_GOAL_ID",
+    "SPOT_ORDER_TRUTH_MAX_CYCLES",
+    "SPOT_ORDER_REFRESH_STATUSES",
+    "SPOT_ORDER_TERMINAL_STATUSES",
+    "SpotOrderCatalogReader",
+    "SpotOrderCatalogResult",
+    "SpotOrderObservation",
+]

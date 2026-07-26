@@ -29,6 +29,10 @@ from typing import Any, Callable, Dict, List, Optional
 from coinbase.rest import RESTClient
 from core.models import Product, Wallet, Position, Order
 from core.enums import OrderSide, TimeInForce
+from core.exceptions import (
+    CoinbasePreSdkAuthorityError,
+    CoinbasePreSdkCallbackError,
+)
 from core.coinbase_execution_authority import (
     COINBASE_EXECUTION_SCOPE_FUTURES_CANCEL,
     COINBASE_EXECUTION_SCOPE_FUTURES_PLACE,
@@ -507,7 +511,6 @@ class CoinbaseRestClient:
         _harden_sdk_transport(self._client, require_bounded_timeout=True)
         if before_sdk_call is not None:
             before_sdk_call()
-        _harden_sdk_transport(self._client, require_bounded_timeout=True)
         response = self._client.get_api_key_permissions()
         data = coinbase_sdk_response_to_dict(response)
         return data if isinstance(data, dict) else {}
@@ -832,6 +835,7 @@ class CoinbaseRestClient:
         *,
         verified_exchange_order_id: str | None = None,
         return_evidence: bool = False,
+        before_sdk_call: Optional[Callable[[], None]] = None,
     ) -> bool | Dict[str, Any]:
         """Cancel one operator-selected order through the canonical wrapper.
 
@@ -871,6 +875,17 @@ class CoinbaseRestClient:
         require_coinbase_execution_authority(
             expected_scope=COINBASE_EXECUTION_SCOPE_SPOT_CANCEL
         )
+        if before_sdk_call is not None:
+            try:
+                before_sdk_call()
+            except Exception:
+                raise CoinbasePreSdkCallbackError(
+                    "coinbase_pre_sdk_callback_failed"
+                ) from None
+        try:
+            require_coinbase_execution_authority(expected_scope=COINBASE_EXECUTION_SCOPE_SPOT_CANCEL)
+        except Exception:
+            raise CoinbasePreSdkAuthorityError("coinbase_pre_sdk_authority_failed") from None
         result = self._client.cancel_orders([submitted_order_id])
         evidence = coinbase_cancel_response_evidence(
             result,
@@ -1203,11 +1218,10 @@ class CoinbaseRestClient:
             >>> for portfolio in portfolios:
             ...     print(f"Portfolio: {portfolio['name']}")
         """
-        _harden_sdk_transport(self._client, require_bounded_timeout=True)
         lister = getattr(self._client, "get_portfolios", None)
+        _harden_sdk_transport(self._client, require_bounded_timeout=True)
         if before_sdk_call is not None:
             before_sdk_call()
-        _harden_sdk_transport(self._client, require_bounded_timeout=True)
         if callable(lister):
             response = lister()
         else:
@@ -1332,7 +1346,6 @@ class CoinbaseRestClient:
         _harden_sdk_transport(self._client, require_bounded_timeout=True)
         if before_sdk_call is not None:
             before_sdk_call()
-        _harden_sdk_transport(self._client, require_bounded_timeout=True)
         return self._client.list_orders(
             order_status=order_status,
             order_ids=order_ids,

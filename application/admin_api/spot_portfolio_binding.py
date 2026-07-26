@@ -171,6 +171,74 @@ def evaluate_spot_test_portfolio_binding(
     )
 
 
+def evaluate_spot_test_portfolio_binding_observations(
+    *,
+    permissions: Any,
+    portfolios: Any,
+    expected_portfolio_id: str | None,
+    expected_portfolio_label: str = DEFAULT_SPOT_PORTFOLIO_LABEL,
+) -> SpotPortfolioBindingEvidence:
+    """Evaluate already-claimed Coinbase observations without hidden reads."""
+
+    expected_id = _string_or_none(expected_portfolio_id)
+    label = _string_or_none(expected_portfolio_label) or DEFAULT_SPOT_PORTFOLIO_LABEL
+    permission_row = _mapping(permissions)
+    raw_portfolios = (
+        portfolios.get("portfolios")
+        if isinstance(portfolios, Mapping)
+        else portfolios
+    )
+    if expected_id is None:
+        return _evidence(
+            blocker="spot_test_portfolio_id_missing",
+            expected_portfolio_id=None,
+            expected_portfolio_label=label,
+        )
+    if not isinstance(raw_portfolios, list):
+        return _evidence(
+            blocker="spot_test_portfolio_catalog_unavailable",
+            expected_portfolio_id=expected_id,
+            expected_portfolio_label=label,
+        )
+
+    observed_id = _string_or_none(permission_row.get("portfolio_uuid"))
+    observed_type = _string_or_none(permission_row.get("portfolio_type"))
+    if observed_type is not None:
+        observed_type = observed_type.upper()
+    can_view = _optional_bool(permission_row.get("can_view"))
+    can_trade = _optional_bool(permission_row.get("can_trade"))
+    observed_label = None
+    for raw_portfolio in raw_portfolios:
+        portfolio = _mapping(raw_portfolio)
+        portfolio_id = _string_or_none(
+            portfolio.get("uuid") or portfolio.get("portfolio_id")
+        )
+        if portfolio_id == observed_id:
+            observed_label = _string_or_none(portfolio.get("name"))
+            break
+
+    blocker = None
+    if observed_id != expected_id:
+        blocker = "spot_test_portfolio_mismatch"
+    elif observed_type != EXPECTED_SPOT_PORTFOLIO_TYPE:
+        blocker = "spot_test_portfolio_type_mismatch"
+    elif observed_label != label:
+        blocker = "spot_test_portfolio_label_mismatch"
+    elif can_view is not True:
+        blocker = "spot_test_portfolio_view_permission_missing"
+
+    return _evidence(
+        blocker=blocker,
+        expected_portfolio_id=expected_id,
+        expected_portfolio_label=label,
+        observed_portfolio_id=observed_id,
+        observed_portfolio_label=observed_label,
+        observed_portfolio_type=observed_type,
+        can_view=can_view,
+        can_trade=can_trade,
+    )
+
+
 def require_spot_test_portfolio_binding(
     *,
     rest_client: Any,

@@ -5,6 +5,25 @@ private model routing, private release planning, or internal research notes.
 
 ## Current Direction
 
+- Authorized Goal 12
+  `operator_spot_order_truth_and_exact_cancel_reconcile_v1` has completed its
+  terminal implementation/validation checkpoint. It adds a normal
+  authenticated Spot order inventory for exact approved-Test
+  `ADMIN_MANUAL_ROOT` rows, one goal-global no-retry truth cycle for either
+  catalog refresh or exact reconciliation, and one independent exact Cancel
+  allowance. List, detail, and actor-bound result reads are PostgreSQL-only.
+  Exact Cancel reuses canonical
+  `POST /api/v1/orders/{client_order_id}/cancel`; the goal adds no alternate
+  mutation route, retry, fallback, Create, child, or fan-out. Focused backend
+  validation passed 242 tests; canonical backend regression passed
+  1,294/6-skipped parallel and
+  920/150-skipped/1,300-deselected serial; frontend validation passed 1,829
+  unit/component and 33 authenticated E2E tests. Both independent audits pass,
+  including the final remediation delta. Validation consumed no Coinbase call,
+  truth cycle, or Cancel allowance. Installed deployment and Controlled-live
+  status verification remain pending before operator-ready closeout. See
+  [Operator Spot Order Truth and Exact Cancel V1](OPERATOR_SPOT_ORDER_TRUTH_AND_EXACT_CANCEL_V1.md).
+
 - `operator_spot_automation_single_child_execution_adapter_v1` is at an
   eligibility-coordinator-complete, source-gated checkpoint. One immutable
   `BTC-USDC` child plan, a goal-global ten-cycle PostgreSQL ledger, the seven

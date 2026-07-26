@@ -371,6 +371,20 @@ def test_recovery_openapi_exposes_normal_operator_routes() -> None:
 def test_canonical_cancel_route_binds_and_closes_recovery_claim(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_OPERATOR_SPOT_ORDER_TRUTH_ENABLED",
+        "1",
+    )
+
+    class _Goal12ProjectionRepository:
+        def get_order(self, client_order_id: str):
+            assert client_order_id == CLIENT_ORDER_ID
+            return {
+                "client_order_id": CLIENT_ORDER_ID,
+                "cancel_eligible": True,
+                "authoritatively_nonterminal": True,
+            }
+
     class _RecoveryRepository:
         def __init__(self) -> None:
             self.events: list[tuple[str, dict[str, Any]]] = []
@@ -466,6 +480,7 @@ def test_canonical_cancel_route_binds_and_closes_recovery_claim(
         reconciliation_store=SimpleNamespace(),
         live_execution_service=SimpleNamespace(),
         recovery_repository_factory=lambda: repository,
+        goal12_repository_factory=lambda: _Goal12ProjectionRepository(),
     )
 
     assert response.status is AdminApiCommandStatus.ACCEPTED
@@ -612,6 +627,9 @@ def test_canonical_cancel_route_preserves_rejected_vs_unknown_outcome(
         reconciliation_store=SimpleNamespace(),
         live_execution_service=SimpleNamespace(),
         recovery_repository_factory=lambda: repository,
+        goal12_repository_factory=lambda: (
+            pytest.fail("recovery cancel must not consult Goal 12 projection")
+        ),
     )
 
     assert response.status is AdminApiCommandStatus.REJECTED
@@ -708,6 +726,9 @@ def test_recovery_cancel_proof_pass_does_not_claim_or_consume_case(
         reconciliation_store=SimpleNamespace(),
         live_execution_service=SimpleNamespace(),
         recovery_repository_factory=lambda: repository,
+        goal12_repository_factory=lambda: (
+            pytest.fail("recovery cancel must not consult Goal 12 projection")
+        ),
     )
 
     assert response.status is AdminApiCommandStatus.NOT_IMPLEMENTED

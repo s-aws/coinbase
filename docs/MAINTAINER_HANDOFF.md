@@ -1,5 +1,61 @@
 # Maintainer Handoff
 
+## Current independent Goal 12 — terminal validation, deployment pending
+
+Goal `operator_spot_order_truth_and_exact_cancel_reconcile_v1` adds the
+approved-Test `CONSUMER` / `SPOT` order-operations workflow. A separate
+PostgreSQL ledger owns one goal-global truth cycle and one independent exact
+Cancel allowance. The operator must choose whether the single no-retry cycle
+performs an `OPEN` catalog refresh or one exact reconciliation. Call-free
+list, detail, and actor-bound mutation-result GETs read sanitized PostgreSQL
+projections only.
+
+Only a canonical lowercase-UUID, parentless `ADMIN_MANUAL_ROOT` whose local
+Test-portfolio and raw exchange-identity hash match the Coinbase observation
+can become Cancel-eligible. The browser cannot create or upgrade ownership.
+Refresh/reconcile claims API-key permissions, portfolio catalog, and one
+logical paginated Spot order catalog once each, with no call or page retry.
+Each category and page records its durable claim separately from the wrapper's
+immediate pre-SDK `call_boundary_entered` callback. Pre-boundary failures
+cannot be reported as Coinbase invocations; post-boundary failures are fixed
+unknown evidence.
+
+The goal deliberately does not add a live
+`/spot/order-operations/{client_order_id}/cancel` route. The optional strict
+Goal 12 revision/evidence/portfolio-hash binding passes through the existing
+`POST /api/v1/orders/{client_order_id}/cancel` admission, audit, idempotency,
+lease, and canonical Spot Cancel service. A pre-SDK-boundary failure releases
+the Goal 12 claim. Accepted, rejected, or unknown evidence after the actual
+SDK boundary consumes the independent allowance; restart after that marker is
+terminal unknown and never retried.
+The Goal 12 service has no `cancel_exact` method, live runner, or unrouted
+Cancel helper; the existing command route is the only callable mutation path.
+
+Historical comparison inspected `origin/prod:dashboard_server.py`,
+`external/coinbase_client.py`, `database/order.py`,
+`database/order_dashboard_helpers.py`, `core/order_engine.py`, and related
+legacy tests. Only internal `client_order_id`, durable ownership/hierarchy,
+inventory, and exact exchange evidence were retained. WebSocket authority,
+client-ID-as-exchange-ID Cancel, generic/batch/background mutation,
+retry/fallback, inferred ownership, and raw error/response exposure were
+rejected.
+
+The terminal implementation/validation checkpoint is complete. Focused
+backend validation passed 242 tests. Canonical backend regression passed
+1,294 tests with 6 skipped in its parallel lane, followed by 920 passed,
+150 skipped, and 1,300 deselected in its serial lane. Frontend validation
+passed 1,829 unit/component tests and 33 full authenticated E2E tests.
+Independent safety and blind-contextless audits pass, including the final
+remediation delta.
+
+Goal 12 made zero Coinbase calls during implementation, validation, and audit;
+its truth-cycle and exact Cancel allowances remain unconsumed. Every immutable
+predecessor evidence boundary remains preserved, and R8 content and its hash
+remained inaccessible. Installed deployment and Controlled-live status
+verification are still pending, so this is not yet an operator-ready
+deployment closeout. See
+[Operator Spot Order Truth and Exact Cancel V1](OPERATOR_SPOT_ORDER_TRUTH_AND_EXACT_CANCEL_V1.md).
+
 ## Completed Goal 6 — Operator Spot recovery execution UI
 
 Goal `operator_spot_recovery_execution_ui_v1` is a distinct successor to

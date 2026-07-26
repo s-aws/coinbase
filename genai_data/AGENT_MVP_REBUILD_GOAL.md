@@ -1,5 +1,31 @@
 # Coinbase Admin MVP Goal
-## Current sequential Goal 6
+## Current sequential Goal 12 — terminal validation, deployment pending
+
+Goal ID: `operator_spot_order_truth_and_exact_cancel_reconcile_v1`.
+
+This independent goal delivers approved-Test `CONSUMER` / `SPOT` order
+inventory and exact operator actions for canonical parentless
+`ADMIN_MANUAL_ROOT` rows. A separate PostgreSQL ledger owns one goal-global
+no-retry truth cycle, usable by either catalog refresh or exact
+reconciliation, plus one independent exact Cancel allowance. Local
+list/detail/result reads are Coinbase-call-free. The strict Goal 12 binding
+reuses canonical `POST /api/v1/orders/{client_order_id}/cancel`; no alternate
+mutation route, service method, runner, or adapter is permitted. Durable read
+claims are distinct from the wrapper's actual SDK-boundary callbacks, so
+pre-boundary failures do not overstate Coinbase invocation. The read-only
+truth cycle and exact Cancel allowances are unconsumed. Focused backend
+validation passed 242 tests; the
+canonical backend regression passed 1,294 tests with 6 skipped in parallel and
+920 tests with 150 skipped and 1,300 deselected in serial. Frontend validation
+passed 1,829 unit/component tests and 33 authenticated E2E tests. Independent
+safety and blind-contextless audits pass, including the final remediation
+delta. Implementation, validation, and audit made zero Coinbase calls. Every
+immutable predecessor boundary remains preserved and R8 content and its hash
+remained inaccessible. Installed deployment and Controlled-live status
+verification remain pending, so Goal 12 is not yet an operator-ready
+deployment closeout.
+
+## Completed sequential Goal 6
 
 Goal ID: `operator_spot_recovery_execution_ui_v1`.
 

@@ -4,6 +4,101 @@
   "routes": [
     {
       "module_id": "spot_operations",
+      "surface": "GET /api/v1/spot/order-operations",
+      "method": "GET",
+      "path": "/api/v1/spot/order-operations",
+      "action_class": "read_only",
+      "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
+      "idempotency": "not required",
+      "approval": "not applicable",
+      "caps": "not applicable",
+      "audit": "returns durable Goal 12 audit binding",
+      "shared_method": "list_orders",
+      "parity_test": "PostgreSQL projection only; zero Coinbase calls",
+      "compatibility_mode": null,
+      "command_contract": false
+    },
+    {
+      "module_id": "spot_operations",
+      "surface": "GET /api/v1/spot/order-operations/mutation-results/{request_correlation_id}",
+      "method": "GET",
+      "path": "/api/v1/spot/order-operations/mutation-results/{request_correlation_id}",
+      "action_class": "read_only",
+      "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
+      "idempotency": "not required",
+      "approval": "not applicable",
+      "caps": "not applicable",
+      "audit": "actor-bound immutable PostgreSQL result",
+      "shared_method": "read_cycle_result",
+      "parity_test": "PostgreSQL result only; zero Coinbase calls",
+      "compatibility_mode": null,
+      "command_contract": false
+    },
+    {
+      "module_id": "spot_operations",
+      "surface": "GET /api/v1/spot/order-operations/{client_order_id}",
+      "method": "GET",
+      "path": "/api/v1/spot/order-operations/{client_order_id}",
+      "action_class": "read_only",
+      "permission": "audit:read",
+      "required_permissions": [
+        "audit:read"
+      ],
+      "idempotency": "not required",
+      "approval": "not applicable",
+      "caps": "not applicable",
+      "audit": "returns durable Goal 12 audit binding",
+      "shared_method": "get_order",
+      "parity_test": "canonical client_order_id PostgreSQL lookup only",
+      "compatibility_mode": null,
+      "command_contract": false
+    },
+    {
+      "module_id": "spot_operations",
+      "surface": "POST /api/v1/spot/order-operations/refresh",
+      "method": "POST",
+      "path": "/api/v1/spot/order-operations/refresh",
+      "action_class": "local_state_mutation",
+      "permission": "order:cancel",
+      "required_permissions": [
+        "order:cancel"
+      ],
+      "idempotency": "required; one immutable goal-global cycle result",
+      "approval": "explicit one-cycle acknowledgement; no live mutation",
+      "caps": "one goal-global truth cycle",
+      "audit": "required durable actor/correlation/category/page ledger",
+      "shared_method": "refresh_catalog",
+      "parity_test": "read-only Coinbase truth cycle; no Create or Cancel",
+      "compatibility_mode": null,
+      "command_contract": true
+    },
+    {
+      "module_id": "spot_operations",
+      "surface": "POST /api/v1/spot/order-operations/{client_order_id}/reconciliation",
+      "method": "POST",
+      "path": "/api/v1/spot/order-operations/{client_order_id}/reconciliation",
+      "action_class": "local_state_mutation",
+      "permission": "order:cancel",
+      "required_permissions": [
+        "order:cancel"
+      ],
+      "idempotency": "required; one immutable goal-global cycle result",
+      "approval": "explicit one-cycle acknowledgement; no live mutation",
+      "caps": "one goal-global truth cycle",
+      "audit": "required durable actor/correlation/category/page ledger",
+      "shared_method": "reconcile_exact",
+      "parity_test": "exact read-only Coinbase truth; no Create or Cancel",
+      "compatibility_mode": null,
+      "command_contract": true
+    },
+    {
+      "module_id": "spot_operations",
       "surface": "POST /api/v1/orders",
       "method": "POST",
       "path": "/api/v1/orders",
@@ -1862,7 +1957,7 @@
       "caps": "required for rate/session controls",
       "audit": "required",
       "shared_method": "cancel_order_by_client_order_id",
-      "parity_test": "controlled-live HTTP vs canonical cancel_order parity with full request admission and final execution-authority enforcement; an optional complete PostgreSQL recovery binding must atomically claim and close its sole allowance around the same wrapper",
+      "parity_test": "controlled-live HTTP vs canonical cancel_order parity with full request admission and final execution-authority enforcement; an optional complete PostgreSQL recovery binding must atomically claim and close its sole allowance around the same wrapper; the mutually exclusive typed Goal 12 binding similarly claims only after admission and marks the exact existing SDK boundary",
       "compatibility_mode": null,
       "command_contract": true
     },

@@ -6,7 +6,7 @@ import os
 import uuid
 import hashlib
 import json
-from typing import Annotated, Callable, Literal, NoReturn
+from typing import Annotated, Any, Callable, Literal, Mapping, NoReturn
 
 from fastapi import (
     APIRouter,
@@ -26,7 +26,11 @@ from application.admin_api.approval import (
     FileAdminApiApprovalStore,
     evaluate_command_live_admission,
 )
-from application.admin_api.auth import get_authenticated_actor, require_permission
+from application.admin_api.auth import (
+    actor_has_permission,
+    get_authenticated_actor,
+    require_permission,
+)
 from application.admin_api.cap_guard import FileAdminApiCapGuardStore
 from application.admin_api.command_runtime import build_admin_api_command_service
 from application.admin_api.command_service import (
@@ -181,6 +185,27 @@ from application.admin_api.operator_fill_triggered_follow_up_activation import (
     get_default_fill_triggered_follow_up_activation_service,
     get_default_fill_triggered_follow_up_materialization_service,
 )
+from application.admin_api.operator_spot_order_truth_models import (
+    OperatorSpotOrderDetailResponse,
+    OperatorSpotOrderListResponse,
+    OperatorSpotOrderMutationResolutionResponse,
+    OperatorSpotOrderMutationResponse,
+    OperatorSpotOrderRefreshRequest,
+    OperatorSpotOrderTruthReadback,
+)
+from application.admin_api.operator_spot_order_truth_runtime import (
+    SpotOrderTruthCancelExecution,
+)
+from application.admin_api.operator_spot_order_truth_service import (
+    OperatorSpotOrderTruthService,
+    SpotOrderTruthGoalRecord,
+    SpotOrderTruthRequestContext,
+)
+from application.admin_api.operator_spot_order_truth_service_runtime import (
+    OPERATOR_SPOT_ORDER_TRUTH_ENABLED_ENV,
+    get_default_operator_spot_order_truth_service,
+    get_operator_spot_order_truth_execution_posture,
+)
 from application.admin_api.mvp_service import (
     AdminMvpRequestContext,
     AdminMvpService,
@@ -219,6 +244,7 @@ router = APIRouter()
 _CANONICAL_UUID_PATH_PATTERN = (
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
 )
+_SAFE_EVIDENCE_ID_PATH_PATTERN = r"^[A-Za-z0-9._:-]{1,255}$"
 _VISIBLE_ASCII_HEADER_PATTERN = r"^[!-~]+$"
 
 
@@ -232,6 +258,38 @@ def get_operator_spot_recovery_cancel_repository(
     """Defer recovery PostgreSQL initialization for ordinary cancel requests."""
 
     return _build_operator_spot_recovery_cancel_repository
+
+
+def get_operator_spot_order_truth_read_repository():
+    """Build only the PostgreSQL authority; never construct Coinbase clients."""
+
+    _require_operator_spot_order_truth_enabled()
+    from database.operator_spot_order_truth import (
+        get_default_operator_spot_order_truth_repository,
+    )
+
+    return get_default_operator_spot_order_truth_repository()
+
+
+def get_operator_spot_order_truth_service() -> OperatorSpotOrderTruthService:
+    _require_operator_spot_order_truth_enabled()
+    try:
+        return get_default_operator_spot_order_truth_service()
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="operator_spot_order_truth_backend_unavailable",
+        ) from None
+
+
+def get_operator_spot_order_truth_cancel_repository_factory():
+    """Defer PostgreSQL Goal 12 access unless the optional binding is present."""
+
+    from database.operator_spot_order_truth import (
+        get_default_operator_spot_order_truth_repository,
+    )
+
+    return get_default_operator_spot_order_truth_repository
 
 COMMAND_ROUTE_RESPONSES = {
     200: {
@@ -2221,6 +2279,438 @@ def _execute_idempotent_command(
     return _command_response(response)
 
 
+def _require_operator_spot_order_truth_enabled() -> None:
+    if os.environ.get(OPERATOR_SPOT_ORDER_TRUTH_ENABLED_ENV, "") != "1":
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="operator_spot_order_truth_disabled",
+        )
+
+
+_GOAL12_RAW_PRIVATE_IDENTIFIER_KEYS = frozenset(
+    {
+        "exchange_order_id",
+        "fallback_exchange_order_id",
+        "expected_portfolio_id",
+        "observed_portfolio_id",
+        "order_id",
+        "portfolio_id",
+        "portfolio_uuid",
+        "retail_portfolio_id",
+        "returned_order_id",
+        "submitted_order_id",
+    }
+)
+
+
+def _goal12_hash_only_exchange_evidence(value: Any) -> Any:
+    """Remove exchange-native identifiers from Goal 12 public readback."""
+
+    if isinstance(value, Mapping):
+        sanitized: dict[str, Any] = {}
+        for raw_key, raw_value in value.items():
+            key = str(raw_key)
+            if key in _GOAL12_RAW_PRIVATE_IDENTIFIER_KEYS:
+                hashed_key = f"{key}_sha256"
+                exact_value = str(raw_value or "").strip()
+                sanitized[hashed_key] = (
+                    hashlib.sha256(
+                        exact_value.encode("utf-8")
+                    ).hexdigest()
+                    if exact_value
+                    else None
+                )
+                continue
+            sanitized[key] = _goal12_hash_only_exchange_evidence(
+                raw_value
+            )
+        return sanitized
+    if isinstance(value, (list, tuple)):
+        return [
+            _goal12_hash_only_exchange_evidence(item)
+            for item in value
+        ]
+    return value
+
+
+def _is_goal12_canonical_client_order_id(value: str) -> bool:
+    """Match the exact lowercase UUID identity accepted by Goal 12 storage."""
+
+    try:
+        return str(uuid.UUID(value)) == value
+    except (AttributeError, TypeError, ValueError):
+        return False
+
+
+def _goal12_cancel_public_record(
+    record: SpotOrderTruthGoalRecord,
+    *,
+    replayed: bool,
+) -> dict[str, Any]:
+    return {
+        "goal_id": record.goal_id,
+        "revision": record.revision,
+        "cycles_used": record.cycles_used,
+        "cancel_outcome": record.cancel_outcome,
+        "cancel_exchange_invoked": record.cancel_exchange_invoked,
+        "cancel_exchange_order_id_sha256": (
+            record.cancel_exchange_order_id_sha256
+        ),
+        "correlation_id": record.correlation_id,
+        "audit_id": record.audit_id,
+        "replayed": replayed,
+    }
+
+
+def _goal12_cancel_replay_response(
+    *,
+    record: SpotOrderTruthGoalRecord,
+    client_order_id: str,
+    correlation_id: str,
+    idempotency_key: str,
+) -> AdminApiCommandResponse:
+    accepted = record.cancel_outcome == "ACCEPTED"
+    return AdminApiCommandResponse(
+        status=(
+            AdminApiCommandStatus.ACCEPTED
+            if accepted
+            else AdminApiCommandStatus.REJECTED
+        ),
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        required_permission=AdminApiPermission.ORDER_CANCEL,
+        service_method="cancel_order_by_client_order_id",
+        message="operator_spot_order_truth_cancel_terminal_replay",
+        client_order_id=client_order_id,
+        correlation_id=correlation_id,
+        idempotency_key=idempotency_key,
+        live_exchange_submitted=False,
+        live_coinbase_orders_ran=False,
+        live_coinbase_read_ran=False,
+        failure_stage=None if accepted else "goal12_terminal_replay",
+        data={
+            "goal12_spot_order_truth": _goal12_cancel_public_record(
+                record,
+                replayed=True,
+            ),
+        },
+    )
+
+
+def _operator_spot_order_truth_readback(
+    record: SpotOrderTruthGoalRecord,
+    *,
+    actor: AdminApiActor,
+    historical: bool = False,
+) -> OperatorSpotOrderTruthReadback:
+    posture = get_operator_spot_order_truth_execution_posture()
+    can_mutate = actor_has_permission(actor, AdminApiPermission.ORDER_CANCEL)
+    actions: list[
+        Literal["REFRESH_CATALOG", "RECONCILE_EXACT", "CANCEL_EXACT"]
+    ] = []
+    if not historical and can_mutate and record.active_cycle_number is None:
+        if record.cycles_used == 0:
+            actions.extend(["REFRESH_CATALOG", "RECONCILE_EXACT"])
+        elif (
+            record.cycles_used == 1
+            and record.last_outcome == "SUCCEEDED"
+            and record.cancel_outcome == "NOT_RUN"
+            and posture.ready
+        ):
+            actions.append("CANCEL_EXACT")
+    return OperatorSpotOrderTruthReadback(
+        goal_id=record.goal_id,
+        revision=record.revision,
+        environment=os.environ.get(
+            "COINBASE_ADMIN_API_ENVIRONMENT", "local"
+        ),
+        cycles_used=record.cycles_used,
+        cycles_remaining=max(0, 1 - record.cycles_used),
+        active_cycle_number=record.active_cycle_number,
+        last_action=record.last_action,
+        last_target_client_order_id=record.last_target_client_order_id,
+        last_outcome=record.last_outcome,
+        diagnostic_code=record.diagnostic_code,
+        category_attempts=record.category_attempts,
+        page_count=record.page_count,
+        order_count=record.order_count,
+        portfolio_id_sha256=record.portfolio_id_sha256,
+        evidence_sha256=record.evidence_sha256,
+        cancel_outcome=record.cancel_outcome,
+        cancel_exchange_invoked=record.cancel_exchange_invoked,
+        cancel_target_client_order_id=record.cancel_target_client_order_id,
+        cancel_exchange_order_id_sha256=(
+            record.cancel_exchange_order_id_sha256
+        ),
+        execution_posture_ready=(posture.ready and not historical),
+        execution_posture_diagnostic_code=(
+            posture.diagnostic_code
+            if not historical
+            else "operator_spot_order_truth_historical_result_non_actionable"
+        ),
+        allowed_actions=actions,
+        correlation_id=record.correlation_id,
+        audit_id=record.audit_id,
+        refreshed_at=record.refreshed_at,
+        updated_at=record.updated_at,
+    )
+
+
+def _operator_spot_order_truth_context(
+    *,
+    actor: AdminApiActor,
+    body: OperatorSpotOrderRefreshRequest,
+    idempotency_key: str,
+    correlation_id: str,
+    operator_intent: str,
+) -> SpotOrderTruthRequestContext:
+    return SpotOrderTruthRequestContext(
+        actor_id=actor.actor_id,
+        roles=tuple(role.value for role in actor.roles),
+        expected_revision=body.expected_revision,
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        audit_id=str(uuid.uuid4()),
+        operator_intent=operator_intent,
+        authorize_one_no_retry_cycle=body.authorize_one_no_retry_cycle,
+        acknowledge_cycle_is_goal_global_and_limited_to_one=(
+            body.acknowledge_cycle_is_goal_global_and_limited_to_one
+        ),
+        acknowledge_unknown_read_fails_closed=(
+            body.acknowledge_unknown_read_fails_closed
+        ),
+    )
+
+
+def _raise_operator_spot_order_truth(exc: ValueError) -> NoReturn:
+    code = (
+        str(exc.args[0])
+        if len(exc.args) == 1
+        and isinstance(exc.args[0], str)
+        and exc.args[0].startswith("operator_spot_order_truth_")
+        else "operator_spot_order_truth_failed"
+    )
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail=code,
+    ) from None
+
+
+@router.get(
+    "/spot/order-operations",
+    response_model=OperatorSpotOrderListResponse,
+    responses=READ_ROUTE_RESPONSES,
+    summary="List durable approved-Test Spot order projections",
+)
+def list_operator_spot_order_truth(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    repository: Annotated[
+        object,
+        Depends(get_operator_spot_order_truth_read_repository),
+    ],
+    product_id: str | None = None,
+    order_status: str | None = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 25,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> JSONResponse:
+    _require_operator_spot_order_truth_enabled()
+    require_permission(actor, AdminApiPermission.AUDIT_READ)
+    payload = repository.list_orders(
+        product_id=product_id,
+        order_status=order_status,
+        limit=limit,
+        offset=offset,
+    )
+    response = OperatorSpotOrderListResponse(
+        authority=_operator_spot_order_truth_readback(
+            repository.read_goal(), actor=actor
+        ),
+        **payload,
+    )
+    return JSONResponse(content=jsonable_encoder(response))
+
+
+@router.get(
+    "/spot/order-operations/mutation-results/{request_correlation_id}",
+    response_model=OperatorSpotOrderMutationResolutionResponse,
+    responses=READ_ROUTE_RESPONSES,
+    summary="Resolve an actor-bound Spot order-operation result",
+)
+def get_operator_spot_order_truth_mutation_result(
+    request_correlation_id: Annotated[
+        str,
+        Path(min_length=1, max_length=255),
+    ],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    repository: Annotated[
+        object,
+        Depends(get_operator_spot_order_truth_read_repository),
+    ],
+) -> JSONResponse:
+    _require_operator_spot_order_truth_enabled()
+    require_permission(actor, AdminApiPermission.AUDIT_READ)
+    try:
+        found, terminal, record = repository.read_cycle_result(
+            correlation_id=request_correlation_id,
+            actor_id=actor.actor_id,
+        )
+    except ValueError as exc:
+        _raise_operator_spot_order_truth(exc)
+    response = OperatorSpotOrderMutationResolutionResponse(
+        request_correlation_id=request_correlation_id,
+        found=found,
+        terminal=terminal,
+        result=(
+            _operator_spot_order_truth_readback(
+                record,
+                actor=actor,
+                historical=True,
+            )
+            if record is not None
+            else None
+        ),
+    )
+    return JSONResponse(content=jsonable_encoder(response))
+
+
+@router.get(
+    "/spot/order-operations/{client_order_id}",
+    response_model=OperatorSpotOrderDetailResponse,
+    responses=READ_ROUTE_RESPONSES,
+    summary="Read one durable approved-Test Spot order projection",
+)
+def get_operator_spot_order_truth_detail(
+    client_order_id: Annotated[
+        str,
+        Path(
+            min_length=1,
+            max_length=255,
+            pattern=_SAFE_EVIDENCE_ID_PATH_PATTERN,
+        ),
+    ],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    repository: Annotated[
+        object,
+        Depends(get_operator_spot_order_truth_read_repository),
+    ],
+) -> JSONResponse:
+    _require_operator_spot_order_truth_enabled()
+    require_permission(actor, AdminApiPermission.AUDIT_READ)
+    item = repository.get_order(client_order_id)
+    authority = _operator_spot_order_truth_readback(
+        repository.read_goal(), actor=actor
+    )
+    if not _is_goal12_canonical_client_order_id(client_order_id):
+        authority = authority.model_copy(update={"allowed_actions": []})
+    response = OperatorSpotOrderDetailResponse(
+        authority=authority,
+        client_order_id=client_order_id,
+        found=item is not None,
+        order=item,
+    )
+    return JSONResponse(content=jsonable_encoder(response))
+
+
+@router.post(
+    "/spot/order-operations/refresh",
+    response_model=OperatorSpotOrderMutationResponse,
+    summary="Run the one approved-Test Spot truth cycle",
+)
+def refresh_operator_spot_order_truth(
+    body: OperatorSpotOrderRefreshRequest,
+    idempotency_key: Annotated[
+        str,
+        Header(alias="Idempotency-Key", min_length=1, max_length=255),
+    ],
+    correlation_id: Annotated[
+        str,
+        Header(alias="X-Correlation-Id", min_length=1, max_length=255),
+    ],
+    operator_intent: Annotated[
+        Literal["refresh_spot_order_catalog"],
+        Header(alias="X-Operator-Intent"),
+    ],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[
+        OperatorSpotOrderTruthService,
+        Depends(get_operator_spot_order_truth_service),
+    ],
+) -> JSONResponse:
+    _require_operator_spot_order_truth_enabled()
+    require_permission(actor, AdminApiPermission.ORDER_CANCEL)
+    try:
+        record = service.refresh_catalog(
+            context=_operator_spot_order_truth_context(
+                actor=actor,
+                body=body,
+                idempotency_key=idempotency_key,
+                correlation_id=correlation_id,
+                operator_intent=operator_intent,
+            )
+        )
+    except ValueError as exc:
+        _raise_operator_spot_order_truth(exc)
+    response = OperatorSpotOrderMutationResponse(
+        action="REFRESH_CATALOG",
+        result=_operator_spot_order_truth_readback(record, actor=actor),
+    )
+    return JSONResponse(content=jsonable_encoder(response))
+
+
+@router.post(
+    "/spot/order-operations/{client_order_id}/reconciliation",
+    response_model=OperatorSpotOrderMutationResponse,
+    summary="Use the one Spot truth cycle for one exact client order",
+)
+def reconcile_operator_spot_order_truth(
+    body: OperatorSpotOrderRefreshRequest,
+    client_order_id: Annotated[
+        str,
+        Path(
+            min_length=36,
+            max_length=36,
+            pattern=_CANONICAL_UUID_PATH_PATTERN,
+        ),
+    ],
+    idempotency_key: Annotated[
+        str,
+        Header(alias="Idempotency-Key", min_length=1, max_length=255),
+    ],
+    correlation_id: Annotated[
+        str,
+        Header(alias="X-Correlation-Id", min_length=1, max_length=255),
+    ],
+    operator_intent: Annotated[
+        Literal["reconcile_exact_spot_order"],
+        Header(alias="X-Operator-Intent"),
+    ],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[
+        OperatorSpotOrderTruthService,
+        Depends(get_operator_spot_order_truth_service),
+    ],
+) -> JSONResponse:
+    _require_operator_spot_order_truth_enabled()
+    require_permission(actor, AdminApiPermission.ORDER_CANCEL)
+    try:
+        record = service.reconcile_exact(
+            context=_operator_spot_order_truth_context(
+                actor=actor,
+                body=body,
+                idempotency_key=idempotency_key,
+                correlation_id=correlation_id,
+                operator_intent=operator_intent,
+            ),
+            client_order_id=client_order_id,
+        )
+    except ValueError as exc:
+        _raise_operator_spot_order_truth(exc)
+    response = OperatorSpotOrderMutationResponse(
+        action="RECONCILE_EXACT",
+        result=_operator_spot_order_truth_readback(record, actor=actor),
+    )
+    return JSONResponse(content=jsonable_encoder(response))
+
+
 @router.get(
     "/orders",
     response_model=AdminOrderListResponse,
@@ -3852,9 +4342,15 @@ def cancel_order_by_client_order_id(
         Callable[[], OperatorSpotRecoveryRepository],
         Depends(get_operator_spot_recovery_cancel_repository),
     ],
+    goal12_repository_factory: Annotated[
+        Callable[[], object],
+        Depends(get_operator_spot_order_truth_cancel_repository_factory),
+    ],
 ) -> JSONResponse:
     """Route adapter for cancel-by-client-order-id."""
 
+    if body.goal12_spot_order_truth is not None:
+        _require_operator_spot_order_truth_enabled()
     endpoint = f"{request.method} {request.url.path}"
     execution_scope = _manual_order_backend_execution_scope()
     envelope = _build_envelope(
@@ -3877,6 +4373,154 @@ def cancel_order_by_client_order_id(
     ) -> AdminApiCommandResponse:
         recovery_evidence = None
         claimed_case = None
+        goal12_repository = None
+        goal12_claim_id = None
+        goal12_exchange_hash = None
+        goal12_context = None
+        goal12_boundary_entered = False
+        goal12_binding = body.goal12_spot_order_truth
+        if (
+            goal12_binding is None
+            and body.recovery_case_id is None
+            and os.environ.get(
+                OPERATOR_SPOT_ORDER_TRUTH_ENABLED_ENV,
+                "",
+            )
+            == "1"
+            and _is_goal12_canonical_client_order_id(client_order_id)
+        ):
+            try:
+                projected_order = (
+                    goal12_repository_factory().get_order(
+                        client_order_id
+                    )
+                )
+            except Exception:
+                return AdminApiCommandResponse(
+                    status=AdminApiCommandStatus.REJECTED,
+                    action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                    required_permission=AdminApiPermission.ORDER_CANCEL,
+                    service_method="cancel_order_by_client_order_id",
+                    message=(
+                        "operator_spot_order_truth_projection_authority_"
+                        "unavailable"
+                    ),
+                    client_order_id=client_order_id,
+                    correlation_id=correlation_id,
+                    idempotency_key=idempotency_key,
+                    failure_stage="goal12_projection_authority",
+                )
+            if isinstance(projected_order, dict):
+                return AdminApiCommandResponse(
+                    status=AdminApiCommandStatus.REJECTED,
+                    action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                    required_permission=AdminApiPermission.ORDER_CANCEL,
+                    service_method="cancel_order_by_client_order_id",
+                    message="operator_spot_order_truth_binding_required",
+                    client_order_id=client_order_id,
+                    correlation_id=correlation_id,
+                    idempotency_key=idempotency_key,
+                    failure_stage="goal12_binding_required",
+                )
+        if goal12_binding is not None and admission_decision.allowed:
+            configured_portfolio_id = os.environ.get(
+                SPOT_PORTFOLIO_ID_ENV,
+                "",
+            ).strip()
+            configured_portfolio_hash = (
+                hashlib.sha256(
+                    configured_portfolio_id.encode("utf-8")
+                ).hexdigest()
+                if configured_portfolio_id
+                else ""
+            )
+            if (
+                configured_portfolio_hash
+                != goal12_binding.expected_portfolio_id_sha256
+            ):
+                return AdminApiCommandResponse(
+                    status=AdminApiCommandStatus.REJECTED,
+                    action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                    required_permission=AdminApiPermission.ORDER_CANCEL,
+                    service_method="cancel_order_by_client_order_id",
+                    message=(
+                        "operator_spot_order_truth_current_portfolio_mismatch"
+                    ),
+                    client_order_id=client_order_id,
+                    correlation_id=correlation_id,
+                    idempotency_key=idempotency_key,
+                    failure_stage="goal12_portfolio_binding",
+                )
+            goal12_repository = goal12_repository_factory()
+            goal12_context = SpotOrderTruthRequestContext(
+                actor_id=actor.actor_id,
+                roles=tuple(role.value for role in actor.roles),
+                expected_revision=goal12_binding.expected_revision,
+                idempotency_key=idempotency_key,
+                correlation_id=correlation_id,
+                audit_id=(
+                    admission_decision.admission_audit_id
+                    or str(uuid.uuid4())
+                ),
+                operator_intent=operator_intent,
+                authorize_one_no_retry_cycle=False,
+                acknowledge_cycle_is_goal_global_and_limited_to_one=False,
+                acknowledge_unknown_read_fails_closed=False,
+                acknowledge_unknown_cancel_consumes_allowance=True,
+            )
+            try:
+                projection = goal12_repository.get_order(client_order_id)
+                if not isinstance(projection, dict):
+                    raise ValueError(
+                        "operator_spot_order_truth_cancel_reconciliation_required"
+                    )
+                goal12_exchange_hash = str(
+                    projection.get("exchange_order_id_sha256") or ""
+                )
+                (
+                    goal12_record,
+                    goal12_claim_id,
+                    goal12_replayed,
+                ) = goal12_repository.claim_cancel(
+                    context=goal12_context,
+                    client_order_id=client_order_id,
+                    exchange_order_id_sha256=goal12_exchange_hash,
+                    payload_sha256=payload_hash,
+                    expected_evidence_sha256=(
+                        goal12_binding.expected_evidence_sha256
+                    ),
+                    expected_portfolio_id_sha256=(
+                        goal12_binding.expected_portfolio_id_sha256
+                    ),
+                )
+                if goal12_replayed:
+                    return _goal12_cancel_replay_response(
+                        record=goal12_record,
+                        client_order_id=client_order_id,
+                        correlation_id=correlation_id,
+                        idempotency_key=idempotency_key,
+                    )
+            except ValueError as exc:
+                diagnostic_code = str(exc)
+                return AdminApiCommandResponse(
+                    status=AdminApiCommandStatus.REJECTED,
+                    action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                    required_permission=AdminApiPermission.ORDER_CANCEL,
+                    service_method="cancel_order_by_client_order_id",
+                    message=diagnostic_code,
+                    client_order_id=client_order_id,
+                    correlation_id=correlation_id,
+                    idempotency_key=idempotency_key,
+                    failure_stage=(
+                        "goal12_claim_pending"
+                        if diagnostic_code
+                        == (
+                            "operator_spot_order_truth_cancel_request_"
+                            "pending"
+                        )
+                        else "goal12_admission"
+                    ),
+                )
         if body.recovery_case_id is not None:
             recovery_repository = recovery_repository_factory()
             try:
@@ -3945,21 +4589,175 @@ def cancel_order_by_client_order_id(
                     idempotency_key=idempotency_key,
                     failure_stage="recovery_admission",
                 )
-        with canonical_coinbase_execution_scope(
-            COINBASE_EXECUTION_SCOPE_SPOT_CANCEL
-        ):
-            response = service.cancel_order_by_client_order_id(
-                CancelOrderCommand(
-                    envelope=envelope,
-                    client_order_id=client_order_id,
-                    request=body,
-                    allow_live_execution=admission_decision.allowed,
+        def mark_goal12_boundary() -> None:
+            nonlocal goal12_boundary_entered
+            if goal12_repository is None or goal12_claim_id is None:
+                return
+            goal12_repository.mark_cancel_exchange_invoked(
+                claim_id=goal12_claim_id
+            )
+            goal12_boundary_entered = True
+
+        try:
+            with canonical_coinbase_execution_scope(
+                COINBASE_EXECUTION_SCOPE_SPOT_CANCEL
+            ):
+                response = service.cancel_order_by_client_order_id(
+                    CancelOrderCommand(
+                        envelope=envelope,
+                        client_order_id=client_order_id,
+                        request=body,
+                        allow_live_execution=admission_decision.allowed,
+                    ),
+                    **(
+                        {"recovery_ownership": recovery_evidence}
+                        if recovery_evidence is not None
+                        else {}
+                    ),
+                    **(
+                        {"before_cancel_sdk_call": mark_goal12_boundary}
+                        if goal12_claim_id is not None
+                        else {}
+                    ),
+                    **(
+                        {
+                            "expected_goal12_exchange_order_id_sha256": (
+                                goal12_exchange_hash
+                            ),
+                            "expected_goal12_portfolio_id_sha256": (
+                                goal12_binding
+                                .expected_portfolio_id_sha256
+                            ),
+                        }
+                        if goal12_claim_id is not None
+                        and goal12_binding is not None
+                        else {}
+                    ),
+                )
+        except Exception:
+            if goal12_repository is not None and goal12_claim_id is not None:
+                if goal12_boundary_entered:
+                    goal12_repository.finish_cancel(
+                        claim_id=goal12_claim_id,
+                        execution=SpotOrderTruthCancelExecution(
+                            outcome="UNKNOWN",
+                            diagnostic_code=(
+                                "operator_spot_order_truth_cancel_outcome_unknown"
+                            ),
+                            call_boundary_entered=True,
+                            exchange_order_id_sha256=str(
+                                goal12_exchange_hash
+                            ),
+                            public_evidence={
+                                "exception_text_included": False,
+                                "private_identifiers_included": False,
+                                "raw_response_included": False,
+                            },
+                        ),
+                    )
+                else:
+                    goal12_repository.release_cancel_before_exchange(
+                        claim_id=goal12_claim_id
+                    )
+            raise
+        if goal12_repository is not None and goal12_claim_id is not None:
+            pre_sdk_failure_proven = (
+                response.failure_stage
+                in {
+                    "cancellation_pre_sdk_authority",
+                    "cancellation_pre_sdk_callback",
+                    "cancellation_pre_sdk_callback_restore",
+                }
+                and response.live_exchange_submitted is False
+                and response.live_coinbase_orders_ran is False
+            )
+            if goal12_boundary_entered and pre_sdk_failure_proven:
+                goal12_record = goal12_repository.restore_cancel_before_sdk(
+                    claim_id=goal12_claim_id
+                )
+            elif not goal12_boundary_entered:
+                goal12_record = (
+                    goal12_repository.release_cancel_before_exchange(
+                        claim_id=goal12_claim_id
+                    )
+                )
+            else:
+                response_data = (
+                    response.data if isinstance(response.data, dict) else {}
+                )
+                cancellation = response_data.get("cancellation_readback")
+                cancellation = (
+                    cancellation if isinstance(cancellation, dict) else {}
+                )
+                readback = cancellation.get("authoritative_readback")
+                readback = readback if isinstance(readback, dict) else {}
+                observed_exchange_id = str(
+                    readback.get("exchange_order_id") or ""
+                )
+                observed_hash = (
+                    hashlib.sha256(
+                        observed_exchange_id.encode("utf-8")
+                    ).hexdigest()
+                    if observed_exchange_id
+                    else None
+                )
+                hash_matches = observed_hash == goal12_exchange_hash
+                if (
+                    response.status is AdminApiCommandStatus.ACCEPTED
+                    and hash_matches
+                    and cancellation.get("terminal_status_proven") is True
+                    and cancellation.get("authoritative_status")
+                    == "CANCELLED"
+                ):
+                    outcome = "ACCEPTED"
+                    diagnostic = (
+                        "operator_spot_order_truth_cancel_accepted"
+                    )
+                elif (
+                    hash_matches
+                    and cancellation.get(
+                        "canonical_cancel_explicitly_rejected"
+                    )
+                    is True
+                ):
+                    outcome = "REJECTED"
+                    diagnostic = (
+                        "operator_spot_order_truth_cancel_rejected"
+                    )
+                else:
+                    outcome = "UNKNOWN"
+                    diagnostic = (
+                        "operator_spot_order_truth_cancel_outcome_unknown"
+                    )
+                goal12_record = goal12_repository.finish_cancel(
+                    claim_id=goal12_claim_id,
+                    execution=SpotOrderTruthCancelExecution(
+                        outcome=outcome,
+                        diagnostic_code=diagnostic,
+                        call_boundary_entered=True,
+                        exchange_order_id_sha256=str(goal12_exchange_hash),
+                        public_evidence={
+                            "exception_text_included": False,
+                            "private_identifiers_included": False,
+                            "raw_response_included": False,
+                        },
+                    ),
+                )
+            public_data = {
+                **dict(response.data or {}),
+                "goal12_spot_order_truth": (
+                    _goal12_cancel_public_record(
+                        goal12_record,
+                        replayed=False,
+                    )
                 ),
-                **(
-                    {"recovery_ownership": recovery_evidence}
-                    if recovery_evidence is not None
-                    else {}
-                ),
+            }
+            response = response.model_copy(
+                update={
+                    "data": _goal12_hash_only_exchange_evidence(
+                        public_data
+                    )
+                }
             )
         if claimed_case is not None:
             exchange_call_ran = bool(response.live_coinbase_orders_ran)

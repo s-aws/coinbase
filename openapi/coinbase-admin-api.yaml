@@ -9300,6 +9300,409 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/order-operations:
+    get:
+      tags:
+      - orders
+      summary: List durable approved-Test Spot order projections
+      operationId: list_operator_spot_order_truth_api_v1_spot_order_operations_get
+      parameters:
+      - name: product_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Id
+      - name: order_status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Order Status
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 25
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSpotOrderListResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/order-operations/mutation-results/{request_correlation_id}:
+    get:
+      tags:
+      - orders
+      summary: Resolve an actor-bound Spot order-operation result
+      operationId: get_operator_spot_order_truth_mutation_result_api_v1_spot_order_operations_mutation_results__request_correlation_id__get
+      parameters:
+      - name: request_correlation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: Request Correlation Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSpotOrderMutationResolutionResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/order-operations/{client_order_id}:
+    get:
+      tags:
+      - orders
+      summary: Read one durable approved-Test Spot order projection
+      operationId: get_operator_spot_order_truth_detail_api_v1_spot_order_operations__client_order_id__get
+      parameters:
+      - name: client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          pattern: ^[A-Za-z0-9._:-]{1,255}$
+          title: Client Order Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSpotOrderDetailResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/order-operations/refresh:
+    post:
+      tags:
+      - orders
+      summary: Run the one approved-Test Spot truth cycle
+      operationId: refresh_operator_spot_order_truth_api_v1_spot_order_operations_refresh_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: refresh_spot_order_catalog
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorSpotOrderRefreshRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSpotOrderMutationResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/order-operations/{client_order_id}/reconciliation:
+    post:
+      tags:
+      - orders
+      summary: Use the one Spot truth cycle for one exact client order
+      operationId: reconcile_operator_spot_order_truth_api_v1_spot_order_operations__client_order_id__reconciliation_post
+      parameters:
+      - name: client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 36
+          maxLength: 36
+          pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+          title: Client Order Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: reconcile_exact_spot_order
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorSpotOrderRefreshRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSpotOrderMutationResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/orders:
     get:
       tags:
@@ -26969,6 +27372,7 @@ components:
       - automation_hotpoint
       - spot_manual_order
       - spot_order_cancel
+      - spot_order_truth
       - spot_follow_up_intent
       - spot_parent_strategy
       - stealth_definition_lifecycle
@@ -160513,6 +160917,10 @@ components:
             pattern: ^[0-9a-f]{64}$
           - type: 'null'
           title: Recovery Plan Sha256
+        goal12_spot_order_truth:
+          anyOf:
+          - $ref: '#/components/schemas/Goal12SpotOrderTruthCancelBinding'
+          - type: 'null'
       additionalProperties: false
       type: object
       title: CancelOrderRequest
@@ -161486,6 +161894,38 @@ components:
       title: FuturesRiskProofRecordRequest
       description: Futures/perpetual risk proof request keyed by command and proof
         kind.
+    Goal12SpotOrderTruthCancelBinding:
+      properties:
+        goal_id:
+          type: string
+          const: operator_spot_order_truth_and_exact_cancel_reconcile_v1
+          title: Goal Id
+        expected_revision:
+          type: integer
+          minimum: 0.0
+          title: Expected Revision
+        expected_evidence_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Expected Evidence Sha256
+        expected_portfolio_id_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Expected Portfolio Id Sha256
+        acknowledge_unknown_cancel_consumes_allowance:
+          type: boolean
+          const: true
+          title: Acknowledge Unknown Cancel Consumes Allowance
+      additionalProperties: false
+      type: object
+      required:
+      - goal_id
+      - expected_revision
+      - expected_evidence_sha256
+      - expected_portfolio_id_sha256
+      - acknowledge_unknown_cancel_consumes_allowance
+      title: Goal12SpotOrderTruthCancelBinding
+      description: Strict binding to the one-use Goal 12 durable Cancel allowance.
     HTTPValidationError:
       properties:
         detail:
@@ -165649,6 +166089,540 @@ components:
       - execution_authority_enabled
       - allowed_actions
       title: OperatorRevealedOrderMovementResponse
+    OperatorSpotOrderDetailResponse:
+      properties:
+        type:
+          type: string
+          const: operator_spot_order_truth_detail
+          title: Type
+          default: operator_spot_order_truth_detail
+        authority:
+          $ref: '#/components/schemas/OperatorSpotOrderTruthReadback'
+        client_order_id:
+          type: string
+          title: Client Order Id
+        found:
+          type: boolean
+          title: Found
+        order:
+          anyOf:
+          - $ref: '#/components/schemas/OperatorSpotOrderItem'
+          - type: 'null'
+        readback_source:
+          type: string
+          const: postgresql_projection
+          title: Readback Source
+          default: postgresql_projection
+        page_load_coinbase_calls:
+          type: integer
+          const: 0
+          title: Page Load Coinbase Calls
+          default: 0
+        raw_responses_included:
+          type: boolean
+          const: false
+          title: Raw Responses Included
+          default: false
+        private_identifiers_included:
+          type: boolean
+          const: false
+          title: Private Identifiers Included
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - authority
+      - client_order_id
+      - found
+      - order
+      title: OperatorSpotOrderDetailResponse
+    OperatorSpotOrderFilters:
+      properties:
+        product_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Id
+        order_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Order Status
+      additionalProperties: false
+      type: object
+      required:
+      - product_id
+      - order_status
+      title: OperatorSpotOrderFilters
+    OperatorSpotOrderItem:
+      properties:
+        client_order_id:
+          type: string
+          title: Client Order Id
+        product_id:
+          type: string
+          title: Product Id
+        side:
+          type: string
+          enum:
+          - BUY
+          - SELL
+          title: Side
+        status:
+          type: string
+          title: Status
+        order_type:
+          type: string
+          title: Order Type
+        time_in_force:
+          type: string
+          title: Time In Force
+        size:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Size
+        limit_price:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Limit Price
+        filled_size:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Filled Size
+        created_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Created At
+        updated_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Updated At
+        observed_at:
+          type: string
+          title: Observed At
+        ownership_provenance:
+          type: string
+          const: ADMIN_MANUAL_ROOT
+          title: Ownership Provenance
+        exchange_order_id_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Exchange Order Id Sha256
+        authoritatively_nonterminal:
+          type: boolean
+          title: Authoritatively Nonterminal
+        cancel_eligible:
+          type: boolean
+          title: Cancel Eligible
+      additionalProperties: false
+      type: object
+      required:
+      - client_order_id
+      - product_id
+      - side
+      - status
+      - order_type
+      - time_in_force
+      - size
+      - limit_price
+      - filled_size
+      - created_at
+      - updated_at
+      - observed_at
+      - ownership_provenance
+      - exchange_order_id_sha256
+      - authoritatively_nonterminal
+      - cancel_eligible
+      title: OperatorSpotOrderItem
+    OperatorSpotOrderListResponse:
+      properties:
+        type:
+          type: string
+          const: operator_spot_order_truth_list
+          title: Type
+          default: operator_spot_order_truth_list
+        authority:
+          $ref: '#/components/schemas/OperatorSpotOrderTruthReadback'
+        filters:
+          $ref: '#/components/schemas/OperatorSpotOrderFilters'
+        pagination:
+          $ref: '#/components/schemas/OperatorSpotOrderPagination'
+        items:
+          items:
+            $ref: '#/components/schemas/OperatorSpotOrderItem'
+          type: array
+          title: Items
+        readback_source:
+          type: string
+          const: postgresql_projection
+          title: Readback Source
+          default: postgresql_projection
+        page_load_coinbase_calls:
+          type: integer
+          const: 0
+          title: Page Load Coinbase Calls
+          default: 0
+        raw_responses_included:
+          type: boolean
+          const: false
+          title: Raw Responses Included
+          default: false
+        private_identifiers_included:
+          type: boolean
+          const: false
+          title: Private Identifiers Included
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - authority
+      - filters
+      - pagination
+      - items
+      title: OperatorSpotOrderListResponse
+    OperatorSpotOrderMutationResolutionResponse:
+      properties:
+        type:
+          type: string
+          const: operator_spot_order_truth_mutation_resolution
+          title: Type
+          default: operator_spot_order_truth_mutation_resolution
+        request_correlation_id:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Request Correlation Id
+        found:
+          type: boolean
+          title: Found
+        terminal:
+          type: boolean
+          title: Terminal
+        result:
+          anyOf:
+          - $ref: '#/components/schemas/OperatorSpotOrderTruthReadback'
+          - type: 'null'
+        readback_source:
+          type: string
+          const: postgresql_mutation_result
+          title: Readback Source
+          default: postgresql_mutation_result
+        page_load_coinbase_calls:
+          type: integer
+          const: 0
+          title: Page Load Coinbase Calls
+          default: 0
+        raw_responses_included:
+          type: boolean
+          const: false
+          title: Raw Responses Included
+          default: false
+        private_identifiers_included:
+          type: boolean
+          const: false
+          title: Private Identifiers Included
+          default: false
+        exception_text_included:
+          type: boolean
+          const: false
+          title: Exception Text Included
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - request_correlation_id
+      - found
+      - terminal
+      - result
+      title: OperatorSpotOrderMutationResolutionResponse
+    OperatorSpotOrderMutationResponse:
+      properties:
+        type:
+          type: string
+          const: operator_spot_order_truth_mutation
+          title: Type
+          default: operator_spot_order_truth_mutation
+        action:
+          type: string
+          enum:
+          - REFRESH_CATALOG
+          - RECONCILE_EXACT
+          - CANCEL_EXACT
+          title: Action
+        result:
+          $ref: '#/components/schemas/OperatorSpotOrderTruthReadback'
+      additionalProperties: false
+      type: object
+      required:
+      - action
+      - result
+      title: OperatorSpotOrderMutationResponse
+    OperatorSpotOrderPagination:
+      properties:
+        limit:
+          type: integer
+          maximum: 100.0
+          minimum: 1.0
+          title: Limit
+        offset:
+          type: integer
+          minimum: 0.0
+          title: Offset
+        returned_count:
+          type: integer
+          minimum: 0.0
+          title: Returned Count
+        total_matching_count:
+          type: integer
+          minimum: 0.0
+          title: Total Matching Count
+        next_offset:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Next Offset
+        has_more:
+          type: boolean
+          title: Has More
+      additionalProperties: false
+      type: object
+      required:
+      - limit
+      - offset
+      - returned_count
+      - total_matching_count
+      - has_more
+      title: OperatorSpotOrderPagination
+    OperatorSpotOrderRefreshRequest:
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 0.0
+          title: Expected Revision
+        authorize_one_no_retry_cycle:
+          type: boolean
+          const: true
+          title: Authorize One No Retry Cycle
+        acknowledge_cycle_is_goal_global_and_limited_to_one:
+          type: boolean
+          const: true
+          title: Acknowledge Cycle Is Goal Global And Limited To One
+        acknowledge_unknown_read_fails_closed:
+          type: boolean
+          const: true
+          title: Acknowledge Unknown Read Fails Closed
+      additionalProperties: false
+      type: object
+      required:
+      - expected_revision
+      - authorize_one_no_retry_cycle
+      - acknowledge_cycle_is_goal_global_and_limited_to_one
+      - acknowledge_unknown_read_fails_closed
+      title: OperatorSpotOrderRefreshRequest
+    OperatorSpotOrderTruthReadback:
+      properties:
+        type:
+          type: string
+          const: operator_spot_order_truth
+          title: Type
+          default: operator_spot_order_truth
+        goal_id:
+          type: string
+          const: operator_spot_order_truth_and_exact_cancel_reconcile_v1
+          title: Goal Id
+        revision:
+          type: integer
+          minimum: 0.0
+          title: Revision
+        environment:
+          type: string
+          title: Environment
+        portfolio_profile_alias:
+          type: string
+          const: Test
+          title: Portfolio Profile Alias
+          default: Test
+        product_type:
+          type: string
+          const: SPOT
+          title: Product Type
+          default: SPOT
+        cycles_used:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Cycles Used
+        cycles_remaining:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Cycles Remaining
+        active_cycle_number:
+          anyOf:
+          - type: integer
+            maximum: 1.0
+            minimum: 1.0
+          - type: 'null'
+          title: Active Cycle Number
+        last_action:
+          anyOf:
+          - type: string
+            enum:
+            - REFRESH_CATALOG
+            - RECONCILE_EXACT
+            - CANCEL_EXACT
+          - type: 'null'
+          title: Last Action
+        last_target_client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last Target Client Order Id
+        last_outcome:
+          type: string
+          enum:
+          - NOT_RUN
+          - CLAIMED
+          - SUCCEEDED
+          - INELIGIBLE
+          - UNKNOWN
+          title: Last Outcome
+        diagnostic_code:
+          type: string
+          title: Diagnostic Code
+        category_attempts:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Category Attempts
+        page_count:
+          type: integer
+          maximum: 100.0
+          minimum: 0.0
+          title: Page Count
+        order_count:
+          type: integer
+          minimum: 0.0
+          title: Order Count
+        portfolio_id_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Portfolio Id Sha256
+        evidence_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Evidence Sha256
+        cancel_outcome:
+          type: string
+          enum:
+          - NOT_RUN
+          - CLAIMED
+          - ACCEPTED
+          - REJECTED
+          - UNKNOWN
+          title: Cancel Outcome
+        cancel_exchange_invoked:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Cancel Exchange Invoked
+        cancel_target_client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cancel Target Client Order Id
+        cancel_exchange_order_id_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Cancel Exchange Order Id Sha256
+        execution_posture_ready:
+          type: boolean
+          title: Execution Posture Ready
+        execution_posture_diagnostic_code:
+          type: string
+          title: Execution Posture Diagnostic Code
+        allowed_actions:
+          items:
+            type: string
+            enum:
+            - REFRESH_CATALOG
+            - RECONCILE_EXACT
+            - CANCEL_EXACT
+          type: array
+          title: Allowed Actions
+        raw_responses_included:
+          type: boolean
+          const: false
+          title: Raw Responses Included
+          default: false
+        private_identifiers_included:
+          type: boolean
+          const: false
+          title: Private Identifiers Included
+          default: false
+        exception_text_included:
+          type: boolean
+          const: false
+          title: Exception Text Included
+          default: false
+        correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+        refreshed_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Refreshed At
+        updated_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Updated At
+      additionalProperties: false
+      type: object
+      required:
+      - goal_id
+      - revision
+      - environment
+      - cycles_used
+      - cycles_remaining
+      - last_action
+      - last_target_client_order_id
+      - last_outcome
+      - diagnostic_code
+      - category_attempts
+      - page_count
+      - order_count
+      - cancel_outcome
+      - cancel_exchange_invoked
+      - cancel_target_client_order_id
+      - execution_posture_ready
+      - execution_posture_diagnostic_code
+      - allowed_actions
+      - correlation_id
+      - audit_id
+      - refreshed_at
+      - updated_at
+      title: OperatorSpotOrderTruthReadback
     OperatorSpotRecoveryCaseCreateRequest:
       properties:
         client_order_id:

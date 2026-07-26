@@ -47,6 +47,9 @@ OPERATOR_STEALTH_DEFINITIONS_ENABLED_ENV = (
 OPERATOR_HOTPOINT_ENABLED_ENV = (
     "COINBASE_ADMIN_API_OPERATOR_HOTPOINT_ENABLED"
 )
+OPERATOR_SPOT_ORDER_TRUTH_ENABLED_ENV = (
+    "COINBASE_ADMIN_API_OPERATOR_SPOT_ORDER_TRUTH_ENABLED"
+)
 DISABLED_ENV_VALUES = {"0", "false", "no", "off", "disabled"}
 ENABLED_ENV_VALUES = {"1", "true", "yes", "on"}
 OIDC_REQUIRED_ENV_VARS = (
@@ -72,6 +75,9 @@ OPERATOR_STEALTH_DEFINITION_SCHEMA_STARTUP_ERROR = (
 )
 OPERATOR_HOTPOINT_SCHEMA_STARTUP_ERROR = (
     "Admin API operator Hotpoint schema initialization failed."
+)
+OPERATOR_SPOT_ORDER_TRUTH_SCHEMA_STARTUP_ERROR = (
+    "Admin API operator Spot order truth schema initialization failed."
 )
 
 
@@ -383,6 +389,16 @@ def initialize_operator_stealth_definition_schema() -> None:
     initialize_schema()
 
 
+def initialize_operator_spot_order_truth_schema() -> None:
+    """Create and recover the Goal 12 Spot order-truth schema."""
+
+    from database.operator_spot_order_truth import (
+        get_default_operator_spot_order_truth_repository,
+    )
+
+    get_default_operator_spot_order_truth_repository().ensure_schema()
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the local Admin API server."""
 
@@ -419,6 +435,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             initialize_operator_hotpoint_schema()
         except Exception:
             print(OPERATOR_HOTPOINT_SCHEMA_STARTUP_ERROR, file=sys.stderr)
+            return 2
+
+    if os.environ.get(OPERATOR_SPOT_ORDER_TRUTH_ENABLED_ENV) == "1":
+        try:
+            initialize_operator_spot_order_truth_schema()
+        except Exception:
+            print(
+                OPERATOR_SPOT_ORDER_TRUTH_SCHEMA_STARTUP_ERROR,
+                file=sys.stderr,
+            )
             return 2
 
     if os.environ.get(OPERATOR_PRODUCT_CATALOG_ENABLED_ENV) == "1":

@@ -1,6 +1,16 @@
 # Coinbase Trading Backend
 
-## Operator Spot recovery execution UI
+## Current Goal 12 Spot order truth and exact operations
+
+Goal `operator_spot_order_truth_and_exact_cancel_reconcile_v1` provides
+backend authority for the authenticated approved-Test Spot order inventory,
+one no-retry catalog-refresh-or-exact-reconciliation cycle, and one
+independent exact Cancel through the existing canonical route. PostgreSQL owns
+claims, projections, restart recovery, audit, sanitized evidence, and exact
+call accounting. Implementation and validation made zero Coinbase calls; both
+allowances remain unconsumed.
+
+## Completed Operator Spot recovery execution UI
 
 Goal `operator_spot_recovery_execution_ui_v1` is independent Goal 6 of the
 authorized operator UI sequence. It provides the backend authority for normal

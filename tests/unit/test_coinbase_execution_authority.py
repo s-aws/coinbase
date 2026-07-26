@@ -911,6 +911,7 @@ def test_legacy_admin_mvp_runtime_cannot_enable_exchange_mutations(
         "application/admin_api/operator_futures_manual_runtime.py",
         "application/admin_api/operator_futures_order_operations_runtime.py",
         "application/admin_api/operator_futures_position_runtime.py",
+        "application/admin_api/operator_futures_product_ticket_runtime.py",
         "application/admin_api/operator_hotpoint_runtime.py",
         "application/admin_api/operator_revealed_order_movement_runtime.py",
         "application/admin_api/operator_stealth_reveal_runtime.py",

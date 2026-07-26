@@ -14572,6 +14572,79 @@ class AdminApiReadService:
                 live_adapter_required=False,
             ),
             mutation_taxonomy_from_surface(
+                surface="POST /api/v1/spot/order-operations/refresh",
+                mutation_id="spot.order_truth_refresh",
+                mutation_family=AdminApiMutationFamilyType.SPOT_ORDER_TRUTH,
+                workflow_id="spot.order_truth",
+                module="Spot Operations",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                ),
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "One goal-global approved-Test Spot truth cycle with "
+                    "durable category and page call accounting."
+                ),
+                identity_keys=["goal_id"],
+                owning_backend_service=(
+                    "application/admin_api/"
+                    "operator_spot_order_truth_service.py"
+                ),
+                frontend_boundary=(
+                    "The browser supplies acknowledgement only and cannot "
+                    "select exchange identifiers or perform trading logic."
+                ),
+                spot_rule_boundary=(
+                    "Approved-Test Spot manual-root evidence only."
+                ),
+                route_local_boundary=(
+                    "Runs read-only Coinbase truth calls and persists local "
+                    "projections; never invokes Create or Cancel."
+                ),
+                approval_required=False,
+                cap_guard_required=False,
+                reconciliation_required=False,
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_from_surface(
+                surface=(
+                    "POST /api/v1/spot/order-operations/"
+                    "{client_order_id}/reconciliation"
+                ),
+                mutation_id="spot.order_truth_exact_reconciliation",
+                mutation_family=AdminApiMutationFamilyType.SPOT_ORDER_TRUTH,
+                workflow_id="spot.order_truth",
+                module="Spot Operations",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                ),
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Use the one goal-global truth cycle for one canonical "
+                    "local Spot manual-root client_order_id."
+                ),
+                identity_keys=["client_order_id"],
+                owning_backend_service=(
+                    "application/admin_api/"
+                    "operator_spot_order_truth_service.py"
+                ),
+                frontend_boundary=(
+                    "The browser selects only client_order_id and cannot "
+                    "supply exchange identity."
+                ),
+                spot_rule_boundary=(
+                    "Approved-Test Spot manual-root evidence only."
+                ),
+                route_local_boundary=(
+                    "Runs exact read-only Coinbase truth and persists local "
+                    "projection evidence; never invokes Create or Cancel."
+                ),
+                approval_required=False,
+                cap_guard_required=False,
+                reconciliation_required=False,
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_from_surface(
                 surface="POST /api/v1/spot/pnl/checkpoints",
                 mutation_id="spot.pnl_checkpoint",
                 mutation_family=AdminApiMutationFamilyType.SPOT_PNL_CHECKPOINT,

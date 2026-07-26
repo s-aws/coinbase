@@ -1,6 +1,23 @@
 # Documentation Index
 
-Current independent Goal 6:
+Current independent Goal 12 terminal implementation/validation checkpoint:
+[Operator Spot Order Truth and Exact Cancel V1](OPERATOR_SPOT_ORDER_TRUTH_AND_EXACT_CANCEL_V1.md).
+Goal `operator_spot_order_truth_and_exact_cancel_reconcile_v1` adds the normal
+authenticated approved-Test Spot inventory, one goal-global no-retry truth
+cycle for catalog refresh or exact reconciliation, and one independent exact
+Cancel allowance. Local list/detail/result reads use only PostgreSQL. The sole
+mutation boundary remains canonical
+`POST /api/v1/orders/{client_order_id}/cancel`; Goal 12 adds no parallel Cancel
+route or exchange adapter. Focused validation passed 242 backend tests; the
+canonical backend regression passed 1,294 tests with 6 skipped in parallel and
+920 tests with 150 skipped and 1,300 deselected in serial. Frontend validation
+passed 1,829 unit/component tests and 33 authenticated E2E tests. Independent
+safety and blind-contextless audits pass, including the final remediation
+delta. Zero Coinbase calls were made, and both allowances remain unconsumed.
+Installed deployment and Controlled-live status verification remain pending
+before operator-ready closeout.
+
+Completed independent Goal 6:
 [Operator Spot Recovery Execution UI V1](OPERATOR_SPOT_RECOVERY_EXECUTION_UI_V1.md).
 Goal `operator_spot_recovery_execution_ui_v1` delivers authenticated recovery
 case creation, exact order/fill refresh, immutable-plan review, PostgreSQL

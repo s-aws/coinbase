@@ -76774,8 +76774,8 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     )
     for surface in parent_strategy_taxonomy["command_surfaces"]:
         assert surface in spot_module["command_routes"]
-    assert spot_module["action_posture"]["read_route_count"] == 32
-    assert spot_module["action_posture"]["command_route_count"] == 33
+    assert spot_module["action_posture"]["read_route_count"] == 35
+    assert spot_module["action_posture"]["command_route_count"] == 35
     assert spot_module["action_posture"]["live_route_count"] == 8
     assert spot_module["action_posture"]["command_gap_count"] == 2
     stealth_definition_module = registry_by_id["stealth_definitions"]

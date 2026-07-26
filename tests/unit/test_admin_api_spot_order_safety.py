@@ -3656,6 +3656,126 @@ def test_cancel_does_not_cross_coinbase_boundary_without_durable_claim() -> None
     assert rest_client.cancel_exchange_calls == []
 
 
+def test_goal12_cancel_revalidates_claimed_exchange_hash_before_sdk() -> None:
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+    rest_client = _SpotRestClient()
+    rest_client.history = [
+        {
+            "client_order_id": client_order_id,
+            "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
+            "status": "OPEN",
+        }
+    ]
+    registrar = _RootRegistrar()
+    _registered_root(registrar, client_order_id)
+    boundary_events: list[str] = []
+
+    response = _service(
+        rest_client,
+        registrar,
+    ).cancel_order_by_client_order_id(
+        _cancel_command(client_order_id),
+        expected_goal12_exchange_order_id_sha256=hashlib.sha256(
+            b"different-exchange-order"
+        ).hexdigest(),
+        before_cancel_sdk_call=lambda: boundary_events.append("entered"),
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "goal12_exchange_identity_binding"
+    assert response.live_coinbase_orders_ran is False
+    assert registrar.rows[client_order_id]["status"] == "OPEN"
+    assert rest_client.cancel_client_calls == []
+    assert rest_client.cancel_exchange_calls == []
+    assert boundary_events == []
+
+
+def test_goal12_cancel_revalidates_current_configured_portfolio_hash() -> None:
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+    rest_client = _SpotRestClient()
+    registrar = _RootRegistrar()
+    _registered_root(registrar, client_order_id)
+
+    response = _service(
+        rest_client,
+        registrar,
+    ).cancel_order_by_client_order_id(
+        _cancel_command(client_order_id),
+        expected_goal12_portfolio_id_sha256=hashlib.sha256(
+            b"different-test-portfolio"
+        ).hexdigest(),
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "goal12_portfolio_binding"
+    assert response.live_coinbase_read_ran is False
+    assert response.live_coinbase_orders_ran is False
+    assert rest_client.api_key_permission_calls == 0
+    assert rest_client.portfolio_calls == 0
+    assert rest_client.list_calls == []
+    assert rest_client.cancel_exchange_calls == []
+
+
+def test_goal12_cancel_callback_failure_releases_local_preboundary_claim() -> None:
+    from core.exceptions import CoinbasePreSdkCallbackError
+
+    client_order_id = "22daf1ea-4c57-4c03-98c5-e74459576228"
+
+    class _PreBoundaryFailureClient(_SpotRestClient):
+        def cancel_order(
+            self,
+            requested_client_order_id: str,
+            *,
+            verified_exchange_order_id: str | None = None,
+            return_evidence: bool = False,
+            before_sdk_call=None,
+        ) -> Any:
+            assert requested_client_order_id == client_order_id
+            assert verified_exchange_order_id == "exchange-order-1"
+            assert return_evidence is True
+            try:
+                assert before_sdk_call is not None
+                before_sdk_call()
+            except Exception:
+                raise CoinbasePreSdkCallbackError(
+                    "coinbase_pre_sdk_callback_failed"
+                ) from None
+            raise AssertionError("Coinbase SDK boundary must remain unentered")
+
+    rest_client = _PreBoundaryFailureClient()
+    rest_client.history = [
+        {
+            "client_order_id": client_order_id,
+            "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
+            "status": "OPEN",
+        }
+    ]
+    registrar = _RootRegistrar()
+    _registered_root(registrar, client_order_id)
+    coordinator = SpotProfileOrderAdmissionCoordinator()
+
+    response = _service(
+        rest_client,
+        registrar,
+        coordinator=coordinator,
+    ).cancel_order_by_client_order_id(
+        _cancel_command(client_order_id),
+        before_cancel_sdk_call=lambda: (_ for _ in ()).throw(
+            ValueError("synthetic_goal12_mark_failed")
+        ),
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "cancellation_pre_sdk_callback"
+    assert response.live_exchange_submitted is False
+    assert response.live_coinbase_orders_ran is False
+    assert registrar.rows[client_order_id]["status"] == "OPEN"
+    assert coordinator.uncertainty_snapshot(TEST_PORTFOLIO_ID) == []
+    assert rest_client.cancel_exchange_calls == []
+
+
 @pytest.mark.parametrize("registrar_mode", ["getter", "missing_read", "read_error"])
 def test_cancel_ownership_read_degradation_is_typed_and_call_free(
     registrar_mode: str,

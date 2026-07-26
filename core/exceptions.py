@@ -56,6 +56,18 @@ class CoinbaseEngineError(Exception):
     pass
 
 
+class CoinbasePreSdkBoundaryError(CoinbaseEngineError):
+    """A deterministic failure occurred before the SDK request boundary."""
+
+
+class CoinbasePreSdkAuthorityError(CoinbasePreSdkBoundaryError):
+    """Execution authority failed before the SDK request boundary."""
+
+
+class CoinbasePreSdkCallbackError(CoinbasePreSdkBoundaryError):
+    """A durable boundary callback failed before the SDK could be invoked."""
+
+
 # ============================================================================
 # ORDER PROCESSING ERRORS
 # ============================================================================

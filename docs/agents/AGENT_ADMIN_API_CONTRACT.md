@@ -1,6 +1,27 @@
 # Admin API Contract Agent
 
-Current sequential Goal 6:
+Current sequential Goal 12 terminal implementation/validation checkpoint:
+`operator_spot_order_truth_and_exact_cancel_reconcile_v1`. Its generated
+contract exposes call-free PostgreSQL Spot-order list/detail/mutation-result
+reads, one goal-global no-retry truth cycle for either refresh or exact
+reconciliation, and one independent exact Cancel allowance. Only parentless
+approved-Test `CONSUMER` / `SPOT` `ADMIN_MANUAL_ROOT` rows with matching
+exchange-identity hashes may be projected as Cancel-eligible. Goal 12 reuses
+canonical `POST /api/v1/orders/{client_order_id}/cancel` with a strict
+revision/evidence/portfolio-hash binding; it adds no second live route or
+adapter, and its service exposes no parallel Cancel method or runner. Read
+category/page claims are distinct from their immediate wrapper SDK-boundary
+callbacks, so a pre-boundary failure is never reported as a Coinbase
+invocation. Focused backend validation passed 242 tests; canonical regression
+passed 1,294 tests with 6 skipped in parallel and 920 tests with 150 skipped
+and 1,300 deselected in serial. Frontend validation passed 1,829
+unit/component tests and 33 authenticated E2E tests. Independent safety and
+blind-contextless audits pass, including the final remediation delta. Zero
+Coinbase calls were made and both allowances remain unconsumed. Installed
+deployment and Controlled-live status verification remain pending before
+operator-ready closeout.
+
+Completed sequential Goal 6:
 `operator_spot_recovery_execution_ui_v1`. The generated Spot recovery
 case contract includes the exact successor goal id, one goal-global
 ten-cycle refresh ledger, one goal-global Cancel outcome, case-local counters,

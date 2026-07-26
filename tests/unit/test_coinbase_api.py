@@ -8,6 +8,10 @@ import pytest
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
+from core.exceptions import (
+    CoinbasePreSdkAuthorityError,
+    CoinbasePreSdkCallbackError,
+)
 from external.coinbase_client import CoinbaseRestClient
 
 
@@ -50,6 +54,110 @@ class TestCoinbaseRESTAPIClient:
             "portfolio_uuid": "test-portfolio-uuid",
             "portfolio_type": "CONSUMER",
         }
+
+    def test_cancel_order_marks_boundary_immediately_before_sdk_call(
+        self, monkeypatch
+    ):
+        events = []
+
+        class FakeSDKClient:
+            def cancel_orders(self, order_ids):
+                events.append(("sdk", list(order_ids)))
+                return {
+                    "results": [
+                        {
+                            "order_id": "exchange-order-1",
+                            "success": True,
+                        }
+                    ]
+                }
+
+        monkeypatch.setattr(
+            "external.coinbase_client.require_coinbase_execution_authority",
+            lambda **_kwargs: events.append(("authority", None)),
+        )
+        client = CoinbaseRestClient(FakeSDKClient())
+
+        result = client.cancel_order(
+            "client-order-1",
+            verified_exchange_order_id="exchange-order-1",
+            return_evidence=True,
+            before_sdk_call=lambda: events.append(("boundary", None)),
+        )
+
+        assert result["outcome"] == "succeeded"
+        assert events == [
+            ("authority", None),
+            ("boundary", None),
+            ("authority", None),
+            ("sdk", ["exchange-order-1"]),
+        ]
+
+    def test_cancel_order_final_authority_failure_follows_durable_callback(
+        self, monkeypatch
+    ):
+        events = []
+        authority_checks = 0
+
+        class FakeSDKClient:
+            def cancel_orders(self, _order_ids):
+                raise AssertionError("SDK boundary must remain unentered")
+
+        def require_authority(**_kwargs):
+            nonlocal authority_checks
+            authority_checks += 1
+            events.append(("authority", None))
+            if authority_checks == 2:
+                raise ValueError("synthetic_final_authority_failure")
+
+        monkeypatch.setattr(
+            "external.coinbase_client.require_coinbase_execution_authority",
+            require_authority,
+        )
+        client = CoinbaseRestClient(FakeSDKClient())
+
+        with pytest.raises(
+            CoinbasePreSdkAuthorityError,
+            match="coinbase_pre_sdk_authority_failed",
+        ):
+            client.cancel_order(
+                "client-order-1",
+                verified_exchange_order_id="exchange-order-1",
+                before_sdk_call=lambda: events.append(
+                    ("boundary", None)
+                ),
+            )
+
+        assert events == [
+            ("authority", None),
+            ("boundary", None),
+            ("authority", None),
+        ]
+
+    def test_cancel_order_pre_sdk_callback_failure_never_calls_sdk(
+        self, monkeypatch
+    ):
+        class FakeSDKClient:
+            def cancel_orders(self, _order_ids):
+                raise AssertionError("SDK boundary must remain unentered")
+
+        monkeypatch.setattr(
+            "external.coinbase_client.require_coinbase_execution_authority",
+            lambda **_kwargs: None,
+        )
+        client = CoinbaseRestClient(FakeSDKClient())
+
+        with pytest.raises(
+            CoinbasePreSdkCallbackError,
+            match="coinbase_pre_sdk_callback_failed",
+        ):
+            client.cancel_order(
+                "client-order-1",
+                verified_exchange_order_id="exchange-order-1",
+                before_sdk_call=lambda: (_ for _ in ()).throw(
+                    RuntimeError("claim failed")
+                ),
+            )
     
     def test_list_orders_request(self):
         """GET /api/v1/orders should list orders."""
@@ -150,6 +258,64 @@ class TestCoinbaseRESTAPIClient:
             client.list_orders(product_ids=["BTC-USDC"], product_type="SPOT")
 
         assert sdk_client.calls == []
+
+    @pytest.mark.parametrize(
+        "invoke",
+        [
+            lambda client, callback: client.get_api_key_permissions(
+                before_sdk_call=callback
+            ),
+            lambda client, callback: client.list_portfolios(
+                before_sdk_call=callback
+            ),
+            lambda client, callback: client.list_orders(
+                product_ids=["BTC-USDC"],
+                product_type="SPOT",
+                before_sdk_call=callback,
+            ),
+        ],
+    )
+    def test_read_boundary_marker_runs_after_final_transport_check(
+        self,
+        monkeypatch,
+        invoke,
+    ):
+        class FakeSDKClient:
+            def get_api_key_permissions(self):
+                raise AssertionError("SDK request must remain unentered")
+
+            def get_portfolios(self):
+                raise AssertionError("SDK request must remain unentered")
+
+            def list_orders(self, **_kwargs):
+                raise AssertionError("SDK request must remain unentered")
+
+        client = CoinbaseRestClient(FakeSDKClient())
+        checks = 0
+
+        def harden(_client, *, require_bounded_timeout):
+            nonlocal checks
+            assert require_bounded_timeout is True
+            checks += 1
+            if checks == 1:
+                raise ValueError("synthetic_final_transport_check_failed")
+
+        monkeypatch.setattr(
+            "external.coinbase_client._harden_sdk_transport",
+            harden,
+        )
+        boundary_events = []
+
+        with pytest.raises(
+            ValueError,
+            match="synthetic_final_transport_check_failed",
+        ):
+            invoke(
+                client,
+                lambda: boundary_events.append("entered"),
+            )
+
+        assert boundary_events == []
 
     def test_list_orders_restores_zero_redirects_at_each_page_boundary(self):
         class RetryPolicy:

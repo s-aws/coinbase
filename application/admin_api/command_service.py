@@ -52,6 +52,8 @@ from core.enums import (
 )
 from core.exceptions import (
     CoinbaseAPIError,
+    CoinbasePreSdkAuthorityError,
+    CoinbasePreSdkBoundaryError,
     ControlledChildPrePlacementError,
     OrderCreationError,
 )
@@ -6959,6 +6961,9 @@ class AdminApiCommandService:
         *,
         automation_ownership: ValidatedSpotAutomationOwnershipEvidence | None = None,
         recovery_ownership: ValidatedSpotRecoveryCancelEvidence | None = None,
+        before_cancel_sdk_call: Callable[[], None] | None = None,
+        expected_goal12_exchange_order_id_sha256: str | None = None,
+        expected_goal12_portfolio_id_sha256: str | None = None,
     ) -> AdminApiCommandResponse:
         """Cancel through one canonical wrapper with typed ownership evidence."""
 
@@ -6966,6 +6971,13 @@ class AdminApiCommandService:
             command,
             automation_ownership=automation_ownership,
             recovery_ownership=recovery_ownership,
+            before_cancel_sdk_call=before_cancel_sdk_call,
+            expected_goal12_exchange_order_id_sha256=(
+                expected_goal12_exchange_order_id_sha256
+            ),
+            expected_goal12_portfolio_id_sha256=(
+                expected_goal12_portfolio_id_sha256
+            ),
         )
         if automation_ownership is None:
             return response
@@ -6986,6 +6998,9 @@ class AdminApiCommandService:
         *,
         automation_ownership: ValidatedSpotAutomationOwnershipEvidence | None = None,
         recovery_ownership: ValidatedSpotRecoveryCancelEvidence | None = None,
+        before_cancel_sdk_call: Callable[[], None] | None = None,
+        expected_goal12_exchange_order_id_sha256: str | None = None,
+        expected_goal12_portfolio_id_sha256: str | None = None,
     ) -> AdminApiCommandResponse:
         """Cancel one proven order through the canonical verified-ID wrapper."""
 
@@ -7058,6 +7073,38 @@ class AdminApiCommandService:
             "portfolio_id": None,
             "reason": "order_ownership_read_required_before_coinbase_scope_check",
         }
+        for expected_hash in (
+            expected_goal12_exchange_order_id_sha256,
+            expected_goal12_portfolio_id_sha256,
+        ):
+            if expected_hash is not None:
+                try:
+                    _require_automation_sha256(
+                        expected_hash,
+                        code="operator_spot_order_truth_cancel_binding_invalid",
+                    )
+                except ValueError:
+                    return self._cancel_rejected(
+                        command=command,
+                        message="Goal 12 hash binding is invalid.",
+                        failure_stage="goal12_binding",
+                    )
+        if expected_goal12_portfolio_id_sha256 is not None:
+            configured_portfolio_hash = hashlib.sha256(
+                str(deps.spot_portfolio_id or "").encode("utf-8")
+            ).hexdigest()
+            if (
+                configured_portfolio_hash
+                != expected_goal12_portfolio_id_sha256
+            ):
+                return self._cancel_rejected(
+                    command=command,
+                    message=(
+                        "Current approved Test portfolio does not match the "
+                        "Goal 12 truth-cycle binding."
+                    ),
+                    failure_stage="goal12_portfolio_binding",
+                )
         if not deps.rest_client_available:
             return self._cancel_rejected(
                 command=command,
@@ -7644,6 +7691,25 @@ class AdminApiCommandService:
                     },
                     failure_stage="cancellation_preflight_readback",
                 )
+            if (
+                expected_goal12_exchange_order_id_sha256 is not None
+                and hashlib.sha256(
+                    proven_exchange_order_id.encode("utf-8")
+                ).hexdigest()
+                != expected_goal12_exchange_order_id_sha256
+            ):
+                return self._cancel_rejected(
+                    command=command,
+                    message=(
+                        "Fresh authoritative exchange identity does not match "
+                        "the Goal 12 truth-cycle binding."
+                    ),
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": cancellation_readback,
+                    },
+                    failure_stage="goal12_exchange_identity_binding",
+                )
 
             if automation_ownership is not None:
                 try:
@@ -7703,11 +7769,88 @@ class AdminApiCommandService:
             cancellation_readback["canonical_cancel_attempted"] = True
             try:
                 with controller.track_inflight(INFLIGHT_REST_CANCEL):
+                    cancel_kwargs: dict[str, Any] = {
+                        "verified_exchange_order_id": proven_exchange_order_id,
+                        "return_evidence": True,
+                    }
+                    if before_cancel_sdk_call is not None:
+                        cancel_kwargs["before_sdk_call"] = (
+                            before_cancel_sdk_call
+                        )
                     canonical_evidence = canonical_cancel(
                         client_order_id,
-                        verified_exchange_order_id=proven_exchange_order_id,
-                        return_evidence=True,
+                        **cancel_kwargs,
                     )
+            except CoinbasePreSdkBoundaryError as exc:
+                cancellation_readback["canonical_cancel_attempted"] = False
+                cancellation_readback["pre_sdk_boundary_failed"] = True
+                cancellation_readback["pre_sdk_failure_kind"] = (
+                    "authority"
+                    if isinstance(exc, CoinbasePreSdkAuthorityError)
+                    else "callback"
+                )
+                cancellation_readback[
+                    "cancel_claim_released_preboundary"
+                ] = False
+                try:
+                    mark_submission_status(
+                        client_order_id=client_order_id,
+                        status=claimed_status,
+                        exchange_order_id=proven_exchange_order_id,
+                    )
+                except Exception:
+                    quarantine_cancel_uncertainty(
+                        reason=(
+                            "pre_sdk_callback_local_claim_restore_failed"
+                        ),
+                    )
+                    return self._cancel_rejected(
+                        command=command,
+                        message=(
+                            "The cancellation SDK boundary was not crossed, "
+                            "but the local pre-boundary claim could not be "
+                            "restored."
+                        ),
+                        data={
+                            "portfolio_scope": portfolio_scope,
+                            "cancellation_readback": (
+                                cancellation_readback
+                            ),
+                        },
+                        live_exchange_submitted=False,
+                        live_coinbase_orders_ran=False,
+                        failure_stage=(
+                            "cancellation_pre_sdk_callback_restore"
+                        ),
+                    )
+                deps.spot_order_admission_coordinator.resolve_uncertainty(
+                    retail_portfolio_id=profile_id,
+                    client_order_id=client_order_id,
+                )
+                cancellation_readback[
+                    "durable_cancel_claim_persisted"
+                ] = False
+                cancellation_readback[
+                    "cancel_claim_released_preboundary"
+                ] = True
+                return self._cancel_rejected(
+                    command=command,
+                    message=(
+                        "The durable cancellation boundary callback failed "
+                        "before any Coinbase SDK invocation."
+                    ),
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": cancellation_readback,
+                    },
+                    live_exchange_submitted=False,
+                    live_coinbase_orders_ran=False,
+                    failure_stage=(
+                        "cancellation_pre_sdk_authority"
+                        if isinstance(exc, CoinbasePreSdkAuthorityError)
+                        else "cancellation_pre_sdk_callback"
+                    ),
+                )
             except Exception as exc:
                 cancellation_readback["canonical_cancel_error"] = (
                     _value_blind_exception_detail(exc)
