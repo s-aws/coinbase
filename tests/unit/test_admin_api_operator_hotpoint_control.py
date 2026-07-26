@@ -6,6 +6,7 @@ from decimal import Decimal
 import pytest
 
 from application.admin_api.operator_hotpoint_control import (
+    FUTURES_HOTPOINT_GOAL_ID,
     HOTPOINT_CONTROL_OPERATOR_INTENT,
     HOTPOINT_GOAL_ID,
     HOTPOINT_RUN_OPERATOR_INTENT,
@@ -270,6 +271,68 @@ def test_control_forwards_no_browser_order_terms() -> None:
     ]
 
 
+@pytest.mark.parametrize("role", ["operator", "emergency"])
+def test_control_accepts_every_backend_automation_control_role(
+    role: str,
+) -> None:
+    repository = _Repository()
+    service = OperatorHotpointControlService(
+        repository=repository,
+        placement_executor=lambda _plan: None,
+    )
+
+    service.control(
+        action=HotpointControlAction.DISABLE,
+        expected_revision=1,
+        confirm_control_action=True,
+        context=_context(roles=(role,)),
+    )
+
+    assert repository.transition_calls[0]["roles"] == (role,)
+
+
+@pytest.mark.parametrize(
+    ("action", "extra"),
+    [
+        (
+            HotpointControlAction.ENABLE,
+            {
+                "authorize_one_bounded_trigger_window": True,
+                "acknowledge_unknown_outcome_consumes_create_allowance": True,
+                "acknowledge_backend_derives_child_terms": True,
+            },
+        ),
+        (
+            HotpointControlAction.ARM,
+            {"parent_client_order_id": PARENT_ID},
+        ),
+    ],
+)
+def test_emergency_control_role_is_stop_side_only(
+    action: HotpointControlAction,
+    extra: dict[str, object],
+) -> None:
+    repository = _Repository()
+    service = OperatorHotpointControlService(
+        repository=repository,
+        placement_executor=lambda _plan: None,
+    )
+
+    with pytest.raises(
+        OperatorHotpointControlError,
+        match="operator_hotpoint_control_authority_invalid",
+    ):
+        service.control(
+            action=action,
+            expected_revision=1,
+            confirm_control_action=True,
+            context=_context(roles=("emergency",)),
+            **extra,
+        )
+
+    assert repository.transition_calls == []
+
+
 def test_run_claims_once_and_terminalizes_accepted_child() -> None:
     repository = _Repository()
     executions: list[HotpointPlacementPlan] = []
@@ -367,6 +430,14 @@ def test_run_rejects_browser_intent_or_missing_operator_role() -> None:
             operator_intent=HOTPOINT_RUN_OPERATOR_INTENT,
             roles=("viewer",),
         ),
+        _context(
+            operator_intent=HOTPOINT_RUN_OPERATOR_INTENT,
+            roles=("operator",),
+        ),
+        _context(
+            operator_intent=HOTPOINT_RUN_OPERATOR_INTENT,
+            roles=("emergency",),
+        ),
     ):
         with pytest.raises(
             OperatorHotpointControlError,
@@ -435,6 +506,25 @@ def test_spot_and_futures_scope_policies_are_separate_backend_authorities() -> N
         exact_size=Decimal("1"),
         strict_caps=True,
     )
+
+
+def test_futures_hotpoint_service_binds_the_distinct_successor_goal() -> None:
+    repository = _Repository()
+    repository.record = replace(
+        repository.record,
+        goal_id=FUTURES_HOTPOINT_GOAL_ID,
+        product_id="AVP-20DEC30-CDE",
+    )
+    service = OperatorHotpointControlService(
+        repository=repository,
+        policy=FUTURES_HOTPOINT_SCOPE_POLICY,
+        goal_id=FUTURES_HOTPOINT_GOAL_ID,
+        placement_executor=lambda _plan: pytest.fail("create called"),
+        placement_execution_available=False,
+        cancel_execution_available=False,
+    )
+
+    assert service.read().goal_id == FUTURES_HOTPOINT_GOAL_ID
 
 
 def test_futures_scope_accepts_only_one_contract_v3_plan() -> None:
@@ -508,3 +598,30 @@ def test_futures_scope_accepts_only_one_contract_v3_plan() -> None:
         service.run_once(
             context=_context(operator_intent=HOTPOINT_RUN_OPERATOR_INTENT),
         )
+
+
+def test_default_futures_repository_uses_the_goal13_ledger(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import database.operator_hotpoint_control as repository_module
+
+    monkeypatch.setattr(
+        repository_module,
+        "_DEFAULT_FUTURES_REPOSITORY",
+        None,
+    )
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_FUTURES_PORTFOLIO_ID",
+        "66666666-6666-4666-8666-666666666666",
+    )
+
+    repository = (
+        repository_module
+        .get_default_operator_futures_hotpoint_control_repository()
+    )
+
+    assert repository.goal_id == FUTURES_HOTPOINT_GOAL_ID
+    assert (
+        repository._table("operator_hotpoint_control")
+        == '"public"."operator_futures_hotpoint_v2_control"'
+    )

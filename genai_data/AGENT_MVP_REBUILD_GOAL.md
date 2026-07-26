@@ -1,4 +1,45 @@
 # Coinbase Admin MVP Goal
+
+## Completed sequential Goal 13 — operator-ready Controlled-live closeout
+
+Goal ID: `operator_futures_hotpoint_canonical_single_child_v2`.
+
+This independent goal implements the authenticated `/hotpoint`
+`domain=FUTURES` lifecycle for the credential-bound `Default` / `DEFAULT`
+profile, `AVP-20DEC30-CDE`, BUY, one generated post-only LIMIT/GTC child, and
+strict `<100 / <150 / <300 USDC` caps. Separate PostgreSQL goal and call
+ledgers reuse the shared canonical Futures lifecycle serialization lock and
+exact-child Cancel invocation seal. One explicit `RUN_ONCE` may consume one of
+ten no-retry six-category cycles, the single Preview, and only after an
+accepted error-free result the identical Create. One later explicit
+`SAFE_CLOSEOUT` may consume one exact one-page reconciliation and one
+conditional exact-child Cancel.
+
+Implementation, generated-contract synchronization, focused and full
+backend/frontend gates, installed deployment validation, independent safety
+and blind-contextless audits, and persistent Controlled-live handoff pass. No
+legitimate installed, reconciled,
+nonterminal Default-profile AVP parent has more than three contracts of
+remaining capacity, and inherited exact-V3 eligibility requires the
+post-trigger AVP position to be flat. The operator UI displays this source
+blocker and ARM/RUN remain unavailable. Eligibility is `0/10`; Preview,
+Create, reconciliation, and Cancel remain unconsumed. No Goal 13 Coinbase call
+or live proof occurred.
+
+Historical comparison inspected
+`origin/prod:business/hotpoint_detector.py`,
+`business/hotpoint_rate_limiter.py`, `business/hotpoint_placer.py`,
+`business/hotpoint_decay_sweeper.py`, `dashboard_server.py`, and
+`external/coinbase_client.py`. Official Coinbase and pinned-SDK Product/BBO,
+permissions/portfolio, CFM position/margin, Preview/Create/List Orders/Cancel,
+and market-hours contracts were checked. No published post-maintenance
+breaking change was identified; modern CDP portfolio binding is
+credential-owned and the deprecated order-level `retail_portfolio_id`
+argument is omitted.
+
+The terminal workflow grants no predecessor parent creation and must not
+consume or transfer any Goal 13 allowance.
+
 ## Completed sequential Goal 12 — operator-ready Controlled-live
 
 Goal ID: `operator_spot_order_truth_and_exact_cancel_reconcile_v1`.

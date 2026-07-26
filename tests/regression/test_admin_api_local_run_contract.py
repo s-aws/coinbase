@@ -45,6 +45,7 @@ def test_admin_api_local_runner_defaults_to_existing_fastapi_app():
         "host": "127.0.0.1",
         "port": 8787,
         "reload": False,
+        "workers": 1,
     }
 
 
@@ -291,6 +292,7 @@ def test_admin_api_local_runner_starts_with_oidc_auth_without_bootstrap_token(mo
             "host": "0.0.0.0",
             "port": 8787,
             "reload": False,
+            "workers": 1,
         }
     ]
 

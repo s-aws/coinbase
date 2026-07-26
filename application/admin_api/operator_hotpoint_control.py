@@ -16,6 +16,9 @@ from typing import Any, Callable, Protocol
 
 
 HOTPOINT_GOAL_ID = "operator_hotpoint_control_and_single_placement_v1"
+FUTURES_HOTPOINT_GOAL_ID = (
+    "operator_futures_hotpoint_canonical_single_child_v2"
+)
 HOTPOINT_CONTROL_OPERATOR_INTENT = "control_operator_hotpoint"
 HOTPOINT_RUN_OPERATOR_INTENT = "run_operator_hotpoint_once"
 HOTPOINT_SAFE_CLOSEOUT_OPERATOR_INTENT = "safe_closeout_operator_hotpoint_child"
@@ -266,6 +269,28 @@ class OperatorHotpointControlRepository(Protocol):
         **kwargs: Any,
     ) -> OperatorHotpointControlRecord: ...
 
+    def claim_futures_trigger(self, **kwargs: Any) -> Any: ...
+
+    def revalidate_futures_trigger(self, binding: Any) -> bool: ...
+
+    def validate_futures_preview_invocation(
+        self,
+        **kwargs: Any,
+    ) -> None: ...
+
+    def validate_futures_create_invocation(
+        self,
+        **kwargs: Any,
+    ) -> None: ...
+
+    def close_futures_control_after_attempt(
+        self,
+    ) -> OperatorHotpointControlRecord: ...
+
+    def read_futures_trigger_readback(
+        self,
+    ) -> dict[str, Any]: ...
+
 
 class OperatorHotpointControlError(RuntimeError):
     """Fixed, value-blind application error."""
@@ -283,9 +308,22 @@ def _required_text(value: object, *, code: str, maximum: int = 255) -> str:
     return normalized
 
 
-def _has_operator_role(roles: tuple[str, ...]) -> bool:
+_HOTPOINT_EXECUTION_ROLES = frozenset({"admin", "trader"})
+_HOTPOINT_CONTROL_ROLES = frozenset(
+    {"admin", "trader", "operator", "emergency"}
+)
+_HOTPOINT_RESUME_CONTROL_ROLES = frozenset(
+    {"admin", "trader", "operator"}
+)
+
+
+def _has_operator_role(
+    roles: tuple[str, ...],
+    *,
+    allowed_roles: frozenset[str] = _HOTPOINT_EXECUTION_ROLES,
+) -> bool:
     return bool(
-        {"admin", "trader"}.intersection(
+        allowed_roles.intersection(
             {str(role).strip().lower() for role in roles}
         )
     )
@@ -296,11 +334,15 @@ def _validate_context(
     *,
     operator_intent: str,
     code: str,
+    allowed_roles: frozenset[str] = _HOTPOINT_EXECUTION_ROLES,
 ) -> OperatorHotpointRequestContext:
     if (
         not isinstance(context, OperatorHotpointRequestContext)
         or context.operator_intent != operator_intent
-        or not _has_operator_role(context.roles)
+        or not _has_operator_role(
+            context.roles,
+            allowed_roles=allowed_roles,
+        )
     ):
         raise OperatorHotpointControlError(code, 422)
     _required_text(context.actor_id, code=code)
@@ -313,10 +355,12 @@ def _validate_context(
 def _validate_record(
     record: OperatorHotpointControlRecord,
     policy: HotpointScopePolicy,
+    *,
+    goal_id: str = HOTPOINT_GOAL_ID,
 ) -> OperatorHotpointControlRecord:
     if (
         not isinstance(record, OperatorHotpointControlRecord)
-        or record.goal_id != HOTPOINT_GOAL_ID
+        or record.goal_id != goal_id
         or not isinstance(policy, HotpointScopePolicy)
         or (
             record.product_id is not None
@@ -364,10 +408,12 @@ def _cap_exceeded(
 def _validate_plan(
     plan: HotpointPlacementPlan,
     policy: HotpointScopePolicy,
+    *,
+    goal_id: str = HOTPOINT_GOAL_ID,
 ) -> HotpointPlacementPlan:
     if (
         not isinstance(plan, HotpointPlacementPlan)
-        or plan.goal_id != HOTPOINT_GOAL_ID
+        or plan.goal_id != goal_id
         or not isinstance(policy, HotpointScopePolicy)
         or plan.product_id != policy.product_id
         or plan.side not in {"BUY", "SELL"}
@@ -421,10 +467,12 @@ def _validate_plan(
 def _validate_cancel_plan(
     plan: HotpointCancelPlan,
     policy: HotpointScopePolicy,
+    *,
+    goal_id: str = HOTPOINT_GOAL_ID,
 ) -> HotpointCancelPlan:
     if (
         not isinstance(plan, HotpointCancelPlan)
-        or plan.goal_id != HOTPOINT_GOAL_ID
+        or plan.goal_id != goal_id
         or not isinstance(policy, HotpointScopePolicy)
         or not plan.cancel_claim_id
         or not plan.placement_claim_id
@@ -462,6 +510,7 @@ class OperatorHotpointControlService:
         ]
         | None = None,
         policy: HotpointScopePolicy = SPOT_HOTPOINT_SCOPE_POLICY,
+        goal_id: str = HOTPOINT_GOAL_ID,
         placement_execution_available: bool = True,
         cancel_execution_available: bool = True,
     ) -> None:
@@ -471,6 +520,9 @@ class OperatorHotpointControlService:
         if not isinstance(policy, HotpointScopePolicy):
             raise ValueError("operator_hotpoint_scope_policy_invalid")
         self.policy = policy
+        if goal_id not in {HOTPOINT_GOAL_ID, FUTURES_HOTPOINT_GOAL_ID}:
+            raise ValueError("operator_hotpoint_goal_id_invalid")
+        self.goal_id = goal_id
         self.placement_execution_available = bool(
             placement_execution_available
         )
@@ -487,7 +539,7 @@ class OperatorHotpointControlService:
                 "operator_hotpoint_backend_unavailable",
                 503,
             ) from None
-        return _validate_record(record, self.policy)
+        return _validate_record(record, self.policy, goal_id=self.goal_id)
 
     def list_eligible_parents(
         self,
@@ -559,6 +611,7 @@ class OperatorHotpointControlService:
             context,
             operator_intent=HOTPOINT_CONTROL_OPERATOR_INTENT,
             code="operator_hotpoint_control_authority_invalid",
+            allowed_roles=_HOTPOINT_CONTROL_ROLES,
         )
         if (
             not isinstance(action, HotpointControlAction)
@@ -568,6 +621,21 @@ class OperatorHotpointControlService:
         ):
             raise OperatorHotpointControlError(
                 "operator_hotpoint_control_invalid",
+                422,
+            )
+        if (
+            action
+            in {
+                HotpointControlAction.ENABLE,
+                HotpointControlAction.ARM,
+            }
+            and not _has_operator_role(
+                context.roles,
+                allowed_roles=_HOTPOINT_RESUME_CONTROL_ROLES,
+            )
+        ):
+            raise OperatorHotpointControlError(
+                "operator_hotpoint_control_authority_invalid",
                 422,
             )
         delegated_authority = bool(
@@ -629,7 +697,7 @@ class OperatorHotpointControlService:
                 "operator_hotpoint_control_unavailable",
                 503,
             ) from None
-        return _validate_record(record, self.policy)
+        return _validate_record(record, self.policy, goal_id=self.goal_id)
 
     def run_once(
         self,
@@ -662,8 +730,12 @@ class OperatorHotpointControlService:
         if claim is None:
             return self.read()
         claimed_record, plan = claim
-        _validate_record(claimed_record, self.policy)
-        plan = _validate_plan(plan, self.policy)
+        _validate_record(
+            claimed_record,
+            self.policy,
+            goal_id=self.goal_id,
+        )
+        plan = _validate_plan(plan, self.policy, goal_id=self.goal_id)
         if (
             claimed_record.create_state is not HotpointCreateState.CLAIMED
             or claimed_record.placement_claim_id
@@ -724,7 +796,7 @@ class OperatorHotpointControlService:
                 "operator_hotpoint_terminal_persistence_unknown",
                 503,
             ) from None
-        return _validate_record(result, self.policy)
+        return _validate_record(result, self.policy, goal_id=self.goal_id)
 
     def safe_closeout(
         self,
@@ -768,8 +840,16 @@ class OperatorHotpointControlService:
         if claim is None:
             return self.read()
         claimed_record, plan = claim
-        _validate_record(claimed_record, self.policy)
-        plan = _validate_cancel_plan(plan, self.policy)
+        _validate_record(
+            claimed_record,
+            self.policy,
+            goal_id=self.goal_id,
+        )
+        plan = _validate_cancel_plan(
+            plan,
+            self.policy,
+            goal_id=self.goal_id,
+        )
         if (
             claimed_record.cancel_state is not HotpointCancelState.CLAIMED
             or claimed_record.cancel_claim_id != plan.cancel_claim_id
@@ -826,4 +906,4 @@ class OperatorHotpointControlService:
                 "operator_hotpoint_cancel_terminal_persistence_unknown",
                 503,
             ) from None
-        return _validate_record(result, self.policy)
+        return _validate_record(result, self.policy, goal_id=self.goal_id)

@@ -306,6 +306,9 @@ class _Repository:
         self.events.append("finish:order-terminal")
         return self.record
 
+    def is_cancel_invocation_sealed(self):
+        return False
+
 
 class _Executor:
     def __init__(self, *, nonterminal: bool) -> None:

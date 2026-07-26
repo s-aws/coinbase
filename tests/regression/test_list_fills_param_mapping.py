@@ -114,7 +114,6 @@ def test_list_orders_claims_the_read_boundary_before_sdk_invocation():
         end_date=None,
         cursor=None,
         product_type="FUTURE",
-        retail_portfolio_id=None,
     )
 
 

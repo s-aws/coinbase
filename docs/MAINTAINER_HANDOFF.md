@@ -1,5 +1,62 @@
 # Maintainer Handoff
 
+## Completed independent Goal 13 — operator-ready Controlled-live closeout
+
+Goal `operator_futures_hotpoint_canonical_single_child_v2` adds a separate
+backend-owned canonical Futures Hotpoint lifecycle to authenticated
+`/hotpoint`. It preserves every Goal 9 and Goal 12 row, event, claim,
+allowance, identity, and terminal result. Dedicated Goal 13 PostgreSQL goal,
+control, command, cycle, candidate, Preview, Create, reconciliation, Cancel,
+and audit identities reuse the shared canonical Futures lifecycle
+serialization lock and shared exact-child Cancel invocation seal. Ledger
+separation must not be described as a dedicated advisory-lock identity.
+
+The fixed scope is the credential-bound `Default` / `DEFAULT` profile,
+`AVP-20DEC30-CDE`, BUY, exactly one generated post-only LIMIT/GTC child
+contract, and strict `<100 / <150 / <300 USDC` caps. Explicit `RUN_ONCE`
+owns at most ten no-retry six-category cycles, including four individually
+accounted margin subreads, one Preview, and a conditional identical Create.
+Explicit `SAFE_CLOSEOUT` owns one exact one-page List Orders reconciliation
+and a conditional exact-child Cancel. Final-page cursors are accepted only
+with `has_next=false` and are never followed. Coinbase Cancel success is
+request-initiation evidence, not terminal cancellation.
+
+Implementation, generated-contract synchronization, focused and full
+backend/frontend gates, installed deployment validation, independent safety
+and blind-contextless audits, and persistent Controlled-live handoff pass.
+Focused validation passed 196 backend tests and 156 frontend tests. Canonical
+regression passed 1,304 backend tests with 6 skipped in parallel and 976 with
+150 skipped and 1,310 deselected in serial, plus 1,904 frontend
+unit/component tests and 34 authenticated managed browser tests.
+The installed stack has no legitimately
+registered, reconciled, nonterminal Default-profile AVP source parent with
+more than three contracts of remaining capacity. Existing routed Futures
+proofs create only one contract and close it, and catalog refresh may
+reconcile exchange truth but cannot forge `order_parent` provenance. The
+inherited exact-V3 gate also requires the three BUY fills to leave the current
+AVP position flat. The UI shows this durable source blocker, ARM/RUN remain
+unavailable, all ten eligibility cycles remain unused, and Preview, Create,
+reconciliation, and Cancel remain unconsumed. No Goal 13 Coinbase call or live
+proof occurred.
+
+Historical translation inspected
+`origin/prod:business/hotpoint_detector.py`,
+`business/hotpoint_rate_limiter.py`, `business/hotpoint_placer.py`,
+`business/hotpoint_decay_sweeper.py`, `dashboard_server.py`, and
+`external/coinbase_client.py`. Current official Coinbase Product, BBO,
+permissions, portfolio, CFM position/margin, Preview, Create, List Orders,
+Cancel, market-hours, and pinned SDK references were compared. No published
+post-maintenance breaking change was identified. Current CDP credentials are
+portfolio-bound and the documented order-level `retail_portfolio_id` field is
+deprecated, so Goal 13 omits that argument and instead binds the exact
+credential/catalog match and portfolio SHA-256.
+
+Preserve `0/10` and every unconsumed allowance unless an independently
+authorized predecessor creates and registers a coherent source parent. The
+terminal workflow made no Coinbase call or live proof and did not manufacture
+source provenance. See
+[Operator Futures Hotpoint Canonical Single Child V2](OPERATOR_FUTURES_HOTPOINT_CANONICAL_SINGLE_CHILD_V2.md).
+
 ## Completed independent Goal 12 — operator-ready Controlled-live
 
 Goal `operator_spot_order_truth_and_exact_cancel_reconcile_v1` adds the

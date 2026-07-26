@@ -140,6 +140,95 @@ def test_operator_runtime_prepares_default_client_for_product_ticket_alone(
     assert len(futures_preparations) == 1
 
 
+def test_operator_runtime_prepares_default_client_for_hotpoint_v2_alone(
+    tmp_path: Path,
+) -> None:
+    environment = _authorized_environment(tmp_path)
+    environment[
+        "COINBASE_ADMIN_API_OPERATOR_FUTURES_HOTPOINT_V2_ENABLED"
+    ] = "1"
+    environment["COINBASE_ADMIN_API_FUTURES_PORTFOLIO_ID"] = (
+        "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+    )
+    futures_preparations: list[dict[str, str]] = []
+
+    prepared = operator_runtime.prepare_operator_runtime(
+        [],
+        environ=environment,
+        credential_hydrator=lambda target: target.update(
+            {
+                "COINBASE_API_KEY": "spot-key",
+                "COINBASE_API_SECRET": "spot-secret",
+            }
+        )
+        or SimpleNamespace(source="secrets_manager"),
+        futures_client_preparer=lambda target: futures_preparations.append(
+            dict(target)
+        )
+        or SimpleNamespace(),
+    )
+
+    assert prepared.credential_source == "secrets_manager"
+    assert len(futures_preparations) == 1
+    assert futures_preparations[0][
+        "COINBASE_ADMIN_API_FUTURES_PORTFOLIO_ID"
+    ] == "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+
+
+def test_operator_runtime_hotpoint_v2_fails_closed_before_client_on_bad_binding(
+    tmp_path: Path,
+) -> None:
+    environment = _authorized_environment(tmp_path)
+    environment[
+        "COINBASE_ADMIN_API_OPERATOR_FUTURES_HOTPOINT_V2_ENABLED"
+    ] = "1"
+    environment["COINBASE_ADMIN_API_FUTURES_PORTFOLIO_ID"] = (
+        "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+    )
+    environment["COINBASE_FUTURES_SECRETS_MANAGER_SECRET_ID"] = (
+        "coinbase/Test"
+    )
+
+    with pytest.raises(
+        operator_runtime.OperatorAdminRuntimeError,
+        match="operator_coinbase_domain_credential_bindings_conflated",
+    ):
+        operator_runtime.prepare_operator_runtime(
+            [],
+            environ=environment,
+            credential_hydrator=lambda _target: SimpleNamespace(
+                source="unexpected"
+            ),
+            futures_client_preparer=lambda _target: pytest.fail(
+                "invalid Default binding must fail before construction"
+            ),
+        )
+
+
+def test_operator_runtime_hotpoint_v2_requires_default_portfolio_before_hydration(
+    tmp_path: Path,
+) -> None:
+    environment = _authorized_environment(tmp_path)
+    environment[
+        "COINBASE_ADMIN_API_OPERATOR_FUTURES_HOTPOINT_V2_ENABLED"
+    ] = "1"
+    hydration_calls: list[dict[str, str]] = []
+
+    with pytest.raises(
+        operator_runtime.OperatorAdminRuntimeError,
+        match="operator_futures_hotpoint_default_portfolio_required",
+    ):
+        operator_runtime.prepare_operator_runtime(
+            [],
+            environ=environment,
+            credential_hydrator=lambda target: hydration_calls.append(
+                dict(target)
+            ),
+        )
+
+    assert hydration_calls == []
+
+
 def test_operator_runtime_fails_closed_when_futures_and_spot_bindings_conflate(
     tmp_path: Path,
 ) -> None:
@@ -307,6 +396,107 @@ def test_operator_runtime_initializes_enabled_durable_schemas_before_composition
         "compose",
         ("serve", "127.0.0.1", 8877),
     ]
+
+
+@pytest.mark.parametrize("feature_value", [None, "0", "true", "yes", "01"])
+def test_operator_runtime_skips_goal13_initialization_without_exact_flag(
+    tmp_path: Path,
+    monkeypatch,
+    feature_value: str | None,
+) -> None:
+    environment = _authorized_environment(tmp_path)
+    if feature_value is not None:
+        environment[
+            "COINBASE_ADMIN_API_OPERATOR_FUTURES_HOTPOINT_V2_ENABLED"
+        ] = feature_value
+    monkeypatch.setattr(
+        operator_runtime,
+        "initialize_operator_futures_hotpoint_v2_runtime",
+        lambda: pytest.fail("non-exact flag must not initialize Goal13"),
+        raising=False,
+    )
+
+    operator_runtime.initialize_enabled_operator_schemas(
+        environ=environment
+    )
+
+
+def test_operator_runtime_eagerly_initializes_goal13_once_before_serving(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    environment = _authorized_environment(tmp_path)
+    environment[
+        "COINBASE_ADMIN_API_OPERATOR_FUTURES_HOTPOINT_V2_ENABLED"
+    ] = "1"
+    calls: list[str] = []
+    monkeypatch.setattr(
+        operator_runtime,
+        "initialize_operator_futures_hotpoint_v2_runtime",
+        lambda: calls.append("goal13_init"),
+        raising=False,
+    )
+
+    operator_runtime.initialize_enabled_operator_schemas(
+        environ=environment
+    )
+
+    assert calls == ["goal13_init"]
+
+
+def test_operator_runtime_goal13_init_failure_prevents_serve(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    environment = _authorized_environment(tmp_path)
+    environment[
+        "COINBASE_ADMIN_API_OPERATOR_FUTURES_HOTPOINT_V2_ENABLED"
+    ] = "1"
+    environment["COINBASE_ADMIN_API_FUTURES_PORTFOLIO_ID"] = (
+        "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+    )
+    lifecycle: list[str] = []
+    monkeypatch.setattr(
+        operator_runtime,
+        "initialize_operator_futures_hotpoint_v2_runtime",
+        lambda: (_ for _ in ()).throw(RuntimeError("withheld")),
+        raising=False,
+    )
+    prepared_config = operator_runtime.AdminApiRunConfig(
+        app="api.v1.app:app",
+        host="127.0.0.1",
+        port=8787,
+        reload=False,
+        cors_origins=("http://127.0.0.1:3000",),
+        dev_token=None,
+    )
+    monkeypatch.setattr(
+        operator_runtime,
+        "prepare_operator_runtime",
+        lambda *_args, **_kwargs: operator_runtime.PreparedOperatorRuntime(
+            host="127.0.0.1",
+            port=8787,
+            credential_source="synthetic-test",
+            config=prepared_config,
+        ),
+    )
+
+    result = operator_runtime.main(
+        [],
+        environ=environment,
+        credential_hydrator=lambda _target: SimpleNamespace(
+            source="synthetic-test"
+        ),
+        runtime_composer=lambda: lifecycle.append("compose"),
+        server_runner=lambda _config: lifecycle.append("serve"),
+    )
+
+    assert result == 2
+    assert lifecycle == []
+    assert capsys.readouterr().err.strip() == (
+        "operator_admin_runtime_startup_failed:OperatorAdminRuntimeError"
+    )
 
 
 @pytest.mark.parametrize("feature_value", [None, "0", "true", "yes", "01"])

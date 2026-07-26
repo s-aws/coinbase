@@ -456,7 +456,9 @@ def test_cancel_service_never_invokes_executor_for_read_only_credential():
     )
     executor = SimpleNamespace(cancel=Mock())
     service = OperatorFuturesOrderOperationsService(
-        repository=SimpleNamespace(),
+        repository=SimpleNamespace(
+            is_cancel_invocation_sealed=lambda _client_order_id: False,
+        ),
         catalog_reader=SimpleNamespace(),
         exchange_executor=executor,
     )

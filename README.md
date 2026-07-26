@@ -1,6 +1,41 @@
 # Coinbase Trading Backend
 
-## Current Goal 12 Spot order truth and exact operations
+## Completed independent Goal 13 — operator-ready Controlled-live closeout
+
+Goal `operator_futures_hotpoint_canonical_single_child_v2` provides the
+backend-owned Default-profile Futures lane for authenticated `/hotpoint`. Its
+fixed policy is `Default` / `DEFAULT`, `AVP-20DEC30-CDE`, BUY, one generated
+post-only LIMIT/GTC child contract, and strict `<100 / <150 / <300 USDC`
+caps. Dedicated Goal 13 PostgreSQL authority and call ledgers reuse the shared
+canonical Futures lifecycle serialization lock and exact-child Cancel seal;
+they do not create a parallel Futures placement or cancellation path.
+
+Implementation, generated-contract synchronization, focused and full
+backend/frontend gates, installed deployment validation, independent safety
+and blind-contextless audits, and persistent Controlled-live handoff pass. The
+installed state has no legitimately registered, reconciled, nonterminal AVP
+source parent with more than three contracts of remaining capacity, while
+inherited exact-V3 eligibility also requires the post-trigger AVP position to
+be flat. The operator readback exposes that blocker and ARM/RUN fail closed.
+All ten eligibility cycles and the Preview, Create, reconciliation, and Cancel
+allowances remain unconsumed. No Goal 13 Coinbase call or live proof occurred.
+
+Historical comparison used
+`origin/prod:business/hotpoint_detector.py`,
+`business/hotpoint_rate_limiter.py`, `business/hotpoint_placer.py`,
+`business/hotpoint_decay_sweeper.py`, `dashboard_server.py`, and
+`external/coinbase_client.py`. Current official Coinbase and pinned-SDK
+contracts retain the Preview/Create/List Orders/Cancel and CFM eligibility
+shapes used here. Modern CDP credentials are portfolio-bound and the
+order-level `retail_portfolio_id` field is deprecated, so it is not sent.
+Cancel success is treated only as request-initiation evidence until
+authoritative reconciliation.
+
+The terminal workflow preserves that truthful blocker without manufacturing
+source provenance or transferring predecessor authority. See
+[the Goal 13 design](docs/OPERATOR_FUTURES_HOTPOINT_CANONICAL_SINGLE_CHILD_V2.md).
+
+## Completed Goal 12 Spot order truth and exact operations
 
 Goal `operator_spot_order_truth_and_exact_cancel_reconcile_v1` provides
 backend authority for the authenticated approved-Test Spot order inventory,

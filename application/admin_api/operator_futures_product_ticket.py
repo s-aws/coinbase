@@ -703,6 +703,7 @@ class FuturesProductTicketEligibilityReader:
         self,
         *,
         before_category: Callable[[str], None],
+        before_margin_subread: Callable[[str], None] | None = None,
     ) -> FuturesManualEligibilityResult:
         attempts = _empty_attempts()
         try:
@@ -776,8 +777,15 @@ class FuturesProductTicketEligibilityReader:
             )
             margin = read(
                 "futures_margin_collateral",
-                self.rest_client
-                .get_futures_manual_eligibility_margin_collateral_snapshot,
+                lambda: (
+                    self.rest_client
+                    .get_futures_manual_eligibility_margin_collateral_snapshot(
+                        before_subread=before_margin_subread
+                    )
+                    if before_margin_subread is not None
+                    else self.rest_client
+                    .get_futures_manual_eligibility_margin_collateral_snapshot()
+                ),
             )
         except _EligibilityReadError as exc:
             return _blocked_result(

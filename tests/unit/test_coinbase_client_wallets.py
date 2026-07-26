@@ -342,6 +342,49 @@ def test_futures_manual_margin_reader_propagates_typed_error_without_message_lab
     assert sdk.margin_window_profiles == []
 
 
+def test_futures_manual_margin_reader_marks_each_sdk_subread_in_order():
+    sdk = FakeFuturesSdkClient()
+    client = CoinbaseRestClient(sdk)
+    boundaries: list[str] = []
+
+    client.get_futures_manual_eligibility_margin_collateral_snapshot(
+        before_subread=boundaries.append,
+    )
+
+    assert boundaries == [
+        "futures_balance_summary",
+        "intraday_margin_setting",
+        "current_margin_window_regular",
+        "current_margin_window_intraday",
+    ]
+    assert sdk.margin_window_profiles == [
+        "MARGIN_PROFILE_TYPE_RETAIL_REGULAR",
+        "MARGIN_PROFILE_TYPE_RETAIL_INTRADAY_MARGIN_1",
+    ]
+
+
+def test_futures_manual_margin_reader_stops_before_unclaimed_subread():
+    sdk = FakeFuturesSdkClient()
+    client = CoinbaseRestClient(sdk)
+    boundaries: list[str] = []
+
+    def fail_before_first_window(subread: str) -> None:
+        if subread == "current_margin_window_regular":
+            raise RuntimeError("fixed test boundary")
+        boundaries.append(subread)
+
+    with pytest.raises(RuntimeError, match="fixed test boundary"):
+        client.get_futures_manual_eligibility_margin_collateral_snapshot(
+            before_subread=fail_before_first_window,
+        )
+
+    assert boundaries == [
+        "futures_balance_summary",
+        "intraday_margin_setting",
+    ]
+    assert sdk.margin_window_profiles == []
+
+
 @pytest.mark.parametrize("sweeps_payload", [{}, {"sweeps": {}}])
 def test_get_futures_margin_collateral_snapshot_flags_ambiguous_sweeps(
     sweeps_payload: dict,

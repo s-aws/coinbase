@@ -4,6 +4,7 @@ Unit tests for Coinbase API integration.
 Tests REST API client and WebSocket connection.
 """
 
+import logging
 import pytest
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -12,11 +13,36 @@ from core.exceptions import (
     CoinbasePreSdkAuthorityError,
     CoinbasePreSdkCallbackError,
 )
-from external.coinbase_client import CoinbaseRestClient
+from external.coinbase_client import (
+    CoinbaseRestClient,
+    _CoinbaseSdkValueBlindLogFilter,
+    _install_coinbase_sdk_value_blind_logging,
+)
 
 
 class TestCoinbaseRESTAPIClient:
     """Test Coinbase REST API client methods."""
+
+    def test_sdk_debug_logging_is_idempotently_value_blind(self, caplog):
+        logger = logging.getLogger("coinbase.RESTClient")
+
+        _install_coinbase_sdk_value_blind_logging()
+        _install_coinbase_sdk_value_blind_logging()
+
+        assert (
+            sum(
+                isinstance(item, _CoinbaseSdkValueBlindLogFilter)
+                for item in logger.filters
+            )
+            == 1
+        )
+        caplog.clear()
+        with caplog.at_level(logging.DEBUG, logger=logger.name):
+            logger.debug("sentinel raw Coinbase response body")
+
+        rendered = " ".join(caplog.messages)
+        assert rendered == "Coinbase SDK transport detail withheld."
+        assert "sentinel" not in rendered
     
     def test_get_account_request_format(self):
         """GET /api/v1/accounts should return account data."""
@@ -199,6 +225,9 @@ class TestCoinbaseRESTAPIClient:
             cursor="next-page",
             product_type="SPOT",
             retail_portfolio_id="test-portfolio-id",
+            order_side="BUY",
+            order_types="LIMIT",
+            time_in_forces="GOOD_UNTIL_CANCELLED",
         )
 
         assert response == {"orders": [], "has_next": False}
@@ -213,8 +242,31 @@ class TestCoinbaseRESTAPIClient:
                 "cursor": "next-page",
                 "product_type": "SPOT",
                 "retail_portfolio_id": "test-portfolio-id",
+                "order_side": "BUY",
+                "order_types": "LIMIT",
+                "time_in_forces": "GOOD_UNTIL_CANCELLED",
             }
         ]
+
+    def test_list_orders_omits_unset_retail_portfolio_id_from_sdk(self):
+        class FakeSDKClient:
+            def __init__(self):
+                self.calls = []
+
+            def list_orders(self, **kwargs):
+                self.calls.append(dict(kwargs))
+                return {"orders": [], "has_next": False}
+
+        sdk_client = FakeSDKClient()
+        client = CoinbaseRestClient(sdk_client)
+
+        client.list_orders(
+            order_status=["OPEN"],
+            product_ids=["AVP-20DEC30-CDE"],
+            product_type="FUTURE",
+        )
+
+        assert "retail_portfolio_id" not in sdk_client.calls[0]
 
     def test_list_orders_rechecks_no_retry_transport_before_wire_call(self):
         class RetryPolicy:
@@ -364,7 +416,6 @@ class TestCoinbaseRESTAPIClient:
                     "end_date": None,
                     "cursor": None,
                     "product_type": "SPOT",
-                    "retail_portfolio_id": None,
                 },
                 "max_redirects": 0,
             }

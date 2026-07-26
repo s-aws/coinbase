@@ -15,11 +15,14 @@ from application.admin_api.operator_futures_manual_lifecycle import (
     FUTURES_MANUAL_ELIGIBILITY_CATEGORIES,
     FUTURES_MANUAL_ACTIVE_GOAL_ID,
     FUTURES_MANUAL_GOAL_ID,
+    FUTURES_MANUAL_MARGIN_SUBREADS,
     FuturesManualEligibilityResult,
     FuturesManualExecutionPlan,
     FuturesManualGoalRecord,
     FuturesManualLifecycleError,
     FuturesManualRequestContext,
+    FuturesHotpointExternalCommandClaim,
+    FuturesHotpointExternalCommandReadback,
     classify_futures_manual_candidate_freshness,
     is_futures_manual_goal_terminal,
 )
@@ -29,9 +32,17 @@ from application.admin_api.operator_futures_product_ticket import (
 from application.admin_api.operator_futures_fill_triggered_follow_up import (
     FUTURES_FILL_TRIGGERED_FOLLOW_UP_GOAL_ID,
 )
+from application.admin_api.operator_hotpoint_control import (
+    FUTURES_HOTPOINT_GOAL_ID,
+)
 from core.enums import (
     AdminFuturesManualCallOutcome,
     AdminFuturesManualEligibilityOutcome,
+)
+from database.operator_futures_cancel_invocation_seal import (
+    ensure_futures_cancel_invocation_seal,
+    futures_cancel_invocation_is_sealed,
+    seal_futures_cancel_invocation,
 )
 
 
@@ -44,6 +55,15 @@ _EMPTY_CATEGORY_ATTEMPTS = {
 }
 _EMPTY_CATEGORY_ATTEMPTS_JSON = json.dumps(
     _EMPTY_CATEGORY_ATTEMPTS,
+    sort_keys=True,
+    separators=(",", ":"),
+    ensure_ascii=True,
+)
+_EMPTY_MARGIN_SUBREAD_ATTEMPTS = {
+    subread: 0 for subread in FUTURES_MANUAL_MARGIN_SUBREADS
+}
+_EMPTY_MARGIN_SUBREAD_ATTEMPTS_JSON = json.dumps(
+    _EMPTY_MARGIN_SUBREAD_ATTEMPTS,
     sort_keys=True,
     separators=(",", ":"),
     ensure_ascii=True,
@@ -164,6 +184,12 @@ class OperatorFuturesManualLifecycleRepository:
         claim_validator: (
             Callable[..., None] | None
         ) = None,
+        preview_invocation_validator: (
+            Callable[..., None] | None
+        ) = None,
+        create_invocation_validator: (
+            Callable[..., None] | None
+        ) = None,
         client_order_id_prefix: str = "operator-futures-manual-",
     ) -> None:
         if not _SCHEMA_RE.fullmatch(str(schema)):
@@ -175,6 +201,7 @@ class OperatorFuturesManualLifecycleRepository:
             FUTURES_MANUAL_ACTIVE_GOAL_ID,
             FUTURES_PRODUCT_TICKET_GOAL_ID,
             FUTURES_FILL_TRIGGERED_FOLLOW_UP_GOAL_ID,
+            FUTURES_HOTPOINT_GOAL_ID,
         }:
             raise ValueError("operator_futures_manual_goal_id_invalid")
         if (
@@ -191,11 +218,54 @@ class OperatorFuturesManualLifecycleRepository:
                 "operator_futures_manual_client_order_prefix_invalid"
             )
         self.goal_id = goal_id
+        if (
+            self.goal_id == FUTURES_HOTPOINT_GOAL_ID
+            and eligibility_evidence_validator is None
+        ):
+            raise ValueError(
+                "operator_futures_hotpoint_eligibility_validator_required"
+            )
+        if (
+            self.goal_id == FUTURES_HOTPOINT_GOAL_ID
+            and claim_validator is None
+        ):
+            raise ValueError(
+                "operator_futures_hotpoint_claim_validator_required"
+            )
+        if (
+            self.goal_id == FUTURES_HOTPOINT_GOAL_ID
+            and preview_invocation_validator is None
+        ):
+            raise ValueError(
+                "operator_futures_hotpoint_preview_invocation_"
+                "validator_required"
+            )
+        if (
+            self.goal_id == FUTURES_HOTPOINT_GOAL_ID
+            and create_invocation_validator is None
+        ):
+            raise ValueError(
+                "operator_futures_hotpoint_create_invocation_"
+                "validator_required"
+            )
         self.eligibility_evidence_validator = (
             eligibility_evidence_validator
         )
         self.claim_validator = claim_validator
+        self.preview_invocation_validator = (
+            preview_invocation_validator
+        )
+        self.create_invocation_validator = (
+            create_invocation_validator
+        )
         self.client_order_id_prefix = client_order_id_prefix
+        if (
+            self.goal_id == FUTURES_HOTPOINT_GOAL_ID
+            and not str(configured_portfolio_id or "").strip()
+        ):
+            raise ValueError(
+                "operator_futures_hotpoint_default_portfolio_required"
+            )
         self.configured_portfolio_id_sha256 = (
             _sha256_text(str(uuid.UUID(str(configured_portfolio_id))))
             if configured_portfolio_id
@@ -237,6 +307,10 @@ class OperatorFuturesManualLifecycleRepository:
             if self._schema_ready:
                 return
             with self._cursor() as cursor:
+                ensure_futures_cancel_invocation_seal(
+                    cursor,
+                    schema=self.schema,
+                )
                 cursor.execute(
                     f"""
                     CREATE TABLE IF NOT EXISTS
@@ -256,6 +330,8 @@ class OperatorFuturesManualLifecycleRepository:
                             ),
                         eligibility_diagnostic_code VARCHAR(128) NOT NULL,
                         category_attempts_json JSONB NOT NULL DEFAULT '{{}}',
+                        margin_subread_attempts_json JSONB NOT NULL
+                            DEFAULT '{{}}',
                         candidate_json JSONB,
                         candidate_sha256 CHAR(64),
                         portfolio_id_sha256 CHAR(64),
@@ -284,6 +360,7 @@ class OperatorFuturesManualLifecycleRepository:
                                 'REJECTED', 'UNKNOWN'
                             )),
                         reconciliation_exchange_invoked BOOLEAN,
+                        reconciliation_catalog_end_at TIMESTAMPTZ,
                         order_status VARCHAR(32),
                         authoritatively_nonterminal BOOLEAN,
                         cancel_outcome VARCHAR(16) NOT NULL DEFAULT 'NOT_RUN'
@@ -324,10 +401,103 @@ class OperatorFuturesManualLifecycleRepository:
                 )
                 cursor.execute(
                     f"""
+                    CREATE TABLE IF NOT EXISTS
+                        {self._table(
+                            'operator_futures_hotpoint_v2_external_command'
+                        )} (
+                        command_id UUID PRIMARY KEY,
+                        goal_id VARCHAR(128) NOT NULL,
+                        action VARCHAR(16) NOT NULL
+                            CHECK (action IN ('RUN_ONCE', 'SAFE_CLOSEOUT')),
+                        idempotency_key_sha256 CHAR(64) NOT NULL UNIQUE,
+                        request_sha256 CHAR(64) NOT NULL,
+                        request_revision BIGINT NOT NULL
+                            CHECK (request_revision >= 0),
+                        actor_id VARCHAR(255) NOT NULL,
+                        roles_json JSONB NOT NULL,
+                        correlation_id VARCHAR(255) NOT NULL,
+                        audit_id UUID NOT NULL,
+                        recorded_at TIMESTAMPTZ NOT NULL
+                            DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (goal_id) REFERENCES
+                            {self._table(
+                                'operator_futures_manual_goal'
+                            )}(goal_id)
+                    )
+                    """
+                )
+                cursor.execute(
+                    f"""
+                    CREATE TABLE IF NOT EXISTS
+                        {self._table(
+                            'operator_futures_hotpoint_v2_external_'
+                            'command_result'
+                        )} (
+                        command_id UUID PRIMARY KEY,
+                        outcome VARCHAR(16) NOT NULL
+                            CHECK (outcome IN (
+                                'SUCCESS', 'FAILED', 'UNKNOWN'
+                            )),
+                        result_snapshot_json JSONB,
+                        error_code VARCHAR(128),
+                        http_status_code INTEGER,
+                        recorded_at TIMESTAMPTZ NOT NULL
+                            DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (command_id) REFERENCES
+                            {self._table(
+                                'operator_futures_hotpoint_v2_external_'
+                                'command'
+                            )}(command_id),
+                        CHECK (
+                            (
+                                outcome = 'SUCCESS'
+                                AND result_snapshot_json IS NOT NULL
+                                AND error_code IS NULL
+                                AND http_status_code IS NULL
+                            )
+                            OR
+                            (
+                                outcome IN ('FAILED', 'UNKNOWN')
+                                AND result_snapshot_json IS NULL
+                                AND error_code IS NOT NULL
+                                AND http_status_code BETWEEN 400 AND 599
+                            )
+                        )
+                    )
+                    """
+                )
+                cursor.execute(
+                    f"""
+                    ALTER TABLE
+                        {self._table(
+                            'operator_futures_hotpoint_v2_external_command'
+                        )}
+                    ADD COLUMN IF NOT EXISTS request_revision BIGINT
+                    """
+                )
+                cursor.execute(
+                    f"""
                     ALTER TABLE
                         {self._table('operator_futures_manual_goal')}
                     ADD COLUMN IF NOT EXISTS
                         bound_portfolio_id_sha256 CHAR(64)
+                    """
+                )
+                cursor.execute(
+                    f"""
+                    ALTER TABLE
+                        {self._table('operator_futures_manual_goal')}
+                    ADD COLUMN IF NOT EXISTS
+                        reconciliation_catalog_end_at TIMESTAMPTZ
+                    """
+                )
+                cursor.execute(
+                    f"""
+                    ALTER TABLE
+                        {self._table('operator_futures_manual_goal')}
+                    ADD COLUMN IF NOT EXISTS
+                        margin_subread_attempts_json JSONB NOT NULL
+                            DEFAULT '{{}}'
                     """
                 )
                 cursor.execute(
@@ -343,6 +513,26 @@ class OperatorFuturesManualLifecycleRepository:
                         PRIMARY KEY (goal_id, cycle_number, category),
                         FOREIGN KEY (goal_id) REFERENCES
                             {self._table('operator_futures_manual_goal')}(goal_id)
+                    )
+                    """
+                )
+                cursor.execute(
+                    f"""
+                    CREATE TABLE IF NOT EXISTS
+                        {self._table(
+                            'operator_futures_manual_cycle_margin_subread'
+                        )} (
+                        goal_id VARCHAR(128) NOT NULL,
+                        cycle_number INTEGER NOT NULL
+                            CHECK (cycle_number BETWEEN 1 AND 10),
+                        subread VARCHAR(64) NOT NULL,
+                        recorded_at TIMESTAMPTZ NOT NULL
+                            DEFAULT CURRENT_TIMESTAMP,
+                        PRIMARY KEY (goal_id, cycle_number, subread),
+                        FOREIGN KEY (goal_id) REFERENCES
+                            {self._table(
+                                'operator_futures_manual_goal'
+                            )}(goal_id)
                     )
                     """
                 )
@@ -431,12 +621,36 @@ class OperatorFuturesManualLifecycleRepository:
                         "operator_futures_manual_cycle_category_append_only",
                     ),
                     (
+                        "operator_futures_manual_cycle_margin_subread",
+                        (
+                            "operator_futures_manual_cycle_margin_"
+                            "subread_append_only"
+                        ),
+                    ),
+                    (
                         "operator_futures_manual_command",
                         "operator_futures_manual_command_append_only",
                     ),
                     (
                         "operator_futures_manual_command_result",
                         "operator_futures_manual_command_result_append_only",
+                    ),
+                    (
+                        "operator_futures_hotpoint_v2_external_command",
+                        (
+                            "operator_futures_hotpoint_v2_external_"
+                            "command_append_only"
+                        ),
+                    ),
+                    (
+                        (
+                            "operator_futures_hotpoint_v2_external_"
+                            "command_result"
+                        ),
+                        (
+                            "operator_futures_hotpoint_v2_external_"
+                            "command_result_append_only"
+                        ),
                     ),
                 ):
                     cursor.execute(
@@ -459,8 +673,9 @@ class OperatorFuturesManualLifecycleRepository:
                         goal_id,
                         eligibility_diagnostic_code,
                         diagnostic_code,
-                        category_attempts_json
-                    ) VALUES (%s, %s, %s, %s::jsonb)
+                        category_attempts_json,
+                        margin_subread_attempts_json
+                    ) VALUES (%s, %s, %s, %s::jsonb, %s::jsonb)
                     ON CONFLICT (goal_id) DO NOTHING
                     """,
                     (
@@ -468,12 +683,14 @@ class OperatorFuturesManualLifecycleRepository:
                         "operator_futures_manual_not_refreshed",
                         "operator_futures_manual_not_refreshed",
                         _EMPTY_CATEGORY_ATTEMPTS_JSON,
+                        _EMPTY_MARGIN_SUBREAD_ATTEMPTS_JSON,
                     ),
                 )
                 cursor.execute(
                     f"""
                     UPDATE {self._table('operator_futures_manual_goal')}
                     SET category_attempts_json = %s::jsonb
+                        , margin_subread_attempts_json = %s::jsonb
                     WHERE goal_id = %s
                       AND cycles_used = 0
                       AND active_cycle_number IS NULL
@@ -484,9 +701,31 @@ class OperatorFuturesManualLifecycleRepository:
                       AND reconciliation_outcome = 'NOT_RUN'
                       AND cancel_outcome = 'NOT_RUN'
                       AND category_attempts_json = '{{}}'::jsonb
+                      AND margin_subread_attempts_json = '{{}}'::jsonb
                     """,
                     (
                         _EMPTY_CATEGORY_ATTEMPTS_JSON,
+                        _EMPTY_MARGIN_SUBREAD_ATTEMPTS_JSON,
+                        self.goal_id,
+                    ),
+                )
+                cursor.execute(
+                    f"""
+                    UPDATE {self._table('operator_futures_manual_goal')}
+                       SET margin_subread_attempts_json = %s::jsonb
+                     WHERE goal_id = %s
+                       AND cycles_used = 0
+                       AND active_cycle_number IS NULL
+                       AND eligibility_outcome IS NULL
+                       AND candidate_json IS NULL
+                       AND preview_outcome = 'NOT_RUN'
+                       AND create_outcome = 'NOT_RUN'
+                       AND reconciliation_outcome = 'NOT_RUN'
+                       AND cancel_outcome = 'NOT_RUN'
+                       AND margin_subread_attempts_json = '{{}}'::jsonb
+                    """,
+                    (
+                        _EMPTY_MARGIN_SUBREAD_ATTEMPTS_JSON,
                         self.goal_id,
                     ),
                 )
@@ -605,6 +844,12 @@ class OperatorFuturesManualLifecycleRepository:
                     value.get("category_attempts_json")
                 ).items()
             },
+            margin_subread_attempts={
+                str(key): int(item)
+                for key, item in _json_object(
+                    value.get("margin_subread_attempts_json")
+                ).items()
+            },
             candidate=candidate,
             candidate_sha256=(
                 str(value["candidate_sha256"])
@@ -676,6 +921,14 @@ class OperatorFuturesManualLifecycleRepository:
                 else None
             ),
             updated_at=_iso(value.get("updated_at")),
+            reconciliation_catalog_end_at=_iso(
+                value.get("reconciliation_catalog_end_at")
+            ),
+            execution_claim_id=(
+                str(value["execution_claim_id"])
+                if value.get("execution_claim_id")
+                else None
+            ),
         )
 
     def _select(self, cursor: Any, *, for_update: bool) -> dict[str, Any]:
@@ -696,6 +949,385 @@ class OperatorFuturesManualLifecycleRepository:
         self.ensure_schema()
         with self._cursor() as cursor:
             return self._record(self._select(cursor, for_update=False))
+
+    def claim_hotpoint_external_command(
+        self,
+        *,
+        action: str,
+        context: FuturesManualRequestContext,
+        request_payload: Mapping[str, Any],
+    ) -> FuturesHotpointExternalCommandClaim:
+        """Persist a complete Goal13 RUN/SAFE digest before side effects."""
+
+        if (
+            self.goal_id != FUTURES_HOTPOINT_GOAL_ID
+            or action not in {"RUN_ONCE", "SAFE_CLOSEOUT"}
+            or not isinstance(request_payload, Mapping)
+        ):
+            raise FuturesManualLifecycleError(
+                "operator_futures_hotpoint_external_command_invalid",
+                http_status_code=422,
+            )
+        self.ensure_schema()
+        self._validate_context(context)
+        try:
+            normalized_audit = str(uuid.UUID(str(context.audit_id)))
+            encoded_payload = json.loads(
+                json.dumps(
+                    dict(request_payload),
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    ensure_ascii=True,
+                )
+            )
+        except (TypeError, ValueError, AttributeError):
+            raise FuturesManualLifecycleError(
+                "operator_futures_hotpoint_external_command_invalid",
+                http_status_code=422,
+            ) from None
+        request_hash = _canonical_sha256(
+            {
+                "goal_id": self.goal_id,
+                "action": action,
+                "request": encoded_payload,
+                "actor_id": context.actor_id,
+                "roles": sorted(
+                    str(role).strip().lower()
+                    for role in context.roles
+                ),
+                "correlation_id": context.correlation_id,
+                "audit_id": normalized_audit,
+            }
+        )
+        key_hash = _sha256_text(
+            f"{self.goal_id}:{context.idempotency_key}"
+        )
+        with self._cursor() as cursor:
+            self._lock(cursor)
+            cursor.execute(
+                f"""
+                SELECT command_id, action, request_sha256
+                  FROM {self._table(
+                      'operator_futures_hotpoint_v2_external_command'
+                  )}
+                 WHERE goal_id = %s
+                   AND idempotency_key_sha256 = %s
+                """,
+                (self.goal_id, key_hash),
+            )
+            existing = _row(cursor)
+            if existing is not None:
+                if (
+                    existing.get("action") != action
+                    or existing.get("request_sha256") != request_hash
+                ):
+                    raise FuturesManualLifecycleError(
+                        "operator_futures_hotpoint_idempotency_conflict"
+                    )
+                command_id = str(existing["command_id"])
+                cursor.execute(
+                    f"""
+                    SELECT outcome, result_snapshot_json,
+                           error_code, http_status_code
+                      FROM {self._table(
+                          'operator_futures_hotpoint_v2_external_'
+                          'command_result'
+                      )}
+                     WHERE command_id = %s
+                    """,
+                    (command_id,),
+                )
+                result = _row(cursor)
+                if result is None:
+                    return FuturesHotpointExternalCommandClaim(
+                        command_id=command_id,
+                        status="IN_PROGRESS",
+                    )
+                return FuturesHotpointExternalCommandClaim(
+                    command_id=command_id,
+                    status=str(result["outcome"]),
+                    result_snapshot=(
+                        _json_object(result["result_snapshot_json"])
+                        if result.get("result_snapshot_json") is not None
+                        else None
+                    ),
+                    error_code=(
+                        str(result["error_code"])
+                        if result.get("error_code")
+                        else None
+                    ),
+                    http_status_code=(
+                        int(result["http_status_code"])
+                        if result.get("http_status_code") is not None
+                        else None
+                    ),
+                )
+            command_id = str(uuid.uuid4())
+            cursor.execute(
+                f"""
+                INSERT INTO {self._table(
+                    'operator_futures_hotpoint_v2_external_command'
+                )} (
+                    command_id, goal_id, action,
+                    idempotency_key_sha256, request_sha256,
+                    request_revision,
+                    actor_id, roles_json, correlation_id, audit_id
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s,
+                    %s, %s::jsonb, %s, %s
+                )
+                """,
+                (
+                    command_id,
+                    self.goal_id,
+                    action,
+                    key_hash,
+                    request_hash,
+                    context.expected_revision,
+                    context.actor_id,
+                    json.dumps(
+                        sorted(
+                            str(role).strip().lower()
+                            for role in context.roles
+                        ),
+                        separators=(",", ":"),
+                    ),
+                    context.correlation_id,
+                    normalized_audit,
+                ),
+            )
+            return FuturesHotpointExternalCommandClaim(
+                command_id=command_id,
+                status="NEW",
+            )
+
+    def finish_hotpoint_external_command(
+        self,
+        *,
+        command_id: str,
+        outcome: str,
+        result_snapshot: Mapping[str, Any] | None,
+        error_code: str | None,
+        http_status_code: int | None,
+    ) -> None:
+        """Append one sanitized terminal result for an external command."""
+
+        if self.goal_id != FUTURES_HOTPOINT_GOAL_ID:
+            raise FuturesManualLifecycleError(
+                "operator_futures_hotpoint_external_command_invalid"
+            )
+        try:
+            normalized_command_id = str(uuid.UUID(str(command_id)))
+        except (TypeError, ValueError, AttributeError):
+            raise FuturesManualLifecycleError(
+                "operator_futures_hotpoint_external_command_invalid"
+            ) from None
+        if outcome == "SUCCESS":
+            if (
+                not isinstance(result_snapshot, Mapping)
+                or error_code is not None
+                or http_status_code is not None
+            ):
+                raise FuturesManualLifecycleError(
+                    "operator_futures_hotpoint_external_result_invalid"
+                )
+            try:
+                snapshot_json = json.dumps(
+                    dict(result_snapshot),
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    ensure_ascii=True,
+                )
+            except (TypeError, ValueError):
+                raise FuturesManualLifecycleError(
+                    "operator_futures_hotpoint_external_result_invalid"
+                ) from None
+            exact_error = None
+            exact_status = None
+        elif outcome in {"FAILED", "UNKNOWN"}:
+            exact_error = str(error_code or "").strip()
+            exact_status = http_status_code
+            snapshot_json = None
+            if (
+                result_snapshot is not None
+                or not exact_error
+                or len(exact_error) > 128
+                or re.fullmatch(
+                    r"operator_futures_hotpoint_[a-z0-9_]+",
+                    exact_error,
+                )
+                is None
+                or type(exact_status) is not int
+                or not 400 <= exact_status <= 599
+            ):
+                raise FuturesManualLifecycleError(
+                    "operator_futures_hotpoint_external_result_invalid"
+                )
+        else:
+            raise FuturesManualLifecycleError(
+                "operator_futures_hotpoint_external_result_invalid"
+            )
+        self.ensure_schema()
+        with self._cursor() as cursor:
+            self._lock(cursor)
+            cursor.execute(
+                f"""
+                SELECT goal_id FROM {self._table(
+                    'operator_futures_hotpoint_v2_external_command'
+                )}
+                WHERE command_id = %s
+                """,
+                (normalized_command_id,),
+            )
+            command = _row(cursor)
+            if (
+                command is None
+                or command.get("goal_id") != self.goal_id
+            ):
+                raise FuturesManualLifecycleError(
+                    "operator_futures_hotpoint_external_command_invalid"
+                )
+            cursor.execute(
+                f"""
+                SELECT outcome, result_snapshot_json,
+                       error_code, http_status_code
+                  FROM {self._table(
+                      'operator_futures_hotpoint_v2_external_'
+                      'command_result'
+                  )}
+                 WHERE command_id = %s
+                """,
+                (normalized_command_id,),
+            )
+            existing = _row(cursor)
+            expected = {
+                "outcome": outcome,
+                "result_snapshot_json": (
+                    json.loads(snapshot_json)
+                    if snapshot_json is not None
+                    else None
+                ),
+                "error_code": exact_error,
+                "http_status_code": exact_status,
+            }
+            if existing is not None:
+                actual = {
+                    "outcome": existing.get("outcome"),
+                    "result_snapshot_json": (
+                        _json_object(existing["result_snapshot_json"])
+                        if existing.get("result_snapshot_json") is not None
+                        else None
+                    ),
+                    "error_code": existing.get("error_code"),
+                    "http_status_code": existing.get("http_status_code"),
+                }
+                if actual != expected:
+                    raise FuturesManualLifecycleError(
+                        "operator_futures_hotpoint_external_result_conflict"
+                    )
+                return
+            cursor.execute(
+                f"""
+                INSERT INTO {self._table(
+                    'operator_futures_hotpoint_v2_external_command_result'
+                )} (
+                    command_id, outcome, result_snapshot_json,
+                    error_code, http_status_code
+                ) VALUES (%s, %s, %s::jsonb, %s, %s)
+                """,
+                (
+                    normalized_command_id,
+                    outcome,
+                    snapshot_json,
+                    exact_error,
+                    exact_status,
+                ),
+            )
+
+    def recover_hotpoint_external_commands(self) -> None:
+        """Terminalize crash-stranded external commands as fixed UNKNOWN."""
+
+        if self.goal_id != FUTURES_HOTPOINT_GOAL_ID:
+            return
+        self.ensure_schema()
+        with self._cursor() as cursor:
+            self._lock(cursor)
+            cursor.execute(
+                f"""
+                INSERT INTO {self._table(
+                    'operator_futures_hotpoint_v2_external_command_result'
+                )} (
+                    command_id, outcome, result_snapshot_json,
+                    error_code, http_status_code
+                )
+                SELECT command.command_id, 'UNKNOWN', NULL,
+                       'operator_futures_hotpoint_command_outcome_unknown',
+                       503
+                  FROM {self._table(
+                      'operator_futures_hotpoint_v2_external_command'
+                  )} AS command
+                  LEFT JOIN {self._table(
+                      'operator_futures_hotpoint_v2_external_command_result'
+                  )} AS result
+                    ON result.command_id = command.command_id
+                 WHERE command.goal_id = %s
+                   AND result.command_id IS NULL
+                ON CONFLICT (command_id) DO NOTHING
+                """,
+                (self.goal_id,),
+            )
+
+    def read_latest_hotpoint_external_command(
+        self,
+    ) -> FuturesHotpointExternalCommandReadback | None:
+        """Return only fixed, sanitized metadata for the newest command."""
+
+        if self.goal_id != FUTURES_HOTPOINT_GOAL_ID:
+            return None
+        self.ensure_schema()
+        with self._cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT command.action,
+                       command.correlation_id,
+                       command.request_revision,
+                       COALESCE(result.outcome, 'IN_PROGRESS') AS status,
+                       CASE
+                           WHEN result.outcome = 'SUCCESS'
+                           THEN
+                               'operator_futures_hotpoint_command_succeeded'
+                           WHEN result.error_code IS NOT NULL
+                           THEN result.error_code
+                           ELSE
+                               'operator_futures_hotpoint_command_in_progress'
+                       END AS diagnostic_code
+                  FROM {self._table(
+                      'operator_futures_hotpoint_v2_external_command'
+                  )} AS command
+                  LEFT JOIN {self._table(
+                      'operator_futures_hotpoint_v2_external_command_result'
+                  )} AS result
+                    ON result.command_id = command.command_id
+                 WHERE command.goal_id = %s
+                 ORDER BY command.recorded_at DESC, command.command_id DESC
+                 LIMIT 1
+                """,
+                (self.goal_id,),
+            )
+            row = _row(cursor)
+        if row is None:
+            return None
+        return FuturesHotpointExternalCommandReadback(
+            action=str(row["action"]),
+            status=str(row["status"]),
+            correlation_id=str(row["correlation_id"]),
+            request_revision=(
+                int(row["request_revision"])
+                if row.get("request_revision") is not None
+                else None
+            ),
+            diagnostic_code=str(row["diagnostic_code"]),
+        )
 
     @staticmethod
     def _validate_context(context: FuturesManualRequestContext) -> None:
@@ -969,6 +1601,7 @@ class OperatorFuturesManualLifecycleRepository:
                     eligibility_outcome = NULL,
                     eligibility_diagnostic_code = %s,
                     category_attempts_json = %s::jsonb,
+                    margin_subread_attempts_json = %s::jsonb,
                     candidate_json = NULL,
                     candidate_sha256 = NULL,
                     portfolio_id_sha256 = NULL,
@@ -987,6 +1620,7 @@ class OperatorFuturesManualLifecycleRepository:
                     cycle_number,
                     "operator_futures_manual_eligibility_cycle_claimed",
                     _EMPTY_CATEGORY_ATTEMPTS_JSON,
+                    _EMPTY_MARGIN_SUBREAD_ATTEMPTS_JSON,
                     "operator_futures_manual_eligibility_cycle_claimed",
                     context.actor_id,
                     json.dumps(list(context.roles)),
@@ -1051,6 +1685,73 @@ class OperatorFuturesManualLifecycleRepository:
                 ),
             )
 
+    def claim_margin_subread(
+        self,
+        *,
+        cycle_number: int,
+        subread: str,
+    ) -> None:
+        """Durably mark one of the four no-retry CFM SDK boundaries."""
+
+        self.ensure_schema()
+        if (
+            self.goal_id != FUTURES_HOTPOINT_GOAL_ID
+            or subread not in FUTURES_MANUAL_MARGIN_SUBREADS
+        ):
+            raise FuturesManualLifecycleError(
+                "operator_futures_manual_margin_subread_not_authorized"
+            )
+        with self._cursor() as cursor:
+            self._lock(cursor)
+            row = self._select(cursor, for_update=True)
+            if row.get("active_cycle_number") != cycle_number:
+                raise FuturesManualLifecycleError(
+                    "operator_futures_manual_cycle_not_active"
+                )
+            category_attempts = _json_object(
+                row.get("category_attempts_json")
+            )
+            if int(
+                category_attempts.get(
+                    "futures_margin_collateral",
+                    0,
+                )
+            ) != 1:
+                raise FuturesManualLifecycleError(
+                    "operator_futures_manual_margin_category_not_claimed"
+                )
+            attempts = _json_object(
+                row.get("margin_subread_attempts_json")
+            )
+            if int(attempts.get(subread, 0)) != 0:
+                raise FuturesManualLifecycleError(
+                    "operator_futures_manual_margin_subread_already_claimed"
+                )
+            attempts[subread] = 1
+            cursor.execute(
+                f"""
+                INSERT INTO
+                    {self._table(
+                        'operator_futures_manual_cycle_margin_subread'
+                    )} (
+                    goal_id, cycle_number, subread
+                ) VALUES (%s, %s, %s)
+                """,
+                (self.goal_id, cycle_number, subread),
+            )
+            cursor.execute(
+                f"""
+                UPDATE {self._table('operator_futures_manual_goal')}
+                   SET margin_subread_attempts_json = %s::jsonb,
+                       updated_at = CURRENT_TIMESTAMP
+                 WHERE goal_id = %s
+                """,
+                (
+                    json.dumps(attempts, sort_keys=True),
+                    self.goal_id,
+                ),
+            )
+
     def finish_eligibility_cycle(
         self,
         *,
@@ -1076,6 +1777,38 @@ class OperatorFuturesManualLifecycleRepository:
                 raise FuturesManualLifecycleError(
                     "operator_futures_manual_category_accounting_mismatch"
                 )
+            if self.goal_id == FUTURES_HOTPOINT_GOAL_ID:
+                margin_subreads = {
+                    str(key): int(item)
+                    for key, item in _json_object(
+                        row.get("margin_subread_attempts_json")
+                    ).items()
+                }
+                public_margin_subreads = result.public_evidence.get(
+                    "margin_subread_attempts"
+                )
+                if (
+                    margin_subreads.keys()
+                    != _EMPTY_MARGIN_SUBREAD_ATTEMPTS.keys()
+                    or not isinstance(public_margin_subreads, Mapping)
+                    or {
+                        str(key): int(item)
+                        for key, item in public_margin_subreads.items()
+                    }
+                    != margin_subreads
+                    or (
+                        result.outcome
+                        is AdminFuturesManualEligibilityOutcome.ELIGIBLE
+                        and any(
+                            value != 1
+                            for value in margin_subreads.values()
+                        )
+                    )
+                ):
+                    raise FuturesManualLifecycleError(
+                        "operator_futures_manual_margin_subread_"
+                        "accounting_mismatch"
+                    )
             candidate_json = None
             candidate_hash = None
             portfolio_hash = None
@@ -1400,7 +2133,77 @@ class OperatorFuturesManualLifecycleRepository:
         self,
         *,
         claim_id: str,
+        context: FuturesManualRequestContext | None = None,
     ) -> FuturesManualGoalRecord:
+        if self.goal_id == FUTURES_HOTPOINT_GOAL_ID:
+            self.ensure_schema()
+            if context is None:
+                raise FuturesManualLifecycleError(
+                    "operator_futures_hotpoint_closeout_context_required",
+                    http_status_code=422,
+                )
+            self._validate_context(context)
+            if (
+                context.operator_intent
+                != "safe_closeout_operator_hotpoint_child"
+            ):
+                raise FuturesManualLifecycleError(
+                    "operator_futures_hotpoint_closeout_context_invalid",
+                    http_status_code=422,
+                )
+            catalog_end_at = self.clock()
+            if (
+                catalog_end_at.tzinfo is None
+                or catalog_end_at.utcoffset() is None
+            ):
+                raise FuturesManualLifecycleError(
+                    "operator_futures_manual_runtime_clock_invalid"
+                )
+            catalog_end_at = catalog_end_at.astimezone(timezone.utc)
+            with self._cursor() as cursor:
+                self._lock(cursor)
+                row = self._select(cursor, for_update=True)
+                if (
+                    str(row.get("execution_claim_id") or "")
+                    != str(claim_id)
+                    or row.get("create_outcome")
+                    not in {"ACCEPTED", "UNKNOWN"}
+                    or row.get("reconciliation_outcome") != "NOT_RUN"
+                ):
+                    raise FuturesManualLifecycleError(
+                        "operator_futures_manual_reconciliation_not_authorized"
+                    )
+                cursor.execute(
+                    f"""
+                    UPDATE {self._table('operator_futures_manual_goal')}
+                    SET reconciliation_outcome = 'CLAIMED',
+                        reconciliation_exchange_invoked = FALSE,
+                        reconciliation_catalog_end_at = %s,
+                        diagnostic_code = %s,
+                        actor_id = %s,
+                        roles_json = %s::jsonb,
+                        correlation_id = %s,
+                        audit_id = %s,
+                        revision = revision + 1,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE goal_id = %s
+                    """,
+                    (
+                        catalog_end_at,
+                        "operator_futures_hotpoint_reconciliation_claimed",
+                        context.actor_id,
+                        json.dumps(
+                            list(context.roles),
+                            separators=(",", ":"),
+                        ),
+                        context.correlation_id,
+                        context.audit_id,
+                        self.goal_id,
+                    ),
+                )
+                return self._record(
+                    self._select(cursor, for_update=False)
+                )
         return self._claim_step(
             claim_id=claim_id,
             step="reconciliation",
@@ -1432,6 +2235,83 @@ class OperatorFuturesManualLifecycleRepository:
                 raise FuturesManualLifecycleError(
                     f"operator_futures_manual_{step}_invoke_not_claimed"
                 )
+            if (
+                self.goal_id == FUTURES_HOTPOINT_GOAL_ID
+                and step in {"preview", "create"}
+            ):
+                candidate = {
+                    str(key): str(value)
+                    for key, value in _json_object(
+                        row.get("candidate_json")
+                    ).items()
+                }
+                # Recheck freshness in the same transaction that records the
+                # actual SDK invocation boundary.  Claim-time freshness alone
+                # is insufficient because the candidate can age out while the
+                # claimed call is waiting to enter the transport.
+                self._require_fresh_candidate(candidate)
+                try:
+                    if step == "preview":
+                        assert (
+                            self.preview_invocation_validator
+                            is not None
+                        )
+                        self.preview_invocation_validator(
+                            cursor=cursor,
+                            candidate=candidate,
+                        )
+                    else:
+                        assert (
+                            self.create_invocation_validator
+                            is not None
+                        )
+                        self.create_invocation_validator(
+                            cursor=cursor,
+                            candidate=candidate,
+                            claim_id=str(claim_id),
+                            client_order_id=str(
+                                row.get("client_order_id") or ""
+                            ),
+                        )
+                except Exception:
+                    raise FuturesManualLifecycleError(
+                        f"operator_futures_hotpoint_{step}_invocation_"
+                        "not_authorized"
+                    ) from None
+            if step == "cancel":
+                try:
+                    seal_futures_cancel_invocation(
+                        cursor,
+                        schema=self.schema,
+                        owner_ledger=self.goal_id,
+                        claim_id=str(claim_id),
+                        portfolio_id_sha256=str(
+                            row.get("bound_portfolio_id_sha256") or ""
+                        ),
+                        client_order_id=str(
+                            row.get("client_order_id") or ""
+                        ),
+                        exchange_order_id_sha256=str(
+                            row.get("exchange_order_id_sha256") or ""
+                        ),
+                    )
+                except ValueError as exc:
+                    code = str(exc)
+                    if code not in {
+                        (
+                            "operator_futures_cancel_invocation_"
+                            "binding_invalid"
+                        ),
+                        (
+                            "operator_futures_cancel_invocation_"
+                            "already_sealed"
+                        ),
+                    }:
+                        code = (
+                            "operator_futures_cancel_invocation_"
+                            "binding_invalid"
+                        )
+                    raise FuturesManualLifecycleError(code) from None
             cursor.execute(
                 f"""
                 UPDATE {self._table('operator_futures_manual_goal')}
@@ -1485,9 +2365,14 @@ class OperatorFuturesManualLifecycleRepository:
         if self.goal_id in {
             FUTURES_PRODUCT_TICKET_GOAL_ID,
             FUTURES_FILL_TRIGGERED_FOLLOW_UP_GOAL_ID,
+            FUTURES_HOTPOINT_GOAL_ID,
         }:
             allowed_diagnostic_prefixes.add(
                 f"operator_futures_product_ticket_{step}"
+            )
+        if self.goal_id == FUTURES_HOTPOINT_GOAL_ID:
+            allowed_diagnostic_prefixes.add(
+                f"operator_futures_hotpoint_{step}"
             )
         if (
             not any(
@@ -1506,6 +2391,10 @@ class OperatorFuturesManualLifecycleRepository:
             if (
                 str(row.get("execution_claim_id") or "") != str(claim_id)
                 or row.get(outcome_column) != "CLAIMED"
+                or (
+                    self.goal_id == FUTURES_HOTPOINT_GOAL_ID
+                    and row.get(_invoked_column) is not True
+                )
             ):
                 raise FuturesManualLifecycleError(
                     f"operator_futures_manual_{step}_finish_not_claimed"
@@ -1559,6 +2448,107 @@ class OperatorFuturesManualLifecycleRepository:
             execution=execution,
             extra={"preview_id_sha256": preview_hash},
         )
+
+    def finish_preview_and_claim_create(
+        self,
+        *,
+        claim_id: str,
+        execution: Any,
+    ) -> FuturesManualGoalRecord:
+        """Atomically bind accepted Preview evidence and claim Create."""
+
+        self.ensure_schema()
+        if (
+            getattr(execution, "outcome", None)
+            is not AdminFuturesManualCallOutcome.ACCEPTED
+        ):
+            raise FuturesManualLifecycleError(
+                "operator_futures_manual_preview_outcome_invalid"
+            )
+        preview_hash = _exact_sha256(
+            getattr(execution, "preview_id_sha256", None),
+            code="operator_futures_manual_preview_hash_invalid",
+        )
+        diagnostic = str(
+            getattr(execution, "diagnostic_code", "") or ""
+        )
+        allowed_prefixes = {"operator_futures_manual_preview"}
+        if self.goal_id in {
+            FUTURES_PRODUCT_TICKET_GOAL_ID,
+            FUTURES_FILL_TRIGGERED_FOLLOW_UP_GOAL_ID,
+            FUTURES_HOTPOINT_GOAL_ID,
+        }:
+            allowed_prefixes.add("operator_futures_product_ticket_preview")
+            allowed_prefixes.add("operator_futures_hotpoint_preview")
+        if (
+            not any(
+                diagnostic.startswith(prefix)
+                for prefix in allowed_prefixes
+            )
+            or len(diagnostic) > 128
+        ):
+            raise FuturesManualLifecycleError(
+                "operator_futures_manual_preview_diagnostic_invalid"
+            )
+        with self._cursor() as cursor:
+            self._lock(cursor)
+            row = self._select(cursor, for_update=True)
+            if (
+                str(row.get("execution_claim_id") or "")
+                != str(claim_id)
+                or row.get("preview_outcome") != "CLAIMED"
+                or row.get("preview_exchange_invoked") is not True
+                or row.get("create_outcome") != "NOT_RUN"
+            ):
+                raise FuturesManualLifecycleError(
+                    "operator_futures_manual_create_not_authorized"
+                )
+            candidate = {
+                str(key): str(value)
+                for key, value in _json_object(
+                    row.get("candidate_json")
+                ).items()
+            }
+            candidate_hash = _exact_sha256(
+                row.get("candidate_sha256"),
+                code="operator_futures_manual_candidate_hash_invalid",
+            )
+            if _canonical_sha256(candidate) != candidate_hash:
+                raise FuturesManualLifecycleError(
+                    "operator_futures_manual_candidate_binding_invalid"
+                )
+            self._require_fresh_candidate(candidate)
+            if self.claim_validator is not None:
+                try:
+                    self.claim_validator(
+                        cursor=cursor,
+                        candidate=candidate,
+                    )
+                except Exception:
+                    raise FuturesManualLifecycleError(
+                        "operator_futures_manual_candidate_binding_invalid"
+                    ) from None
+            cursor.execute(
+                f"""
+                UPDATE {self._table('operator_futures_manual_goal')}
+                SET preview_outcome = 'ACCEPTED',
+                    preview_id_sha256 = %s,
+                    create_outcome = 'CLAIMED',
+                    create_exchange_invoked = FALSE,
+                    diagnostic_code = %s,
+                    revision = revision + 1,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE goal_id = %s
+                """,
+                (
+                    preview_hash,
+                    "operator_futures_manual_create_claimed",
+                    self.goal_id,
+                ),
+            )
+            return self._record(
+                self._select(cursor, for_update=False)
+            )
 
     def finish_create(
         self,
@@ -1651,6 +2641,111 @@ class OperatorFuturesManualLifecycleRepository:
         claim_id: str,
         execution: Any,
     ) -> FuturesManualGoalRecord:
+        if self.goal_id == FUTURES_HOTPOINT_GOAL_ID:
+            self.ensure_schema()
+            outcome = getattr(execution, "outcome", None)
+            diagnostic = str(
+                getattr(execution, "diagnostic_code", "") or ""
+            )
+            exchange_hash_value = getattr(
+                execution,
+                "exchange_order_id_sha256",
+                None,
+            )
+            exchange_hash = (
+                _exact_sha256(
+                    exchange_hash_value,
+                    code=(
+                        "operator_futures_manual_exchange_order_hash_invalid"
+                    ),
+                )
+                if exchange_hash_value is not None
+                else None
+            )
+            order_status = str(
+                getattr(execution, "order_status", "") or ""
+            ).strip() or None
+            authoritatively_nonterminal = getattr(
+                execution,
+                "authoritatively_nonterminal",
+                None,
+            )
+            if (
+                outcome
+                not in {
+                    AdminFuturesManualCallOutcome.ACCEPTED,
+                    AdminFuturesManualCallOutcome.REJECTED,
+                    AdminFuturesManualCallOutcome.UNKNOWN,
+                }
+                or not diagnostic.startswith(
+                    "operator_futures_hotpoint_reconciliation"
+                )
+                or len(diagnostic) > 128
+                or (
+                    outcome is AdminFuturesManualCallOutcome.ACCEPTED
+                    and (
+                        exchange_hash is None
+                        or order_status is None
+                        or type(authoritatively_nonterminal) is not bool
+                    )
+                )
+            ):
+                raise FuturesManualLifecycleError(
+                    "operator_futures_manual_reconciliation_outcome_invalid"
+                )
+            with self._cursor() as cursor:
+                self._lock(cursor)
+                row = self._select(cursor, for_update=True)
+                stored_hash = str(
+                    row.get("exchange_order_id_sha256") or ""
+                ).strip()
+                if (
+                    str(row.get("execution_claim_id") or "")
+                    != str(claim_id)
+                    or row.get("create_outcome")
+                    not in {"ACCEPTED", "UNKNOWN"}
+                    or row.get("reconciliation_outcome") != "CLAIMED"
+                    or row.get("reconciliation_exchange_invoked")
+                    is not True
+                    or (
+                        stored_hash
+                        and exchange_hash
+                        and stored_hash != exchange_hash
+                    )
+                ):
+                    raise FuturesManualLifecycleError(
+                        "operator_futures_manual_reconciliation_finish_not_claimed"
+                    )
+                cursor.execute(
+                    f"""
+                    UPDATE {self._table('operator_futures_manual_goal')}
+                    SET create_outcome = CASE
+                            WHEN %s = 'ACCEPTED' THEN 'ACCEPTED'
+                            ELSE create_outcome
+                        END,
+                        exchange_order_id_sha256 =
+                            COALESCE(exchange_order_id_sha256, %s),
+                        reconciliation_outcome = %s,
+                        order_status = %s,
+                        authoritatively_nonterminal = %s,
+                        diagnostic_code = %s,
+                        revision = revision + 1,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE goal_id = %s
+                    """,
+                    (
+                        outcome.value,
+                        exchange_hash,
+                        outcome.value,
+                        order_status,
+                        authoritatively_nonterminal,
+                        diagnostic,
+                        self.goal_id,
+                    ),
+                )
+                return self._record(
+                    self._select(cursor, for_update=False)
+                )
         return self._finish_step(
             claim_id=claim_id,
             step="reconciliation",
@@ -1685,10 +2780,48 @@ class OperatorFuturesManualLifecycleRepository:
             )
         order_status = str(
             getattr(execution, "order_status", "") or ""
-        ).strip()
-        if not order_status:
+        ).strip().upper()
+        if (
+            not order_status
+            or (
+                self.goal_id == FUTURES_HOTPOINT_GOAL_ID
+                and order_status != "OPEN"
+            )
+        ):
             raise FuturesManualLifecycleError(
-                "operator_futures_manual_reconciliation_outcome_invalid"
+                (
+                    "operator_futures_manual_cancel_not_authorized"
+                    if (
+                        self.goal_id == FUTURES_HOTPOINT_GOAL_ID
+                        and order_status
+                    )
+                    else
+                    "operator_futures_manual_reconciliation_outcome_invalid"
+                )
+            )
+        exchange_hash = None
+        if self.goal_id == FUTURES_HOTPOINT_GOAL_ID:
+            diagnostic = str(
+                getattr(execution, "diagnostic_code", "") or ""
+            )
+            if (
+                not diagnostic.startswith(
+                    "operator_futures_hotpoint_reconciliation"
+                )
+                or len(diagnostic) > 128
+            ):
+                raise FuturesManualLifecycleError(
+                    "operator_futures_manual_reconciliation_outcome_invalid"
+                )
+            exchange_hash = _exact_sha256(
+                getattr(
+                    execution,
+                    "exchange_order_id_sha256",
+                    None,
+                ),
+                code=(
+                    "operator_futures_manual_exchange_order_hash_invalid"
+                ),
             )
         with self._cursor() as cursor:
             self._lock(cursor)
@@ -1696,9 +2829,28 @@ class OperatorFuturesManualLifecycleRepository:
             if (
                 str(row.get("execution_claim_id") or "")
                 != str(claim_id)
-                or row.get("create_outcome") != "ACCEPTED"
+                or (
+                    self.goal_id == FUTURES_HOTPOINT_GOAL_ID
+                    and row.get("create_outcome")
+                    not in {"ACCEPTED", "UNKNOWN"}
+                )
+                or (
+                    self.goal_id != FUTURES_HOTPOINT_GOAL_ID
+                    and row.get("create_outcome") != "ACCEPTED"
+                )
                 or row.get("reconciliation_outcome") != "CLAIMED"
+                or (
+                    self.goal_id == FUTURES_HOTPOINT_GOAL_ID
+                    and row.get("reconciliation_exchange_invoked")
+                    is not True
+                )
                 or row.get("cancel_outcome") != "NOT_RUN"
+                or (
+                    self.goal_id == FUTURES_HOTPOINT_GOAL_ID
+                    and row.get("exchange_order_id_sha256")
+                    and row.get("exchange_order_id_sha256")
+                    != exchange_hash
+                )
             ):
                 raise FuturesManualLifecycleError(
                     "operator_futures_manual_cancel_not_authorized"
@@ -1706,7 +2858,13 @@ class OperatorFuturesManualLifecycleRepository:
             cursor.execute(
                 f"""
                 UPDATE {self._table('operator_futures_manual_goal')}
-                SET reconciliation_outcome = 'ACCEPTED',
+                SET create_outcome = CASE
+                        WHEN %s THEN 'ACCEPTED'
+                        ELSE create_outcome
+                    END,
+                    exchange_order_id_sha256 =
+                        COALESCE(exchange_order_id_sha256, %s),
+                    reconciliation_outcome = 'ACCEPTED',
                     order_status = %s,
                     authoritatively_nonterminal = TRUE,
                     cancel_outcome = 'CLAIMED',
@@ -1717,8 +2875,14 @@ class OperatorFuturesManualLifecycleRepository:
                 WHERE goal_id = %s
                 """,
                 (
+                    self.goal_id == FUTURES_HOTPOINT_GOAL_ID,
+                    exchange_hash,
                     order_status,
-                    "operator_futures_manual_cancel_claimed",
+                    (
+                        "operator_futures_hotpoint_cancel_claimed"
+                        if self.goal_id == FUTURES_HOTPOINT_GOAL_ID
+                        else "operator_futures_manual_cancel_claimed"
+                    ),
                     self.goal_id,
                 ),
             )
@@ -1732,6 +2896,70 @@ class OperatorFuturesManualLifecycleRepository:
         claim_id: str,
         execution: Any,
     ) -> FuturesManualGoalRecord:
+        if self.goal_id == FUTURES_HOTPOINT_GOAL_ID:
+            self.ensure_schema()
+            outcome = getattr(execution, "outcome", None)
+            diagnostic = str(
+                getattr(execution, "diagnostic_code", "") or ""
+            )
+            exchange_hash = _exact_sha256(
+                getattr(
+                    execution,
+                    "exchange_order_id_sha256",
+                    None,
+                ),
+                code=(
+                    "operator_futures_manual_exchange_order_hash_invalid"
+                ),
+            )
+            if (
+                outcome
+                not in {
+                    AdminFuturesManualCallOutcome.ACCEPTED,
+                    AdminFuturesManualCallOutcome.REJECTED,
+                    AdminFuturesManualCallOutcome.UNKNOWN,
+                }
+                or not (
+                    diagnostic.startswith(
+                        "operator_futures_product_ticket_cancel"
+                    )
+                    or diagnostic.startswith(
+                        "operator_futures_hotpoint_cancel"
+                    )
+                )
+                or len(diagnostic) > 128
+            ):
+                raise FuturesManualLifecycleError(
+                    "operator_futures_manual_cancel_outcome_invalid"
+                )
+            with self._cursor() as cursor:
+                self._lock(cursor)
+                row = self._select(cursor, for_update=True)
+                if (
+                    str(row.get("execution_claim_id") or "")
+                    != str(claim_id)
+                    or row.get("cancel_outcome") != "CLAIMED"
+                    or row.get("cancel_exchange_invoked") is not True
+                    or row.get("exchange_order_id_sha256")
+                    != exchange_hash
+                ):
+                    raise FuturesManualLifecycleError(
+                        "operator_futures_manual_cancel_finish_not_claimed"
+                    )
+                cursor.execute(
+                    f"""
+                    UPDATE {self._table('operator_futures_manual_goal')}
+                    SET cancel_outcome = %s,
+                        diagnostic_code = %s,
+                        revision = revision + 1,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE goal_id = %s
+                    """,
+                    (outcome.value, diagnostic, self.goal_id),
+                )
+                return self._record(
+                    self._select(cursor, for_update=False)
+                )
         return self._finish_step(
             claim_id=claim_id,
             step="cancel",
@@ -1739,8 +2967,133 @@ class OperatorFuturesManualLifecycleRepository:
             extra={},
         )
 
+    def finish_unentered_claim_unknown(
+        self,
+        *,
+        claim_id: str,
+        step: str,
+        diagnostic_code: str,
+    ) -> FuturesManualGoalRecord:
+        """Consume a Goal13 claim that failed before the SDK boundary."""
+
+        if (
+            self.goal_id != FUTURES_HOTPOINT_GOAL_ID
+            or step not in _CALL_COLUMNS
+            or diagnostic_code
+            != f"operator_futures_hotpoint_{step}_preinvoke_unknown"
+        ):
+            raise FuturesManualLifecycleError(
+                "operator_futures_hotpoint_preinvoke_outcome_invalid"
+            )
+        self.ensure_schema()
+        outcome_column, invoked_column = _CALL_COLUMNS[step]
+        with self._cursor() as cursor:
+            self._lock(cursor)
+            row = self._select(cursor, for_update=True)
+            if (
+                str(row.get("execution_claim_id") or "")
+                != str(claim_id)
+                or row.get(outcome_column) != "CLAIMED"
+                or row.get(invoked_column) is not False
+            ):
+                raise FuturesManualLifecycleError(
+                    "operator_futures_hotpoint_preinvoke_finish_not_claimed"
+                )
+            assignments = [
+                f"{outcome_column} = 'UNKNOWN'",
+                "diagnostic_code = %s",
+                "revision = revision + 1",
+                "updated_at = CURRENT_TIMESTAMP",
+            ]
+            if step == "reconciliation":
+                assignments.extend(
+                    [
+                        "order_status = NULL",
+                        "authoritatively_nonterminal = NULL",
+                    ]
+                )
+            cursor.execute(
+                f"""
+                UPDATE {self._table('operator_futures_manual_goal')}
+                SET {", ".join(assignments)}
+                WHERE goal_id = %s
+                """,
+                (diagnostic_code, self.goal_id),
+            )
+            return self._record(
+                self._select(cursor, for_update=False)
+            )
+
+    def release_cancel_invocation_conflict(
+        self,
+        *,
+        claim_id: str,
+    ) -> FuturesManualGoalRecord:
+        """Release a Goal13 local claim lost to the shared Cancel seal."""
+
+        if self.goal_id != FUTURES_HOTPOINT_GOAL_ID:
+            raise FuturesManualLifecycleError(
+                "operator_futures_cancel_invocation_binding_invalid"
+            )
+        self.ensure_schema()
+        with self._cursor() as cursor:
+            self._lock(cursor)
+            row = self._select(cursor, for_update=True)
+            if (
+                str(row.get("execution_claim_id") or "")
+                != str(claim_id)
+                or row.get("cancel_outcome") != "CLAIMED"
+                or row.get("cancel_exchange_invoked") is not False
+            ):
+                raise FuturesManualLifecycleError(
+                    "operator_futures_hotpoint_cancel_release_not_claimed"
+                )
+            cursor.execute(
+                f"""
+                UPDATE {self._table('operator_futures_manual_goal')}
+                   SET cancel_outcome = 'NOT_RUN',
+                       cancel_exchange_invoked = NULL,
+                       diagnostic_code =
+                           'operator_futures_cancel_invocation_already_sealed',
+                       revision = revision + 1,
+                       updated_at = CURRENT_TIMESTAMP
+                 WHERE goal_id = %s
+                """,
+                (self.goal_id,),
+            )
+            return self._record(
+                self._select(cursor, for_update=False)
+            )
+
+    def is_cancel_invocation_sealed(self) -> bool:
+        """Return the shared exact-child Cancel boundary state."""
+
+        self.ensure_schema()
+        with self._cursor() as cursor:
+            row = self._select(cursor, for_update=False)
+            child = str(row.get("client_order_id") or "")
+            portfolio_hash = str(
+                row.get("bound_portfolio_id_sha256") or ""
+            )
+            if not child:
+                return False
+            try:
+                return futures_cancel_invocation_is_sealed(
+                    cursor,
+                    schema=self.schema,
+                    portfolio_id_sha256=portfolio_hash,
+                    client_order_id=child,
+                )
+            except ValueError:
+                raise FuturesManualLifecycleError(
+                    "operator_futures_cancel_invocation_binding_invalid"
+                ) from None
+
 
 _DEFAULT_REPOSITORY: OperatorFuturesManualLifecycleRepository | None = None
+_DEFAULT_HOTPOINT_REPOSITORY: (
+    OperatorFuturesManualLifecycleRepository | None
+) = None
 _DEFAULT_REPOSITORY_LOCK = threading.Lock()
 
 
@@ -1773,12 +3126,75 @@ def get_default_operator_futures_manual_lifecycle_repository(
     return _DEFAULT_REPOSITORY
 
 
+def get_default_operator_futures_hotpoint_lifecycle_repository(
+    *,
+    control_repository: Any | None = None,
+) -> OperatorFuturesManualLifecycleRepository:
+    """Return Goal13's Default-profile ledger with strict claim rebinding."""
+
+    global _DEFAULT_HOTPOINT_REPOSITORY
+    if _DEFAULT_HOTPOINT_REPOSITORY is None:
+        with _DEFAULT_REPOSITORY_LOCK:
+            if _DEFAULT_HOTPOINT_REPOSITORY is None:
+                import os
+
+                from application.admin_api.operator_futures_hotpoint_v2 import (
+                    validate_futures_hotpoint_eligibility_evidence,
+                )
+                from database import order as order_db
+                from database.operator_hotpoint_control import (
+                    get_default_operator_futures_hotpoint_control_repository,
+                )
+
+                portfolio_id = str(
+                    os.environ.get(
+                        "COINBASE_ADMIN_API_FUTURES_PORTFOLIO_ID"
+                    )
+                    or ""
+                ).strip()
+                if not portfolio_id:
+                    raise RuntimeError(
+                        "operator_futures_hotpoint_default_portfolio_required"
+                    )
+                exact_control = (
+                    control_repository
+                    or get_default_operator_futures_hotpoint_control_repository()
+                )
+                _DEFAULT_HOTPOINT_REPOSITORY = (
+                    OperatorFuturesManualLifecycleRepository(
+                        order_db.DB_CLIENT,
+                        configured_portfolio_id=portfolio_id,
+                        goal_id=FUTURES_HOTPOINT_GOAL_ID,
+                        eligibility_evidence_validator=(
+                            validate_futures_hotpoint_eligibility_evidence
+                        ),
+                        claim_validator=(
+                            exact_control.validate_futures_candidate_claim
+                        ),
+                        preview_invocation_validator=(
+                            exact_control
+                            .validate_futures_preview_invocation
+                        ),
+                        create_invocation_validator=(
+                            exact_control
+                            .validate_futures_create_invocation
+                        ),
+                        client_order_id_prefix=(
+                            "operator-futures-hotpoint-v2-"
+                        ),
+                    )
+                )
+                _DEFAULT_HOTPOINT_REPOSITORY.ensure_schema()
+    return _DEFAULT_HOTPOINT_REPOSITORY
+
+
 def initialize_operator_futures_manual_lifecycle_schema() -> None:
     get_default_operator_futures_manual_lifecycle_repository().ensure_schema()
 
 
 __all__ = [
     "OperatorFuturesManualLifecycleRepository",
+    "get_default_operator_futures_hotpoint_lifecycle_repository",
     "get_default_operator_futures_manual_lifecycle_repository",
     "initialize_operator_futures_manual_lifecycle_schema",
 ]

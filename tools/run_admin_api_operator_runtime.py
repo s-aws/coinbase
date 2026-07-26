@@ -16,6 +16,7 @@ from dataclasses import dataclass
 import os
 import sys
 from typing import Any
+import uuid
 
 from application.admin_api.spot_portfolio_binding import (
     DEFAULT_SPOT_PORTFOLIO_LABEL,
@@ -109,6 +110,12 @@ def prepare_operator_runtime(
     if auth_error:
         raise OperatorAdminRuntimeError("operator_admin_auth_missing")
 
+    futures_hotpoint_v2_enabled = (
+        target.get(
+            "COINBASE_ADMIN_API_OPERATOR_FUTURES_HOTPOINT_V2_ENABLED"
+        )
+        == "1"
+    )
     futures_enabled = (
         target.get("COINBASE_ADMIN_API_OPERATOR_FUTURES_MANUAL_ENABLED")
         == "1"
@@ -120,7 +127,23 @@ def prepare_operator_runtime(
             "COINBASE_ADMIN_API_OPERATOR_FUTURES_PRODUCT_TICKET_ENABLED"
         )
         == "1"
+        or futures_hotpoint_v2_enabled
     )
+    if futures_hotpoint_v2_enabled:
+        portfolio_id = str(
+            target.get("COINBASE_ADMIN_API_FUTURES_PORTFOLIO_ID")
+            or ""
+        ).strip()
+        if not portfolio_id:
+            raise OperatorAdminRuntimeError(
+                "operator_futures_hotpoint_default_portfolio_required"
+            )
+        try:
+            uuid.UUID(portfolio_id)
+        except (AttributeError, TypeError, ValueError):
+            raise OperatorAdminRuntimeError(
+                "operator_futures_hotpoint_default_portfolio_invalid"
+            ) from None
     if futures_enabled:
         try:
             validate_coinbase_domain_credential_bindings(target)
@@ -241,6 +264,16 @@ def _run_admin_server(config: AdminApiRunConfig) -> None:
     run_uvicorn_server(config)
 
 
+def initialize_operator_futures_hotpoint_v2_runtime() -> None:
+    """Construct and recover exact Goal 13 dependencies before serving."""
+
+    from application.admin_api.operator_hotpoint_runtime import (
+        initialize_operator_futures_hotpoint_v2_runtime as initialize,
+    )
+
+    initialize()
+
+
 def initialize_enabled_operator_schemas(
     *,
     environ: MutableMapping[str, str] | None = None,
@@ -261,6 +294,18 @@ def initialize_enabled_operator_schemas(
         except Exception:
             raise OperatorAdminRuntimeError(
                 "operator_hotpoint_schema_init_failed"
+            ) from None
+    if (
+        target.get(
+            "COINBASE_ADMIN_API_OPERATOR_FUTURES_HOTPOINT_V2_ENABLED"
+        )
+        == "1"
+    ):
+        try:
+            initialize_operator_futures_hotpoint_v2_runtime()
+        except Exception:
+            raise OperatorAdminRuntimeError(
+                "operator_futures_hotpoint_v2_init_failed"
             ) from None
     if target.get(OPERATOR_PRODUCT_CATALOG_ENABLED_ENV) == "1":
         try:

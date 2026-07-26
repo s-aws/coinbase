@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 from contextlib import nullcontext
+from types import SimpleNamespace
 
 import pytest
 
@@ -20,11 +21,20 @@ from application.admin_api.operator_hotpoint_runtime import (
     AdminApiHotpointCancelExecutor,
     AdminApiHotpointPlacementExecutor,
     UnavailableFuturesHotpointControlService,
+    evaluate_operator_futures_hotpoint_execution_posture,
+)
+from application.admin_api.live_execution import (
+    CONFIGURED_LIVE_EXECUTION_SERVICE_SOURCE,
+)
+from application.admin_api.operator_mvp_policy import (
+    OPERATOR_MVP_HOTPOINT_SINGLE_CHILD_CREATE_ROUTE,
+    OPERATOR_MVP_HOTPOINT_SINGLE_CHILD_SAFE_CLOSEOUT_ROUTE,
 )
 from core.enums import (
     AdminApiActionClass,
     AdminApiCommandStatus,
     AdminApiPermission,
+    AdminApiLiveExecutionStatus,
     OrderSide,
     OrderType,
     TimeInForce,
@@ -399,3 +409,162 @@ def test_runtime_exposes_call_free_futures_readback_without_binding(
         limit=25,
         offset=0,
     ) == ([], 0)
+
+
+def test_runtime_futures_v2_flag_selects_goal13_without_historical_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import application.admin_api.operator_hotpoint_runtime as runtime
+
+    shared = object()
+    goal13 = object()
+    goal13_builds: list[str] = []
+    monkeypatch.setattr(
+        runtime,
+        "get_default_operator_hotpoint_control_service",
+        lambda: shared,
+    )
+    monkeypatch.setattr(runtime, "_DEFAULT_FUTURES_SERVICE", None)
+    monkeypatch.setattr(
+        runtime,
+        "_DEFAULT_FUTURES_V2_SERVICE",
+        None,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        runtime,
+        "_build_default_operator_futures_hotpoint_v2_service",
+        lambda: goal13_builds.append("goal13") or goal13,
+        raising=False,
+    )
+
+    monkeypatch.delenv(
+        "COINBASE_ADMIN_API_OPERATOR_FUTURES_HOTPOINT_V2_ENABLED",
+        raising=False,
+    )
+    historical = runtime.get_default_operator_hotpoint_control_services()
+    assert isinstance(
+        historical["FUTURES"],
+        UnavailableFuturesHotpointControlService,
+    )
+    assert goal13_builds == []
+
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_OPERATOR_FUTURES_HOTPOINT_V2_ENABLED",
+        "1",
+    )
+    selected = runtime.get_default_operator_hotpoint_control_services()
+    assert selected == {"SPOT": shared, "FUTURES": goal13}
+    assert goal13_builds == ["goal13"]
+
+
+def test_futures_hotpoint_posture_requires_both_exact_routes_not_spot_caps(
+) -> None:
+    state = SimpleNamespace(
+        required=True,
+        present=True,
+        status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
+        source=CONFIGURED_LIVE_EXECUTION_SERVICE_SOURCE,
+        missing_reason=None,
+        max_submitted_notional_usdc=None,
+        max_executed_notional_usdc=None,
+        supported_routes=frozenset(
+            {
+                (
+                    "POST",
+                    OPERATOR_MVP_HOTPOINT_SINGLE_CHILD_CREATE_ROUTE,
+                ),
+                (
+                    "POST",
+                    OPERATOR_MVP_HOTPOINT_SINGLE_CHILD_SAFE_CLOSEOUT_ROUTE,
+                ),
+            }
+        ),
+    )
+    defaults = {
+        "feature_enabled": True,
+        "execution_authority_enabled": True,
+        "live_runtime_enabled": True,
+        "credentials_configured": True,
+        "rest_client_available": True,
+        "portfolio_configured": True,
+        "live_service_state": state,
+    }
+
+    ready = evaluate_operator_futures_hotpoint_execution_posture(**defaults)
+    assert ready.ready is True
+    assert ready.diagnostic_code == (
+        "operator_futures_hotpoint_execution_posture_ready"
+    )
+
+    missing_closeout = evaluate_operator_futures_hotpoint_execution_posture(
+        **{
+            **defaults,
+            "live_service_state": SimpleNamespace(
+                **{
+                    **vars(state),
+                    "supported_routes": frozenset(
+                        {
+                            (
+                                "POST",
+                                OPERATOR_MVP_HOTPOINT_SINGLE_CHILD_CREATE_ROUTE,
+                            )
+                        }
+                    ),
+                }
+            ),
+        }
+    )
+    assert missing_closeout.ready is False
+    assert missing_closeout.diagnostic_code == (
+        "operator_futures_hotpoint_service_decision_unavailable"
+    )
+
+
+def test_goal13_schema_installs_canonical_futures_projection_dependency(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from database import operator_futures_order_operations as futures_orders_db
+    from database import operator_hotpoint_control as hotpoint_db
+
+    events: list[str] = []
+
+    class _Repository:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        def ensure_schema(self) -> None:
+            events.append(f"{self.name}:ensure")
+
+        def recover_stranded_claim(self) -> None:
+            events.append(f"{self.name}:recover")
+
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_FUTURES_PORTFOLIO_ID",
+        "11111111-2222-4333-8444-555555555555",
+    )
+    monkeypatch.setattr(
+        hotpoint_db,
+        "get_default_operator_hotpoint_control_repository",
+        lambda: _Repository("spot"),
+    )
+    monkeypatch.setattr(
+        hotpoint_db,
+        "get_default_operator_futures_hotpoint_control_repository",
+        lambda: _Repository("futures_hotpoint"),
+    )
+    monkeypatch.setattr(
+        futures_orders_db,
+        "get_default_operator_futures_order_operations_repository",
+        lambda: _Repository("futures_projection"),
+    )
+
+    hotpoint_db.initialize_operator_hotpoint_control_schema()
+
+    assert events == [
+        "spot:ensure",
+        "spot:recover",
+        "futures_projection:ensure",
+        "futures_hotpoint:ensure",
+        "futures_hotpoint:recover",
+    ]

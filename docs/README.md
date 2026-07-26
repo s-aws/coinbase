@@ -1,5 +1,19 @@
 # Documentation Index
 
+Completed independent Goal 13 — operator-ready Controlled-live closeout:
+[Operator Futures Hotpoint Canonical Single Child V2](OPERATOR_FUTURES_HOTPOINT_CANONICAL_SINGLE_CHILD_V2.md).
+Goal `operator_futures_hotpoint_canonical_single_child_v2` owns a separate
+Default-profile `AVP-20DEC30-CDE` BUY/one-child PostgreSQL lifecycle under
+strict `<100 / <150 / <300 USDC` caps while reusing the shared canonical
+Futures serialization lock and exact-child Cancel seal. Implementation,
+generated-contract synchronization, focused and full backend/frontend gates,
+installed deployment validation, independent safety and blind-contextless
+audits, and persistent Controlled-live handoff pass. The installed
+source-parent and inherited
+flat-position prerequisites cannot currently be satisfied, so eligibility is
+`0/10`, Preview/Create/reconciliation/Cancel remain unconsumed, and no Goal 13
+Coinbase call or live proof occurred.
+
 Completed independent Goal 12 operator-ready Controlled-live closeout:
 [Operator Spot Order Truth and Exact Cancel V1](OPERATOR_SPOT_ORDER_TRUTH_AND_EXACT_CANCEL_V1.md).
 Goal `operator_spot_order_truth_and_exact_cancel_reconcile_v1` adds the normal

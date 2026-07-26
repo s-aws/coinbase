@@ -115,7 +115,12 @@ class FuturesOrderOperationsRepository(Protocol):
     def mark_cancel_exchange_invoked(self, *, claim_id: str) -> None: ...
 
     def release_cancel_before_exchange(
-        self, *, claim_id: str
+        self,
+        *,
+        claim_id: str,
+        diagnostic_code: str = (
+            "operator_futures_order_cancel_pre_call_blocked"
+        ),
     ) -> FuturesOrderOperationsGoalRecord: ...
 
     def finish_cancel(
@@ -132,6 +137,11 @@ class FuturesOrderOperationsRepository(Protocol):
     ) -> dict[str, Any]: ...
 
     def get_order(self, client_order_id: str) -> dict[str, Any] | None: ...
+
+    def is_cancel_invocation_sealed(
+        self,
+        client_order_id: str,
+    ) -> bool: ...
 
 
 class OperatorFuturesOrderOperationsService:
@@ -188,7 +198,15 @@ class OperatorFuturesOrderOperationsService:
         )
 
     def get_order(self, client_order_id: str) -> dict[str, Any] | None:
-        return self.repository.get_order(client_order_id)
+        item = self.repository.get_order(client_order_id)
+        if (
+            item is not None
+            and self.repository.is_cancel_invocation_sealed(
+                client_order_id
+            )
+        ):
+            item = {**item, "cancel_eligible": False}
+        return item
 
     def refresh_catalog(
         self,
@@ -242,6 +260,8 @@ class OperatorFuturesOrderOperationsService:
             raise ValueError(
                 "operator_futures_order_cancel_confirmation_required"
             )
+        if self.repository.is_cancel_invocation_sealed(exact_id):
+            return self.repository.read_goal()
         record, result = self._run_cycle(
             context=context,
             action="CANCEL_EXACT",
@@ -278,21 +298,36 @@ class OperatorFuturesOrderOperationsService:
         )
         if claimed.cancel_outcome != "CLAIMED":
             return claimed
+        cancel_boundary_failure: str | None = None
+
+        def mark_cancel_boundary() -> None:
+            nonlocal cancel_boundary_failure
+            try:
+                self.repository.mark_cancel_exchange_invoked(
+                    claim_id=claim_id
+                )
+            except ValueError as exc:
+                if str(exc) == (
+                    "operator_futures_cancel_invocation_already_sealed"
+                ):
+                    cancel_boundary_failure = str(exc)
+                raise
+
         execution = self.exchange_executor.cancel(
             client_order_id=exact_id,
             private_exchange_order_id=exchange_order_id,
             expected_exchange_order_id_sha256=(
                 observation.exchange_order_id_sha256
             ),
-            before_call=lambda: (
-                self.repository.mark_cancel_exchange_invoked(
-                    claim_id=claim_id
-                )
-            ),
+            before_call=mark_cancel_boundary,
         )
         if not execution.call_boundary_entered:
             return self.repository.release_cancel_before_exchange(
-                claim_id=claim_id
+                claim_id=claim_id,
+                diagnostic_code=(
+                    cancel_boundary_failure
+                    or "operator_futures_order_cancel_pre_call_blocked"
+                ),
             )
         return self.repository.finish_cancel(
             claim_id=claim_id,

@@ -30,6 +30,11 @@ from core.enums import (
     AdminFuturesPositionCallOutcome,
     AdminFuturesPositionEligibilityOutcome,
 )
+from database.operator_futures_cancel_invocation_seal import (
+    ensure_futures_cancel_invocation_seal,
+    futures_cancel_invocation_is_sealed,
+    seal_futures_cancel_invocation,
+)
 
 
 _SCHEMA_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -164,6 +169,10 @@ class OperatorFuturesPositionLifecycleRepository:
             if self._schema_ready:
                 return
             with self._cursor() as cursor:
+                ensure_futures_cancel_invocation_seal(
+                    cursor,
+                    schema=self.schema,
+                )
                 cursor.execute(
                     f"""
                     CREATE TABLE IF NOT EXISTS
@@ -1229,6 +1238,40 @@ class OperatorFuturesPositionLifecycleRepository:
                 raise FuturesPositionLifecycleError(
                     f"operator_futures_position_{step}_already_invoked"
                 )
+            if step == "cancel":
+                try:
+                    seal_futures_cancel_invocation(
+                        cursor,
+                        schema=self.schema,
+                        owner_ledger=FUTURES_POSITION_GOAL_ID,
+                        claim_id=str(claim_id),
+                        portfolio_id_sha256=str(
+                            row.get("bound_portfolio_id_sha256") or ""
+                        ),
+                        client_order_id=str(
+                            row.get("client_order_id") or ""
+                        ),
+                        exchange_order_id_sha256=str(
+                            row.get("exchange_order_id_sha256") or ""
+                        ),
+                    )
+                except ValueError as exc:
+                    code = str(exc)
+                    if code not in {
+                        (
+                            "operator_futures_cancel_invocation_"
+                            "binding_invalid"
+                        ),
+                        (
+                            "operator_futures_cancel_invocation_"
+                            "already_sealed"
+                        ),
+                    }:
+                        code = (
+                            "operator_futures_cancel_invocation_"
+                            "binding_invalid"
+                        )
+                    raise FuturesPositionLifecycleError(code) from None
             cursor.execute(
                 f"""
                 UPDATE {self._table('operator_futures_position_goal')}
@@ -1466,7 +1509,7 @@ class OperatorFuturesPositionLifecycleRepository:
                     position_reconciliation_outcome = 'ACCEPTED',
                     remaining_contracts = %s,
                     cancel_outcome = 'CLAIMED',
-                    cancel_exchange_invoked = NULL,
+                    cancel_exchange_invoked = FALSE,
                     diagnostic_code = %s,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE goal_id = %s
@@ -1494,6 +1537,66 @@ class OperatorFuturesPositionLifecycleRepository:
             diagnostic=diagnostic,
             assignments={},
         )
+
+    def release_cancel_invocation_conflict(
+        self,
+        *,
+        claim_id: str,
+    ) -> FuturesPositionGoalRecord:
+        """Release a local Cancel claim lost to the shared invocation seal."""
+
+        self.ensure_schema()
+        with self._cursor() as cursor:
+            self._lock(cursor)
+            row = self._claim_row(
+                cursor,
+                claim_id=claim_id,
+                step="cancel",
+            )
+            if row.get("cancel_exchange_invoked") is not False:
+                raise FuturesPositionLifecycleError(
+                    "operator_futures_position_cancel_release_not_claimed"
+                )
+            cursor.execute(
+                f"""
+                UPDATE {self._table('operator_futures_position_goal')}
+                   SET cancel_outcome = 'NOT_RUN',
+                       cancel_exchange_invoked = NULL,
+                       diagnostic_code =
+                           'operator_futures_cancel_invocation_already_sealed',
+                       revision = revision + 1,
+                       updated_at = CURRENT_TIMESTAMP
+                 WHERE goal_id = %s
+                """,
+                (FUTURES_POSITION_GOAL_ID,),
+            )
+            return self._record(
+                self._select(cursor, for_update=False)
+            )
+
+    def is_cancel_invocation_sealed(self) -> bool:
+        """Return the shared exact-child Cancel boundary state."""
+
+        self.ensure_schema()
+        with self._cursor() as cursor:
+            row = self._select(cursor, for_update=False)
+            child = str(row.get("client_order_id") or "")
+            portfolio_hash = str(
+                row.get("bound_portfolio_id_sha256") or ""
+            )
+            if not child:
+                return False
+            try:
+                return futures_cancel_invocation_is_sealed(
+                    cursor,
+                    schema=self.schema,
+                    portfolio_id_sha256=portfolio_hash,
+                    client_order_id=child,
+                )
+            except ValueError:
+                raise FuturesPositionLifecycleError(
+                    "operator_futures_cancel_invocation_binding_invalid"
+                ) from None
 
     def _finish_simple(
         self,

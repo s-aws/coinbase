@@ -1,5 +1,33 @@
 # Admin API Contract Agent
 
+Completed independent Goal 13 — operator-ready Controlled-live closeout:
+`operator_futures_hotpoint_canonical_single_child_v2`. The generated
+`domain=FUTURES` Hotpoint contract carries exact Goal 13 identity, revision,
+Default/DEFAULT profile label/type, AVP product, BUY/one-contract/post-only
+LIMIT/GTC policy, strict caps, trigger/cycle/subread accounting, immutable
+candidate evidence, Preview/Create/reconciliation/Cancel states, allowed
+actions, fixed diagnostics, and audit correlation. The browser cannot supply
+portfolio UUID, product, side, size, price, caps, Preview identity, exchange
+identity, List Orders filters, retry, or fallback behavior.
+
+Dedicated Goal 13 PostgreSQL rows reuse the shared canonical Futures lifecycle
+serialization lock and exact-child Cancel seal; do not document or implement a
+parallel Futures service or a dedicated advisory-lock identity. Modern CDP
+credential binding plus the exact portfolio-catalog match and durable
+portfolio SHA-256 prove Default authority; the deprecated order-level
+`retail_portfolio_id` argument is omitted. Cancel acceptance is initiation
+evidence until later authoritative reconciliation.
+
+Implementation, OpenAPI/generated-client synchronization, focused and full
+backend/frontend gates, installed deployment validation, independent safety
+and blind-contextless audits, and persistent Controlled-live handoff pass. No
+legitimate installed
+source parent exists and the inherited flat-position gate is unsatisfied, so
+the UI exposes the blocker, eligibility remains `0/10`, every
+Preview/Create/reconciliation/Cancel allowance remains unconsumed, and no
+Goal 13 Coinbase call or live proof occurred. The terminal contract remains
+fail-closed at that backend-owned blocker.
+
 Completed sequential Goal 12 operator-ready Controlled-live closeout:
 `operator_spot_order_truth_and_exact_cancel_reconcile_v1`. Its generated
 contract exposes call-free PostgreSQL Spot-order list/detail/mutation-result

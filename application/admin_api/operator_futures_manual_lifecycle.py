@@ -9,7 +9,7 @@ Close, or Reduce.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -55,6 +55,12 @@ FUTURES_MANUAL_ELIGIBILITY_CATEGORIES = (
     "best_bid_ask",
     "futures_positions",
     "futures_margin_collateral",
+)
+FUTURES_MANUAL_MARGIN_SUBREADS = (
+    "futures_balance_summary",
+    "intraday_margin_setting",
+    "current_margin_window_regular",
+    "current_margin_window_intraday",
 )
 FUTURES_MANUAL_TERMINAL_ELIGIBILITY_DIAGNOSTICS = frozenset(
     {
@@ -148,6 +154,24 @@ class FuturesManualExecutionPlan:
 
 
 @dataclass(frozen=True, slots=True)
+class FuturesHotpointExternalCommandClaim:
+    command_id: str
+    status: str
+    result_snapshot: dict[str, Any] | None = None
+    error_code: str | None = None
+    http_status_code: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class FuturesHotpointExternalCommandReadback:
+    action: str
+    status: str
+    correlation_id: str
+    request_revision: int | None
+    diagnostic_code: str
+
+
+@dataclass(frozen=True, slots=True)
 class FuturesManualGoalRecord:
     goal_id: str
     revision: int
@@ -177,6 +201,13 @@ class FuturesManualGoalRecord:
     correlation_id: str | None
     audit_id: str | None
     updated_at: str | None
+    reconciliation_catalog_end_at: str | None = None
+    execution_claim_id: str | None = None
+    margin_subread_attempts: dict[str, int] = field(
+        default_factory=lambda: {
+            subread: 0 for subread in FUTURES_MANUAL_MARGIN_SUBREADS
+        }
+    )
 
 
 class FuturesManualLifecycleRepository(Protocol):
@@ -193,6 +224,13 @@ class FuturesManualLifecycleRepository(Protocol):
         *,
         cycle_number: int,
         category: str,
+    ) -> None: ...
+
+    def claim_margin_subread(
+        self,
+        *,
+        cycle_number: int,
+        subread: str,
     ) -> None: ...
 
     def finish_eligibility_cycle(
@@ -212,6 +250,13 @@ class FuturesManualLifecycleRepository(Protocol):
     def mark_preview_exchange_invoked(self, *, claim_id: str) -> None: ...
 
     def finish_preview(
+        self,
+        *,
+        claim_id: str,
+        execution: Any,
+    ) -> FuturesManualGoalRecord: ...
+
+    def finish_preview_and_claim_create(
         self,
         *,
         claim_id: str,
@@ -244,6 +289,7 @@ class FuturesManualLifecycleRepository(Protocol):
         self,
         *,
         claim_id: str,
+        context: FuturesManualRequestContext | None = None,
     ) -> FuturesManualGoalRecord: ...
 
     def mark_reconciliation_exchange_invoked(
@@ -280,6 +326,46 @@ class FuturesManualLifecycleRepository(Protocol):
         claim_id: str,
         execution: Any,
     ) -> FuturesManualGoalRecord: ...
+
+    def finish_unentered_claim_unknown(
+        self,
+        *,
+        claim_id: str,
+        step: str,
+        diagnostic_code: str,
+    ) -> FuturesManualGoalRecord: ...
+
+    def release_cancel_invocation_conflict(
+        self,
+        *,
+        claim_id: str,
+    ) -> FuturesManualGoalRecord: ...
+
+    def is_cancel_invocation_sealed(self) -> bool: ...
+
+    def claim_hotpoint_external_command(
+        self,
+        *,
+        action: str,
+        context: FuturesManualRequestContext,
+        request_payload: Mapping[str, Any],
+    ) -> FuturesHotpointExternalCommandClaim: ...
+
+    def finish_hotpoint_external_command(
+        self,
+        *,
+        command_id: str,
+        outcome: str,
+        result_snapshot: Mapping[str, Any] | None,
+        error_code: str | None,
+        http_status_code: int | None,
+    ) -> None: ...
+
+    def recover_hotpoint_external_commands(self) -> None: ...
+
+    def read_latest_hotpoint_external_command(
+        self,
+    ) -> FuturesHotpointExternalCommandReadback | None: ...
 
 
 class FuturesManualLifecycleError(ValueError):
@@ -817,7 +903,9 @@ __all__ = [
     "FUTURES_MANUAL_ACTIVE_GOAL_ID",
     "FUTURES_MANUAL_GOAL_ID",
     "FUTURES_MANUAL_MAX_CANDIDATE_AGE_SECONDS",
+    "FUTURES_MANUAL_MARGIN_SUBREADS",
     "FuturesManualExecutionPlan",
+    "FuturesHotpointExternalCommandClaim",
     "FuturesManualEligibilityReader",
     "FuturesManualEligibilityResult",
     "FuturesManualGoalRecord",

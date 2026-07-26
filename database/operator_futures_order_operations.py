@@ -22,6 +22,11 @@ from application.admin_api.operator_futures_order_operations_service import (
     FuturesOrderOperationsGoalRecord,
     FuturesOrderOperationsRequestContext,
 )
+from database.operator_futures_cancel_invocation_seal import (
+    ensure_futures_cancel_invocation_seal,
+    futures_cancel_invocation_is_sealed,
+    seal_futures_cancel_invocation,
+)
 
 
 _SCHEMA_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -175,6 +180,10 @@ class OperatorFuturesOrderOperationsRepository:
                 return
             with self._cursor() as cursor:
                 cursor.execute(f'CREATE SCHEMA IF NOT EXISTS "{self.schema}"')
+                ensure_futures_cancel_invocation_seal(
+                    cursor,
+                    schema=self.schema,
+                )
                 cursor.execute(
                     f"""
                     CREATE TABLE IF NOT EXISTS
@@ -1254,6 +1263,17 @@ class OperatorFuturesOrderOperationsRepository:
                 raise ValueError(
                     "operator_futures_order_cancel_reconciliation_required"
                 )
+            if futures_cancel_invocation_is_sealed(
+                cursor,
+                schema=self.schema,
+                portfolio_id_sha256=str(
+                    goal.get("portfolio_id_sha256") or ""
+                ),
+                client_order_id=exact_id,
+            ):
+                raise ValueError(
+                    "operator_futures_cancel_invocation_already_sealed"
+                )
             cursor.execute(
                 f"""
                 SELECT *
@@ -1316,7 +1336,33 @@ class OperatorFuturesOrderOperationsRepository:
             return claimed, claim_id
 
     def mark_cancel_exchange_invoked(self, *, claim_id: str) -> None:
+        self.ensure_schema()
         with self._cursor() as cursor:
+            self._lock(cursor)
+            goal = self._select_goal(cursor, for_update=True)
+            if (
+                str(goal.get("cancel_claim_id") or "") != claim_id
+                or goal["cancel_outcome"] != "CLAIMED"
+                or goal.get("cancel_exchange_invoked") is not False
+            ):
+                raise ValueError(
+                    "operator_futures_order_cancel_invoke_not_claimed"
+                )
+            seal_futures_cancel_invocation(
+                cursor,
+                schema=self.schema,
+                owner_ledger="ORDER_OPERATIONS",
+                claim_id=claim_id,
+                portfolio_id_sha256=str(
+                    goal.get("portfolio_id_sha256") or ""
+                ),
+                client_order_id=str(
+                    goal.get("cancel_target_client_order_id") or ""
+                ),
+                exchange_order_id_sha256=str(
+                    goal.get("cancel_exchange_order_id_sha256") or ""
+                ),
+            )
             cursor.execute(
                 f"""
                 UPDATE {self._table('operator_futures_order_operations_goal')}
@@ -1338,7 +1384,18 @@ class OperatorFuturesOrderOperationsRepository:
         self,
         *,
         claim_id: str,
+        diagnostic_code: str = (
+            "operator_futures_order_cancel_pre_call_blocked"
+        ),
     ) -> FuturesOrderOperationsGoalRecord:
+        diagnostic = str(diagnostic_code or "").strip()
+        if diagnostic not in {
+            "operator_futures_order_cancel_pre_call_blocked",
+            "operator_futures_cancel_invocation_already_sealed",
+        }:
+            raise ValueError(
+                "operator_futures_order_cancel_release_diagnostic_invalid"
+            )
         with self._cursor() as cursor:
             self._lock(cursor)
             goal = self._select_goal(cursor, for_update=True)
@@ -1368,7 +1425,7 @@ class OperatorFuturesOrderOperationsRepository:
                 """,
                 (
                     revision,
-                    "operator_futures_order_cancel_pre_call_blocked",
+                    diagnostic,
                     FUTURES_ORDER_OPERATIONS_GOAL_ID,
                 ),
             )
@@ -1386,7 +1443,7 @@ class OperatorFuturesOrderOperationsRepository:
                     str(uuid.uuid4()),
                     goal["cycles_used"],
                     goal["cancel_target_client_order_id"],
-                    "operator_futures_order_cancel_pre_call_blocked",
+                    diagnostic,
                     goal["correlation_id"],
                     goal["audit_id"],
                     json.dumps(
@@ -1511,17 +1568,19 @@ class OperatorFuturesOrderOperationsRepository:
         conditions: list[str] = []
         params: list[Any] = []
         if exact_product:
-            conditions.append("product_id = %s")
+            conditions.append("projection.product_id = %s")
             params.append(exact_product)
         if exact_status:
-            conditions.append("status = %s")
+            conditions.append("projection.status = %s")
             params.append(exact_status)
         where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
         with self._cursor() as cursor:
             cursor.execute(
                 f"""
                 SELECT COUNT(*) AS count
-                FROM {self._table('operator_futures_order_projection')}
+                FROM {self._table(
+                    'operator_futures_order_projection'
+                )} AS projection
                 {where}
                 """,
                 tuple(params),
@@ -1529,15 +1588,38 @@ class OperatorFuturesOrderOperationsRepository:
             total = int((_row(cursor) or {}).get("count") or 0)
             cursor.execute(
                 f"""
-                SELECT *
-                FROM {self._table('operator_futures_order_projection')}
+                SELECT projection.*,
+                       EXISTS (
+                           SELECT 1
+                             FROM {self._table(
+                                 'operator_futures_cancel_invocation_seal'
+                             )} AS seal
+                            WHERE seal.portfolio_id_sha256 = (
+                                SELECT portfolio_id_sha256
+                                  FROM {self._table(
+                                      'operator_futures_order_operations_goal'
+                                  )}
+                                 WHERE goal_id = %s
+                            )
+                              AND seal.client_order_id =
+                                  projection.client_order_id
+                              AND seal.mutation_class = 'CANCEL'
+                       ) AS globally_cancel_sealed
+                FROM {self._table(
+                    'operator_futures_order_projection'
+                )} AS projection
                 {where}
                 ORDER BY exchange_updated_at DESC NULLS LAST,
                          created_at DESC NULLS LAST,
                          client_order_id ASC
                 LIMIT %s OFFSET %s
                 """,
-                tuple([*params, limit, offset]),
+                tuple([
+                    FUTURES_ORDER_OPERATIONS_GOAL_ID,
+                    *params,
+                    limit,
+                    offset,
+                ]),
             )
             items = [self._projection(item) for item in _rows(cursor)]
         next_offset = offset + len(items)
@@ -1560,6 +1642,30 @@ class OperatorFuturesOrderOperationsRepository:
             "private_identifiers_included": False,
         }
 
+    def is_cancel_invocation_sealed(
+        self,
+        client_order_id: str,
+    ) -> bool:
+        """Return the shared exact-child Cancel invocation state."""
+
+        self.ensure_schema()
+        exact_id = str(client_order_id or "").strip()
+        if not exact_id:
+            raise ValueError("operator_futures_order_identity_invalid")
+        with self._cursor() as cursor:
+            goal = self._select_goal(cursor, for_update=False)
+            portfolio_hash = str(
+                goal.get("portfolio_id_sha256") or ""
+            )
+            if not portfolio_hash:
+                return False
+            return futures_cancel_invocation_is_sealed(
+                cursor,
+                schema=self.schema,
+                portfolio_id_sha256=portfolio_hash,
+                client_order_id=exact_id,
+            )
+
     def get_order(self, client_order_id: str) -> dict[str, Any] | None:
         self.ensure_schema()
         exact_id = str(client_order_id or "").strip()
@@ -1568,11 +1674,29 @@ class OperatorFuturesOrderOperationsRepository:
         with self._cursor() as cursor:
             cursor.execute(
                 f"""
-                SELECT *
-                FROM {self._table('operator_futures_order_projection')}
-                WHERE client_order_id = %s
+                SELECT projection.*,
+                       EXISTS (
+                           SELECT 1
+                             FROM {self._table(
+                                 'operator_futures_cancel_invocation_seal'
+                             )} AS seal
+                            WHERE seal.portfolio_id_sha256 = (
+                                SELECT portfolio_id_sha256
+                                  FROM {self._table(
+                                      'operator_futures_order_operations_goal'
+                                  )}
+                                 WHERE goal_id = %s
+                            )
+                              AND seal.client_order_id =
+                                  projection.client_order_id
+                              AND seal.mutation_class = 'CANCEL'
+                       ) AS globally_cancel_sealed
+                FROM {self._table(
+                    'operator_futures_order_projection'
+                )} AS projection
+                WHERE projection.client_order_id = %s
                 """,
-                (exact_id,),
+                (FUTURES_ORDER_OPERATIONS_GOAL_ID, exact_id),
             )
             item = _row(cursor)
         return self._projection(item) if item is not None else None
@@ -1606,7 +1730,10 @@ class OperatorFuturesOrderOperationsRepository:
             "authoritatively_nonterminal": bool(
                 row["authoritatively_nonterminal"]
             ),
-            "cancel_eligible": bool(row["cancel_eligible"]),
+            "cancel_eligible": bool(
+                row["cancel_eligible"]
+                and not row.get("globally_cancel_sealed")
+            ),
         }
 
 

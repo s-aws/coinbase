@@ -8,7 +8,7 @@ Raw Coinbase payloads and private identifiers never enter durable/public state.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 import hashlib
@@ -217,6 +217,14 @@ class FuturesPositionLifecycleRepository(Protocol):
     ) -> FuturesPositionGoalRecord: ...
 
     def mark_cancel_exchange_invoked(self, *, claim_id: str) -> None: ...
+
+    def release_cancel_invocation_conflict(
+        self,
+        *,
+        claim_id: str,
+    ) -> FuturesPositionGoalRecord: ...
+
+    def is_cancel_invocation_sealed(self) -> bool: ...
 
     def finish_cancel(
         self,
@@ -684,7 +692,22 @@ class OperatorFuturesPositionLifecycleService:
         self.exchange_executor = exchange_executor
 
     def read(self) -> FuturesPositionGoalRecord:
-        return self.repository.read()
+        record = self.repository.read()
+        if (
+            record.cancel_exchange_invoked is not True
+            and self.repository.is_cancel_invocation_sealed()
+        ):
+            return replace(
+                record,
+                cancel_outcome=(
+                    AdminFuturesPositionCallOutcome.NOT_RUN
+                ),
+                cancel_exchange_invoked=None,
+                diagnostic_code=(
+                    "operator_futures_cancel_invocation_already_sealed"
+                ),
+            )
+        return record
 
     def refresh(
         self,
@@ -847,15 +870,26 @@ class OperatorFuturesPositionLifecycleService:
             claim_id=plan.claim_id,
             execution=position,
         )
+        cancel_boundary_failure: str | None = None
+
+        def mark_cancel_boundary() -> None:
+            nonlocal cancel_boundary_failure
+            try:
+                self.repository.mark_cancel_exchange_invoked(
+                    claim_id=plan.claim_id
+                )
+            except FuturesPositionLifecycleError as exc:
+                if exc.code == (
+                    "operator_futures_cancel_invocation_already_sealed"
+                ):
+                    cancel_boundary_failure = exc.code
+                raise
+
         try:
             cancel = self.exchange_executor.cancel(
                 plan=plan,
                 private_exchange_order_id=action.private_exchange_order_id,
-                before_call=lambda: (
-                    self.repository.mark_cancel_exchange_invoked(
-                        claim_id=plan.claim_id
-                    )
-                ),
+                before_call=mark_cancel_boundary,
             )
         except Exception:
             cancel = SimpleNamespace(
@@ -863,6 +897,12 @@ class OperatorFuturesPositionLifecycleService:
                 diagnostic_code=(
                     "operator_futures_position_cancel_outcome_unknown"
                 ),
+            )
+        if cancel_boundary_failure == (
+            "operator_futures_cancel_invocation_already_sealed"
+        ):
+            return self.repository.release_cancel_invocation_conflict(
+                claim_id=plan.claim_id,
             )
         return self.repository.finish_cancel(
             claim_id=plan.claim_id,

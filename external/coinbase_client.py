@@ -1011,9 +1011,13 @@ class CoinbaseRestClient:
 
     def get_futures_manual_eligibility_margin_collateral_snapshot(
         self,
+        *,
+        before_subread: Callable[[str], None] | None = None,
     ) -> Dict[str, Any]:
         """Read Goal 10 CFM evidence without catching or labeling exceptions."""
 
+        mark = before_subread or (lambda _subread: None)
+        mark("futures_balance_summary")
         balance_response = coinbase_sdk_response_to_dict(
             self._client.get_futures_balance_summary()
         )
@@ -1025,6 +1029,7 @@ class CoinbaseRestClient:
         if not normalized_balance:
             raise ValueError("futures manual balance summary invalid")
 
+        mark("intraday_margin_setting")
         intraday_margin_setting = coinbase_sdk_response_to_dict(
             self._client.get_intraday_margin_setting()
         )
@@ -1034,10 +1039,17 @@ class CoinbaseRestClient:
             )
 
         current_margin_windows = []
-        for profile in (
-            "MARGIN_PROFILE_TYPE_RETAIL_REGULAR",
-            "MARGIN_PROFILE_TYPE_RETAIL_INTRADAY_MARGIN_1",
+        for subread, profile in (
+            (
+                "current_margin_window_regular",
+                "MARGIN_PROFILE_TYPE_RETAIL_REGULAR",
+            ),
+            (
+                "current_margin_window_intraday",
+                "MARGIN_PROFILE_TYPE_RETAIL_INTRADAY_MARGIN_1",
+            ),
         ):
+            mark(subread)
             margin_window = coinbase_sdk_response_to_dict(
                 self._client.get_current_margin_window(profile)
             )
@@ -1321,6 +1333,9 @@ class CoinbaseRestClient:
         cursor: Optional[str] = None,
         product_type: Optional[str] = None,
         retail_portfolio_id: Optional[str] = None,
+        order_side: Optional[str] = None,
+        order_types: Optional[str] = None,
+        time_in_forces: Optional[str] = None,
         before_sdk_call: Optional[Callable[[], None]] = None,
     ) -> Dict[str, Any]:
         """List orders with exact identity, scope, and pagination filters.
@@ -1335,6 +1350,9 @@ class CoinbaseRestClient:
             cursor: Optional Coinbase pagination cursor.
             product_type: Optional Coinbase product-type scope.
             retail_portfolio_id: Optional exact Coinbase profile scope.
+            order_side: Optional exact side scope.
+            order_types: Optional exact Coinbase order-type scope.
+            time_in_forces: Optional exact time-in-force scope.
             before_sdk_call: Optional durable call-boundary claim callback.
         
         Returns:
@@ -1346,17 +1364,25 @@ class CoinbaseRestClient:
         _harden_sdk_transport(self._client, require_bounded_timeout=True)
         if before_sdk_call is not None:
             before_sdk_call()
-        return self._client.list_orders(
-            order_status=order_status,
-            order_ids=order_ids,
-            product_ids=product_ids,
-            limit=limit,
-            start_date=start_date,
-            end_date=end_date,
-            cursor=cursor,
-            product_type=product_type,
-            retail_portfolio_id=retail_portfolio_id,
-        )
+        request: Dict[str, Any] = {
+            "order_status": order_status,
+            "order_ids": order_ids,
+            "product_ids": product_ids,
+            "limit": limit,
+            "start_date": start_date,
+            "end_date": end_date,
+            "cursor": cursor,
+            "product_type": product_type,
+        }
+        if retail_portfolio_id is not None:
+            request["retail_portfolio_id"] = retail_portfolio_id
+        if order_side is not None:
+            request["order_side"] = order_side
+        if order_types is not None:
+            request["order_types"] = order_types
+        if time_in_forces is not None:
+            request["time_in_forces"] = time_in_forces
+        return self._client.list_orders(**request)
 
     def get_order(
         self,

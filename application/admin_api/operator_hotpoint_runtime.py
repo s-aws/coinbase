@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+import os
 from threading import Lock
 from typing import Any
 
+from core.coinbase_execution_authority import (
+    coinbase_execution_authority_enabled,
+)
 from core.enums import (
     AdminApiActionClass,
     AdminApiCommandStatus,
@@ -25,7 +30,18 @@ from .models import (
     ManualOrderCommand,
     ManualOrderRequest,
 )
+from .live_execution import (
+    LIVE_EXECUTION_RUNTIME_ENABLED_ENV,
+    AdminApiLiveExecutionServiceState,
+    get_decision_backed_live_execution_service,
+    operator_futures_manual_live_service_state_allows_route_admission,
+)
+from .operator_mvp_policy import (
+    OPERATOR_MVP_HOTPOINT_SINGLE_CHILD_CREATE_ROUTE,
+    OPERATOR_MVP_HOTPOINT_SINGLE_CHILD_SAFE_CLOSEOUT_ROUTE,
+)
 from .operator_hotpoint_control import (
+    FUTURES_HOTPOINT_GOAL_ID,
     FUTURES_HOTPOINT_SCOPE_POLICY,
     HOTPOINT_RUN_OPERATOR_INTENT,
     HOTPOINT_SAFE_CLOSEOUT_OPERATOR_INTENT,
@@ -324,15 +340,143 @@ class AdminApiHotpointCancelExecutor:
 __all__ = [
     "AdminApiHotpointCancelExecutor",
     "AdminApiHotpointPlacementExecutor",
+    "FuturesHotpointExecutionPosture",
     "UnavailableFuturesHotpointControlService",
+    "evaluate_operator_futures_hotpoint_execution_posture",
     "get_default_operator_hotpoint_control_service",
     "get_default_operator_hotpoint_control_services",
+    "get_operator_futures_hotpoint_execution_posture",
+    "initialize_operator_futures_hotpoint_v2_runtime",
 ]
 
 
 _DEFAULT_SERVICE: OperatorHotpointControlService | None = None
 _DEFAULT_FUTURES_SERVICE: OperatorHotpointControlService | None = None
+_DEFAULT_FUTURES_V2_SERVICE: Any | None = None
 _DEFAULT_SERVICE_LOCK = Lock()
+_OPERATOR_FUTURES_HOTPOINT_V2_ENABLED_ENV = (
+    "COINBASE_ADMIN_API_OPERATOR_FUTURES_HOTPOINT_V2_ENABLED"
+)
+
+
+@dataclass(frozen=True, slots=True)
+class FuturesHotpointExecutionPosture:
+    """Call-free readiness for both Goal 13 exchange-bearing routes."""
+
+    ready: bool
+    diagnostic_code: str
+
+
+def evaluate_operator_futures_hotpoint_execution_posture(
+    *,
+    feature_enabled: bool,
+    execution_authority_enabled: bool,
+    live_runtime_enabled: bool,
+    credentials_configured: bool,
+    rest_client_available: bool,
+    portfolio_configured: bool,
+    live_service_state: AdminApiLiveExecutionServiceState,
+) -> FuturesHotpointExecutionPosture:
+    """Evaluate Goal 13 without treating Spot cap fields as Futures policy."""
+
+    if not feature_enabled:
+        diagnostic = "operator_futures_hotpoint_v2_disabled"
+    elif not execution_authority_enabled:
+        diagnostic = (
+            "operator_futures_hotpoint_execution_authority_missing"
+        )
+    elif not live_runtime_enabled:
+        diagnostic = "operator_futures_hotpoint_live_runtime_disabled"
+    elif not credentials_configured:
+        diagnostic = "operator_futures_hotpoint_credentials_missing"
+    elif not rest_client_available:
+        diagnostic = "operator_futures_hotpoint_rest_client_unavailable"
+    elif not portfolio_configured:
+        diagnostic = "operator_futures_hotpoint_default_portfolio_required"
+    elif not all(
+        operator_futures_manual_live_service_state_allows_route_admission(
+            live_service_state,
+            method="POST",
+            route=route,
+        )
+        for route in (
+            OPERATOR_MVP_HOTPOINT_SINGLE_CHILD_CREATE_ROUTE,
+            OPERATOR_MVP_HOTPOINT_SINGLE_CHILD_SAFE_CLOSEOUT_ROUTE,
+        )
+    ):
+        diagnostic = (
+            "operator_futures_hotpoint_service_decision_unavailable"
+        )
+    else:
+        return FuturesHotpointExecutionPosture(
+            ready=True,
+            diagnostic_code=(
+                "operator_futures_hotpoint_execution_posture_ready"
+            ),
+        )
+    return FuturesHotpointExecutionPosture(
+        ready=False,
+        diagnostic_code=diagnostic,
+    )
+
+
+def get_operator_futures_hotpoint_execution_posture(
+) -> FuturesHotpointExecutionPosture:
+    """Resolve installed Goal 13 readiness without making a Coinbase call."""
+
+    from .futures_default_rest_client import (
+        futures_default_rest_client_configured,
+        get_futures_default_rest_client,
+    )
+
+    credentials_configured = futures_default_rest_client_configured()
+    rest_client_available = False
+    if credentials_configured:
+        try:
+            rest_client_available = (
+                get_futures_default_rest_client() is not None
+            )
+        except Exception:
+            rest_client_available = False
+    try:
+        live_service_state = (
+            get_decision_backed_live_execution_service().admission_state()
+        )
+    except Exception:
+        from .live_execution import get_disabled_live_execution_service
+
+        live_service_state = (
+            get_disabled_live_execution_service().admission_state()
+        )
+    return evaluate_operator_futures_hotpoint_execution_posture(
+        feature_enabled=(
+            os.environ.get(
+                _OPERATOR_FUTURES_HOTPOINT_V2_ENABLED_ENV
+            )
+            == "1"
+        ),
+        execution_authority_enabled=(
+            coinbase_execution_authority_enabled()
+        ),
+        live_runtime_enabled=(
+            os.environ.get(
+                LIVE_EXECUTION_RUNTIME_ENABLED_ENV,
+                "",
+            ).strip().lower()
+            in {"1", "true", "yes", "on"}
+        ),
+        credentials_configured=credentials_configured,
+        rest_client_available=rest_client_available,
+        portfolio_configured=bool(
+            str(
+                os.environ.get(
+                    "COINBASE_ADMIN_API_FUTURES_PORTFOLIO_ID"
+                )
+                or ""
+            ).strip()
+        ),
+        live_service_state=live_service_state,
+    )
 
 
 class UnavailableFuturesHotpointControlService(
@@ -466,20 +610,107 @@ def _unavailable_futures_cancel(
     raise RuntimeError("operator_futures_hotpoint_cancel_source_disabled")
 
 
-def get_default_operator_hotpoint_control_services(
-) -> dict[str, OperatorHotpointControlService]:
-    """Return domain-separated services without making Futures look Spot-ready."""
+def _build_default_operator_futures_hotpoint_v2_service() -> Any:
+    """Compose Goal 13 only from its dedicated ledgers and Futures adapters."""
 
-    global _DEFAULT_FUTURES_SERVICE
+    configured_portfolio_id = str(
+        os.environ.get("COINBASE_ADMIN_API_FUTURES_PORTFOLIO_ID") or ""
+    ).strip()
+    if not configured_portfolio_id:
+        raise RuntimeError(
+            "operator_futures_hotpoint_default_portfolio_required"
+        )
+
+    from database.operator_futures_manual_lifecycle import (
+        get_default_operator_futures_hotpoint_lifecycle_repository,
+    )
+    from database.operator_hotpoint_control import (
+        get_default_operator_futures_hotpoint_control_repository,
+    )
+
+    from .futures_default_rest_client import (
+        get_futures_default_rest_client,
+    )
+    from .operator_futures_hotpoint_v2 import (
+        FuturesHotpointEligibilityReader,
+        FuturesHotpointExactCloseoutExecutor,
+        OperatorFuturesHotpointV2Service,
+    )
+    from .operator_futures_product_ticket_runtime import (
+        AdminApiFuturesProductTicketExchangeExecutor,
+    )
+
+    control_repository = (
+        get_default_operator_futures_hotpoint_control_repository()
+    )
+    control_repository.ensure_schema()
+    control_repository.recover_stranded_claim()
+    lifecycle_repository = (
+        get_default_operator_futures_hotpoint_lifecycle_repository(
+            control_repository=control_repository,
+        )
+    )
+    rest_client = get_futures_default_rest_client()
+    control_service = OperatorHotpointControlService(
+        repository=control_repository,
+        placement_executor=_unavailable_futures_placement,
+        cancel_executor=_unavailable_futures_cancel,
+        policy=FUTURES_HOTPOINT_SCOPE_POLICY,
+        goal_id=FUTURES_HOTPOINT_GOAL_ID,
+        placement_execution_available=False,
+        cancel_execution_available=False,
+    )
+    exchange_executor = AdminApiFuturesProductTicketExchangeExecutor(
+        rest_client=rest_client
+    )
+    return OperatorFuturesHotpointV2Service(
+        control_service=control_service,
+        control_repository=control_repository,
+        lifecycle_repository=lifecycle_repository,
+        eligibility_reader_factory=lambda trigger: (
+            FuturesHotpointEligibilityReader(
+                rest_client=rest_client,
+                trigger=trigger,
+            )
+        ),
+        exchange_executor=exchange_executor,
+        closeout_executor=FuturesHotpointExactCloseoutExecutor(
+            rest_client=rest_client,
+            configured_portfolio_id=configured_portfolio_id,
+        ),
+    )
+
+
+def initialize_operator_futures_hotpoint_v2_runtime() -> Any:
+    """Eagerly initialize and recover Goal 13 before accepting traffic."""
+
+    global _DEFAULT_FUTURES_V2_SERVICE
+    if (
+        os.environ.get(_OPERATOR_FUTURES_HOTPOINT_V2_ENABLED_ENV)
+        != "1"
+    ):
+        return None
+    if _DEFAULT_FUTURES_V2_SERVICE is None:
+        with _DEFAULT_SERVICE_LOCK:
+            if _DEFAULT_FUTURES_V2_SERVICE is None:
+                _DEFAULT_FUTURES_V2_SERVICE = (
+                    _build_default_operator_futures_hotpoint_v2_service()
+                )
+    return _DEFAULT_FUTURES_V2_SERVICE
+
+
+def get_default_operator_hotpoint_control_services(
+) -> dict[str, Any]:
+    """Select historical Goal 9 or Goal 13 without cross-ledger fallback."""
+
+    global _DEFAULT_FUTURES_SERVICE, _DEFAULT_FUTURES_V2_SERVICE
     spot_service = get_default_operator_hotpoint_control_service()
     services = {"SPOT": spot_service}
-    if _DEFAULT_FUTURES_SERVICE is None:
-        import os
-
-        configured_portfolio_id = str(
-            os.environ.get("COINBASE_ADMIN_API_FUTURES_PORTFOLIO_ID") or ""
-        ).strip()
-        if not configured_portfolio_id:
+    if (
+        os.environ.get(_OPERATOR_FUTURES_HOTPOINT_V2_ENABLED_ENV)
+        != "1"
+    ):
+        if _DEFAULT_FUTURES_SERVICE is None:
             with _DEFAULT_SERVICE_LOCK:
                 if _DEFAULT_FUTURES_SERVICE is None:
                     _DEFAULT_FUTURES_SERVICE = (
@@ -487,27 +718,17 @@ def get_default_operator_hotpoint_control_services(
                             shared_goal_service=spot_service,
                         )
                     )
-            services["FUTURES"] = _DEFAULT_FUTURES_SERVICE
-            return services
-        try:
-            from database.operator_hotpoint_control import (
-                get_default_operator_futures_hotpoint_control_repository,
-            )
+        services["FUTURES"] = _DEFAULT_FUTURES_SERVICE
+        return services
 
-            repository = (
-                get_default_operator_futures_hotpoint_control_repository()
-            )
+    if _DEFAULT_FUTURES_V2_SERVICE is None:
+        try:
+            with _DEFAULT_SERVICE_LOCK:
+                if _DEFAULT_FUTURES_V2_SERVICE is None:
+                    _DEFAULT_FUTURES_V2_SERVICE = (
+                        _build_default_operator_futures_hotpoint_v2_service()
+                    )
         except Exception:
             return services
-        with _DEFAULT_SERVICE_LOCK:
-            if _DEFAULT_FUTURES_SERVICE is None:
-                _DEFAULT_FUTURES_SERVICE = OperatorHotpointControlService(
-                    repository=repository,
-                    placement_executor=_unavailable_futures_placement,
-                    cancel_executor=_unavailable_futures_cancel,
-                    policy=FUTURES_HOTPOINT_SCOPE_POLICY,
-                    placement_execution_available=False,
-                    cancel_execution_available=False,
-                )
-    services["FUTURES"] = _DEFAULT_FUTURES_SERVICE
+    services["FUTURES"] = _DEFAULT_FUTURES_V2_SERVICE
     return services

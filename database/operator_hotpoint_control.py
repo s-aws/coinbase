@@ -14,6 +14,7 @@ import uuid
 
 from application.admin_api.operator_hotpoint_control import (
     FUTURES_HOTPOINT_SCOPE_POLICY,
+    FUTURES_HOTPOINT_GOAL_ID,
     HOTPOINT_GOAL_ID,
     HotpointCancelPlan,
     HotpointCancelState,
@@ -26,6 +27,11 @@ from application.admin_api.operator_hotpoint_control import (
     HotpointWindowState,
     OperatorHotpointControlRecord,
     SPOT_HOTPOINT_SCOPE_POLICY,
+)
+from application.admin_api.operator_futures_hotpoint_v2 import (
+    FuturesHotpointTriggerBinding,
+    validate_futures_hotpoint_candidate,
+    validate_futures_hotpoint_candidate_execution_window,
 )
 from business.hotpoint_detector import compute_bucket_id
 
@@ -112,6 +118,7 @@ class OperatorHotpointControlRepository:
         configured_portfolio_id: str,
         product_metadata_provider: Callable[[str], object],
         policy: HotpointScopePolicy = SPOT_HOTPOINT_SCOPE_POLICY,
+        goal_id: str = HOTPOINT_GOAL_ID,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         if not _SCHEMA_RE.fullmatch(str(schema)):
@@ -125,15 +132,39 @@ class OperatorHotpointControlRepository:
         if not isinstance(policy, HotpointScopePolicy):
             raise ValueError("operator_hotpoint_scope_policy_invalid")
         self.policy = policy
+        if goal_id not in {HOTPOINT_GOAL_ID, FUTURES_HOTPOINT_GOAL_ID}:
+            raise ValueError("operator_hotpoint_goal_id_invalid")
+        if (
+            goal_id == FUTURES_HOTPOINT_GOAL_ID
+            and policy != FUTURES_HOTPOINT_SCOPE_POLICY
+        ):
+            raise ValueError("operator_hotpoint_goal_policy_invalid")
+        self.goal_id = goal_id
         self._advisory_lock_slot = (
-            2 if policy == FUTURES_HOTPOINT_SCOPE_POLICY else 1
+            3
+            if goal_id == FUTURES_HOTPOINT_GOAL_ID
+            else 2
+            if policy == FUTURES_HOTPOINT_SCOPE_POLICY
+            else 1
         )
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self._schema_ready = False
         self._schema_lock = threading.Lock()
 
     def _table(self, name: str) -> str:
-        if self.policy == FUTURES_HOTPOINT_SCOPE_POLICY:
+        if self.goal_id == FUTURES_HOTPOINT_GOAL_ID:
+            name = {
+                "operator_hotpoint_control": (
+                    "operator_futures_hotpoint_v2_control"
+                ),
+                "operator_hotpoint_control_command": (
+                    "operator_futures_hotpoint_v2_control_command"
+                ),
+                "guard_operator_hotpoint_command_append_only": (
+                    "guard_operator_futures_hotpoint_v2_command_append_only"
+                ),
+            }.get(name, name)
+        elif self.policy == FUTURES_HOTPOINT_SCOPE_POLICY:
             name = {
                 "operator_hotpoint_control": "operator_futures_hotpoint_control",
                 "operator_hotpoint_control_command": (
@@ -221,6 +252,8 @@ class OperatorHotpointControlRepository:
                         submitted_notional_usdc NUMERIC,
                         possible_execution_notional_usdc NUMERIC,
                         plan_evidence_sha256 CHAR(64),
+                        trigger_idempotency_sha256 CHAR(64),
+                        trigger_request_sha256 CHAR(64),
                         diagnostic_code VARCHAR(96) NOT NULL,
                         actor_id VARCHAR(255) NOT NULL,
                         roles_json JSONB NOT NULL,
@@ -259,6 +292,20 @@ class OperatorHotpointControlRepository:
                     f"""
                     ALTER TABLE {self._table('operator_hotpoint_control')}
                     ADD COLUMN IF NOT EXISTS cancel_exchange_invoked BOOLEAN
+                    """
+                )
+                cursor.execute(
+                    f"""
+                    ALTER TABLE {self._table('operator_hotpoint_control')}
+                    ADD COLUMN IF NOT EXISTS
+                        trigger_idempotency_sha256 CHAR(64)
+                    """
+                )
+                cursor.execute(
+                    f"""
+                    ALTER TABLE {self._table('operator_hotpoint_control')}
+                    ADD COLUMN IF NOT EXISTS
+                        trigger_request_sha256 CHAR(64)
                     """
                 )
                 cursor.execute(
@@ -404,17 +451,17 @@ class OperatorHotpointControlRepository:
              {"FOR UPDATE" if lock else ""}
             """,
             (
-                HOTPOINT_GOAL_ID,
-                HOTPOINT_GOAL_ID,
-                HOTPOINT_GOAL_ID,
-                HOTPOINT_GOAL_ID,
-                HOTPOINT_GOAL_ID,
+                self.goal_id,
+                self.goal_id,
+                self.goal_id,
+                self.goal_id,
+                self.goal_id,
             ),
         )
         return _row(cursor)
 
-    @staticmethod
     def _default_record(
+        self,
         *,
         goal_create_claim_id: str | None = None,
         goal_create_claim_domain: str | None = None,
@@ -423,7 +470,7 @@ class OperatorHotpointControlRepository:
     ) -> OperatorHotpointControlRecord:
         epoch = "1970-01-01T00:00:00+00:00"
         return OperatorHotpointControlRecord(
-            goal_id=HOTPOINT_GOAL_ID,
+            goal_id=self.goal_id,
             revision=0,
             kill_switch_state=HotpointKillSwitchState.DISABLED,
             window_state=HotpointWindowState.NONE,
@@ -456,7 +503,40 @@ class OperatorHotpointControlRepository:
     def read(self) -> OperatorHotpointControlRecord:
         self.ensure_schema()
         with self._cursor() as cursor:
-            current = self._current(cursor, lock=False)
+            if self.goal_id == FUTURES_HOTPOINT_GOAL_ID:
+                self._lock(cursor)
+            current = self._current(
+                cursor,
+                lock=self.goal_id == FUTURES_HOTPOINT_GOAL_ID,
+            )
+            if (
+                current is not None
+                and self.goal_id == FUTURES_HOTPOINT_GOAL_ID
+                and current.get("window_state") == "ARMED"
+                and current.get("create_state") == "NOT_CLAIMED"
+                and current.get("window_expires_at") is not None
+            ):
+                expires = current["window_expires_at"]
+                if not isinstance(expires, datetime):
+                    expires = datetime.fromisoformat(str(expires))
+                if expires.tzinfo is None:
+                    expires = expires.replace(tzinfo=timezone.utc)
+                if self.clock().astimezone(timezone.utc) >= expires:
+                    cursor.execute(
+                        f"""
+                        UPDATE {self._table('operator_hotpoint_control')}
+                           SET revision = revision + 1,
+                               window_state = 'EXPIRED',
+                               diagnostic_code =
+                                   'operator_futures_hotpoint_window_expired',
+                               updated_at = CURRENT_TIMESTAMP
+                         WHERE goal_id = %s
+                           AND window_state = 'ARMED'
+                           AND create_state = 'NOT_CLAIMED'
+                        """,
+                        (self.goal_id,),
+                    )
+                    current = self._current(cursor, lock=False)
             if current is None:
                 cursor.execute(
                     f"""
@@ -465,7 +545,7 @@ class OperatorHotpointControlRepository:
                       FROM {self._table('operator_hotpoint_goal_allowance')}
                      WHERE goal_id = %s
                     """,
-                    (HOTPOINT_GOAL_ID,),
+                    (self.goal_id,),
                 )
                 allowance = _row(cursor) or {}
         return (
@@ -502,9 +582,85 @@ class OperatorHotpointControlRepository:
         offset: int,
     ) -> tuple[list[dict[str, str]], int]:
         self.ensure_schema()
+        futures_increment = (
+            self._futures_base_increment()
+            if self.goal_id == FUTURES_HOTPOINT_GOAL_ID
+            else None
+        )
         with self._cursor() as cursor:
-            cursor.execute(
-                f"""
+            if self.goal_id == FUTURES_HOTPOINT_GOAL_ID:
+                cursor.execute(
+                    f"""
+                    SELECT parent.client_order_id, parent.product_id,
+                           UPPER(parent.side) AS side,
+                           UPPER(parent.status) AS status,
+                           COUNT(*) OVER() AS total_count
+                      FROM {self._table('order_parent')} AS parent
+                      JOIN {
+                          self._table('operator_futures_order_projection')
+                      } AS projection
+                        ON projection.client_order_id =
+                           parent.client_order_id
+                     WHERE parent.product_id = %s
+                       AND UPPER(parent.status) = 'OPEN'
+                       AND UPPER(parent.side) = 'BUY'
+                       AND parent.parent_order_id IS NULL
+                       AND parent.ownership_provenance = ANY(%s)
+                       AND parent.retail_portfolio_id = %s
+                       AND parent.auto_placed_by_hotpoint IS NOT TRUE
+                       AND projection.product_id = parent.product_id
+                       AND projection.side = 'BUY'
+                       AND projection.status = 'OPEN'
+                       AND projection.order_type = 'LIMIT'
+                       AND projection.time_in_force =
+                           'GOOD_UNTIL_CANCELLED'
+                       AND CASE
+                               WHEN projection.size
+                                        ~ '^[0-9]+([.][0-9]+)?$'
+                                    AND projection.filled_size
+                                        ~ '^[0-9]+([.][0-9]+)?$'
+                               THEN projection.size::numeric =
+                                    parent.size
+                                    AND parent.size > 0
+                                    AND trunc(parent.size) = parent.size
+                                    AND projection.size::numeric > 0
+                                    AND trunc(
+                                        projection.size::numeric
+                                    ) = projection.size::numeric
+                                    AND
+                                        projection.filled_size::numeric
+                                        >= 0
+                                    AND trunc(
+                                        projection.filled_size::numeric
+                                    ) =
+                                        projection.filled_size::numeric
+                                    AND
+                                        projection.filled_size::numeric
+                                        < projection.size::numeric
+                                    AND (
+                                        projection.size::numeric
+                                        - projection.filled_size::numeric
+                                    ) > %s
+                               ELSE FALSE
+                           END
+                       AND projection.authoritatively_nonterminal IS TRUE
+                     ORDER BY parent.created_at DESC,
+                              parent.client_order_id ASC
+                     LIMIT %s OFFSET %s
+                    """,
+                    (
+                        self.policy.product_id,
+                        sorted(_ALLOWED_PARENT_PROVENANCE),
+                        self.configured_portfolio_id,
+                        Decimal(_TRIGGER_FILL_COUNT)
+                        * futures_increment,
+                        limit,
+                        offset,
+                    ),
+                )
+            else:
+                cursor.execute(
+                    f"""
                 SELECT client_order_id, product_id, UPPER(side) AS side,
                        UPPER(status) AS status,
                        COUNT(*) OVER() AS total_count
@@ -518,14 +674,14 @@ class OperatorHotpointControlRepository:
                  ORDER BY created_at DESC, client_order_id ASC
                  LIMIT %s OFFSET %s
                 """,
-                (
-                    self.policy.product_id,
-                    sorted(_ALLOWED_PARENT_PROVENANCE),
-                    self.configured_portfolio_id,
-                    limit,
-                    offset,
-                ),
-            )
+                    (
+                        self.policy.product_id,
+                        sorted(_ALLOWED_PARENT_PROVENANCE),
+                        self.configured_portfolio_id,
+                        limit,
+                        offset,
+                    ),
+                )
             rows: list[dict[str, str]] = []
             total = 0
             while (row := _row(cursor)) is not None:
@@ -541,8 +697,39 @@ class OperatorHotpointControlRepository:
         return rows, total
 
     def _parent(self, cursor: Any, parent_id: str) -> dict[str, Any]:
-        cursor.execute(
-            f"""
+        if self.goal_id == FUTURES_HOTPOINT_GOAL_ID:
+            cursor.execute(
+                f"""
+                SELECT parent.client_order_id, parent.product_id,
+                       parent.side, parent.status, parent.parent_order_id,
+                       parent.ownership_provenance,
+                       parent.retail_portfolio_id,
+                       parent.auto_placed_by_hotpoint,
+                       parent.size AS parent_size,
+                       projection.size AS projection_size,
+                       projection.filled_size AS projection_filled_size,
+                       projection.exchange_order_id_sha256
+                  FROM {self._table('order_parent')} AS parent
+                  JOIN {
+                      self._table('operator_futures_order_projection')
+                  } AS projection
+                    ON projection.client_order_id =
+                       parent.client_order_id
+                 WHERE parent.client_order_id = %s
+                   AND projection.product_id = parent.product_id
+                   AND projection.side = 'BUY'
+                   AND projection.status = 'OPEN'
+                   AND projection.order_type = 'LIMIT'
+                   AND projection.time_in_force =
+                       'GOOD_UNTIL_CANCELLED'
+                   AND projection.authoritatively_nonterminal IS TRUE
+                 FOR UPDATE OF parent
+                """,
+                (parent_id,),
+            )
+        else:
+            cursor.execute(
+                f"""
             SELECT client_order_id, product_id, side, status,
                    parent_order_id, ownership_provenance,
                    retail_portfolio_id, auto_placed_by_hotpoint
@@ -550,8 +737,8 @@ class OperatorHotpointControlRepository:
              WHERE client_order_id = %s
              FOR UPDATE
             """,
-            (parent_id,),
-        )
+                (parent_id,),
+            )
         parent = _row(cursor)
         if parent is None:
             raise ValueError("operator_hotpoint_parent_not_found")
@@ -565,9 +752,90 @@ class OperatorHotpointControlRepository:
             != self.configured_portfolio_id
             or parent.get("auto_placed_by_hotpoint") is True
             or str(parent.get("side") or "").upper() not in {"BUY", "SELL"}
+            or (
+                self.goal_id == FUTURES_HOTPOINT_GOAL_ID
+                and str(parent.get("side") or "").upper() != "BUY"
+            )
+            or (
+                self.goal_id == FUTURES_HOTPOINT_GOAL_ID
+                and (
+                    re.fullmatch(
+                        r"[0-9]+(?:[.][0-9]+)?",
+                        str(parent.get("projection_size") or ""),
+                    ) is None
+                    or (
+                        _decimal(
+                            parent.get("projection_size"),
+                            code="operator_hotpoint_parent_ineligible",
+                        )
+                        <= 0
+                    )
+                    or _decimal(
+                        parent.get("projection_size"),
+                        code="operator_hotpoint_parent_ineligible",
+                    )
+                    != _decimal(
+                        parent.get("projection_size"),
+                        code="operator_hotpoint_parent_ineligible",
+                    ).to_integral_value()
+                    or _decimal(
+                        parent.get("parent_size"),
+                        code="operator_hotpoint_parent_ineligible",
+                    )
+                    != _decimal(
+                        parent.get("projection_size"),
+                        code="operator_hotpoint_parent_ineligible",
+                    )
+                    or re.fullmatch(
+                        r"[0-9]+(?:[.][0-9]+)?",
+                        str(
+                            parent.get("projection_filled_size")
+                            or "0"
+                        ),
+                    )
+                    is None
+                    or _decimal(
+                        parent.get("projection_filled_size"),
+                        code="operator_hotpoint_parent_ineligible",
+                    )
+                    != _decimal(
+                        parent.get("projection_filled_size"),
+                        code="operator_hotpoint_parent_ineligible",
+                    ).to_integral_value()
+                    or (
+                        _decimal(
+                            parent.get("projection_size"),
+                            code="operator_hotpoint_parent_ineligible",
+                        )
+                        - _decimal(
+                            parent.get("projection_filled_size"),
+                            code="operator_hotpoint_parent_ineligible",
+                        )
+                    )
+                    <= (
+                        Decimal(_TRIGGER_FILL_COUNT)
+                        * self._futures_base_increment()
+                    )
+                )
+            )
         ):
             raise ValueError("operator_hotpoint_parent_ineligible")
         return parent
+
+    def _futures_base_increment(self) -> Decimal:
+        metadata = self.product_metadata_provider(self.policy.product_id)
+        base_increment = _decimal(
+            _metadata_value(metadata, "base_increment"),
+            code="operator_futures_hotpoint_fill_conservation_invalid",
+        )
+        if (
+            base_increment <= 0
+            or base_increment != base_increment.to_integral_value()
+        ):
+            raise ValueError(
+                "operator_futures_hotpoint_fill_conservation_invalid"
+            )
+        return base_increment
 
     def transition_control(
         self,
@@ -712,7 +980,7 @@ class OperatorHotpointControlRepository:
                 raise ValueError("operator_hotpoint_control_invalid")
 
             values = (
-                HOTPOINT_GOAL_ID,
+                self.goal_id,
                 next_revision,
                 kill_state.value,
                 create_authority,
@@ -786,7 +1054,7 @@ class OperatorHotpointControlRepository:
                         json.dumps(list(roles), separators=(",", ":")),
                         str(correlation_id),
                         normalized_audit,
-                        HOTPOINT_GOAL_ID,
+                        self.goal_id,
                         current.revision,
                     ),
                 )
@@ -827,8 +1095,21 @@ class OperatorHotpointControlRepository:
         side: str,
         started_at: str,
     ) -> tuple[Decimal, ...]:
-        cursor.execute(
-            f"""
+        if self.goal_id == FUTURES_HOTPOINT_GOAL_ID:
+            current = self._current(cursor, lock=False)
+            if current is None:
+                return ()
+            events = self._futures_trigger_events(cursor, row=current)
+            return tuple(
+                _decimal(
+                    event["price"],
+                    code="operator_hotpoint_fill_evidence_invalid",
+                )
+                for event in events
+            )
+        else:
+            cursor.execute(
+                f"""
             SELECT fill.price
               FROM {self._table('fill_ledger')} AS fill
               LEFT JOIN {self._table('order_parent')} AS source
@@ -843,8 +1124,8 @@ class OperatorHotpointControlRepository:
                )
              ORDER BY fill.created_at ASC, fill.id ASC
             """,
-            (started_at, product_id, side, parent_id, parent_id),
-        )
+                (started_at, product_id, side, parent_id, parent_id),
+            )
         by_bucket: dict[int, list[Decimal]] = {}
         while (row := _row(cursor)) is not None:
             price = _decimal(
@@ -867,6 +1148,898 @@ class OperatorHotpointControlRepository:
             return ()
         prices = qualified[-1][-_TRIGGER_FILL_COUNT:]
         return tuple(prices)
+
+    def _futures_parent_projection(
+        self,
+        cursor: Any,
+        *,
+        row: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        cursor.execute(
+            f"""
+            SELECT projection.exchange_order_id_sha256,
+                   projection.size,
+                   projection.filled_size,
+                   parent.size AS parent_size
+              FROM {
+                  self._table('operator_futures_order_projection')
+              } AS projection
+              JOIN {self._table('order_parent')} AS parent
+                ON parent.client_order_id =
+                   projection.client_order_id
+             WHERE projection.client_order_id = %s
+               AND projection.product_id = %s
+               AND parent.product_id = projection.product_id
+               AND UPPER(parent.side) = 'BUY'
+               AND UPPER(parent.status) = 'OPEN'
+               AND parent.parent_order_id IS NULL
+               AND parent.ownership_provenance = ANY(%s)
+               AND parent.retail_portfolio_id = %s
+               AND parent.auto_placed_by_hotpoint IS NOT TRUE
+               AND projection.side = 'BUY'
+               AND projection.status = 'OPEN'
+               AND projection.order_type = 'LIMIT'
+               AND projection.time_in_force = 'GOOD_UNTIL_CANCELLED'
+               AND projection.authoritatively_nonterminal IS TRUE
+            """,
+            (
+                row["parent_client_order_id"],
+                self.policy.product_id,
+                sorted(_ALLOWED_PARENT_PROVENANCE),
+                self.configured_portfolio_id,
+            ),
+        )
+        projection = _row(cursor)
+        projection_hash = str(
+            (projection or {}).get("exchange_order_id_sha256") or ""
+        ).lower()
+        parent_size = _decimal(
+            (projection or {}).get("size"),
+            code="operator_futures_hotpoint_parent_projection_invalid",
+        )
+        stored_parent_size = _decimal(
+            (projection or {}).get("parent_size"),
+            code="operator_futures_hotpoint_parent_projection_invalid",
+        )
+        filled_size = _decimal(
+            (projection or {}).get("filled_size"),
+            code="operator_futures_hotpoint_parent_projection_invalid",
+        )
+        if (
+            re.fullmatch(r"[0-9a-f]{64}", projection_hash) is None
+            or re.fullmatch(
+                r"[0-9]+(?:[.][0-9]+)?",
+                str((projection or {}).get("size") or ""),
+            )
+            is None
+            or parent_size <= 0
+            or parent_size != parent_size.to_integral_value()
+            or parent_size != stored_parent_size
+            or re.fullmatch(
+                r"[0-9]+(?:[.][0-9]+)?",
+                str((projection or {}).get("filled_size") or "0"),
+            )
+            is None
+            or filled_size < 0
+            or filled_size != filled_size.to_integral_value()
+            or filled_size >= parent_size
+        ):
+            raise ValueError(
+                "operator_futures_hotpoint_parent_projection_invalid"
+            )
+        return {
+            "exchange_order_id_sha256": projection_hash,
+            "size": parent_size,
+            "filled_size": filled_size,
+        }
+
+    def _futures_fill_events(
+        self,
+        cursor: Any,
+        *,
+        row: Mapping[str, Any],
+        parent_size: Decimal,
+        projection_filled_size: Decimal,
+    ) -> tuple[dict[str, str], ...]:
+        if self.goal_id != FUTURES_HOTPOINT_GOAL_ID:
+            raise ValueError("operator_futures_hotpoint_goal_binding_invalid")
+        base_increment = self._futures_base_increment()
+        cursor.execute(
+            f"""
+            SELECT fill.price, fill.quantity, fill.created_at,
+                   fill.exchange_fill_identity_sha256
+              FROM {self._table('fill_ledger')} AS fill
+             WHERE fill.instrument = %s
+               AND UPPER(fill.side) = 'BUY'
+               AND fill.quantity > 0
+               AND fill.client_order_id = %s
+               AND fill.reconciliation_status = 'RECONCILED'
+             ORDER BY fill.created_at ASC, fill.id ASC
+            """,
+            (
+                self.policy.product_id,
+                row["parent_client_order_id"],
+            ),
+        )
+        events: list[dict[str, str]] = []
+        identities: set[str] = set()
+        total_quantity = Decimal("0")
+        window_started = row.get("window_started_at")
+        window_expires = row.get("window_expires_at")
+        if (
+            not isinstance(window_started, datetime)
+            or not isinstance(window_expires, datetime)
+        ):
+            raise ValueError(
+                "operator_futures_hotpoint_fill_conservation_invalid"
+            )
+        if window_started.tzinfo is None:
+            window_started = window_started.replace(tzinfo=timezone.utc)
+        if window_expires.tzinfo is None:
+            window_expires = window_expires.replace(tzinfo=timezone.utc)
+        while (event := _row(cursor)) is not None:
+            identity = str(
+                event.get("exchange_fill_identity_sha256") or ""
+            ).lower()
+            price = _decimal(
+                event.get("price"),
+                code="operator_hotpoint_fill_evidence_invalid",
+            )
+            quantity = _decimal(
+                event.get("quantity"),
+                code="operator_futures_hotpoint_fill_conservation_invalid",
+            )
+            created_at = _iso(event.get("created_at"))
+            event_time = event.get("created_at")
+            if isinstance(event_time, datetime) and event_time.tzinfo is None:
+                event_time = event_time.replace(tzinfo=timezone.utc)
+            if (
+                not re.fullmatch(r"[0-9a-f]{64}", identity)
+                or identity in identities
+                or price <= 0
+                or quantity <= 0
+                or quantity % base_increment != 0
+                or not created_at
+                or not isinstance(event_time, datetime)
+            ):
+                raise ValueError(
+                    "operator_futures_hotpoint_fill_conservation_invalid"
+                )
+            identities.add(identity)
+            total_quantity += quantity
+            if total_quantity >= parent_size:
+                raise ValueError(
+                    "operator_futures_hotpoint_fill_conservation_invalid"
+                )
+            if window_started <= event_time < window_expires:
+                events.append(
+                    {
+                        "exchange_fill_identity_sha256": identity,
+                        "price": str(price),
+                        "quantity": str(quantity),
+                        "created_at": created_at,
+                    }
+                )
+        if total_quantity != projection_filled_size:
+            raise ValueError(
+                "operator_futures_hotpoint_fill_conservation_invalid"
+            )
+        return tuple(events)
+
+    def _futures_trigger_events(
+        self,
+        cursor: Any,
+        *,
+        row: Mapping[str, Any],
+        projection: Mapping[str, Any] | None = None,
+    ) -> tuple[dict[str, str], ...]:
+        exact_projection = (
+            dict(projection)
+            if projection is not None
+            else self._futures_parent_projection(cursor, row=row)
+        )
+        events = self._futures_fill_events(
+            cursor,
+            row=row,
+            parent_size=_decimal(
+                exact_projection.get("size"),
+                code=(
+                    "operator_futures_hotpoint_parent_projection_invalid"
+                ),
+            ),
+            projection_filled_size=_decimal(
+                exact_projection.get("filled_size"),
+                code=(
+                    "operator_futures_hotpoint_parent_projection_invalid"
+                ),
+            ),
+        )
+        by_bucket: dict[int, list[dict[str, str]]] = {}
+        for event in events:
+            bucket_id = compute_bucket_id(
+                float(event["price"]),
+                float(_BUCKET_WIDTH_PCT),
+            )
+            by_bucket.setdefault(bucket_id, []).append(event)
+        qualified = [
+            (bucket_events[2]["created_at"], bucket_id, bucket_events)
+            for bucket_id, bucket_events in by_bucket.items()
+            if len(bucket_events) >= _TRIGGER_FILL_COUNT
+        ]
+        if not qualified:
+            return ()
+        _qualified_at, _bucket_id, selected = min(
+            qualified,
+            key=lambda item: (item[0], item[1]),
+        )
+        return tuple(selected[:_TRIGGER_FILL_COUNT])
+
+    def _futures_trigger_binding(
+        self,
+        cursor: Any,
+        *,
+        row: Mapping[str, Any],
+    ) -> FuturesHotpointTriggerBinding | None:
+        projection = self._futures_parent_projection(cursor, row=row)
+        events = self._futures_trigger_events(
+            cursor,
+            row=row,
+            projection=projection,
+        )
+        if len(events) != _TRIGGER_FILL_COUNT:
+            return None
+        projection_hash = str(
+            projection.get("exchange_order_id_sha256") or ""
+        ).lower()
+        bucket_id = compute_bucket_id(
+            float(events[0]["price"]),
+            float(_BUCKET_WIDTH_PCT),
+        )
+        evidence = {
+            "goal_id": self.goal_id,
+            "selection_rule": (
+                "earliest_three_distinct_reconciled_fills_in_window"
+            ),
+            "parent_client_order_id": str(
+                row["parent_client_order_id"]
+            ),
+            "window_id": str(row["window_id"]),
+            "product_id": self.policy.product_id,
+            "side": "BUY",
+            "hotpoint_bucket_id": bucket_id,
+            "parent_exchange_order_id_sha256": projection_hash,
+            "fill_count": _TRIGGER_FILL_COUNT,
+            "fills": list(events),
+        }
+        return FuturesHotpointTriggerBinding(
+            parent_client_order_id=str(row["parent_client_order_id"]),
+            window_id=str(row["window_id"]),
+            trigger_evidence_sha256=hashlib.sha256(
+                json.dumps(
+                    evidence,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    ensure_ascii=True,
+                ).encode("utf-8")
+            ).hexdigest(),
+        )
+
+    def claim_futures_trigger(
+        self,
+        *,
+        expected_revision: int,
+        expected_parent_client_order_id: str,
+        idempotency_key: str,
+        actor_id: str,
+        roles: tuple[str, ...],
+        correlation_id: str,
+        audit_id: str,
+    ) -> tuple[
+        OperatorHotpointControlRecord,
+        FuturesHotpointTriggerBinding,
+    ]:
+        """Claim one qualified Goal13 trigger without consuming Preview/Create."""
+
+        if self.goal_id != FUTURES_HOTPOINT_GOAL_ID:
+            raise ValueError("operator_futures_hotpoint_goal_binding_invalid")
+        normalized_audit = str(uuid.UUID(str(audit_id)))
+        normalized_idempotency_key = str(idempotency_key or "").strip()
+        normalized_actor = str(actor_id or "").strip()
+        normalized_correlation = str(correlation_id or "").strip()
+        normalized_roles = tuple(
+            sorted(str(role).strip().lower() for role in roles if str(role).strip())
+        )
+        if (
+            not normalized_idempotency_key
+            or not normalized_actor
+            or not normalized_correlation
+            or not normalized_roles
+            or not {"admin", "trader"}.intersection(normalized_roles)
+        ):
+            raise ValueError(
+                "operator_futures_hotpoint_trigger_context_invalid"
+            )
+        key_hash = hashlib.sha256(
+            f"{self.goal_id}:{normalized_idempotency_key}".encode("utf-8")
+        ).hexdigest()
+        request_hash = hashlib.sha256(
+            json.dumps(
+                {
+                    "goal_id": self.goal_id,
+                    "expected_revision": expected_revision,
+                    "parent_client_order_id": (
+                        expected_parent_client_order_id
+                    ),
+                    "actor_id": normalized_actor,
+                    "roles": normalized_roles,
+                    "correlation_id": normalized_correlation,
+                    "audit_id": normalized_audit,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+            ).encode("utf-8")
+        ).hexdigest()
+        with self._cursor() as cursor:
+            self._lock(cursor)
+            row = self._current(cursor, lock=True)
+            if row is None:
+                raise ValueError("operator_futures_hotpoint_not_armed")
+            current = self._record(row)
+            if (
+                current.parent_client_order_id
+                != expected_parent_client_order_id
+                or current.kill_switch_state
+                is not HotpointKillSwitchState.ENABLED
+                or row.get("delegated_create_authority") is not True
+                or current.window_state is not HotpointWindowState.ARMED
+                or current.create_state
+                is not HotpointCreateState.NOT_CLAIMED
+                or not current.window_id
+                or not current.window_expires_at
+            ):
+                raise ValueError(
+                    "operator_futures_hotpoint_trigger_not_authorized"
+                )
+            expires = datetime.fromisoformat(current.window_expires_at)
+            if expires.tzinfo is None:
+                expires = expires.replace(tzinfo=timezone.utc)
+            if self.clock().astimezone(timezone.utc) >= expires:
+                raise ValueError(
+                    "operator_futures_hotpoint_trigger_window_expired"
+                )
+            if (
+                row.get("trigger_idempotency_sha256") == key_hash
+            ):
+                if row.get("trigger_request_sha256") != request_hash:
+                    raise ValueError(
+                        "operator_futures_hotpoint_idempotency_conflict"
+                    )
+                if not row.get("plan_evidence_sha256"):
+                    raise ValueError(
+                        "operator_futures_hotpoint_trigger_replay_invalid"
+                    )
+                return current, FuturesHotpointTriggerBinding(
+                    parent_client_order_id=(
+                        expected_parent_client_order_id
+                    ),
+                    window_id=str(current.window_id),
+                    trigger_evidence_sha256=str(
+                        row["plan_evidence_sha256"]
+                    ),
+                )
+            existing_owner = str(
+                row.get("trigger_idempotency_sha256") or ""
+            )
+            if existing_owner:
+                cursor.execute(
+                    "SELECT to_regclass(%s) AS relation_name",
+                    (
+                        f"{self.schema}."
+                        "operator_futures_hotpoint_v2_external_command",
+                    ),
+                )
+                command_table = _row(cursor)
+                if (
+                    command_table is None
+                    or command_table.get("relation_name") is None
+                ):
+                    raise ValueError(
+                        "operator_futures_hotpoint_trigger_owner_active"
+                    )
+                cursor.execute(
+                    f"""
+                    SELECT result.command_id,
+                           result.outcome AS command_outcome
+                      FROM {self._table(
+                          'operator_futures_hotpoint_v2_external_command'
+                      )} AS command
+                      LEFT JOIN {self._table(
+                          'operator_futures_hotpoint_v2_external_'
+                          'command_result'
+                      )} AS result
+                        ON result.command_id = command.command_id
+                     WHERE command.goal_id = %s
+                       AND command.idempotency_key_sha256 = %s
+                    """,
+                    (self.goal_id, existing_owner),
+                )
+                owner = _row(cursor)
+                if (
+                    owner is None
+                    or owner.get("command_id") is None
+                ):
+                    raise ValueError(
+                        "operator_futures_hotpoint_trigger_owner_active"
+                    )
+                cursor.execute(
+                    "SELECT to_regclass(%s) AS relation_name",
+                    (
+                        f"{self.schema}."
+                        "operator_futures_manual_goal",
+                    ),
+                )
+                lifecycle_table = _row(cursor)
+                if (
+                    lifecycle_table is None
+                    or lifecycle_table.get("relation_name") is None
+                ):
+                    raise ValueError(
+                        "operator_futures_hotpoint_trigger_owner_active"
+                    )
+                cursor.execute(
+                    f"""
+                    SELECT cycles_used, active_cycle_number,
+                           eligibility_outcome, preview_outcome,
+                           create_outcome
+                      FROM {self._table(
+                          'operator_futures_manual_goal'
+                      )}
+                     WHERE goal_id = %s
+                     FOR UPDATE
+                    """,
+                    (self.goal_id,),
+                )
+                lifecycle = _row(cursor)
+                if lifecycle is None:
+                    raise ValueError(
+                        "operator_futures_hotpoint_trigger_owner_active"
+                    )
+                eligibility = lifecycle.get("eligibility_outcome")
+                cycles_used = int(lifecycle.get("cycles_used") or 0)
+                released_after_cycle = eligibility in {
+                    "INELIGIBLE",
+                    "UNKNOWN",
+                }
+                released_after_eligible_prepreview = (
+                    eligibility == "ELIGIBLE"
+                    and owner.get("command_outcome")
+                    in {"SUCCESS", "FAILED", "UNKNOWN"}
+                )
+                released_before_cycle = (
+                    eligibility is None
+                    and cycles_used == 0
+                    and owner.get("command_outcome") == "UNKNOWN"
+                )
+                if (
+                    lifecycle.get("active_cycle_number") is not None
+                    or cycles_used >= 10
+                    or lifecycle.get("preview_outcome") != "NOT_RUN"
+                    or lifecycle.get("create_outcome") != "NOT_RUN"
+                    or not (
+                        released_after_cycle
+                        or released_after_eligible_prepreview
+                        or released_before_cycle
+                    )
+                ):
+                    raise ValueError(
+                        "operator_futures_hotpoint_trigger_owner_active"
+                    )
+            if (
+                current.revision != expected_revision
+            ):
+                raise ValueError(
+                    "operator_futures_hotpoint_trigger_not_authorized"
+                )
+            binding = self._futures_trigger_binding(cursor, row=row)
+            if binding is None:
+                raise ValueError(
+                    "operator_futures_hotpoint_trigger_not_satisfied"
+                )
+            cursor.execute(
+                f"""
+                UPDATE {self._table('operator_hotpoint_control')}
+                   SET revision = revision + 1,
+                       plan_evidence_sha256 = %s,
+                       trigger_idempotency_sha256 = %s,
+                       trigger_request_sha256 = %s,
+                       actor_id = %s,
+                       roles_json = %s::jsonb,
+                       correlation_id = %s,
+                       audit_id = %s,
+                       diagnostic_code =
+                           'operator_futures_hotpoint_trigger_claimed',
+                       updated_at = CURRENT_TIMESTAMP
+                 WHERE goal_id = %s
+                   AND revision = %s
+                   AND window_state = 'ARMED'
+                   AND create_state = 'NOT_CLAIMED'
+                """,
+                (
+                    binding.trigger_evidence_sha256,
+                    key_hash,
+                    request_hash,
+                    normalized_actor,
+                    json.dumps(
+                        list(normalized_roles),
+                        separators=(",", ":"),
+                    ),
+                    normalized_correlation,
+                    normalized_audit,
+                    self.goal_id,
+                    expected_revision,
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise ValueError(
+                    "operator_futures_hotpoint_trigger_claim_unknown"
+                )
+            claimed = self._current(cursor, lock=False)
+            if claimed is None:
+                raise ValueError(
+                    "operator_futures_hotpoint_trigger_claim_unknown"
+                )
+            return self._record(claimed), binding
+
+    def revalidate_futures_trigger(
+        self,
+        binding: FuturesHotpointTriggerBinding,
+    ) -> bool:
+        """Recompute the exact earliest-three binding immediately pre-Preview."""
+
+        binding.validate()
+        if self.goal_id != FUTURES_HOTPOINT_GOAL_ID:
+            return False
+        with self._cursor() as cursor:
+            self._lock(cursor)
+            row = self._current(cursor, lock=True)
+            if row is None:
+                return False
+            record = self._record(row)
+            if (
+                record.kill_switch_state
+                is not HotpointKillSwitchState.ENABLED
+                or row.get("delegated_create_authority") is not True
+                or record.window_state is not HotpointWindowState.ARMED
+                or record.create_state
+                is not HotpointCreateState.NOT_CLAIMED
+                or not record.window_expires_at
+                or str(row.get("parent_client_order_id") or "")
+                != binding.parent_client_order_id
+                or str(row.get("window_id") or "") != binding.window_id
+                or str(row.get("plan_evidence_sha256") or "")
+                != binding.trigger_evidence_sha256
+            ):
+                return False
+            expires = datetime.fromisoformat(record.window_expires_at)
+            if expires.tzinfo is None:
+                expires = expires.replace(tzinfo=timezone.utc)
+            if self.clock().astimezone(timezone.utc) >= expires:
+                return False
+            try:
+                current = self._futures_trigger_binding(cursor, row=row)
+            except Exception:
+                return False
+            return current == binding
+
+    def read_futures_trigger_readback(self) -> dict[str, Any]:
+        """Return only sanitized, call-free Goal13 trigger progress."""
+
+        if self.goal_id != FUTURES_HOTPOINT_GOAL_ID:
+            raise ValueError(
+                "operator_futures_hotpoint_goal_binding_invalid"
+            )
+        self.ensure_schema()
+        with self._cursor() as cursor:
+            row = self._current(cursor, lock=False)
+            if row is None or not row.get("window_id"):
+                return {
+                    "trigger_fill_count": 0,
+                    "trigger_evidence_sha256": None,
+                    "window_id_sha256": None,
+                }
+            window_hash = hashlib.sha256(
+                str(row["window_id"]).encode("utf-8")
+            ).hexdigest()
+            stored_evidence = str(
+                row.get("plan_evidence_sha256") or ""
+            ).lower()
+            if stored_evidence:
+                if re.fullmatch(r"[0-9a-f]{64}", stored_evidence) is None:
+                    raise ValueError(
+                        "operator_futures_hotpoint_trigger_evidence_invalid"
+                    )
+                # Once the trigger has been claimed, its exact three-fill
+                # evidence is an immutable durable latch.  Ordinary readback
+                # must not reacquire pre-attempt OPEN-parent eligibility:
+                # the source parent may legitimately become terminal while
+                # the child attempt is running or during later closeout.
+                return {
+                    "trigger_fill_count": _TRIGGER_FILL_COUNT,
+                    "trigger_evidence_sha256": stored_evidence,
+                    "window_id_sha256": window_hash,
+                }
+            projection = self._futures_parent_projection(
+                cursor,
+                row=row,
+            )
+            events = self._futures_fill_events(
+                cursor,
+                row=row,
+                parent_size=_decimal(
+                    projection.get("size"),
+                    code=(
+                        "operator_futures_hotpoint_parent_projection_invalid"
+                    ),
+                ),
+                projection_filled_size=_decimal(
+                    projection.get("filled_size"),
+                    code=(
+                        "operator_futures_hotpoint_parent_projection_invalid"
+                    ),
+                ),
+            )
+            bucket_counts: dict[int, int] = {}
+            for event in events:
+                price = _decimal(
+                    event.get("price"),
+                    code=(
+                        "operator_hotpoint_fill_evidence_invalid"
+                    ),
+                )
+                bucket_id = compute_bucket_id(
+                    float(price),
+                    float(_BUCKET_WIDTH_PCT),
+                )
+                bucket_counts[bucket_id] = (
+                    bucket_counts.get(bucket_id, 0) + 1
+                )
+            progress = min(
+                max(bucket_counts.values(), default=0),
+                _TRIGGER_FILL_COUNT,
+            )
+            binding = (
+                self._futures_trigger_binding(cursor, row=row)
+                if (
+                    progress == _TRIGGER_FILL_COUNT
+                )
+                else None
+            )
+            return {
+                "trigger_fill_count": progress,
+                "trigger_evidence_sha256": (
+                    binding.trigger_evidence_sha256
+                    if binding is not None
+                    else None
+                ),
+                "window_id_sha256": window_hash,
+            }
+
+    def validate_futures_candidate_claim(
+        self,
+        *,
+        cursor: Any,
+        candidate: Mapping[str, Any],
+    ) -> None:
+        """Rebind a durable candidate to the live Goal13 control transaction."""
+
+        if self.goal_id != FUTURES_HOTPOINT_GOAL_ID:
+            raise ValueError(
+                "operator_futures_hotpoint_goal_binding_invalid"
+            )
+        exact = validate_futures_hotpoint_candidate(candidate)
+        validate_futures_hotpoint_candidate_execution_window(
+            exact,
+            now=self.clock(),
+        )
+        row = self._current(cursor, lock=True)
+        if row is None:
+            raise ValueError(
+                "operator_futures_hotpoint_candidate_binding_invalid"
+            )
+        record = self._record(row)
+        if (
+            record.kill_switch_state
+            is not HotpointKillSwitchState.ENABLED
+            or row.get("delegated_create_authority") is not True
+            or record.window_state is not HotpointWindowState.ARMED
+            or record.create_state
+            is not HotpointCreateState.NOT_CLAIMED
+            or record.parent_client_order_id
+            != exact["hotpoint_parent_client_order_id"]
+            or record.window_id != exact["hotpoint_window_id"]
+            or row.get("plan_evidence_sha256")
+            != exact["hotpoint_trigger_evidence_sha256"]
+            or not record.window_expires_at
+        ):
+            raise ValueError(
+                "operator_futures_hotpoint_candidate_binding_invalid"
+            )
+        expires = datetime.fromisoformat(record.window_expires_at)
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        if self.clock().astimezone(timezone.utc) >= expires:
+            raise ValueError(
+                "operator_futures_hotpoint_candidate_binding_invalid"
+            )
+        expected = FuturesHotpointTriggerBinding(
+            parent_client_order_id=record.parent_client_order_id,
+            window_id=record.window_id,
+            trigger_evidence_sha256=(
+                exact["hotpoint_trigger_evidence_sha256"]
+            ),
+        )
+        if self._futures_trigger_binding(cursor, row=row) != expected:
+            raise ValueError(
+                "operator_futures_hotpoint_candidate_binding_invalid"
+            )
+
+    def validate_futures_create_invocation(
+        self,
+        *,
+        cursor: Any,
+        candidate: Mapping[str, Any],
+        claim_id: str,
+        client_order_id: str,
+    ) -> None:
+        """Atomically seal Goal13 authority at the Create call boundary."""
+
+        if self.goal_id != FUTURES_HOTPOINT_GOAL_ID:
+            raise ValueError(
+                "operator_futures_hotpoint_goal_binding_invalid"
+            )
+        try:
+            normalized_claim_id = str(uuid.UUID(str(claim_id)))
+            child = str(client_order_id or "").strip()
+            prefix = "operator-futures-hotpoint-v2-"
+            if (
+                not child.startswith(prefix)
+                or str(uuid.UUID(child.removeprefix(prefix)))
+                != child.removeprefix(prefix)
+            ):
+                raise ValueError
+        except (TypeError, ValueError, AttributeError):
+            raise ValueError(
+                "operator_futures_hotpoint_create_invocation_"
+                "binding_invalid"
+            ) from None
+        try:
+            self.validate_futures_candidate_claim(
+                cursor=cursor,
+                candidate=candidate,
+            )
+        except Exception:
+            raise ValueError(
+                "operator_futures_hotpoint_create_invocation_"
+                "not_authorized"
+            ) from None
+        self._goal_allowance_lock(cursor)
+        cursor.execute(
+            f"""
+            INSERT INTO {self._table('operator_hotpoint_goal_allowance')} (
+                goal_id, create_claim_id, create_claim_domain
+            ) VALUES (%s, %s, 'FUTURES')
+            ON CONFLICT (goal_id) DO NOTHING
+            """,
+            (self.goal_id, normalized_claim_id),
+        )
+        if cursor.rowcount != 1:
+            raise ValueError(
+                "operator_futures_hotpoint_create_invocation_"
+                "allowance_consumed"
+            )
+        cursor.execute(
+            f"""
+            UPDATE {self._table('operator_hotpoint_control')}
+               SET revision = revision + 1,
+                   window_state = 'CLAIMED',
+                   create_state = 'CLAIMED',
+                   placement_claim_id = %s,
+                   child_client_order_id = %s,
+                   create_exchange_invoked = TRUE,
+                   diagnostic_code =
+                       'operator_futures_hotpoint_create_invocation_entered',
+                   updated_at = CURRENT_TIMESTAMP
+             WHERE goal_id = %s
+               AND kill_switch_state = 'ENABLED'
+               AND delegated_create_authority IS TRUE
+               AND window_state = 'ARMED'
+               AND create_state = 'NOT_CLAIMED'
+            """,
+            (
+                normalized_claim_id,
+                child,
+                self.goal_id,
+            ),
+        )
+        if cursor.rowcount != 1:
+            raise ValueError(
+                "operator_futures_hotpoint_create_invocation_"
+                "not_authorized"
+            )
+
+    def validate_futures_preview_invocation(
+        self,
+        *,
+        cursor: Any,
+        candidate: Mapping[str, Any],
+    ) -> None:
+        """Recheck Goal13 control authority at the Preview SDK boundary."""
+
+        try:
+            self.validate_futures_candidate_claim(
+                cursor=cursor,
+                candidate=candidate,
+            )
+        except Exception:
+            raise ValueError(
+                "operator_futures_hotpoint_preview_invocation_"
+                "not_authorized"
+            ) from None
+
+    def close_futures_control_after_attempt(
+        self,
+    ) -> OperatorHotpointControlRecord:
+        """Durably revoke trigger authority once any Goal13 attempt exists."""
+
+        if self.goal_id != FUTURES_HOTPOINT_GOAL_ID:
+            raise ValueError(
+                "operator_futures_hotpoint_goal_binding_invalid"
+            )
+        self.ensure_schema()
+        with self._cursor() as cursor:
+            self._lock(cursor)
+            row = self._current(cursor, lock=True)
+            if row is None:
+                raise ValueError(
+                    "operator_futures_hotpoint_control_missing"
+                )
+            record = self._record(row)
+            if (
+                record.kill_switch_state
+                is HotpointKillSwitchState.DISABLED
+                and record.window_state
+                in {
+                    HotpointWindowState.TERMINAL,
+                    HotpointWindowState.DISARMED,
+                    HotpointWindowState.EXPIRED,
+                }
+                and row.get("delegated_create_authority") is not True
+            ):
+                return record
+            cursor.execute(
+                f"""
+                UPDATE {self._table('operator_hotpoint_control')}
+                   SET revision = revision + 1,
+                       kill_switch_state = 'DISABLED',
+                       delegated_create_authority = FALSE,
+                       window_state = CASE
+                           WHEN window_state = 'NONE' THEN 'NONE'
+                           ELSE 'TERMINAL'
+                       END,
+                       diagnostic_code =
+                           'operator_futures_hotpoint_attempt_closed',
+                       updated_at = CURRENT_TIMESTAMP
+                 WHERE goal_id = %s
+                """,
+                (self.goal_id,),
+            )
+            persisted = self._current(cursor, lock=False)
+            if persisted is None:
+                raise ValueError(
+                    "operator_futures_hotpoint_control_missing"
+                )
+            return self._record(persisted)
 
     def _plan(
         self,
@@ -947,7 +2120,7 @@ class OperatorHotpointControlRepository:
                 uuid.NAMESPACE_URL,
                 ":".join(
                     (
-                        HOTPOINT_GOAL_ID,
+                        self.goal_id,
                         self.policy.domain,
                         str(row["window_id"]),
                         str(row["parent_client_order_id"]),
@@ -956,7 +2129,7 @@ class OperatorHotpointControlRepository:
             )
         )
         evidence = {
-            "goal_id": HOTPOINT_GOAL_ID,
+            "goal_id": self.goal_id,
             "domain": self.policy.domain,
             "portfolio_profile_alias": self.policy.portfolio_profile_alias,
             "window_id": str(row["window_id"]),
@@ -988,7 +2161,7 @@ class OperatorHotpointControlRepository:
             json.dumps(evidence, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
         return HotpointPlacementPlan(
-            goal_id=HOTPOINT_GOAL_ID,
+            goal_id=self.goal_id,
             window_id=str(row["window_id"]),
             placement_claim_id=claim_id,
             parent_client_order_id=str(row["parent_client_order_id"]),
@@ -1030,6 +2203,8 @@ class OperatorHotpointControlRepository:
         correlation_id: str,
         audit_id: str,
     ) -> tuple[OperatorHotpointControlRecord, HotpointPlacementPlan] | None:
+        if self.goal_id == FUTURES_HOTPOINT_GOAL_ID:
+            raise ValueError("operator_futures_hotpoint_preview_required")
         del idempotency_key
         self.ensure_schema()
         with self._cursor() as cursor:
@@ -1064,7 +2239,7 @@ class OperatorHotpointControlRepository:
                            updated_at = CURRENT_TIMESTAMP
                      WHERE goal_id = %s AND window_state = 'ARMED'
                     """,
-                    (HOTPOINT_GOAL_ID,),
+                    (self.goal_id,),
                 )
                 return None
             self._parent(cursor, current.parent_client_order_id)
@@ -1104,7 +2279,7 @@ class OperatorHotpointControlRepository:
                        AND window_state = 'ARMED'
                        AND create_state = 'NOT_CLAIMED'
                     """,
-                    (HOTPOINT_GOAL_ID,),
+                    (self.goal_id,),
                 )
                 return None
             cursor.execute(
@@ -1114,7 +2289,7 @@ class OperatorHotpointControlRepository:
                 ) VALUES (%s, %s, %s)
                 ON CONFLICT (goal_id) DO NOTHING
                 """,
-                (HOTPOINT_GOAL_ID, claim_id, self.policy.domain),
+                (self.goal_id, claim_id, self.policy.domain),
             )
             if cursor.rowcount != 1:
                 return None
@@ -1152,7 +2327,7 @@ class OperatorHotpointControlRepository:
                     json.dumps(list(plan.roles), separators=(",", ":")),
                     plan.correlation_id,
                     plan.audit_id,
-                    HOTPOINT_GOAL_ID,
+                    self.goal_id,
                 ),
             )
             if cursor.rowcount != 1:
@@ -1227,7 +2402,7 @@ class OperatorHotpointControlRepository:
                     ),
                     exchange_invoked,
                     str(diagnostic_code),
-                    HOTPOINT_GOAL_ID,
+                    self.goal_id,
                     claim_id,
                 ),
             )
@@ -1314,7 +2489,7 @@ class OperatorHotpointControlRepository:
                         json.dumps(list(roles), separators=(",", ":")),
                         str(correlation_id),
                         normalized_audit,
-                        HOTPOINT_GOAL_ID,
+                        self.goal_id,
                     ),
                 )
                 return None
@@ -1335,7 +2510,7 @@ class OperatorHotpointControlRepository:
                 (
                     cancel_claim_id,
                     self.policy.domain,
-                    HOTPOINT_GOAL_ID,
+                    self.goal_id,
                     current.placement_claim_id,
                     self.policy.domain,
                 ),
@@ -1363,7 +2538,7 @@ class OperatorHotpointControlRepository:
                     json.dumps(list(roles), separators=(",", ":")),
                     str(correlation_id),
                     normalized_audit,
-                    HOTPOINT_GOAL_ID,
+                    self.goal_id,
                 ),
             )
             if cursor.rowcount != 1:
@@ -1373,7 +2548,7 @@ class OperatorHotpointControlRepository:
                 raise ValueError("operator_hotpoint_cancel_claim_unknown")
             claimed = self._record(claimed_row)
             plan = HotpointCancelPlan(
-                goal_id=HOTPOINT_GOAL_ID,
+                goal_id=self.goal_id,
                 cancel_claim_id=cancel_claim_id,
                 placement_claim_id=str(current.placement_claim_id),
                 parent_client_order_id=str(current.parent_client_order_id),
@@ -1438,7 +2613,7 @@ class OperatorHotpointControlRepository:
                     cancel_state.value,
                     exchange_invoked,
                     str(diagnostic_code),
-                    HOTPOINT_GOAL_ID,
+                    self.goal_id,
                     claim_id,
                 ),
             )
@@ -1480,7 +2655,7 @@ class OperatorHotpointControlRepository:
                      WHERE goal_id = %s
                        AND create_state = 'CLAIMED'
                     """,
-                    (HOTPOINT_GOAL_ID,),
+                    (self.goal_id,),
                 )
             elif (
                 current.cancel_state is HotpointCancelState.CLAIMED
@@ -1496,7 +2671,7 @@ class OperatorHotpointControlRepository:
                      WHERE goal_id = %s
                        AND cancel_state = 'CLAIMED'
                     """,
-                    (HOTPOINT_GOAL_ID,),
+                    (self.goal_id,),
                 )
             else:
                 return None
@@ -1568,6 +2743,7 @@ def get_default_operator_futures_hotpoint_control_repository(
                         configured_portfolio_id=portfolio_id,
                         product_metadata_provider=_default_product_metadata,
                         policy=FUTURES_HOTPOINT_SCOPE_POLICY,
+                        goal_id=FUTURES_HOTPOINT_GOAL_ID,
                     )
                 )
     return _DEFAULT_FUTURES_REPOSITORY
@@ -1582,6 +2758,14 @@ def initialize_operator_hotpoint_control_schema() -> None:
     if str(
         os.environ.get("COINBASE_ADMIN_API_FUTURES_PORTFOLIO_ID") or ""
     ).strip():
+        from database.operator_futures_order_operations import (
+            get_default_operator_futures_order_operations_repository,
+        )
+
+        # Goal 13's eligible-parent catalog joins the canonical Futures order
+        # projection. Install that owned schema dependency before Hotpoint can
+        # serve reads, even when the Futures Orders route has not been opened.
+        get_default_operator_futures_order_operations_repository().ensure_schema()
         futures = get_default_operator_futures_hotpoint_control_repository()
         futures.ensure_schema()
         futures.recover_stranded_claim()

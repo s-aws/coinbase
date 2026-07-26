@@ -17168,7 +17168,17 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OperatorHotpointReadback'
+                anyOf:
+                - $ref: '#/components/schemas/OperatorSpotHotpointReadback'
+                - oneOf:
+                  - $ref: '#/components/schemas/OperatorHistoricalFuturesHotpointReadback'
+                  - $ref: '#/components/schemas/OperatorFuturesHotpointReadback'
+                  discriminator:
+                    propertyName: goal_id
+                    mapping:
+                      operator_hotpoint_control_and_single_placement_v1: '#/components/schemas/OperatorHistoricalFuturesHotpointReadback'
+                      operator_futures_hotpoint_canonical_single_child_v2: '#/components/schemas/OperatorFuturesHotpointReadback'
+                title: Response Get Operator Hotpoint Api V1 Hotpoint Get
         '401':
           content:
             application/json:
@@ -17472,7 +17482,15 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/OperatorHotpointRunRequest'
+              oneOf:
+              - $ref: '#/components/schemas/OperatorSpotHotpointRunRequest'
+              - $ref: '#/components/schemas/OperatorFuturesHotpointRunRequest'
+              discriminator:
+                propertyName: domain
+                mapping:
+                  SPOT: '#/components/schemas/OperatorSpotHotpointRunRequest'
+                  FUTURES: '#/components/schemas/OperatorFuturesHotpointRunRequest'
+              title: Body
       responses:
         '200':
           description: Successful Response
@@ -17577,7 +17595,15 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/OperatorHotpointSafeCloseoutRequest'
+              oneOf:
+              - $ref: '#/components/schemas/OperatorSpotHotpointSafeCloseoutRequest'
+              - $ref: '#/components/schemas/OperatorFuturesHotpointSafeCloseoutRequest'
+              discriminator:
+                propertyName: domain
+                mapping:
+                  SPOT: '#/components/schemas/OperatorSpotHotpointSafeCloseoutRequest'
+                  FUTURES: '#/components/schemas/OperatorFuturesHotpointSafeCloseoutRequest'
+              title: Body
       responses:
         '200':
           description: Successful Response
@@ -163335,6 +163361,628 @@ components:
       - follow_up_intent
       - allowed_actions
       title: OperatorFuturesFollowUpIntentReadResponse
+    OperatorFuturesHotpointCallReadback:
+      properties:
+        outcome:
+          $ref: '#/components/schemas/AdminFuturesManualCallOutcome'
+        call_boundary_entered:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Call Boundary Entered
+        allowance_consumed:
+          type: boolean
+          title: Allowance Consumed
+        allowance_remaining:
+          type: integer
+          maximum: 1.0
+          minimum: 0.0
+          title: Allowance Remaining
+      additionalProperties: false
+      type: object
+      required:
+      - outcome
+      - call_boundary_entered
+      - allowance_consumed
+      - allowance_remaining
+      title: OperatorFuturesHotpointCallReadback
+    OperatorFuturesHotpointCandidateReadback:
+      properties:
+        product_id:
+          type: string
+          const: AVP-20DEC30-CDE
+          title: Product Id
+        side:
+          type: string
+          const: BUY
+          title: Side
+        order_type:
+          type: string
+          const: LIMIT_GTC
+          title: Order Type
+        post_only:
+          type: boolean
+          const: true
+          title: Post Only
+        contract_count:
+          type: string
+          const: '1'
+          title: Contract Count
+        limit_price:
+          type: string
+          title: Limit Price
+        opening_reference_notional_usdc:
+          type: string
+          title: Opening Reference Notional Usdc
+        maximum_exposure_reference_notional_usdc:
+          type: string
+          title: Maximum Exposure Reference Notional Usdc
+        buffered_close_reference_notional_usdc:
+          type: string
+          title: Buffered Close Reference Notional Usdc
+        branch_turnover_reference_notional_usdc:
+          type: string
+          title: Branch Turnover Reference Notional Usdc
+        opening_cap_usdc:
+          type: string
+          const: '100'
+          title: Opening Cap Usdc
+        exposure_cap_usdc:
+          type: string
+          const: '150'
+          title: Exposure Cap Usdc
+        turnover_cap_usdc:
+          type: string
+          const: '300'
+          title: Turnover Cap Usdc
+        product_policy_revision:
+          type: integer
+          const: 1
+          title: Product Policy Revision
+        product_policy_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Product Policy Sha256
+        hotpoint_session_compatibility:
+          type: string
+          const: OPEN_24X7_GTC
+          title: Hotpoint Session Compatibility
+        observed_at:
+          type: string
+          title: Observed At
+      additionalProperties: false
+      type: object
+      required:
+      - product_id
+      - side
+      - order_type
+      - post_only
+      - contract_count
+      - limit_price
+      - opening_reference_notional_usdc
+      - maximum_exposure_reference_notional_usdc
+      - buffered_close_reference_notional_usdc
+      - branch_turnover_reference_notional_usdc
+      - opening_cap_usdc
+      - exposure_cap_usdc
+      - turnover_cap_usdc
+      - product_policy_revision
+      - product_policy_sha256
+      - hotpoint_session_compatibility
+      - observed_at
+      title: OperatorFuturesHotpointCandidateReadback
+    OperatorFuturesHotpointExternalCommandReadback:
+      properties:
+        action:
+          type: string
+          enum:
+          - RUN_ONCE
+          - SAFE_CLOSEOUT
+          title: Action
+        status:
+          type: string
+          enum:
+          - IN_PROGRESS
+          - SUCCESS
+          - FAILED
+          - UNKNOWN
+          title: Status
+        correlation_id:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Correlation Id
+        request_revision:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Request Revision
+        diagnostic_code:
+          type: string
+          maxLength: 128
+          minLength: 1
+          title: Diagnostic Code
+      additionalProperties: false
+      type: object
+      required:
+      - action
+      - status
+      - correlation_id
+      - diagnostic_code
+      title: OperatorFuturesHotpointExternalCommandReadback
+    OperatorFuturesHotpointReadback:
+      properties:
+        domain:
+          type: string
+          const: FUTURES
+          title: Domain
+        type:
+          type: string
+          const: operator_hotpoint_control
+          title: Type
+          default: operator_hotpoint_control
+        goal_id:
+          type: string
+          const: operator_futures_hotpoint_canonical_single_child_v2
+          title: Goal Id
+        revision:
+          type: integer
+          minimum: 0.0
+          title: Revision
+        environment:
+          type: string
+          title: Environment
+        portfolio_profile_alias:
+          type: string
+          const: Default
+          title: Portfolio Profile Alias
+          default: Default
+        portfolio_profile_type:
+          type: string
+          const: DEFAULT
+          title: Portfolio Profile Type
+          default: DEFAULT
+        product_scope:
+          type: string
+          const: AVP-20DEC30-CDE
+          title: Product Scope
+          default: AVP-20DEC30-CDE
+        policy_side:
+          type: string
+          const: BUY
+          title: Policy Side
+          default: BUY
+        order_type:
+          type: string
+          const: LIMIT_GTC
+          title: Order Type
+          default: LIMIT_GTC
+        post_only:
+          type: boolean
+          const: true
+          title: Post Only
+          default: true
+        contract_count:
+          type: string
+          const: '1'
+          title: Contract Count
+          default: '1'
+        max_submitted_notional_usdc:
+          type: string
+          const: '100'
+          title: Max Submitted Notional Usdc
+          default: '100'
+        max_possible_execution_notional_usdc:
+          type: string
+          const: '150'
+          title: Max Possible Execution Notional Usdc
+          default: '150'
+        max_turnover_notional_usdc:
+          type: string
+          const: '300'
+          title: Max Turnover Notional Usdc
+          default: '300'
+        exact_size:
+          type: string
+          const: '1'
+          title: Exact Size
+          default: '1'
+        strict_caps:
+          type: boolean
+          const: true
+          title: Strict Caps
+          default: true
+        placement_execution_available:
+          type: boolean
+          title: Placement Execution Available
+        cancel_execution_available:
+          type: boolean
+          title: Cancel Execution Available
+        kill_switch_state:
+          $ref: '#/components/schemas/HotpointKillSwitchState'
+        window_state:
+          $ref: '#/components/schemas/HotpointWindowState'
+        create_state:
+          $ref: '#/components/schemas/HotpointCreateState'
+        cancel_state:
+          $ref: '#/components/schemas/HotpointCancelState'
+        parent_client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Parent Client Order Id
+        child_client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Child Client Order Id
+        side:
+          anyOf:
+          - type: string
+            const: BUY
+          - type: 'null'
+          title: Side
+        window_started_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Window Started At
+        window_expires_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Window Expires At
+        trigger_fill_count:
+          type: integer
+          maximum: 3.0
+          minimum: 0.0
+          title: Trigger Fill Count
+        trigger_evidence_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Trigger Evidence Sha256
+        window_id_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Window Id Sha256
+        cycles_used:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: Cycles Used
+        cycles_remaining:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: Cycles Remaining
+        active_cycle_number:
+          anyOf:
+          - type: integer
+            maximum: 10.0
+            minimum: 1.0
+          - type: 'null'
+          title: Active Cycle Number
+        eligibility_outcome:
+          anyOf:
+          - $ref: '#/components/schemas/AdminFuturesManualEligibilityOutcome'
+          - type: 'null'
+        eligibility_diagnostic_code:
+          type: string
+          title: Eligibility Diagnostic Code
+        category_attempts:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Category Attempts
+        margin_subread_attempts:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Margin Subread Attempts
+        latest_external_command:
+          anyOf:
+          - $ref: '#/components/schemas/OperatorFuturesHotpointExternalCommandReadback'
+          - type: 'null'
+        candidate:
+          anyOf:
+          - $ref: '#/components/schemas/OperatorFuturesHotpointCandidateReadback'
+          - type: 'null'
+        candidate_fresh_for_execution:
+          type: boolean
+          title: Candidate Fresh For Execution
+        candidate_freshness_diagnostic_code:
+          type: string
+          title: Candidate Freshness Diagnostic Code
+        candidate_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Candidate Sha256
+        portfolio_id_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Portfolio Id Sha256
+        eligibility_evidence_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Eligibility Evidence Sha256
+        execution_posture_ready:
+          type: boolean
+          title: Execution Posture Ready
+        execution_posture_diagnostic_code:
+          type: string
+          title: Execution Posture Diagnostic Code
+        preview:
+          $ref: '#/components/schemas/OperatorFuturesHotpointCallReadback'
+        preview_id_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Preview Id Sha256
+        create:
+          $ref: '#/components/schemas/OperatorFuturesHotpointCallReadback'
+        exchange_order_id_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Exchange Order Id Sha256
+        reconciliation:
+          $ref: '#/components/schemas/OperatorFuturesHotpointCallReadback'
+        order_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Order Status
+        authoritatively_nonterminal:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Authoritatively Nonterminal
+        cancel_disposition:
+          anyOf:
+          - type: string
+            enum:
+            - REQUIRED
+            - NOT_REQUIRED
+            - DEFERRED_TRANSITIONAL
+            - ALREADY_CANCEL_REQUESTED
+          - type: 'null'
+          title: Cancel Disposition
+        cancel:
+          $ref: '#/components/schemas/OperatorFuturesHotpointCallReadback'
+        diagnostic_code:
+          type: string
+          title: Diagnostic Code
+        allowed_actions:
+          items:
+            type: string
+            enum:
+            - ENABLE
+            - DISABLE
+            - ARM
+            - DISARM
+            - RUN_ONCE
+            - SAFE_CLOSEOUT
+          type: array
+          title: Allowed Actions
+        correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+        updated_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Updated At
+        raw_responses_included:
+          type: boolean
+          const: false
+          title: Raw Responses Included
+          default: false
+        raw_preview_identifiers_included:
+          type: boolean
+          const: false
+          title: Raw Preview Identifiers Included
+          default: false
+        raw_exchange_order_identifiers_included:
+          type: boolean
+          const: false
+          title: Raw Exchange Order Identifiers Included
+          default: false
+        private_identifiers_included:
+          type: boolean
+          const: false
+          title: Private Identifiers Included
+          default: false
+        exception_text_included:
+          type: boolean
+          const: false
+          title: Exception Text Included
+          default: false
+        browser_authority:
+          type: string
+          const: display_and_forward_only
+          title: Browser Authority
+          default: display_and_forward_only
+        backend_authoritative:
+          type: boolean
+          const: true
+          title: Backend Authoritative
+          default: true
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - domain
+      - goal_id
+      - revision
+      - environment
+      - placement_execution_available
+      - cancel_execution_available
+      - kill_switch_state
+      - window_state
+      - create_state
+      - cancel_state
+      - parent_client_order_id
+      - child_client_order_id
+      - side
+      - window_started_at
+      - window_expires_at
+      - trigger_fill_count
+      - cycles_used
+      - cycles_remaining
+      - eligibility_outcome
+      - eligibility_diagnostic_code
+      - category_attempts
+      - margin_subread_attempts
+      - latest_external_command
+      - candidate
+      - candidate_fresh_for_execution
+      - candidate_freshness_diagnostic_code
+      - execution_posture_ready
+      - execution_posture_diagnostic_code
+      - preview
+      - create
+      - reconciliation
+      - order_status
+      - authoritatively_nonterminal
+      - cancel_disposition
+      - cancel
+      - diagnostic_code
+      - allowed_actions
+      - correlation_id
+      - audit_id
+      - updated_at
+      title: OperatorFuturesHotpointReadback
+    OperatorFuturesHotpointRunRequest:
+      properties:
+        domain:
+          type: string
+          const: FUTURES
+          title: Domain
+        expected_revision:
+          type: integer
+          minimum: 0.0
+          title: Expected Revision
+        expected_parent_client_order_id:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Expected Parent Client Order Id
+        confirm_bounded_trigger_evaluation:
+          type: boolean
+          const: true
+          title: Confirm Bounded Trigger Evaluation
+        authorize_one_no_retry_six_category_cycle:
+          type: boolean
+          const: true
+          title: Authorize One No Retry Six Category Cycle
+        acknowledge_cycle_is_goal_global_and_limited_to_ten:
+          type: boolean
+          const: true
+          title: Acknowledge Cycle Is Goal Global And Limited To Ten
+        acknowledge_unsuccessful_or_unknown_cycle_fails_closed:
+          type: boolean
+          const: true
+          title: Acknowledge Unsuccessful Or Unknown Cycle Fails Closed
+        authorize_one_preview_and_conditional_identical_create:
+          type: boolean
+          const: true
+          title: Authorize One Preview And Conditional Identical Create
+        acknowledge_unknown_preview_or_create_consumes_allowance:
+          type: boolean
+          const: true
+          title: Acknowledge Unknown Preview Or Create Consumes Allowance
+        acknowledge_create_requires_accepted_identical_preview:
+          type: boolean
+          const: true
+          title: Acknowledge Create Requires Accepted Identical Preview
+      additionalProperties: false
+      type: object
+      required:
+      - domain
+      - expected_revision
+      - expected_parent_client_order_id
+      - confirm_bounded_trigger_evaluation
+      - authorize_one_no_retry_six_category_cycle
+      - acknowledge_cycle_is_goal_global_and_limited_to_ten
+      - acknowledge_unsuccessful_or_unknown_cycle_fails_closed
+      - authorize_one_preview_and_conditional_identical_create
+      - acknowledge_unknown_preview_or_create_consumes_allowance
+      - acknowledge_create_requires_accepted_identical_preview
+      title: OperatorFuturesHotpointRunRequest
+    OperatorFuturesHotpointSafeCloseoutRequest:
+      properties:
+        domain:
+          type: string
+          const: FUTURES
+          title: Domain
+        expected_revision:
+          type: integer
+          minimum: 0.0
+          title: Expected Revision
+        expected_child_client_order_id:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Expected Child Client Order Id
+        confirm_exact_child_safe_closeout:
+          type: boolean
+          const: true
+          title: Confirm Exact Child Safe Closeout
+        authorize_one_exact_no_retry_reconciliation:
+          type: boolean
+          const: true
+          title: Authorize One Exact No Retry Reconciliation
+        acknowledge_unknown_reconciliation_consumes_allowance:
+          type: boolean
+          const: true
+          title: Acknowledge Unknown Reconciliation Consumes Allowance
+        acknowledge_cancel_only_exact_authoritatively_nonterminal_child:
+          type: boolean
+          const: true
+          title: Acknowledge Cancel Only Exact Authoritatively Nonterminal Child
+        acknowledge_unknown_outcome_consumes_cancel_allowance:
+          type: boolean
+          const: true
+          title: Acknowledge Unknown Outcome Consumes Cancel Allowance
+      additionalProperties: false
+      type: object
+      required:
+      - domain
+      - expected_revision
+      - expected_child_client_order_id
+      - confirm_exact_child_safe_closeout
+      - authorize_one_exact_no_retry_reconciliation
+      - acknowledge_unknown_reconciliation_consumes_allowance
+      - acknowledge_cancel_only_exact_authoritatively_nonterminal_child
+      - acknowledge_unknown_outcome_consumes_cancel_allowance
+      title: OperatorFuturesHotpointSafeCloseoutRequest
     OperatorFuturesManualCallReadback:
       properties:
         outcome:
@@ -165182,6 +165830,200 @@ components:
       - acknowledge_cycle_is_goal_global_and_limited_to_ten
       - acknowledge_unsuccessful_or_unknown_cycle_fails_closed
       title: OperatorFuturesProductTicketRefreshRequest
+    OperatorHistoricalFuturesHotpointReadback:
+      properties:
+        domain:
+          type: string
+          const: FUTURES
+          title: Domain
+        type:
+          type: string
+          const: operator_hotpoint_control
+          title: Type
+          default: operator_hotpoint_control
+        goal_id:
+          type: string
+          const: operator_hotpoint_control_and_single_placement_v1
+          title: Goal Id
+          default: operator_hotpoint_control_and_single_placement_v1
+        revision:
+          type: integer
+          minimum: 0.0
+          title: Revision
+        environment:
+          type: string
+          title: Environment
+        portfolio_profile_alias:
+          type: string
+          const: Default
+          title: Portfolio Profile Alias
+        product_scope:
+          type: string
+          const: AVP-20DEC30-CDE
+          title: Product Scope
+        max_submitted_notional_usdc:
+          type: string
+          title: Max Submitted Notional Usdc
+        max_possible_execution_notional_usdc:
+          type: string
+          title: Max Possible Execution Notional Usdc
+        max_turnover_notional_usdc:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Max Turnover Notional Usdc
+        exact_size:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Exact Size
+        placement_execution_available:
+          type: boolean
+          title: Placement Execution Available
+        cancel_execution_available:
+          type: boolean
+          title: Cancel Execution Available
+        rate_limit:
+          $ref: '#/components/schemas/OperatorHotpointRateLimitReadback'
+        recent_placement:
+          anyOf:
+          - $ref: '#/components/schemas/OperatorHotpointRecentPlacementReadback'
+          - type: 'null'
+        kill_switch_state:
+          $ref: '#/components/schemas/HotpointKillSwitchState'
+        window_state:
+          $ref: '#/components/schemas/HotpointWindowState'
+        create_state:
+          $ref: '#/components/schemas/HotpointCreateState'
+        cancel_state:
+          $ref: '#/components/schemas/HotpointCancelState'
+        parent_client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Parent Client Order Id
+        child_client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Child Client Order Id
+        side:
+          anyOf:
+          - type: string
+            enum:
+            - BUY
+            - SELL
+          - type: 'null'
+          title: Side
+        window_started_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Window Started At
+        window_expires_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Window Expires At
+        diagnostic_code:
+          type: string
+          title: Diagnostic Code
+        allowed_actions:
+          items:
+            type: string
+            enum:
+            - ENABLE
+            - DISABLE
+            - ARM
+            - DISARM
+            - RUN_ONCE
+            - SAFE_CLOSEOUT
+          type: array
+          title: Allowed Actions
+        create_claim_consumed:
+          type: boolean
+          title: Create Claim Consumed
+        cancel_claim_consumed:
+          type: boolean
+          title: Cancel Claim Consumed
+        create_exchange_invoked:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Create Exchange Invoked
+        cancel_exchange_invoked:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Cancel Exchange Invoked
+        correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+        updated_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Updated At
+        browser_authority:
+          type: string
+          const: display_and_forward_only
+          title: Browser Authority
+          default: display_and_forward_only
+        backend_authoritative:
+          type: boolean
+          title: Backend Authoritative
+          default: true
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - domain
+      - revision
+      - environment
+      - portfolio_profile_alias
+      - product_scope
+      - max_submitted_notional_usdc
+      - max_possible_execution_notional_usdc
+      - max_turnover_notional_usdc
+      - exact_size
+      - placement_execution_available
+      - cancel_execution_available
+      - rate_limit
+      - recent_placement
+      - kill_switch_state
+      - window_state
+      - create_state
+      - cancel_state
+      - parent_client_order_id
+      - child_client_order_id
+      - side
+      - window_started_at
+      - window_expires_at
+      - diagnostic_code
+      - allowed_actions
+      - create_claim_consumed
+      - cancel_claim_consumed
+      - create_exchange_invoked
+      - cancel_exchange_invoked
+      - correlation_id
+      - audit_id
+      - updated_at
+      title: OperatorHistoricalFuturesHotpointReadback
+      description: Historical Goal 9 Futures evidence, never Goal 13 authority.
     OperatorHotpointControlRequest:
       properties:
         domain:
@@ -165247,7 +166089,10 @@ components:
           type: string
           title: Operator Intent
         control:
-          $ref: '#/components/schemas/OperatorHotpointReadback'
+          anyOf:
+          - $ref: '#/components/schemas/OperatorHotpointReadback'
+          - $ref: '#/components/schemas/OperatorFuturesHotpointReadback'
+          title: Control
         correlation_id:
           type: string
           title: Correlation Id
@@ -165662,48 +166507,6 @@ components:
       - diagnostic_code
       - updated_at
       title: OperatorHotpointRecentPlacementReadback
-    OperatorHotpointRunRequest:
-      properties:
-        domain:
-          type: string
-          enum:
-          - SPOT
-          - FUTURES
-          title: Domain
-        confirm_bounded_trigger_evaluation:
-          type: boolean
-          title: Confirm Bounded Trigger Evaluation
-        acknowledge_unknown_outcome_consumes_create_allowance:
-          type: boolean
-          title: Acknowledge Unknown Outcome Consumes Create Allowance
-      additionalProperties: false
-      type: object
-      required:
-      - domain
-      - confirm_bounded_trigger_evaluation
-      - acknowledge_unknown_outcome_consumes_create_allowance
-      title: OperatorHotpointRunRequest
-    OperatorHotpointSafeCloseoutRequest:
-      properties:
-        domain:
-          type: string
-          enum:
-          - SPOT
-          - FUTURES
-          title: Domain
-        confirm_exact_child_safe_closeout:
-          type: boolean
-          title: Confirm Exact Child Safe Closeout
-        acknowledge_unknown_outcome_consumes_cancel_allowance:
-          type: boolean
-          title: Acknowledge Unknown Outcome Consumes Cancel Allowance
-      additionalProperties: false
-      type: object
-      required:
-      - domain
-      - confirm_exact_child_safe_closeout
-      - acknowledge_unknown_outcome_consumes_cancel_allowance
-      title: OperatorHotpointSafeCloseoutRequest
     OperatorRevealedOrderMoveExecuteRequest:
       properties:
         expected_plan_sha256:
@@ -166089,6 +166892,242 @@ components:
       - execution_authority_enabled
       - allowed_actions
       title: OperatorRevealedOrderMovementResponse
+    OperatorSpotHotpointReadback:
+      properties:
+        domain:
+          type: string
+          const: SPOT
+          title: Domain
+        type:
+          type: string
+          const: operator_hotpoint_control
+          title: Type
+          default: operator_hotpoint_control
+        goal_id:
+          type: string
+          const: operator_hotpoint_control_and_single_placement_v1
+          title: Goal Id
+          default: operator_hotpoint_control_and_single_placement_v1
+        revision:
+          type: integer
+          minimum: 0.0
+          title: Revision
+        environment:
+          type: string
+          title: Environment
+        portfolio_profile_alias:
+          type: string
+          enum:
+          - Test
+          - Default
+          title: Portfolio Profile Alias
+        product_scope:
+          type: string
+          enum:
+          - BTC-USDC
+          - AVP-20DEC30-CDE
+          title: Product Scope
+        max_submitted_notional_usdc:
+          type: string
+          title: Max Submitted Notional Usdc
+        max_possible_execution_notional_usdc:
+          type: string
+          title: Max Possible Execution Notional Usdc
+        max_turnover_notional_usdc:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Max Turnover Notional Usdc
+        exact_size:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Exact Size
+        placement_execution_available:
+          type: boolean
+          title: Placement Execution Available
+        cancel_execution_available:
+          type: boolean
+          title: Cancel Execution Available
+        rate_limit:
+          $ref: '#/components/schemas/OperatorHotpointRateLimitReadback'
+        recent_placement:
+          anyOf:
+          - $ref: '#/components/schemas/OperatorHotpointRecentPlacementReadback'
+          - type: 'null'
+        kill_switch_state:
+          $ref: '#/components/schemas/HotpointKillSwitchState'
+        window_state:
+          $ref: '#/components/schemas/HotpointWindowState'
+        create_state:
+          $ref: '#/components/schemas/HotpointCreateState'
+        cancel_state:
+          $ref: '#/components/schemas/HotpointCancelState'
+        parent_client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Parent Client Order Id
+        child_client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Child Client Order Id
+        side:
+          anyOf:
+          - type: string
+            enum:
+            - BUY
+            - SELL
+          - type: 'null'
+          title: Side
+        window_started_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Window Started At
+        window_expires_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Window Expires At
+        diagnostic_code:
+          type: string
+          title: Diagnostic Code
+        allowed_actions:
+          items:
+            type: string
+            enum:
+            - ENABLE
+            - DISABLE
+            - ARM
+            - DISARM
+            - RUN_ONCE
+            - SAFE_CLOSEOUT
+          type: array
+          title: Allowed Actions
+        create_claim_consumed:
+          type: boolean
+          title: Create Claim Consumed
+        cancel_claim_consumed:
+          type: boolean
+          title: Cancel Claim Consumed
+        create_exchange_invoked:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Create Exchange Invoked
+        cancel_exchange_invoked:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Cancel Exchange Invoked
+        correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+        updated_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Updated At
+        browser_authority:
+          type: string
+          const: display_and_forward_only
+          title: Browser Authority
+          default: display_and_forward_only
+        backend_authoritative:
+          type: boolean
+          title: Backend Authoritative
+          default: true
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - domain
+      - revision
+      - environment
+      - portfolio_profile_alias
+      - product_scope
+      - max_submitted_notional_usdc
+      - max_possible_execution_notional_usdc
+      - max_turnover_notional_usdc
+      - exact_size
+      - placement_execution_available
+      - cancel_execution_available
+      - rate_limit
+      - recent_placement
+      - kill_switch_state
+      - window_state
+      - create_state
+      - cancel_state
+      - parent_client_order_id
+      - child_client_order_id
+      - side
+      - window_started_at
+      - window_expires_at
+      - diagnostic_code
+      - allowed_actions
+      - create_claim_consumed
+      - cancel_claim_consumed
+      - create_exchange_invoked
+      - cancel_exchange_invoked
+      - correlation_id
+      - audit_id
+      - updated_at
+      title: OperatorSpotHotpointReadback
+      description: The completed Goal 9 Spot contract without Goal 13 requirements.
+    OperatorSpotHotpointRunRequest:
+      properties:
+        domain:
+          type: string
+          const: SPOT
+          title: Domain
+        confirm_bounded_trigger_evaluation:
+          type: boolean
+          title: Confirm Bounded Trigger Evaluation
+        acknowledge_unknown_outcome_consumes_create_allowance:
+          type: boolean
+          title: Acknowledge Unknown Outcome Consumes Create Allowance
+      additionalProperties: false
+      type: object
+      required:
+      - domain
+      - confirm_bounded_trigger_evaluation
+      - acknowledge_unknown_outcome_consumes_create_allowance
+      title: OperatorSpotHotpointRunRequest
+    OperatorSpotHotpointSafeCloseoutRequest:
+      properties:
+        domain:
+          type: string
+          const: SPOT
+          title: Domain
+        confirm_exact_child_safe_closeout:
+          type: boolean
+          title: Confirm Exact Child Safe Closeout
+        acknowledge_unknown_outcome_consumes_cancel_allowance:
+          type: boolean
+          title: Acknowledge Unknown Outcome Consumes Cancel Allowance
+      additionalProperties: false
+      type: object
+      required:
+      - domain
+      - confirm_exact_child_safe_closeout
+      - acknowledge_unknown_outcome_consumes_cancel_allowance
+      title: OperatorSpotHotpointSafeCloseoutRequest
     OperatorSpotOrderDetailResponse:
       properties:
         type:

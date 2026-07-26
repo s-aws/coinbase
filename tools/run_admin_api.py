@@ -231,6 +231,7 @@ def build_uvicorn_kwargs(config: AdminApiRunConfig) -> dict[str, Any]:
         "host": config.host,
         "port": config.port,
         "reload": config.reload,
+        "workers": 1,
     }
 
 
