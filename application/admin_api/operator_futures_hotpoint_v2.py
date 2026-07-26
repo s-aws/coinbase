@@ -19,7 +19,6 @@ import json
 import re
 from types import SimpleNamespace
 from typing import Any
-import uuid
 
 from core.enums import (
     AdminFuturesManualCallOutcome,
@@ -238,6 +237,10 @@ def validate_futures_hotpoint_candidate(
         or not exact.get("hotpoint_window_id")
         or _SHA256_RE.fullmatch(
             exact.get("hotpoint_trigger_evidence_sha256", "")
+        )
+        is None
+        or _SHA256_RE.fullmatch(
+            exact.get("hotpoint_portfolio_id_sha256", "")
         )
         is None
         or observed_at.tzinfo is None
@@ -484,6 +487,10 @@ def validate_futures_hotpoint_eligibility_evidence(
         "hotpoint_trigger_evidence_sha256",
         "",
     )
+    parent_portfolio_hash = candidate.get(
+        "hotpoint_portfolio_id_sha256",
+        "",
+    )
     expected_attempts = {
         category: 1
         for category in FUTURES_MANUAL_ELIGIBILITY_CATEGORIES
@@ -532,6 +539,7 @@ def validate_futures_hotpoint_eligibility_evidence(
         or not parent_id
         or not window_id
         or _SHA256_RE.fullmatch(trigger_hash) is None
+        or parent_portfolio_hash != result.portfolio_id_sha256
         or result.category_attempts != expected_attempts
         or public.get("goal_id") != FUTURES_HOTPOINT_GOAL_ID
         or public.get("profile_alias") != "Default"
@@ -557,6 +565,8 @@ def validate_futures_hotpoint_eligibility_evidence(
         or public.get("window_id_sha256")
         != hashlib.sha256(window_id.encode("utf-8")).hexdigest()
         or public.get("trigger_evidence_sha256") != trigger_hash
+        or public.get("parent_portfolio_id_sha256")
+        != parent_portfolio_hash
         or public.get("exact_v3_eligible") is not True
         or public.get("diagnostic_code")
         != "operator_futures_hotpoint_exact_v3_eligible"
@@ -576,6 +586,7 @@ class FuturesHotpointTriggerBinding:
     parent_client_order_id: str
     window_id: str
     trigger_evidence_sha256: str
+    portfolio_id_sha256: str
 
     def validate(self) -> "FuturesHotpointTriggerBinding":
         if (
@@ -583,6 +594,10 @@ class FuturesHotpointTriggerBinding:
             or not str(self.window_id or "").strip()
             or _SHA256_RE.fullmatch(
                 str(self.trigger_evidence_sha256 or "")
+            )
+            is None
+            or _SHA256_RE.fullmatch(
+                str(self.portfolio_id_sha256 or "")
             )
             is None
         ):
@@ -736,6 +751,16 @@ class FuturesHotpointEligibilityReader:
         if self.rest_client.session_ineligible:
             outcome = AdminFuturesManualEligibilityOutcome.INELIGIBLE
             candidate = None
+        elif (
+            candidate is not None
+            and result.portfolio_id_sha256
+            != self.trigger.portfolio_id_sha256
+        ):
+            outcome = AdminFuturesManualEligibilityOutcome.INELIGIBLE
+            diagnostic = (
+                "operator_futures_hotpoint_portfolio_binding_ineligible"
+            )
+            candidate = None
         if candidate is not None:
             if (
                 self.rest_client.market_observed_at is None
@@ -776,6 +801,9 @@ class FuturesHotpointEligibilityReader:
                         "hotpoint_window_id": self.trigger.window_id,
                         "hotpoint_trigger_evidence_sha256": (
                             self.trigger.trigger_evidence_sha256
+                        ),
+                        "hotpoint_portfolio_id_sha256": (
+                            self.trigger.portfolio_id_sha256
                         ),
                         "hotpoint_session_compatibility": (
                             "OPEN_24X7_GTC"
@@ -824,6 +852,9 @@ class FuturesHotpointEligibilityReader:
             "trigger_evidence_sha256": (
                 self.trigger.trigger_evidence_sha256
             ),
+            "parent_portfolio_id_sha256": (
+                self.trigger.portfolio_id_sha256
+            ),
             "exact_v3_eligible": bool(
                 candidate is not None
                 and outcome
@@ -871,17 +902,8 @@ class FuturesHotpointExactCloseoutExecutor:
         self,
         *,
         rest_client: Any,
-        configured_portfolio_id: str,
     ) -> None:
         self.rest_client = rest_client
-        try:
-            self.configured_portfolio_id = str(
-                uuid.UUID(str(configured_portfolio_id))
-            )
-        except (AttributeError, TypeError, ValueError):
-            raise ValueError(
-                "operator_futures_hotpoint_default_portfolio_invalid"
-            ) from None
 
     @staticmethod
     def _unknown(

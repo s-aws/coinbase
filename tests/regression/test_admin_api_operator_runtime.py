@@ -147,9 +147,6 @@ def test_operator_runtime_prepares_default_client_for_hotpoint_v2_alone(
     environment[
         "COINBASE_ADMIN_API_OPERATOR_FUTURES_HOTPOINT_V2_ENABLED"
     ] = "1"
-    environment["COINBASE_ADMIN_API_FUTURES_PORTFOLIO_ID"] = (
-        "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
-    )
     futures_preparations: list[dict[str, str]] = []
 
     prepared = operator_runtime.prepare_operator_runtime(
@@ -170,9 +167,10 @@ def test_operator_runtime_prepares_default_client_for_hotpoint_v2_alone(
 
     assert prepared.credential_source == "secrets_manager"
     assert len(futures_preparations) == 1
-    assert futures_preparations[0][
+    assert (
         "COINBASE_ADMIN_API_FUTURES_PORTFOLIO_ID"
-    ] == "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+        not in futures_preparations[0]
+    )
 
 
 def test_operator_runtime_hotpoint_v2_fails_closed_before_client_on_bad_binding(
@@ -205,7 +203,7 @@ def test_operator_runtime_hotpoint_v2_fails_closed_before_client_on_bad_binding(
         )
 
 
-def test_operator_runtime_hotpoint_v2_requires_default_portfolio_before_hydration(
+def test_operator_runtime_hotpoint_v2_defers_default_portfolio_to_eligibility(
     tmp_path: Path,
 ) -> None:
     environment = _authorized_environment(tmp_path)
@@ -214,19 +212,32 @@ def test_operator_runtime_hotpoint_v2_requires_default_portfolio_before_hydratio
     ] = "1"
     hydration_calls: list[dict[str, str]] = []
 
-    with pytest.raises(
-        operator_runtime.OperatorAdminRuntimeError,
-        match="operator_futures_hotpoint_default_portfolio_required",
-    ):
-        operator_runtime.prepare_operator_runtime(
-            [],
-            environ=environment,
-            credential_hydrator=lambda target: hydration_calls.append(
-                dict(target)
-            ),
+    futures_preparations: list[dict[str, str]] = []
+    operator_runtime.prepare_operator_runtime(
+        [],
+        environ=environment,
+        credential_hydrator=lambda target: hydration_calls.append(
+            dict(target)
         )
+        or target.update(
+            {
+                "COINBASE_API_KEY": "spot-key",
+                "COINBASE_API_SECRET": "spot-secret",
+            }
+        )
+        or SimpleNamespace(source="secrets_manager"),
+        futures_client_preparer=lambda target: futures_preparations.append(
+            dict(target)
+        )
+        or SimpleNamespace(),
+    )
 
-    assert hydration_calls == []
+    assert len(hydration_calls) == 1
+    assert len(futures_preparations) == 1
+    assert (
+        "COINBASE_ADMIN_API_FUTURES_PORTFOLIO_ID"
+        not in futures_preparations[0]
+    )
 
 
 def test_operator_runtime_fails_closed_when_futures_and_spot_bindings_conflate(
@@ -609,6 +620,21 @@ def test_operator_runtime_exposes_only_fixed_credential_diagnostics(
     assert operator_runtime._startup_failure_diagnostic(
         operator_runtime.OperatorAdminRuntimeError(diagnostic)
     ) == diagnostic
+
+
+@pytest.mark.parametrize(
+    "obsolete_diagnostic",
+    [
+        "operator_futures_hotpoint_default_portfolio_invalid",
+        "operator_futures_hotpoint_default_portfolio_required",
+    ],
+)
+def test_operator_runtime_withholds_obsolete_raw_futures_portfolio_diagnostics(
+    obsolete_diagnostic: str,
+) -> None:
+    assert operator_runtime._startup_failure_diagnostic(
+        operator_runtime.OperatorAdminRuntimeError(obsolete_diagnostic)
+    ) == "OperatorAdminRuntimeError"
 
 
 def test_operator_server_registers_uvicorn_ingress_as_runtime_stop_hook(

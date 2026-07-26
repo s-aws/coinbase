@@ -487,7 +487,6 @@ def test_futures_hotpoint_posture_requires_both_exact_routes_not_spot_caps(
         "live_runtime_enabled": True,
         "credentials_configured": True,
         "rest_client_available": True,
-        "portfolio_configured": True,
         "live_service_state": state,
     }
 
@@ -539,9 +538,13 @@ def test_goal13_schema_installs_canonical_futures_projection_dependency(
         def recover_stranded_claim(self) -> None:
             events.append(f"{self.name}:recover")
 
-    monkeypatch.setenv(
+    monkeypatch.delenv(
         "COINBASE_ADMIN_API_FUTURES_PORTFOLIO_ID",
-        "11111111-2222-4333-8444-555555555555",
+        raising=False,
+    )
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_OPERATOR_FUTURES_HOTPOINT_V2_ENABLED",
+        "1",
     )
     monkeypatch.setattr(
         hotpoint_db,

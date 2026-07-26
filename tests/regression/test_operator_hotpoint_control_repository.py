@@ -91,6 +91,9 @@ def _goal13_candidate(
         "hotpoint_trigger_evidence_sha256": (
             trigger_evidence_sha256
         ),
+        "hotpoint_portfolio_id_sha256": hashlib.sha256(
+            PORTFOLIO_ID.encode("utf-8")
+        ).hexdigest(),
         "hotpoint_session_compatibility": "OPEN_24X7_GTC",
         "contract_expiry": "2030-12-20T00:00:00+00:00",
         "session_state": "FCM_TRADING_SESSION_STATE_OPEN",
@@ -249,6 +252,7 @@ def _prepare_goal13_trigger(
     projection_filled_size: str = "0",
     clock=None,
     expect_arm_eligible: bool = True,
+    configured_portfolio_id: str | None = PORTFOLIO_ID,
 ):
     with repository.db.get_cursor() as cursor:
         cursor.execute(
@@ -304,7 +308,7 @@ def _prepare_goal13_trigger(
     goal13 = OperatorHotpointControlRepository(
         repository.db,
         schema=repository.schema,
-        configured_portfolio_id=PORTFOLIO_ID,
+        configured_portfolio_id=configured_portfolio_id,
         product_metadata_provider=lambda _product_id: {
             "base_min_size": "1",
             "base_increment": "1",
@@ -402,6 +406,81 @@ def test_goal13_parent_requires_capacity_beyond_three_future_increments(
     assert total == (1 if eligible else 0)
     assert bool(rows) is eligible
     assert (armed is not None) is eligible
+
+
+def test_goal13_raw_id_free_trigger_binds_selected_parent_portfolio_hash(
+    repository,
+) -> None:
+    goal13, armed = _prepare_goal13_trigger(
+        repository,
+        configured_portfolio_id=None,
+    )
+    assert armed is not None
+    assert goal13.configured_portfolio_id is None
+    for ordinal, price in enumerate(
+        ("49.00", "49.01", "49.02"),
+        start=1,
+    ):
+        _insert_goal13_fill(
+            goal13,
+            created_at=(
+                datetime.fromisoformat(armed.window_started_at)
+                + timedelta(seconds=ordinal)
+            ).isoformat(),
+            ordinal=ordinal,
+            price=price,
+        )
+    with goal13.db.get_cursor() as cursor:
+        cursor.execute(
+            f"""
+            UPDATE "{goal13.schema}".
+                operator_futures_order_projection
+               SET filled_size = '3'
+             WHERE client_order_id = %s
+            """,
+            (FUTURES_PARENT_ID,),
+        )
+
+    _claimed, binding = goal13.claim_futures_trigger(
+        expected_revision=armed.revision,
+        expected_parent_client_order_id=FUTURES_PARENT_ID,
+        idempotency_key="goal13-raw-id-free-run",
+        actor_id="operator-1",
+        roles=("admin", "trader"),
+        correlation_id="corr-goal13-raw-id-free-run",
+        audit_id=str(uuid.uuid4()),
+    )
+    portfolio_hash = hashlib.sha256(
+        PORTFOLIO_ID.encode("utf-8")
+    ).hexdigest()
+    assert binding.portfolio_id_sha256 == portfolio_hash
+
+    candidate = _goal13_candidate(
+        parent_id=FUTURES_PARENT_ID,
+        window_id=str(armed.window_id),
+        trigger_evidence_sha256=binding.trigger_evidence_sha256,
+    )
+    with goal13.db.get_cursor() as cursor:
+        goal13.validate_futures_preview_invocation(
+            cursor=cursor,
+            candidate=candidate,
+        )
+        cursor.execute("SAVEPOINT goal13_wrong_portfolio_hash")
+        with pytest.raises(
+            ValueError,
+            match=(
+                "operator_futures_hotpoint_preview_invocation_"
+                "not_authorized"
+            ),
+        ):
+            goal13.validate_futures_preview_invocation(
+                cursor=cursor,
+                candidate={
+                    **candidate,
+                    "hotpoint_portfolio_id_sha256": "f" * 64,
+                },
+            )
+        cursor.execute("ROLLBACK TO SAVEPOINT goal13_wrong_portfolio_hash")
 
 
 def _arm(repository: OperatorHotpointControlRepository):

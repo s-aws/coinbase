@@ -10,14 +10,27 @@ caps. Dedicated Goal 13 PostgreSQL authority and call ledgers reuse the shared
 canonical Futures lifecycle serialization lock and exact-child Cancel seal;
 they do not create a parallel Futures placement or cancellation path.
 
+Persistent startup selects the approved Futures Default credential source
+independently from the Spot/Test source, but accepts no externally configured
+raw Futures portfolio UUID and makes no Coinbase call. If the source-parent
+prerequisite is later satisfied, the first authorized eligibility cycle uses
+its permissions and portfolio-catalog reads to resolve exactly one
+credential-bound `Default` / `DEFAULT` row. The backend must match that
+row's SHA-256 to the selected canonical source parent's process-local
+portfolio SHA-256 before it can accept a candidate, then atomically binds only
+the matching hash in the Goal 13 ledger. Restart, Preview/Create admission,
+and every later claim enforce that durable hash. Exact closeout sends no
+portfolio identifier.
+
 Implementation, generated-contract synchronization, focused and full
 backend/frontend gates, installed deployment validation, independent safety
 and blind-contextless audits, and persistent Controlled-live handoff pass. The
 installed state has no legitimately registered, reconciled, nonterminal AVP
-source parent with more than three contracts of remaining capacity, while
-inherited exact-V3 eligibility also requires the post-trigger AVP position to
-be flat. The operator readback exposes that blocker and ARM/RUN fail closed.
-All ten eligibility cycles and the Preview, Create, reconciliation, and Cancel
+source parent with more than three contracts of remaining capacity. The
+operator readback exposes that local blocker, ARM/RUN fail closed before any
+eligibility read, and the inherited exact-V3 flat-position rule remains a
+future eligibility condition rather than a currently evaluated result. All ten
+eligibility cycles and the Preview, Create, reconciliation, and Cancel
 allowances remain unconsumed. No Goal 13 Coinbase call or live proof occurred.
 
 Historical comparison used

@@ -8,10 +8,19 @@ strict `<100 / <150 / <300 USDC` caps while reusing the shared canonical
 Futures serialization lock and exact-child Cancel seal. Implementation,
 generated-contract synchronization, focused and full backend/frontend gates,
 installed deployment validation, independent safety and blind-contextless
-audits, and persistent Controlled-live handoff pass. The installed
-source-parent and inherited
-flat-position prerequisites cannot currently be satisfied, so eligibility is
-`0/10`, Preview/Create/reconciliation/Cancel remain unconsumed, and no Goal 13
+audits, and persistent Controlled-live handoff pass. Persistent startup uses
+the approved Futures Default credential source separately from Spot/Test,
+accepts no raw Futures portfolio UUID, and makes no Coinbase call. The first
+authorized permissions/catalog eligibility cycle would resolve exact
+credential-bound `Default` / `DEFAULT`, require its SHA-256 to equal the
+selected canonical source parent's process-local portfolio SHA-256,
+atomically bind only that matching hash in the Goal 13 ledger, and make it
+mandatory after restart and at Preview/Create. Exact closeout sends no
+portfolio identifier. The installed source-parent
+prerequisite cannot currently be satisfied, so ARM/RUN stops locally before
+any eligibility read. The inherited flat-position rule remains a future
+eligibility condition; eligibility is `0/10`,
+Preview/Create/reconciliation/Cancel remain unconsumed, and no Goal 13
 Coinbase call or live proof occurred.
 
 Completed independent Goal 12 operator-ready Controlled-live closeout:

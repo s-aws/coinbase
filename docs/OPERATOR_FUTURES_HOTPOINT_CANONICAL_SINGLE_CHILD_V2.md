@@ -12,11 +12,20 @@ Status: completed independent Goal 13 — operator-ready Controlled-live closeou
 Implementation, generated-contract synchronization, focused and full
 backend/frontend gates, installed deployment validation, independent safety
 and blind-contextless audits, and persistent Controlled-live handoff pass.
-The installed source-parent and inherited flat-position prerequisites fail
-closed, so all ten eligibility cycles and every
+The installed no-parent prerequisite fails closed before any eligibility read;
+the inherited flat-position rule remains a future eligibility condition, not
+a currently evaluated result. All ten eligibility cycles and every
 Preview/Create/reconciliation/Cancel allowance remain unconsumed. No Goal 13
-Coinbase call or live proof occurred. The terminal workflow does not
-manufacture source provenance or transfer predecessor authority.
+Coinbase call or live proof occurred. The terminal workflow does not manufacture
+source provenance or transfer predecessor authority.
+
+Persistent startup selects the approved Futures Default credential source
+independently from Spot/Test. It accepts no externally configured raw Futures
+portfolio UUID and makes no Coinbase call. Portfolio identity is resolved
+only inside the first authorized eligibility permissions/catalog cycle. Its
+SHA-256 must equal the selected canonical source parent's process-local
+portfolio SHA-256 before a candidate is eligible; only that matching hash is
+durable.
 
 ## Goal 9 preservation and isolation
 
@@ -51,8 +60,8 @@ the current installed state has no legitimate path that can produce the
 required nonterminal, backend-registered Default-profile AVP root with more
 than three contracts of remaining capacity and reconciled fill-ledger
 evidence. Goal 13 must show an empty eligible-parent state, cannot ARM or RUN,
-and leaves Preview/Create/Cancel unconsumed unless such a root already exists
-from an independently authorized canonical source.
+and leaves Preview/Create/reconciliation/Cancel unconsumed unless such a root
+already exists from an independently authorized canonical source.
 
 The inherited exact-V3 eligibility rule also requires zero current AVP
 position. Three BUY trigger fills are coherent with that rule only when they
@@ -159,7 +168,14 @@ lock and then establish fresh Coinbase eligibility before any Preview claim.
 One explicit `RUN_ONCE` may start one durably counted eligibility cycle after
 the local trigger is ready. Across the goal there are at most ten cycles. Each
 cycle binds one correlation, command identity, selected parent, trigger
-evidence hash, Default portfolio hash, policy revision, and candidate revision.
+evidence hash, policy revision, and candidate revision. On the first eligible
+cycle, the permissions and portfolio-catalog results must resolve exactly one
+row visible and tradable by the approved Futures credential with alias/type
+`Default` / `DEFAULT`. The backend hashes its raw UUID in process and the same
+transaction that accepts the eligibility result atomically initializes the
+Goal 13 bound portfolio SHA-256. The raw UUID is never stored. Restart
+recovery preserves that binding, and every later eligible result, candidate,
+claim, and exact-child operation must match the bound hash.
 
 Each category may be invoked at most once in a cycle, with no individual or
 page retry:
@@ -184,8 +200,10 @@ Eligibility must prove, from one coherent cycle:
 - view and trade permissions;
 - exactly one credential-bound catalog row whose alias/type are
   `Default`/`DEFAULT`;
-- the same private portfolio binding as the Goal 13 configured binding,
-  persisted publicly only as SHA-256;
+- on the first eligible cycle, equality between that exact row's SHA-256 and
+  the selected canonical source parent's process-local portfolio SHA-256,
+  followed by an atomic binding of only the matching hash, and on every later
+  cycle the same durable bound hash;
 - exact CFM product, venue, contract, expiry, increment, and risk-manager
   fields;
 - a valid one-contract size;
@@ -290,14 +308,13 @@ The command claims the sole reconciliation allowance and performs exactly one
 
 Current CDP keys are credential-bound to their portfolio, and Coinbase
 documents the order-level `retail_portfolio_id` field as deprecated. Goal 13
-therefore does not send that field. Default-profile authority is instead
-proven before the attempt by the canonical Default credential, the configured
-UUID's exact portfolio-catalog match, catalog `type=DEFAULT`, and the durable
-portfolio hash bound to the candidate and child. The configured raw UUID
-exists only inside the backend process; only its SHA-256 may be durable or
-public. The page limit must be large enough for the bounded scope, but exactly
-one page is authorized. If Coinbase reports `has_next=true`, returns an
-invalid envelope, or cannot prove
+therefore sends neither that field nor any other portfolio identifier during
+exact closeout: neither the `list_orders` call nor a conditional exact-child
+Cancel receives a portfolio identifier. Default-profile authority was
+established by the authorized eligibility permissions/catalog cycle and the
+durable portfolio SHA-256 bound to the candidate and child. The page limit
+must be large enough for the bounded scope, but exactly one page is authorized.
+If Coinbase reports `has_next=true`, returns an invalid envelope, or cannot prove
 completeness, the reconciliation result is `UNKNOWN`; no second page or retry
 is permitted. Coinbase may return a cursor on a complete final page. A cursor
 is therefore allowed when `has_next=false`, is never followed, and does not by
@@ -356,6 +373,8 @@ fails closed.
 Every Coinbase boundary is durably `CLAIMED` immediately before the canonical
 wrapper may enter the SDK. Restart recovery is conservative:
 
+- the first eligible cycle's bound portfolio SHA-256 survives restart, and a
+  later eligibility result or claim with a different hash fails closed;
 - an in-flight eligibility category becomes `UNKNOWN`; its cycle remains
   consumed and is never replayed;
 - a claimed Preview becomes `UNKNOWN` and consumes Preview;
@@ -414,8 +433,8 @@ Goal 13 is available only when all of these independent gates pass:
   Goal 13 Futures runtime and exchange adapters;
 - `COINBASE_EXECUTION_ENABLED=1` supplies the installed master Controlled-live
   opt-in and owner-generated execution lease;
-- the canonical Default-profile credentials and private portfolio binding are
-  configured;
+- the canonical Default-profile credential source is configured independently
+  from Spot/Test; no raw Futures portfolio UUID is a startup input;
 - backend live-service posture admits the exact Futures Preview, Place, Read,
   and Cancel routes/scopes;
 - the current actor holds the required backend RBAC; and
@@ -441,8 +460,11 @@ false flags fail closed before client construction or claim creation.
    one-contract scope, strict caps, session posture, cycle budget, and unused
    call allowances.
 6. Explicitly invoke `RUN_ONCE`. The backend performs one no-retry
-   six-category cycle. If exact fresh eligibility fails, no Preview or
-   mutation occurs.
+   six-category cycle. Its permissions/catalog reads resolve exact
+   credential-bound `Default` / `DEFAULT`; the first eligible result must
+   match its SHA-256 to the selected canonical source parent's process-local
+   portfolio SHA-256 and atomically binds only that matching hash. If exact
+   fresh eligibility fails, no Preview or mutation occurs.
 7. If eligibility passes, the backend derives and displays the immutable
    candidate, consumes one Preview, and conditionally consumes one identical
    Create. The UI resolves the command only from durable correlation-bound
@@ -473,7 +495,9 @@ Focused TDD and closeout validation must cover at least:
 - call-free GET, navigation, enable/disable, arm/disarm, and trigger polling;
 - ten-cycle limit, six-category/no-retry enforcement, four margin subreads,
   duplicate-call prevention, and stale/unknown recovery;
-- exact Default/DEFAULT credential/catalog binding and portfolio privacy;
+- first-cycle exact Default/DEFAULT credential/catalog-to-source-parent
+  SHA-256 equality, atomic matching-hash binding, portfolio privacy, restart
+  preservation, and later hash-mismatch rejection;
 - CFM product, expiry, increments, BBO freshness, positions,
   margin/collateral, session, maintenance, after-hours, and GTC fail-closed
   cases;
@@ -508,17 +532,18 @@ The focused policy, persistence, route, generated-contract, frontend readback,
 source-blocker, and no-network tests are green. The canonical backend/frontend
 gates, installed deployment validation, independent safety and
 blind-contextless audits, and persistent Controlled-live handoff pass.
-Focused validation passed 196 backend tests and 156 frontend tests. Canonical
-regression passed 1,315 backend tests with 6 skipped in parallel and 976 with
-150 skipped and 1,321 deselected in serial, plus 1,905 frontend
+Focused validation passed 266 backend tests and 216 frontend tests. Canonical
+regression passed 1,317 backend tests with 6 skipped in parallel and 977 with
+150 skipped and 1,323 deselected in serial, plus 1,905 frontend
 unit/component tests and 34 authenticated managed browser tests.
 
 Installed launcher validation additionally proved that fixed allowlisted
-startup diagnostics may identify missing approved portfolio or
-credential-source bindings without exposing arbitrary exception text. The
-launcher supplies approved credential-source names and regions only to the
-backend process; it passes no credential value to the frontend or BFF and
-adds no action authority. Final exact-ref smoke evidence binds frontend
+startup diagnostics may identify missing credential-source bindings without
+exposing arbitrary exception text. The launcher supplies the approved
+domain-separated credential-source names and regions only to the backend
+process, accepts no raw Futures portfolio UUID, makes no startup Coinbase
+call, passes no credential value to the frontend or BFF, and adds no action
+authority. Final exact-ref smoke evidence binds frontend
 `252a47bbcf50b261f236e6903b19bb59d7df3038` and backend
 `7ebe9de3325d8298c6517b5e6c851f8c1b187b3d`, reports Coinbase execution
 `not_run`, and reports notional `0`. Independent safety and blind-contextless

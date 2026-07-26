@@ -600,7 +600,7 @@ def test_futures_scope_accepts_only_one_contract_v3_plan() -> None:
         )
 
 
-def test_default_futures_repository_uses_the_goal13_ledger(
+def test_default_futures_repository_uses_raw_id_free_goal13_ledger(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import database.operator_hotpoint_control as repository_module
@@ -610,9 +610,9 @@ def test_default_futures_repository_uses_the_goal13_ledger(
         "_DEFAULT_FUTURES_REPOSITORY",
         None,
     )
-    monkeypatch.setenv(
+    monkeypatch.delenv(
         "COINBASE_ADMIN_API_FUTURES_PORTFOLIO_ID",
-        "66666666-6666-4666-8666-666666666666",
+        raising=False,
     )
 
     repository = (
@@ -625,3 +625,4 @@ def test_default_futures_repository_uses_the_goal13_ledger(
         repository._table("operator_hotpoint_control")
         == '"public"."operator_futures_hotpoint_v2_control"'
     )
+    assert repository.configured_portfolio_id is None

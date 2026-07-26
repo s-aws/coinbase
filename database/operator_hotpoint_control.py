@@ -115,7 +115,7 @@ class OperatorHotpointControlRepository:
         db: Any,
         *,
         schema: str = "public",
-        configured_portfolio_id: str,
+        configured_portfolio_id: str | None,
         product_metadata_provider: Callable[[str], object],
         policy: HotpointScopePolicy = SPOT_HOTPOINT_SCOPE_POLICY,
         goal_id: str = HOTPOINT_GOAL_ID,
@@ -125,9 +125,6 @@ class OperatorHotpointControlRepository:
             raise ValueError("operator_hotpoint_schema_invalid")
         self.db = db
         self.schema = str(schema)
-        self.configured_portfolio_id = str(
-            uuid.UUID(str(configured_portfolio_id))
-        )
         self.product_metadata_provider = product_metadata_provider
         if not isinstance(policy, HotpointScopePolicy):
             raise ValueError("operator_hotpoint_scope_policy_invalid")
@@ -139,6 +136,14 @@ class OperatorHotpointControlRepository:
             and policy != FUTURES_HOTPOINT_SCOPE_POLICY
         ):
             raise ValueError("operator_hotpoint_goal_policy_invalid")
+        if configured_portfolio_id is None:
+            if goal_id != FUTURES_HOTPOINT_GOAL_ID:
+                raise ValueError("operator_hotpoint_portfolio_not_configured")
+            self.configured_portfolio_id = None
+        else:
+            self.configured_portfolio_id = str(
+                uuid.UUID(str(configured_portfolio_id))
+            )
         self.goal_id = goal_id
         self._advisory_lock_slot = (
             3
@@ -254,6 +259,7 @@ class OperatorHotpointControlRepository:
                         plan_evidence_sha256 CHAR(64),
                         trigger_idempotency_sha256 CHAR(64),
                         trigger_request_sha256 CHAR(64),
+                        trigger_portfolio_id_sha256 CHAR(64),
                         diagnostic_code VARCHAR(96) NOT NULL,
                         actor_id VARCHAR(255) NOT NULL,
                         roles_json JSONB NOT NULL,
@@ -306,6 +312,13 @@ class OperatorHotpointControlRepository:
                     ALTER TABLE {self._table('operator_hotpoint_control')}
                     ADD COLUMN IF NOT EXISTS
                         trigger_request_sha256 CHAR(64)
+                    """
+                )
+                cursor.execute(
+                    f"""
+                    ALTER TABLE {self._table('operator_hotpoint_control')}
+                    ADD COLUMN IF NOT EXISTS
+                        trigger_portfolio_id_sha256 CHAR(64)
                     """
                 )
                 cursor.execute(
@@ -606,7 +619,7 @@ class OperatorHotpointControlRepository:
                        AND UPPER(parent.side) = 'BUY'
                        AND parent.parent_order_id IS NULL
                        AND parent.ownership_provenance = ANY(%s)
-                       AND parent.retail_portfolio_id = %s
+                       AND parent.retail_portfolio_id IS NOT NULL
                        AND parent.auto_placed_by_hotpoint IS NOT TRUE
                        AND projection.product_id = parent.product_id
                        AND projection.side = 'BUY'
@@ -651,7 +664,6 @@ class OperatorHotpointControlRepository:
                     (
                         self.policy.product_id,
                         sorted(_ALLOWED_PARENT_PROVENANCE),
-                        self.configured_portfolio_id,
                         Decimal(_TRIGGER_FILL_COUNT)
                         * futures_increment,
                         limit,
@@ -742,14 +754,22 @@ class OperatorHotpointControlRepository:
         parent = _row(cursor)
         if parent is None:
             raise ValueError("operator_hotpoint_parent_not_found")
+        try:
+            parent_portfolio_id = str(
+                uuid.UUID(str(parent.get("retail_portfolio_id") or ""))
+            )
+        except (TypeError, ValueError, AttributeError):
+            raise ValueError("operator_hotpoint_parent_ineligible") from None
         if (
             str(parent.get("product_id") or "") != self.policy.product_id
             or str(parent.get("status") or "").upper() != "OPEN"
             or parent.get("parent_order_id") is not None
             or str(parent.get("ownership_provenance") or "")
             not in _ALLOWED_PARENT_PROVENANCE
-            or str(parent.get("retail_portfolio_id") or "")
-            != self.configured_portfolio_id
+            or (
+                self.configured_portfolio_id is not None
+                and parent_portfolio_id != self.configured_portfolio_id
+            )
             or parent.get("auto_placed_by_hotpoint") is True
             or str(parent.get("side") or "").upper() not in {"BUY", "SELL"}
             or (
@@ -820,6 +840,7 @@ class OperatorHotpointControlRepository:
             )
         ):
             raise ValueError("operator_hotpoint_parent_ineligible")
+        parent["retail_portfolio_id"] = parent_portfolio_id
         return parent
 
     def _futures_base_increment(self) -> Decimal:
@@ -1160,7 +1181,8 @@ class OperatorHotpointControlRepository:
             SELECT projection.exchange_order_id_sha256,
                    projection.size,
                    projection.filled_size,
-                   parent.size AS parent_size
+                   parent.size AS parent_size,
+                   parent.retail_portfolio_id
               FROM {
                   self._table('operator_futures_order_projection')
               } AS projection
@@ -1174,7 +1196,7 @@ class OperatorHotpointControlRepository:
                AND UPPER(parent.status) = 'OPEN'
                AND parent.parent_order_id IS NULL
                AND parent.ownership_provenance = ANY(%s)
-               AND parent.retail_portfolio_id = %s
+               AND parent.retail_portfolio_id IS NOT NULL
                AND parent.auto_placed_by_hotpoint IS NOT TRUE
                AND projection.side = 'BUY'
                AND projection.status = 'OPEN'
@@ -1186,10 +1208,24 @@ class OperatorHotpointControlRepository:
                 row["parent_client_order_id"],
                 self.policy.product_id,
                 sorted(_ALLOWED_PARENT_PROVENANCE),
-                self.configured_portfolio_id,
             ),
         )
         projection = _row(cursor)
+        try:
+            parent_portfolio_id = str(
+                uuid.UUID(
+                    str(
+                        (projection or {}).get(
+                            "retail_portfolio_id"
+                        )
+                        or ""
+                    )
+                )
+            )
+        except (TypeError, ValueError, AttributeError):
+            raise ValueError(
+                "operator_futures_hotpoint_parent_projection_invalid"
+            ) from None
         projection_hash = str(
             (projection or {}).get("exchange_order_id_sha256") or ""
         ).lower()
@@ -1231,6 +1267,9 @@ class OperatorHotpointControlRepository:
             "exchange_order_id_sha256": projection_hash,
             "size": parent_size,
             "filled_size": filled_size,
+            "portfolio_id_sha256": hashlib.sha256(
+                parent_portfolio_id.encode("utf-8")
+            ).hexdigest(),
         }
 
     def _futures_fill_events(
@@ -1408,6 +1447,7 @@ class OperatorHotpointControlRepository:
             "side": "BUY",
             "hotpoint_bucket_id": bucket_id,
             "parent_exchange_order_id_sha256": projection_hash,
+            "portfolio_id_sha256": projection["portfolio_id_sha256"],
             "fill_count": _TRIGGER_FILL_COUNT,
             "fills": list(events),
         }
@@ -1422,6 +1462,9 @@ class OperatorHotpointControlRepository:
                     ensure_ascii=True,
                 ).encode("utf-8")
             ).hexdigest(),
+            portfolio_id_sha256=str(
+                projection["portfolio_id_sha256"]
+            ),
         )
 
     def claim_futures_trigger(
@@ -1519,6 +1562,13 @@ class OperatorHotpointControlRepository:
                     raise ValueError(
                         "operator_futures_hotpoint_trigger_replay_invalid"
                     )
+                portfolio_hash = str(
+                    row.get("trigger_portfolio_id_sha256") or ""
+                )
+                if re.fullmatch(r"[0-9a-f]{64}", portfolio_hash) is None:
+                    raise ValueError(
+                        "operator_futures_hotpoint_trigger_replay_invalid"
+                    )
                 return current, FuturesHotpointTriggerBinding(
                     parent_client_order_id=(
                         expected_parent_client_order_id
@@ -1527,6 +1577,7 @@ class OperatorHotpointControlRepository:
                     trigger_evidence_sha256=str(
                         row["plan_evidence_sha256"]
                     ),
+                    portfolio_id_sha256=portfolio_hash,
                 )
             existing_owner = str(
                 row.get("trigger_idempotency_sha256") or ""
@@ -1651,6 +1702,7 @@ class OperatorHotpointControlRepository:
                 UPDATE {self._table('operator_hotpoint_control')}
                    SET revision = revision + 1,
                        plan_evidence_sha256 = %s,
+                       trigger_portfolio_id_sha256 = %s,
                        trigger_idempotency_sha256 = %s,
                        trigger_request_sha256 = %s,
                        actor_id = %s,
@@ -1667,6 +1719,7 @@ class OperatorHotpointControlRepository:
                 """,
                 (
                     binding.trigger_evidence_sha256,
+                    binding.portfolio_id_sha256,
                     key_hash,
                     request_hash,
                     normalized_actor,
@@ -1860,6 +1913,8 @@ class OperatorHotpointControlRepository:
             or record.window_id != exact["hotpoint_window_id"]
             or row.get("plan_evidence_sha256")
             != exact["hotpoint_trigger_evidence_sha256"]
+            or row.get("trigger_portfolio_id_sha256")
+            != exact["hotpoint_portfolio_id_sha256"]
             or not record.window_expires_at
         ):
             raise ValueError(
@@ -1877,6 +1932,9 @@ class OperatorHotpointControlRepository:
             window_id=record.window_id,
             trigger_evidence_sha256=(
                 exact["hotpoint_trigger_evidence_sha256"]
+            ),
+            portfolio_id_sha256=(
+                exact["hotpoint_portfolio_id_sha256"]
             ),
         )
         if self._futures_trigger_binding(cursor, row=row) != expected:
@@ -2717,30 +2775,18 @@ def get_default_operator_hotpoint_control_repository(
 
 def get_default_operator_futures_hotpoint_control_repository(
 ) -> OperatorHotpointControlRepository:
-    """Return the separately stored Futures Hotpoint authority."""
+    """Return Goal13 authority with portfolio identity bound at eligibility."""
 
     global _DEFAULT_FUTURES_REPOSITORY
     if _DEFAULT_FUTURES_REPOSITORY is None:
         with _DEFAULT_LOCK:
             if _DEFAULT_FUTURES_REPOSITORY is None:
-                import os
-
                 from database import order as order_db
 
-                portfolio_id = str(
-                    os.environ.get(
-                        "COINBASE_ADMIN_API_FUTURES_PORTFOLIO_ID"
-                    )
-                    or ""
-                ).strip()
-                if not portfolio_id:
-                    raise RuntimeError(
-                        "operator_futures_hotpoint_portfolio_not_configured"
-                    )
                 _DEFAULT_FUTURES_REPOSITORY = (
                     OperatorHotpointControlRepository(
                         order_db.DB_CLIENT,
-                        configured_portfolio_id=portfolio_id,
+                        configured_portfolio_id=None,
                         product_metadata_provider=_default_product_metadata,
                         policy=FUTURES_HOTPOINT_SCOPE_POLICY,
                         goal_id=FUTURES_HOTPOINT_GOAL_ID,
@@ -2755,9 +2801,12 @@ def initialize_operator_hotpoint_control_schema() -> None:
     repository.recover_stranded_claim()
     import os
 
-    if str(
-        os.environ.get("COINBASE_ADMIN_API_FUTURES_PORTFOLIO_ID") or ""
-    ).strip():
+    if (
+        os.environ.get(
+            "COINBASE_ADMIN_API_OPERATOR_FUTURES_HOTPOINT_V2_ENABLED"
+        )
+        == "1"
+    ):
         from database.operator_futures_order_operations import (
             get_default_operator_futures_order_operations_repository,
         )

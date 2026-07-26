@@ -24,26 +24,33 @@ request-initiation evidence, not terminal cancellation.
 Implementation, generated-contract synchronization, focused and full
 backend/frontend gates, installed deployment validation, independent safety
 and blind-contextless audits, and persistent Controlled-live handoff pass.
-Focused validation passed 196 backend tests and 156 frontend tests. Canonical
-regression passed 1,315 backend tests with 6 skipped in parallel and 976 with
-150 skipped and 1,321 deselected in serial, plus 1,905 frontend
+Focused validation passed 266 backend tests and 216 frontend tests. Canonical
+regression passed 1,317 backend tests with 6 skipped in parallel and 977 with
+150 skipped and 1,323 deselected in serial, plus 1,905 frontend
 unit/component tests and 34 authenticated managed browser tests.
 The installed stack has no legitimately
 registered, reconciled, nonterminal Default-profile AVP source parent with
 more than three contracts of remaining capacity. Existing routed Futures
 proofs create only one contract and close it, and catalog refresh may
 reconcile exchange truth but cannot forge `order_parent` provenance. The
-inherited exact-V3 gate also requires the three BUY fills to leave the current
-AVP position flat. The UI shows this durable source blocker, ARM/RUN remain
-unavailable, all ten eligibility cycles remain unused, and Preview, Create,
-reconciliation, and Cancel remain unconsumed. No Goal 13 Coinbase call or live
-proof occurred.
+UI shows this durable source blocker and ARM/RUN stop locally before any
+eligibility read. The inherited exact-V3 flat-position rule remains a future
+eligibility condition rather than a currently evaluated result. All ten
+eligibility cycles remain unused, and Preview, Create, reconciliation, and
+Cancel remain unconsumed. No Goal 13 Coinbase call or live proof occurred.
 
-The final installed-launcher remediation exposed only missing fixed
-configuration bindings: first the distinct Default Futures portfolio label,
-then the approved backend credential-source names and region. Startup
-readback is restricted to fixed allowlisted codes and arbitrary exception
-text remains withheld. The launcher passes no credential value to the
+The final installed-launcher remediation established the approved
+domain-separated Futures Default credential source independently from the
+Spot/Test source. Persistent startup accepts no externally configured raw
+Futures portfolio UUID, makes no Coinbase call, restricts diagnostics to
+fixed allowlisted codes, and withholds arbitrary exception text. If the
+source-parent prerequisite is later met, the first authorized
+permissions/catalog eligibility cycle resolves the exact credential-bound
+`Default` / `DEFAULT` row. It must match that row's SHA-256 to the selected
+canonical source parent's process-local portfolio SHA-256 before accepting a
+candidate, then atomically binds only the matching hash in the Goal 13 ledger.
+Restart and Preview/Create admission revalidate it. Exact closeout sends no
+portfolio identifier. The launcher passes no credential value to the
 frontend or BFF and does not broaden live authority. Independent safety and
 blind-contextless delta audits passed with no P1/P2 finding. Installed
 manifests and smoke evidence bind frontend
@@ -60,8 +67,9 @@ permissions, portfolio, CFM position/margin, Preview, Create, List Orders,
 Cancel, market-hours, and pinned SDK references were compared. No published
 post-maintenance breaking change was identified. Current CDP credentials are
 portfolio-bound and the documented order-level `retail_portfolio_id` field is
-deprecated, so Goal 13 omits that argument and instead binds the exact
-credential/catalog match and portfolio SHA-256.
+deprecated, so Goal 13 omits that argument and every other portfolio ID from
+exact closeout. The authorized eligibility permissions/catalog boundary
+establishes the exact credential/catalog match and durable portfolio SHA-256.
 
 Preserve `0/10` and every unconsumed allowance unless an independently
 authorized predecessor creates and registers a coherent source parent. The

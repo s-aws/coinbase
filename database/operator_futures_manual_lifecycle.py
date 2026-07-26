@@ -259,13 +259,6 @@ class OperatorFuturesManualLifecycleRepository:
             create_invocation_validator
         )
         self.client_order_id_prefix = client_order_id_prefix
-        if (
-            self.goal_id == FUTURES_HOTPOINT_GOAL_ID
-            and not str(configured_portfolio_id or "").strip()
-        ):
-            raise ValueError(
-                "operator_futures_hotpoint_default_portfolio_required"
-            )
         self.configured_portfolio_id_sha256 = (
             _sha256_text(str(uuid.UUID(str(configured_portfolio_id))))
             if configured_portfolio_id
@@ -3136,8 +3129,6 @@ def get_default_operator_futures_hotpoint_lifecycle_repository(
     if _DEFAULT_HOTPOINT_REPOSITORY is None:
         with _DEFAULT_REPOSITORY_LOCK:
             if _DEFAULT_HOTPOINT_REPOSITORY is None:
-                import os
-
                 from application.admin_api.operator_futures_hotpoint_v2 import (
                     validate_futures_hotpoint_eligibility_evidence,
                 )
@@ -3146,16 +3137,6 @@ def get_default_operator_futures_hotpoint_lifecycle_repository(
                     get_default_operator_futures_hotpoint_control_repository,
                 )
 
-                portfolio_id = str(
-                    os.environ.get(
-                        "COINBASE_ADMIN_API_FUTURES_PORTFOLIO_ID"
-                    )
-                    or ""
-                ).strip()
-                if not portfolio_id:
-                    raise RuntimeError(
-                        "operator_futures_hotpoint_default_portfolio_required"
-                    )
                 exact_control = (
                     control_repository
                     or get_default_operator_futures_hotpoint_control_repository()
@@ -3163,7 +3144,7 @@ def get_default_operator_futures_hotpoint_lifecycle_repository(
                 _DEFAULT_HOTPOINT_REPOSITORY = (
                     OperatorFuturesManualLifecycleRepository(
                         order_db.DB_CLIENT,
-                        configured_portfolio_id=portfolio_id,
+                        configured_portfolio_id=None,
                         goal_id=FUTURES_HOTPOINT_GOAL_ID,
                         eligibility_evidence_validator=(
                             validate_futures_hotpoint_eligibility_evidence

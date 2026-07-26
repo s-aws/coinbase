@@ -215,6 +215,7 @@ def _eligible_result() -> FuturesManualEligibilityResult:
         "hotpoint_parent_client_order_id": parent_id,
         "hotpoint_window_id": window_id,
         "hotpoint_trigger_evidence_sha256": trigger_hash,
+        "hotpoint_portfolio_id_sha256": "b" * 64,
         "hotpoint_session_compatibility": "OPEN_24X7_GTC",
         "contract_expiry": "2030-12-20T00:00:00+00:00",
         "session_state": "FCM_TRADING_SESSION_STATE_OPEN",
@@ -255,6 +256,7 @@ def _eligible_result() -> FuturesManualEligibilityResult:
             window_id.encode("utf-8")
         ).hexdigest(),
         "trigger_evidence_sha256": trigger_hash,
+        "parent_portfolio_id_sha256": portfolio_hash,
         "exact_v3_eligible": True,
         "diagnostic_code": "operator_futures_hotpoint_exact_v3_eligible",
         "category_attempts": attempts,
@@ -352,6 +354,7 @@ def test_goal13_binds_documented_market_time_not_local_receipt(
             ),
             window_id="22222222-2222-4222-8222-222222222222",
             trigger_evidence_sha256="a" * 64,
+            portfolio_id_sha256="b" * 64,
         ),
         now=lambda: local_receipt,
     ).run(
@@ -379,6 +382,69 @@ def test_goal13_binds_documented_market_time_not_local_receipt(
             result.candidate,
             now=market_time + timedelta(seconds=31),
         )
+
+
+def test_goal13_eligibility_rejects_parent_portfolio_hash_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import application.admin_api.operator_futures_hotpoint_v2 as module
+
+    observed = datetime(2026, 7, 26, 12, 0, tzinfo=timezone.utc)
+
+    class _SharedReader:
+        def __init__(self, *, rest_client, selection_reader, now):
+            del selection_reader, now
+            self.rest_client = rest_client
+
+        def run(self, *, before_category, before_margin_subread):
+            del before_category
+            self.rest_client.market_observed_at = observed.isoformat()
+            self.rest_client.session_observed_at = observed.isoformat()
+            self.rest_client.session_evidence = (
+                module._futures_hotpoint_session_candidate_evidence(
+                    _product_session()
+                )
+            )
+            for subread in (
+                "futures_balance_summary",
+                "intraday_margin_setting",
+                "current_margin_window_regular",
+                "current_margin_window_intraday",
+            ):
+                before_margin_subread(subread)
+            return _eligible_result()
+
+    monkeypatch.setattr(
+        module,
+        "FuturesProductTicketEligibilityReader",
+        _SharedReader,
+    )
+    result = FuturesHotpointEligibilityReader(
+        rest_client=object(),
+        trigger=FuturesHotpointTriggerBinding(
+            parent_client_order_id=(
+                "11111111-1111-4111-8111-111111111111"
+            ),
+            window_id="22222222-2222-4222-8222-222222222222",
+            trigger_evidence_sha256="a" * 64,
+            portfolio_id_sha256="c" * 64,
+        ),
+        now=lambda: observed,
+    ).run(
+        before_category=lambda _category: None,
+        before_margin_subread=lambda _subread: None,
+    )
+
+    assert (
+        result.outcome
+        is AdminFuturesManualEligibilityOutcome.INELIGIBLE
+    )
+    assert result.candidate is None
+    assert result.portfolio_id_sha256 is None
+    assert result.diagnostic_code == (
+        "operator_futures_hotpoint_portfolio_binding_ineligible"
+    )
+    assert result.public_evidence["exact_v3_eligible"] is False
 
 
 @pytest.mark.parametrize(
@@ -495,7 +561,6 @@ def test_goal13_closeout_resolves_one_exact_complete_order_page() -> None:
     client = _OrderCatalogClient(_exact_order_page())
     executor = FuturesHotpointExactCloseoutExecutor(
         rest_client=client,
-        configured_portfolio_id=DEFAULT_PORTFOLIO_ID,
     )
     boundaries: list[str] = []
 
@@ -534,7 +599,6 @@ def test_goal13_cancel_queued_reconciliation_is_read_only() -> None:
     )
     executor = FuturesHotpointExactCloseoutExecutor(
         rest_client=client,
-        configured_portfolio_id=DEFAULT_PORTFOLIO_ID,
     )
     boundaries: list[str] = []
 
@@ -559,7 +623,6 @@ def test_goal13_closeout_fails_closed_on_pagination() -> None:
     client = _OrderCatalogClient(_exact_order_page(has_next=True))
     executor = FuturesHotpointExactCloseoutExecutor(
         rest_client=client,
-        configured_portfolio_id=DEFAULT_PORTFOLIO_ID,
     )
     result = executor.reconcile(
         candidate=_eligible_result().candidate or {},
@@ -580,7 +643,6 @@ def test_goal13_closeout_accepts_final_page_cursor_without_following_it() -> Non
     )
     executor = FuturesHotpointExactCloseoutExecutor(
         rest_client=client,
-        configured_portfolio_id=DEFAULT_PORTFOLIO_ID,
     )
     result = executor.reconcile(
         candidate=_eligible_result().candidate or {},
@@ -689,6 +751,7 @@ class _ControlRepository:
             parent_client_order_id=self.record.parent_client_order_id or "",
             window_id=self.record.window_id or "",
             trigger_evidence_sha256="a" * 64,
+            portfolio_id_sha256="b" * 64,
         )
 
     def revalidate_futures_trigger(self, _binding) -> bool:
@@ -2414,7 +2477,7 @@ def test_goal13_preinvoke_unknown_create_does_not_offer_safe_closeout() -> None:
     assert "SAFE_CLOSEOUT" not in service.read().allowed_actions
 
 
-def test_goal13_default_lifecycle_factory_binds_portfolio_and_claim_validator(
+def test_goal13_default_lifecycle_factory_defers_portfolio_binding_to_eligibility(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import database.operator_futures_manual_lifecycle as lifecycle_module
@@ -2451,9 +2514,9 @@ def test_goal13_default_lifecycle_factory_binds_portfolio_and_claim_validator(
         "OperatorFuturesManualLifecycleRepository",
         _Repository,
     )
-    monkeypatch.setenv(
+    monkeypatch.delenv(
         "COINBASE_ADMIN_API_FUTURES_PORTFOLIO_ID",
-        DEFAULT_PORTFOLIO_ID,
+        raising=False,
     )
 
     repository = (
@@ -2464,7 +2527,7 @@ def test_goal13_default_lifecycle_factory_binds_portfolio_and_claim_validator(
     )
 
     assert isinstance(repository, _Repository)
-    assert captured["configured_portfolio_id"] == DEFAULT_PORTFOLIO_ID
+    assert captured["configured_portfolio_id"] is None
     assert captured["goal_id"] == FUTURES_HOTPOINT_GOAL_ID
     assert callable(captured["eligibility_evidence_validator"])
     assert callable(captured["claim_validator"])

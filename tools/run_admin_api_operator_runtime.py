@@ -16,7 +16,6 @@ from dataclasses import dataclass
 import os
 import sys
 from typing import Any
-import uuid
 
 from application.admin_api.spot_portfolio_binding import (
     DEFAULT_SPOT_PORTFOLIO_LABEL,
@@ -77,8 +76,6 @@ _FIXED_STARTUP_DIAGNOSTICS = frozenset(
         "operator_futures_default_credentials_missing",
         "operator_futures_default_rest_client_not_configured",
         "operator_futures_default_rest_client_unavailable",
-        "operator_futures_hotpoint_default_portfolio_invalid",
-        "operator_futures_hotpoint_default_portfolio_required",
         "operator_futures_hotpoint_v2_init_failed",
         "operator_hotpoint_gate_unavailable",
         "operator_hotpoint_schema_init_failed",
@@ -174,21 +171,6 @@ def prepare_operator_runtime(
         == "1"
         or futures_hotpoint_v2_enabled
     )
-    if futures_hotpoint_v2_enabled:
-        portfolio_id = str(
-            target.get("COINBASE_ADMIN_API_FUTURES_PORTFOLIO_ID")
-            or ""
-        ).strip()
-        if not portfolio_id:
-            raise OperatorAdminRuntimeError(
-                "operator_futures_hotpoint_default_portfolio_required"
-            )
-        try:
-            uuid.UUID(portfolio_id)
-        except (AttributeError, TypeError, ValueError):
-            raise OperatorAdminRuntimeError(
-                "operator_futures_hotpoint_default_portfolio_invalid"
-            ) from None
     if futures_enabled:
         try:
             validate_coinbase_domain_credential_bindings(target)

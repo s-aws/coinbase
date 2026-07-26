@@ -15,16 +15,26 @@ accepted error-free result the identical Create. One later explicit
 `SAFE_CLOSEOUT` may consume one exact one-page reconciliation and one
 conditional exact-child Cancel.
 
+Persistent startup uses the approved Futures Default credential source
+separately from Spot/Test, accepts no externally configured raw Futures
+portfolio UUID, and makes no Coinbase call. If a canonical source parent later
+exists, the first authorized eligibility permissions/catalog cycle resolves
+exact credential-bound `Default` / `DEFAULT`, requires its SHA-256 to equal
+the selected canonical source parent's process-local portfolio SHA-256, and
+atomically binds only that matching hash in the Goal 13 ledger. Restart and
+Preview/Create admission enforce it. Exact closeout sends no portfolio
+identifier.
+
 Implementation, generated-contract synchronization, focused and full
 backend/frontend gates, installed deployment validation, independent safety
 and blind-contextless audits, and persistent Controlled-live handoff pass. No
 legitimate installed, reconciled,
 nonterminal Default-profile AVP parent has more than three contracts of
-remaining capacity, and inherited exact-V3 eligibility requires the
-post-trigger AVP position to be flat. The operator UI displays this source
-blocker and ARM/RUN remain unavailable. Eligibility is `0/10`; Preview,
-Create, reconciliation, and Cancel remain unconsumed. No Goal 13 Coinbase call
-or live proof occurred.
+remaining capacity. The operator UI displays this source blocker and ARM/RUN
+stop locally before any eligibility read. The inherited exact-V3 flat-position
+rule remains a future eligibility condition rather than a currently evaluated
+result. Eligibility is `0/10`; Preview, Create, reconciliation, and Cancel
+remain unconsumed. No Goal 13 Coinbase call or live proof occurred.
 
 Historical comparison inspected
 `origin/prod:business/hotpoint_detector.py`,

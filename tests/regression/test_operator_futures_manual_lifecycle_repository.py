@@ -229,6 +229,7 @@ def _goal13_eligible_result(
         "hotpoint_parent_client_order_id": parent_id,
         "hotpoint_window_id": window_id,
         "hotpoint_trigger_evidence_sha256": trigger_hash,
+        "hotpoint_portfolio_id_sha256": portfolio_hash,
         "hotpoint_session_compatibility": "OPEN_24X7_GTC",
         "contract_expiry": "2030-12-20T00:00:00+00:00",
         "session_state": "FCM_TRADING_SESSION_STATE_OPEN",
@@ -268,6 +269,7 @@ def _goal13_eligible_result(
             window_id.encode("utf-8")
         ).hexdigest(),
         "trigger_evidence_sha256": trigger_hash,
+        "parent_portfolio_id_sha256": portfolio_hash,
         "exact_v3_eligible": True,
         "diagnostic_code": "operator_futures_hotpoint_exact_v3_eligible",
         "category_attempts": attempts,

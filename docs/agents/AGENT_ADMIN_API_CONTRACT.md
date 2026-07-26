@@ -13,19 +13,25 @@ identity, List Orders filters, retry, or fallback behavior.
 Dedicated Goal 13 PostgreSQL rows reuse the shared canonical Futures lifecycle
 serialization lock and exact-child Cancel seal; do not document or implement a
 parallel Futures service or a dedicated advisory-lock identity. Modern CDP
-credential binding plus the exact portfolio-catalog match and durable
-portfolio SHA-256 prove Default authority; the deprecated order-level
-`retail_portfolio_id` argument is omitted. Cancel acceptance is initiation
-evidence until later authoritative reconciliation.
+startup uses the approved Futures Default credential source separately from
+Spot/Test, accepts no externally configured raw Futures portfolio UUID, and
+makes no Coinbase call. The first authorized eligibility permissions/catalog
+cycle resolves exact credential-bound `Default` / `DEFAULT` and atomically
+accepts only when its SHA-256 matches the selected canonical source parent's
+process-local portfolio SHA-256. The Goal 13 ledger persists only that matching
+hash; restart and Preview/Create claims revalidate it. Exact closeout omits
+`retail_portfolio_id` and every other portfolio identifier. Cancel acceptance
+is initiation evidence until later
+authoritative reconciliation.
 
 Implementation, OpenAPI/generated-client synchronization, focused and full
 backend/frontend gates, installed deployment validation, independent safety
 and blind-contextless audits, and persistent Controlled-live handoff pass. No
-legitimate installed
-source parent exists and the inherited flat-position gate is unsatisfied, so
-the UI exposes the blocker, eligibility remains `0/10`, every
-Preview/Create/reconciliation/Cancel allowance remains unconsumed, and no
-Goal 13 Coinbase call or live proof occurred. The terminal contract remains
+legitimate installed source parent exists, so the UI exposes the blocker and
+ARM/RUN stops locally before any eligibility read. The inherited flat-position
+rule remains a future eligibility condition, eligibility remains `0/10`,
+every Preview/Create/reconciliation/Cancel allowance remains unconsumed, and
+no Goal 13 Coinbase call or live proof occurred. The terminal contract remains
 fail-closed at that backend-owned blocker.
 
 Completed sequential Goal 12 operator-ready Controlled-live closeout:

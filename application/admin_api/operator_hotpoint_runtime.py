@@ -374,7 +374,6 @@ def evaluate_operator_futures_hotpoint_execution_posture(
     live_runtime_enabled: bool,
     credentials_configured: bool,
     rest_client_available: bool,
-    portfolio_configured: bool,
     live_service_state: AdminApiLiveExecutionServiceState,
 ) -> FuturesHotpointExecutionPosture:
     """Evaluate Goal 13 without treating Spot cap fields as Futures policy."""
@@ -391,8 +390,6 @@ def evaluate_operator_futures_hotpoint_execution_posture(
         diagnostic = "operator_futures_hotpoint_credentials_missing"
     elif not rest_client_available:
         diagnostic = "operator_futures_hotpoint_rest_client_unavailable"
-    elif not portfolio_configured:
-        diagnostic = "operator_futures_hotpoint_default_portfolio_required"
     elif not all(
         operator_futures_manual_live_service_state_allows_route_admission(
             live_service_state,
@@ -467,14 +464,6 @@ def get_operator_futures_hotpoint_execution_posture(
         ),
         credentials_configured=credentials_configured,
         rest_client_available=rest_client_available,
-        portfolio_configured=bool(
-            str(
-                os.environ.get(
-                    "COINBASE_ADMIN_API_FUTURES_PORTFOLIO_ID"
-                )
-                or ""
-            ).strip()
-        ),
         live_service_state=live_service_state,
     )
 
@@ -613,14 +602,6 @@ def _unavailable_futures_cancel(
 def _build_default_operator_futures_hotpoint_v2_service() -> Any:
     """Compose Goal 13 only from its dedicated ledgers and Futures adapters."""
 
-    configured_portfolio_id = str(
-        os.environ.get("COINBASE_ADMIN_API_FUTURES_PORTFOLIO_ID") or ""
-    ).strip()
-    if not configured_portfolio_id:
-        raise RuntimeError(
-            "operator_futures_hotpoint_default_portfolio_required"
-        )
-
     from database.operator_futures_manual_lifecycle import (
         get_default_operator_futures_hotpoint_lifecycle_repository,
     )
@@ -676,7 +657,6 @@ def _build_default_operator_futures_hotpoint_v2_service() -> Any:
         exchange_executor=exchange_executor,
         closeout_executor=FuturesHotpointExactCloseoutExecutor(
             rest_client=rest_client,
-            configured_portfolio_id=configured_portfolio_id,
         ),
     )
 
