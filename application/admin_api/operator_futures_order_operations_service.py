@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 from .operator_futures_order_operations import (
     FuturesOrderCatalogReader,
@@ -143,10 +143,16 @@ class OperatorFuturesOrderOperationsService:
         repository: FuturesOrderOperationsRepository,
         catalog_reader: FuturesOrderCatalogReader,
         exchange_executor: AdminApiFuturesOrderOperationsExchangeExecutor,
+        authoritative_fill_dispatcher: (
+            Callable[[str], object] | None
+        ) = None,
     ) -> None:
         self.repository = repository
         self.catalog_reader = catalog_reader
         self.exchange_executor = exchange_executor
+        self.authoritative_fill_dispatcher = (
+            authoritative_fill_dispatcher
+        )
 
     def read_goal(self) -> FuturesOrderOperationsGoalRecord:
         return self.repository.read_goal()
@@ -205,11 +211,22 @@ class OperatorFuturesOrderOperationsService:
         exact_id = str(client_order_id or "").strip()
         if not exact_id:
             raise ValueError("operator_futures_order_identity_invalid")
-        record, _result = self._run_cycle(
+        record, result = self._run_cycle(
             context=context,
             action="RECONCILE_EXACT",
             target_client_order_id=exact_id,
         )
+        if (
+            self.authoritative_fill_dispatcher is not None
+            and result is not None
+            and result.outcome == "SUCCEEDED"
+            and record.last_outcome == "SUCCEEDED"
+            and any(
+                item.client_order_id == exact_id
+                for item in result.orders
+            )
+        ):
+            self.authoritative_fill_dispatcher(exact_id)
         return record
 
     def cancel_exact(

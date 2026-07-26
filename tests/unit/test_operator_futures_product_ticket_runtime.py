@@ -196,6 +196,87 @@ def test_dynamic_exact_child_reconcile_and_cancel_preserve_identity(
     assert EXCHANGE_ORDER_ID not in repr(cancelled.public_evidence)
 
 
+def test_dynamic_executor_preserves_backend_owned_sell_side() -> None:
+    rest = _RestClient()
+    rest.create_response.success_response.side = "SELL"
+    rest.order_response["order"]["side"] = "SELL"
+    candidate = {
+        **_candidate(),
+        "side": "SELL",
+        "source_client_order_id": "source-order-id",
+        "root_client_order_id": "source-order-id",
+        "follow_up_intent_id": "00000000-0000-4000-8000-000000000502",
+        "trigger_evidence_sha256": "b" * 64,
+        "position_side": "LONG",
+        "position_contract_count": "1",
+    }
+    executor = AdminApiFuturesProductTicketExchangeExecutor(
+        rest_client=rest
+    )
+
+    preview = executor.preview(
+        candidate,
+        before_call=lambda: None,
+    )
+    created = executor.create(
+        candidate=candidate,
+        client_order_id=CLIENT_ORDER_ID,
+        private_preview_id=preview.private_preview_id or "",
+        before_call=lambda: None,
+    )
+    reconciled = executor.reconcile(
+        candidate=candidate,
+        client_order_id=CLIENT_ORDER_ID,
+        private_exchange_order_id=EXCHANGE_ORDER_ID,
+        before_call=lambda: None,
+    )
+
+    assert preview.outcome is AdminFuturesManualCallOutcome.ACCEPTED
+    assert created.outcome is AdminFuturesManualCallOutcome.ACCEPTED
+    assert reconciled.outcome is AdminFuturesManualCallOutcome.ACCEPTED
+    assert rest.preview_calls[0]["side"] == "SELL"
+    assert rest.create_calls[0]["side"] == "SELL"
+    assert created.public_evidence["side"] == "SELL"
+    assert reconciled.public_evidence["side"] == "SELL"
+
+
+def test_dynamic_executor_rejects_unbound_sell_before_call() -> None:
+    rest = _RestClient()
+    executor = AdminApiFuturesProductTicketExchangeExecutor(
+        rest_client=rest
+    )
+
+    result = executor.preview(
+        {**_candidate(), "side": "SELL"},
+        before_call=lambda: None,
+    )
+
+    assert result.outcome is AdminFuturesManualCallOutcome.UNKNOWN
+    assert rest.preview_calls == []
+
+
+def test_dynamic_executor_classifies_documented_response_schema_drift() -> None:
+    rest = _RestClient()
+    del rest.preview_response.commission_total
+    executor = AdminApiFuturesProductTicketExchangeExecutor(
+        rest_client=rest
+    )
+
+    result = executor.preview(
+        _candidate(),
+        before_call=lambda: None,
+    )
+
+    assert result.outcome is AdminFuturesManualCallOutcome.UNKNOWN
+    assert result.diagnostic_code == (
+        "operator_futures_product_ticket_preview_schema_invalid"
+    )
+    assert result.public_evidence == {
+        "raw_response_included": False,
+        "private_identifiers_included": False,
+    }
+
+
 def test_dynamic_executor_rejects_unconfigured_product_before_call() -> None:
     rest = _RestClient()
     candidate = {**_candidate(), "product_id": "OTHER-20DEC30-CDE"}

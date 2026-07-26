@@ -85,7 +85,7 @@ def _validated_candidate(candidate: Mapping[str, Any]) -> dict[str, str]:
     if (
         normalized.get("product_id")
         not in FUTURES_PRODUCT_TICKET_CONFIGURED_PRODUCTS
-        or normalized.get("side") != "BUY"
+        or normalized.get("side") not in {"BUY", "SELL"}
         or normalized.get("order_type") != "LIMIT_GTC"
         or normalized.get("post_only") != "true"
         or normalized.get("contract_count") != "1"
@@ -114,6 +114,38 @@ def _validated_candidate(candidate: Mapping[str, Any]) -> dict[str, str]:
         raise ValueError(
             "operator_futures_product_ticket_candidate_invalid"
         )
+    follow_up_binding_fields = (
+        "source_client_order_id",
+        "root_client_order_id",
+        "follow_up_intent_id",
+        "trigger_evidence_sha256",
+        "position_side",
+        "position_contract_count",
+    )
+    is_follow_up = any(
+        normalized.get(field) for field in follow_up_binding_fields
+    )
+    if normalized["side"] == "SELL" or is_follow_up:
+        required_position_side = (
+            "LONG" if normalized["side"] == "SELL" else "SHORT"
+        )
+        if (
+            any(
+                not normalized.get(field)
+                for field in follow_up_binding_fields
+            )
+            or normalized["source_client_order_id"]
+            != normalized["root_client_order_id"]
+            or _SHA256_RE.fullmatch(
+                normalized["trigger_evidence_sha256"]
+            )
+            is None
+            or normalized["position_side"] != required_position_side
+            or normalized["position_contract_count"] != "1"
+        ):
+            raise ValueError(
+                "operator_futures_product_ticket_follow_up_binding_invalid"
+            )
     return normalized
 
 
@@ -129,12 +161,15 @@ def _order_configuration(
     }
 
 
-def _unknown_preview() -> FuturesManualPreviewExecution:
+def _unknown_preview(
+    *,
+    diagnostic_code: str = (
+        "operator_futures_product_ticket_preview_outcome_unknown"
+    ),
+) -> FuturesManualPreviewExecution:
     return FuturesManualPreviewExecution(
         outcome=AdminFuturesManualCallOutcome.UNKNOWN,
-        diagnostic_code=(
-            "operator_futures_product_ticket_preview_outcome_unknown"
-        ),
+        diagnostic_code=diagnostic_code,
         preview_id_sha256=None,
         public_evidence={
             "raw_response_included": False,
@@ -177,7 +212,7 @@ class AdminApiFuturesProductTicketExchangeExecutor:
             ):
                 raw = self.rest_client.preview_futures_order(
                     product_id=product_id,
-                    side="BUY",
+                    side=exact["side"],
                     order_configuration=_order_configuration(exact),
                     before_sdk_call=before_call,
                 )
@@ -221,6 +256,20 @@ class AdminApiFuturesProductTicketExchangeExecutor:
                         "private_identifiers_included": False,
                     },
                 )
+            if fixed == "futures_preview_response_economics_invalid":
+                return _unknown_preview(
+                    diagnostic_code=(
+                        "operator_futures_product_ticket_preview_"
+                        "economics_invalid"
+                    )
+                )
+            if fixed is not None:
+                return _unknown_preview(
+                    diagnostic_code=(
+                        "operator_futures_product_ticket_preview_"
+                        "schema_invalid"
+                    )
+                )
             return _unknown_preview()
         except Exception:
             return _unknown_preview()
@@ -248,7 +297,7 @@ class AdminApiFuturesProductTicketExchangeExecutor:
                 raw = self.rest_client.create_futures_order(
                     client_order_id=exact_client_order_id,
                     product_id=product_id,
-                    side="BUY",
+                    side=exact["side"],
                     order_configuration=_order_configuration(exact),
                     preview_id=exact_preview_id,
                     before_sdk_call=before_call,
@@ -278,7 +327,7 @@ class AdminApiFuturesProductTicketExchangeExecutor:
             if (
                 not exchange_order_id
                 or success.get("product_id") != product_id
-                or success.get("side") != "BUY"
+                or success.get("side") != exact["side"]
                 or success.get("client_order_id")
                 != exact_client_order_id
             ):
@@ -293,7 +342,7 @@ class AdminApiFuturesProductTicketExchangeExecutor:
                 public_evidence={
                     "client_order_id": exact_client_order_id,
                     "product_id": product_id,
-                    "side": "BUY",
+                    "side": exact["side"],
                     "exchange_order_id_sha256": exchange_hash,
                     "raw_response_included": False,
                     "private_identifiers_included": False,
@@ -340,7 +389,7 @@ class AdminApiFuturesProductTicketExchangeExecutor:
                 or order.get("client_order_id")
                 != exact_client_order_id
                 or order.get("product_id") != product_id
-                or order.get("side") != "BUY"
+                or order.get("side") != exact["side"]
             ):
                 raise ValueError(
                     "operator_futures_product_ticket_reconciliation_"
@@ -368,7 +417,7 @@ class AdminApiFuturesProductTicketExchangeExecutor:
                 public_evidence={
                     "client_order_id": exact_client_order_id,
                     "product_id": product_id,
-                    "side": "BUY",
+                    "side": exact["side"],
                     "status": order_status,
                     "exchange_order_id_sha256": exchange_hash,
                     "raw_response_included": False,

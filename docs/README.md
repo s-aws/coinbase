@@ -1,5 +1,16 @@
 # Documentation Index
 
+Completed independent Goal 5:
+[Operator Futures Fill-Triggered Follow-Up V1](OPERATOR_FUTURES_FILL_TRIGGERED_FOLLOW_UP_V1.md).
+Goal `operator_futures_fill_triggered_follow_up_activation_v1` adds
+Default-profile enable, disable, pause, resume, drain, and status controls,
+authoritative exact-full-fill activation, one backend-derived opposite-side
+child, and independent single-use Preview/Create/reconciliation/Cancel
+accounting under strict `<100 / <150 / <300 USDC` caps.
+Focused and full backend/frontend gates plus both independent audits pass.
+No authoritative fully filled attached intent existed at closeout, so all
+Goal 5 live allowances remain unconsumed.
+
 Completed independent Goal 4:
 [Operator Futures Follow-Up Intent V1](OPERATOR_FUTURES_FOLLOW_UP_INTENT_V1.md).
 Goal `operator_futures_follow_up_intent_attachment_v1` lets an authenticated

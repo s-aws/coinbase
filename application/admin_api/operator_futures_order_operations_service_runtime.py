@@ -131,8 +131,23 @@ def get_default_operator_futures_order_operations_service(
                 from database.operator_futures_order_operations import (
                     get_default_operator_futures_order_operations_repository,
                 )
+                from .operator_futures_fill_triggered_follow_up_runtime import (
+                    OPERATOR_FUTURES_FILL_TRIGGERED_FOLLOW_UP_ENABLED_ENV,
+                    get_default_operator_futures_fill_triggered_follow_up_service,
+                )
 
                 rest_client = get_futures_default_rest_client()
+                fill_dispatcher = None
+                if (
+                    os.environ.get(
+                        OPERATOR_FUTURES_FILL_TRIGGERED_FOLLOW_UP_ENABLED_ENV
+                    )
+                    == "1"
+                ):
+                    fill_dispatcher = (
+                        get_default_operator_futures_fill_triggered_follow_up_service()
+                        .on_source_reconciled
+                    )
                 _DEFAULT_SERVICE = OperatorFuturesOrderOperationsService(
                     repository=(
                         get_default_operator_futures_order_operations_repository()
@@ -145,6 +160,7 @@ def get_default_operator_futures_order_operations_service(
                             rest_client=rest_client
                         )
                     ),
+                    authoritative_fill_dispatcher=fill_dispatcher,
                 )
     return _DEFAULT_SERVICE
 

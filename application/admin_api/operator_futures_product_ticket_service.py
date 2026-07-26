@@ -23,7 +23,13 @@ from .operator_futures_product_policy import (
     FuturesProductPolicyRecord,
 )
 from .operator_futures_product_ticket import (
+    FUTURES_PRODUCT_TICKET_GOAL_ID,
     FuturesProductTicketEligibilityReader,
+)
+from .operator_futures_fill_triggered_follow_up import (
+    FUTURES_FILL_TRIGGERED_EXECUTE_INTENT,
+    FUTURES_FILL_TRIGGERED_FOLLOW_UP_GOAL_ID,
+    FUTURES_FILL_TRIGGERED_REFRESH_INTENT,
 )
 
 
@@ -48,6 +54,26 @@ class OperatorFuturesProductTicketService:
         self.lifecycle_repository = lifecycle_repository
         self.eligibility_reader = eligibility_reader
         self.exchange_executor = exchange_executor
+
+    def _require_intent_goal_binding(self, operator_intent: str) -> None:
+        expected_goal_id = (
+            FUTURES_FILL_TRIGGERED_FOLLOW_UP_GOAL_ID
+            if operator_intent
+            in {
+                FUTURES_FILL_TRIGGERED_REFRESH_INTENT,
+                FUTURES_FILL_TRIGGERED_EXECUTE_INTENT,
+            }
+            else FUTURES_PRODUCT_TICKET_GOAL_ID
+        )
+        bound_goal_id = getattr(
+            self.lifecycle_repository,
+            "goal_id",
+            expected_goal_id,
+        )
+        if bound_goal_id != expected_goal_id:
+            raise ValueError(
+                "operator_futures_product_ticket_goal_binding_invalid"
+            )
 
     def read(self) -> FuturesProductTicketState:
         return FuturesProductTicketState(
@@ -90,9 +116,13 @@ class OperatorFuturesProductTicketService:
         *,
         context: FuturesManualRequestContext,
     ) -> FuturesProductTicketState:
+        self._require_intent_goal_binding(context.operator_intent)
         if (
             context.operator_intent
-            != "refresh_one_futures_product_ticket_eligibility_cycle"
+            not in {
+                "refresh_one_futures_product_ticket_eligibility_cycle",
+                FUTURES_FILL_TRIGGERED_REFRESH_INTENT,
+            }
             or not context.authorize_one_no_retry_six_category_cycle
             or not context.acknowledge_cycle_is_goal_global_and_limited_to_ten
             or not (
@@ -137,12 +167,16 @@ class OperatorFuturesProductTicketService:
         *,
         context: FuturesManualRequestContext,
     ) -> FuturesProductTicketState:
+        self._require_intent_goal_binding(context.operator_intent)
         if (
             context.operator_intent
-            != (
-                "preview_submit_and_safe_closeout_one_"
-                "futures_product_ticket"
-            )
+            not in {
+                (
+                    "preview_submit_and_safe_closeout_one_"
+                    "futures_product_ticket"
+                ),
+                FUTURES_FILL_TRIGGERED_EXECUTE_INTENT,
+            }
             or not context.authorize_preview_create_and_safe_closeout
             or not context.acknowledge_unknown_outcome_consumes_allowance
             or not (

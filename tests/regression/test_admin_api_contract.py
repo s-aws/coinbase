@@ -76970,8 +76970,8 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert futures_module["support_status"] == (
         AdminApiModuleSupportStatus.PLATFORM_READY.value
     )
-    assert futures_module["action_posture"]["read_route_count"] == 15
-    assert futures_module["action_posture"]["command_route_count"] == 20
+    assert futures_module["action_posture"]["read_route_count"] == 16
+    assert futures_module["action_posture"]["command_route_count"] == 21
     assert futures_module["action_posture"]["live_route_count"] == 7
     assert futures_module["action_posture"]["command_gap_count"] == 3
     futures_gaps = {

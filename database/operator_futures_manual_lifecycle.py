@@ -26,6 +26,9 @@ from application.admin_api.operator_futures_manual_lifecycle import (
 from application.admin_api.operator_futures_product_ticket import (
     FUTURES_PRODUCT_TICKET_GOAL_ID,
 )
+from application.admin_api.operator_futures_fill_triggered_follow_up import (
+    FUTURES_FILL_TRIGGERED_FOLLOW_UP_GOAL_ID,
+)
 from core.enums import (
     AdminFuturesManualCallOutcome,
     AdminFuturesManualEligibilityOutcome,
@@ -171,6 +174,7 @@ class OperatorFuturesManualLifecycleRepository:
             FUTURES_MANUAL_GOAL_ID,
             FUTURES_MANUAL_ACTIVE_GOAL_ID,
             FUTURES_PRODUCT_TICKET_GOAL_ID,
+            FUTURES_FILL_TRIGGERED_FOLLOW_UP_GOAL_ID,
         }:
             raise ValueError("operator_futures_manual_goal_id_invalid")
         if (
@@ -1475,8 +1479,21 @@ class OperatorFuturesManualLifecycleRepository:
         diagnostic = str(
             getattr(execution, "diagnostic_code", "") or ""
         )
+        allowed_diagnostic_prefixes = {
+            f"operator_futures_manual_{step}"
+        }
+        if self.goal_id in {
+            FUTURES_PRODUCT_TICKET_GOAL_ID,
+            FUTURES_FILL_TRIGGERED_FOLLOW_UP_GOAL_ID,
+        }:
+            allowed_diagnostic_prefixes.add(
+                f"operator_futures_product_ticket_{step}"
+            )
         if (
-            not diagnostic.startswith(f"operator_futures_manual_{step}")
+            not any(
+                diagnostic.startswith(prefix)
+                for prefix in allowed_diagnostic_prefixes
+            )
             or len(diagnostic) > 128
         ):
             raise FuturesManualLifecycleError(

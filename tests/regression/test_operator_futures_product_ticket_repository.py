@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import re
+from types import SimpleNamespace
 import uuid
 
 import pytest
@@ -25,7 +26,10 @@ from application.admin_api.operator_futures_product_ticket import (
     FUTURES_PRODUCT_TICKET_GOAL_ID,
     validate_futures_product_ticket_eligibility_evidence,
 )
-from core.enums import AdminFuturesManualEligibilityOutcome
+from core.enums import (
+    AdminFuturesManualCallOutcome,
+    AdminFuturesManualEligibilityOutcome,
+)
 from database.database import PostgresDB
 from database.operator_futures_manual_lifecycle import (
     FuturesManualLifecycleError,
@@ -326,6 +330,83 @@ def test_claim_binds_exact_current_policy_and_policy_freezes_after_claim(
             product_id="BIP-20DEC30-CDE",
             expected_revision=selected.revision,
         )
+
+
+def test_product_ticket_executor_diagnostics_persist_across_exact_call_chain(
+    repositories,
+) -> None:
+    policy, lifecycle = repositories
+    selected = _select_bip(policy)
+    eligible = _complete_cycle(selected, lifecycle)
+    _, plan = lifecycle.claim_preview(
+        context=_execute_context(eligible.revision)
+    )
+    assert plan is not None
+
+    lifecycle.mark_preview_exchange_invoked(claim_id=plan.claim_id)
+    preview = lifecycle.finish_preview(
+        claim_id=plan.claim_id,
+        execution=SimpleNamespace(
+            outcome=AdminFuturesManualCallOutcome.ACCEPTED,
+            diagnostic_code=(
+                "operator_futures_product_ticket_preview_accepted"
+            ),
+            preview_id_sha256="a" * 64,
+        ),
+    )
+    assert preview.diagnostic_code == (
+        "operator_futures_product_ticket_preview_accepted"
+    )
+
+    lifecycle.claim_create(claim_id=plan.claim_id)
+    lifecycle.mark_create_exchange_invoked(claim_id=plan.claim_id)
+    created = lifecycle.finish_create(
+        claim_id=plan.claim_id,
+        execution=SimpleNamespace(
+            outcome=AdminFuturesManualCallOutcome.ACCEPTED,
+            diagnostic_code=(
+                "operator_futures_product_ticket_create_accepted"
+            ),
+            exchange_order_id_sha256="b" * 64,
+        ),
+    )
+    assert created.diagnostic_code == (
+        "operator_futures_product_ticket_create_accepted"
+    )
+
+    lifecycle.claim_reconciliation(claim_id=plan.claim_id)
+    lifecycle.mark_reconciliation_exchange_invoked(
+        claim_id=plan.claim_id
+    )
+    reconciled = lifecycle.finish_reconciliation(
+        claim_id=plan.claim_id,
+        execution=SimpleNamespace(
+            outcome=AdminFuturesManualCallOutcome.ACCEPTED,
+            diagnostic_code=(
+                "operator_futures_product_ticket_reconciliation_accepted"
+            ),
+            order_status="OPEN",
+            authoritatively_nonterminal=True,
+        ),
+    )
+    assert reconciled.diagnostic_code == (
+        "operator_futures_product_ticket_reconciliation_accepted"
+    )
+
+    lifecycle.claim_cancel(claim_id=plan.claim_id)
+    lifecycle.mark_cancel_exchange_invoked(claim_id=plan.claim_id)
+    cancelled = lifecycle.finish_cancel(
+        claim_id=plan.claim_id,
+        execution=SimpleNamespace(
+            outcome=AdminFuturesManualCallOutcome.ACCEPTED,
+            diagnostic_code=(
+                "operator_futures_product_ticket_cancel_accepted"
+            ),
+        ),
+    )
+    assert cancelled.diagnostic_code == (
+        "operator_futures_product_ticket_cancel_accepted"
+    )
 
 
 def test_refresh_idempotency_is_request_bound_and_never_replays_later_state(

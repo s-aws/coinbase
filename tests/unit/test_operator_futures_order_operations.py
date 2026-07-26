@@ -259,6 +259,115 @@ def test_reconcile_uses_backend_owned_durable_scope_for_one_catalog():
     )
 
 
+def test_successful_exact_reconciliation_notifies_fill_dispatcher_once():
+    record = SimpleNamespace(last_outcome="SUCCEEDED")
+    repository = SimpleNamespace(
+        get_order=Mock(
+            return_value={
+                "client_order_id": CLIENT_ORDER_ID,
+                "product_id": "AVP-20DEC30-CDE",
+                "created_at": "2026-07-25T08:00:00Z",
+            }
+        ),
+        begin_cycle=Mock(return_value=(record, 1, False)),
+        claim_category=Mock(),
+        claim_page=Mock(),
+        mark_page_invoked=Mock(),
+        finish_page=Mock(),
+        finish_cycle=Mock(return_value=record),
+    )
+    catalog_reader = SimpleNamespace(
+        run=Mock(
+            return_value=SimpleNamespace(
+                outcome="SUCCEEDED",
+                orders=(
+                    SimpleNamespace(client_order_id=CLIENT_ORDER_ID),
+                ),
+            )
+        )
+    )
+    dispatcher = Mock()
+    service = OperatorFuturesOrderOperationsService(
+        repository=repository,
+        catalog_reader=catalog_reader,
+        exchange_executor=SimpleNamespace(),
+        authoritative_fill_dispatcher=dispatcher,
+    )
+
+    returned = service.reconcile_exact(
+        context=FuturesOrderOperationsRequestContext(
+            actor_id="operator-1",
+            roles=("admin", "trader"),
+            expected_revision=0,
+            idempotency_key="reconcile-dispatch",
+            correlation_id="corr-reconcile-dispatch",
+            audit_id="audit-reconcile-dispatch",
+            operator_intent="reconcile_exact_futures_order",
+            authorize_one_no_retry_cycle=True,
+            acknowledge_cycle_is_goal_global_and_limited_to_ten=True,
+            acknowledge_unknown_read_fails_closed=True,
+            acknowledge_unknown_cancel_consumes_allowance=False,
+        ),
+        client_order_id=CLIENT_ORDER_ID,
+    )
+
+    assert returned is record
+    dispatcher.assert_called_once_with(CLIENT_ORDER_ID)
+
+
+def test_successful_exact_reconciliation_without_exact_observation_does_not_dispatch():
+    record = SimpleNamespace(last_outcome="SUCCEEDED")
+    repository = SimpleNamespace(
+        get_order=Mock(
+            return_value={
+                "client_order_id": CLIENT_ORDER_ID,
+                "product_id": "AVP-20DEC30-CDE",
+                "created_at": "2026-07-25T08:00:00Z",
+            }
+        ),
+        begin_cycle=Mock(return_value=(record, 1, False)),
+        claim_category=Mock(),
+        claim_page=Mock(),
+        mark_page_invoked=Mock(),
+        finish_page=Mock(),
+        finish_cycle=Mock(return_value=record),
+    )
+    catalog_reader = SimpleNamespace(
+        run=Mock(
+            return_value=SimpleNamespace(
+                outcome="SUCCEEDED",
+                orders=(),
+            )
+        )
+    )
+    dispatcher = Mock()
+    service = OperatorFuturesOrderOperationsService(
+        repository=repository,
+        catalog_reader=catalog_reader,
+        exchange_executor=SimpleNamespace(),
+        authoritative_fill_dispatcher=dispatcher,
+    )
+
+    service.reconcile_exact(
+        context=FuturesOrderOperationsRequestContext(
+            actor_id="operator-1",
+            roles=("admin", "trader"),
+            expected_revision=0,
+            idempotency_key="reconcile-no-exact-observation",
+            correlation_id="corr-reconcile-no-exact-observation",
+            audit_id="audit-reconcile-no-exact-observation",
+            operator_intent="reconcile_exact_futures_order",
+            authorize_one_no_retry_cycle=True,
+            acknowledge_cycle_is_goal_global_and_limited_to_ten=True,
+            acknowledge_unknown_read_fails_closed=True,
+            acknowledge_unknown_cancel_consumes_allowance=False,
+        ),
+        client_order_id=CLIENT_ORDER_ID,
+    )
+
+    dispatcher.assert_not_called()
+
+
 def test_catalog_reader_fails_closed_on_duplicate_client_identity():
     rest = _RestClient()
     rest.pages["private-cursor-1"]["orders"][0]["client_order_id"] = (

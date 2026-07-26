@@ -154,6 +154,24 @@ from application.admin_api.operator_futures_follow_up_intent_service_runtime imp
     OPERATOR_FUTURES_FOLLOW_UP_INTENT_ENABLED_ENV,
     get_default_operator_futures_follow_up_intent_service,
 )
+from application.admin_api.operator_futures_fill_triggered_follow_up import (
+    FUTURES_FILL_TRIGGERED_CAPS,
+    FUTURES_FILL_TRIGGERED_OPERATOR_INTENT,
+    FuturesFillTriggeredActivationRecord,
+    FuturesFillTriggeredControlAction,
+    FuturesFillTriggeredFollowUpService,
+    FuturesFillTriggeredRequestContext,
+)
+from application.admin_api.operator_futures_fill_triggered_follow_up_models import (
+    OperatorFuturesFillTriggeredFollowUpControlRequest,
+    OperatorFuturesFillTriggeredFollowUpControlResponse,
+    OperatorFuturesFillTriggeredFollowUpReadback,
+)
+from application.admin_api.operator_futures_fill_triggered_follow_up_runtime import (
+    OPERATOR_FUTURES_FILL_TRIGGERED_FOLLOW_UP_ENABLED_ENV,
+    get_default_operator_futures_fill_triggered_follow_up_service,
+    operator_futures_fill_triggered_execution_ready,
+)
 from application.admin_api.operator_futures_position_lifecycle import (
     FuturesPositionGoalRecord,
     FuturesPositionLifecycleError,
@@ -308,6 +326,21 @@ def require_operator_futures_follow_up_intent_enabled() -> None:
         )
 
 
+def require_operator_futures_fill_triggered_follow_up_enabled() -> None:
+    if (
+        os.environ.get(
+            OPERATOR_FUTURES_FILL_TRIGGERED_FOLLOW_UP_ENABLED_ENV
+        )
+        != "1"
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "operator_futures_fill_triggered_follow_up_disabled"
+            ),
+        )
+
+
 def get_operator_futures_position_lifecycle_service(
 ) -> OperatorFuturesPositionLifecycleService:
     try:
@@ -360,6 +393,22 @@ def get_operator_futures_follow_up_intent_service(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="operator_futures_follow_up_intent_backend_unavailable",
+        ) from None
+
+
+def get_operator_futures_fill_triggered_follow_up_service(
+) -> FuturesFillTriggeredFollowUpService:
+    try:
+        return (
+            get_default_operator_futures_fill_triggered_follow_up_service()
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "operator_futures_fill_triggered_follow_up_"
+                "backend_unavailable"
+            ),
         ) from None
 
 
@@ -1220,6 +1269,103 @@ def _raise_futures_follow_up_intent(exc: ValueError) -> None:
     ) from None
 
 
+def _futures_fill_triggered_follow_up_response(
+    record: FuturesFillTriggeredActivationRecord,
+    *,
+    actor: AdminApiActor,
+    control: bool = False,
+) -> (
+    OperatorFuturesFillTriggeredFollowUpReadback
+    | OperatorFuturesFillTriggeredFollowUpControlResponse
+):
+    can_control = actor_has_permission(
+        actor, AdminApiPermission.ORDER_CREATE
+    )
+    can_delegate = (
+        can_control
+        and actor_has_permission(
+            actor, AdminApiPermission.ORDER_CANCEL
+        )
+    )
+    ready = operator_futures_fill_triggered_execution_ready()
+    allowed_actions: list[
+        Literal["ENABLE", "DISABLE", "PAUSE", "RESUME", "DRAIN"]
+    ] = []
+    if (
+        can_control
+        and record.trigger_state.value
+        not in {"CLAIMED", "COMPLETED", "BLOCKED", "UNKNOWN"}
+    ):
+        if (
+            record.control_state.value in {"DISABLED", "DRAINED"}
+            and ready
+            and can_delegate
+        ):
+            allowed_actions.append("ENABLE")
+        elif record.control_state.value == "ENABLED":
+            allowed_actions.extend(["DISABLE", "PAUSE"])
+        elif record.control_state.value == "PAUSED":
+            allowed_actions.append("DISABLE")
+            if ready and can_delegate:
+                allowed_actions.append("RESUME")
+        if record.control_state.value != "DRAINED":
+            allowed_actions.append("DRAIN")
+    payload = {
+        "goal_id": record.goal_id,
+        "source_client_order_id": record.source_client_order_id,
+        "follow_up_intent_id": record.follow_up_intent_id,
+        "environment": os.environ.get(
+            "COINBASE_ADMIN_API_ENVIRONMENT", "local"
+        ),
+        "operator_intent": FUTURES_FILL_TRIGGERED_OPERATOR_INTENT,
+        "caps": FUTURES_FILL_TRIGGERED_CAPS,
+        "control_state": record.control_state.value,
+        "trigger_state": record.trigger_state.value,
+        "revision": record.revision,
+        "delegated_live_authority": record.delegated_live_authority,
+        "trigger_claim_present": record.trigger_claim_id is not None,
+        "trigger_evidence_sha256": (
+            record.trigger_evidence_sha256
+        ),
+        "lifecycle_revision": record.lifecycle_revision,
+        "child_client_order_id": record.child_client_order_id,
+        "preview_outcome": record.preview_outcome,
+        "create_outcome": record.create_outcome,
+        "reconciliation_outcome": record.reconciliation_outcome,
+        "cancel_outcome": record.cancel_outcome,
+        "diagnostic_code": record.diagnostic_code,
+        "execution_posture_ready": ready,
+        "allowed_actions": allowed_actions,
+        "correlation_id": record.correlation_id,
+        "audit_id": record.audit_id,
+        "recorded_at": record.recorded_at,
+        "updated_at": record.updated_at,
+    }
+    if control:
+        return OperatorFuturesFillTriggeredFollowUpControlResponse(
+            **payload
+        )
+    return OperatorFuturesFillTriggeredFollowUpReadback(**payload)
+
+
+def _raise_futures_fill_triggered_follow_up(
+    exc: ValueError,
+) -> None:
+    code = (
+        str(exc.args[0])
+        if len(exc.args) == 1
+        and isinstance(exc.args[0], str)
+        and exc.args[0].startswith(
+            "operator_futures_fill_triggered_"
+        )
+        else "operator_futures_fill_triggered_follow_up_failed"
+    )
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail=code,
+    ) from None
+
+
 def _require_futures_order_operations_cancel_runtime() -> None:
     if not get_operator_futures_order_operations_execution_posture().ready:
         raise HTTPException(
@@ -1678,6 +1824,134 @@ def attach_operator_futures_follow_up_intent(
                 readback,
                 actor=actor,
                 replayed=replayed,
+            )
+        )
+    )
+
+
+@router.get(
+    (
+        "/futures/order-operations/{client_order_id}/follow-up-intent/"
+        "fill-triggered-activation"
+    ),
+    response_model=OperatorFuturesFillTriggeredFollowUpReadback,
+    responses=FUTURES_MANUAL_ROUTE_RESPONSES,
+    summary="Read one Default-profile Futures follow-up activation",
+)
+def get_operator_futures_fill_triggered_follow_up(
+    client_order_id: Annotated[
+        str, Path(min_length=1, max_length=128)
+    ],
+    actor: Annotated[
+        AdminApiActor, Depends(get_authenticated_actor)
+    ],
+    service: Annotated[
+        FuturesFillTriggeredFollowUpService,
+        Depends(
+            get_operator_futures_fill_triggered_follow_up_service
+        ),
+    ],
+) -> JSONResponse:
+    """Read PostgreSQL authority without calling Coinbase."""
+
+    require_operator_futures_fill_triggered_follow_up_enabled()
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    try:
+        record = service.read(client_order_id)
+    except ValueError as exc:
+        _raise_futures_fill_triggered_follow_up(exc)
+    return JSONResponse(
+        content=jsonable_encoder(
+            _futures_fill_triggered_follow_up_response(
+                record, actor=actor
+            )
+        )
+    )
+
+
+@router.post(
+    (
+        "/futures/order-operations/{client_order_id}/follow-up-intent/"
+        "fill-triggered-activation"
+    ),
+    response_model=(
+        OperatorFuturesFillTriggeredFollowUpControlResponse
+    ),
+    responses=FUTURES_MANUAL_ROUTE_RESPONSES,
+    summary="Control one Default-profile Futures follow-up activation",
+)
+def control_operator_futures_fill_triggered_follow_up(
+    body: OperatorFuturesFillTriggeredFollowUpControlRequest,
+    client_order_id: Annotated[
+        str, Path(min_length=1, max_length=128)
+    ],
+    idempotency_key: Annotated[
+        str,
+        Header(alias="Idempotency-Key", min_length=1, max_length=255),
+    ],
+    correlation_id: Annotated[
+        str,
+        Header(alias="X-Correlation-Id", min_length=1, max_length=255),
+    ],
+    operator_intent: Annotated[
+        Literal["control_futures_fill_triggered_follow_up"],
+        Header(alias="X-Operator-Intent"),
+    ],
+    actor: Annotated[
+        AdminApiActor, Depends(get_authenticated_actor)
+    ],
+    service: Annotated[
+        FuturesFillTriggeredFollowUpService,
+        Depends(
+            get_operator_futures_fill_triggered_follow_up_service
+        ),
+    ],
+) -> JSONResponse:
+    require_operator_futures_fill_triggered_follow_up_enabled()
+    require_permission(actor, AdminApiPermission.ORDER_CREATE)
+    action = FuturesFillTriggeredControlAction(body.action)
+    if action in {
+        FuturesFillTriggeredControlAction.ENABLE,
+        FuturesFillTriggeredControlAction.RESUME,
+    }:
+        require_permission(actor, AdminApiPermission.ORDER_CANCEL)
+        if not operator_futures_fill_triggered_execution_ready():
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=(
+                    "operator_futures_fill_triggered_follow_up_"
+                    "live_runtime_unavailable"
+                ),
+            )
+    try:
+        record = service.control(
+            source_client_order_id=client_order_id,
+            action=action,
+            context=FuturesFillTriggeredRequestContext(
+                actor_id=actor.actor_id,
+                roles=tuple(role.value for role in actor.roles),
+                expected_revision=body.expected_revision,
+                idempotency_key=idempotency_key,
+                correlation_id=correlation_id,
+                audit_id=str(uuid4()),
+                operator_intent=operator_intent,
+            ),
+            authorize_one_preview_create_and_safe_closeout=(
+                body.authorize_one_preview_create_and_safe_closeout
+            ),
+            acknowledge_unknown_outcome_consumes_allowance=(
+                body.acknowledge_unknown_outcome_consumes_allowance
+            ),
+            acknowledge_child_terms_are_backend_derived=(
+                body.acknowledge_child_terms_are_backend_derived
+            ),
+        )
+    except ValueError as exc:
+        _raise_futures_fill_triggered_follow_up(exc)
+    return JSONResponse(
+        content=jsonable_encoder(
+            _futures_fill_triggered_follow_up_response(
+                record, actor=actor, control=True
             )
         )
     )

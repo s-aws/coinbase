@@ -1,5 +1,33 @@
 # Coinbase Trading Backend
 
+## Completed operator Futures fill-triggered follow-up activation
+
+Goal `operator_futures_fill_triggered_follow_up_activation_v1` adds
+PostgreSQL-owned enable, disable, pause, resume, drain, and status controls
+for one attached Default-profile Futures intent. Exact source reconciliation
+must first persist `FILLED`, `size=filled_size=1`, one-contract,
+exchange-hash-bound evidence before the backend can claim one trigger.
+
+The independent Goal 5 ledger runs one no-retry six-category eligibility
+cycle, derives the opposite-side passive one-contract child under strict
+`<100 / <150 / <300 USDC` caps, and permits one Preview, identical Create
+only after acceptance, exact reconciliation, and conditional exact-child
+Cancel. PostgreSQL owns one goal-global delegated authority, restart recovery,
+call accounting, child identity, and fixed sanitized readback. Page loads and
+control transitions make zero Coinbase calls.
+
+Current official CFM endpoints and the pinned SDK show no published
+maintenance-specific breaking change. Any eligibility or Preview
+response-shape mismatch is nevertheless classified separately and fails
+closed without raw response, identifier, or exception text. See
+[the Goal 5 design](docs/OPERATOR_FUTURES_FILL_TRIGGERED_FOLLOW_UP_V1.md).
+
+Goal 5 passed focused validation, both independent audits, the full backend
+regression (1,286 parallel-safe plus 896 serial tests), and the complete
+frontend release/deployment/E2E gate (1,774 unit/component tests). No
+authoritative fully filled attached intent existed, so no Goal 5 Coinbase call
+ran and every live allowance remains unconsumed.
+
 ## Operator Futures follow-up intent attachment
 
 Goal `operator_futures_follow_up_intent_attachment_v1` adds one normal

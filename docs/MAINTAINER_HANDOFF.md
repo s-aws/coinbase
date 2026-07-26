@@ -1,5 +1,34 @@
 # Maintainer Handoff
 
+## Completed operator Futures fill-triggered follow-up activation
+
+Goal `operator_futures_fill_triggered_follow_up_activation_v1` owns a separate
+PostgreSQL control and call ledger for one immutable Goal 4 intent. It adds
+enable, disable, pause, resume, drain, and status readback on the routed
+Futures order detail. Exact source reconciliation persists Coinbase evidence
+before an enabled activation can claim `FILLED`, `size=filled_size=1`.
+
+Eligibility and execution use the Default profile, configured Futures product
+policy, current one-contract position, fresh passive opposite-side price,
+margin evidence, strict `<100 / <150 / <300 USDC` caps, and the canonical
+single-use Preview/Create/reconciliation/conditional-Cancel adapter. The
+browser supplies no child term or exchange identity.
+
+Maintenance-related API drift remains a separately classified hypothesis.
+Schema-invalid evidence is fixed and value-blind and is not mapped to
+credentials, entitlement, policy ineligibility, or exchange rejection. See
+[Operator Futures Fill-Triggered Follow-Up V1](OPERATOR_FUTURES_FILL_TRIGGERED_FOLLOW_UP_V1.md).
+
+Closeout passed focused contracts, the full backend regression (1,286
+parallel-safe plus 896 serial tests), the frontend release/deployment/E2E gate
+(1,774 unit/component tests), and both independent audits. The audit
+remediation fixed shared lifecycle diagnostic compatibility, made operator
+intent and the exact numeric caps mandatory generated readback, and added
+restart, global-authority, terminal-idempotency, and full-fill dispatch
+coverage. No authoritative fully filled attached intent existed, so Goal 5
+made zero Coinbase calls and Preview, Create, reconciliation, and Cancel
+remain unconsumed.
+
 ## Completed operator Futures follow-up intent attachment
 
 Goal `operator_futures_follow_up_intent_attachment_v1` adds the local

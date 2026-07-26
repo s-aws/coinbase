@@ -16648,6 +16648,112 @@ class AdminApiReadService:
                 live_adapter_required=False,
             ),
             mutation_taxonomy_item(
+                mutation_id=(
+                    "futures.fill_triggered_follow_up_control"
+                ),
+                mutation_family=(
+                    AdminApiMutationFamilyType.FUTURES_ORDER_OPERATIONS
+                ),
+                workflow_id=(
+                    "operator_futures_fill_triggered_follow_up_"
+                    "activation_v1"
+                ),
+                module_id="futures_perpetuals",
+                module="Futures / Perpetuals",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                ),
+                support_status=(
+                    AdminApiModuleSupportStatus.PLATFORM_READY
+                ),
+                summary=(
+                    "An authenticated operator may enable, disable, pause, "
+                    "resume, or drain one attached Default-profile Futures "
+                    "follow-up; exact authoritative full fill can dispatch "
+                    "one backend-derived opposite-side child."
+                ),
+                command_surfaces=[
+                    "POST /api/v1/futures/order-operations/"
+                    "{client_order_id}/follow-up-intent/"
+                    "fill-triggered-activation",
+                ],
+                action_classes=[
+                    AdminApiActionClass.LOCAL_STATE_MUTATION,
+                ],
+                required_permissions=[
+                    AdminApiPermission.ORDER_CREATE,
+                    AdminApiPermission.ORDER_CANCEL,
+                ],
+                identity_keys=[
+                    "goal_id",
+                    "source_client_order_id",
+                    "follow_up_intent_id",
+                    "trigger_evidence_sha256",
+                    "child_client_order_id",
+                    "correlation_id",
+                ],
+                idempotency_contract=(
+                    "required revision-bound PostgreSQL control command, "
+                    "exact replay, one full-fill trigger claim, and single-use "
+                    "Preview/Create/reconciliation/Cancel claims"
+                ),
+                approval_contract=(
+                    "ENABLE or RESUME explicitly delegates one future Preview, "
+                    "identical Create, and conditional exact-child Cancel; "
+                    "unknown outcomes consume their applicable allowance"
+                ),
+                cap_guard_contract=(
+                    "Default profile, configured Futures product, one source, "
+                    "one opposite-side one-contract child, and strict "
+                    "<100 / <150 / <300 USDC caps"
+                ),
+                admission_audit_contract=(
+                    "source/root/intent/full-fill hashes, actor, roles, "
+                    "control revision, fixed diagnostics, every call claim, "
+                    "and terminal child readback are required"
+                ),
+                reconciliation_contract=(
+                    "exact source reconciliation must persist FILLED with "
+                    "size=filled_size=1; accepted Create is followed by one "
+                    "exact-child reconciliation and conditional Cancel"
+                ),
+                owning_backend_service=(
+                    "application/admin_api/"
+                    "operator_futures_fill_triggered_follow_up.py"
+                ),
+                shared_command_service_method=(
+                    "control_operator_futures_fill_triggered_follow_up"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/futures.py::"
+                    "control_operator_futures_fill_triggered_follow_up",
+                    "application/admin_api/"
+                    "operator_futures_fill_triggered_follow_up.py",
+                    "database/"
+                    "operator_futures_fill_triggered_follow_up.py",
+                ],
+                frontend_contract_refs=[
+                    "src/features/operator-read-models/futures/"
+                    "FuturesFillTriggeredFollowUpPanel.tsx",
+                ],
+                documentation_refs=[
+                    "docs/"
+                    "OPERATOR_FUTURES_FILL_TRIGGERED_FOLLOW_UP_V1.md",
+                ],
+                frontend_boundary=(
+                    "Render PostgreSQL authority and forward only the selected "
+                    "control action and explicit acknowledgements; the browser "
+                    "supplies no child terms or Coinbase identity."
+                ),
+                spot_rule_boundary=(
+                    "Spot Test-profile wallet, product, fill-ledger, and "
+                    "notional rules are not Default-profile Futures authority."
+                ),
+                approval_required=True,
+                cap_guard_required=True,
+                live_adapter_required=True,
+            ),
+            mutation_taxonomy_item(
                 mutation_id="futures.order_operations_cancel",
                 mutation_family=(
                     AdminApiMutationFamilyType.FUTURES_ORDER_OPERATIONS

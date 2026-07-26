@@ -4054,6 +4054,73 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="futures_perpetuals",
+        surface=(
+            "GET /api/v1/futures/order-operations/{client_order_id}/"
+            "follow-up-intent/fill-triggered-activation"
+        ),
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not applicable; local PostgreSQL authority read only",
+        caps=(
+            "reports one Default-profile, one-contract Futures activation "
+            "and its exact single-use call outcomes"
+        ),
+        audit=(
+            "returns sanitized control, trigger, source evidence hash, child "
+            "client_order_id, correlation, and audit bindings"
+        ),
+        shared_method=(
+            "get_operator_futures_fill_triggered_follow_up"
+        ),
+        parity_test=(
+            "page loading is call-free and exposes no Coinbase response, "
+            "exchange identifier, exception message, or browser-derived term"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
+        surface=(
+            "POST /api/v1/futures/order-operations/{client_order_id}/"
+            "follow-up-intent/fill-triggered-activation"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.ORDER_CREATE,
+        required_permissions=[
+            AdminApiPermission.ORDER_CREATE,
+            AdminApiPermission.ORDER_CANCEL,
+        ],
+        idempotency=(
+            "required revision-bound PostgreSQL command; exact replay only "
+            "and changed payload conflicts"
+        ),
+        approval=(
+            "required explicit ENABLE or RESUME approval for one Preview, "
+            "identical Create, reconciliation, conditional exact-child "
+            "Cancel, unknown consumption, and backend-derived-term "
+            "acknowledgements"
+        ),
+        caps=(
+            "required Default profile, configured Futures product, one "
+            "source, one child, one contract, and strict "
+            "<100 / <150 / <300 USDC caps"
+        ),
+        audit=(
+            "required source/root/intent/full-fill hashes, actor, roles, "
+            "control revision, call claims, terminal outcomes, and child "
+            "client_order_id"
+        ),
+        shared_method=(
+            "control_operator_futures_fill_triggered_follow_up"
+        ),
+        parity_test=(
+            "authoritative exact reconciliation must persist FILLED with "
+            "size=filled_size=1 before a backend-only opposite-side candidate "
+            "may enter the canonical Default-profile Preview/Create path"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
         surface="POST /api/v1/futures/order-operations/refresh",
         action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
         permission=AdminApiPermission.ORDER_CREATE,

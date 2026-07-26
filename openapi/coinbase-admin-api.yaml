@@ -6135,6 +6135,199 @@ paths:
               schema:
                 $ref: '#/components/schemas/AdminApiErrorResponse'
           description: Service Unavailable
+  /api/v1/futures/order-operations/{client_order_id}/follow-up-intent/fill-triggered-activation:
+    get:
+      tags:
+      - futures
+      summary: Read one Default-profile Futures follow-up activation
+      description: Read PostgreSQL authority without calling Coinbase.
+      operationId: get_operator_futures_fill_triggered_follow_up_api_v1_futures_order_operations__client_order_id__follow_up_intent_fill_triggered_activation_get
+      parameters:
+      - name: client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+          title: Client Order Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFuturesFillTriggeredFollowUpReadback'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unprocessable Content
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
+    post:
+      tags:
+      - futures
+      summary: Control one Default-profile Futures follow-up activation
+      operationId: control_operator_futures_fill_triggered_follow_up_api_v1_futures_order_operations__client_order_id__follow_up_intent_fill_triggered_activation_post
+      parameters:
+      - name: client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+          title: Client Order Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 255
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          const: control_futures_fill_triggered_follow_up
+          type: string
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatorFuturesFillTriggeredFollowUpControlRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorFuturesFillTriggeredFollowUpControlResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Conflict
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Unprocessable Content
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+          description: Service Unavailable
   /api/v1/futures/order-operations/refresh:
     post:
       tags:
@@ -161931,6 +162124,408 @@ components:
       - expected_revision
       title: OperatorFillInventoryRepairRefreshRequest
       description: Explicit consent for one no-retry logical fill-catalog read.
+    OperatorFuturesFillTriggeredCapsReadback:
+      properties:
+        opening_usdc:
+          type: string
+          const: '100'
+          title: Opening Usdc
+          default: '100'
+        exposure_usdc:
+          type: string
+          const: '150'
+          title: Exposure Usdc
+          default: '150'
+        turnover_usdc:
+          type: string
+          const: '300'
+          title: Turnover Usdc
+          default: '300'
+        comparison:
+          type: string
+          const: strictly_less_than
+          title: Comparison
+          default: strictly_less_than
+      additionalProperties: false
+      type: object
+      title: OperatorFuturesFillTriggeredCapsReadback
+    OperatorFuturesFillTriggeredFollowUpControlRequest:
+      properties:
+        action:
+          type: string
+          enum:
+          - ENABLE
+          - DISABLE
+          - PAUSE
+          - RESUME
+          - DRAIN
+          title: Action
+        expected_revision:
+          type: integer
+          minimum: 0.0
+          title: Expected Revision
+        authorize_one_preview_create_and_safe_closeout:
+          type: boolean
+          title: Authorize One Preview Create And Safe Closeout
+          default: false
+        acknowledge_unknown_outcome_consumes_allowance:
+          type: boolean
+          title: Acknowledge Unknown Outcome Consumes Allowance
+          default: false
+        acknowledge_child_terms_are_backend_derived:
+          type: boolean
+          title: Acknowledge Child Terms Are Backend Derived
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - action
+      - expected_revision
+      title: OperatorFuturesFillTriggeredFollowUpControlRequest
+    OperatorFuturesFillTriggeredFollowUpControlResponse:
+      properties:
+        type:
+          type: string
+          const: operator_futures_fill_triggered_follow_up_control
+          title: Type
+          default: operator_futures_fill_triggered_follow_up_control
+        goal_id:
+          type: string
+          const: operator_futures_fill_triggered_follow_up_activation_v1
+          title: Goal Id
+        source_client_order_id:
+          type: string
+          title: Source Client Order Id
+        follow_up_intent_id:
+          type: string
+          title: Follow Up Intent Id
+        environment:
+          type: string
+          title: Environment
+        portfolio_profile_alias:
+          type: string
+          const: Default
+          title: Portfolio Profile Alias
+          default: Default
+        operator_intent:
+          type: string
+          const: control_futures_fill_triggered_follow_up
+          title: Operator Intent
+          default: control_futures_fill_triggered_follow_up
+        caps:
+          $ref: '#/components/schemas/OperatorFuturesFillTriggeredCapsReadback'
+          default:
+            opening_usdc: '100'
+            exposure_usdc: '150'
+            turnover_usdc: '300'
+            comparison: strictly_less_than
+        control_state:
+          type: string
+          enum:
+          - DISABLED
+          - ENABLED
+          - PAUSED
+          - DRAINING
+          - DRAINED
+          title: Control State
+        trigger_state:
+          type: string
+          enum:
+          - UNCLAIMED
+          - CLAIMED
+          - COMPLETED
+          - BLOCKED
+          - UNKNOWN
+          title: Trigger State
+        revision:
+          type: integer
+          minimum: 0.0
+          title: Revision
+        delegated_live_authority:
+          type: boolean
+          title: Delegated Live Authority
+        trigger_claim_present:
+          type: boolean
+          title: Trigger Claim Present
+        trigger_evidence_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Trigger Evidence Sha256
+        lifecycle_revision:
+          type: integer
+          minimum: 0.0
+          title: Lifecycle Revision
+        child_client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Child Client Order Id
+        preview_outcome:
+          type: string
+          title: Preview Outcome
+        create_outcome:
+          type: string
+          title: Create Outcome
+        reconciliation_outcome:
+          type: string
+          title: Reconciliation Outcome
+        cancel_outcome:
+          type: string
+          title: Cancel Outcome
+        diagnostic_code:
+          type: string
+          title: Diagnostic Code
+        execution_posture_ready:
+          type: boolean
+          title: Execution Posture Ready
+        allowed_actions:
+          items:
+            type: string
+            enum:
+            - ENABLE
+            - DISABLE
+            - PAUSE
+            - RESUME
+            - DRAIN
+          type: array
+          title: Allowed Actions
+        correlation_id:
+          type: string
+          title: Correlation Id
+        audit_id:
+          type: string
+          title: Audit Id
+        recorded_at:
+          type: string
+          title: Recorded At
+        updated_at:
+          type: string
+          title: Updated At
+        readback_source:
+          type: string
+          const: postgresql_authority
+          title: Readback Source
+          default: postgresql_authority
+        page_load_coinbase_calls:
+          type: integer
+          const: 0
+          title: Page Load Coinbase Calls
+          default: 0
+        raw_responses_included:
+          type: boolean
+          const: false
+          title: Raw Responses Included
+          default: false
+        private_identifiers_included:
+          type: boolean
+          const: false
+          title: Private Identifiers Included
+          default: false
+        exception_text_included:
+          type: boolean
+          const: false
+          title: Exception Text Included
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - goal_id
+      - source_client_order_id
+      - follow_up_intent_id
+      - environment
+      - control_state
+      - trigger_state
+      - revision
+      - delegated_live_authority
+      - trigger_claim_present
+      - lifecycle_revision
+      - child_client_order_id
+      - preview_outcome
+      - create_outcome
+      - reconciliation_outcome
+      - cancel_outcome
+      - diagnostic_code
+      - execution_posture_ready
+      - allowed_actions
+      - correlation_id
+      - audit_id
+      - recorded_at
+      - updated_at
+      title: OperatorFuturesFillTriggeredFollowUpControlResponse
+    OperatorFuturesFillTriggeredFollowUpReadback:
+      properties:
+        type:
+          type: string
+          const: operator_futures_fill_triggered_follow_up_readback
+          title: Type
+          default: operator_futures_fill_triggered_follow_up_readback
+        goal_id:
+          type: string
+          const: operator_futures_fill_triggered_follow_up_activation_v1
+          title: Goal Id
+        source_client_order_id:
+          type: string
+          title: Source Client Order Id
+        follow_up_intent_id:
+          type: string
+          title: Follow Up Intent Id
+        environment:
+          type: string
+          title: Environment
+        portfolio_profile_alias:
+          type: string
+          const: Default
+          title: Portfolio Profile Alias
+          default: Default
+        operator_intent:
+          type: string
+          const: control_futures_fill_triggered_follow_up
+          title: Operator Intent
+          default: control_futures_fill_triggered_follow_up
+        caps:
+          $ref: '#/components/schemas/OperatorFuturesFillTriggeredCapsReadback'
+          default:
+            opening_usdc: '100'
+            exposure_usdc: '150'
+            turnover_usdc: '300'
+            comparison: strictly_less_than
+        control_state:
+          type: string
+          enum:
+          - DISABLED
+          - ENABLED
+          - PAUSED
+          - DRAINING
+          - DRAINED
+          title: Control State
+        trigger_state:
+          type: string
+          enum:
+          - UNCLAIMED
+          - CLAIMED
+          - COMPLETED
+          - BLOCKED
+          - UNKNOWN
+          title: Trigger State
+        revision:
+          type: integer
+          minimum: 0.0
+          title: Revision
+        delegated_live_authority:
+          type: boolean
+          title: Delegated Live Authority
+        trigger_claim_present:
+          type: boolean
+          title: Trigger Claim Present
+        trigger_evidence_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Trigger Evidence Sha256
+        lifecycle_revision:
+          type: integer
+          minimum: 0.0
+          title: Lifecycle Revision
+        child_client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Child Client Order Id
+        preview_outcome:
+          type: string
+          title: Preview Outcome
+        create_outcome:
+          type: string
+          title: Create Outcome
+        reconciliation_outcome:
+          type: string
+          title: Reconciliation Outcome
+        cancel_outcome:
+          type: string
+          title: Cancel Outcome
+        diagnostic_code:
+          type: string
+          title: Diagnostic Code
+        execution_posture_ready:
+          type: boolean
+          title: Execution Posture Ready
+        allowed_actions:
+          items:
+            type: string
+            enum:
+            - ENABLE
+            - DISABLE
+            - PAUSE
+            - RESUME
+            - DRAIN
+          type: array
+          title: Allowed Actions
+        correlation_id:
+          type: string
+          title: Correlation Id
+        audit_id:
+          type: string
+          title: Audit Id
+        recorded_at:
+          type: string
+          title: Recorded At
+        updated_at:
+          type: string
+          title: Updated At
+        readback_source:
+          type: string
+          const: postgresql_authority
+          title: Readback Source
+          default: postgresql_authority
+        page_load_coinbase_calls:
+          type: integer
+          const: 0
+          title: Page Load Coinbase Calls
+          default: 0
+        raw_responses_included:
+          type: boolean
+          const: false
+          title: Raw Responses Included
+          default: false
+        private_identifiers_included:
+          type: boolean
+          const: false
+          title: Private Identifiers Included
+          default: false
+        exception_text_included:
+          type: boolean
+          const: false
+          title: Exception Text Included
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - goal_id
+      - source_client_order_id
+      - follow_up_intent_id
+      - environment
+      - control_state
+      - trigger_state
+      - revision
+      - delegated_live_authority
+      - trigger_claim_present
+      - lifecycle_revision
+      - child_client_order_id
+      - preview_outcome
+      - create_outcome
+      - reconciliation_outcome
+      - cancel_outcome
+      - diagnostic_code
+      - execution_posture_ready
+      - allowed_actions
+      - correlation_id
+      - audit_id
+      - recorded_at
+      - updated_at
+      title: OperatorFuturesFillTriggeredFollowUpReadback
     OperatorFuturesFollowUpIntentAttachRequest:
       properties:
         expected_source_observed_at:
