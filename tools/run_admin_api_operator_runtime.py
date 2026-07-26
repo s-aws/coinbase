@@ -61,6 +61,41 @@ class OperatorAdminRuntimeError(RuntimeError):
     """Fixed-diagnostic controlled-live operator startup failure."""
 
 
+_FIXED_STARTUP_DIAGNOSTICS = frozenset(
+    {
+        "operator_admin_auth_missing",
+        "operator_automation_schema_init_failed",
+        "operator_canonical_runtime_incomplete",
+        "operator_command_runtime_not_ready",
+        "operator_execution_lease_missing",
+        "operator_futures_hotpoint_default_portfolio_invalid",
+        "operator_futures_hotpoint_default_portfolio_required",
+        "operator_futures_hotpoint_v2_init_failed",
+        "operator_hotpoint_gate_unavailable",
+        "operator_hotpoint_schema_init_failed",
+        "operator_live_runtime_disabled",
+        "operator_parent_strategy_schema_init_failed",
+        "operator_product_catalog_schema_init_failed",
+        "operator_runtime_reload_forbidden",
+        "operator_spot_order_truth_schema_init_failed",
+        "operator_spot_portfolio_label_invalid",
+        "operator_spot_portfolio_scope_missing",
+        "operator_spot_products_missing",
+        "operator_stealth_definition_schema_init_failed",
+    }
+)
+
+
+def _startup_failure_diagnostic(exc: Exception) -> str:
+    """Return only an allowlisted fixed startup diagnostic or its exception type."""
+
+    if isinstance(exc, OperatorAdminRuntimeError):
+        diagnostic = str(exc)
+        if diagnostic in _FIXED_STARTUP_DIAGNOSTICS:
+            return diagnostic
+    return type(exc).__name__
+
+
 @dataclass(frozen=True, slots=True)
 class PreparedOperatorRuntime:
     host: str
@@ -369,7 +404,7 @@ def main(
     except Exception as exc:
         print(
             "operator_admin_runtime_startup_failed:"
-            f"{type(exc).__name__}",
+            f"{_startup_failure_diagnostic(exc)}",
             file=sys.stderr,
         )
         return 2

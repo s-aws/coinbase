@@ -495,7 +495,8 @@ def test_operator_runtime_goal13_init_failure_prevents_serve(
     assert result == 2
     assert lifecycle == []
     assert capsys.readouterr().err.strip() == (
-        "operator_admin_runtime_startup_failed:OperatorAdminRuntimeError"
+        "operator_admin_runtime_startup_failed:"
+        "operator_futures_hotpoint_v2_init_failed"
     )
 
 
@@ -555,9 +556,36 @@ def test_operator_runtime_fails_closed_before_composition_when_schema_init_fails
     assert result == 2
     assert lifecycle == []
     assert captured.err.strip() == (
-        "operator_admin_runtime_startup_failed:OperatorAdminRuntimeError"
+        "operator_admin_runtime_startup_failed:"
+        "operator_automation_schema_init_failed"
     )
     assert "withheld database detail" not in captured.err
+
+
+def test_operator_runtime_withholds_unallowlisted_startup_error_text(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    environment = _authorized_environment(tmp_path)
+    monkeypatch.setattr(
+        operator_runtime,
+        "prepare_operator_runtime",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            operator_runtime.OperatorAdminRuntimeError(
+                "withheld private diagnostic"
+            )
+        ),
+    )
+
+    result = operator_runtime.main([], environ=environment)
+
+    captured = capsys.readouterr()
+    assert result == 2
+    assert captured.err.strip() == (
+        "operator_admin_runtime_startup_failed:OperatorAdminRuntimeError"
+    )
+    assert "withheld private diagnostic" not in captured.err
 
 
 def test_operator_server_registers_uvicorn_ingress_as_runtime_stop_hook(
