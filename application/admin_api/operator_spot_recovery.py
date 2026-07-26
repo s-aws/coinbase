@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -117,6 +117,12 @@ _FILL_READ_DIAGNOSTICS = frozenset(
         "fill_read_product_identity_mismatch",
     }
 )
+
+OPERATOR_SPOT_RECOVERY_PREDECESSOR_GOAL_ID = (
+    "operator_spot_recovery_and_reconciliation_execution_v1"
+)
+OPERATOR_SPOT_RECOVERY_GOAL_ID = "operator_spot_recovery_execution_ui_v1"
+OPERATOR_SPOT_RECOVERY_REFRESH_LIMIT = 10
 
 
 class OperatorSpotRecoveryError(ValueError):
@@ -262,6 +268,16 @@ class OperatorSpotRecoveryCaseItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     case_id: str
+    goal_id: Literal["operator_spot_recovery_execution_ui_v1"]
+    goal_refresh_cycles_used: int = Field(ge=0, le=10)
+    goal_refresh_cycle_limit: Literal[10] = 10
+    goal_cancel_outcome: Literal[
+        "NOT_RUN",
+        "CLAIMED",
+        "ACCEPTED",
+        "REJECTED",
+        "UNKNOWN",
+    ]
     client_order_id: str
     product_id: str
     portfolio_scope: str = "approved_test_portfolio"
@@ -757,34 +773,49 @@ def build_operator_spot_recovery_case_item(
         else None
     )
     state = SpotRecoveryCaseState(record["state"])
+    goal_id = str(record.get("goal_id") or "")
+    goal_refresh_cycles_used = int(
+        record.get("goal_refresh_cycles_used") or 0
+    )
+    goal_cancel_outcome = str(
+        record.get("goal_cancel_outcome") or "NOT_RUN"
+    )
+    current_goal = goal_id == OPERATOR_SPOT_RECOVERY_GOAL_ID
     allowed_actions: list[SpotRecoveryAction] = []
     rollback_detail: str | None = None
     if (
-        portfolio_binding_verified
+        current_goal
+        and portfolio_binding_verified
         and state in {
             SpotRecoveryCaseState.OPEN,
             SpotRecoveryCaseState.BLOCKED,
             SpotRecoveryCaseState.ROLLED_BACK,
         }
-        and int(record.get("refresh_count") or 0) < 10
+        and int(record.get("refresh_count") or 0)
+        < OPERATOR_SPOT_RECOVERY_REFRESH_LIMIT
+        and goal_refresh_cycles_used < OPERATOR_SPOT_RECOVERY_REFRESH_LIMIT
     ):
         allowed_actions.append(SpotRecoveryAction.REFRESH)
     if (
-        portfolio_binding_verified
+        current_goal
+        and portfolio_binding_verified
         and state is SpotRecoveryCaseState.PLAN_READY
         and plan is not None
         and plan.apply_available
     ):
         allowed_actions.append(SpotRecoveryAction.APPLY)
     if (
-        portfolio_binding_verified
+        current_goal
+        and portfolio_binding_verified
         and state is SpotRecoveryCaseState.PLAN_READY
         and plan is not None
         and plan.cancel_available
+        and goal_cancel_outcome == "NOT_RUN"
     ):
         allowed_actions.append(SpotRecoveryAction.CANCEL)
     if (
-        portfolio_binding_verified
+        current_goal
+        and portfolio_binding_verified
         and state is SpotRecoveryCaseState.APPLIED
         and plan is not None
     ):
@@ -797,6 +828,9 @@ def build_operator_spot_recovery_case_item(
             )
     return OperatorSpotRecoveryCaseItem(
         case_id=str(record["case_id"]),
+        goal_id=goal_id,
+        goal_refresh_cycles_used=goal_refresh_cycles_used,
+        goal_cancel_outcome=goal_cancel_outcome,
         client_order_id=str(record["client_order_id"]),
         product_id=str(record["product_id"]),
         portfolio_binding_verified=portfolio_binding_verified,

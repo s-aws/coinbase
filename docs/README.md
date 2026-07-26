@@ -1,5 +1,14 @@
 # Documentation Index
 
+Current independent Goal 6:
+[Operator Spot Recovery Execution UI V1](OPERATOR_SPOT_RECOVERY_EXECUTION_UI_V1.md).
+Goal `operator_spot_recovery_execution_ui_v1` delivers authenticated recovery
+case creation, exact order/fill refresh, immutable-plan review, PostgreSQL
+apply and rollback, and conditional canonical active-orphan Cancel controls.
+Its PostgreSQL ledger owns one non-transferable ten-cycle refresh budget and
+one goal-global Cancel allowance. Predecessor cases and authority remain
+preserved but inaccessible to this successor workflow.
+
 Completed independent Goal 5:
 [Operator Futures Fill-Triggered Follow-Up V1](OPERATOR_FUTURES_FILL_TRIGGERED_FOLLOW_UP_V1.md).
 Goal `operator_futures_fill_triggered_follow_up_activation_v1` adds

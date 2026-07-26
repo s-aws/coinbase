@@ -3931,8 +3931,7 @@ def cancel_order_by_client_order_id(
                         expected_revision=claimed_case["revision"],
                         actor_id=actor.actor_id,
                         correlation_id=correlation_id,
-                        exchange_call_ran=False,
-                        accepted=False,
+                        outcome="PREBOUNDARY",
                         diagnostic_code="recovery_cancel_binding_invalid",
                     )
                 return AdminApiCommandResponse(
@@ -3968,22 +3967,39 @@ def cancel_order_by_client_order_id(
                 exchange_call_ran
                 and response.status is AdminApiCommandStatus.ACCEPTED
             )
-            diagnostic_code = (
-                "recovery_cancel_confirmed"
-                if accepted
-                else (
-                    "recovery_cancel_outcome_unknown"
-                    if exchange_call_ran
-                    else "recovery_cancel_preboundary_blocked"
-                )
+            response_data = (
+                response.data if isinstance(response.data, dict) else {}
             )
+            cancellation_readback = response_data.get(
+                "cancellation_readback"
+            )
+            explicit_rejection = bool(
+                exchange_call_ran
+                and response.failure_stage == "cancellation_rejected"
+                and isinstance(cancellation_readback, dict)
+                and cancellation_readback.get(
+                    "canonical_cancel_explicitly_rejected"
+                )
+                is True
+            )
+            if accepted:
+                cancel_outcome = "ACCEPTED"
+                diagnostic_code = "recovery_cancel_confirmed"
+            elif explicit_rejection:
+                cancel_outcome = "REJECTED"
+                diagnostic_code = "recovery_cancel_explicitly_rejected"
+            elif exchange_call_ran:
+                cancel_outcome = "UNKNOWN"
+                diagnostic_code = "recovery_cancel_outcome_unknown"
+            else:
+                cancel_outcome = "PREBOUNDARY"
+                diagnostic_code = "recovery_cancel_preboundary_blocked"
             closed_case = recovery_repository.record_cancel_result(
                 case_id=claimed_case["case_id"],
                 expected_revision=claimed_case["revision"],
                 actor_id=actor.actor_id,
                 correlation_id=correlation_id,
-                exchange_call_ran=exchange_call_ran,
-                accepted=accepted,
+                outcome=cancel_outcome,
                 diagnostic_code=diagnostic_code,
             )
             response = response.model_copy(

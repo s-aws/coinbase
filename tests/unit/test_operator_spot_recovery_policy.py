@@ -188,6 +188,9 @@ def test_stale_portfolio_binding_removes_every_recovery_action() -> None:
     item = build_operator_spot_recovery_case_item(
         {
             "case_id": "0d756620-2ce5-4fd3-a24a-a14c4d8bf3c1",
+            "goal_id": "operator_spot_recovery_execution_ui_v1",
+            "goal_refresh_cycles_used": 0,
+            "goal_cancel_outcome": "NOT_RUN",
             "client_order_id": "8f1bf38c-90ad-4a7c-90fb-87cb56c72a80",
             "product_id": "BTC-USDC",
             "state": "OPEN",
@@ -210,10 +213,45 @@ def test_stale_portfolio_binding_removes_every_recovery_action() -> None:
     assert item.allowed_actions == []
 
 
+def test_successor_goal_budget_is_backend_owned_and_suppresses_actions() -> None:
+    item = build_operator_spot_recovery_case_item(
+        {
+            "case_id": "0d756620-2ce5-4fd3-a24a-a14c4d8bf3c1",
+            "goal_id": "operator_spot_recovery_execution_ui_v1",
+            "goal_refresh_cycles_used": 10,
+            "goal_cancel_outcome": "ACCEPTED",
+            "client_order_id": "8f1bf38c-90ad-4a7c-90fb-87cb56c72a80",
+            "product_id": "BTC-USDC",
+            "state": "OPEN",
+            "revision": 1,
+            "refresh_count": 0,
+            "order_read_logical_count": 0,
+            "fill_read_logical_count": 0,
+            "cancel_call_count": 0,
+            "cancel_allowance_consumed": False,
+            "plan": None,
+            "diagnostic_code": "recovery_case_created",
+            "correlation_id": "recovery-correlation",
+            "created_at": "2026-07-23T08:00:00Z",
+            "updated_at": "2026-07-23T08:00:00Z",
+        },
+        portfolio_binding_verified=True,
+    )
+
+    assert item.goal_id == "operator_spot_recovery_execution_ui_v1"
+    assert item.goal_refresh_cycles_used == 10
+    assert item.goal_refresh_cycle_limit == 10
+    assert item.goal_cancel_outcome == "ACCEPTED"
+    assert item.allowed_actions == []
+
+
 def test_public_recovery_event_withholds_raw_actor_identity() -> None:
     item = build_operator_spot_recovery_case_item(
         {
             "case_id": "0d756620-2ce5-4fd3-a24a-a14c4d8bf3c1",
+            "goal_id": "operator_spot_recovery_execution_ui_v1",
+            "goal_refresh_cycles_used": 0,
+            "goal_cancel_outcome": "NOT_RUN",
             "client_order_id": "8f1bf38c-90ad-4a7c-90fb-87cb56c72a80",
             "product_id": "BTC-USDC",
             "state": "OPEN",

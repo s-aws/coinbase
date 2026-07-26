@@ -1,4 +1,17 @@
 # Coinbase Admin MVP Goal
+## Current sequential Goal 6
+
+Goal ID: `operator_spot_recovery_execution_ui_v1`.
+
+This independent successor delivers the normal authenticated
+`/spot/recovery` create, exact refresh, immutable-plan review, PostgreSQL
+apply, safe rollback, and conditional canonical exact-order Cancel workflow.
+`operator_spot_recovery_goal` owns one non-transferable ten-cycle refresh
+budget and one goal-global Cancel outcome. Existing
+`operator_spot_recovery_and_reconciliation_execution_v1` rows and allowances
+remain preserved and cannot authorize Goal 6. All Goal 6 external-call
+allowances are unconsumed pending full gates and independent audits.
+
 ## Current V13-V15 transport-explainability goal
 
 Goal ID:

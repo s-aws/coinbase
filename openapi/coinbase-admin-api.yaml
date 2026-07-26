@@ -165666,6 +165666,29 @@ components:
         case_id:
           type: string
           title: Case Id
+        goal_id:
+          type: string
+          const: operator_spot_recovery_execution_ui_v1
+          title: Goal Id
+        goal_refresh_cycles_used:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: Goal Refresh Cycles Used
+        goal_refresh_cycle_limit:
+          type: integer
+          const: 10
+          title: Goal Refresh Cycle Limit
+          default: 10
+        goal_cancel_outcome:
+          type: string
+          enum:
+          - NOT_RUN
+          - CLAIMED
+          - ACCEPTED
+          - REJECTED
+          - UNKNOWN
+          title: Goal Cancel Outcome
         client_order_id:
           type: string
           title: Client Order Id
@@ -165768,6 +165791,9 @@ components:
       type: object
       required:
       - case_id
+      - goal_id
+      - goal_refresh_cycles_used
+      - goal_cancel_outcome
       - client_order_id
       - product_id
       - state

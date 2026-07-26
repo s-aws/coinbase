@@ -1,5 +1,32 @@
 # Coinbase Trading Backend
 
+## Operator Spot recovery execution UI
+
+Goal `operator_spot_recovery_execution_ui_v1` is independent Goal 6 of the
+authorized operator UI sequence. It provides the backend authority for normal
+authenticated recovery create, exact order/fill refresh, immutable-plan
+review, PostgreSQL apply, safe rollback, and conditional exact active-orphan
+Cancel controls at `/spot/recovery`.
+
+The new PostgreSQL goal ledger owns one non-transferable ten-cycle refresh
+budget and one goal-global exact Cancel allowance. Existing recovery rows are
+preserved under
+`operator_spot_recovery_and_reconciliation_execution_v1`; their cases, events,
+cycles, and Cancel authority cannot appear in or authorize Goal 6. The browser
+supplies only explicit intent and reasons, and ambiguous mutation readback
+freezes further commands until authoritative reload.
+
+Historical comparison used `origin/prod:business/fill_reconciler.py`,
+`origin/prod:core/periodic_reconciler.py`, and
+`origin/prod:core/startup_reconciler.py`. Background auto-heal, retry, legacy
+WebSocket authority, and browser exchange behavior were not copied. See
+[the Goal 6 design](docs/OPERATOR_SPOT_RECOVERY_EXECUTION_UI_V1.md).
+
+Goal 6 permits at most ten no-retry exact order/fill refresh cycles and one
+canonical exact-order Cancel only when reconciliation proves it necessary.
+No Goal 6 Coinbase call has run; all Goal 6 live/read allowances remain
+unconsumed pending full validation and both independent audits.
+
 ## Completed operator Futures fill-triggered follow-up activation
 
 Goal `operator_futures_fill_triggered_follow_up_activation_v1` adds

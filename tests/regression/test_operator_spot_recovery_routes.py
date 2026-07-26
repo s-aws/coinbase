@@ -37,6 +37,9 @@ CLIENT_ORDER_ID = "8f1bf38c-90ad-4a7c-90fb-87cb56c72a80"
 def _case(*, state: str = "OPEN", revision: int = 1) -> dict[str, Any]:
     return {
         "case_id": CASE_ID,
+        "goal_id": "operator_spot_recovery_execution_ui_v1",
+        "goal_refresh_cycles_used": 0 if revision == 1 else 1,
+        "goal_cancel_outcome": "NOT_RUN",
         "client_order_id": CLIENT_ORDER_ID,
         "product_id": "BTC-USDC",
         "portfolio_id_sha256": "a" * 64,
@@ -178,7 +181,7 @@ def route_client(
 def _headers(
     *,
     key: str = "recovery-idempotency-1",
-    intent: str = "operator_spot_recovery",
+    intent: str,
 ) -> dict[str, str]:
     return {
         "Authorization": "Bearer local-admin-token",
@@ -222,12 +225,12 @@ def test_recovery_refresh_is_idempotent_and_reports_backend_read_activity(
     }
     first = client.post(
         f"/api/v1/spot/recovery/cases/{CASE_ID}/refresh",
-        headers=_headers(),
+        headers=_headers(intent="refresh_operator_spot_recovery_case"),
         json=body,
     )
     replay = client.post(
         f"/api/v1/spot/recovery/cases/{CASE_ID}/refresh",
-        headers=_headers(),
+        headers=_headers(intent="refresh_operator_spot_recovery_case"),
         json=body,
     )
 
@@ -247,7 +250,10 @@ def test_recovery_create_apply_and_rollback_are_local_operator_actions(
     client, _service = route_client
     created = client.post(
         "/api/v1/spot/recovery/cases",
-        headers=_headers(key="recovery-create"),
+        headers=_headers(
+            key="recovery-create",
+            intent="create_operator_spot_recovery_case",
+        ),
         json={
             "client_order_id": CLIENT_ORDER_ID,
             "operator_reason": "review exact system-owned root",
@@ -255,7 +261,10 @@ def test_recovery_create_apply_and_rollback_are_local_operator_actions(
     )
     applied = client.post(
         f"/api/v1/spot/recovery/cases/{CASE_ID}/apply",
-        headers=_headers(key="recovery-apply"),
+        headers=_headers(
+            key="recovery-apply",
+            intent="apply_operator_spot_recovery_case",
+        ),
         json={
             "expected_revision": 3,
             "operator_reason": "apply reviewed repair",
@@ -264,7 +273,10 @@ def test_recovery_create_apply_and_rollback_are_local_operator_actions(
     )
     rolled_back = client.post(
         f"/api/v1/spot/recovery/cases/{CASE_ID}/rollback",
-        headers=_headers(key="recovery-rollback"),
+        headers=_headers(
+            key="recovery-rollback",
+            intent="rollback_operator_spot_recovery_case",
+        ),
         json={
             "expected_revision": 4,
             "operator_reason": "restore reviewed safe snapshot",
@@ -278,6 +290,69 @@ def test_recovery_create_apply_and_rollback_are_local_operator_actions(
     assert rolled_back.status_code == 200
     assert rolled_back.json()["case"]["state"] == "ROLLED_BACK"
     assert rolled_back.json()["live_exchange_submitted"] is False
+
+
+@pytest.mark.parametrize(
+    ("path", "body", "expected_service_method"),
+    [
+        (
+            "/api/v1/spot/recovery/cases",
+            {
+                "client_order_id": CLIENT_ORDER_ID,
+                "operator_reason": "review exact system-owned root",
+            },
+            "create_operator_spot_recovery_case",
+        ),
+        (
+            f"/api/v1/spot/recovery/cases/{CASE_ID}/refresh",
+            {
+                "expected_revision": 1,
+                "manual_live_acknowledgement": True,
+            },
+            "refresh_operator_spot_recovery_case",
+        ),
+        (
+            f"/api/v1/spot/recovery/cases/{CASE_ID}/apply",
+            {
+                "expected_revision": 3,
+                "operator_reason": "apply reviewed repair",
+                "operator_acknowledgement": True,
+            },
+            "apply_operator_spot_recovery_case",
+        ),
+        (
+            f"/api/v1/spot/recovery/cases/{CASE_ID}/rollback",
+            {
+                "expected_revision": 4,
+                "operator_reason": "restore reviewed safe snapshot",
+                "operator_acknowledgement": True,
+            },
+            "rollback_operator_spot_recovery_case",
+        ),
+    ],
+)
+def test_recovery_mutations_reject_wrong_operator_intent(
+    route_client: tuple[TestClient, _FakeService],
+    path: str,
+    body: dict[str, Any],
+    expected_service_method: str,
+) -> None:
+    client, service = route_client
+
+    response = client.post(
+        path,
+        headers=_headers(
+            key=f"wrong-intent-{expected_service_method}",
+            intent="operator_spot_recovery",
+        ),
+        json=body,
+    )
+
+    assert response.status_code == 400
+    assert response.json()["status"] == "rejected"
+    assert response.json()["message"] == "recovery_operator_intent_invalid"
+    assert response.json()["service_method"] == expected_service_method
+    assert service.calls == []
 
 
 def test_recovery_openapi_exposes_normal_operator_routes() -> None:
@@ -400,7 +475,150 @@ def test_canonical_cancel_route_binds_and_closes_recovery_claim(
         "begin_cancel",
         "record_cancel_result",
     ]
-    assert repository.events[1][1]["exchange_call_ran"] is True
+    assert repository.events[1][1]["outcome"] == "ACCEPTED"
+
+
+@pytest.mark.parametrize(
+    (
+        "explicit_rejection",
+        "failure_stage",
+        "expected_outcome",
+        "expected_diagnostic",
+        "expected_state",
+    ),
+    [
+        (
+            True,
+            "cancellation_rejected",
+            "REJECTED",
+            "recovery_cancel_explicitly_rejected",
+            "BLOCKED",
+        ),
+        (
+            False,
+            "cancellation_unknown",
+            "UNKNOWN",
+            "recovery_cancel_outcome_unknown",
+            "UNKNOWN",
+        ),
+    ],
+)
+def test_canonical_cancel_route_preserves_rejected_vs_unknown_outcome(
+    monkeypatch: pytest.MonkeyPatch,
+    explicit_rejection: bool,
+    failure_stage: str,
+    expected_outcome: str,
+    expected_diagnostic: str,
+    expected_state: str,
+) -> None:
+    class _RecoveryRepository:
+        def __init__(self) -> None:
+            self.events: list[tuple[str, dict[str, Any]]] = []
+
+        def begin_cancel(self, **kwargs):
+            self.events.append(("begin_cancel", kwargs))
+            return {
+                **_case(state="CANCEL_PENDING", revision=4),
+                "plan_sha256": "b" * 64,
+                "plan": {
+                    "kind": "CANCEL_ACTIVE_ORPHAN",
+                    "client_order_id": CLIENT_ORDER_ID,
+                    "product_id": "BTC-USDC",
+                    "from_status": "CANCELLED",
+                },
+            }
+
+        def read_local_order(self, client_order_id: str):
+            assert client_order_id == CLIENT_ORDER_ID
+            return {"ownership_provenance": "ADMIN_MANUAL_ROOT"}
+
+        def record_cancel_result(self, **kwargs):
+            self.events.append(("record_cancel_result", kwargs))
+            return {
+                **_case(state=expected_state, revision=5),
+                "cancel_call_count": 1,
+                "cancel_allowance_consumed": True,
+                "diagnostic_code": expected_diagnostic,
+            }
+
+    class _CommandService:
+        def cancel_order_by_client_order_id(
+            self,
+            command,
+            *,
+            recovery_ownership=None,
+        ):
+            assert command.allow_live_execution is True
+            assert recovery_ownership.case_id == CASE_ID
+            return AdminApiCommandResponse(
+                status=AdminApiCommandStatus.REJECTED,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                required_permission=AdminApiPermission.ORDER_CANCEL,
+                service_method="cancel_order_by_client_order_id",
+                message="fixed_cancel_result",
+                client_order_id=CLIENT_ORDER_ID,
+                live_exchange_submitted=True,
+                live_coinbase_orders_ran=True,
+                live_coinbase_read_ran=True,
+                failure_stage=failure_stage,
+                data={
+                    "cancellation_readback": {
+                        "canonical_cancel_explicitly_rejected": (
+                            explicit_rejection
+                        ),
+                    }
+                },
+            )
+
+    repository = _RecoveryRepository()
+
+    def _execute(**kwargs):
+        return kwargs["command_runner_with_admission"](
+            SimpleNamespace(allowed=True)
+        )
+
+    monkeypatch.setattr(order_routes, "_execute_idempotent_command", _execute)
+    response = order_routes.cancel_order_by_client_order_id(
+        request=Request(
+            {
+                "type": "http",
+                "method": "POST",
+                "path": f"/api/v1/orders/{CLIENT_ORDER_ID}/cancel",
+                "headers": [],
+            }
+        ),
+        body=CancelOrderRequest(
+            reason="cancel exact active orphan",
+            manual_live_acknowledgement=True,
+            recovery_case_id=CASE_ID,
+            recovery_case_revision=3,
+            recovery_plan_sha256="b" * 64,
+        ),
+        client_order_id=CLIENT_ORDER_ID,
+        idempotency_key=f"recovery-cancel-{expected_outcome.lower()}-key",
+        correlation_id=(
+            f"recovery-cancel-{expected_outcome.lower()}-correlation"
+        ),
+        operator_intent="cancel_exact_recovery_orphan",
+        actor=AdminApiActor(
+            actor_id="route-operator",
+            roles=[AdminApiRole.TRADER],
+        ),
+        service=_CommandService(),
+        idempotency_store=SimpleNamespace(),
+        audit_store=SimpleNamespace(),
+        approval_store=SimpleNamespace(),
+        cap_guard_store=SimpleNamespace(),
+        reconciliation_store=SimpleNamespace(),
+        live_execution_service=SimpleNamespace(),
+        recovery_repository_factory=lambda: repository,
+    )
+
+    assert response.status is AdminApiCommandStatus.REJECTED
+    assert response.data["recovery_case"]["state"] == expected_state
+    result = repository.events[1][1]
+    assert result["outcome"] == expected_outcome
+    assert result["diagnostic_code"] == expected_diagnostic
 
 
 def test_recovery_cancel_proof_pass_does_not_claim_or_consume_case(

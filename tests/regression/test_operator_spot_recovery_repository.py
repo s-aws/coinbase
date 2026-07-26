@@ -9,6 +9,7 @@ import pytest
 from psycopg2 import sql
 
 from application.admin_api.operator_spot_recovery import (
+    OPERATOR_SPOT_RECOVERY_PREDECESSOR_GOAL_ID,
     OperatorSpotRecoveryService,
     SpotRecoveryFillEvidence,
     SpotRecoveryLocalOrderEvidence,
@@ -206,8 +207,7 @@ def test_repository_single_use_cancel_claim_can_release_only_before_boundary(
         expected_revision=claimed["revision"],
         actor_id="operator",
         correlation_id="correlation-cancel-1",
-        exchange_call_ran=False,
-        accepted=False,
+        outcome="PREBOUNDARY",
         diagnostic_code="recovery_cancel_preboundary_blocked",
     )
     assert released["state"] == SpotRecoveryCaseState.PLAN_READY.value
@@ -227,14 +227,16 @@ def test_repository_single_use_cancel_claim_can_release_only_before_boundary(
         expected_revision=reclaimed["revision"],
         actor_id="operator",
         correlation_id="correlation-cancel-2",
-        exchange_call_ran=True,
-        accepted=True,
+        outcome="ACCEPTED",
         diagnostic_code="recovery_cancel_confirmed",
     )
     assert terminal["state"] == SpotRecoveryCaseState.CANCELLED.value
     assert terminal["cancel_allowance_consumed"] is True
     assert terminal["cancel_call_count"] == 1
-    with pytest.raises(ValueError, match="recovery_cancel_not_claimable"):
+    with pytest.raises(
+        ValueError,
+        match="recovery_goal_cancel_allowance_consumed",
+    ):
         repository.begin_cancel(
             case_id=case["case_id"],
             expected_revision=terminal["revision"],
@@ -243,6 +245,86 @@ def test_repository_single_use_cancel_claim_can_release_only_before_boundary(
             operator_reason="must not replay",
             correlation_id="correlation-cancel-3",
         )
+
+
+@pytest.mark.parametrize(
+    ("outcome", "diagnostic_code", "expected_state"),
+    [
+        (
+            "REJECTED",
+            "recovery_cancel_explicitly_rejected",
+            SpotRecoveryCaseState.BLOCKED.value,
+        ),
+        (
+            "UNKNOWN",
+            "recovery_cancel_outcome_unknown",
+            SpotRecoveryCaseState.UNKNOWN.value,
+        ),
+    ],
+)
+def test_repository_distinguishes_explicit_rejection_from_unknown_cancel(
+    repository: OperatorSpotRecoveryRepository,
+    outcome: str,
+    diagnostic_code: str,
+    expected_state: str,
+) -> None:
+    client_order_id, portfolio_id = _insert_order(
+        repository,
+        status=OrderStatus.CANCELLED,
+    )
+    case = repository.create_case(
+        client_order_id=client_order_id,
+        product_id="BTC-USDC",
+        portfolio_id_sha256=hashlib.sha256(portfolio_id.encode()).hexdigest(),
+        actor_id="operator",
+        operator_reason="active orphan recovery",
+        correlation_id=f"correlation-create-{outcome.lower()}",
+    )
+    refresh = repository.begin_refresh(
+        case_id=case["case_id"],
+        expected_revision=case["revision"],
+        actor_id="operator",
+        correlation_id=f"correlation-refresh-{outcome.lower()}",
+    )
+    ready = repository.complete_refresh(
+        case_id=case["case_id"],
+        expected_revision=refresh["revision"],
+        plan=_plan(
+            client_order_id=client_order_id,
+            portfolio_id=portfolio_id,
+            local_status=OrderStatus.CANCELLED,
+            exchange_status=OrderStatus.OPEN,
+            fill_count=0,
+        ),
+        order_read_page_count=1,
+        fill_read_page_count=1,
+        diagnostic_code="recovery_cancel_active_orphan_ready",
+        actor_id="operator",
+        correlation_id=f"correlation-refresh-{outcome.lower()}",
+    )
+    claimed = repository.begin_cancel(
+        case_id=case["case_id"],
+        expected_revision=ready["revision"],
+        plan_sha256=ready["plan_sha256"],
+        actor_id="operator",
+        operator_reason="cancel exact active orphan",
+        correlation_id=f"correlation-cancel-{outcome.lower()}",
+    )
+
+    terminal = repository.record_cancel_result(
+        case_id=case["case_id"],
+        expected_revision=claimed["revision"],
+        actor_id="operator",
+        correlation_id=f"correlation-cancel-{outcome.lower()}",
+        outcome=outcome,
+        diagnostic_code=diagnostic_code,
+    )
+
+    assert terminal["state"] == expected_state
+    assert terminal["goal_cancel_outcome"] == outcome
+    assert terminal["cancel_allowance_consumed"] is True
+    assert terminal["cancel_call_count"] == 1
+    assert terminal["diagnostic_code"] == diagnostic_code
 
 
 def test_repository_restart_closes_interrupted_refresh_without_reusing_cycle(
@@ -332,7 +414,235 @@ def test_repository_restart_consumes_interrupted_cancel_as_unknown(
     assert recovered["revision"] == claimed["revision"] + 1
     assert recovered["cancel_allowance_consumed"] is True
     assert recovered["cancel_call_count"] == 1
+    assert recovered["goal_cancel_outcome"] == "UNKNOWN"
     assert recovered["diagnostic_code"] == "recovery_cancel_interrupted_unknown"
+
+
+def test_successor_goal_owns_one_global_ten_cycle_budget(
+    repository: OperatorSpotRecoveryRepository,
+) -> None:
+    client_order_id, portfolio_id = _insert_order(
+        repository,
+        status=OrderStatus.OPEN,
+    )
+    case = repository.create_case(
+        client_order_id=client_order_id,
+        product_id="BTC-USDC",
+        portfolio_id_sha256=hashlib.sha256(portfolio_id.encode()).hexdigest(),
+        actor_id="operator",
+        operator_reason="exercise successor cycle budget",
+        correlation_id="correlation-create-budget-1",
+    )
+
+    assert case["goal_id"] == "operator_spot_recovery_execution_ui_v1"
+    for cycle in range(1, 11):
+        claimed = repository.begin_refresh(
+            case_id=case["case_id"],
+            expected_revision=case["revision"],
+            actor_id="operator",
+            correlation_id=f"correlation-refresh-budget-{cycle}",
+        )
+        case = repository.fail_refresh(
+            case_id=case["case_id"],
+            expected_revision=claimed["revision"],
+            diagnostic_code="order_read_unavailable",
+            actor_id="operator",
+            correlation_id=f"correlation-refresh-budget-{cycle}",
+        )
+        assert case["goal_refresh_cycles_used"] == cycle
+
+    second_client_order_id, second_portfolio_id = _insert_order(
+        repository,
+        status=OrderStatus.OPEN,
+    )
+    second_case = repository.create_case(
+        client_order_id=second_client_order_id,
+        product_id="BTC-USDC",
+        portfolio_id_sha256=hashlib.sha256(
+            second_portfolio_id.encode()
+        ).hexdigest(),
+        actor_id="operator",
+        operator_reason="must not multiply successor budget",
+        correlation_id="correlation-create-budget-2",
+    )
+    with pytest.raises(
+        ValueError,
+        match="recovery_goal_refresh_cycles_exhausted",
+    ):
+        repository.begin_refresh(
+            case_id=second_case["case_id"],
+            expected_revision=second_case["revision"],
+            actor_id="operator",
+            correlation_id="correlation-refresh-budget-11",
+        )
+
+
+def test_successor_goal_cancel_allowance_cannot_transfer_between_cases(
+    repository: OperatorSpotRecoveryRepository,
+) -> None:
+    ready_cases: list[dict[str, object]] = []
+    for ordinal in (1, 2):
+        client_order_id, portfolio_id = _insert_order(
+            repository,
+            status=OrderStatus.CANCELLED,
+        )
+        case = repository.create_case(
+            client_order_id=client_order_id,
+            product_id="BTC-USDC",
+            portfolio_id_sha256=hashlib.sha256(
+                portfolio_id.encode()
+            ).hexdigest(),
+            actor_id="operator",
+            operator_reason=f"prepare exact active orphan {ordinal}",
+            correlation_id=f"correlation-create-cancel-{ordinal}",
+        )
+        refresh = repository.begin_refresh(
+            case_id=case["case_id"],
+            expected_revision=case["revision"],
+            actor_id="operator",
+            correlation_id=f"correlation-refresh-cancel-{ordinal}",
+        )
+        ready_cases.append(
+            repository.complete_refresh(
+                case_id=case["case_id"],
+                expected_revision=refresh["revision"],
+                plan=_plan(
+                    client_order_id=client_order_id,
+                    portfolio_id=portfolio_id,
+                    local_status=OrderStatus.CANCELLED,
+                    exchange_status=OrderStatus.OPEN,
+                    fill_count=0,
+                ),
+                order_read_page_count=1,
+                fill_read_page_count=1,
+                diagnostic_code="recovery_cancel_active_orphan_ready",
+                actor_id="operator",
+                correlation_id=f"correlation-refresh-cancel-{ordinal}",
+            )
+        )
+
+    first = ready_cases[0]
+    claimed = repository.begin_cancel(
+        case_id=first["case_id"],
+        expected_revision=first["revision"],
+        plan_sha256=first["plan_sha256"],
+        actor_id="operator",
+        operator_reason="consume successor exact cancel",
+        correlation_id="correlation-cancel-global-1",
+    )
+    terminal = repository.record_cancel_result(
+        case_id=claimed["case_id"],
+        expected_revision=claimed["revision"],
+        actor_id="operator",
+        correlation_id="correlation-cancel-global-1",
+        outcome="ACCEPTED",
+        diagnostic_code="recovery_cancel_confirmed",
+    )
+    assert terminal["goal_cancel_outcome"] == "ACCEPTED"
+
+    second = ready_cases[1]
+    untouched = repository.get_case(str(second["case_id"]))
+    assert untouched is not None
+    assert untouched["goal_cancel_outcome"] == "ACCEPTED"
+    assert untouched["cancel_call_count"] == 0
+    assert untouched["cancel_allowance_consumed"] is False
+    with pytest.raises(
+        ValueError,
+        match="recovery_goal_cancel_allowance_consumed",
+    ):
+        repository.begin_cancel(
+            case_id=second["case_id"],
+            expected_revision=second["revision"],
+            plan_sha256=second["plan_sha256"],
+            actor_id="operator",
+            operator_reason="must not borrow exact cancel",
+            correlation_id="correlation-cancel-global-2",
+        )
+
+
+def test_schema_migration_preserves_predecessor_case_without_successor_readback(
+    repository: OperatorSpotRecoveryRepository,
+) -> None:
+    client_order_id, portfolio_id = _insert_order(
+        repository,
+        status=OrderStatus.OPEN,
+    )
+    case = repository.create_case(
+        client_order_id=client_order_id,
+        product_id="BTC-USDC",
+        portfolio_id_sha256=hashlib.sha256(portfolio_id.encode()).hexdigest(),
+        actor_id="operator",
+        operator_reason="preserve predecessor recovery evidence",
+        correlation_id="correlation-create-predecessor",
+    )
+
+    with repository.database.get_cursor() as cursor:
+        cursor.execute(
+            f"""
+            ALTER TABLE {repository.prefix}operator_spot_recovery_case
+            ALTER COLUMN goal_id DROP NOT NULL
+            """
+        )
+        cursor.execute(
+            f"""
+            UPDATE {repository.prefix}operator_spot_recovery_case
+            SET goal_id = NULL
+            WHERE case_id = %s::uuid
+            """,
+            (case["case_id"],),
+        )
+
+    repository.ensure_schema()
+
+    migrated = repository.database.execute_query(
+        f"""
+        SELECT goal_id
+        FROM {repository.prefix}operator_spot_recovery_case
+        WHERE case_id = %s::uuid
+        """,
+        (case["case_id"],),
+    )[0]
+    assert migrated["goal_id"] == OPERATOR_SPOT_RECOVERY_PREDECESSOR_GOAL_ID
+    assert repository.get_case(case["case_id"]) is None
+    assert repository.list_events(case["case_id"]) == []
+
+    predecessor_repository = OperatorSpotRecoveryRepository(
+        repository.database,
+        schema=repository.schema,
+        order_schema=repository.order_schema,
+        goal_id=OPERATOR_SPOT_RECOVERY_PREDECESSOR_GOAL_ID,
+    )
+    predecessor = predecessor_repository.get_case(case["case_id"])
+    assert predecessor is not None
+    assert predecessor["goal_id"] == OPERATOR_SPOT_RECOVERY_PREDECESSOR_GOAL_ID
+    assert predecessor["goal_refresh_cycles_used"] == 10
+    assert predecessor["goal_cancel_outcome"] == "UNKNOWN"
+    assert len(predecessor_repository.list_events(case["case_id"])) == 1
+    with pytest.raises(
+        ValueError,
+        match="recovery_goal_refresh_cycles_exhausted",
+    ):
+        predecessor_repository.begin_refresh(
+            case_id=case["case_id"],
+            expected_revision=case["revision"],
+            actor_id="operator",
+            correlation_id="correlation-predecessor-must-stay-sealed",
+        )
+
+
+def test_repository_rejects_unapproved_goal_ledger(
+    repository: OperatorSpotRecoveryRepository,
+) -> None:
+    with pytest.raises(
+        ValueError,
+        match="operator_spot_recovery_goal_invalid",
+    ):
+        OperatorSpotRecoveryRepository(
+            repository.database,
+            schema=repository.schema,
+            order_schema=repository.order_schema,
+            goal_id="operator_spot_recovery_unapproved_future_goal",
+        )
 
 
 def test_repository_persists_only_hashed_portfolio_scope_and_sanitized_plan(

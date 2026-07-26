@@ -1,5 +1,14 @@
 # Admin Module Capability Matrix
 
+Current independent Goal 6
+`operator_spot_recovery_execution_ui_v1` provides the normal authenticated
+Spot recovery workflow. PostgreSQL owns the distinct successor goal id,
+goal-global ten no-retry order/fill refresh cycles, one exact Cancel
+allowance, case revisions, immutable plans, apply/rollback snapshots, restart
+recovery, and audit. Existing predecessor cases remain preserved but cannot
+appear in successor list/detail/event readback or lend authority. The
+canonical exact-order Cancel path remains the only exchange mutation path.
+
 Active independent sequential goal
 `operator_stealth_reveal_and_exact_closeout_v1` adds one explicit
 operator-controlled runtime transition for an eligible Goal 5 definition.

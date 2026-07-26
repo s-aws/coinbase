@@ -208,6 +208,27 @@ def _execute(
 ) -> JSONResponse:
     require_permission(actor, permission)
     endpoint = f"{request.method} {request.url.path}"
+    if operator_intent != service_method:
+        response = OperatorSpotRecoveryCaseResponse(
+            status=AdminApiCommandStatus.REJECTED,
+            required_permission=permission,
+            service_method=service_method,
+            message="recovery_operator_intent_invalid",
+            correlation_id=correlation_id,
+            idempotency_key=idempotency_key,
+        )
+        response.audit_id = _record_audit(
+            store=audit_store,
+            actor=actor,
+            endpoint=endpoint,
+            correlation_id=correlation_id,
+            operator_intent=operator_intent,
+            idempotency_key=idempotency_key,
+            permission=permission,
+            action_class=action_class,
+            response=response,
+        )
+        return _json_response(response)
     payload_hash = make_payload_hash(
         {
             "endpoint": endpoint,

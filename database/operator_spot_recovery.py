@@ -7,11 +7,14 @@ import json
 import re
 import uuid
 from functools import lru_cache
-from typing import Any
+from typing import Any, Literal
 
 from psycopg2.extras import Json
 
 from application.admin_api.operator_spot_recovery import (
+    OPERATOR_SPOT_RECOVERY_GOAL_ID,
+    OPERATOR_SPOT_RECOVERY_PREDECESSOR_GOAL_ID,
+    OPERATOR_SPOT_RECOVERY_REFRESH_LIMIT,
     OperatorSpotRecoveryError,
     SpotRecoveryPlan,
 )
@@ -24,6 +27,12 @@ from database.database import PostgresDB
 
 
 _SCHEMA_PATTERN = re.compile(r"^[a-z_][a-z0-9_]{0,62}$")
+_ALLOWED_GOAL_IDS = frozenset(
+    {
+        OPERATOR_SPOT_RECOVERY_GOAL_ID,
+        OPERATOR_SPOT_RECOVERY_PREDECESSOR_GOAL_ID,
+    }
+)
 _TERMINAL_STATUS_VALUES = frozenset(
     {
         OrderStatus.FILLED.value,
@@ -50,6 +59,23 @@ _ACTIVE_CASE_STATES = frozenset(
         SpotRecoveryCaseState.BLOCKED.value,
     }
 )
+SpotRecoveryCancelResult = Literal[
+    "PREBOUNDARY",
+    "ACCEPTED",
+    "REJECTED",
+    "UNKNOWN",
+]
+_CANCEL_RESULT_DIAGNOSTICS = {
+    "PREBOUNDARY": frozenset(
+        {
+            "recovery_cancel_preboundary_blocked",
+            "recovery_cancel_binding_invalid",
+        }
+    ),
+    "ACCEPTED": frozenset({"recovery_cancel_confirmed"}),
+    "REJECTED": frozenset({"recovery_cancel_explicitly_rejected"}),
+    "UNKNOWN": frozenset({"recovery_cancel_outcome_unknown"}),
+}
 
 
 class OperatorSpotRecoveryRepository:
@@ -61,6 +87,7 @@ class OperatorSpotRecoveryRepository:
         *,
         schema: str = "public",
         order_schema: str = "public",
+        goal_id: str = OPERATOR_SPOT_RECOVERY_GOAL_ID,
     ) -> None:
         if (
             _SCHEMA_PATTERN.fullmatch(schema) is None
@@ -69,9 +96,14 @@ class OperatorSpotRecoveryRepository:
             raise OperatorSpotRecoveryError(
                 "operator_spot_recovery_schema_invalid"
             )
+        if goal_id not in _ALLOWED_GOAL_IDS:
+            raise OperatorSpotRecoveryError(
+                "operator_spot_recovery_goal_invalid"
+            )
         self.database = database
         self.schema = schema
         self.order_schema = order_schema
+        self.goal_id = goal_id
         self.prefix = f'"{schema}".'
         self.order_prefix = f'"{order_schema}".'
 
@@ -124,6 +156,34 @@ class OperatorSpotRecoveryRepository:
             )
             cursor.execute(
                 f"""
+                ALTER TABLE {self.prefix}operator_spot_recovery_case
+                ADD COLUMN IF NOT EXISTS goal_id VARCHAR(128)
+                """
+            )
+            cursor.execute(
+                f"""
+                UPDATE {self.prefix}operator_spot_recovery_case
+                SET goal_id = %s
+                WHERE goal_id IS NULL
+                """,
+                (OPERATOR_SPOT_RECOVERY_PREDECESSOR_GOAL_ID,),
+            )
+            cursor.execute(
+                f"""
+                ALTER TABLE {self.prefix}operator_spot_recovery_case
+                ALTER COLUMN goal_id SET NOT NULL
+                """
+            )
+            cursor.execute(
+                f"""
+                CREATE INDEX IF NOT EXISTS
+                    operator_spot_recovery_case_goal_updated_idx
+                ON {self.prefix}operator_spot_recovery_case
+                    (goal_id, updated_at DESC)
+                """
+            )
+            cursor.execute(
+                f"""
                 CREATE INDEX IF NOT EXISTS
                     operator_spot_recovery_case_client_updated_idx
                 ON {self.prefix}operator_spot_recovery_case
@@ -167,6 +227,65 @@ class OperatorSpotRecoveryRepository:
                 ON {self.prefix}operator_spot_recovery_event
                     (case_id, recorded_at DESC)
                 """
+            )
+            cursor.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS
+                    {self.prefix}operator_spot_recovery_goal (
+                    goal_id VARCHAR(128) PRIMARY KEY,
+                    refresh_cycles_used INTEGER NOT NULL DEFAULT 0
+                        CHECK (
+                            refresh_cycles_used BETWEEN 0
+                            AND {OPERATOR_SPOT_RECOVERY_REFRESH_LIMIT}
+                        ),
+                    cancel_outcome VARCHAR(16) NOT NULL DEFAULT 'NOT_RUN'
+                        CHECK (
+                            cancel_outcome IN (
+                                'NOT_RUN', 'CLAIMED', 'ACCEPTED',
+                                'REJECTED', 'UNKNOWN'
+                            )
+                        ),
+                    cancel_case_id UUID,
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            cursor.execute(
+                f"""
+                INSERT INTO {self.prefix}operator_spot_recovery_goal (
+                    goal_id,
+                    refresh_cycles_used,
+                    cancel_outcome
+                )
+                VALUES (%s, %s, 'UNKNOWN')
+                ON CONFLICT (goal_id) DO UPDATE
+                SET
+                    refresh_cycles_used = %s,
+                    cancel_outcome = CASE
+                        WHEN
+                            {self.prefix}operator_spot_recovery_goal.cancel_outcome
+                            IN ('ACCEPTED', 'REJECTED', 'UNKNOWN')
+                        THEN
+                            {self.prefix}operator_spot_recovery_goal.cancel_outcome
+                        ELSE 'UNKNOWN'
+                    END,
+                    updated_at = NOW()
+                """,
+                (
+                    OPERATOR_SPOT_RECOVERY_PREDECESSOR_GOAL_ID,
+                    OPERATOR_SPOT_RECOVERY_REFRESH_LIMIT,
+                    OPERATOR_SPOT_RECOVERY_REFRESH_LIMIT,
+                ),
+            )
+            cursor.execute(
+                f"""
+                INSERT INTO {self.prefix}operator_spot_recovery_goal (
+                    goal_id
+                )
+                VALUES (%s)
+                ON CONFLICT (goal_id) DO NOTHING
+                """,
+                (self.goal_id,),
             )
             self._recover_interrupted_claims(cursor)
 
@@ -224,6 +343,26 @@ class OperatorSpotRecoveryRepository:
         )
         cancel_rows = _cursor_rows(cursor)
         for row in cancel_rows:
+            cursor.execute(
+                f"""
+                UPDATE {self.prefix}operator_spot_recovery_goal
+                SET
+                    cancel_outcome = 'UNKNOWN',
+                    cancel_case_id = %s::uuid,
+                    updated_at = NOW()
+                WHERE goal_id = %s
+                  AND cancel_outcome IN ('NOT_RUN', 'CLAIMED')
+                  AND (
+                    cancel_case_id IS NULL
+                    OR cancel_case_id = %s::uuid
+                  )
+                """,
+                (
+                    str(row["case_id"]),
+                    str(row["goal_id"]),
+                    str(row["case_id"]),
+                ),
+            )
             self._append_event(
                 cursor,
                 case_id=str(row["case_id"]),
@@ -292,6 +431,7 @@ class OperatorSpotRecoveryRepository:
                 f"""
                 INSERT INTO {self.prefix}operator_spot_recovery_case (
                     case_id,
+                    goal_id,
                     client_order_id,
                     product_id,
                     portfolio_id_sha256,
@@ -302,13 +442,14 @@ class OperatorSpotRecoveryRepository:
                     correlation_id
                 )
                 VALUES (
-                    %s::uuid, %s, %s, %s, %s, 1,
+                    %s::uuid, %s, %s, %s, %s, %s, 1,
                     'recovery_case_created', %s, %s
                 )
                 RETURNING *
                 """,
                 (
                     case_id,
+                    self.goal_id,
                     client_order_id,
                     product_id,
                     portfolio_id_sha256,
@@ -327,7 +468,7 @@ class OperatorSpotRecoveryRepository:
                 operator_reason=operator_reason,
                 evidence={"revision": 1},
             )
-        return _normalize_case(row)
+        return self._record(row)
 
     def get_case(self, case_id: str) -> dict[str, Any] | None:
         rows = self.database.execute_query(
@@ -335,10 +476,11 @@ class OperatorSpotRecoveryRepository:
             SELECT *
             FROM {self.prefix}operator_spot_recovery_case
             WHERE case_id = %s::uuid
+              AND goal_id = %s
             """,
-            (case_id,),
+            (case_id, self.goal_id),
         )
-        return _normalize_case(rows[0]) if rows else None
+        return self._record(rows[0]) if rows else None
 
     def list_cases(
         self,
@@ -352,18 +494,21 @@ class OperatorSpotRecoveryRepository:
             f"""
             SELECT *
             FROM {self.prefix}operator_spot_recovery_case
+            WHERE goal_id = %s
             ORDER BY updated_at DESC, case_id DESC
             LIMIT %s OFFSET %s
             """,
-            (normalized_limit, normalized_offset),
+            (self.goal_id, normalized_limit, normalized_offset),
         )
         count = self.database.execute_query(
             f"""
             SELECT COUNT(*) AS total_count
             FROM {self.prefix}operator_spot_recovery_case
-            """
+            WHERE goal_id = %s
+            """,
+            (self.goal_id,),
         )[0]["total_count"]
-        return [_normalize_case(row) for row in rows], int(count)
+        return [self._record(row) for row in rows], int(count)
 
     def list_events(
         self,
@@ -374,19 +519,26 @@ class OperatorSpotRecoveryRepository:
         rows = self.database.execute_query(
             f"""
             SELECT
-                event_id::text AS event_id,
-                case_id::text AS case_id,
-                event_type,
-                actor_id,
-                correlation_id,
-                evidence,
-                recorded_at
-            FROM {self.prefix}operator_spot_recovery_event
-            WHERE case_id = %s::uuid
-            ORDER BY recorded_at DESC, event_id DESC
+                event.event_id::text AS event_id,
+                event.case_id::text AS case_id,
+                event.event_type,
+                event.actor_id,
+                event.correlation_id,
+                event.evidence,
+                event.recorded_at
+            FROM {self.prefix}operator_spot_recovery_event AS event
+            INNER JOIN {self.prefix}operator_spot_recovery_case AS recovery_case
+                ON recovery_case.case_id = event.case_id
+            WHERE event.case_id = %s::uuid
+              AND recovery_case.goal_id = %s
+            ORDER BY event.recorded_at DESC, event.event_id DESC
             LIMIT %s
             """,
-            (case_id, max(1, min(int(limit), 500))),
+            (
+                case_id,
+                self.goal_id,
+                max(1, min(int(limit), 500)),
+            ),
         )
         return [_normalize_json_values(row) for row in rows]
 
@@ -399,16 +551,37 @@ class OperatorSpotRecoveryRepository:
         correlation_id: str,
     ) -> dict[str, Any]:
         with self.database.get_cursor() as cursor:
+            goal = self._locked_goal(cursor)
             row = self._locked_case(cursor, case_id)
             self._require_revision(row, expected_revision)
             if row["state"] not in _REFRESHABLE_STATES:
                 raise OperatorSpotRecoveryError(
                     "recovery_case_not_refreshable"
                 )
-            if int(row["refresh_count"]) >= 10:
+            if (
+                int(row["refresh_count"])
+                >= OPERATOR_SPOT_RECOVERY_REFRESH_LIMIT
+            ):
                 raise OperatorSpotRecoveryError(
                     "recovery_refresh_cycles_exhausted"
                 )
+            if (
+                int(goal["refresh_cycles_used"])
+                >= OPERATOR_SPOT_RECOVERY_REFRESH_LIMIT
+            ):
+                raise OperatorSpotRecoveryError(
+                    "recovery_goal_refresh_cycles_exhausted"
+                )
+            cursor.execute(
+                f"""
+                UPDATE {self.prefix}operator_spot_recovery_goal
+                SET
+                    refresh_cycles_used = refresh_cycles_used + 1,
+                    updated_at = NOW()
+                WHERE goal_id = %s
+                """,
+                (self.goal_id,),
+            )
             cursor.execute(
                 f"""
                 UPDATE {self.prefix}operator_spot_recovery_case
@@ -448,7 +621,7 @@ class OperatorSpotRecoveryRepository:
                     ],
                 },
             )
-        return _normalize_case(updated)
+        return self._record(updated)
 
     def record_fill_read_claim(
         self,
@@ -490,7 +663,7 @@ class OperatorSpotRecoveryRepository:
                     ]
                 },
             )
-        return _normalize_case(updated)
+        return self._record(updated)
 
     def complete_refresh(
         self,
@@ -573,7 +746,7 @@ class OperatorSpotRecoveryRepository:
                     ),
                 },
             )
-        return _normalize_case(updated)
+        return self._record(updated)
 
     def fail_refresh(
         self,
@@ -624,7 +797,7 @@ class OperatorSpotRecoveryRepository:
                     "diagnostic_code": diagnostic_code,
                 },
             )
-        return _normalize_case(updated)
+        return self._record(updated)
 
     def apply_plan(
         self,
@@ -708,7 +881,7 @@ class OperatorSpotRecoveryRepository:
                     "exchange_state_mutated": False,
                 },
             )
-        return _normalize_case(updated)
+        return self._record(updated)
 
     def rollback_plan(
         self,
@@ -785,7 +958,7 @@ class OperatorSpotRecoveryRepository:
                     "exchange_state_mutated": False,
                 },
             )
-        return _normalize_case(updated)
+        return self._record(updated)
 
     def begin_cancel(
         self,
@@ -800,6 +973,11 @@ class OperatorSpotRecoveryRepository:
         """Durably claim the sole recovery Cancel allowance before invocation."""
 
         with self.database.get_cursor() as cursor:
+            goal = self._locked_goal(cursor)
+            if str(goal["cancel_outcome"]) != "NOT_RUN":
+                raise OperatorSpotRecoveryError(
+                    "recovery_goal_cancel_allowance_consumed"
+                )
             case = self._locked_case(cursor, case_id)
             self._require_revision(case, expected_revision)
             plan = _plan_from_case(case)
@@ -809,6 +987,17 @@ class OperatorSpotRecoveryRepository:
                 plan=plan,
                 plan_sha256=plan_sha256,
                 local=local,
+            )
+            cursor.execute(
+                f"""
+                UPDATE {self.prefix}operator_spot_recovery_goal
+                SET
+                    cancel_outcome = 'CLAIMED',
+                    cancel_case_id = %s::uuid,
+                    updated_at = NOW()
+                WHERE goal_id = %s
+                """,
+                (case_id, self.goal_id),
             )
             cursor.execute(
                 f"""
@@ -844,7 +1033,7 @@ class OperatorSpotRecoveryRepository:
                     "exchange_mutation_attempted": False,
                 },
             )
-        return _normalize_case(updated)
+        return self._record(updated)
 
     def read_cancel_candidate(
         self,
@@ -856,6 +1045,11 @@ class OperatorSpotRecoveryRepository:
         """Validate the proof pass without reserving the one-use allowance."""
 
         with self.database.get_cursor() as cursor:
+            goal = self._locked_goal(cursor)
+            if str(goal["cancel_outcome"]) != "NOT_RUN":
+                raise OperatorSpotRecoveryError(
+                    "recovery_goal_cancel_allowance_consumed"
+                )
             case = self._locked_case(cursor, case_id)
             self._require_revision(case, expected_revision)
             plan = _plan_from_case(case)
@@ -866,7 +1060,7 @@ class OperatorSpotRecoveryRepository:
                 plan_sha256=plan_sha256,
                 local=local,
             )
-        return _normalize_case(case)
+        return self._record(case)
 
     def record_cancel_result(
         self,
@@ -875,13 +1069,13 @@ class OperatorSpotRecoveryRepository:
         expected_revision: int,
         actor_id: str,
         correlation_id: str,
-        exchange_call_ran: bool,
-        accepted: bool,
+        outcome: SpotRecoveryCancelResult,
         diagnostic_code: str,
     ) -> dict[str, Any]:
-        """Close or safely release a claimed Cancel using fixed result evidence."""
+        """Close or release a claim using one fixed typed Cancel outcome."""
 
         with self.database.get_cursor() as cursor:
+            goal = self._locked_goal(cursor)
             case = self._locked_case(cursor, case_id)
             self._require_revision(case, expected_revision)
             if (
@@ -892,20 +1086,52 @@ class OperatorSpotRecoveryRepository:
                 raise OperatorSpotRecoveryError(
                     "recovery_cancel_not_in_progress"
                 )
-            if exchange_call_ran:
-                state = (
-                    SpotRecoveryCaseState.CANCELLED
-                    if accepted
-                    else SpotRecoveryCaseState.UNKNOWN
+            if (
+                str(goal["cancel_outcome"]) != "CLAIMED"
+                or str(goal.get("cancel_case_id") or "") != case_id
+            ):
+                raise OperatorSpotRecoveryError(
+                    "recovery_goal_cancel_claim_conflict"
                 )
+            allowed_diagnostics = _CANCEL_RESULT_DIAGNOSTICS.get(outcome)
+            if (
+                allowed_diagnostics is None
+                or diagnostic_code not in allowed_diagnostics
+            ):
+                raise OperatorSpotRecoveryError(
+                    "recovery_cancel_result_invalid"
+                )
+            if outcome != "PREBOUNDARY":
+                state = {
+                    "ACCEPTED": SpotRecoveryCaseState.CANCELLED,
+                    "REJECTED": SpotRecoveryCaseState.BLOCKED,
+                    "UNKNOWN": SpotRecoveryCaseState.UNKNOWN,
+                }[outcome]
                 allowance_consumed = True
                 cancel_call_count = 1
                 event_type = "CANCEL_TERMINAL"
+                goal_outcome = outcome
             else:
                 state = SpotRecoveryCaseState.PLAN_READY
                 allowance_consumed = False
                 cancel_call_count = 0
                 event_type = "CANCEL_RELEASED_PREBOUNDARY"
+                goal_outcome = "NOT_RUN"
+            cursor.execute(
+                f"""
+                UPDATE {self.prefix}operator_spot_recovery_goal
+                SET
+                    cancel_outcome = %s,
+                    cancel_case_id = %s,
+                    updated_at = NOW()
+                WHERE goal_id = %s
+                """,
+                (
+                    goal_outcome,
+                    case_id if outcome != "PREBOUNDARY" else None,
+                    self.goal_id,
+                ),
+            )
             cursor.execute(
                 f"""
                 UPDATE {self.prefix}operator_spot_recovery_case
@@ -941,13 +1167,15 @@ class OperatorSpotRecoveryRepository:
                     "state": state.value,
                     "diagnostic_code": diagnostic_code,
                     "cancel_call_count": cancel_call_count,
-                    "exchange_mutation_attempted": exchange_call_ran,
+                    "exchange_mutation_attempted": (
+                        outcome != "PREBOUNDARY"
+                    ),
                     "exchange_mutation_accepted": (
-                        accepted if exchange_call_ran else False
+                        outcome == "ACCEPTED"
                     ),
                 },
             )
-        return _normalize_case(updated)
+        return self._record(updated)
 
     def _locked_case(self, cursor: Any, case_id: str) -> dict[str, Any]:
         cursor.execute(
@@ -955,14 +1183,57 @@ class OperatorSpotRecoveryRepository:
             SELECT *
             FROM {self.prefix}operator_spot_recovery_case
             WHERE case_id = %s::uuid
+              AND goal_id = %s
             FOR UPDATE
             """,
-            (case_id,),
+            (case_id, self.goal_id),
         )
         row = _cursor_row(cursor)
         if row is None:
             raise OperatorSpotRecoveryError("recovery_case_not_found")
         return row
+
+    def _locked_goal(self, cursor: Any) -> dict[str, Any]:
+        cursor.execute(
+            f"""
+            SELECT *
+            FROM {self.prefix}operator_spot_recovery_goal
+            WHERE goal_id = %s
+            FOR UPDATE
+            """,
+            (self.goal_id,),
+        )
+        row = _cursor_row(cursor)
+        if row is None:
+            raise OperatorSpotRecoveryError(
+                "recovery_goal_ledger_not_found"
+            )
+        return row
+
+    def _record(self, row: dict[str, Any]) -> dict[str, Any]:
+        record = _normalize_case(row)
+        if str(record.get("goal_id") or "") != self.goal_id:
+            raise OperatorSpotRecoveryError(
+                "recovery_goal_binding_mismatch"
+            )
+        goal_rows = self.database.execute_query(
+            f"""
+            SELECT refresh_cycles_used, cancel_outcome
+            FROM {self.prefix}operator_spot_recovery_goal
+            WHERE goal_id = %s
+            """,
+            (self.goal_id,),
+        )
+        if len(goal_rows) != 1:
+            raise OperatorSpotRecoveryError(
+                "recovery_goal_ledger_not_found"
+            )
+        goal = goal_rows[0]
+        record["goal_refresh_cycles_used"] = int(
+            goal["refresh_cycles_used"]
+        )
+        record["goal_cancel_outcome"] = str(goal["cancel_outcome"])
+        return record
 
     def _locked_local_order(self, cursor: Any, client_order_id: str) -> dict[str, Any]:
         cursor.execute(

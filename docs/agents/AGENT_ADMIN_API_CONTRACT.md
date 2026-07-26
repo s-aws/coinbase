@@ -1,5 +1,14 @@
 # Admin API Contract Agent
 
+Current sequential Goal 6:
+`operator_spot_recovery_execution_ui_v1`. The generated Spot recovery
+case contract includes the exact successor goal id, one goal-global
+ten-cycle refresh ledger, one goal-global Cancel outcome, case-local counters,
+fixed diagnostics, and sanitized events. List, detail, mutation, and event
+readback are goal-scoped. Existing predecessor cases remain preserved but are
+not successor API authority. The browser may render and forward explicit
+intent only.
+
 Current MVP:
 `operator_spot_automation_transport_explainability_and_successor_proof_v13_v15`.
 This terminal V13-V15 contract exposes only fixed value-blind Preview failure

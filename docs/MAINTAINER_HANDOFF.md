@@ -1,5 +1,41 @@
 # Maintainer Handoff
 
+## Completed Goal 6 — Operator Spot recovery execution UI
+
+Goal `operator_spot_recovery_execution_ui_v1` is a distinct successor to
+`operator_spot_recovery_and_reconciliation_execution_v1`. The normal
+authenticated `/spot/recovery` workflow supports create, exact order/fill
+refresh, immutable-plan review, explicit-reason PostgreSQL apply, safe
+rollback, and conditional canonical exact-order Cancel.
+
+The migration assigns existing rows to the predecessor goal and adds an
+independent `operator_spot_recovery_goal` ledger. Goal 6 owns one goal-global
+ten-cycle no-retry refresh budget and one exact Cancel outcome. List, detail,
+mutation, and event reads are goal-scoped; predecessor cases cannot borrow or
+multiply successor allowances. The predecessor ledger is sealed exhausted
+with terminal unknown Cancel authority so even explicit maintenance
+instantiation cannot reopen it. Restart converts an interrupted successor
+Cancel to terminal `UNKNOWN`.
+
+The frontend requires exact generated Goal 6 fields, rejects predecessor or
+contradictory allowance readback, requires explicit operator reasons for
+local mutations, and freezes commands after an ambiguous BFF result. It never
+derives recovery or exchange authority.
+
+Historical comparison used `origin/prod:business/fill_reconciler.py`,
+`origin/prod:core/periodic_reconciler.py`, and
+`origin/prod:core/startup_reconciler.py`; no automatic reconciliation,
+implicit retry, WebSocket authority, or browser Coinbase path was copied. See
+[Operator Spot Recovery Execution UI V1](OPERATOR_SPOT_RECOVERY_EXECUTION_UI_V1.md).
+
+Focused backend/frontend and managed synthetic BFF gates pass with zero
+Coinbase calls. Full backend regression passed 1,286 parallel-safe tests with
+6 skips and 908 serial tests with 150 skips. The canonical frontend gate
+passed 125 files and 1,783 tests plus the complete installed/authenticated E2E
+matrix. Independent safety and blind-contextless re-audits pass after typed
+Cancel outcome, exact operator-intent, and exact request/readback binding
+remediation. All Goal 6 refresh and Cancel allowances are unconsumed.
+
 ## Completed operator Futures fill-triggered follow-up activation
 
 Goal `operator_futures_fill_triggered_follow_up_activation_v1` owns a separate
